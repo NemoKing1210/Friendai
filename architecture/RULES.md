@@ -39,8 +39,9 @@ manifest is retained as an empty header-only file; no transitional class-edge ex
 Language-key scans cover `engine/src/main/java`, `src/main/java` and `src/client/java`; translation catalogs are
 collected from the engine and root production resource roots. The typed-placement-failure scan covers all engine and
 root main Java sources. Resource lookup checks every production resource in the engine and root main resource roots.
-Fabric and GameTest metadata entries must be unique and resolve to their current source classes. All GameTest classes
-that declare `@GameTest` or `@GameTestGenerator` remain registered; the current metadata contains 89 entrypoints.
+Fabric and GameTest metadata entries must be unique and resolve to their current source classes. The architecture
+test checks that every GameTest class declaring `@GameTest` or `@GameTestGenerator` is registered; do not maintain a
+manual entrypoint count here.
 
 CI's unit-test job runs the root test task, which includes `ArchitectureRulesTest`; the same task also retains the
 existing language-key and typed-failure scans.

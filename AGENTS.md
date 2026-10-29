@@ -47,7 +47,8 @@ JAVA_HOME="/path/to/jdk-25" ./gradlew build
 | `./gradlew build` | Compile, run unit tests **and** the Fabric GameTests (`runGameTest` is part of `check`), then package. The full gate: CI runs it at merge to `main`; agents do not run it while working (see "Test scope"). |
 | `./gradlew test` | Root and engine unit tests (JUnit 5, no Minecraft); root `test` aggregates `:engine:test`. |
 | `./gradlew :engine:test --tests 'dev.friendai.<package>.*'` | Tests only the selected pure engine package. |
-| `./gradlew test --tests '*SomeTest'` | One unit test class. |
+| `./gradlew test --tests '*SomeTest'` | One unit test class; root `test` also aggregates `:engine:test`. |
+| `./gradlew compileGametestJava` | Compiles GameTest sources without booting Minecraft. |
 | `./gradlew runGameTest` | In-game tests only. Boots a Minecraft server and runs the whole suite (several minutes). |
 | `./gradlew runGameTest -Dfabric-api.gametest.filter='friendai-gametest:<class>_tests_*'` | One GameTest class (or one test by its full id) in under a minute. The filter is a single glob with `*` wildcards; it cannot exclude tests or list several patterns. |
 | `./gradlew check` | Unit tests + GameTests + `spotlessCheck`, without packaging. |
@@ -108,7 +109,7 @@ Both files are part of the contract: add or move a package that either one names
 9. **Prefer vanilla behavior.** Placement, right-clicking and protection checks go through the fake player (`CompanionHands`); do not reimplement vanilla block/item logic. Use `Items`/`Blocks`/registry lookups, never hard-coded item ids.
 10. **Optional integrations stay optional.** YACL and Mod Menu are `compileOnly`; only `client/config` may touch them, and only when the mod is present.
 11. **The client reads synced data only.** A screen, HUD or renderer may use what the server publishes through `SynchedEntityData` (`syncedFood()`, `syncedXpLevel()`, `creativeMode()` …) and never server-only state. A new client-side fact is a new `EntityDataAccessor` in `defineSynchedData`, not a field read through the entity.
-12. **Per-tick code stays cheap.** `Task.tick`, `TaskRunner` and the combat controller run every server tick: no allocations, registry lookups or pathfinding in the common path, bounded work per tick (as `PathSearch` does with its time budget), timeouts in ticks rather than wall-clock, and state that stays resumable so `hold()` can stop the task anywhere.
+12. **Per-tick code stays cheap.** `Task.tick`, `ExecutionCoordinator` and the combat controller run every server tick: no allocations, registry lookups or pathfinding in the common path, bounded work per tick (as `PathSearch` does with its time budget), timeouts in ticks rather than wall-clock, and state that stays resumable so `hold()` can stop the task anywhere.
 
 ## Mixins
 
@@ -150,7 +151,7 @@ A full run is about 9 minutes of GameTests plus the unit suite, so an agent does
 - **Do not** run `./gradlew build`, `check` or a bare `runGameTest` to "be safe" before a commit or a task report.
 - **At merge to `main`** the full gate runs: CI (`.github/workflows/ci.yml`) runs all unit tests and all GameTests on every pull request, merge-queue entry and push to `main`, and `CI gate` is the required check. A local full run is the maintainer's call (before tagging a release), not an agent's default.
 - In the task report, state which group you ran and its real result, and say plainly that the full suite was left to CI. A failure in an unrelated test on the full run is CI's finding to triage, not a reason to widen your own scope.
-- **A world change is exercised once before the commit.** Unit tests prove logic, not that a task runs: a change to a `Task`, `TaskRunner`, the entity, a builder or a menu is run once — a filtered GameTest class, or a real `runClient`/`runServer` session — and the report says what was run. Compiling is not running.
+- **A world change is exercised once before the commit.** Unit tests prove logic, not that a task runs: a change to a `Task`, `ExecutionCoordinator`, the entity, a builder or a menu is run once — a filtered GameTest class, or a real `runClient`/`runServer` session — and the report says what was run. Compiling is not running.
 
 ### Batch the loop: write everything, run once
 
@@ -167,11 +168,11 @@ An agent slows itself down by running Gradle after every edit: a unit run costs 
 - **TDD, batched.** Write the test before the implementation and keep it honest (see "Batch the loop" above), but do not run it alone after each edit. Reusable pure fakes live in `engine/src/testFixtures/java/dev/friendai/testutil`; root-only helpers stay in `src/test/java/dev/friendai/testutil`. No mocking frameworks.
 - **What a test must prove.** Behavior, boundaries, state transitions, precedence, error paths — nothing else. Do not pin translation wording, do not assert that a helper was called, do not let a fake echo its own input back, and do not re-pin incidental defaults. A test that only proves the code still says what it says is deleted with the change it guards.
 - **Unit fakes you can reuse:** `MockHttpServer` (scripted loopback HTTP, records method/path/headers/body), `FakeGateway` (scripted LLM responses/calls/failures), `FakeToolExecutor` (records specs/executions/access), `ManualScheduler` (virtual clock), `GridCellView` (ASCII grid `CellView` in engine test fixtures, shared with pathing tests), `RecordingSpeaker` (captures speech/errors/thinking).
-- **GameTests share one world and run in parallel.** So: never rely on global state; give each test its own block type (`MineBlocksTests` uses a different log per test) and filter item/entity counts by type; build a floor with `GameTestSupport.platform(h, size)`; use `GameTestSupport.mockPlayerAt(...)` because mock players log in at the world origin, in an unloaded area. Drive a `TaskRunner` yourself inside `h.succeedWhen(() -> { runner.tick(); ... })` for deterministic ticking, and set `@GameTest(maxTicks = ...)` for slow tests.
+- **GameTests share one world and run in parallel.** So: never rely on global state; give each test its own block type (`MineBlocksTests` uses a different log per test) and filter item/entity counts by type; build a floor with `GameTestSupport.platform(h, size)`; use `GameTestSupport.mockPlayerAt(...)` because mock players log in at the world origin, in an unloaded area. Drive an `ExecutionCoordinator` yourself inside `h.succeedWhen(() -> { coordinator.tick(); ... })` for deterministic ticking, and set `@GameTest(maxTicks = ...)` for slow tests.
 - **Entities tick only in the chunk(s) the test structure covers.** A mob that walks or is knocked out of them freezes mid-step: it keeps its velocity, stops falling and stops taking damage, so a fight against it never lands another hit and a companion that walks out stops arriving. Arenas are wider than the 8x8 structure, so build them with `GameTestSupport.platform`/`platformAt`, which force-load every chunk they cover; add `GameTestSupport.enclose(h, y, size, height)` when a hurt or fleeing mob could run off the edge.
 - **GameTest runs are expensive; batch them.** Every `runGameTest` boots a Minecraft server, so do not repeat a filtered boot per test. While debugging one test, filter it: `./gradlew runGameTest -Dfabric-api.gametest.filter=friendai-gametest:<test_name>`; `build.gradle` forwards the property to the GameTest server. The value is one glob where `*` matches any text (`friendai-gametest:hunger_tests_*` runs the whole `HungerTests` class, 24 tests in about 50 s including the boot); there is no negation and no pattern list, so "everything except X" is not expressible. A full run takes about 9 minutes, mostly in the batches holding the long `BuildTests`; for a change in one area run that area's class glob first. Run the tests that cover the change when practical; a full `./gradlew runGameTest` is only needed when the change touches the game layer, and it is not a prerequisite for a commit. If a full run shows a failure in an unrelated, timing-sensitive test (the shared world makes a few rotate), re-run only that test filtered for a clean signal instead of repeating the whole suite.
 - **New GameTest class?** Add it to the `fabric-gametest` entrypoint list in `src/gametest/resources/fabric.mod.json`, or it will not run.
-- Per-owner test hooks exist on `BrainService` (`setGatewayOverride`, `setSpeakerWrapper`) so tests can script the LLM without touching the network.
+- Per-owner test hooks exist on `CompanionSessions` (`setGatewayOverride`, `setSpeakerWrapper`) so tests can script the LLM without touching the network.
 - `MANUAL_CHECKLIST.md` lists what automation cannot cover (real providers, voice, LAN, both UI languages). Do not tick an item you did not perform.
 
 ## Minecraft API notes (26.3)
@@ -189,24 +190,24 @@ An agent slows itself down by running Gradle after every edit: a unit run costs 
 
 ### Add a skill
 
-1. Write the `Task` in `task/builtin/` (or a helper package) and register it in `TaskFactory` only if it must survive a reload.
-2. Add a `Tool` definition in the matching group class under `tool/builtin/` (`ToolKit.add` with a `TaskToolDef` for a task-backed skill, `instantTool`/`callerTool` otherwise; validate arguments, keep the description LLM-facing and English).
-3. Add player-facing strings to both language files.
-4. Add a GameTest (and register the class in the gametest `fabric.mod.json`).
-5. Bump `mod_version` (MINOR for a new skill), run `./gradlew build`, then refresh the test jar.
+1. Put a Minecraft task adapter in `src/main/java/dev/friendai/features/<area>/minecraft/task/`; keep reusable policies and models in `engine/src/main/java/dev/friendai/features/<area>/` without Minecraft imports.
+2. Add its tool to the area-owned `*Tools` contributor using `TaskToolDefinition` and `FeatureToolRegistry`. Validate arguments with `SchemaBuilder`, set access and queue traits deliberately, and add it to the catalog metadata. `FriendaiTools.build` composes the contributors; do not add a second central task factory.
+3. If the task should be restorable, mark the definition restorable and ensure its bounded checkpoint can be reconstructed through the current contribution set in `TaskRestoreRegistry`.
+4. Add player-facing strings to both language files and a GameTest in `src/gametest`; register its class in `src/gametest/resources/fabric.mod.json`.
+5. Bump `mod_version` for a shipped behavior change. Run only the covering unit-test group and one filtered GameTest class while working; leave the full suite to CI. `assemble verifyModArtifact` refreshes `test-builds/friendai-<version>.jar` without running GameTests.
 
 ### Add a config option
 
-1. Add the field to `ServerConfig` or `ClientConfig` with a default and validation/clamping in `validate`.
-2. If the schema changes, bump the config version and add a migration in `ConfigStore`.
-3. Expose it in the YACL screen (`client/config`) if it is a server/client setting the player edits.
-4. Add the label/tooltip keys to both language files; add a unit test for validation/migration.
+1. Add the field and default to `engine/.../infrastructure/config/ServerConfig` or `ClientConfig`; enforce valid ranges in that config's validation path.
+2. For a persisted schema change, bump its version. Add a `ConfigStore` migration when older supported files must be upgraded; preserve the existing unsupported-version behavior.
+3. Expose editable settings in `src/client/java/dev/friendai/client/config/` when appropriate; keep YACL and Mod Menu optional.
+4. Add label/tooltip keys to both language files and focused validation/migration tests under `engine/src/test` or `src/test`.
 
 ### Add an LLM provider or protocol
 
-1. A new wire format goes in `llm/protocol/` as a `toWire`/`fromWire` pair; keep the shared multi-message rules in `ProtocolSupport`.
-2. Register the protocol and any preset/routing data in `ProviderRegistry.withBuiltins`.
-3. Add unit tests with `MockHttpServer` and `FakeGateway`; update the README provider table if it is user-visible.
+1. Add pure wire logic under `engine/.../agent/llm/protocol/` and keep shared message rules in `ProtocolSupport`; provider presets and routing live under `engine/.../agent/llm/provider/`.
+2. Register protocols and presets in `ProviderRegistry.withBuiltins`; preserve key redaction and endpoint precedence.
+3. Cover routing and wire behavior with unit tests (`ProviderRegistryTest`, protocol tests, `MockHttpServer`); update the README provider table when user-visible.
 
 ### Add a command
 
@@ -222,15 +223,15 @@ An agent slows itself down by running Gradle after every edit: a unit run costs 
 
 ### Add a client payload
 
-1. Define the payload in `net/`, register it in `FriendaiNetworking`, and handle it on the correct thread (server: hop with `server.execute`).
-2. Guard sending with `ClientPlayNetworking.canSend` so a vanilla server does not crash the client.
-3. Filter anything sensitive on the server (`DebugAccess`/`Operators`), not on the client.
+1. Put wire values, bounds and codecs in the pure `engine/.../protocol/` package; keep Fabric wrappers in `src/main/java/dev/friendai/transport/payload/`.
+2. Register wrappers in `FriendaiNetworking`, gate client-to-server work through the negotiated session in `ServerProtocolConnections`, and hop world access onto the server thread. Client receivers must hop to the client thread and reject stale connection sessions.
+3. Check `ClientPlayNetworking.canSend` before client sends and `ServerPlayNetworking.canSend` before server sends. Enforce access and filter sensitive data on the server.
 
 ### Change persistence
 
-1. Bump the format version and add a migration (entity data is versioned by Mojang; memory/config/blueprints are ours).
-2. Keep writes atomic (temp + move) and preserve the `.bak` recovery path.
-3. Add a round-trip test and, for world data, a GameTest that saves and reloads.
+1. Start from the existing owner repository and `OwnerFileStore`/`StoreCodec` boundaries; persist owner-scoped memory, profile, goals, free time, places, placement, knowledge, trading and instruction-skill records independently.
+2. Bound and version the codec. Add a migration only for formats the product explicitly supports; corrupt, oversized or unsupported files remain protected from accidental overwrite. Keep atomic replace and backup recovery behavior.
+3. Add codec/repository round-trip and failure-path tests; for entity/world state, add a save/reload GameTest. Update the persistence table in `ARCHITECTURE.md` in the same change.
 
 ## Troubleshooting
 
@@ -369,7 +370,7 @@ Bump it as part of any change that alters the shipped mod, by the size of the ch
 - **Instruction skill** — bounded plain-text procedural guidance stored in `skill/`, selected per turn; it advises but never executes or changes tool permissions.
 - **Description** — the companion summary/details plus the owner’s explicit language/address profile in memory format 4.
 - **Tool** — the LLM-facing definition (schema, access level, executor) registered in `FriendaiTools`.
-- **Task** — long-running world work driven tick by tick by `TaskRunner`.
+- **Task** — long-running world work driven tick by tick by `ExecutionCoordinator`.
 - **Plan** — an ordered list of tasks (`run_plan` / `SequenceTask`).
 - **Blueprint** — a saved or generated block layout that `BuildTask` places.
 - **Station** — a crafting/cooking block the companion uses; a `StationLease` remembers one it placed.
