@@ -43,6 +43,19 @@ public final class ProtocolCapabilities {
         return new ProtocolCapabilities(List.of(ids));
     }
 
+    /** Capabilities implemented by the current Friendai protocol build, in stable wire-advertisement order. */
+    public static ProtocolCapabilities friendai() {
+        return of(
+                "friendai:control",
+                "friendai:memory",
+                "friendai:places",
+                "friendai:instructions",
+                "friendai:trading",
+                "friendai:debug",
+                "friendai:speech",
+                "friendai:appearance");
+    }
+
     public List<String> ids() {
         return ids;
     }

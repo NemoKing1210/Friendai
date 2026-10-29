@@ -29,6 +29,21 @@ final class ProtocolHandshakeTest {
     }
 
     @Test
+    void advertisesEveryCapabilityImplementedByThisBuild() {
+        assertEquals(
+                List.of(
+                        "friendai:control",
+                        "friendai:memory",
+                        "friendai:places",
+                        "friendai:instructions",
+                        "friendai:trading",
+                        "friendai:debug",
+                        "friendai:speech",
+                        "friendai:appearance"),
+                ProtocolCapabilities.friendai().ids());
+    }
+
+    @Test
     void rejectsInvalidCapabilityNamesDuplicatesAndOversizedLists() {
         assertThrows(
                 IllegalArgumentException.class, () -> ProtocolCapabilities.of("friendai:control", "friendai:control"));

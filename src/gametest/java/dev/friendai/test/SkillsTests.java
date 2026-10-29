@@ -8,7 +8,7 @@ import dev.friendai.entity.CompanionManager;
 import dev.friendai.execution.tool.*;
 import dev.friendai.features.instructions.*;
 import dev.friendai.infrastructure.persistence.instructions.SkillStore;
-import dev.friendai.net.SkillRequestHandler;
+import dev.friendai.protocol.instructions.InstructionRequest;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -20,12 +20,11 @@ public class SkillsTests {
     @GameTest(maxTicks = 100)
     public void editorReopensSubscriptionWithinTheRateLimit(GameTestHelper h) {
         var player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
-        var open = new dev.friendai.net.SkillsRequestC2SPayload("open", "{}", 1);
-        SkillRequestHandler.handle(player, open);
-        SkillRequestHandler.handle(player, new dev.friendai.net.SkillsRequestC2SPayload("close", "{}", 2));
-        SkillRequestHandler.handle(player, new dev.friendai.net.SkillsRequestC2SPayload("open", "{}", 3));
+        TestMenuRequests.handle(player, new InstructionRequest.Open(), 1);
+        TestMenuRequests.handle(player, new InstructionRequest.Close(), 2);
+        TestMenuRequests.handle(player, new InstructionRequest.Open(), 3);
         h.assertTrue(
-                dev.friendai.net.SkillsViewStream.isOpen(player),
+                dev.friendai.server.net.SkillsViewStream.isOpen(player),
                 "switching from catalogue to editor must register the new subscription even in the same tick");
         h.succeed();
     }
@@ -42,7 +41,7 @@ public class SkillsTests {
         input.addProperty("owner", other.getUUID().toString());
         input.addProperty("source", "builtin");
         input.addProperty("scope", "server");
-        var result = SkillRequestHandler.apply(owner, "import", input.toString());
+        var result = TestMenuRequests.applySkill(owner, "import", input.toString());
         h.assertTrue(result.status().ok(), "long imported instruction should fit the dedicated endpoint");
         h.assertTrue(
                 state.skills().store().book(owner.getUUID()).snapshot().size() == 1, "sender owns the imported record");
@@ -82,7 +81,7 @@ public class SkillsTests {
         input.addProperty("id", s.id());
         input.addProperty("expectedVersion", 1);
         h.assertTrue(
-                SkillRequestHandler.apply(player, "approve", input.toString())
+                TestMenuRequests.applySkill(player, "approve", input.toString())
                         .status()
                         .ok(),
                 "owner approval should be accepted");
@@ -135,7 +134,7 @@ public class SkillsTests {
                 input.addProperty("id", skill.id());
                 input.addProperty("expectedVersion", 1);
                 h.assertTrue(
-                        SkillRequestHandler.apply(player, "disable", input.toString())
+                        TestMenuRequests.applySkill(player, "disable", input.toString())
                                 .status()
                                 .ok(),
                         "live disable should succeed");

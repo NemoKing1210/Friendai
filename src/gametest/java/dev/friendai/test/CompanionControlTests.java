@@ -11,7 +11,6 @@ import dev.friendai.agent.llm.model.Usage;
 import dev.friendai.agent.turn.BrainEvent;
 import dev.friendai.agent.turn.LlmGateway;
 import dev.friendai.core.FriendaiServerState;
-import dev.friendai.debug.RequestType;
 import dev.friendai.debug.SnapshotCodec;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
@@ -23,13 +22,12 @@ import dev.friendai.foundation.diagnostics.LogEntry;
 import dev.friendai.foundation.diagnostics.LogKind;
 import dev.friendai.foundation.limits.RateLimiter;
 import dev.friendai.infrastructure.config.ServerConfig;
-import dev.friendai.net.CompanionRequestC2SPayload;
-import dev.friendai.net.CompanionRequestHandler;
-import dev.friendai.net.DebugStream;
-import dev.friendai.net.Operators;
-import dev.friendai.net.SnapshotBuilder;
 import dev.friendai.presentation.companion.CompanionSnapshot;
 import dev.friendai.server.agent.CompanionSessions;
+import dev.friendai.server.net.DebugStream;
+import dev.friendai.server.net.Operators;
+import dev.friendai.server.net.SnapshotBuilder;
+import dev.friendai.server.runtime.ServerRuntimeRegistry;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
@@ -97,8 +95,8 @@ public class CompanionControlTests {
                             }
                         },
                         "work_with_cleanup");
-        CompanionRequestHandler.setLimiter(new RateLimiter(0, System::currentTimeMillis));
-        CompanionRequestHandler.handle(player, new CompanionRequestC2SPayload(RequestType.TELEPORT));
+        noControlRateLimit(h);
+        TestMenuRequests.handle(player, TestMenuRequests.menuRequest(TestMenuRequests.Action.TELEPORT));
         h.assertTrue(stopped[0], "teleport must stop the old task");
         h.assertTrue(companion.position().distanceTo(player.position()) <= 4.0, "not teleported to the owner");
         h.assertTrue(
@@ -134,7 +132,7 @@ public class CompanionControlTests {
                 "summon must leave a companion in another dimension in place");
         FriendaiServerState state = FriendaiServerState.get(h.getLevel().getServer());
         state.sessions().currentPrompt(player.getUUID()); // Create entity-bound tools before the replacement.
-        CompanionRequestHandler.handle(player, new CompanionRequestC2SPayload(RequestType.TELEPORT));
+        TestMenuRequests.handle(player, TestMenuRequests.menuRequest(TestMenuRequests.Action.TELEPORT));
         CompanionEntity moved = manager.find(player.getUUID()).orElse(null);
         h.assertTrue(
                 moved != null && moved.level() == h.getLevel() && !moved.isRemoved(),
@@ -174,7 +172,7 @@ public class CompanionControlTests {
                         .map(t -> t.describe().equals("staying in place"))
                         .orElse(false),
                 "precondition: companion is staying and far away");
-        CompanionRequestHandler.handle(player, new CompanionRequestC2SPayload(RequestType.TELEPORT));
+        TestMenuRequests.handle(player, TestMenuRequests.menuRequest(TestMenuRequests.Action.TELEPORT));
         h.assertTrue(
                 companion.position().distanceTo(player.position()) <= 4.0,
                 "companion stayed at " + companion.position());
@@ -349,9 +347,10 @@ public class CompanionControlTests {
         });
     }
 
-    static {
-        // Tests fire several requests per player back to back.
-        CompanionRequestHandler.setLimiter(new RateLimiter(0, System::currentTimeMillis));
+    private static void noControlRateLimit(GameTestHelper h) {
+        ServerRuntimeRegistry.getOrCreate(h.getLevel().getServer())
+                .protocolConnections()
+                .setControlLimiterForTest(new RateLimiter(0, System::currentTimeMillis));
     }
 
     private static void op(ServerPlayer player) {
@@ -371,11 +370,12 @@ public class CompanionControlTests {
 
     @GameTest(maxTicks = 100)
     public void summonRequestCreatesCompanionAndDismissRemovesIt(GameTestHelper h) {
+        noControlRateLimit(h);
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         var companions = CompanionManager.get(h.getLevel().getServer());
-        CompanionRequestHandler.handle(player, new CompanionRequestC2SPayload(RequestType.SUMMON));
+        TestMenuRequests.handle(player, TestMenuRequests.menuRequest(TestMenuRequests.Action.SUMMON));
         h.assertTrue(companions.find(player.getUUID()).isPresent(), "summon request should create a companion");
-        CompanionRequestHandler.handle(player, new CompanionRequestC2SPayload(RequestType.DISMISS));
+        TestMenuRequests.handle(player, TestMenuRequests.menuRequest(TestMenuRequests.Action.DISMISS));
         h.assertTrue(companions.find(player.getUUID()).isEmpty(), "dismiss request should remove the companion");
         h.succeed();
     }
@@ -394,7 +394,7 @@ public class CompanionControlTests {
                         .map(t -> t.describe().equals("staying in place"))
                         .orElse(false),
                 "precondition: companion is staying");
-        CompanionRequestHandler.handle(player, new CompanionRequestC2SPayload(RequestType.STOP));
+        TestMenuRequests.handle(player, TestMenuRequests.menuRequest(TestMenuRequests.Action.STOP));
         h.assertTrue(
                 companion
                         .executionCoordinator()
@@ -407,15 +407,17 @@ public class CompanionControlTests {
 
     @GameTest(maxTicks = 100)
     public void nonOperatorCannotRunToolOrReadLog(GameTestHelper h) {
+        noControlRateLimit(h);
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         var server = h.getLevel().getServer();
         CompanionSessions brains = FriendaiServerState.get(server).sessions();
         h.assertTrue(!Operators.isOperator(player), "precondition: mock player is not an operator");
         CompanionManager.get(server).summon(player);
         brains.debug().logOf(player.getUUID()).add(LogKind.ERROR, "secret detail");
-        CompanionRequestHandler.handle(player, new CompanionRequestC2SPayload(RequestType.RUN_TOOL, "stay", "{}"));
-        CompanionRequestHandler.handle(player, new CompanionRequestC2SPayload(RequestType.SEND_MESSAGE, "hello", ""));
-        CompanionRequestHandler.handle(player, new CompanionRequestC2SPayload(RequestType.REQUEST_PROMPT));
+        TestMenuRequests.handle(player, TestMenuRequests.menuRequest(TestMenuRequests.Action.RUN_TOOL, "stay", "{}"));
+        TestMenuRequests.handle(
+                player, TestMenuRequests.menuRequest(TestMenuRequests.Action.SEND_MESSAGE, "hello", ""));
+        TestMenuRequests.handle(player, TestMenuRequests.menuRequest(TestMenuRequests.Action.REQUEST_PROMPT));
         List<LogEntry> log = brains.debug().logOf(player.getUUID()).after(0, 50);
         h.assertTrue(
                 log.stream().noneMatch(e -> e.kind() == LogKind.MANUAL || e.kind() == LogKind.USER),
@@ -460,8 +462,8 @@ public class CompanionControlTests {
         op(player);
         try {
             CompanionManager.get(server).summon(player);
-            CompanionRequestHandler.handle(
-                    player, new CompanionRequestC2SPayload(RequestType.SEND_MESSAGE, "hello", ""));
+            TestMenuRequests.handle(
+                    player, TestMenuRequests.menuRequest(TestMenuRequests.Action.SEND_MESSAGE, "hello", ""));
         } finally {
             deop(player);
         }
@@ -508,7 +510,7 @@ public class CompanionControlTests {
                 FriendaiServerState.get(h.getLevel().getServer()).sessions();
         CompanionEntity companion =
                 CompanionManager.get(h.getLevel().getServer()).summon(player);
-        CompanionRequestHandler.handle(player, new CompanionRequestC2SPayload(RequestType.SUBSCRIBE));
+        TestMenuRequests.handle(player, TestMenuRequests.menuRequest(TestMenuRequests.Action.SUBSCRIBE));
         h.assertTrue(brains.debug().subscribers().contains(player.getUUID()), "subscribed");
         h.assertTrue(companion.menuOpen() && companion.executionCoordinator().held(), "held while the menu is open");
         DebugStream.onDisconnect(player);
@@ -524,12 +526,12 @@ public class CompanionControlTests {
                 CompanionManager.get(h.getLevel().getServer()).summon(player);
         CountingTask task = new CountingTask();
         companion.executionCoordinator().start(task, "test_counting");
-        CompanionRequestHandler.handle(player, new CompanionRequestC2SPayload(RequestType.SUBSCRIBE));
+        TestMenuRequests.handle(player, TestMenuRequests.menuRequest(TestMenuRequests.Action.SUBSCRIBE));
         h.assertTrue(companion.executionCoordinator().held(), "held while the menu is open");
         int before = task.ticks;
         h.runAfterDelay(20, () -> {
             h.assertValueEqual(task.ticks, before, "a held companion must not tick its task");
-            CompanionRequestHandler.handle(player, new CompanionRequestC2SPayload(RequestType.UNSUBSCRIBE));
+            TestMenuRequests.handle(player, TestMenuRequests.menuRequest(TestMenuRequests.Action.UNSUBSCRIBE));
             h.assertTrue(!companion.executionCoordinator().held(), "released when the menu closes");
         });
         h.runAfterDelay(40, () -> {
@@ -543,9 +545,9 @@ public class CompanionControlTests {
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         CompanionEntity companion =
                 CompanionManager.get(h.getLevel().getServer()).summon(player);
-        CompanionRequestHandler.handle(player, new CompanionRequestC2SPayload(RequestType.SUBSCRIBE));
-        CompanionRequestHandler.handle(player, new CompanionRequestC2SPayload(RequestType.SUBSCRIBE));
-        CompanionRequestHandler.handle(player, new CompanionRequestC2SPayload(RequestType.UNSUBSCRIBE));
+        TestMenuRequests.handle(player, TestMenuRequests.menuRequest(TestMenuRequests.Action.SUBSCRIBE));
+        TestMenuRequests.handle(player, TestMenuRequests.menuRequest(TestMenuRequests.Action.SUBSCRIBE));
+        TestMenuRequests.handle(player, TestMenuRequests.menuRequest(TestMenuRequests.Action.UNSUBSCRIBE));
         h.assertTrue(!companion.executionCoordinator().held(), "one close releases a duplicated subscribe");
         h.succeed();
     }
@@ -553,12 +555,12 @@ public class CompanionControlTests {
     @GameTest(maxTicks = 60)
     public void aCompanionSummonedWithTheMenuOpenStartsHeld(GameTestHelper h) {
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
-        CompanionRequestHandler.handle(player, new CompanionRequestC2SPayload(RequestType.SUBSCRIBE));
+        TestMenuRequests.handle(player, TestMenuRequests.menuRequest(TestMenuRequests.Action.SUBSCRIBE));
         CompanionEntity companion =
                 CompanionManager.get(h.getLevel().getServer()).summon(player);
         h.assertTrue(
                 companion.menuOpen() && companion.executionCoordinator().held(), "starts paused behind the open menu");
-        CompanionRequestHandler.handle(player, new CompanionRequestC2SPayload(RequestType.UNSUBSCRIBE));
+        TestMenuRequests.handle(player, TestMenuRequests.menuRequest(TestMenuRequests.Action.UNSUBSCRIBE));
         h.assertTrue(!companion.executionCoordinator().held(), "resumes when the menu closes");
         h.succeed();
     }
@@ -607,18 +609,18 @@ public class CompanionControlTests {
 
     @GameTest(maxTicks = 100)
     public void malformedRequestsAreIgnored(GameTestHelper h) {
+        noControlRateLimit(h);
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         var server = h.getLevel().getServer();
         CompanionManager.get(server).summon(player);
         op(player);
         try {
-            CompanionRequestHandler.handle(player, new CompanionRequestC2SPayload(RequestType.INVALID));
-            CompanionRequestHandler.handle(
-                    player, new CompanionRequestC2SPayload(RequestType.RUN_TOOL, "x".repeat(10_000), "{}"));
-            CompanionRequestHandler.handle(
-                    player, new CompanionRequestC2SPayload(RequestType.RUN_TOOL, "stay", "[1,2"));
-            CompanionRequestHandler.handle(player, new CompanionRequestC2SPayload(RequestType.SEND_MESSAGE, "   ", ""));
-            CompanionRequestHandler.handle(player, new CompanionRequestC2SPayload(RequestType.RUN_TOOL, "nope", "{}"));
+            TestMenuRequests.handle(
+                    player, TestMenuRequests.menuRequest(TestMenuRequests.Action.RUN_TOOL, "stay", "[1,2"));
+            TestMenuRequests.handle(
+                    player, TestMenuRequests.menuRequest(TestMenuRequests.Action.SEND_MESSAGE, "   ", ""));
+            TestMenuRequests.handle(
+                    player, TestMenuRequests.menuRequest(TestMenuRequests.Action.RUN_TOOL, "nope", "{}"));
         } finally {
             deop(player);
         }

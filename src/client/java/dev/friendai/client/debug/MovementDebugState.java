@@ -1,6 +1,8 @@
 package dev.friendai.client.debug;
 
 import dev.friendai.debug.MovementDebug;
+import dev.friendai.protocol.debug.MovementDebugView;
+import dev.friendai.transport.protocol.MovementDebugProtocolAdapter;
 import java.util.Optional;
 
 /** What the movement overlay knows: whether it is switched on and the latest view the server sent. */
@@ -41,6 +43,16 @@ public final class MovementDebugState {
             return;
         }
         view = MovementDebug.decode(data);
+        receivedAt = System.currentTimeMillis();
+    }
+
+    /** Accepts a decoded protocol view; companion id zero is the explicit stream-off marker. */
+    public static void onView(MovementDebugView protocolView) {
+        if (protocolView.companionId() == 0) {
+            view = null;
+            return;
+        }
+        view = MovementDebugProtocolAdapter.fromProtocol(protocolView);
         receivedAt = System.currentTimeMillis();
     }
 

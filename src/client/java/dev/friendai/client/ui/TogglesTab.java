@@ -2,8 +2,9 @@ package dev.friendai.client.ui;
 
 import dev.friendai.client.FriendaiClient;
 import dev.friendai.client.debug.MovementDebugState;
-import dev.friendai.debug.RequestType;
 import dev.friendai.presentation.companion.CompanionSnapshot;
+import dev.friendai.protocol.control.ControlRequest;
+import dev.friendai.protocol.debug.DebugRequest;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Tooltip;
@@ -45,7 +46,7 @@ final class TogglesTab extends StatefulMenuTab {
                 BUTTON_HEIGHT,
                 Component.empty(),
                 Ui.GOOD,
-                () -> CompanionRequests.send(RequestType.FREE_TIME_TOGGLE)));
+                () -> CompanionRequests.send(new ControlRequest.FreeTimeToggle())));
         y += BUTTON_HEIGHT + GAP;
         followMode = host.add(
                 new FlatButton(left, y, width, BUTTON_HEIGHT, Component.empty(), Ui.ACCENT, this::toggleFollowMode));
@@ -57,8 +58,8 @@ final class TogglesTab extends StatefulMenuTab {
 
     private void toggleFollowMode() {
         state.snapshot()
-                .ifPresent(snapshot -> CompanionRequests.send(
-                        RequestType.SET_FOLLOW_MODE, Boolean.toString(!snapshot.followMode()), ""));
+                .ifPresent(
+                        snapshot -> CompanionRequests.send(new ControlRequest.SetFollowMode(!snapshot.followMode())));
     }
 
     private static void toggleMovementDebug() {
@@ -66,19 +67,19 @@ final class TogglesTab extends StatefulMenuTab {
         MovementDebugState.setEnabled(on);
         FriendaiClient.clientConfig().debug.movementOverlay = on;
         FriendaiClient.runtime().configuration().save(FriendaiClient.clientConfig());
-        CompanionRequests.send(on ? RequestType.MOVE_DEBUG_ON : RequestType.MOVE_DEBUG_OFF);
+        CompanionRequests.send(new DebugRequest.MovementStreamSet(on));
     }
 
     private void toggleAutoRespawn() {
         state.snapshot()
-                .ifPresent(snapshot -> CompanionRequests.send(
-                        RequestType.SET_AUTO_RESPAWN, Boolean.toString(!snapshot.autoRespawn()), ""));
+                .ifPresent(
+                        snapshot -> CompanionRequests.send(new ControlRequest.SetAutoRespawn(!snapshot.autoRespawn())));
     }
 
     private void toggleCreativeMode() {
         state.snapshot()
-                .ifPresent(snapshot -> CompanionRequests.send(
-                        RequestType.SET_CREATIVE_MODE, Boolean.toString(!snapshot.creativeMode()), ""));
+                .ifPresent(snapshot ->
+                        CompanionRequests.send(new ControlRequest.SetCreativeMode(!snapshot.creativeMode())));
     }
 
     @Override
@@ -91,7 +92,7 @@ final class TogglesTab extends StatefulMenuTab {
         if (connected && operator && MovementDebugState.preferenceRestorePending()) {
             boolean preferred = FriendaiClient.clientConfig().debug.movementOverlay;
             MovementDebugState.restorePreference(preferred);
-            if (preferred) CompanionRequests.send(RequestType.MOVE_DEBUG_ON);
+            if (preferred) CompanionRequests.send(new DebugRequest.MovementStreamSet(true));
         }
 
         movementDebug.visible = operator;

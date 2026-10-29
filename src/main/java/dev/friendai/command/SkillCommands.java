@@ -6,7 +6,8 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import dev.friendai.core.*;
 import dev.friendai.features.instructions.*;
-import dev.friendai.net.*;
+import dev.friendai.server.net.*;
+import dev.friendai.server.runtime.ServerRuntimeRegistry;
 import net.minecraft.commands.*;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -58,7 +59,7 @@ final class SkillCommands {
                                     if (json.length() > 32768) throw new IllegalArgumentException();
                                     var object = JsonParser.parseString(json).getAsJsonObject();
                                     object.addProperty("server", global);
-                                    var result = SkillRequestHandler.apply(p, op, object.toString());
+                                    var result = SkillRequestHandler.apply(runtime(p), p, op, object.toString());
                                     p.sendSystemMessage(
                                             Components.of(result.status().message()));
                                     if (!result.text().isEmpty())
@@ -129,8 +130,12 @@ final class SkillCommands {
     }
 
     private static int descriptionResult(ServerPlayer p, JsonObject o) {
-        var result = SkillRequestHandler.apply(p, "description", o.toString());
+        var result = SkillRequestHandler.apply(runtime(p), p, "description", o.toString());
         p.sendSystemMessage(Components.of(result.status().message()));
         return result.status().ok() ? 1 : 0;
+    }
+
+    private static dev.friendai.server.runtime.ServerRuntime runtime(ServerPlayer player) {
+        return ServerRuntimeRegistry.getOrCreate(player.level().getServer());
     }
 }

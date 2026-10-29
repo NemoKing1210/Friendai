@@ -1,0 +1,101 @@
+package dev.friendai.server.net;
+
+import dev.friendai.core.FriendaiServerState;
+import dev.friendai.features.memory.MemoryViewers;
+import dev.friendai.features.memory.MenuStatus;
+import dev.friendai.features.places.PlaceRegistry;
+import dev.friendai.features.places.PlaceView;
+import dev.friendai.features.places.PlaceViewBuilder;
+import dev.friendai.protocol.ProtocolFamily;
+import dev.friendai.protocol.places.PlaceProtocolViewCodec;
+import dev.friendai.server.runtime.ServerRuntimeRegistry;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.UUID;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerPlayer;
+
+/** Pushes the places view to players who have the tab open: on demand with a status, and on changes. */
+public final class PlaceViewStream {
+    private static final int INTERVAL_TICKS = 10;
+    private static int counter;
+    private static int viewEpoch;
+    private static int lastConfig;
+
+    private PlaceViewStream() {}
+
+    /** Registers the viewer and sends the current view immediately. */
+    public static void open(ServerPlayer player) {
+        open(player, 0);
+    }
+
+    public static void open(ServerPlayer player, long requestId) {
+        FriendaiServerState.get(player.level().getServer()).placeViewers().open(player.getUUID());
+        sendNow(player, Optional.empty(), requestId);
+    }
+
+    public static void close(ServerPlayer player) {
+        FriendaiServerState.get(player.level().getServer()).placeViewers().close(player.getUUID());
+    }
+
+    /** Sends a fresh view carrying the result of a request, if the player has the tab open. */
+    public static void sendNow(ServerPlayer player, Optional<MenuStatus> status) {
+        sendNow(player, status, 0);
+    }
+
+    public static void sendNow(ServerPlayer player, Optional<MenuStatus> status, long requestId) {
+        FriendaiServerState state = FriendaiServerState.get(player.level().getServer());
+        if (state.placeViewers().isOpen(player.getUUID())) {
+            send(state, player, status, requestId);
+        }
+    }
+
+    /** Every {@link #INTERVAL_TICKS} ticks, sends a status-free view to viewers whose book changed. */
+    public static void tick(MinecraftServer server) {
+        if (++counter % INTERVAL_TICKS != 0) {
+            return;
+        }
+        FriendaiServerState state = FriendaiServerState.get(server);
+        MemoryViewers viewers = state.placeViewers();
+        int epoch = currentEpoch(state);
+        for (UUID uuid : viewers.viewers()) {
+            ServerPlayer player = server.getPlayerList().getPlayer(uuid);
+            if (player == null) {
+                viewers.close(uuid);
+                continue;
+            }
+            if (viewers.needsUpdate(uuid, state.places().book(uuid).revision(), epoch)) {
+                send(state, player, Optional.empty(), 0);
+            }
+        }
+    }
+
+    /**
+     * Bumps the view epoch when something the view shows but the book does not record changed: the places config
+     * that decides what the tab may show. The registry revision covers every stored place.
+     */
+    private static int currentEpoch(FriendaiServerState state) {
+        int config = Objects.hash(
+                state.config().places.enabled, state.config().places.maxPlaces, state.config().places.mergeRadius);
+        if (config != lastConfig) {
+            lastConfig = config;
+            viewEpoch++;
+        }
+        return viewEpoch;
+    }
+
+    public static void onDisconnect(ServerPlayer player) {
+        FriendaiServerState.get(player.level().getServer()).placeViewers().close(player.getUUID());
+    }
+
+    private static void send(
+            FriendaiServerState state, ServerPlayer player, Optional<MenuStatus> status, long requestId) {
+        UUID uuid = player.getUUID();
+        PlaceRegistry book = state.places().book(uuid);
+        PlaceView view = PlaceViewBuilder.build(book, state.config().places.enabled, status);
+        ServerRuntimeRegistry.getOrCreate(player.level().getServer())
+                .protocolConnections()
+                .sendView(player, ProtocolFamily.PLACES, PlaceProtocolViewCodec.encodeFitting(view, requestId));
+        state.placeViewers().markSent(uuid, book.revision(), viewEpoch);
+    }
+}

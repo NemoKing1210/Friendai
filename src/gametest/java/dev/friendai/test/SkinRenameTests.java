@@ -1,18 +1,16 @@
 package dev.friendai.test;
 
 import dev.friendai.core.FriendaiServerState;
-import dev.friendai.debug.RequestType;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.features.appearance.SkinHash;
 import dev.friendai.features.appearance.SkinImage;
 import dev.friendai.foundation.limits.RateLimiter;
-import dev.friendai.net.CompanionRequestC2SPayload;
-import dev.friendai.net.CompanionRequestHandler;
-import dev.friendai.net.SkinHandler;
-import dev.friendai.net.SkinRequestC2SPayload;
-import dev.friendai.net.SkinS2CPayload;
-import dev.friendai.net.SkinUploadC2SPayload;
+import dev.friendai.server.net.SkinHandler;
+import dev.friendai.server.runtime.ServerRuntimeRegistry;
+import dev.friendai.transport.payload.SkinRequestC2SPayload;
+import dev.friendai.transport.payload.SkinS2CPayload;
+import dev.friendai.transport.payload.SkinUploadC2SPayload;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -30,7 +28,9 @@ public class SkinRenameTests {
 
     private static ServerPlayer owner(GameTestHelper h) {
         GameTestSupport.platformAt(h, FLOOR, 16);
-        CompanionRequestHandler.setLimiter(new RateLimiter(0, System::currentTimeMillis));
+        ServerRuntimeRegistry.getOrCreate(h.getLevel().getServer())
+                .protocolConnections()
+                .setControlLimiterForTest(new RateLimiter(0, System::currentTimeMillis));
         return GameTestSupport.mockPlayerAt(h, 2, FLOOR + 1, 2);
     }
 
@@ -42,7 +42,7 @@ public class SkinRenameTests {
     }
 
     private static void rename(ServerPlayer owner, String name) {
-        CompanionRequestHandler.handle(owner, new CompanionRequestC2SPayload(RequestType.RENAME, name, ""));
+        TestMenuRequests.handle(owner, TestMenuRequests.menuRequest(TestMenuRequests.Action.RENAME, name, ""));
     }
 
     @GameTest
@@ -114,7 +114,9 @@ public class SkinRenameTests {
 
     private static ServerPlayer skinOwner(GameTestHelper h) {
         ServerPlayer owner = owner(h);
-        SkinHandler.setLimiter(new RateLimiter(0, System::currentTimeMillis));
+        ServerRuntimeRegistry.getOrCreate(h.getLevel().getServer())
+                .protocolConnections()
+                .setSkinLimiterForTest(new RateLimiter(0, System::currentTimeMillis));
         SkinHandler.setSender((player, payload) -> SENT.add(new Sent(player.getUUID(), payload)));
         return owner;
     }
@@ -146,7 +148,7 @@ public class SkinRenameTests {
                 CompanionManager.get(h.getLevel().getServer()).summon(owner);
         byte[] png = skinPng(10);
 
-        SkinHandler.upload(owner, new SkinUploadC2SPayload(true, png));
+        SkinHandler.upload(TestMenuRequests.runtime(owner), owner, new SkinUploadC2SPayload(true, png));
 
         h.assertTrue(canonicalHash(png).equals(companion.getSkinHash()), "the entity carries the skin hash");
         h.assertTrue(companion.isSlimSkin(), "the slim flag is synced");
@@ -160,10 +162,11 @@ public class SkinRenameTests {
         ServerPlayer owner = skinOwner(h);
         CompanionEntity companion =
                 CompanionManager.get(h.getLevel().getServer()).summon(owner);
-        SkinHandler.upload(owner, new SkinUploadC2SPayload(false, skinPng(20)));
+        SkinHandler.upload(TestMenuRequests.runtime(owner), owner, new SkinUploadC2SPayload(false, skinPng(20)));
         String before = companion.getSkinHash();
 
-        SkinHandler.upload(owner, new SkinUploadC2SPayload(false, new byte[] {1, 2, 3}));
+        SkinHandler.upload(
+                TestMenuRequests.runtime(owner), owner, new SkinUploadC2SPayload(false, new byte[] {1, 2, 3}));
 
         h.assertTrue(before.equals(companion.getSkinHash()), "a bad upload must not change the skin");
         h.assertTrue(!before.isEmpty(), "the earlier skin is still set");
@@ -174,7 +177,7 @@ public class SkinRenameTests {
     public void skin_upload_without_companion_is_ignored(GameTestHelper h) {
         ServerPlayer owner = skinOwner(h);
 
-        SkinHandler.upload(owner, new SkinUploadC2SPayload(false, skinPng(25)));
+        SkinHandler.upload(TestMenuRequests.runtime(owner), owner, new SkinUploadC2SPayload(false, skinPng(25)));
 
         h.assertTrue(
                 FriendaiServerState.get(h.getLevel().getServer())
@@ -190,9 +193,9 @@ public class SkinRenameTests {
         ServerPlayer owner = skinOwner(h);
         CompanionEntity companion =
                 CompanionManager.get(h.getLevel().getServer()).summon(owner);
-        SkinHandler.upload(owner, new SkinUploadC2SPayload(false, skinPng(30)));
+        SkinHandler.upload(TestMenuRequests.runtime(owner), owner, new SkinUploadC2SPayload(false, skinPng(30)));
 
-        SkinHandler.upload(owner, new SkinUploadC2SPayload(false, new byte[0]));
+        SkinHandler.upload(TestMenuRequests.runtime(owner), owner, new SkinUploadC2SPayload(false, new byte[0]));
 
         h.assertTrue(companion.getSkinHash().isEmpty(), "the hash is cleared");
         h.assertTrue(
@@ -208,11 +211,12 @@ public class SkinRenameTests {
     public void skin_request_for_foreign_hash_is_ignored(GameTestHelper h) {
         ServerPlayer owner = skinOwner(h);
         CompanionManager.get(h.getLevel().getServer()).summon(owner);
-        SkinHandler.upload(owner, new SkinUploadC2SPayload(false, skinPng(40)));
+        SkinHandler.upload(TestMenuRequests.runtime(owner), owner, new SkinUploadC2SPayload(false, skinPng(40)));
         ServerPlayer other = GameTestSupport.mockPlayerAt(h, 3, FLOOR + 1, 3);
 
-        SkinHandler.request(other, new SkinRequestC2SPayload(canonicalHash(skinPng(41))));
-        SkinHandler.request(other, new SkinRequestC2SPayload("../../etc/passwd"));
+        SkinHandler.request(
+                TestMenuRequests.runtime(other), other, new SkinRequestC2SPayload(canonicalHash(skinPng(41))));
+        SkinHandler.request(TestMenuRequests.runtime(other), other, new SkinRequestC2SPayload("../../etc/passwd"));
 
         h.assertTrue(SENT.stream().noneMatch(s -> s.player().equals(other.getUUID())), "no skin may be sent");
         h.succeed();
@@ -223,11 +227,11 @@ public class SkinRenameTests {
         ServerPlayer owner = skinOwner(h);
         CompanionManager.get(h.getLevel().getServer()).summon(owner);
         byte[] png = skinPng(50);
-        SkinHandler.upload(owner, new SkinUploadC2SPayload(true, png));
+        SkinHandler.upload(TestMenuRequests.runtime(owner), owner, new SkinUploadC2SPayload(true, png));
         ServerPlayer viewer = GameTestSupport.mockPlayerAt(h, 3, FLOOR + 1, 3);
         String hash = canonicalHash(png);
 
-        SkinHandler.request(viewer, new SkinRequestC2SPayload(hash));
+        SkinHandler.request(TestMenuRequests.runtime(viewer), viewer, new SkinRequestC2SPayload(hash));
 
         var sent =
                 SENT.stream().filter(s -> s.player().equals(viewer.getUUID())).toList();
@@ -244,7 +248,7 @@ public class SkinRenameTests {
         var manager = CompanionManager.get(h.getLevel().getServer());
         manager.summon(owner);
         byte[] png = skinPng(60);
-        SkinHandler.upload(owner, new SkinUploadC2SPayload(true, png));
+        SkinHandler.upload(TestMenuRequests.runtime(owner), owner, new SkinUploadC2SPayload(true, png));
         manager.dismiss(owner);
 
         CompanionEntity again = manager.summon(owner);

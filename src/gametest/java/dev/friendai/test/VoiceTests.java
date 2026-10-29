@@ -8,7 +8,6 @@ import dev.friendai.agent.llm.model.Usage;
 import dev.friendai.agent.turn.LlmGateway;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionManager;
-import dev.friendai.net.VoiceTranscriptHandler;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -41,7 +40,7 @@ public class VoiceTests {
     public void voiceTranscriptReachesBrain(GameTestHelper h) {
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         Recorder recorder = setUp(h, player);
-        VoiceTranscriptHandler.handle(player, "stay");
+        TestMenuRequests.voice(player, "stay");
         String expected = "[" + player.getName().getString() + " (owner), by voice]: stay";
         h.succeedWhen(() -> {
             h.assertTrue(!recorder.requests.isEmpty(), "no LLM request yet");
@@ -61,7 +60,7 @@ public class VoiceTests {
         var state = FriendaiServerState.get(h.getLevel().getServer());
         UUID target = UUID.randomUUID();
         state.trust().request(player, target, "Bob", true);
-        Thread caller = new Thread(() -> VoiceTranscriptHandler.handle(player, "yes"), "voice-test-caller");
+        Thread caller = new Thread(() -> TestMenuRequests.voice(player, "yes"), "voice-test-caller");
         caller.start();
         try {
             caller.join();
@@ -80,8 +79,8 @@ public class VoiceTests {
     public void rateLimitedSecondMessageIgnored(GameTestHelper h) {
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         Recorder recorder = setUp(h, player);
-        VoiceTranscriptHandler.handle(player, "first");
-        VoiceTranscriptHandler.handle(player, "second");
+        TestMenuRequests.voice(player, "first");
+        TestMenuRequests.voice(player, "second");
         h.runAfterDelay(20, () -> {
             h.assertTrue(recorder.requests.size() == 1, "requests: " + recorder.requests.size());
             h.succeed();
@@ -92,8 +91,8 @@ public class VoiceTests {
     public void emptyAndOversizedTranscriptsAreIgnored(GameTestHelper h) {
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         Recorder recorder = setUp(h, player);
-        VoiceTranscriptHandler.handle(player, "   ");
-        VoiceTranscriptHandler.handle(player, "x".repeat(501));
+        TestMenuRequests.voice(player, "   ");
+        TestMenuRequests.voice(player, "x".repeat(501));
         h.runAfterDelay(10, () -> {
             h.assertTrue(recorder.requests.isEmpty(), "nothing should have reached the brain");
             h.succeed();

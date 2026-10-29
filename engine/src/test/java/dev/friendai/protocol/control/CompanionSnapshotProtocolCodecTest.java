@@ -7,8 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.friendai.foundation.diagnostics.LogEntry;
 import dev.friendai.foundation.diagnostics.LogKind;
-import dev.friendai.presentation.companion.CompanionSnapshot;
-import dev.friendai.presentation.companion.CompanionVitals;
 import dev.friendai.protocol.DecodeResult;
 import dev.friendai.protocol.ProtocolFamily;
 import dev.friendai.protocol.ProtocolVersion;
@@ -21,7 +19,7 @@ import org.junit.jupiter.api.Test;
 final class CompanionSnapshotProtocolCodecTest {
     @Test
     void ownerProjectionCannotLeakOperatorFieldsFromProducer() {
-        CompanionSnapshot producer = snapshot();
+        CompanionSnapshotView producer = snapshot();
 
         byte[] encoded = CompanionSnapshotProtocolCodec.encodeForRecipient(producer, false, 14);
         String json = new String(
@@ -33,7 +31,7 @@ final class CompanionSnapshotProtocolCodecTest {
         assertFalse(json.contains("private tool"));
         assertFalse(json.contains("private log"));
 
-        DecodeResult.Valid<ProtocolView<CompanionSnapshot>> decoded =
+        DecodeResult.Valid<ProtocolView<CompanionSnapshotView>> decoded =
                 assertInstanceOf(DecodeResult.Valid.class, CompanionSnapshotProtocolCodec.decode(encoded));
         assertEquals(14, decoded.value().requestId());
         assertFalse(decoded.value().value().operator());
@@ -51,7 +49,7 @@ final class CompanionSnapshotProtocolCodecTest {
                 encoded.length - ProtocolVersion.HEADER_BYTES,
                 StandardCharsets.UTF_8);
         assertTrue(json.contains("\"kind\":5"));
-        DecodeResult.Valid<ProtocolView<CompanionSnapshot>> decoded =
+        DecodeResult.Valid<ProtocolView<CompanionSnapshotView>> decoded =
                 assertInstanceOf(DecodeResult.Valid.class, CompanionSnapshotProtocolCodec.decode(encoded));
         assertEquals(LogKind.ERROR, decoded.value().value().newLog().getFirst().kind());
         assertEquals("private perception", decoded.value().value().perception());
@@ -73,8 +71,8 @@ final class CompanionSnapshotProtocolCodecTest {
         assertInstanceOf(DecodeResult.Malformed.class, CompanionSnapshotProtocolCodec.decode(forged));
     }
 
-    private static CompanionSnapshot snapshot() {
-        return new CompanionSnapshot(
+    private static CompanionSnapshotView snapshot() {
+        return new CompanionSnapshotView(
                 true,
                 true,
                 "Friend",
@@ -86,7 +84,7 @@ final class CompanionSnapshotProtocolCodecTest {
                 List.of(new LogEntry(1, 2, LogKind.ERROR, "private log")),
                 "private perception",
                 List.of("private tool"),
-                CompanionVitals.NONE,
+                new CompanionSnapshotView.Vitals(0, 0, 0, 0, 0, "", "", "", "none", "none", "", 0, 0),
                 List.of(),
                 true,
                 true,

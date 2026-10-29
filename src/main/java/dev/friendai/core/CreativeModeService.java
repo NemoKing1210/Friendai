@@ -8,7 +8,7 @@ import dev.friendai.features.creative.CreativeActionContext;
 import dev.friendai.features.creative.CreativeMode;
 import dev.friendai.features.creative.CreativePermissions;
 import dev.friendai.features.creative.CreativePolicy;
-import dev.friendai.net.Operators;
+import dev.friendai.server.net.Operators;
 import java.util.UUID;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;

@@ -1,14 +1,24 @@
 package dev.friendai.server.runtime;
 
 import dev.friendai.core.FriendaiServerState;
+import dev.friendai.core.TrustConfirmations;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.entity.CompanionLifeData;
 import dev.friendai.entity.CompanionManager;
+import dev.friendai.features.memory.CompanionProfileRepository;
+import dev.friendai.features.trading.minecraft.tool.TradingToolAccess;
 import dev.friendai.infrastructure.config.ServerConfig;
-import dev.friendai.net.DebugStream;
-import dev.friendai.net.MemoryViewStream;
-import dev.friendai.net.MovementDebugStream;
-import dev.friendai.net.PlaceViewStream;
-import dev.friendai.net.SkillsViewStream;
+import dev.friendai.infrastructure.persistence.appearance.SkinStore;
+import dev.friendai.infrastructure.persistence.memory.MemoryStore;
+import dev.friendai.infrastructure.persistence.places.PlaceStore;
+import dev.friendai.infrastructure.persistence.trading.TradeStore;
+import dev.friendai.server.agent.CompanionSessions;
+import dev.friendai.server.net.DebugStream;
+import dev.friendai.server.net.MemoryViewStream;
+import dev.friendai.server.net.MovementDebugStream;
+import dev.friendai.server.net.PlaceViewStream;
+import dev.friendai.server.net.ServerProtocolConnections;
+import dev.friendai.server.net.SkillsViewStream;
 import java.util.UUID;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
@@ -23,6 +33,8 @@ public final class ServerRuntime implements AutoCloseable {
     private final Runnable tickWork;
     private final Runnable stopWork;
     private final RuntimeResources resources;
+    private final ServerProtocolConnections protocolConnections;
+    private final CompanionManager companions;
     private boolean acceptingWork = true;
     private boolean closed;
 
@@ -49,6 +61,8 @@ public final class ServerRuntime implements AutoCloseable {
         this.tickWork = tickWork;
         this.stopWork = stopWork;
         this.resources = resources;
+        this.protocolConnections = server == null ? null : new ServerProtocolConnections(server);
+        this.companions = server == null ? null : CompanionManager.get(server);
     }
 
     /** Starts runtime-only chunk restoration after the server has finished starting. */
@@ -59,7 +73,7 @@ public final class ServerRuntime implements AutoCloseable {
     /** Called by the Fabric entity-load lifecycle delegate. */
     public void onEntityLoaded(Entity entity) {
         if (acceptingWork && entity instanceof CompanionEntity companion) {
-            CompanionManager.get(server).register(companion);
+            companions.register(companion);
             state.observations().register(companion);
         }
     }
@@ -68,13 +82,14 @@ public final class ServerRuntime implements AutoCloseable {
     public void onEntityUnloaded(Entity entity) {
         if (entity instanceof CompanionEntity companion) {
             state.observations().unregister(companion);
-            CompanionManager.get(server).unregister(companion);
+            companions.unregister(companion);
         }
     }
 
     /** Applies owner-join state on the server thread. */
     public void onOwnerJoined(ServerPlayer player) {
         if (!acceptingWork) return;
+        if (protocolConnections != null) protocolConnections.join(player);
         UUID owner = player.getUUID();
         state.sessions().onOwnerJoined(owner);
         state.memory().book(owner);
@@ -85,6 +100,7 @@ public final class ServerRuntime implements AutoCloseable {
 
     /** Clears connection-scoped publishers and suspends the owner's agent work. */
     public void onOwnerLeft(ServerPlayer player) {
+        if (protocolConnections != null) protocolConnections.leave(player);
         DebugStream.onDisconnect(player);
         MovementDebugStream.onDisconnect(player);
         MemoryViewStream.onDisconnect(player);
@@ -95,7 +111,67 @@ public final class ServerRuntime implements AutoCloseable {
 
     /** Runs the unchanged server tick pipeline until shutdown starts. */
     public void tick() {
+        if (protocolConnections != null) protocolConnections.tick();
         if (acceptingWork) tickWork.run();
+    }
+
+    public ServerProtocolConnections protocolConnections() {
+        if (protocolConnections == null) throw new IllegalStateException("runtime has no server connection owner");
+        return protocolConnections;
+    }
+
+    public MinecraftServer server() {
+        if (server == null) throw new IllegalStateException("runtime has no server");
+        return server;
+    }
+
+    public CompanionManager companions() {
+        if (companions == null) throw new IllegalStateException("runtime has no companion manager");
+        return companions;
+    }
+
+    public CompanionSessions sessions() {
+        return state.sessions();
+    }
+
+    public ServerConfig config() {
+        return state.config();
+    }
+
+    public CompanionLifeData companionLife() {
+        return state.companionLife();
+    }
+
+    public MemoryStore memory() {
+        return state.memory();
+    }
+
+    public CompanionProfileRepository profiles() {
+        return state.profiles();
+    }
+
+    public dev.friendai.core.SkillService skills() {
+        return state.skills();
+    }
+
+    public PlaceStore places() {
+        return state.places();
+    }
+
+    public TradeStore trading() {
+        return state.trading();
+    }
+
+    public SkinStore skins() {
+        return state.skins();
+    }
+
+    public TradingToolAccess tradingAccess() {
+        return state;
+    }
+
+    public TrustConfirmations trust() {
+        return state.trust();
     }
 
     /** Applies a validated integrated-server config through the server-owned runtime boundary. */
@@ -122,6 +198,7 @@ public final class ServerRuntime implements AutoCloseable {
         try {
             stopAcceptingWork();
         } finally {
+            if (protocolConnections != null) protocolConnections.close();
             resources.close();
         }
     }

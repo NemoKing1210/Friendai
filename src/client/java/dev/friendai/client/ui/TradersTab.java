@@ -2,7 +2,6 @@ package dev.friendai.client.ui;
 
 import dev.friendai.features.trading.TradeOffer;
 import dev.friendai.features.trading.TraderRecord;
-import dev.friendai.net.TradeRequestC2SPayload;
 import java.util.UUID;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -21,7 +20,7 @@ final class TradersTab extends StatefulMenuTab {
     void open() {
         queryId = UUID.randomUUID().toString();
         page = 0;
-        CompanionRequests.trade(TradeRequestC2SPayload.Action.SUBSCRIBE, queryId, "", "{}", direction, page, "");
+        CompanionRequests.trade(TradeAction.SUBSCRIBE, queryId, "", "{}", direction, page, "");
     }
 
     @Override
@@ -69,7 +68,7 @@ final class TradersTab extends StatefulMenuTab {
                 18,
                 Component.translatable("friendai.menu.traders.preview"),
                 Ui.ACCENT,
-                () -> orderAction(TradeRequestC2SPayload.Action.PREVIEW)));
+                () -> orderAction(TradeAction.PREVIEW)));
         host.add(new FlatButton(
                 left + 76,
                 top + 45,
@@ -77,7 +76,7 @@ final class TradersTab extends StatefulMenuTab {
                 18,
                 Component.translatable("friendai.menu.traders.submit"),
                 Ui.GOOD,
-                () -> orderAction(TradeRequestC2SPayload.Action.SUBMIT)));
+                () -> orderAction(TradeAction.SUBMIT)));
         host.add(new FlatButton(
                 left + 144,
                 top + 45,
@@ -85,7 +84,7 @@ final class TradersTab extends StatefulMenuTab {
                 18,
                 Component.translatable("friendai.menu.traders.wait"),
                 Ui.ACCENT,
-                () -> orderAction(TradeRequestC2SPayload.Action.WAIT)));
+                () -> orderAction(TradeAction.WAIT)));
         host.add(new FlatButton(
                 left + 212,
                 top + 45,
@@ -93,7 +92,7 @@ final class TradersTab extends StatefulMenuTab {
                 18,
                 Component.translatable("friendai.menu.traders.barter"),
                 Ui.ACCENT,
-                () -> orderAction(TradeRequestC2SPayload.Action.BARTER)));
+                () -> orderAction(TradeAction.BARTER)));
         host.add(new HitArea(
                 left + 8, top + 68, width - 16, Math.max(1, height - 96), (x, y) -> selectRow((int) y - top - 68)));
         // Five buttons on one row: paging on the left, the trade actions on the right, compressed when narrow.
@@ -128,7 +127,7 @@ final class TradersTab extends StatefulMenuTab {
                 18,
                 Component.translatable("friendai.menu.traders.inspect"),
                 Ui.ACCENT,
-                () -> action(TradeRequestC2SPayload.Action.INSPECT)));
+                () -> action(TradeAction.INSPECT)));
         host.add(new FlatButton(
                 refreshX,
                 rowY,
@@ -136,7 +135,7 @@ final class TradersTab extends StatefulMenuTab {
                 18,
                 Component.translatable("friendai.menu.traders.refresh"),
                 Ui.ACCENT,
-                () -> action(TradeRequestC2SPayload.Action.REFRESH)));
+                () -> action(TradeAction.REFRESH)));
         host.add(new FlatButton(
                 forgetX,
                 rowY,
@@ -144,13 +143,13 @@ final class TradersTab extends StatefulMenuTab {
                 18,
                 Component.translatable("friendai.menu.traders.forget"),
                 Ui.BAD,
-                () -> action(TradeRequestC2SPayload.Action.FORGET)));
+                () -> action(TradeAction.FORGET)));
     }
 
     private void query() {
         String item = itemFilter == null ? "" : itemFilter.getValue().strip();
         page = 0;
-        CompanionRequests.trade(TradeRequestC2SPayload.Action.QUERY, queryId, item, "{}", direction, page, "");
+        CompanionRequests.trade(TradeAction.QUERY, queryId, item, "{}", direction, page, "");
     }
 
     private void turnPage(int delta) {
@@ -160,12 +159,12 @@ final class TradersTab extends StatefulMenuTab {
         query();
     }
 
-    private void action(TradeRequestC2SPayload.Action action) {
+    private void action(TradeAction action) {
         if (selectedTrader == null) return;
         CompanionRequests.trade(action, queryId, "", "{}", direction, page, selectedTrader.toString());
     }
 
-    private void orderAction(TradeRequestC2SPayload.Action action) {
+    private void orderAction(TradeAction action) {
         if (orderJson == null || orderJson.getValue().length() > 8000) return;
         CompanionRequests.trade(
                 action,

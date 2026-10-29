@@ -24,8 +24,8 @@ import dev.friendai.infrastructure.config.VoiceConfig;
 import dev.friendai.infrastructure.speech.CloudTtsEngine;
 import dev.friendai.infrastructure.speech.TtsClient;
 import dev.friendai.infrastructure.speech.VoiceHttp;
-import dev.friendai.net.CompanionSpeechS2CPayload;
 import dev.friendai.presentation.companion.ClientSessionId;
+import dev.friendai.protocol.speech.CompanionSpeechView;
 import java.net.http.HttpClient;
 import java.time.Duration;
 import java.util.List;
@@ -217,7 +217,7 @@ public final class SpeechRuntime {
     }
 
     /** A speech packet from the server, on the client thread, tied to its originating connection. */
-    public static void onCompanionSpeech(ClientSessionId expectedSession, CompanionSpeechS2CPayload payload) {
+    public static void onCompanionSpeech(ClientSessionId expectedSession, CompanionSpeechView payload) {
         if (!isCurrentSession(expectedSession)) return;
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.level == null || minecraft.player == null) {

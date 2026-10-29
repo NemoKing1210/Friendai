@@ -7,8 +7,9 @@
 	"entrypoints": {
 		"fabric-gametest": [
 			"dev.friendai.test.FriendaiGameTests",
+			"dev.friendai.test.ProtocolAccessTests",
 			"dev.friendai.test.PathingTests",
-			"dev.friendai.net.MovementDebugTests",
+			"dev.friendai.server.net.MovementDebugTests",
 			"dev.friendai.test.CompanionEntityTests",
 			"dev.friendai.test.CompanionDeathTests",
 					"dev.friendai.test.CreativeModeTests",

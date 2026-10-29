@@ -4,7 +4,7 @@ import dev.friendai.chat.ChatRouter;
 import dev.friendai.command.FriendaiCommands;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.menu.FriendaiMenus;
-import dev.friendai.net.FriendaiNetworking;
+import dev.friendai.server.net.FriendaiNetworking;
 import dev.friendai.server.runtime.ServerRuntime;
 import dev.friendai.server.runtime.ServerRuntimeRegistry;
 import net.fabricmc.api.ModInitializer;

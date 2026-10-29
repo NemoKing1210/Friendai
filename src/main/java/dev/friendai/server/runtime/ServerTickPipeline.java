@@ -2,11 +2,11 @@ package dev.friendai.server.runtime;
 
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionManager;
-import dev.friendai.net.DebugStream;
-import dev.friendai.net.MemoryViewStream;
-import dev.friendai.net.MovementDebugStream;
-import dev.friendai.net.PlaceViewStream;
-import dev.friendai.net.SkillsViewStream;
+import dev.friendai.server.net.DebugStream;
+import dev.friendai.server.net.MemoryViewStream;
+import dev.friendai.server.net.MovementDebugStream;
+import dev.friendai.server.net.PlaceViewStream;
+import dev.friendai.server.net.SkillsViewStream;
 import dev.friendai.server.trading.TraderRefreshService;
 import net.minecraft.server.MinecraftServer;
 

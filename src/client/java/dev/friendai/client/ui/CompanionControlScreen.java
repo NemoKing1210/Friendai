@@ -1,11 +1,13 @@
 package dev.friendai.client.ui;
 
 import dev.friendai.client.companion.session.CompanionClientSession;
-import dev.friendai.debug.RequestType;
 import dev.friendai.presentation.companion.CompanionSnapshot;
 import dev.friendai.presentation.companion.CompanionViewState;
 import dev.friendai.presentation.layout.MenuTheme;
 import dev.friendai.presentation.layout.SideNavLayout;
+import dev.friendai.protocol.control.ControlRequest;
+import dev.friendai.protocol.memory.MemoryRequest;
+import dev.friendai.protocol.places.PlaceRequest;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -68,17 +70,17 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
     @Override
     public void added() {
         viewState.reset();
-        CompanionRequests.send(RequestType.SUBSCRIBE);
-        if (selected == memory) CompanionRequests.send(RequestType.MEMORY_OPEN);
+        CompanionRequests.send(new ControlRequest.Subscribe());
+        if (selected == memory) CompanionRequests.send(new MemoryRequest.Open());
         if (selected == skills || selected == memory) SkillsTab.open();
     }
 
     @Override
     public void removed() {
-        CompanionRequests.send(RequestType.UNSUBSCRIBE);
+        CompanionRequests.send(new ControlRequest.Unsubscribe());
         CompanionRequests.skills("close", "{}");
         CompanionRequests.trade(
-                dev.friendai.net.TradeRequestC2SPayload.Action.CLOSE,
+                TradeAction.CLOSE,
                 viewState
                         .tradeView()
                         .map(view -> view.queryId().toString())
@@ -89,10 +91,10 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
                 0,
                 "");
         if (selected == memory) {
-            CompanionRequests.send(RequestType.MEMORY_CLOSE);
+            CompanionRequests.send(new MemoryRequest.Close());
         }
         if (selected == places) {
-            CompanionRequests.send(RequestType.PLACES_CLOSE);
+            CompanionRequests.send(new PlaceRequest.Close());
         }
     }
 
@@ -149,14 +151,14 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
             return;
         }
         if (selected == memory) {
-            CompanionRequests.send(RequestType.MEMORY_CLOSE);
+            CompanionRequests.send(new MemoryRequest.Close());
         }
         if (selected == places) {
-            CompanionRequests.send(RequestType.PLACES_CLOSE);
+            CompanionRequests.send(new PlaceRequest.Close());
         }
         if (selected == traders)
             CompanionRequests.trade(
-                    dev.friendai.net.TradeRequestC2SPayload.Action.CLOSE,
+                    TradeAction.CLOSE,
                     viewState
                             .tradeView()
                             .map(view -> view.queryId().toString())
@@ -171,10 +173,10 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
         if (entry == skills) SkillsTab.open();
         if (entry == memory) {
             SkillsTab.open();
-            CompanionRequests.send(RequestType.MEMORY_OPEN);
+            CompanionRequests.send(new MemoryRequest.Open());
         }
         if (entry == places) {
-            CompanionRequests.send(RequestType.PLACES_OPEN);
+            CompanionRequests.send(new PlaceRequest.Open());
         }
         if (entry == traders) ((TradersTab) entry.tab()).open();
         rebuildWidgets();

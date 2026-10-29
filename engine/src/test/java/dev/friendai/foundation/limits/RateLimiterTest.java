@@ -35,4 +35,18 @@ class RateLimiterTest {
         assertTrue(limiter.tryAcquire(UUID.randomUUID()));
         assertTrue(limiter.tryAcquire(UUID.randomUUID()));
     }
+
+    @Test
+    void forgettingAConnectionRemovesItsRateLimitHistory() {
+        AtomicLong now = new AtomicLong(5_000);
+        RateLimiter limiter = new RateLimiter(1_000, now::get);
+        UUID player = UUID.randomUUID();
+
+        assertTrue(limiter.tryAcquire(player));
+        assertFalse(limiter.tryAcquire(player));
+
+        limiter.forget(player);
+
+        assertTrue(limiter.tryAcquire(player));
+    }
 }

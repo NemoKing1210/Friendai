@@ -1,9 +1,9 @@
 package dev.friendai.client.ui;
 
 import com.google.gson.*;
-import dev.friendai.debug.RequestType;
 import dev.friendai.features.instructions.*;
 import dev.friendai.presentation.companion.CompanionViewState;
+import dev.friendai.protocol.control.ControlRequest;
 import java.util.*;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.*;
@@ -102,14 +102,14 @@ final class SkillEditorScreen extends Screen {
 
     @Override
     public void added() {
-        CompanionRequests.send(RequestType.SUBSCRIBE);
+        CompanionRequests.send(new ControlRequest.Subscribe());
         CompanionRequests.skills("open", "{}");
     }
 
     @Override
     public void removed() {
         CompanionRequests.skills("close", "{}");
-        CompanionRequests.send(RequestType.UNSUBSCRIBE);
+        CompanionRequests.send(new ControlRequest.Unsubscribe());
     }
 
     @Override

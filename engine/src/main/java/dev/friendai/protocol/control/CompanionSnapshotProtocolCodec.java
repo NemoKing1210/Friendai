@@ -5,9 +5,6 @@ import com.google.gson.GsonBuilder;
 import dev.friendai.execution.history.TaskRecord;
 import dev.friendai.foundation.diagnostics.LogEntry;
 import dev.friendai.foundation.diagnostics.LogKind;
-import dev.friendai.presentation.companion.CompanionSnapshot;
-import dev.friendai.presentation.companion.CompanionVitals;
-import dev.friendai.presentation.companion.QueueRow;
 import dev.friendai.protocol.DecodeResult;
 import dev.friendai.protocol.ProtocolDataException;
 import dev.friendai.protocol.ProtocolEnumAdapter;
@@ -59,26 +56,26 @@ public final class CompanionSnapshotProtocolCodec {
                                     })
                             .nullSafe())
             .create();
-    private static final Type TYPE = CompanionSnapshot.class;
+    private static final Type TYPE = CompanionSnapshotView.class;
 
     private CompanionSnapshotProtocolCodec() {}
 
-    public static byte[] encodeForRecipient(CompanionSnapshot snapshot, boolean operatorRecipient, long requestId) {
-        CompanionSnapshot projected = project(snapshot, operatorRecipient);
+    public static byte[] encodeForRecipient(CompanionSnapshotView snapshot, boolean operatorRecipient, long requestId) {
+        CompanionSnapshotView projected = project(snapshot, operatorRecipient);
         validate(projected);
         byte[] body =
                 ProtocolJsonViewCodec.encodeBody(projected, TYPE, GSON, MAX_FRAME_BYTES - ProtocolVersion.HEADER_BYTES);
         return ProtocolViewCodec.encode(ProtocolFamily.CONTROL, 128, requestId, body);
     }
 
-    public static DecodeResult<ProtocolView<CompanionSnapshot>> decode(byte[] encoded) {
+    public static DecodeResult<ProtocolView<CompanionSnapshotView>> decode(byte[] encoded) {
         return ProtocolJsonViewCodec.decode(
                 encoded, ProtocolFamily.CONTROL, 128, TYPE, GSON, CompanionSnapshotProtocolCodec::validate);
     }
 
-    private static CompanionSnapshot project(CompanionSnapshot snapshot, boolean operatorRecipient) {
+    private static CompanionSnapshotView project(CompanionSnapshotView snapshot, boolean operatorRecipient) {
         if (snapshot == null) throw new ProtocolDataException(DecodeResult.Reason.INVALID_FIELD);
-        return new CompanionSnapshot(
+        return new CompanionSnapshotView(
                 snapshot.present(),
                 operatorRecipient,
                 snapshot.companionName(),
@@ -106,7 +103,7 @@ public final class CompanionSnapshotProtocolCodec {
                 snapshot.freeTimePlannerModel());
     }
 
-    private static void validate(CompanionSnapshot snapshot) {
+    private static void validate(CompanionSnapshotView snapshot) {
         if (snapshot.history() == null
                 || snapshot.newLog() == null
                 || snapshot.toolNames() == null
@@ -139,14 +136,14 @@ public final class CompanionSnapshotProtocolCodec {
         }
         text(snapshot.perception(), MAX_STRING_BYTES);
         for (String name : snapshot.toolNames()) text(name, 512);
-        CompanionVitals vitals = snapshot.vitals();
+        CompanionSnapshotView.Vitals vitals = snapshot.vitals();
         text(vitals.combatMode(), 128);
         text(vitals.protection(), 128);
         text(vitals.style(), 128);
         text(vitals.action(), 128);
         text(vitals.reason(), 512);
         text(vitals.paceMode(), 128);
-        for (QueueRow row : snapshot.queue()) {
+        for (CompanionSnapshotView.QueueItem row : snapshot.queue()) {
             if (row == null || row.after() == null || row.after().size() > MAX_LIST_COUNT)
                 throw new ProtocolDataException(DecodeResult.Reason.INVALID_FIELD);
             text(row.planGoal(), 2_000);

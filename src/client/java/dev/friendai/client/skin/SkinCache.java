@@ -2,10 +2,11 @@ package dev.friendai.client.skin;
 
 import com.mojang.blaze3d.platform.NativeImage;
 import dev.friendai.FriendaiMod;
+import dev.friendai.client.FriendaiClient;
 import dev.friendai.features.appearance.SkinHash;
 import dev.friendai.features.appearance.SkinImage;
-import dev.friendai.net.SkinRequestC2SPayload;
-import dev.friendai.net.SkinS2CPayload;
+import dev.friendai.transport.payload.SkinRequestC2SPayload;
+import dev.friendai.transport.payload.SkinS2CPayload;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -44,7 +45,11 @@ public final class SkinCache {
         }
         long now = System.nanoTime();
         Long asked = PENDING.get(hash);
-        if ((asked == null || now - asked > RETRY_NANOS) && ClientPlayNetworking.canSend(SkinRequestC2SPayload.TYPE)) {
+        var session = FriendaiClient.runtime().sessionId();
+        if ((asked == null || now - asked > RETRY_NANOS)
+                && session != null
+                && FriendaiClient.runtime().allowsAppearance(session)
+                && ClientPlayNetworking.canSend(SkinRequestC2SPayload.TYPE)) {
             PENDING.put(hash, now);
             ClientPlayNetworking.send(new SkinRequestC2SPayload(hash));
         }

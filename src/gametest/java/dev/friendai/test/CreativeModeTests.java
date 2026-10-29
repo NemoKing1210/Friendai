@@ -3,7 +3,6 @@ package dev.friendai.test;
 import com.google.gson.JsonObject;
 import dev.friendai.core.CreativeModeService;
 import dev.friendai.core.FriendaiServerState;
-import dev.friendai.debug.RequestType;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionLifeData;
 import dev.friendai.entity.CompanionManager;
@@ -12,9 +11,7 @@ import dev.friendai.execution.queue.GuardAction;
 import dev.friendai.execution.queue.QueuedStep;
 import dev.friendai.features.creative.minecraft.task.CreateItemsTask;
 import dev.friendai.features.navigation.minecraft.task.StayTask;
-import dev.friendai.net.CompanionRequestC2SPayload;
-import dev.friendai.net.CompanionRequestHandler;
-import dev.friendai.net.Operators;
+import dev.friendai.server.net.Operators;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
 import java.util.List;
@@ -239,11 +236,11 @@ public class CreativeModeTests {
                 CompanionManager.get(h.getLevel().getServer()).summon(owner);
         var life = FriendaiServerState.get(h.getLevel().getServer()).companionLife();
 
-        CompanionRequestHandler.handle(
-                owner, new CompanionRequestC2SPayload(RequestType.SET_CREATIVE_MODE, "enabled", ""));
+        TestMenuRequests.handle(
+                owner, TestMenuRequests.menuRequest(TestMenuRequests.Action.SET_CREATIVE_MODE, "enabled", ""));
         h.assertFalse(life.creativeMode(owner.getUUID()), "invalid request values must be ignored");
-        CompanionRequestHandler.handle(
-                owner, new CompanionRequestC2SPayload(RequestType.SET_CREATIVE_MODE, "true", ""));
+        TestMenuRequests.handle(
+                owner, TestMenuRequests.menuRequest(TestMenuRequests.Action.SET_CREATIVE_MODE, "true", ""));
         h.assertFalse(life.creativeMode(owner.getUUID()), "a non-operator owner cannot enable creative");
 
         life.setCreativeMode(owner.getUUID(), true);
@@ -264,18 +261,18 @@ public class CreativeModeTests {
                                 owner.getUUID(),
                                 false),
                         ctx -> new StayTask());
-        CompanionRequestHandler.handle(
-                owner, new CompanionRequestC2SPayload(RequestType.SET_CREATIVE_MODE, "true", ""));
+        TestMenuRequests.handle(
+                owner, TestMenuRequests.menuRequest(TestMenuRequests.Action.SET_CREATIVE_MODE, "true", ""));
         h.assertTrue(
                 companion.executionCoordinator().queue().jobCount() == 1,
                 "an idempotent request must not cancel queued work");
 
-        CompanionRequestHandler.handle(
-                guest, new CompanionRequestC2SPayload(RequestType.SET_CREATIVE_MODE, "false", ""));
+        TestMenuRequests.handle(
+                guest, TestMenuRequests.menuRequest(TestMenuRequests.Action.SET_CREATIVE_MODE, "false", ""));
         h.assertTrue(
                 companion.creativeMode(), "a forged request from another player cannot change the owner's companion");
-        CompanionRequestHandler.handle(
-                owner, new CompanionRequestC2SPayload(RequestType.SET_CREATIVE_MODE, "false", ""));
+        TestMenuRequests.handle(
+                owner, TestMenuRequests.menuRequest(TestMenuRequests.Action.SET_CREATIVE_MODE, "false", ""));
         h.assertFalse(companion.creativeMode(), "the owner must be able to disable creative");
         h.succeed();
     }

@@ -1,8 +1,8 @@
 package dev.friendai.client.ui;
 
-import dev.friendai.debug.RequestType;
 import dev.friendai.presentation.companion.CompanionSnapshot;
 import dev.friendai.presentation.companion.CompanionVitals;
+import dev.friendai.protocol.control.ControlRequest;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;
@@ -31,22 +31,24 @@ final class ControlTab extends StatefulMenuTab {
         int columns = oneRow ? 4 : 2;
         int buttonWidth = (width - (columns - 1) * GAP) / columns;
         buttonsTop = top + height - rows * BUTTON_HEIGHT - (rows - 1) * GAP;
-        summon = button(host, "friendai.menu.summon", RequestType.SUMMON, Ui.GOOD, left, buttonsTop, buttonWidth);
+        summon = button(
+                host, "friendai.menu.summon", new ControlRequest.Summon(), Ui.GOOD, left, buttonsTop, buttonWidth);
         teleport = button(
                 host,
                 "friendai.menu.teleport",
-                RequestType.TELEPORT,
+                new ControlRequest.Teleport(),
                 Ui.ACCENT,
                 left + (buttonWidth + GAP),
                 buttonsTop,
                 buttonWidth);
         int secondRow = oneRow ? buttonsTop : buttonsTop + BUTTON_HEIGHT + GAP;
         int dismissX = oneRow ? left + 2 * (buttonWidth + GAP) : left;
-        dismiss = button(host, "friendai.menu.dismiss", RequestType.DISMISS, Ui.WARN, dismissX, secondRow, buttonWidth);
+        dismiss = button(
+                host, "friendai.menu.dismiss", new ControlRequest.Dismiss(), Ui.WARN, dismissX, secondRow, buttonWidth);
         stop = button(
                 host,
                 "friendai.menu.stop",
-                RequestType.STOP,
+                new ControlRequest.Stop(),
                 Ui.BAD,
                 dismissX + buttonWidth + GAP,
                 secondRow,
@@ -54,7 +56,8 @@ final class ControlTab extends StatefulMenuTab {
         tick();
     }
 
-    private static FlatButton button(Host host, String key, RequestType request, int color, int x, int y, int width) {
+    private static FlatButton button(
+            Host host, String key, ControlRequest request, int color, int x, int y, int width) {
         return host.add(new FlatButton(
                 x, y, width, BUTTON_HEIGHT, Component.translatable(key), color, () -> CompanionRequests.send(request)));
     }

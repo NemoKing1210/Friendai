@@ -1,11 +1,11 @@
 package dev.friendai.client.ui;
 
 import dev.friendai.core.Components;
-import dev.friendai.debug.RequestType;
 import dev.friendai.features.memory.MenuStatus;
 import dev.friendai.features.places.PlaceLimits;
 import dev.friendai.features.places.PlaceView;
 import dev.friendai.presentation.companion.PlacesTabModel;
+import dev.friendai.protocol.places.PlaceRequest;
 import java.util.List;
 import java.util.Optional;
 import net.minecraft.client.Minecraft;
@@ -259,14 +259,14 @@ final class PlacesTab extends StatefulMenuTab {
             if (next.isEmpty() || next.equals(place.name())) {
                 return;
             }
-            CompanionRequests.send(RequestType.PLACES_RENAME, place.name(), next);
+            CompanionRequests.send(new PlaceRequest.Rename(place.name(), next));
         });
     }
 
     private void clickDelete() {
         model.selectedRow().ifPresent(place -> {
             if (model.requestDelete(place.id(), System.currentTimeMillis())) {
-                CompanionRequests.send(RequestType.PLACES_FORGET, place.name(), "");
+                CompanionRequests.send(new PlaceRequest.Forget(place.name()));
             }
             sync();
         });

@@ -2,7 +2,7 @@ package dev.friendai.command;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.creative.CreativeCommandPolicy;
-import dev.friendai.net.Operators;
+import dev.friendai.server.net.Operators;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.commands.CommandSource;

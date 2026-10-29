@@ -28,4 +28,9 @@ public final class RateLimiter {
         });
         return allowed[0];
     }
+
+    /** Forgets a disconnected connection so its history does not affect a later session for the same owner. */
+    public void forget(UUID key) {
+        last.remove(key);
+    }
 }

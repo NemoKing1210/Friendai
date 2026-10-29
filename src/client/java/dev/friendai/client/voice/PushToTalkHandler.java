@@ -10,7 +10,7 @@ import dev.friendai.features.speech.VoiceErrors;
 import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.infrastructure.config.ClientConfig;
 import dev.friendai.presentation.companion.ClientSessionId;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
@@ -24,7 +24,7 @@ public final class PushToTalkHandler {
     private final MicCapture mic = VoiceRuntime.mic();
     private final Supplier<SpeechToText> stt;
     private final Supplier<ClientSessionId> session;
-    private final Consumer<String> onTranscript;
+    private final BiConsumer<ClientSessionId, String> onTranscript;
     private KeyMapping key;
     private boolean held;
     private boolean pressIgnored;
@@ -35,7 +35,9 @@ public final class PushToTalkHandler {
     private SpeechToText recordingRecognizer;
 
     public PushToTalkHandler(
-            Supplier<SpeechToText> stt, Supplier<ClientSessionId> session, Consumer<String> onTranscript) {
+            Supplier<SpeechToText> stt,
+            Supplier<ClientSessionId> session,
+            BiConsumer<ClientSessionId, String> onTranscript) {
         this.stt = stt;
         this.session = session;
         this.onTranscript = onTranscript;
@@ -135,7 +137,7 @@ public final class PushToTalkHandler {
                     } else {
                         VoiceState.set(VoiceState.Kind.IDLE, null);
                         if (text != null && !text.isBlank()) {
-                            onTranscript.accept(text.strip());
+                            onTranscript.accept(sessionId, text.strip());
                         }
                     }
                 }));

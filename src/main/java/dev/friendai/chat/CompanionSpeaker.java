@@ -4,12 +4,15 @@ import dev.friendai.agent.turn.Speaker;
 import dev.friendai.core.Components;
 import dev.friendai.features.conversation.*;
 import dev.friendai.foundation.text.UserMessage;
-import dev.friendai.net.CompanionSpeechS2CPayload;
+import dev.friendai.protocol.ProtocolFamily;
+import dev.friendai.protocol.speech.CompanionSpeechProtocolViewCodec;
+import dev.friendai.protocol.speech.CompanionSpeechView;
+import dev.friendai.server.runtime.ServerRuntimeRegistry;
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
-import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
@@ -67,21 +70,30 @@ public final class CompanionSpeaker implements Speaker {
         if (text.isBlank()) {
             return;
         }
-        CompanionSpeechS2CPayload payload = new CompanionSpeechS2CPayload(
-                clamp(name.get(), CompanionSpeechS2CPayload.MAX_NAME),
-                clamp(text, CompanionSpeechS2CPayload.MAX_TEXT),
+        CompanionSpeechView view = new CompanionSpeechView(
+                clampUtf8(name.get(), CompanionSpeechProtocolViewCodec.MAX_COMPANION_BYTES),
+                clampUtf8(text, CompanionSpeechProtocolViewCodec.MAX_TEXT_BYTES),
                 addressee,
                 companionId.get(),
                 audibleRange.getAsInt());
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            if (ServerPlayNetworking.canSend(player, CompanionSpeechS2CPayload.TYPE)) {
-                ServerPlayNetworking.send(player, payload);
-            }
+            ServerRuntimeRegistry.getOrCreate(server)
+                    .protocolConnections()
+                    .sendView(player, ProtocolFamily.SPEECH, CompanionSpeechProtocolViewCodec.encode(view));
         }
     }
 
-    private static String clamp(String text, int max) {
-        return text.length() <= max ? text : text.substring(0, max);
+    private static String clampUtf8(String text, int maxBytes) {
+        int bytes = 0;
+        int end = 0;
+        while (end < text.length()) {
+            int codePoint = text.codePointAt(end);
+            int width = new String(Character.toChars(codePoint)).getBytes(StandardCharsets.UTF_8).length;
+            if (bytes + width > maxBytes) break;
+            bytes += width;
+            end += Character.charCount(codePoint);
+        }
+        return end == text.length() ? text : text.substring(0, end);
     }
 
     @Override

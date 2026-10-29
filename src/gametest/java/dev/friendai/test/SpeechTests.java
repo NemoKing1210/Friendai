@@ -4,12 +4,13 @@ import dev.friendai.chat.CompanionSpeaker;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.features.conversation.NameColor;
-import dev.friendai.net.CompanionSpeechS2CPayload;
-import io.netty.buffer.Unpooled;
+import dev.friendai.protocol.DecodeResult;
+import dev.friendai.protocol.ProtocolView;
+import dev.friendai.protocol.speech.CompanionSpeechProtocolViewCodec;
+import dev.friendai.protocol.speech.CompanionSpeechView;
 import java.util.UUID;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
-import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -34,17 +35,16 @@ public class SpeechTests {
     public void speechPayloadRoundTrips(GameTestHelper h) {
         UUID companionId = UUID.fromString("00000000-0000-0000-0000-0000000000c1");
         UUID addressee = UUID.fromString("00000000-0000-0000-0000-0000000000c2");
-        CompanionSpeechS2CPayload payload =
-                new CompanionSpeechS2CPayload("Nova", "Hello there", addressee, companionId, 16);
-        RegistryFriendlyByteBuf buf =
-                new RegistryFriendlyByteBuf(Unpooled.buffer(), h.getLevel().registryAccess());
-        CompanionSpeechS2CPayload.CODEC.encode(buf, payload);
-        CompanionSpeechS2CPayload decoded = CompanionSpeechS2CPayload.CODEC.decode(buf);
-        h.assertValueEqual("Nova", decoded.companion(), "companion");
-        h.assertValueEqual("Hello there", decoded.text(), "text");
-        h.assertValueEqual(addressee, decoded.addressee(), "addressee");
-        h.assertValueEqual(companionId, decoded.companionId(), "companion id");
-        h.assertValueEqual(16, decoded.audibleRange(), "range");
+        CompanionSpeechView view = new CompanionSpeechView("Nova", "Hello there", addressee, companionId, 16);
+        var decoded = CompanionSpeechProtocolViewCodec.decode(CompanionSpeechProtocolViewCodec.encode(view, 7));
+        h.assertTrue(decoded instanceof DecodeResult.Valid<?>, "speech view should decode");
+        var received = ((DecodeResult.Valid<ProtocolView<CompanionSpeechView>>) decoded).value();
+        h.assertValueEqual(7L, received.requestId(), "correlation id");
+        h.assertValueEqual("Nova", received.value().companion(), "companion");
+        h.assertValueEqual("Hello there", received.value().text(), "text");
+        h.assertValueEqual(addressee, received.value().addressee(), "addressee");
+        h.assertValueEqual(companionId, received.value().companionId(), "companion id");
+        h.assertValueEqual(16, received.value().audibleRange(), "range");
         h.succeed();
     }
 

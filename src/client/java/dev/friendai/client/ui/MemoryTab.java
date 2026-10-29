@@ -1,14 +1,13 @@
 package dev.friendai.client.ui;
 
-import com.google.gson.JsonObject;
 import dev.friendai.core.Components;
-import dev.friendai.debug.RequestType;
 import dev.friendai.features.memory.Category;
 import dev.friendai.features.memory.MemoryView;
 import dev.friendai.features.memory.MenuStatus;
 import dev.friendai.features.memory.PersonaPresets;
 import dev.friendai.features.memory.PersonaText;
 import dev.friendai.presentation.companion.MemoryTabModel;
+import dev.friendai.protocol.memory.MemoryRequest;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -320,33 +319,34 @@ final class MemoryTab extends StatefulMenuTab {
 
     private void submit() {
         if (model.personaSelected()) {
-            CompanionRequests.send(RequestType.PERSONA_SET, personaBox.getValue(), "");
+            CompanionRequests.send(new MemoryRequest.PersonaSet(personaBox.getValue()));
             return;
         }
         Optional<MemoryView.Group> group = model.group();
         if (group.isEmpty()) {
             return;
         }
-        String body = body(draftCategory, text.getValue());
         OptionalInt editing = model.editing();
         if (editing.isPresent()) {
-            CompanionRequests.send(RequestType.MEMORY_EDIT, String.valueOf(editing.getAsInt()), body);
+            CompanionRequests.send(
+                    new MemoryRequest.FactEdit(editing.getAsInt(), categoryId(draftCategory), text.getValue()));
             model.cancelEdit();
             text.setValue("");
         } else {
-            CompanionRequests.send(RequestType.MEMORY_ADD, group.get().key(), body);
+            CompanionRequests.send(
+                    new MemoryRequest.FactAdd(group.get().key(), categoryId(draftCategory), text.getValue()));
         }
         sync();
     }
 
     private void clickForget() {
-        model.selected().ifPresent(id -> CompanionRequests.send(RequestType.MEMORY_FORGET, String.valueOf(id), ""));
+        model.selected().ifPresent(id -> CompanionRequests.send(new MemoryRequest.FactForget(id)));
     }
 
     private void clickClear() {
         model.group().ifPresent(group -> {
             if (model.clickClear(System.currentTimeMillis())) {
-                CompanionRequests.send(RequestType.MEMORY_CLEAR, group.key(), "");
+                CompanionRequests.send(new MemoryRequest.FactClear(group.key()));
             }
             sync();
         });
@@ -355,15 +355,18 @@ final class MemoryTab extends StatefulMenuTab {
     private void clickTrust() {
         model.group().ifPresent(group -> {
             boolean trusted = group.role() == MemoryView.Role.TRUSTED;
-            CompanionRequests.send(RequestType.MEMORY_TRUST, group.key(), trusted ? "false" : "true");
+            CompanionRequests.send(new MemoryRequest.TrustSet(java.util.UUID.fromString(group.key()), !trusted));
         });
     }
 
-    private static String body(Category category, String text) {
-        JsonObject json = new JsonObject();
-        json.addProperty("category", category.name());
-        json.addProperty("text", text);
-        return json.toString();
+    private static int categoryId(Category category) {
+        return switch (category) {
+            case PROFILE -> 1;
+            case PREFERENCE -> 2;
+            case PLACE -> 3;
+            case PROMISE -> 4;
+            case NOTE -> 5;
+        };
     }
 
     private static Component categoryLabel(Category category) {

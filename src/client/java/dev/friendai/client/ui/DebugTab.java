@@ -1,7 +1,8 @@
 package dev.friendai.client.ui;
 
-import dev.friendai.debug.RequestType;
 import dev.friendai.presentation.companion.CompanionSnapshot;
+import dev.friendai.protocol.control.ControlRequest;
+import dev.friendai.protocol.debug.DebugRequest;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.client.gui.Font;
@@ -60,7 +61,7 @@ final class DebugTab extends StatefulMenuTab {
                 Component.translatable("friendai.menu.debug.send"),
                 Ui.GOOD,
                 () -> {
-                    CompanionRequests.send(RequestType.SEND_MESSAGE, message.getValue(), "");
+                    CompanionRequests.send(new ControlRequest.SendChat(message.getValue()));
                     message.setValue("");
                 }));
 
@@ -90,7 +91,7 @@ final class DebugTab extends StatefulMenuTab {
                 FIELD,
                 Component.translatable("friendai.menu.debug.run"),
                 Ui.WARN,
-                () -> CompanionRequests.send(RequestType.RUN_TOOL, selectedTool, args.getValue())));
+                () -> CompanionRequests.send(new ControlRequest.InvokeTool(selectedTool, args.getValue()))));
 
         int segment = Math.min(120, (width - GAP) / 2);
         perceptionButton = host.add(new FlatButton(
@@ -110,7 +111,7 @@ final class DebugTab extends StatefulMenuTab {
                 Ui.ACCENT,
                 () -> {
                     showPrompt = true;
-                    CompanionRequests.send(RequestType.REQUEST_PROMPT);
+                    CompanionRequests.send(new DebugRequest.PromptGet());
                 }));
     }
 
