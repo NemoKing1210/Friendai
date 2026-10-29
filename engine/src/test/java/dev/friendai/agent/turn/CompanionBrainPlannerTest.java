@@ -12,6 +12,7 @@ import com.google.gson.JsonObject;
 import dev.friendai.agent.goal.Goal;
 import dev.friendai.agent.goal.GoalStatus;
 import dev.friendai.agent.goal.GoalView;
+import dev.friendai.agent.llm.model.Message;
 import dev.friendai.agent.plan.PlanProposal;
 import dev.friendai.agent.plan.PlannerInput;
 import dev.friendai.agent.recover.FailureHandler;
@@ -19,13 +20,13 @@ import dev.friendai.execution.queue.GuardAction;
 import dev.friendai.execution.queue.PlanDefinition;
 import dev.friendai.execution.queue.PlanNode;
 import dev.friendai.execution.queue.QueuedStep;
+import dev.friendai.execution.tool.AccessLevel;
+import dev.friendai.execution.tool.Caller;
+import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.testutil.FakeGateway;
 import dev.friendai.testutil.FakeToolExecutor;
 import dev.friendai.testutil.ManualScheduler;
 import dev.friendai.testutil.RecordingSpeaker;
-import dev.friendai.execution.tool.AccessLevel;
-import dev.friendai.execution.tool.Caller;
-import dev.friendai.execution.tool.ToolResult;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -104,6 +105,23 @@ class CompanionBrainPlannerTest {
                 new ManualScheduler(),
                 AccessResolver.of(OWNER, new HashSet<UUID>()::contains));
         brain.setPlannerPort(port);
+    }
+
+    @Test
+    void plannerTurnHistoryStaysInTheOwnerConversation() {
+        UUID guest = UUID.fromString("00000000-0000-0000-0000-000000000002");
+        gateway.enqueue(calls("", call("g1", "set_goal")));
+        gateway.enqueue(text("PLANNER_REPLY"));
+        gateway.enqueue(text("guest reply"));
+        brain.post(said(BUILD_AND_BRING));
+        brain.post(new BrainEvent.PlayerSaid(guest, "Bob", "GUEST_LINE", BrainEvent.Source.CHAT));
+        List<Message> messages = gateway.requests.get(2).messages();
+        assertEquals("[Bob (guest)]: GUEST_LINE", messages.getLast().text());
+        assertFalse(
+                messages.stream()
+                        .anyMatch(m ->
+                                m.text().contains("PLANNER_REPLY") || m.text().contains(BUILD_AND_BRING)),
+                "a planner turn's owner history must not reach a guest request");
     }
 
     private static BrainEvent said(String text) {

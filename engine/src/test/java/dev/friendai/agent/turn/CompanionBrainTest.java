@@ -14,12 +14,12 @@ import dev.friendai.agent.llm.model.LlmResponse;
 import dev.friendai.agent.llm.model.Message;
 import dev.friendai.agent.llm.model.Role;
 import dev.friendai.agent.llm.model.ToolSpec;
+import dev.friendai.execution.tool.AccessLevel;
+import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.testutil.FakeGateway;
 import dev.friendai.testutil.FakeToolExecutor;
 import dev.friendai.testutil.ManualScheduler;
 import dev.friendai.testutil.RecordingSpeaker;
-import dev.friendai.foundation.text.UserMessage;
-import dev.friendai.execution.tool.AccessLevel;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -195,6 +195,117 @@ class CompanionBrainTest {
         gateway.enqueue(text("I will use mine_blocks now."));
         brain.post(said("where are you?"));
         assertTrue(speaker.said.stream().noneMatch(line -> line.contains("mine_blocks")), speaker.said.toString());
+    }
+
+    @Test
+    void guestRequestsNeverContainOwnerConversation() {
+        gateway.enqueue(text("OWNER_REPLY"));
+        gateway.enqueue(text("GUEST_REPLY"));
+        gateway.enqueue(text("OWNER_AGAIN"));
+        brain.post(said("OWNER_SECRET"));
+        brain.post(guest("GUEST_LINE"));
+        brain.post(said("OWNER_SECOND"));
+        List<Message> guestMessages = gateway.requests.get(1).messages();
+        assertEquals(
+                "[Bob (guest)]: GUEST_LINE", lastUser(gateway.requests.get(1)).text());
+        assertFalse(
+                guestMessages.stream()
+                        .anyMatch(m ->
+                                m.text().contains("OWNER_SECRET") || m.text().contains("OWNER_REPLY")),
+                "guest input must not contain owner user or assistant history");
+        List<Message> ownerMessages = gateway.requests.get(2).messages();
+        assertTrue(ownerMessages.stream().anyMatch(m -> m.text().contains("OWNER_SECRET")), "owner history continues");
+        assertFalse(
+                ownerMessages.stream().anyMatch(m -> m.text().contains("GUEST_LINE")),
+                "guest history must not enter the owner conversation");
+    }
+
+    @Test
+    void ownerToolResultsStayOutOfGuestInput() {
+        gateway.enqueue(calls("", call("c1", "stay")));
+        gateway.enqueue(text("OWNER_TOOL_REPLY"));
+        gateway.enqueue(text("guest reply"));
+        brain.post(said("OWNER_SECRET"));
+        brain.post(guest("GUEST_LINE"));
+        List<Message> guestMessages = gateway.requests.get(2).messages();
+        assertTrue(
+                guestMessages.stream().noneMatch(m -> m.role() == Role.TOOL),
+                "private tool results must not cross into a guest request");
+        assertFalse(
+                guestMessages.stream().anyMatch(m -> m.text().contains("OWNER_TOOL_REPLY")),
+                "owner assistant text must not cross into a guest request");
+    }
+
+    @Test
+    void guestHistoriesAreIsolatedFromEachOther() {
+        UUID other = UUID.fromString("00000000-0000-0000-0000-000000000003");
+        gateway.enqueue(text("FIRST_GUEST_REPLY"));
+        gateway.enqueue(text("second guest reply"));
+        brain.post(guest("FIRST_GUEST_SECRET"));
+        brain.post(new BrainEvent.PlayerSaid(other, "Cara", "SECOND_GUEST_LINE", BrainEvent.Source.CHAT));
+        List<Message> messages = gateway.requests.get(1).messages();
+        assertEquals(
+                "[Cara (guest)]: SECOND_GUEST_LINE",
+                lastUser(gateway.requests.get(1)).text());
+        assertFalse(
+                messages.stream()
+                        .anyMatch(m -> m.text().contains("FIRST_GUEST_SECRET")
+                                || m.text().contains("FIRST_GUEST_REPLY")),
+                "one guest must not see another guest's history");
+    }
+
+    @Test
+    void revokingTrustInvalidatesTheTrustedHistory() {
+        trusted.add(GUEST);
+        gateway.enqueue(text("TRUSTED_REPLY"));
+        gateway.enqueue(text("guest reply"));
+        brain.post(guest("TRUSTED_SECRET"));
+        trusted.remove(GUEST);
+        brain.post(guest("AFTER_REVOKE"));
+        List<Message> messages = gateway.requests.get(1).messages();
+        assertFalse(
+                messages.stream()
+                        .anyMatch(m ->
+                                m.text().contains("TRUSTED_SECRET") || m.text().contains("TRUSTED_REPLY")),
+                "a revoked player must not receive the history built while trusted");
+    }
+
+    @Test
+    void eventTurnsUseOnlyTheOwnerHistory() {
+        gateway.enqueue(text("EVENT_REPLY"));
+        gateway.enqueue(text("guest reply"));
+        brain.post(new BrainEvent.WorldNotice("OWNER_EVENT_SECRET"));
+        brain.post(guest("GUEST_LINE"));
+        List<Message> messages = gateway.requests.get(1).messages();
+        assertFalse(
+                messages.stream()
+                        .anyMatch(m -> m.text().contains("OWNER_EVENT_SECRET")
+                                || m.text().contains("EVENT_REPLY")),
+                "background event context belongs to the owner history");
+    }
+
+    @Test
+    void historyMapIsBoundedAndEvictsTheLeastRecentlyUsedGuest() {
+        gateway.enqueue(text("OWNER_REPLY"));
+        brain.post(said("OWNER_ANCHOR"));
+        List<UUID> guests = new ArrayList<>();
+        for (int i = 0; i < 33; i++) {
+            UUID id = UUID.fromString(String.format("00000000-0000-0000-0000-%012d", i + 100));
+            guests.add(id);
+            gateway.enqueue(text("reply " + i));
+            brain.post(new BrainEvent.PlayerSaid(id, "G" + i, "LINE_" + i, BrainEvent.Source.CHAT));
+        }
+        gateway.enqueue(text("fresh reply"));
+        brain.post(new BrainEvent.PlayerSaid(guests.getFirst(), "G0", "FRESH_LINE", BrainEvent.Source.CHAT));
+        List<Message> fresh = gateway.requests.get(gateway.requests.size() - 1).messages();
+        assertFalse(
+                fresh.stream().anyMatch(m -> m.text().contains("LINE_0")),
+                "the least recently used guest history is evicted");
+        gateway.enqueue(text("OWNER_AGAIN"));
+        brain.post(said("OWNER_SECOND"));
+        List<Message> owner = gateway.requests.get(gateway.requests.size() - 1).messages();
+        assertTrue(
+                owner.stream().anyMatch(m -> m.text().contains("OWNER_ANCHOR")), "the owner history is never evicted");
     }
 
     private static BrainEvent said(String text) {
@@ -573,7 +684,8 @@ class CompanionBrainTest {
         gateway.enqueue(text("ok"));
         brain.post(guest("look"));
         assertFalse(seen.isEmpty());
-        assertEquals(new dev.friendai.execution.tool.Caller(GUEST, "Bob", AccessLevel.TRUSTED), seen.get(seen.size() - 1));
+        assertEquals(
+                new dev.friendai.execution.tool.Caller(GUEST, "Bob", AccessLevel.TRUSTED), seen.get(seen.size() - 1));
         assertTrue(gateway.requests.get(0).system().contains("VIEW-FOR-Bob"));
         assertFalse(gateway.requests.get(0).system().contains("no-caller"));
     }

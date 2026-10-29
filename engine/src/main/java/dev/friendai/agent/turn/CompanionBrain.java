@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -55,6 +56,8 @@ public final class CompanionBrain {
     private static final long SPEECH_WINDOW_MS = 120_000L;
     /** How many recent lines an event turn is checked against before it speaks again. */
     private static final int RECENT_SPEECH_LINES = 4;
+    /** At most this many principal histories; the owner and the active turn are never evicted. */
+    private static final int MAX_HISTORIES = 32;
 
     private final Supplier<Persona> persona;
     private final Supplier<BrainSettings> settings;
@@ -65,7 +68,12 @@ public final class CompanionBrain {
     private final BrainScheduler scheduler;
     private final AccessResolver access;
     private final MemorySource memorySource;
-    private final ConversationMemory memory;
+    private final int historyMessages;
+    /** Principal-scoped conversations, least recently used first; the map access order is the LRU order. */
+    private final Map<UUID, PrincipalHistory> histories = new LinkedHashMap<>(16, 0.75f, true);
+
+    private ConversationMemory memory;
+    private UUID activePrincipal;
     private BrainObserver observer = BrainObserver.NONE;
     private GoalSource goalSource = GoalSource.NONE;
     private PlaceSource placeSource = PlaceSource.NONE;
@@ -172,7 +180,19 @@ public final class CompanionBrain {
         this.memorySource = memorySource;
         this.catalog = Objects.requireNonNull(catalog);
         this.turnCaller = new Caller(access.owner(), "", AccessLevel.OWNER);
-        this.memory = new ConversationMemory(settings.get().historyMessages());
+        this.historyMessages = settings.get().historyMessages();
+        this.memory = new ConversationMemory(historyMessages);
+    }
+
+    /** A conversation plus the access level it was built under; a level change invalidates the text. */
+    private static final class PrincipalHistory {
+        private final ConversationMemory memory;
+        private AccessLevel access;
+
+        private PrincipalHistory(ConversationMemory memory, AccessLevel access) {
+            this.memory = memory;
+            this.access = access;
+        }
     }
 
     public void post(BrainEvent e) {
@@ -217,6 +237,7 @@ public final class CompanionBrain {
         generation++;
         teachingContext = null;
         skillSession = SkillTurnSession.NONE;
+        activePrincipal = null;
         queue.clear();
         if (thinking) {
             thinking = false;
@@ -348,6 +369,34 @@ public final class CompanionBrain {
         return event instanceof BrainEvent.PlayerSaid said ? said.playerUuid() : access.owner();
     }
 
+    /** Selects the conversation for this turn; the same history serves every step of the turn. */
+    private void beginHistory(UUID principal, AccessLevel level) {
+        PrincipalHistory history = histories.get(principal);
+        if (history == null) {
+            evictHistorySlot();
+            history = new PrincipalHistory(new ConversationMemory(historyMessages), level);
+            histories.put(principal, history);
+        } else if (history.access != level) {
+            // A trust change must not carry text or tool output across the authorization boundary.
+            history.memory.clear();
+            history.access = level;
+        }
+        memory = history.memory;
+        activePrincipal = principal;
+    }
+
+    /** Drops the least recently used guest conversation; the owner and the active turn are never evicted. */
+    private void evictHistorySlot() {
+        if (histories.size() < MAX_HISTORIES) return;
+        var iterator = histories.keySet().iterator();
+        while (iterator.hasNext()) {
+            UUID candidate = iterator.next();
+            if (candidate.equals(access.owner()) || candidate.equals(activePrincipal)) continue;
+            iterator.remove();
+            return;
+        }
+    }
+
     private void maybeStartTurn() {
         if (thinking || queue.isEmpty()) {
             return;
@@ -388,6 +437,7 @@ public final class CompanionBrain {
         }
         turnKind = turnPlayerTexts.isEmpty() ? TurnKind.EVENT : TurnKind.PLAYER;
         AccessLevel level = access.accessOf(principal);
+        beginHistory(principal, level);
         Caller candidateCaller = new Caller(principal, name == null ? "" : name, level);
         boolean ownerInitiated = batch.stream()
                 .anyMatch(event -> event instanceof BrainEvent.PlayerSaid said
@@ -694,6 +744,7 @@ public final class CompanionBrain {
         hasFinishedTurn = true;
         lastTurnEnd = scheduler.nowMillis();
         speaker.thinking(false);
+        activePrincipal = null;
         maybeStartTurn();
     }
 }
