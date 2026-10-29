@@ -1,112 +1,208 @@
 package dev.friendai.infrastructure.persistence;
 
-import dev.friendai.foundation.persistence.StoreCodec;
-import dev.friendai.foundation.persistence.UnsupportedStoreVersionException;
+import dev.friendai.foundation.persistence.*;
 import java.io.IOException;
+import java.io.Reader;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.AtomicMoveNotSupportedException;
-import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Per-owner JSON files with lazy loading, debounced background writes and atomic replacement.
- *
- * @param <T> value stored for one owner; mutations must raise {@link StoreCodec#revision(Object)}
+ * Lazy owner files with caller-thread snapshot capture and bounded asynchronous atomic replacement.
+ * Domain values and revisions are accessed only on the owning thread; writer completions update metadata only.
  */
 public final class OwnerFileStore<T> implements AutoCloseable {
     public static final long FLUSH_INTERVAL_MS = 5_000;
     private static final Logger LOGGER = LoggerFactory.getLogger("friendai/store");
 
+    public enum WriterOwnership {
+        OWNED,
+        BORROWED
+    }
+
+    /** Shared construction boundary for domain adapters; file-operation details stay in infrastructure. */
+    public interface Factory {
+        <V> OwnerFileStore<V> create(Path dir, StoreCodec<V> codec);
+
+        static Factory borrowing(OwnerStoreWriter writer) {
+            java.util.Objects.requireNonNull(writer);
+            return new Factory() {
+                @Override
+                public <V> OwnerFileStore<V> create(Path dir, StoreCodec<V> codec) {
+                    return new OwnerFileStore<>(dir, codec, writer, WriterOwnership.BORROWED);
+                }
+            };
+        }
+    }
+
     private final Path dir;
     private final StoreCodec<T> codec;
-    private final Executor writer;
-    private final ExecutorService ownedWriter;
-    private final boolean waitForWrites;
+    private final OwnerStoreWriter writer;
+    private final WriterOwnership ownership;
     private final LongSupplier clock;
+    private final OwnerFileOperations files;
+    private final Duration closeTimeout;
+    private final boolean waitOnClose;
     private final Map<UUID, T> values = new HashMap<>();
     private final Map<UUID, Long> savedRevision = new HashMap<>();
     private final Map<UUID, Long> failedRevision = new HashMap<>();
+    private final Map<UUID, StoreFailureKind> failures = new HashMap<>();
+    private final Map<UUID, StoreReadOnlyReason> readOnly = new HashMap<>();
     private final Set<UUID> pending = new HashSet<>();
+    private Function<UUID, String> fileNames = id -> id + ".json";
     private long lastFlush;
-    private java.util.function.Function<UUID, String> fileNames = id -> id + ".json";
-    private final Set<UUID> unsupported = new HashSet<>();
+    private boolean closing;
+    private boolean closed;
 
-    public OwnerFileStore(Path dir, StoreCodec<T> codec, Executor writer, LongSupplier clock, boolean waitForWrites) {
-        this(dir, codec, writer, null, clock, waitForWrites);
+    /** Standalone/manual-executor test compatibility; executor ownership stays with the caller. */
+    public OwnerFileStore(Path dir, StoreCodec<T> codec, Executor executor, LongSupplier clock, boolean waitForWrites) {
+        this(
+                dir,
+                codec,
+                new OwnerStoreWriter(executor),
+                WriterOwnership.OWNED,
+                clock,
+                new OwnerFileOperations(),
+                Duration.ofSeconds(30),
+                waitForWrites);
+    }
+
+    public OwnerFileStore(Path dir, StoreCodec<T> codec, OwnerStoreWriter writer, WriterOwnership ownership) {
+        this(
+                dir,
+                codec,
+                writer,
+                ownership,
+                System::currentTimeMillis,
+                new OwnerFileOperations(),
+                Duration.ofSeconds(30));
+    }
+
+    OwnerFileStore(
+            Path dir,
+            StoreCodec<T> codec,
+            OwnerStoreWriter writer,
+            WriterOwnership ownership,
+            LongSupplier clock,
+            OwnerFileOperations files,
+            Duration closeTimeout) {
+        this(dir, codec, writer, ownership, clock, files, closeTimeout, true);
     }
 
     private OwnerFileStore(
             Path dir,
             StoreCodec<T> codec,
-            Executor writer,
-            ExecutorService ownedWriter,
+            OwnerStoreWriter writer,
+            WriterOwnership ownership,
             LongSupplier clock,
-            boolean waitForWrites) {
-        this.dir = dir;
-        this.codec = codec;
-        this.writer = writer;
-        this.ownedWriter = ownedWriter;
-        this.waitForWrites = waitForWrites;
-        this.clock = clock;
+            OwnerFileOperations files,
+            Duration closeTimeout,
+            boolean waitOnClose) {
+        this.dir = java.util.Objects.requireNonNull(dir);
+        this.codec = java.util.Objects.requireNonNull(codec);
+        this.writer = java.util.Objects.requireNonNull(writer);
+        this.ownership = java.util.Objects.requireNonNull(ownership);
+        this.clock = java.util.Objects.requireNonNull(clock);
+        this.files = java.util.Objects.requireNonNull(files);
+        this.closeTimeout = java.util.Objects.requireNonNull(closeTimeout);
+        if (closeTimeout.isNegative()) throw new IllegalArgumentException("Negative close timeout.");
+        this.waitOnClose = waitOnClose;
     }
 
-    /** Builds a store that owns a daemon writer thread and waits for writes when flushing. */
+    /** Standalone store that owns its writer. Runtime stores must use an explicitly borrowed writer. */
     public static <T> OwnerFileStore<T> withWriterThread(Path dir, StoreCodec<T> codec) {
-        ExecutorService writer = Executors.newSingleThreadExecutor(runnable -> {
-            Thread thread = new Thread(runnable, "friendai-store-writer");
-            thread.setDaemon(true);
-            return thread;
-        });
-        return new OwnerFileStore<>(dir, codec, writer, writer, System::currentTimeMillis, true);
+        return new OwnerFileStore<>(dir, codec, new OwnerStoreWriter(), WriterOwnership.OWNED);
     }
 
     public static <T> OwnerFileStore<T> withWriterThread(
-            Path dir, StoreCodec<T> codec, java.util.function.Function<UUID, String> fileNames) {
-        OwnerFileStore<T> store = withWriterThread(dir, codec);
-        store.fileNames = java.util.Objects.requireNonNull(fileNames);
-        return store;
+            Path dir, StoreCodec<T> codec, Function<UUID, String> fileNames) {
+        return withWriterThread(dir, codec).withFileNames(fileNames);
     }
 
-    /** Loads lazily; a missing file creates an empty value without touching disk. */
+    /** Chooses a fixed safe scope filename before the store is used. */
+    public synchronized OwnerFileStore<T> withFileNames(Function<UUID, String> fileNames) {
+        if (!values.isEmpty() || !readOnly.isEmpty()) throw new IllegalStateException("Store already loaded.");
+        this.fileNames = java.util.Objects.requireNonNull(fileNames);
+        return this;
+    }
+
+    /** A missing file is clean and absent. Unreadable originals remain read-only; corruption needs a backup. */
     public synchronized T book(UUID owner) {
-        if (unsupported.contains(owner)) throw new UnsupportedStoreVersionException();
-        T loaded = values.get(owner);
-        if (loaded != null) return loaded;
-        Path file = file(owner);
-        if (!Files.exists(file)) return adopt(owner, fresh(), 0L);
+        if (readOnly.get(owner) == StoreReadOnlyReason.UNSUPPORTED) throw new UnsupportedStoreVersionException();
+        T value = values.get(owner);
+        if (value != null) return value;
+        if (closing || closed) throw new IllegalStateException("Store is closed.");
+        Path target = file(owner);
         try {
-            long size = Files.size(file);
-            if (size > codec.maxBytes()) {
-                throw new IllegalArgumentException("owner file exceeds " + codec.maxBytes() + " bytes");
+            if (files.size(target) > codec.maxBytes()) {
+                readOnly.put(owner, StoreReadOnlyReason.OVERSIZED);
+                backup(owner, target);
+                return adopt(owner, fresh());
             }
-            String json = Files.readString(file, StandardCharsets.UTF_8);
-            T value = codec.load(json);
-            if (value == null) throw new IllegalArgumentException("empty owner file");
-            return adopt(owner, value, codec.revision(value));
-        } catch (UnsupportedStoreVersionException e) {
-            unsupported.add(owner);
-            throw e;
-        } catch (IOException | RuntimeException | StackOverflowError e) {
-            backupCorrupt(file, e);
-            return adopt(owner, fresh(), 0L);
+        } catch (NoSuchFileException absent) {
+            return adopt(owner, fresh());
+        } catch (IOException | RuntimeException failure) {
+            return unreadable(owner);
+        }
+        OwnerFileOperations.ReadAttempt attempt = new OwnerFileOperations.ReadAttempt();
+        try (Reader reader = files.reader(target, codec.maxBytes())) {
+            value = codec.load(attempt.observe(reader));
+            if (attempt.failure != null) throw attempt.failure;
+            if (value == null) throw new IllegalArgumentException("Empty owner file.");
+            return adopt(owner, value);
+        } catch (UnsupportedStoreVersionException unsupported) {
+            readOnly.put(owner, StoreReadOnlyReason.UNSUPPORTED);
+            throw unsupported;
+        } catch (OwnerFileOperations.OversizedInputException oversized) {
+            readOnly.put(owner, StoreReadOnlyReason.OVERSIZED);
+            backup(owner, target);
+            return adopt(owner, fresh());
+        } catch (IOException failure) {
+            return unreadable(owner);
+        } catch (RuntimeException | StackOverflowError corrupt) {
+            // A streaming codec may wrap or swallow the reader's exception. Parser failures alone are corruption.
+            if (attempt.failure instanceof OwnerFileOperations.OversizedInputException) {
+                readOnly.put(owner, StoreReadOnlyReason.OVERSIZED);
+                backup(owner, target);
+                return adopt(owner, fresh());
+            }
+            if (attempt.failure != null) return unreadable(owner);
+            backup(owner, target);
+            return adopt(owner, fresh());
         }
     }
 
-    /** Flushes dirty values after the debounce interval; only one immutable snapshot per owner may be queued. */
+    private T unreadable(UUID owner) {
+        readOnly.put(owner, StoreReadOnlyReason.READ_FAILED);
+        failures.put(owner, StoreFailureKind.READ_FAILED);
+        return adopt(owner, fresh());
+    }
+
+    public synchronized StoreWriteStatus status(UUID owner) {
+        T value = values.get(owner);
+        long saved = savedRevision.getOrDefault(owner, 0L);
+        return new StoreWriteStatus(
+                value == null ? saved : codec.revision(value),
+                saved,
+                pending.contains(owner),
+                failures.get(owner),
+                readOnly.get(owner));
+    }
+
+    /** Ordinary flushes capture snapshots without waiting for disk. */
     public synchronized void flushIfDue(long nowMillis) {
+        if (closing || closed) return;
         long now = Math.max(lastFlush, nowMillis);
         if (now - lastFlush < FLUSH_INTERVAL_MS) return;
         lastFlush = now;
@@ -118,115 +214,141 @@ public final class OwnerFileStore<T> implements AutoCloseable {
         flushIfDue(clock.getAsLong());
     }
 
-    /** Schedules the latest snapshot of every dirty owner. Stores waiting for writes block until settled. */
-    public void flushAll() {
-        synchronized (this) {
-            failedRevision.clear();
-            queueDirty();
-        }
-        if (waitForWrites) waitUntilCleanOrFailed();
+    public synchronized void flushAll() {
+        if (closing || closed) return;
+        failedRevision.clear();
+        queueDirty();
     }
 
-    /** True when the in-memory value has revisions the disk does not. */
     public synchronized boolean dirty(UUID owner) {
-        T value = values.get(owner);
-        return value != null && codec.revision(value) != savedRevision.getOrDefault(owner, 0L);
+        return status(owner).dirty();
     }
 
+    /** Final caller-thread snapshot/wait loop, bounded even if a borrowed executor never completes. */
     @Override
     public void close() {
-        flushAll();
-        if (ownedWriter == null) return;
-        ownedWriter.shutdown();
+        synchronized (this) {
+            if (closing || closed) return;
+            closing = true;
+            failedRevision.clear();
+        }
         try {
-            if (!ownedWriter.awaitTermination(30, TimeUnit.SECONDS)) {
-                LOGGER.warn("Owner file writer did not stop within 30 seconds");
+            if (waitOnClose) awaitFinalWrites();
+            else
+                synchronized (this) {
+                    queueDirty();
+                }
+        } finally {
+            synchronized (this) {
+                closed = true;
+                closing = false;
             }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+            if (ownership == WriterOwnership.OWNED) writer.close();
         }
     }
 
     private T fresh() {
-        return codec.load(null);
+        return codec.load((String) null);
     }
 
-    private T adopt(UUID owner, T value, long revision) {
+    private T adopt(UUID owner, T value) {
         values.put(owner, value);
-        savedRevision.put(owner, revision);
+        savedRevision.put(owner, codec.revision(value));
         return value;
     }
 
-    private synchronized void queueDirty() {
+    private void queueDirty() {
         for (Map.Entry<UUID, T> entry : values.entrySet()) {
             UUID owner = entry.getKey();
-            T value = entry.getValue();
-            long revision = codec.revision(value);
+            long revision = codec.revision(entry.getValue());
             if (revision == savedRevision.getOrDefault(owner, 0L)
                     || pending.contains(owner)
+                    || readOnly.containsKey(owner)
                     || failedRevision.getOrDefault(owner, Long.MIN_VALUE) == revision) continue;
-            String json = codec.save(value);
-            pending.add(owner);
+            final byte[] snapshot;
+            final Path target;
             try {
-                writer.execute(() -> save(owner, revision, json));
-            } catch (RuntimeException e) {
+                snapshot = codec.save(entry.getValue()).getBytes(StandardCharsets.UTF_8);
+                if (snapshot.length > codec.maxBytes())
+                    throw new IllegalArgumentException("Store snapshot exceeds limit.");
+                target = file(owner);
+            } catch (RuntimeException | StackOverflowError failure) {
+                fail(owner, revision, StoreFailureKind.WRITE_FAILED);
+                continue;
+            }
+            pending.add(owner);
+            boolean accepted;
+            try {
+                accepted = writer.trySubmit(() -> save(owner, target, revision, snapshot));
+            } catch (RuntimeException failure) {
+                accepted = false;
+            }
+            if (!accepted) {
                 pending.remove(owner);
-                failedRevision.put(owner, revision);
-                LOGGER.warn("Could not queue owner file for {}", owner, e);
+                fail(owner, revision, StoreFailureKind.QUEUE_FULL);
             }
         }
     }
 
-    private void save(UUID owner, long revision, String json) {
+    private void save(UUID owner, Path target, long revision, byte[] snapshot) {
         boolean saved = false;
+        Path temporary = null;
         try {
-            Path target = file(owner);
-            Files.createDirectories(target.toAbsolutePath().getParent());
-            Path temporary = Files.createTempFile(
-                    target.toAbsolutePath().getParent(), target.getFileName().toString(), ".tmp");
-            try {
-                Files.writeString(temporary, json, StandardCharsets.UTF_8);
-                try {
-                    Files.move(temporary, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-                } catch (AtomicMoveNotSupportedException e) {
-                    Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING);
-                }
-            } finally {
-                Files.deleteIfExists(temporary);
-            }
+            temporary = files.temporary(target);
+            files.write(temporary, snapshot);
+            files.replace(temporary, target);
             saved = true;
-        } catch (IOException | RuntimeException e) {
-            LOGGER.warn("Could not save owner file for {}", owner, e);
+        } catch (IOException | RuntimeException failure) {
+            // Only typed diagnostics escape the I/O layer.
         } finally {
+            if (temporary != null) {
+                try {
+                    files.cleanup(temporary);
+                } catch (IOException | RuntimeException ignored) {
+                    LOGGER.warn("Could not remove owner store temporary file");
+                }
+            }
             synchronized (this) {
                 pending.remove(owner);
-                if (saved) savedRevision.put(owner, revision);
-                else failedRevision.put(owner, revision);
+                if (saved) {
+                    savedRevision.put(owner, revision);
+                    failures.remove(owner);
+                    failedRevision.remove(owner);
+                } else fail(owner, revision, StoreFailureKind.WRITE_FAILED);
                 notifyAll();
             }
         }
     }
 
-    private void waitUntilCleanOrFailed() {
-        while (true) {
-            synchronized (this) {
+    private void fail(UUID owner, long revision, StoreFailureKind failure) {
+        failedRevision.put(owner, revision);
+        failures.put(owner, failure);
+    }
+
+    private void awaitFinalWrites() {
+        long deadline = System.nanoTime() + closeTimeout.toNanos();
+        synchronized (this) {
+            while (true) {
                 queueDirty();
-                if (pending.isEmpty()) {
-                    boolean dirtyCanRetry = values.entrySet().stream().anyMatch(entry -> {
-                        long current = codec.revision(entry.getValue());
-                        return current != savedRevision.getOrDefault(entry.getKey(), 0L)
-                                && failedRevision.getOrDefault(entry.getKey(), Long.MIN_VALUE) != current;
-                    });
-                    if (!dirtyCanRetry) return;
+                if (pending.isEmpty()) return;
+                long remaining = deadline - System.nanoTime();
+                if (remaining <= 0) {
+                    markTimeout();
+                    return;
                 }
                 try {
-                    wait(50L);
-                } catch (InterruptedException e) {
+                    wait(Math.max(1, Math.min(50, remaining / 1_000_000)));
+                } catch (InterruptedException interrupted) {
                     Thread.currentThread().interrupt();
+                    markTimeout();
                     return;
                 }
             }
         }
+    }
+
+    private void markTimeout() {
+        for (UUID owner : pending) failures.put(owner, StoreFailureKind.SHUTDOWN_TIMEOUT);
     }
 
     private Path file(UUID owner) {
@@ -236,17 +358,12 @@ public final class OwnerFileStore<T> implements AutoCloseable {
         return dir.resolve(name);
     }
 
-    private void backupCorrupt(Path file, Throwable cause) {
-        Path backup = file.resolveSibling(file.getFileName() + ".bak");
+    private void backup(UUID owner, Path target) {
         try {
-            Files.copy(file, backup, StandardCopyOption.REPLACE_EXISTING);
-        } catch (IOException e) {
-            LOGGER.warn("Could not back up broken owner file {}", file, e);
+            files.backup(target, target.resolveSibling(target.getFileName() + ".bak"));
+        } catch (IOException | RuntimeException failure) {
+            readOnly.put(owner, StoreReadOnlyReason.BACKUP_FAILED);
+            failures.put(owner, StoreFailureKind.BACKUP_FAILED);
         }
-        LOGGER.warn(
-                "Owner file {} is invalid ({}); starting empty and keeping the original at {}",
-                file,
-                cause.getMessage(),
-                backup);
     }
 }

@@ -66,6 +66,19 @@ class OwnerFileStoreTest {
     };
 
     @Test
+    void oversizedOriginalCannotBeOverwrittenAfterMutation() throws IOException {
+        UUID owner = UUID.randomUUID();
+        Path file = temp.resolve(owner + ".json");
+        String original = "9".repeat(65);
+        Files.writeString(file, original);
+        try (OwnerFileStore<Counter> store = OwnerFileStore.withWriterThread(temp, COUNTER_CODEC)) {
+            store.book(owner).increment();
+            store.flushAll();
+        }
+        assertEquals(original, Files.readString(file));
+    }
+
+    @Test
     void missingFileDoesNotWrite() {
         Path dir = temp.resolve("store");
         try (OwnerFileStore<Counter> store = OwnerFileStore.withWriterThread(dir, COUNTER_CODEC)) {

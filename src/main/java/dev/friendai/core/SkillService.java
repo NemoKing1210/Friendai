@@ -7,6 +7,7 @@ import dev.friendai.features.memory.*;
 import dev.friendai.foundation.diagnostics.SecretRedactor;
 import dev.friendai.foundation.teaching.TeachingContext;
 import dev.friendai.infrastructure.config.*;
+import dev.friendai.infrastructure.persistence.OwnerStoreWriter;
 import dev.friendai.infrastructure.persistence.instructions.SkillStore;
 import dev.friendai.infrastructure.persistence.memory.MemoryStore;
 import java.nio.file.Path;
@@ -23,13 +24,19 @@ public final class SkillService implements AutoCloseable {
     private final SkillActions actions;
 
     public SkillService(Path dir, Supplier<ServerConfig> config, MemoryStore memory) {
+        this(dir, config, memory, null);
+    }
+
+    public SkillService(Path dir, Supplier<ServerConfig> config, MemoryStore memory, OwnerStoreWriter writer) {
         this.config = config;
         this.memory = memory;
         redact = SecretRedactor.of(() -> config.get().profiles.values().stream()
                 .map(p -> SecretResolver.resolve(p.apiKey, System::getenv))
                 .toList());
         var builtins = BuiltinSkills.load(SkillService.class.getClassLoader());
-        store = new SkillStore(dir, SkillLimits.defaults(), redact);
+        store = writer == null
+                ? new SkillStore(dir, SkillLimits.defaults(), redact)
+                : new SkillStore(dir, SkillLimits.defaults(), redact, writer);
         actions = new SkillActions(store, builtins, Clock.systemUTC(), redact, this::limits);
     }
 

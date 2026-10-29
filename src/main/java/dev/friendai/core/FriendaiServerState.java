@@ -26,6 +26,7 @@ import dev.friendai.features.trading.minecraft.trading.TradeSessionGuard;
 import dev.friendai.features.trading.minecraft.trading.TraderObserver;
 import dev.friendai.infrastructure.config.ConfigStore;
 import dev.friendai.infrastructure.config.ServerConfig;
+import dev.friendai.infrastructure.persistence.OwnerStoreWriter;
 import dev.friendai.infrastructure.persistence.appearance.SkinStore;
 import dev.friendai.infrastructure.persistence.knowledge.KnowledgeStore;
 import dev.friendai.infrastructure.persistence.memory.MemoryStore;
@@ -82,6 +83,7 @@ public final class FriendaiServerState implements TradingToolAccess, TrustAccess
 
     public FriendaiServerState(MinecraftServer server, RuntimeResources resources) {
         this.server = server;
+        OwnerStoreWriter writer = resources.own(new OwnerStoreWriter());
         this.store = new ConfigStore<>(
                 FabricLoader.getInstance().getConfigDir().resolve("friendai-server.json"),
                 ServerConfig.class,
@@ -99,18 +101,24 @@ public final class FriendaiServerState implements TradingToolAccess, TrustAccess
         this.skills = resources.own(new SkillService(
                 server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("skills"),
                 () -> this.config,
-                memory));
+                memory,
+                writer));
         this.goals = new GoalService(memory::book, () -> this.config.agent.maxReplans);
         this.freeTime = new dev.friendai.agent.autonomy.FreeTimeService(memory::book);
         this.skins = new SkinStore(
                 server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("skins"));
         this.knowledge = resources.own(new KnowledgeStore(
                 server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("knowledge"),
-                KnowledgeLimits.DEFAULTS));
+                KnowledgeLimits.DEFAULTS,
+                writer));
         this.places = resources.own(new PlaceStore(
-                server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("places"), PlaceLimits.DEFAULTS));
+                server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("places"),
+                PlaceLimits.DEFAULTS,
+                writer));
         this.placed = resources.own(new PlacedStore(
-                server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("placed"), PlacedLimits.DEFAULTS));
+                server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("placed"),
+                PlacedLimits.DEFAULTS,
+                writer));
         this.trading = resources.own(new TradeStore(
                 server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("trading")));
         this.merchantLeases = new MerchantLeases();

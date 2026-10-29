@@ -227,6 +227,31 @@ The client captures audio only while push-to-talk is held, resolves the selected
 
 ## Data and persistence
 
+Owner-file persistence uses the pure `StoreCodec<T>` contract (including bounded `Reader` decoding) and
+`StoreWriteStatus` with typed failure/read-only reasons. `OwnerFileStore<T>` lazily loads records and captures
+immutable UTF-8 bytes plus their revision on the server thread. At most one snapshot per owner is pending;
+a completion records only its own saved revision. A later server-thread flush captures any newer revision,
+and final close repeats that capture/wait cycle until settled, failed, or its 30-second bound expires.
+Normal `flushAll` and five-second debounce flushes never wait for disk. Queue rejection leaves records dirty
+with `QUEUE_FULL`, allowing the next ordinary flush to retry. Status contains no paths, values or exception text.
+
+`FriendaiServerState` acquires one bounded, single-thread `OwnerStoreWriter` through `RuntimeResources`
+before acquiring stores. Places, placements, knowledge, and both instruction-skill scopes borrow it;
+reverse-order `ServerRuntime` teardown closes and flushes these stores before closing the writer once.
+Standalone test stores may explicitly own a writer. Store close is idempotent and never closes a borrowed
+writer. Memory retains its separate shutdown flush and trading retains its existing writer until their
+subsequent persistence migrations.
+
+Missing files stay absent until mutated. Corruption recovery becomes writable only after a successful
+backup; failed backups and failed reads preserve the original in read-only mode. Unsupported and oversized
+files remain read-only. Atomic replacement falls back to replacement move only when atomic move is
+unsupported. Before this non-atomic fallback, the writer preserves a separate recovery copy of an existing
+target; failed replacement restores that target, and failed restoration retains the recovery copy. Successful
+replacement/restoration removes the temporary recovery copy. Failed writes leave the latest revision dirty. The
+package-local `OwnerFileOperations` seam makes backup, read, write and move failures deterministic in tests.
+Domain wrappers accept an `OwnerFileStore.Factory` construction boundary, allowing their actual codecs and
+owner/server scopes to run the same injected-failure contract without exposing file operations to features.
+
 | Data | Location | Notes |
 |---|---|---|
 | Server config | `config/friendai-server.json` | Schema version 16; atomic save, `.bak`, migrations; API keys may be `env:NAME`. |

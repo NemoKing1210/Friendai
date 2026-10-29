@@ -2,7 +2,9 @@ package dev.friendai.infrastructure.persistence.places;
 
 import dev.friendai.features.places.*;
 import dev.friendai.foundation.persistence.StoreCodec;
+import dev.friendai.foundation.persistence.StoreWriteStatus;
 import dev.friendai.infrastructure.persistence.OwnerFileStore;
+import dev.friendai.infrastructure.persistence.OwnerStoreWriter;
 import java.nio.file.Path;
 import java.util.UUID;
 import java.util.concurrent.Executor;
@@ -10,8 +12,8 @@ import java.util.function.LongSupplier;
 
 /**
  * Per-owner place books with lazy loading, a five-second debounce and atomic file replacement. A missing file
- * yields an empty registry without touching disk; an unreadable file is copied to {@code .bak} and replaced by an
- * empty book. The behavior itself lives in {@link OwnerFileStore}; this class only binds it to {@link PlaceFile}.
+ * yields an empty registry without touching disk; corrupt files recover only after a successful backup, while
+ * unsupported, oversized and unreadable files stay read-only. The behavior lives in {@link OwnerFileStore}.
  */
 public final class PlaceStore implements AutoCloseable {
     public static final long FLUSH_INTERVAL_MS = OwnerFileStore.FLUSH_INTERVAL_MS;
@@ -20,6 +22,19 @@ public final class PlaceStore implements AutoCloseable {
 
     public PlaceStore(Path dir, PlaceLimits limits) {
         this.store = OwnerFileStore.withWriterThread(dir, new PlaceCodec(limits));
+    }
+
+    /** Production stores borrow the runtime writer; closing this store never closes it. */
+    public PlaceStore(Path dir, PlaceLimits limits, OwnerStoreWriter writer) {
+        this(dir, limits, OwnerFileStore.Factory.borrowing(writer));
+    }
+
+    public PlaceStore(Path dir, PlaceLimits limits, OwnerFileStore.Factory stores) {
+        this.store = stores.create(dir, new PlaceCodec(limits));
+    }
+
+    public StoreWriteStatus status(UUID owner) {
+        return store.status(owner);
     }
 
     PlaceStore(Path dir, PlaceLimits limits, Executor writer, LongSupplier clock) {
@@ -40,7 +55,7 @@ public final class PlaceStore implements AutoCloseable {
         store.flushIfDue();
     }
 
-    /** Schedules the latest snapshot of every dirty owner. Production stores wait through pending revisions. */
+    /** Schedules the latest snapshot of every dirty owner without waiting for disk. */
     public void flushAll() {
         store.flushAll();
     }

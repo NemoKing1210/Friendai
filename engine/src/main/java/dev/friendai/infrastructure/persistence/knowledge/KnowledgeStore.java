@@ -4,7 +4,9 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import dev.friendai.features.knowledge.*;
 import dev.friendai.foundation.persistence.StoreCodec;
+import dev.friendai.foundation.persistence.StoreWriteStatus;
 import dev.friendai.infrastructure.persistence.OwnerFileStore;
+import dev.friendai.infrastructure.persistence.OwnerStoreWriter;
 import java.nio.file.Path;
 import java.util.UUID;
 import java.util.concurrent.Executor;
@@ -21,6 +23,19 @@ public final class KnowledgeStore implements AutoCloseable {
 
     public KnowledgeStore(Path dir, KnowledgeLimits limits) {
         this.store = OwnerFileStore.withWriterThread(dir, new KnowledgeCodec(limits));
+    }
+
+    /** Production stores borrow the runtime writer; closing this store never closes it. */
+    public KnowledgeStore(Path dir, KnowledgeLimits limits, OwnerStoreWriter writer) {
+        this(dir, limits, OwnerFileStore.Factory.borrowing(writer));
+    }
+
+    public KnowledgeStore(Path dir, KnowledgeLimits limits, OwnerFileStore.Factory stores) {
+        this.store = stores.create(dir, new KnowledgeCodec(limits));
+    }
+
+    public StoreWriteStatus status(UUID owner) {
+        return store.status(owner);
     }
 
     KnowledgeStore(Path dir, KnowledgeLimits limits, Executor writer, LongSupplier clock) {
@@ -41,7 +56,7 @@ public final class KnowledgeStore implements AutoCloseable {
         store.flushIfDue();
     }
 
-    /** Schedules the latest snapshot of every dirty owner. Production stores wait through pending revisions. */
+    /** Schedules the latest snapshot of every dirty owner without waiting for disk. */
     public void flushAll() {
         store.flushAll();
     }
