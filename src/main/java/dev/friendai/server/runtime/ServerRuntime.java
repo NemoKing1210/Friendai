@@ -3,6 +3,7 @@ package dev.friendai.server.runtime;
 import dev.friendai.agent.autonomy.FreeTimeService;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.core.TrustConfirmations;
+import dev.friendai.entity.CompanionChunkLoader;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionLifeData;
 import dev.friendai.entity.CompanionManager;
@@ -169,6 +170,10 @@ public final class ServerRuntime implements AutoCloseable {
 
     public CompanionLifeData companionLife() {
         return state.companionLife();
+    }
+
+    public CompanionChunkLoader chunkLoader() {
+        return state.chunkLoader();
     }
 
     public TaskPersistenceCoordinator taskPersistence() {

@@ -1,7 +1,6 @@
 package dev.friendai.entity;
 
 import com.mojang.serialization.Codec;
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.execution.tool.InventoryAccess;
 import dev.friendai.features.combat.CombatMode;
 import dev.friendai.features.combat.CombatSettings;
@@ -292,7 +291,7 @@ public class CompanionEntity extends PathfinderMob {
         var server = level().getServer();
         return server == null
                 ? ServerSettings.DEFAULTS
-                : FriendaiServerState.get(server).settings();
+                : ServerRuntimeRegistry.getOrCreate(server).settings();
     }
     /**
      * The idle fallback may walk to the owner unless free time is the companion's own business right now or the owner
@@ -303,12 +302,12 @@ public class CompanionEntity extends PathfinderMob {
         if (server == null || ownerUuid == null) {
             return true;
         }
-        var state = FriendaiServerState.get(server);
-        var cfg = state.config();
+        var runtime = ServerRuntimeRegistry.getOrCreate(server);
+        var cfg = runtime.config();
         boolean inCombat =
                 getTarget() != null || isSleeping() || combatController.state() != CombatController.State.IDLE;
         return dev.friendai.agent.autonomy.DefaultActivityPolicy.shouldFollow(
-                state.freeTime().state(ownerUuid),
+                runtime.freeTime().state(ownerUuid),
                 cfg.autonomy.toSettings(),
                 dev.friendai.agent.turn.AgentSettings.Autonomy.parse(cfg.agent.autonomy),
                 followMode(),
@@ -324,7 +323,8 @@ public class CompanionEntity extends PathfinderMob {
         if (server == null || ownerUuid == null) {
             return serverSettings().tasks().defaultFollow();
         }
-        return CompanionLifeData.get(server)
+        return ServerRuntimeRegistry.getOrCreate(server)
+                .companionLife()
                 .followModeChoice(ownerUuid)
                 .orElse(serverSettings().tasks().defaultFollow());
     }
@@ -334,7 +334,7 @@ public class CompanionEntity extends PathfinderMob {
         if (server == null || ownerUuid == null) {
             return;
         }
-        CompanionLifeData.get(server).setFollowMode(ownerUuid, on);
+        ServerRuntimeRegistry.getOrCreate(server).companionLife().setFollowMode(ownerUuid, on);
     }
 
     public CombatController combatController() {
@@ -817,7 +817,7 @@ public class CompanionEntity extends PathfinderMob {
     /** Refreshes the runtime mirror from the single per-owner saved preference. */
     public void syncCreativeModePreference() {
         if (ownerUuid != null && level() instanceof ServerLevel serverLevel) {
-            setCreativeMode(FriendaiServerState.get(serverLevel.getServer())
+            setCreativeMode(ServerRuntimeRegistry.getOrCreate(serverLevel.getServer())
                     .companionLife()
                     .creativeMode(ownerUuid));
         }
@@ -870,8 +870,9 @@ public class CompanionEntity extends PathfinderMob {
         if (ownerUuid == null || !(level() instanceof ServerLevel serverLevel)) {
             return Optional.empty();
         }
-        return Optional.of(
-                FriendaiServerState.get(serverLevel.getServer()).memory().book(ownerUuid));
+        return Optional.of(ServerRuntimeRegistry.getOrCreate(serverLevel.getServer())
+                .memory()
+                .book(ownerUuid));
     }
 
     public SimpleContainer inventory() {
@@ -1043,7 +1044,9 @@ public class CompanionEntity extends PathfinderMob {
                 && ownerUuid != null
                 && !level().isClientSide()
                 && level() instanceof ServerLevel serverLevel) {
-            FriendaiServerState.get(serverLevel.getServer()).chunkLoader().forget(ownerUuid);
+            ServerRuntimeRegistry.getOrCreate(serverLevel.getServer())
+                    .chunkLoader()
+                    .forget(ownerUuid);
         }
         super.remove(reason);
     }
