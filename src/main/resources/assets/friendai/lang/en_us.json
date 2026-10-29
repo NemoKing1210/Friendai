@@ -19,6 +19,7 @@
   "friendai.error.llm.parse": "Couldn't understand the provider's response.",
   "friendai.error.config": "Settings error: %s",
   "friendai.error.unknown": "Something went wrong, see the log for details.",
+  "friendai.protocol.version_mismatch": "Friendai protocol versions do not match. The server and client need the same mod version.",
 
   "entity.friendai.companion": "Companion",
   "friendai.command.summoned": "%s is here.",

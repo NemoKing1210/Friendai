@@ -19,6 +19,7 @@
   "friendai.error.llm.parse": "Не понял ответ провайдера.",
   "friendai.error.config": "Ошибка настроек: %s",
   "friendai.error.unknown": "Что-то пошло не так, подробности в логе.",
+  "friendai.protocol.version_mismatch": "Версии протокола Friendai не совпадают. На клиенте и сервере должна быть одна версия мода.",
 
   "entity.friendai.companion": "Компаньон",
   "friendai.command.summoned": "%s рядом.",
