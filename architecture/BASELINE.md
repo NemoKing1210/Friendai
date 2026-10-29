@@ -8,12 +8,12 @@ Captured at commit `2ea08c0e353bc252c3bde04e1d4206a901b3011d`, mod version `0.80
 - Root project: `friendai`; Maven group: `dev.friendai`; Java compile release/toolchain: 25.
 - Fabric entrypoints: `dev.friendai.FriendaiMod` (`main`), `dev.friendai.client.FriendaiClient` (`client`), and `dev.friendai.client.config.ModMenuIntegration` (`modmenu`, optional).
 - Mixin config: `friendai.mixins.json`, `defaultRequire: 1`. Registered mixins/accessors: `PiglinAiInvoker`, `BehaviorUtilsBarterOutputMixin`, `NearestAttackableTargetGoalMixin`, `TargetGoalAccessor`.
-- GameTest mod metadata currently registers 89 entrypoint classes; see the complete list below. The project has 90 GameTest Java files including shared support.
-- Source inventory: 817 main Java files, 49 client Java files, 329 unit-test Java files, 90 GameTest Java files, and 75 Java files under `task/builtin`.
+- GameTest metadata registrations at capture are listed below; `ArchitectureRulesTest` verifies current entrypoint registrations.
+- Source file counts are omitted; the ownership lists below are historical references and current source locations must be re-scanned.
 
-## Current feature capabilities and task ownership
+## Implementation-start feature capabilities and task ownership
 
-The current 75 files under `src/main/java/dev/friendai/task/builtin` are assigned below. These names are a migration lookup inventory only; implementation must re-scan the then-current checkout.
+The task filenames captured under `src/main/java/dev/friendai/task/builtin` are assigned below. These names are a historical migration lookup inventory only; implementation must re-scan the current checkout.
 
 | Area | Current task files |
 |---|---|
