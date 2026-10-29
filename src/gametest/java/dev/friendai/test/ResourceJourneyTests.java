@@ -83,6 +83,37 @@ public final class ResourceJourneyTests {
         h.succeed();
     }
 
+    @GameTest(maxTicks = 400)
+    public void trailOnlyKnowledgeIsWrittenByTheRuntimeFlush(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        var owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2).getUUID();
+        var server = h.getLevel().getServer();
+        var state = GameTestSupport.runtime(server);
+        String dimension = h.getLevel().dimension().identifier().toString();
+        state.knowledge()
+                .book(owner)
+                .trails()
+                .recordSegment(dimension, java.util.List.of(new Pos(0, 64, 0), new Pos(8, 64, 0)), 20, false);
+        h.assertTrue(
+                state.knowledge().status(owner).dirty(),
+                "a trail-only change must mark the runtime knowledge book dirty");
+        var dir = server.getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT)
+                .resolve("friendai")
+                .resolve("knowledge");
+        h.succeedWhen(() -> {
+            if (state.knowledge().status(owner).dirty()) return;
+            try (var reloaded = new dev.friendai.infrastructure.persistence.knowledge.KnowledgeStore(
+                    dir, dev.friendai.features.knowledge.KnowledgeLimits.DEFAULTS)) {
+                h.assertTrue(
+                        !reloaded.book(owner)
+                                .trails()
+                                .route(dimension, new Pos(0, 64, 0), new Pos(8, 64, 0))
+                                .isEmpty(),
+                        "the periodic runtime flush persists a trail-only change");
+            }
+        });
+    }
+
     @GameTest(maxTicks = 2400)
     public void passCoalRestartAskThenReturnAndCollect(GameTestHelper h) {
         GameTestSupport.platformAt(h, 300, 64);

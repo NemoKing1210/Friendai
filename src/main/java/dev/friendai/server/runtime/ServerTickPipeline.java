@@ -32,6 +32,7 @@ public final class ServerTickPipeline {
         CompanionManager.get(server).tick();
         services.tick(System.currentTimeMillis());
         services.memory().flushIfDue();
+        services.knowledge().flushIfDue();
         services.places().flushIfDue();
         services.placed().flushIfDue();
         services.trading().flushIfDue();

@@ -42,6 +42,34 @@ class TrailGraphTest {
     }
 
     @Test
+    void changeListenerFiresForRealMutationsOnly() {
+        TrailGraph graph = new TrailGraph();
+        int[] changes = {0};
+        graph.onChange(() -> changes[0]++);
+
+        var ids = graph.recordSegment(
+                "minecraft:overworld", List.of(new Pos(0, 64, 0), new Pos(8, 64, 0), new Pos(16, 64, 0)), 40, false);
+        assertEquals(1, changes[0], "a recorded segment signals one change");
+        graph.invalidate(ids.getFirst());
+        assertEquals(2, changes[0], "an invalidation signals one change");
+        graph.invalidate(ids.getFirst());
+        assertEquals(2, changes[0], "invalidating an already invalid edge changes nothing");
+        graph.invalidate(9_999);
+        assertEquals(2, changes[0], "an unknown edge changes nothing");
+        assertEquals(
+                List.of(),
+                graph.recordSegment("minecraft:overworld", List.of(new Pos(0, 64, 0), new Pos(0, 64, 0)), 0, false));
+        assertEquals(2, changes[0], "a recording without segments changes nothing");
+
+        TrailGraph restored = TrailGraph.fromJson(graph.toJson());
+        int[] restoredChanges = {0};
+        restored.onChange(() -> restoredChanges[0]++);
+        assertEquals(0, restoredChanges[0], "restoration must not report a mutation");
+        restored.invalidate(ids.get(1));
+        assertEquals(1, restoredChanges[0], "the restored graph signals later mutations");
+    }
+
+    @Test
     void nodeProximityIsDimensionScopedAndBounded() {
         TrailGraph graph = new TrailGraph();
         graph.recordSegment("minecraft:overworld", List.of(new Pos(0, 64, 0), new Pos(8, 64, 0)), 20, false);

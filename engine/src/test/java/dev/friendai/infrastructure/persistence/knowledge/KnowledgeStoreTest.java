@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
+import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
@@ -235,6 +236,62 @@ class KnowledgeStoreTest {
         ResourceQuery.Request request = new ResourceQuery.Request(
                 Set.of("minecraft:coal_ore"), "minecraft:overworld", new Pos(0, 10, 0), 20, 5, true);
         assertEquals(0, ResourceQuery.find(book, request).getFirst().ageTicks());
+    }
+
+    @Test
+    void trailOnlyMutationPersistsThroughFlushAndReopen() {
+        Path dir = temp.resolve("trails");
+        UUID owner = UUID.randomUUID();
+        ManualExecutor executor = new ManualExecutor();
+        try (KnowledgeStore store = new KnowledgeStore(dir, KnowledgeLimits.DEFAULTS, executor, () -> 0L)) {
+            ResourceKnowledge book = store.book(owner);
+            long before = book.revision();
+            book.trails()
+                    .recordSegment("minecraft:overworld", List.of(new Pos(0, 64, 0), new Pos(8, 64, 0)), 20, false);
+            assertTrue(book.revision() > before, "a trail-only mutation changes the book revision");
+            assertTrue(store.dirty(owner));
+            store.flushIfDue(5_000);
+            executor.runNext();
+            assertFalse(store.dirty(owner));
+        }
+        try (KnowledgeStore store = new KnowledgeStore(dir, KnowledgeLimits.DEFAULTS)) {
+            ResourceKnowledge book = store.book(owner);
+            assertFalse(store.dirty(owner), "a restored unchanged book starts clean");
+            assertEquals(
+                    List.of(new Pos(0, 64, 0), new Pos(8, 64, 0)),
+                    book.trails().route("minecraft:overworld", new Pos(0, 64, 0), new Pos(8, 64, 0)));
+            book.trails().invalidate(1);
+            assertTrue(store.dirty(owner), "trail mutations after a reopen keep the book dirty");
+        }
+    }
+
+    @Test
+    void trailInvalidationPersistsThroughFlushAndReopen() {
+        Path dir = temp.resolve("trail-invalid");
+        UUID owner = UUID.randomUUID();
+        ManualExecutor executor = new ManualExecutor();
+        try (KnowledgeStore store = new KnowledgeStore(dir, KnowledgeLimits.DEFAULTS, executor, () -> 0L)) {
+            ResourceKnowledge book = store.book(owner);
+            var ids = book.trails()
+                    .recordSegment("minecraft:overworld", List.of(new Pos(0, 64, 0), new Pos(8, 64, 0)), 20, false);
+            store.flushIfDue(5_000);
+            executor.runNext();
+            long before = book.revision();
+            book.trails().invalidate(ids.getFirst());
+            assertTrue(book.revision() > before, "an invalidation changes the book revision");
+            assertTrue(store.dirty(owner));
+            store.flushIfDue(10_000);
+            executor.runNext();
+            assertFalse(store.dirty(owner));
+        }
+        try (KnowledgeStore store = new KnowledgeStore(dir, KnowledgeLimits.DEFAULTS)) {
+            assertTrue(
+                    store.book(owner)
+                            .trails()
+                            .route("minecraft:overworld", new Pos(0, 64, 0), new Pos(8, 64, 0))
+                            .isEmpty(),
+                    "the invalidated edge survives the reopen");
+        }
     }
 
     private static final class ManualExecutor implements Executor {

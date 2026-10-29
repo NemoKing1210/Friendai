@@ -7,6 +7,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.PriorityQueue;
 
 /** Coarse graph of routes physically executed and, optionally, reverse-validated. */
@@ -15,7 +16,13 @@ public final class TrailGraph {
     private static final int MAX_EDGES = 2_048;
     private final Map<NodeKey, Pos> nodes = new HashMap<>();
     private final Map<Long, Edge> edges = new HashMap<>();
+    private Runnable onChange = () -> {};
     private long nextEdgeId = 1;
+
+    /** Registers the owner that persists the book; it runs after every real graph mutation. */
+    public synchronized void onChange(Runnable listener) {
+        onChange = Objects.requireNonNull(listener);
+    }
 
     public synchronized List<Long> recordSegment(
             String dimension, List<Pos> executed, long traversalTicks, boolean reverseValidated) {
@@ -42,13 +49,15 @@ public final class TrailGraph {
                 created.add(reverse);
             }
         }
+        if (!created.isEmpty()) onChange.run();
         return List.copyOf(created);
     }
 
     public synchronized void invalidate(long edgeId) {
         Edge edge = edges.get(edgeId);
-        if (edge != null)
-            edges.put(edgeId, new Edge(edge.id(), edge.dimension(), edge.from(), edge.to(), edge.ticks(), true));
+        if (edge == null || edge.invalid()) return;
+        edges.put(edgeId, new Edge(edge.id(), edge.dimension(), edge.from(), edge.to(), edge.ticks(), true));
+        onChange.run();
     }
 
     /** Returns known graph waypoints only; no direct connection is inferred across unseen space. */

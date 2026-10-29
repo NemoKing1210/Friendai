@@ -40,6 +40,7 @@ public final class ResourceKnowledge {
     public ResourceKnowledge(KnowledgeLimits limits) {
         this.limits = Objects.requireNonNull(limits, "limits");
         searchLedger.onChange(() -> revision++);
+        trails.onChange(() -> revision++);
     }
 
     public record ContainerObservation(
@@ -295,6 +296,7 @@ public final class ResourceKnowledge {
         book.searchLedger.restoreStats(file.searchStats());
         book.searchLedger.interruptActive();
         book.trails = TrailGraph.fromJson(file.trails());
+        book.trails.onChange(() -> book.revision++);
         book.nextId = file.nextSiteId();
         for (KnowledgeFile.SiteRecord record : file.sites()) {
             MutableSite site = new MutableSite(
