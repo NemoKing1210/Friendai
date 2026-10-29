@@ -131,7 +131,7 @@ public final class FriendaiServerState implements TradingToolAccess, TrustAccess
                 PlacedLimits.DEFAULTS,
                 writer));
         this.trading = resources.own(new TradeStore(
-                server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("trading")));
+                server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("trading"), writer));
         this.merchantLeases = new MerchantLeases();
         this.tradeSessionGuard = new TradeSessionGuard(merchantLeases);
         resources.onClose(() -> tradeSessionGuard.closeAll("server stopped"));

@@ -5,6 +5,7 @@ import java.io.FilterReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Reader;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
@@ -84,7 +85,10 @@ class OwnerFileOperations {
                         return count;
                     }
                 },
-                StandardCharsets.UTF_8);
+                StandardCharsets.UTF_8
+                        .newDecoder()
+                        .onMalformedInput(CodingErrorAction.REPORT)
+                        .onUnmappableCharacter(CodingErrorAction.REPORT));
     }
 
     void backup(Path source, Path backup) throws IOException {

@@ -8,6 +8,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.friendai.features.trading.*;
+import dev.friendai.foundation.persistence.StoreReadOnlyReason;
+import dev.friendai.infrastructure.persistence.OwnerStoreWriter;
 import java.io.IOException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
@@ -31,6 +33,74 @@ class TradeStoreTest {
     Path temp;
 
     private static final UUID ACTOR = new UUID(0, 7);
+
+    @Test
+    void readerDecodesAValidTradeSnapshot() throws IOException {
+        TradeFile snapshot =
+                new TradeFile(TradeFile.VERSION, 1, List.of(trader(ACTOR, 3, 30)), List.of(), java.util.Set.of());
+        String json = new String(TradeFile.write(snapshot), java.nio.charset.StandardCharsets.UTF_8);
+        assertEquals(1, TradeFile.read(new java.io.StringReader(json)).traders().size());
+    }
+
+    @Test
+    void malformedUtf8TradeFileIsPreservedAsCorrupt() throws IOException {
+        Path directory = temp.resolve("invalid-utf8");
+        Files.createDirectories(directory);
+        UUID owner = new UUID(0, 92);
+        byte[] prefix = "{\"version\":1,\"traders\":[],\"history\":[],\"pinned\":[],\"unknown\":\""
+                .getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] suffix = "\"}".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] malformed = java.util.Arrays.copyOf(prefix, prefix.length + 1 + suffix.length);
+        malformed[prefix.length] = (byte) 0xc3;
+        System.arraycopy(suffix, 0, malformed, prefix.length + 1, suffix.length);
+        Path path = directory.resolve(owner + ".json");
+        Files.write(path, malformed);
+        try (TradeStore store = new TradeStore(directory)) {
+            assertTrue(store.book(owner).snapshot().traders().isEmpty());
+            assertEquals(StoreReadOnlyReason.CORRUPT, store.status(owner).readOnlyReason());
+            assertArrayEquals(malformed, Files.readAllBytes(path));
+            assertArrayEquals(malformed, Files.readAllBytes(directory.resolve(owner + ".json.bak")));
+        }
+    }
+
+    @Test
+    void statusTracksSavedRevisionAndReadOnlyReason() throws IOException {
+        Path directory = temp.resolve("status");
+        Files.createDirectories(directory);
+        UUID unsupported = new UUID(0, 88);
+        Files.writeString(directory.resolve(unsupported + ".json"), "{\"version\":9}");
+        try (TradeStore store = new TradeStore(directory)) {
+            UUID writable = new UUID(0, 89);
+            store.book(writable).observe(trader(writable, 1, 30));
+            assertTrue(store.status(writable).dirty());
+            store.flushAll();
+            awaitSaved(store, writable);
+            assertFalse(store.status(writable).dirty());
+            store.book(unsupported).observe(trader(unsupported, 2, 30));
+            assertEquals(
+                    StoreReadOnlyReason.UNSUPPORTED, store.status(unsupported).readOnlyReason());
+            store.flushAll();
+            assertTrue(store.status(unsupported).dirty());
+        }
+    }
+
+    @Test
+    void borrowedWriterRemainsUsableAfterTradeStoreClose() throws IOException {
+        OwnerStoreWriter writer = new OwnerStoreWriter();
+        UUID first = new UUID(0, 90);
+        UUID second = new UUID(0, 91);
+        try {
+            try (TradeStore store = new TradeStore(temp.resolve("borrowed-first"), writer)) {
+                store.book(first).observe(trader(first, 1, 30));
+            }
+            try (TradeStore store = new TradeStore(temp.resolve("borrowed-second"), writer)) {
+                store.book(second).observe(trader(second, 2, 30));
+            }
+            assertTrue(Files.exists(temp.resolve("borrowed-second").resolve(second + ".json")));
+        } finally {
+            writer.close();
+        }
+    }
 
     private static TradeOffer offer() {
         var base = List.of(
@@ -163,6 +233,7 @@ class TradeStoreTest {
             assertFalse(Files.exists(directory.resolve(oversizedOwner + ".json.bak")));
             assertTrue(store.repairOwner(oversizedOwner));
             store.flushAll();
+            awaitSaved(store, oversizedOwner);
             assertFalse(store.writesDisabled(oversizedOwner));
             assertEquals(1, TradeFile.read(Files.readAllBytes(oversizedPath)).version());
         }
@@ -176,21 +247,27 @@ class TradeStoreTest {
         byte[] corrupt = "{not valid json}".getBytes(java.nio.charset.StandardCharsets.UTF_8);
         Path path = directory.resolve(owner + ".json");
         Files.write(path, corrupt);
+        AtomicInteger backupAttempts = new AtomicInteger();
         TradeStore.FileCopier failingCopier = (source, target, options) -> {
-            throw new IOException("injected backup copy failure");
+            if (backupAttempts.incrementAndGet() < 3) throw new IOException("injected backup copy failure");
+            Files.copy(source, target, options);
         };
         try (TradeStore store = new TradeStore(directory, Files::move, failingCopier)) {
             TradeBook book = store.book(owner);
             assertTrue(book.snapshot().traders().isEmpty());
-            assertTrue(store.dirty(owner));
+            assertFalse(store.dirty(owner));
             book.observe(trader(owner, 11, 30));
             store.flushAll();
             assertTrue(store.writesDisabled(owner));
             assertTrue(store.dirty(owner));
             assertNotNull(store.failure(owner));
             assertArrayEquals(corrupt, Files.readAllBytes(path));
+            assertFalse(store.repairOwner(owner));
+            assertArrayEquals(corrupt, Files.readAllBytes(path));
             assertTrue(store.repairOwner(owner));
+            assertArrayEquals(corrupt, Files.readAllBytes(directory.resolve(owner + ".json.bak")));
             store.flushAll();
+            awaitSaved(store, owner);
             assertFalse(store.writesDisabled(owner));
             assertEquals(
                     11,
@@ -232,6 +309,7 @@ class TradeStoreTest {
             assertTrue(store.dirty(owner));
             assertTrue(store.repairOwner(owner));
             store.flushAll();
+            awaitSaved(store, owner);
             assertFalse(store.writesDisabled(owner));
             assertEquals(1, TradeFile.read(Files.readAllBytes(path)).version());
         }
@@ -372,6 +450,7 @@ class TradeStoreTest {
             store.flushAll();
             assertTrue(book.snapshot().traders().isEmpty());
             assertTrue(book.snapshot().history().isEmpty());
+            awaitSaved(store, owner);
             assertTrue(Files.size(directory.resolve(owner + ".json")) <= TradeFile.MAX_FILE_BYTES);
         }
     }
@@ -381,7 +460,7 @@ class TradeStoreTest {
         Path directory = temp.resolve("protected-size");
         Files.createDirectories(directory);
         UUID owner = new UUID(0, 15);
-        byte[] durable = "{\"known\":\"previous\"}".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] durable = TradeFile.write(new TradeFile(TradeFile.VERSION, 0, List.of(), List.of(), java.util.Set.of()));
         Path target = directory.resolve(owner + ".json");
         Files.write(target, durable);
         String payload = "y".repeat(7_900);
@@ -462,6 +541,19 @@ class TradeStoreTest {
         try (TradeStore restored = new TradeStore(directory)) {
             assertEquals(2, restored.book(owner).trader(owner).orElseThrow().x());
         }
+    }
+
+    private static void awaitSaved(TradeStore store, UUID owner) {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (store.status(owner).dirty() && System.nanoTime() < deadline) {
+            try {
+                Thread.sleep(10);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                throw new AssertionError(interrupted);
+            }
+        }
+        assertFalse(store.status(owner).dirty(), "trade snapshot was not saved within 5 seconds");
     }
 
     private static final class ManualExecutor implements Executor {

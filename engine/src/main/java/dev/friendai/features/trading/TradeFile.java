@@ -11,10 +11,12 @@ import com.google.gson.Strictness;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonToken;
 import com.google.gson.stream.JsonWriter;
+import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
+import java.io.Reader;
 import java.io.StringReader;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
@@ -123,6 +125,153 @@ public record TradeFile(
         if (version != VERSION) throw new UnsupportedVersionException(version);
 
         JsonObject root = readRoot(json);
+
+        return fromRoot(root);
+    }
+
+    /** Parses a bounded source incrementally; callers enforce the byte limit on the reader. */
+    public static TradeFile read(Reader source) throws IOException {
+        BufferedReader buffered = new BufferedReader(source);
+        buffered.mark(MAX_FILE_BYTES + 1);
+        int probedVersion = probeVersion(new VersionProbe(buffered));
+        if (probedVersion != VERSION) throw new UnsupportedVersionException(probedVersion);
+        buffered.reset();
+        buffered.mark(1);
+        JsonReader reader = new JsonReader(buffered);
+        reader.setStrictness(Strictness.STRICT);
+        if (reader.peek() != JsonToken.BEGIN_OBJECT)
+            throw new IllegalArgumentException("trade file root must be an object");
+        reader.beginObject();
+        JsonObject root = new JsonObject();
+        ParseState state = new ParseState();
+        Set<String> keys = new HashSet<>();
+        boolean knownVersion = false;
+        while (reader.hasNext()) {
+            if (keys.size() >= maxObjectMembers(Shape.ROOT_OBJECT))
+                throw new IllegalArgumentException("trade file object member limit exceeded");
+            state.consumeNode();
+            String key = requireWellFormed(reader.nextName());
+            if (!keys.add(key)) throw new IllegalArgumentException("duplicate trade file object key");
+            if (key.equals("version")) {
+                if (reader.peek() != JsonToken.NUMBER)
+                    throw new IllegalArgumentException("trade file has no numeric version");
+                int version = reader.nextInt();
+                if (version != VERSION) throw new UnsupportedVersionException(version);
+                root.addProperty("version", version);
+                knownVersion = true;
+            } else {
+                root.add(key, readJson(reader, 1, childShape(Shape.ROOT_OBJECT, key), state));
+            }
+        }
+        reader.endObject();
+        if (!knownVersion) throw new IllegalArgumentException("trade file has no numeric version");
+        if (reader.peek() != JsonToken.END_DOCUMENT) throw new IllegalArgumentException("trailing trade file JSON");
+        return fromRoot(root);
+    }
+
+    private static int probeVersion(VersionProbe probe) throws IOException {
+        if (probe.nextNonWhitespace() != '{') throw new IllegalArgumentException("trade file root must be an object");
+        while (true) {
+            int next = probe.nextNonWhitespace();
+            if (next == '}') break;
+            if (next != '"') throw new IllegalArgumentException("invalid trade file root key");
+            String key = readString(probe.stringAfterOpeningQuote());
+            if (probe.nextNonWhitespace() != ':') throw new IllegalArgumentException("invalid trade file root field");
+            int first = probe.nextNonWhitespace();
+            if (key.equals("version")) {
+                StringBuilder number = new StringBuilder();
+                if (first != -1) number.append((char) first);
+                int character;
+                while ((character = probe.peek()) != -1
+                        && character != ','
+                        && character != '}'
+                        && !Character.isWhitespace(character)) {
+                    number.append((char) probe.take());
+                }
+                try {
+                    return Integer.parseInt(number.toString());
+                } catch (NumberFormatException invalid) {
+                    throw new IllegalArgumentException("trade file has no numeric version", invalid);
+                }
+            }
+            probe.skipValue(first);
+            next = probe.nextNonWhitespace();
+            if (next == '}') break;
+            if (next != ',') throw new IllegalArgumentException("invalid trade file root separator");
+        }
+        throw new IllegalArgumentException("trade file has no numeric version");
+    }
+
+    private static final class VersionProbe {
+        private final Reader reader;
+        private int lookahead = -2;
+
+        private VersionProbe(Reader reader) {
+            this.reader = reader;
+        }
+
+        private int peek() throws IOException {
+            if (lookahead == -2) lookahead = reader.read();
+            return lookahead;
+        }
+
+        private int take() throws IOException {
+            int current = peek();
+            lookahead = -2;
+            return current;
+        }
+
+        private int nextNonWhitespace() throws IOException {
+            int current;
+            do {
+                current = take();
+            } while (current != -1 && Character.isWhitespace(current));
+            return current;
+        }
+
+        private String stringAfterOpeningQuote() throws IOException {
+            StringBuilder raw = new StringBuilder("\"");
+            boolean escaped = false;
+            int current;
+            while ((current = take()) != -1) {
+                raw.append((char) current);
+                if (escaped) escaped = false;
+                else if (current == '\\') escaped = true;
+                else if (current == '"') return raw.toString();
+            }
+            throw new IllegalArgumentException("unterminated trade file string");
+        }
+
+        private void skipValue(int first) throws IOException {
+            if (first == '"') {
+                stringAfterOpeningQuote();
+                return;
+            }
+            if (first == '{' || first == '[') {
+                int depth = 1;
+                boolean inString = false;
+                boolean escaped = false;
+                int current;
+                while (depth > 0 && (current = take()) != -1) {
+                    if (inString) {
+                        if (escaped) escaped = false;
+                        else if (current == '\\') escaped = true;
+                        else if (current == '"') inString = false;
+                    } else if (current == '"') inString = true;
+                    else if (current == '{' || current == '[') depth++;
+                    else if (current == '}' || current == ']') depth--;
+                }
+                if (depth != 0) throw new IllegalArgumentException("unterminated nested trade file value");
+                return;
+            }
+            if (first == -1 || first == ',' || first == '}')
+                throw new IllegalArgumentException("missing trade file value");
+            int next;
+            while ((next = peek()) != -1 && next != ',' && next != '}' && !Character.isWhitespace(next)) take();
+        }
+    }
+
+    private static TradeFile fromRoot(JsonObject root) {
 
         if (!root.has("traders")) throw new IllegalArgumentException("trade file has no trader records");
         if (!root.has("history")) root.add("history", new JsonArray());

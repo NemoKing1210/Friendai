@@ -236,7 +236,7 @@ Normal `flushAll` and five-second debounce flushes never wait for disk. Queue re
 with `QUEUE_FULL`, allowing the next ordinary flush to retry. Status contains no paths, values or exception text.
 
 `FriendaiServerState` acquires one bounded, single-thread `OwnerStoreWriter` through `RuntimeResources`
-before acquiring stores. Memory, profiles, goals, free time, places, placements, knowledge, and both
+before acquiring stores. Memory, profiles, goals, free time, places, placements, knowledge, trading, and both
 instruction-skill scopes borrow it; reverse-order `ServerRuntime` teardown closes and flushes these stores
 before closing the writer once. Standalone test stores may explicitly own a writer. Store close is idempotent
 and never closes a borrowed writer.
@@ -250,6 +250,9 @@ replacement/restoration removes the temporary recovery copy. Failed writes leave
 package-local `OwnerFileOperations` seam makes backup, read, write and move failures deterministic in tests.
 Domain wrappers accept an `OwnerFileStore.Factory` construction boundary, allowing their actual codecs and
 owner/server scopes to run the same injected-failure contract without exposing file operations to features.
+Trading uses `OwnerFilePolicy<TradeBook>` for bounded snapshot encoding and protected-record-aware eviction,
+and a `StoreCodec` reader path that parses under the shared 8 MiB byte bound. Unsupported and oversized trade
+files remain read-only until explicit repair, which makes a fresh backup before allowing replacement.
 
 | Data | Location | Notes |
 |---|---|---|
@@ -265,6 +268,7 @@ owner/server scopes to run the same injected-failure contract without exposing f
 | Instruction skills | `<world>/friendai/skills/<owner-uuid>.json`, `server.json` | Version 1; records, local builtin/server overrides, revisions and model-write ledger. ISO-8601 record timestamps, 5 s debounce, atomic replace, corruption backup; future versions are never overwritten. Builtin bodies and index are under `assets/friendai/skills/`. |
 | Places | `<world>/friendai/places/<owner-uuid>.json` | One book per owner, format version 1: id-keyed places with names, aliases, dimension, anchor, visits and author; 5 s debounced flush; `.bak` on corruption. |
 | Placed blocks | `<world>/friendai/placed/<owner-uuid>.json` | One ledger per owner, format version 1: dimension, cell, block id, game tick and source for every block the companion placed; cap 512 (oldest evicted), pruned lazily when a loaded chunk no longer holds the block; 5 s debounced flush; `.bak` on corruption. |
+| Trading | `<world>/friendai/trading/<owner-uuid>.json` | Format version 1, at most 8 MiB: observed traders, offers, protected/pinned records and trade progress. Bounded streaming decode; unprotected records are evicted under size pressure. Corrupt, unsupported and oversized originals stay read-only; explicit repair requires a fresh backup. |
 | Blueprints | `<world>/friendai/blueprints/<name>.json` | `size:[w,h,d]`, `blocks:[[x,y,z,state]]`; in-progress builds have their own directory. |
 | Whisper models | `<gameDir>/friendai/models/` | Downloaded `tiny`/`base`/`small`, size + SHA-256 checked. |
 | TTS voices | `<gameDir>/friendai/models/tts/` | The five catalogued Piper voices (sherpa-onnx), size + SHA-256 checked; each carries its own license. |

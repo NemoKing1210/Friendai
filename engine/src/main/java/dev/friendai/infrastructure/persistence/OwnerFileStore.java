@@ -3,9 +3,11 @@ package dev.friendai.infrastructure.persistence;
 import dev.friendai.foundation.persistence.*;
 import java.io.IOException;
 import java.io.Reader;
-import java.nio.charset.StandardCharsets;
+import java.nio.charset.CharacterCodingException;
+import java.nio.file.CopyOption;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -31,6 +33,16 @@ public final class OwnerFileStore<T> implements AutoCloseable {
         BORROWED
     }
 
+    @FunctionalInterface
+    public interface FileMover {
+        void move(Path source, Path target, CopyOption... options) throws IOException;
+    }
+
+    @FunctionalInterface
+    public interface FileCopier {
+        void copy(Path source, Path target, CopyOption... options) throws IOException;
+    }
+
     /** Shared construction boundary for domain adapters; file-operation details stay in infrastructure. */
     public interface Factory {
         <V> OwnerFileStore<V> create(Path dir, StoreCodec<V> codec);
@@ -48,6 +60,7 @@ public final class OwnerFileStore<T> implements AutoCloseable {
 
     private final Path dir;
     private final StoreCodec<T> codec;
+    private final OwnerFilePolicy<T> policy;
     private final OwnerStoreWriter writer;
     private final WriterOwnership ownership;
     private final LongSupplier clock;
@@ -75,7 +88,8 @@ public final class OwnerFileStore<T> implements AutoCloseable {
                 clock,
                 new OwnerFileOperations(),
                 Duration.ofSeconds(30),
-                waitForWrites);
+                waitForWrites,
+                new OwnerFilePolicy<>() {});
     }
 
     public OwnerFileStore(Path dir, StoreCodec<T> codec, OwnerStoreWriter writer, WriterOwnership ownership) {
@@ -89,6 +103,73 @@ public final class OwnerFileStore<T> implements AutoCloseable {
                 Duration.ofSeconds(30));
     }
 
+    public OwnerFileStore(
+            Path dir,
+            StoreCodec<T> codec,
+            OwnerStoreWriter writer,
+            WriterOwnership ownership,
+            OwnerFilePolicy<T> policy) {
+        this(
+                dir,
+                codec,
+                writer,
+                ownership,
+                System::currentTimeMillis,
+                new OwnerFileOperations(),
+                Duration.ofSeconds(30),
+                true,
+                policy);
+    }
+
+    /** Narrow adapter seam for legacy move and backup failure tests. */
+    public static <T> OwnerFileStore<T> withTestFileOperations(
+            Path dir,
+            StoreCodec<T> codec,
+            OwnerFilePolicy<T> policy,
+            Executor executor,
+            LongSupplier clock,
+            boolean waitForWrites,
+            FileMover mover,
+            FileCopier copier) {
+        return withTestFileOperations(
+                dir,
+                codec,
+                policy,
+                new OwnerStoreWriter(executor),
+                WriterOwnership.OWNED,
+                clock,
+                waitForWrites,
+                mover,
+                copier);
+    }
+
+    public static <T> OwnerFileStore<T> withTestFileOperations(
+            Path dir,
+            StoreCodec<T> codec,
+            OwnerFilePolicy<T> policy,
+            OwnerStoreWriter writer,
+            WriterOwnership ownership,
+            LongSupplier clock,
+            boolean waitForWrites,
+            FileMover mover,
+            FileCopier copier) {
+        OwnerFileOperations files = new OwnerFileOperations() {
+            @Override
+            void move(Path source, Path target, boolean atomic) throws IOException {
+                if (atomic)
+                    mover.move(source, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+                else mover.move(source, target, StandardCopyOption.REPLACE_EXISTING);
+            }
+
+            @Override
+            void backup(Path source, Path backup) throws IOException {
+                copier.copy(source, backup, StandardCopyOption.REPLACE_EXISTING);
+            }
+        };
+        return new OwnerFileStore<>(
+                dir, codec, writer, ownership, clock, files, Duration.ofSeconds(30), waitForWrites, policy);
+    }
+
     OwnerFileStore(
             Path dir,
             StoreCodec<T> codec,
@@ -97,7 +178,7 @@ public final class OwnerFileStore<T> implements AutoCloseable {
             LongSupplier clock,
             OwnerFileOperations files,
             Duration closeTimeout) {
-        this(dir, codec, writer, ownership, clock, files, closeTimeout, true);
+        this(dir, codec, writer, ownership, clock, files, closeTimeout, true, new OwnerFilePolicy<>() {});
     }
 
     private OwnerFileStore(
@@ -108,9 +189,11 @@ public final class OwnerFileStore<T> implements AutoCloseable {
             LongSupplier clock,
             OwnerFileOperations files,
             Duration closeTimeout,
-            boolean waitOnClose) {
+            boolean waitOnClose,
+            OwnerFilePolicy<T> policy) {
         this.dir = java.util.Objects.requireNonNull(dir);
         this.codec = java.util.Objects.requireNonNull(codec);
+        this.policy = java.util.Objects.requireNonNull(policy);
         this.writer = java.util.Objects.requireNonNull(writer);
         this.ownership = java.util.Objects.requireNonNull(ownership);
         this.clock = java.util.Objects.requireNonNull(clock);
@@ -139,7 +222,8 @@ public final class OwnerFileStore<T> implements AutoCloseable {
 
     /** A missing file is clean and absent. Unreadable originals remain read-only; corruption needs a backup. */
     public synchronized T book(UUID owner) {
-        if (readOnly.get(owner) == StoreReadOnlyReason.UNSUPPORTED) throw new UnsupportedStoreVersionException();
+        if (readOnly.get(owner) == StoreReadOnlyReason.UNSUPPORTED && !policy.emptyOnUnsupportedVersion())
+            throw new UnsupportedStoreVersionException();
         T value = values.get(owner);
         if (value != null) return value;
         if (closing || closed) throw new IllegalStateException("Store is closed.");
@@ -147,7 +231,7 @@ public final class OwnerFileStore<T> implements AutoCloseable {
         try {
             if (files.size(target) > codec.maxBytes()) {
                 readOnly.put(owner, StoreReadOnlyReason.OVERSIZED);
-                backup(owner, target);
+                if (policy.backupOversizedOnLoad()) backup(owner, target);
                 return adopt(owner, fresh());
             }
         } catch (NoSuchFileException absent) {
@@ -156,28 +240,36 @@ public final class OwnerFileStore<T> implements AutoCloseable {
             return unreadable(owner);
         }
         OwnerFileOperations.ReadAttempt attempt = new OwnerFileOperations.ReadAttempt();
+        boolean opened = false;
         try (Reader reader = files.reader(target, codec.maxBytes())) {
+            opened = true;
             value = codec.load(attempt.observe(reader));
             if (attempt.failure != null) throw attempt.failure;
             if (value == null) throw new IllegalArgumentException("Empty owner file.");
             return adopt(owner, value);
         } catch (UnsupportedStoreVersionException unsupported) {
             readOnly.put(owner, StoreReadOnlyReason.UNSUPPORTED);
+            if (policy.emptyOnUnsupportedVersion()) return adopt(owner, fresh());
             throw unsupported;
         } catch (OwnerFileOperations.OversizedInputException oversized) {
             readOnly.put(owner, StoreReadOnlyReason.OVERSIZED);
-            backup(owner, target);
+            if (policy.backupOversizedOnLoad()) backup(owner, target);
             return adopt(owner, fresh());
         } catch (IOException failure) {
-            return unreadable(owner);
+            if (!opened || (attempt.failure != null && !(attempt.failure instanceof CharacterCodingException)))
+                return unreadable(owner);
+            readOnly.put(owner, StoreReadOnlyReason.CORRUPT);
+            backup(owner, target);
+            return adopt(owner, fresh());
         } catch (RuntimeException | StackOverflowError corrupt) {
             // A streaming codec may wrap or swallow the reader's exception. Parser failures alone are corruption.
             if (attempt.failure instanceof OwnerFileOperations.OversizedInputException) {
                 readOnly.put(owner, StoreReadOnlyReason.OVERSIZED);
-                backup(owner, target);
+                if (policy.backupOversizedOnLoad()) backup(owner, target);
                 return adopt(owner, fresh());
             }
-            if (attempt.failure != null) return unreadable(owner);
+            if (attempt.failure != null && !(attempt.failure instanceof CharacterCodingException))
+                return unreadable(owner);
             readOnly.put(owner, StoreReadOnlyReason.CORRUPT);
             backup(owner, target);
             return adopt(owner, fresh());
@@ -225,6 +317,20 @@ public final class OwnerFileStore<T> implements AutoCloseable {
         return status(owner).dirty();
     }
 
+    /** Explicit domain-authorized repair first protects the original, then makes the loaded value writable. */
+    public synchronized boolean repairOwner(UUID owner) {
+        T value = book(owner);
+        StoreReadOnlyReason reason = readOnly.get(owner);
+        if (reason == null || !policy.canRepair(reason)) return false;
+        Path target = file(owner);
+        if (!backup(owner, target)) return false;
+        readOnly.remove(owner);
+        failures.remove(owner);
+        failedRevision.remove(owner);
+        savedRevision.put(owner, -1L);
+        return true;
+    }
+
     /** Final caller-thread snapshot/wait loop, bounded even if a borrowed executor never completes. */
     @Override
     public void close() {
@@ -268,11 +374,13 @@ public final class OwnerFileStore<T> implements AutoCloseable {
                     || failedRevision.getOrDefault(owner, Long.MIN_VALUE) == revision) continue;
             final byte[] snapshot;
             final Path target;
+            final long snapshotRevision;
             try {
-                snapshot = codec.save(entry.getValue()).getBytes(StandardCharsets.UTF_8);
+                snapshot = policy.encode(entry.getValue(), codec);
                 if (snapshot.length > codec.maxBytes())
                     throw new IllegalArgumentException("Store snapshot exceeds limit.");
                 target = file(owner);
+                snapshotRevision = codec.revision(entry.getValue());
             } catch (RuntimeException | StackOverflowError failure) {
                 fail(owner, revision, StoreFailureKind.WRITE_FAILED);
                 continue;
@@ -280,13 +388,13 @@ public final class OwnerFileStore<T> implements AutoCloseable {
             pending.add(owner);
             boolean accepted;
             try {
-                accepted = writer.trySubmit(() -> save(owner, target, revision, snapshot));
+                accepted = writer.trySubmit(() -> save(owner, target, snapshotRevision, snapshot));
             } catch (RuntimeException failure) {
                 accepted = false;
             }
             if (!accepted) {
                 pending.remove(owner);
-                fail(owner, revision, StoreFailureKind.QUEUE_FULL);
+                fail(owner, snapshotRevision, StoreFailureKind.QUEUE_FULL);
             }
         }
     }
@@ -359,12 +467,14 @@ public final class OwnerFileStore<T> implements AutoCloseable {
         return dir.resolve(name);
     }
 
-    private void backup(UUID owner, Path target) {
+    private boolean backup(UUID owner, Path target) {
         try {
             files.backup(target, target.resolveSibling(target.getFileName() + ".bak"));
+            return true;
         } catch (IOException | RuntimeException failure) {
             readOnly.put(owner, StoreReadOnlyReason.BACKUP_FAILED);
             failures.put(owner, StoreFailureKind.BACKUP_FAILED);
+            return false;
         }
     }
 }
