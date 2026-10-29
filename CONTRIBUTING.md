@@ -71,8 +71,9 @@ message rules in `ProtocolSupport`. Test routing and serialization with the prov
 
 Add the default and validation to `engine/.../infrastructure/config/ServerConfig` or `ClientConfig`. Bump the persisted
 schema version when its shape changes; older and future versions are unsupported and remain untouched. This project
-does not migrate config files. Add editable UI in `src/client/.../config/` when appropriate, keeping YACL and Mod Menu
-optional. Add matching language keys and focused validation and unsupported-version tests.
+does not migrate config files. Server startup uses in-memory defaults for unsupported server config and does not write
+to the old file. Add editable UI in `src/client/.../config/` when appropriate, keeping YACL and Mod Menu optional. Add
+matching language keys and focused validation and unsupported-version tests.
 
 ### Add a network payload
 

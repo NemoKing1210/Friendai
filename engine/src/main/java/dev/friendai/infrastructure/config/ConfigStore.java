@@ -83,6 +83,17 @@ public final class ConfigStore<T> {
         }
     }
 
+    /** Uses in-memory defaults when the saved version is unsupported, preserving that file and blocking writes. */
+    public T loadWithDefaultsOnUnsupportedVersion() {
+        try {
+            return load();
+        } catch (UnsupportedStoreVersionException e) {
+            LOGGER.warn(
+                    "Config {} uses an unsupported version; using defaults in memory and preserving the file", file);
+            return defaults.get();
+        }
+    }
+
     private T recover(String text, RuntimeException cause) {
         recoveredOnLastLoad = true;
         Path backup = file.resolveSibling(file.getFileName() + ".bak");

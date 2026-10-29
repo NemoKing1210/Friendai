@@ -101,7 +101,7 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
                 ServerConfig.class,
                 ServerConfig::defaults,
                 ServerConfig.VERSION);
-        this.config = store.load();
+        this.config = store.loadWithDefaultsOnUnsupportedVersion();
         this.configuration = new ServerConfiguration(
                 entry -> FriendaiMod.LOGGER.warn("Unknown pathing break blacklist entry: {}", entry));
         logProblems(configuration.apply(config));

@@ -199,7 +199,7 @@ An agent slows itself down by running Gradle after every edit: a unit run costs 
 ### Add a config option
 
 1. Add the field and default to `engine/.../infrastructure/config/ServerConfig` or `ClientConfig`; enforce valid ranges in that config's validation path.
-2. For a persisted schema change, bump its version. Older and future versions are unsupported and stay untouched; this project does not migrate config files.
+2. For a persisted schema change, bump its version. Older and future versions are unsupported and stay untouched; this project does not migrate config files. Server startup uses in-memory defaults when its config version is unsupported and keeps the file read-only.
 3. Expose editable settings in `src/client/java/dev/friendai/client/config/` when appropriate; keep YACL and Mod Menu optional.
 4. Add label/tooltip keys to both language files and focused validation and unsupported-version tests under `engine/src/test` or `src/test`.
 

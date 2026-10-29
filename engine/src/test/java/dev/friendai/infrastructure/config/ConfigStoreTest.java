@@ -82,4 +82,21 @@ class ConfigStoreTest {
         assertThrows(UnsupportedStoreVersionException.class, () -> store.save(new Sample()));
         assertEquals(original, Files.readString(dir.resolve("friendai-server.json")));
     }
+
+    @Test
+    void fallbackOnUnsupportedVersionUsesMemoryDefaultsAndPreservesFile() throws IOException {
+        for (int version : List.of(0, 2)) {
+            Path file = dir.resolve("server-" + version + ".json");
+            String original = "{\"version\":" + version + ",\"name\":\"custom\"}";
+            Files.writeString(file, original);
+            ConfigStore<Sample> store = new ConfigStore<>(file, Sample.class, Sample::new, 1);
+
+            Sample fallback = store.loadWithDefaultsOnUnsupportedVersion();
+
+            assertEquals("default", fallback.name);
+            assertEquals(original, Files.readString(file));
+            assertThrows(UnsupportedStoreVersionException.class, () -> store.save(new Sample()));
+            assertEquals(original, Files.readString(file));
+        }
+    }
 }
