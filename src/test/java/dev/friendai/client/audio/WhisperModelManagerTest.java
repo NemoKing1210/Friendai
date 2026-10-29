@@ -14,6 +14,7 @@ import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.util.HexFormat;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -58,13 +59,13 @@ class WhisperModelManagerTest {
     }
 
     @Test
-    void corruptDownloadDeletedAndFails() {
+    void corruptDownloadDeletedAndFails() throws java.io.IOException {
         server.enqueue(200, "pretend this is a speech modeX");
         ExecutionException e = assertThrows(
                 ExecutionException.class, () -> manager.download(spec, p -> {}).get());
         UserFacingException cause = (UserFacingException) e.getCause();
         assertEquals("friendai.voice.error.model_corrupt", cause.userMessage().key());
-        assertFalse(Files.exists(dir.resolve("ggml-test.bin.part")));
+        assertNoStagingFiles();
         assertFalse(Files.exists(dir.resolve("ggml-test.bin")));
     }
 
@@ -82,6 +83,78 @@ class WhisperModelManagerTest {
         assertThrows(
                 ExecutionException.class, () -> manager.download(spec, p -> {}).get());
         assertFalse(Files.exists(dir.resolve("ggml-test.bin")));
+    }
+
+    @Test
+    void twoCallsForTheSameModelShareOneDownload() throws Exception {
+        server.enqueueDelayed(200, CONTENT.getBytes(StandardCharsets.UTF_8), 300);
+        var first = manager.download(spec, progress -> {});
+        var second = manager.download(spec, progress -> {});
+        assertEquals(first.get(10, TimeUnit.SECONDS), second.get(10, TimeUnit.SECONDS));
+        assertTrue(manager.isInstalled(spec));
+        assertEquals(1, server.requests().size(), "both callers share one HTTP request");
+    }
+
+    @Test
+    void cancelingOneCallerLeavesTheSharedDownloadRunning() throws Exception {
+        server.enqueueDelayed(200, CONTENT.getBytes(StandardCharsets.UTF_8), 300);
+        var first = manager.download(spec, progress -> {});
+        var second = manager.download(spec, progress -> {});
+        assertTrue(second.cancel(true));
+        assertEquals(dir.resolve("ggml-test.bin"), first.get(10, TimeUnit.SECONDS));
+        assertTrue(manager.isInstalled(spec));
+    }
+
+    @Test
+    void aFailedSharedDownloadCanBeRetried() throws Exception {
+        server.enqueue(404, "{}");
+        assertThrows(
+                ExecutionException.class,
+                () -> manager.download(spec, progress -> {}).get());
+        server.enqueue(200, CONTENT);
+        assertEquals(
+                dir.resolve("ggml-test.bin"),
+                manager.download(spec, progress -> {}).get());
+        assertEquals(2, server.requests().size(), "the failed operation is forgotten before the retry");
+    }
+
+    @Test
+    void differentModelsDownloadIndependently() throws Exception {
+        byte[] other = "another model".getBytes(StandardCharsets.UTF_8);
+        String otherSha =
+                HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(other));
+        ModelSpec otherSpec = new ModelSpec("ggml-other.bin", other.length, otherSha);
+        server.enqueueDelayed(200, CONTENT.getBytes(StandardCharsets.UTF_8), 300);
+        server.enqueue(200, other);
+        var first = manager.download(spec, progress -> {});
+        while (server.requests().isEmpty()) Thread.sleep(10);
+        var second = manager.download(otherSpec, progress -> {});
+        assertEquals(dir.resolve("ggml-other.bin"), second.get(10, TimeUnit.SECONDS));
+        assertEquals(dir.resolve("ggml-test.bin"), first.get(10, TimeUnit.SECONDS));
+    }
+
+    @Test
+    void oversizedBodyFailsWithoutLeavingStagingFiles() throws Exception {
+        server.enqueue(200, CONTENT + "extra");
+        ExecutionException e = assertThrows(
+                ExecutionException.class,
+                () -> manager.download(spec, progress -> {}).get());
+        assertEquals(
+                "friendai.voice.error.model_corrupt",
+                ((UserFacingException) e.getCause()).userMessage().key());
+        try (var files = Files.list(dir)) {
+            assertTrue(
+                    files.noneMatch(file -> file.getFileName().toString().contains(".part")),
+                    "the failed operation cleans its own staging file");
+        }
+    }
+
+    private void assertNoStagingFiles() throws java.io.IOException {
+        try (var files = Files.list(dir)) {
+            assertTrue(
+                    files.noneMatch(file -> file.getFileName().toString().contains(".part")),
+                    "the failed operation cleans its own staging file");
+        }
     }
 
     @Test

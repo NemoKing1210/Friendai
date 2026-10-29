@@ -19,7 +19,10 @@ import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.DoubleConsumer;
 import java.util.stream.Stream;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
@@ -43,6 +46,10 @@ public final class VoiceModelManager {
 
     private final Path dir;
     private final HttpClient http;
+    /** One running install per voice; a second caller joins it instead of deleting its staging directory. */
+    private final Map<String, CompletableFuture<Path>> inFlight = new ConcurrentHashMap<>();
+
+    private final AtomicLong operations = new AtomicLong();
 
     public VoiceModelManager(Path dir, HttpClient http) {
         this.dir = dir;
@@ -75,11 +82,40 @@ public final class VoiceModelManager {
         });
     }
 
-    /** @param stage called with the download and then the unpacking fraction, from a background thread */
+    /**
+     * Downloads and installs one voice. A second call for the same voice joins the running operation and completes
+     * with it; cancelling either caller's future does not cancel the shared install, and progress is not replayed.
+     *
+     * @param stage called with the download and then the unpacking fraction, from a background thread
+     */
     public CompletableFuture<Path> download(VoiceModel model, DownloadStage stage) {
-        if (isInstalled(model)) {
-            return CompletableFuture.completedFuture(dir(model));
+        CompletableFuture<Path> shared;
+        synchronized (this) {
+            if (isInstalled(model)) {
+                return CompletableFuture.completedFuture(dir(model));
+            }
+            shared = inFlight.get(model.id());
+            if (shared == null || shared.isDone()) {
+                CompletableFuture<Path> created = start(model, stage);
+                inFlight.put(model.id(), created);
+                created.whenComplete((ignored, error) -> inFlight.remove(model.id(), created));
+                shared = created;
+            }
         }
+        // Each caller owns a plain relay future: cancelling it never cancels the shared operation or another caller.
+        CompletableFuture<Path> caller = new CompletableFuture<>();
+        shared.whenComplete((result, error) -> {
+            if (error != null) caller.completeExceptionally(error);
+            else caller.complete(result);
+        });
+        return caller;
+    }
+
+    private CompletableFuture<Path> start(VoiceModel model, DownloadStage stage) {
+        long operation = operations.incrementAndGet();
+        Path archive = dir.resolve(model.id() + "." + operation + ".tar.bz2");
+        Path part = dir.resolve(model.id() + "." + operation + ".tar.bz2.part");
+        Path partDir = dir.resolve(model.id() + "." + operation + ".part");
         HttpRequest request =
                 HttpRequest.newBuilder(URI.create(model.url())).GET().build();
         return http.sendAsync(request, HttpResponse.BodyHandlers.ofInputStream())
@@ -88,14 +124,11 @@ public final class VoiceModelManager {
                         closeQuietly(response.body());
                         throw new UserFacingException(UserMessage.of("friendai.voice.tts.error.network"));
                     }
-                    return save(model, response.body(), stage);
+                    return save(model, response.body(), stage, part, archive, partDir);
                 });
     }
 
-    private Path save(VoiceModel model, InputStream body, DownloadStage stage) {
-        Path archive = dir.resolve(model.id() + ".tar.bz2");
-        Path part = dir.resolve(model.id() + ".tar.bz2.part");
-        Path partDir = dir.resolve(model.id() + ".part");
+    private Path save(VoiceModel model, InputStream body, DownloadStage stage, Path part, Path archive, Path partDir) {
         try (InputStream in = body) {
             Files.createDirectories(dir);
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -103,12 +136,17 @@ public final class VoiceModelManager {
             try (OutputStream out =
                     Files.newOutputStream(part, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)) {
                 byte[] buffer = new byte[64 * 1024];
-                int n;
-                while ((n = in.read(buffer)) > 0) {
+                long limit = model.size();
+                while (total <= limit) {
+                    // One byte past the declared size is enough to detect a longer body without reading it.
+                    int allowed = (int) Math.min(buffer.length, limit + 1 - total);
+                    int n = in.read(buffer, 0, allowed);
+                    if (n < 0) break;
+                    total += n;
+                    if (total > limit) break;
                     out.write(buffer, 0, n);
                     digest.update(buffer, 0, n);
-                    total += n;
-                    stage.downloading(Math.min(1.0, (double) total / Math.max(1L, model.size())));
+                    stage.downloading(Math.min(1.0, (double) total / Math.max(1L, limit)));
                 }
             }
             if (total != model.size()

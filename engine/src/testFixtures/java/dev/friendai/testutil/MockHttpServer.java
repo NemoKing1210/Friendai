@@ -24,7 +24,7 @@ public final class MockHttpServer implements AutoCloseable {
         }
     }
 
-    private record Canned(int status, byte[] body) {}
+    private record Canned(int status, byte[] body, long delayMillis) {}
 
     private final HttpServer server;
     private final Queue<Canned> queue = new ArrayDeque<>();
@@ -47,9 +47,16 @@ public final class MockHttpServer implements AutoCloseable {
                 canned = queue.poll();
             }
             if (canned == null) {
-                canned = new Canned(500, "{\"error\":\"mock queue empty\"}".getBytes(StandardCharsets.UTF_8));
+                canned = new Canned(500, "{\"error\":\"mock queue empty\"}".getBytes(StandardCharsets.UTF_8), 0);
             }
             byte[] out = canned.body();
+            if (canned.delayMillis() > 0) {
+                try {
+                    Thread.sleep(canned.delayMillis());
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                }
+            }
             exchange.getResponseHeaders().add("Content-Type", "application/json");
             exchange.sendResponseHeaders(canned.status(), out.length == 0 ? -1 : out.length);
             if (out.length > 0) {
@@ -75,8 +82,14 @@ public final class MockHttpServer implements AutoCloseable {
     }
 
     public void enqueue(int status, byte[] body) {
+        enqueueDelayed(status, body, 0);
+    }
+
+    /** Serves the response after a delay, so tests can overlap two clients deterministically. */
+    public void enqueueDelayed(int status, byte[] body, long delayMillis) {
+        if (delayMillis < 0) throw new IllegalArgumentException("negative delay");
         synchronized (queue) {
-            queue.add(new Canned(status, body.clone()));
+            queue.add(new Canned(status, body.clone(), delayMillis));
         }
     }
 

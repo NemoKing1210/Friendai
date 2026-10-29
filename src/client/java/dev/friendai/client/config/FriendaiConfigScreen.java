@@ -289,14 +289,13 @@ public final class FriendaiConfigScreen {
         };
 
         // Fetches the model list for the pending settings, then rebuilds the screen keeping them.
-        SettingsSession owner = session;
-        long generation = owner == null ? -1 : owner.generation();
+        long generation = session == null ? -1 : session.generation();
         java.util.function.BiConsumer<ProviderDraft, Boolean> loadModelsThenReopen = (draftNow, reportSuccess) -> {
             pendingClient
                     .get()
                     .listModels()
                     .whenComplete((models, error) -> Minecraft.getInstance().execute(() -> {
-                        if (owner == null || !owner.current(generation)) return;
+                        if (session == null || !session.current(generation)) return;
                         if (error != null) {
                             toast(Components.of(ErrorMessages.forUser(error)));
                             return;
@@ -339,7 +338,7 @@ public final class FriendaiConfigScreen {
                         .get()
                         .testConnection()
                         .whenComplete((result, error) -> Minecraft.getInstance().execute(() -> {
-                            if (owner == null || !owner.current(generation)) return;
+                            if (session == null || !session.current(generation)) return;
                             toast(error != null ? Components.of(ErrorMessages.forUser(error)) : Components.of(result));
                         })))
                 .build();
@@ -641,22 +640,21 @@ public final class FriendaiConfigScreen {
                 .action((screen, button) -> {
                     WhisperModel selected = WhisperModel.byId(model.pendingValue());
                     int[] lastStep = {-1};
-                    SettingsSession owner = session;
-                    long generation = owner == null ? -1 : owner.generation();
+                    long generation = session == null ? -1 : session.generation();
                     VoiceRuntime.manager()
                             .download(selected.spec(), fraction -> {
                                 int percent = (int) (fraction * 100);
                                 if (percent / 10 != lastStep[0]) {
                                     lastStep[0] = percent / 10;
                                     Minecraft.getInstance().execute(() -> {
-                                        if (owner == null || !owner.current(generation)) return;
+                                        if (session == null || !session.current(generation)) return;
                                         toast(Component.translatable("friendai.config.voice.downloading", percent));
                                     });
                                 }
                             })
                             .whenComplete((path, error) -> Minecraft.getInstance()
                                     .execute(() -> {
-                                        if (owner == null || !owner.current(generation)) return;
+                                        if (session == null || !session.current(generation)) return;
                                         if (error != null) {
                                             toast(Components.of(ErrorMessages.forUser(error)));
                                         } else {
@@ -711,8 +709,7 @@ public final class FriendaiConfigScreen {
                 .action((screen, button) -> {
                     int[] lastDownloadStep = {-1};
                     int[] lastInstallStep = {-1};
-                    SettingsSession owner = session;
-                    long generation = owner == null ? -1 : owner.generation();
+                    long generation = session == null ? -1 : session.generation();
                     SpeechRuntime.models()
                             .download(effective, new VoiceModelManager.DownloadStage() {
                                 @Override
@@ -729,7 +726,7 @@ public final class FriendaiConfigScreen {
                             })
                             .whenComplete((path, error) -> Minecraft.getInstance()
                                     .execute(() -> {
-                                        if (owner == null || !owner.current(generation)) return;
+                                        if (session == null || !session.current(generation)) return;
                                         if (error != null) {
                                             toast(Components.of(ErrorMessages.forUser(error)));
                                         } else {

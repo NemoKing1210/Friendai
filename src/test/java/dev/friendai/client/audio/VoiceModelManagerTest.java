@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
@@ -93,7 +94,7 @@ class VoiceModelManagerTest {
         assertEquals(
                 "friendai.voice.tts.error.model_corrupt",
                 ((UserFacingException) e.getCause()).userMessage().key());
-        assertFalse(Files.exists(dir.resolve(model.id() + ".tar.bz2.part")));
+        assertNoStagingFiles();
         assertFalse(Files.exists(manager.dir(model)));
     }
 
@@ -117,6 +118,63 @@ class VoiceModelManagerTest {
         assertFalse(Files.exists(dir.resolve("escape.txt")));
         assertFalse(Files.exists(dir.getParent().resolve("escape.txt")));
         assertFalse(Files.exists(manager.dir(model)));
+    }
+
+    @Test
+    void twoCallsForTheSameVoiceShareOneInstall() throws Exception {
+        byte[] archive = tarBz2(files(
+                "vits-piper-test-voice/", new byte[0],
+                "vits-piper-test-voice/test-voice.onnx", new byte[] {1, 2},
+                "vits-piper-test-voice/tokens.txt", new byte[] {3},
+                "vits-piper-test-voice/espeak-ng-data/phontab", new byte[] {4}));
+        server.enqueueDelayed(200, archive, 300);
+        VoiceModel model = model(archive);
+        var first = manager.download(model, progress -> {});
+        var second = manager.download(model, progress -> {});
+        assertEquals(first.get(10, TimeUnit.SECONDS), second.get(10, TimeUnit.SECONDS));
+        assertTrue(manager.isInstalled(model));
+        assertEquals(1, server.requests().size(), "both callers share one HTTP request");
+    }
+
+    @Test
+    void cancelingOneCallerLeavesTheSharedInstallRunning() throws Exception {
+        byte[] archive = tarBz2(files(
+                "vits-piper-test-voice/", new byte[0],
+                "vits-piper-test-voice/test-voice.onnx", new byte[] {1, 2},
+                "vits-piper-test-voice/tokens.txt", new byte[] {3},
+                "vits-piper-test-voice/espeak-ng-data/phontab", new byte[] {4}));
+        server.enqueueDelayed(200, archive, 300);
+        VoiceModel model = model(archive);
+        var first = manager.download(model, progress -> {});
+        var second = manager.download(model, progress -> {});
+        assertTrue(second.cancel(true));
+        assertEquals(manager.dir(model), first.get(10, TimeUnit.SECONDS));
+        assertTrue(manager.isInstalled(model));
+    }
+
+    @Test
+    void aFailedInstallCanBeRetried() throws Exception {
+        byte[] archive = tarBz2(files(
+                "vits-piper-test-voice/", new byte[0],
+                "vits-piper-test-voice/test-voice.onnx", new byte[] {1, 2},
+                "vits-piper-test-voice/tokens.txt", new byte[] {3},
+                "vits-piper-test-voice/espeak-ng-data/phontab", new byte[] {4}));
+        VoiceModel model = model(archive);
+        server.enqueue(404, "{}");
+        assertThrows(
+                ExecutionException.class,
+                () -> manager.download(model, progress -> {}).get());
+        server.enqueue(200, archive);
+        assertEquals(manager.dir(model), manager.download(model, progress -> {}).get());
+        assertEquals(2, server.requests().size(), "the failed operation is forgotten before the retry");
+    }
+
+    private void assertNoStagingFiles() throws java.io.IOException {
+        try (var files = Files.list(dir)) {
+            assertTrue(
+                    files.noneMatch(file -> file.getFileName().toString().contains(".part")),
+                    "the failed operation cleans its own staging paths");
+        }
     }
 
     @Test
