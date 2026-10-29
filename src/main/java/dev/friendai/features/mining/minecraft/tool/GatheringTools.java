@@ -3,7 +3,6 @@ package dev.friendai.features.mining.minecraft.tool;
 import com.google.gson.JsonObject;
 import dev.friendai.agent.tools.ToolCatalog;
 import dev.friendai.agent.tools.ToolMeta;
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
@@ -17,11 +16,13 @@ import dev.friendai.features.mining.minecraft.task.MineBlockAtTask;
 import dev.friendai.features.mining.minecraft.task.MineBlocksTask;
 import dev.friendai.features.places.PlaceNames;
 import dev.friendai.features.places.minecraft.NearResolver;
+import dev.friendai.perception.resource.ResourceCandidates;
 import dev.friendai.server.execution.tools.FeatureToolContributor;
 import dev.friendai.server.execution.tools.FeatureToolRegistry;
 import dev.friendai.server.execution.tools.TaskToolDefinition;
 import dev.friendai.task.Task;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.IntSupplier;
@@ -34,6 +35,7 @@ public final class GatheringTools implements FeatureToolContributor {
     private final IntSupplier treeRadius;
     private final BooleanSupplier mineCollectDrops;
     private final BooleanSupplier fellCollectDrops;
+    private final ResourceCandidates resourceCandidates;
 
     public GatheringTools(IntSupplier mineRadius, IntSupplier treeRadius) {
         this(mineRadius, treeRadius, () -> true, () -> true);
@@ -44,10 +46,20 @@ public final class GatheringTools implements FeatureToolContributor {
             IntSupplier treeRadius,
             BooleanSupplier mineCollectDrops,
             BooleanSupplier fellCollectDrops) {
+        this(mineRadius, treeRadius, mineCollectDrops, fellCollectDrops, null);
+    }
+
+    public GatheringTools(
+            IntSupplier mineRadius,
+            IntSupplier treeRadius,
+            BooleanSupplier mineCollectDrops,
+            BooleanSupplier fellCollectDrops,
+            ResourceCandidates resourceCandidates) {
         this.mineRadius = mineRadius;
         this.treeRadius = treeRadius;
         this.mineCollectDrops = mineCollectDrops;
         this.fellCollectDrops = fellCollectDrops;
+        this.resourceCandidates = resourceCandidates;
     }
 
     @Override
@@ -173,14 +185,16 @@ public final class GatheringTools implements FeatureToolContributor {
         // A named block id is the player's explicit word; a tag or no type must never pick a log structure.
         boolean treesOnly = matcher == null || matcher.label().startsWith("#");
         ServerLevel level = (ServerLevel) c.level();
-        var resources = FriendaiServerState.get(level.getServer()).resources();
         // The sight cache is companion-centred, but a call may search around its speaker. Expand only
         // the evidence radius here; the exact requested radius is applied around origin below.
         int evidenceRadius = Math.min(128, c.blockPosition().distManhattan(origin) + radius);
         BlockMatcher logs = matcher != null
                 ? matcher
                 : BlockMatcher.parse("#minecraft:logs").orElseThrow();
-        var observed = resources.recentOrRememberedBlockIds(c, evidenceRadius, 1024).entrySet().stream()
+        Map<BlockPos, String> observedIds = resourceCandidates == null
+                ? Map.of()
+                : resourceCandidates.recentOrRememberedBlockIds(c, evidenceRadius, 1024);
+        var observed = observedIds.entrySet().stream()
                 .filter(entry -> entry.getKey().distSqr(origin) <= (double) radius * radius)
                 .filter(entry -> {
                     var id = net.minecraft.resources.Identifier.tryParse(entry.getValue());
@@ -194,7 +208,10 @@ public final class GatheringTools implements FeatureToolContributor {
                         (java.util.Map.Entry<BlockPos, String> entry) -> entry.getKey(),
                         (java.util.Map.Entry<BlockPos, String> entry) -> entry.getValue()));
         var leavesMatcher = BlockMatcher.parse("#minecraft:leaves").orElseThrow();
-        Set<BlockPos> leaves = resources.recentOrRemembered(c, leavesMatcher, evidenceRadius, 1024).stream()
+        Set<BlockPos> observedLeaves = resourceCandidates == null
+                ? Set.of()
+                : resourceCandidates.recentOrRemembered(c, leavesMatcher, evidenceRadius, 1024);
+        Set<BlockPos> leaves = observedLeaves.stream()
                 .filter(pos -> pos.distSqr(origin) <= (double) radius * radius)
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
         int limit = a.has("limit") ? a.get("limit").getAsInt() : 0;

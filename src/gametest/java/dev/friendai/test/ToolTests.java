@@ -44,10 +44,18 @@ public class ToolTests {
     }
 
     private static ToolExecutor tools(CompanionEntity c) {
-        return FriendaiTools.build(() -> 32, () -> 32, dev.friendai.tool.builtin.MemoryAccess.DISABLED, () -> {
-                    var state = FriendaiServerState.get(c.level().getServer());
-                    return new PerceptionContext(state.resources(), state.settings(), state.freeTime());
-                })
+        var state = FriendaiServerState.get(c.level().getServer());
+        return FriendaiTools.build(
+                        () -> 32,
+                        () -> 32,
+                        dev.friendai.tool.builtin.MemoryAccess.DISABLED,
+                        () -> {
+                            return new PerceptionContext(state.resources(), state.settings(), state.freeTime());
+                        },
+                        () -> true,
+                        () -> true,
+                        state.resources(),
+                        state)
                 .registry()
                 .bind(c);
     }

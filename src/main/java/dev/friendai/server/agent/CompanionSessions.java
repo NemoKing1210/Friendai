@@ -75,6 +75,8 @@ public final class CompanionSessions implements AutoCloseable {
     private final Map<UUID, CompanionSession> sessions = new HashMap<>();
     private boolean acceptingWork = true;
     private final ToolRegistry<CompanionEntity> tools;
+    private final dev.friendai.agent.tools.ToolCatalog toolCatalog;
+    private final java.util.Set<String> restorableTaskNames;
     /** The plan-step tools by name, kept so a saved plan can be rebuilt after a reload. */
     private final Map<String, TaskToolDef> planTools;
 
@@ -96,7 +98,8 @@ public final class CompanionSessions implements AutoCloseable {
             TradeStore trading,
             PlaceStore places,
             ResourceCandidates resources,
-            dev.friendai.agent.autonomy.FreeTimeService freeTimeService) {
+            dev.friendai.agent.autonomy.FreeTimeService freeTimeService,
+            dev.friendai.features.trading.minecraft.tool.TradingToolAccess tradingToolAccess) {
         this.server = server;
         this.scheduler = new ServerBrainScheduler(server);
         this.memory = memory;
@@ -129,8 +132,12 @@ public final class CompanionSessions implements AutoCloseable {
                 },
                 perceptionContext,
                 () -> settings.get().tasks().mineCollectDrops(),
-                () -> settings.get().tasks().fellCollectDrops());
+                () -> settings.get().tasks().fellCollectDrops(),
+                resources,
+                tradingToolAccess);
         this.tools = builtins.registry();
+        this.toolCatalog = builtins.catalog();
+        this.restorableTaskNames = builtins.restorableTaskNames();
         this.planTools = builtins.plannable();
         this.taskTools = builtins.taskTools();
         this.freeTime = new FreeTimeDriver(
@@ -346,7 +353,7 @@ public final class CompanionSessions implements AutoCloseable {
     }
 
     public TaskRestoreRegistry taskRestoreRegistry() {
-        return new TaskRestoreRegistry(taskTools, planTools, settings, this::currentCaller);
+        return new TaskRestoreRegistry(taskTools, planTools, restorableTaskNames, settings, this::currentCaller);
     }
 
     /** Installs event routing before TaskPersistenceCoordinator publishes any restore notices. */
@@ -721,7 +728,8 @@ public final class CompanionSessions implements AutoCloseable {
                 effective,
                 scheduler,
                 AccessResolver.of(owner, p -> memory.book(owner).isTrusted(p)),
-                caller -> config.memory.enabled ? MemoryPromptRenderer.render(memory.book(owner), owner, caller) : "");
+                caller -> config.memory.enabled ? MemoryPromptRenderer.render(memory.book(owner), owner, caller) : "",
+                toolCatalog);
         brain.setTradingTurnPort(session.tradingAuthority());
         brain.setTradingPromptSource((caller, request) -> {
             if (caller.access() != AccessLevel.OWNER

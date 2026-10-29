@@ -1,5 +1,6 @@
 package dev.friendai.tool.builtin;
 
+import dev.friendai.agent.tools.ToolCatalog;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.tool.ToolRegistry;
 import dev.friendai.features.acquisition.minecraft.tool.ObtainTools;
@@ -20,8 +21,10 @@ import dev.friendai.features.mining.minecraft.tool.GatheringTools;
 import dev.friendai.features.navigation.minecraft.tool.MovementTools;
 import dev.friendai.features.navigation.minecraft.tool.RelativeMovementTools;
 import dev.friendai.features.survival.minecraft.tool.SurvivalTools;
+import dev.friendai.features.trading.minecraft.tool.TradingToolAccess;
 import dev.friendai.features.trading.minecraft.tool.TradingTools;
 import dev.friendai.perception.PerceptionContext;
+import dev.friendai.perception.resource.ResourceCandidates;
 import dev.friendai.server.execution.tools.FeatureToolContributor;
 import dev.friendai.server.execution.tools.FeatureToolRegistry;
 import dev.friendai.server.execution.tools.MinecraftObtainSubtaskFactory;
@@ -30,6 +33,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
@@ -39,7 +43,9 @@ public final class FriendaiTools {
     public record Builtins(
             ToolRegistry<CompanionEntity> registry,
             Map<String, TaskToolDef> plannable,
-            Map<String, TaskToolDef> taskTools) {}
+            Map<String, TaskToolDef> taskTools,
+            Set<String> restorableTaskNames,
+            ToolCatalog catalog) {}
 
     private FriendaiTools() {}
 
@@ -104,6 +110,27 @@ public final class FriendaiTools {
             Supplier<PerceptionContext> perceptionContext,
             BooleanSupplier mineCollectDrops,
             BooleanSupplier fellCollectDrops) {
+        return build(
+                mineRadius,
+                treeRadius,
+                memory,
+                perceptionContext,
+                mineCollectDrops,
+                fellCollectDrops,
+                null,
+                TradingToolAccess.UNAVAILABLE);
+    }
+
+    /** Builds the runtime registry with its server-owned feature capabilities. */
+    public static Builtins build(
+            IntSupplier mineRadius,
+            IntSupplier treeRadius,
+            MemoryAccess memory,
+            Supplier<PerceptionContext> perceptionContext,
+            BooleanSupplier mineCollectDrops,
+            BooleanSupplier fellCollectDrops,
+            ResourceCandidates resourceCandidates,
+            TradingToolAccess tradingToolAccess) {
         ToolRegistry<CompanionEntity> registry = new ToolRegistry<>();
         MinecraftObtainSubtaskFactory obtainSubtasks = new MinecraftObtainSubtaskFactory();
         List<TaskToolDef> defs = new ArrayList<>();
@@ -117,7 +144,7 @@ public final class FriendaiTools {
                 new RelativeMovementTools(),
                 new BodyTools(),
                 new InteractionTools(),
-                new GatheringTools(mineRadius, treeRadius, mineCollectDrops, fellCollectDrops),
+                new GatheringTools(mineRadius, treeRadius, mineCollectDrops, fellCollectDrops, resourceCandidates),
                 new InventoryTools(),
                 new ObtainTools(obtainSubtasks),
                 new ResourceTools(obtainSubtasks),
@@ -135,7 +162,7 @@ public final class FriendaiTools {
         MemoryTools.register(registry, memory);
         TrustTools.register(registry);
         ControlTools.register(registry, defs);
-        new TradingTools().register(featureTools);
+        new TradingTools(tradingToolAccess).register(featureTools);
         QueueTools.register(registry, defs);
         new FireTools().register(featureTools);
         CreativeTools.register(registry, defs);
@@ -151,7 +178,16 @@ public final class FriendaiTools {
         }
         Map<String, TaskToolDef> taskTools = new LinkedHashMap<>();
         for (TaskToolDef def : defs) taskTools.put(def.name(), def);
-        return new Builtins(registry, Map.copyOf(plannable), Map.copyOf(taskTools));
+        Set<String> restorableTaskNames = new java.util.LinkedHashSet<>(taskTools.keySet());
+        featureTools.taskDefinitions().forEach((name, definition) -> {
+            if (!definition.restorable()) restorableTaskNames.remove(name);
+        });
+        return new Builtins(
+                registry,
+                Map.copyOf(plannable),
+                Map.copyOf(taskTools),
+                Set.copyOf(restorableTaskNames),
+                ToolCatalog.defaults().withOverrides(featureTools.catalogMetadata()));
     }
 
     private static TaskToolDef legacyTaskDefinition(TaskToolDefinition definition) {

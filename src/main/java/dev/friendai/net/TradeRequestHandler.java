@@ -130,25 +130,23 @@ public final class TradeRequestHandler {
                                         + " gold ingots and guarantees no particular item."));
                         return;
                     }
-                    var result = TradingTools.previewFromMenu(companion, caller, args);
+                    var result = TradingTools.previewFromMenu(state, companion, caller, args);
                     player.sendSystemMessage(Component.literal(result.content()));
                 } else if (request.action() == TradeRequestC2SPayload.Action.SUBMIT) {
-                    caller =
-                            state.sessions().tradeAuthorityFor(player.getUUID()).begin(caller, true);
+                    caller = state.tradeAuthorityFor(player.getUUID()).begin(caller, true);
                     companion
                             .executionCoordinator()
-                            .start(TradingTools.submitFromMenu(companion, caller, args), "traders_menu");
+                            .start(TradingTools.submitFromMenu(state, companion, caller, args), "traders_menu");
                 } else if (request.action() == TradeRequestC2SPayload.Action.BARTER) {
                     args.remove("kind");
-                    caller =
-                            state.sessions().tradeAuthorityFor(player.getUUID()).begin(caller, true);
+                    caller = state.tradeAuthorityFor(player.getUUID()).begin(caller, true);
                     companion
                             .executionCoordinator()
-                            .start(TradingTools.barterFromMenu(companion, caller, args), "traders_menu");
+                            .start(TradingTools.barterFromMenu(state, companion, caller, args), "traders_menu");
                 } else {
                     companion
                             .executionCoordinator()
-                            .start(TradingTools.waitFromMenu(companion, caller, args), "traders_menu");
+                            .start(TradingTools.waitFromMenu(state, companion, caller, args), "traders_menu");
                 }
             } catch (RuntimeException invalid) {
                 player.sendSystemMessage(Component.literal("Trading action failed: " + invalid.getMessage()));

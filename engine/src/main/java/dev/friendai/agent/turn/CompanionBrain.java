@@ -26,6 +26,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -98,7 +99,7 @@ public final class CompanionBrain {
 
     private Set<String> turnToolNames = Set.of();
     private final TurnRouter router = new TurnRouter(IntentVocabulary.load());
-    private final ToolCatalog catalog = ToolCatalog.defaults();
+    private final ToolCatalog catalog;
     /** The tool groups this turn may use; widened by request_tools, reset at every turn start. */
     private final Set<ToolGroup> visibleGroups = EnumSet.allOf(ToolGroup.class);
 
@@ -136,6 +137,30 @@ public final class CompanionBrain {
             BrainScheduler scheduler,
             AccessResolver access,
             MemorySource memorySource) {
+        this(
+                persona,
+                settings,
+                gateway,
+                tools,
+                perception,
+                speaker,
+                scheduler,
+                access,
+                memorySource,
+                ToolCatalog.defaults());
+    }
+
+    public CompanionBrain(
+            Supplier<Persona> persona,
+            Supplier<BrainSettings> settings,
+            Supplier<LlmGateway> gateway,
+            ToolExecutor tools,
+            PerceptionSource perception,
+            Speaker speaker,
+            BrainScheduler scheduler,
+            AccessResolver access,
+            MemorySource memorySource,
+            ToolCatalog catalog) {
         this.persona = persona;
         this.settings = settings;
         this.gateway = gateway;
@@ -145,6 +170,7 @@ public final class CompanionBrain {
         this.scheduler = scheduler;
         this.access = access;
         this.memorySource = memorySource;
+        this.catalog = Objects.requireNonNull(catalog);
         this.turnCaller = new Caller(access.owner(), "", AccessLevel.OWNER);
         this.memory = new ConversationMemory(settings.get().historyMessages());
     }

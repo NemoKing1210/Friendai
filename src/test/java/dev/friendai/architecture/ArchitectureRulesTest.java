@@ -345,6 +345,17 @@ class ArchitectureRulesTest {
     }
 
     @Test
+    void featureToolAdaptersCannotLookUpLegacyServerState() {
+        String gatheringTools = "dev.friendai.features.mining.minecraft.tool.GatheringTools";
+
+        assertEquals(
+                List.of(violation(
+                        "legacy-server-state-lookup", gatheringTools, "dev.friendai.core.FriendaiServerState")),
+                PackageDependencyRules.validate(
+                        List.of(edge(gatheringTools, "dev.friendai.core.FriendaiServerState"))));
+    }
+
+    @Test
     void engineRejectsGameOptionalUiAndNativeAudioDependencies() {
         List<DependencyEdge> edges = List.of(
                 edge("dev.friendai.foundation.Text", "net.minecraft.world.level.Level"),

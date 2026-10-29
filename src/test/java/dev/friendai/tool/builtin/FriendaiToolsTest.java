@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.friendai.agent.llm.model.ToolSpec;
+import dev.friendai.agent.tools.ToolGroup;
 import dev.friendai.execution.tool.AccessLevel;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -35,6 +36,16 @@ class FriendaiToolsTest {
         assertFalse(trusted.contains("set_combat_settings"));
         assertFalse(trusted.contains("allow_food"));
         assertTrue(owner.containsAll(List.of("attack_player", "set_combat_settings", "allow_food", "get_food_rules")));
+    }
+
+    @Test
+    void builtinsExposeCatalogAndRestoreEligibilityFromFeatureContributions() {
+        FriendaiTools.Builtins builtins = FriendaiTools.build(() -> 8, MemoryAccess.DISABLED);
+
+        assertTrue(builtins.catalog().meta("mine_blocks").isPresent());
+        assertTrue(builtins.catalog().meta("mine_blocks").orElseThrow().group() == ToolGroup.GATHERING);
+        assertTrue(builtins.restorableTaskNames().contains("mine_blocks"));
+        assertTrue(builtins.restorableTaskNames().contains("trade_item"));
     }
 
     private static void assertBefore(List<String> names, String first, String second) {

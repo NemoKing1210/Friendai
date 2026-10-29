@@ -55,10 +55,28 @@ public final class TaskRestoreRegistry {
             Map<String, TaskToolDef> planTools,
             Supplier<ServerSettings> settings,
             BiFunction<UUID, UUID, Caller> callers) {
-        this.taskTools = Map.copyOf(taskTools);
-        this.planTools = Map.copyOf(planTools);
+        this(taskTools, planTools, taskTools.keySet(), settings, callers);
+    }
+
+    public TaskRestoreRegistry(
+            Map<String, TaskToolDef> taskTools,
+            Map<String, TaskToolDef> planTools,
+            Set<String> restorableTaskNames,
+            Supplier<ServerSettings> settings,
+            BiFunction<UUID, UUID, Caller> callers) {
+        this.taskTools = restorable(taskTools, restorableTaskNames);
+        this.planTools = restorable(planTools, restorableTaskNames);
         this.settings = settings;
         this.callers = callers;
+    }
+
+    private static Map<String, TaskToolDef> restorable(
+            Map<String, TaskToolDef> tools, Set<String> restorableTaskNames) {
+        Map<String, TaskToolDef> eligible = new HashMap<>();
+        tools.forEach((name, definition) -> {
+            if (restorableTaskNames.contains(name)) eligible.put(name, definition);
+        });
+        return Map.copyOf(eligible);
     }
 
     public Map<Long, StepFactory> stepFactories(JobQueue queue) {

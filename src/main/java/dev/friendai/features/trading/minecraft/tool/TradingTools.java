@@ -3,7 +3,8 @@ package dev.friendai.features.trading.minecraft.tool;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import dev.friendai.core.FriendaiServerState;
+import dev.friendai.agent.tools.ToolCatalog;
+import dev.friendai.agent.tools.ToolMeta;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.queue.QueueTradeScope;
 import dev.friendai.execution.tool.AccessLevel;
@@ -11,8 +12,6 @@ import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.SchemaBuilder;
 import dev.friendai.execution.tool.Tool;
 import dev.friendai.execution.tool.ToolResult;
-import dev.friendai.agent.tools.ToolCatalog;
-import dev.friendai.agent.tools.ToolMeta;
 import dev.friendai.features.trading.BarterOrder;
 import dev.friendai.features.trading.TradeBudget;
 import dev.friendai.features.trading.TradeItem;
@@ -21,7 +20,6 @@ import dev.friendai.features.trading.TradeOrder;
 import dev.friendai.features.trading.TradePlan;
 import dev.friendai.features.trading.TradePlanner;
 import dev.friendai.features.trading.TradeQuery;
-import dev.friendai.features.trading.TradingRuntimeSettings;
 import dev.friendai.features.trading.TradeText;
 import dev.friendai.features.trading.TraderRecord;
 import dev.friendai.features.trading.minecraft.task.BarterTask;
@@ -52,38 +50,55 @@ public final class TradingTools implements FeatureToolContributor {
     private static final int MAX_COUNT = TradeItem.MAX_COUNT;
     private static final int MAX_DEADLINE_TICKS = 1_200;
 
-    public TradingTools() {}
+    private final TradingToolAccess access;
+
+    public TradingTools() {
+        this(TradingToolAccess.UNAVAILABLE);
+    }
+
+    public TradingTools(TradingToolAccess access) {
+        this.access = java.util.Objects.requireNonNull(access);
+    }
 
     /** Dedicated UI actions reuse the same validation and authority path as the owner tools. */
-    public static ToolResult previewFromMenu(CompanionEntity companion, Caller caller, JsonObject args) {
-        return planTrade(companion, caller, args);
+    public static ToolResult previewFromMenu(
+            TradingToolAccess access, CompanionEntity companion, Caller caller, JsonObject args) {
+        return new TradingTools(access).planTrade(companion, caller, args);
     }
 
-    public static dev.friendai.task.Task submitFromMenu(CompanionEntity companion, Caller caller, JsonObject args) {
-        return createTradeTask(companion, caller, args);
+    public static dev.friendai.task.Task submitFromMenu(
+            TradingToolAccess access, CompanionEntity companion, Caller caller, JsonObject args) {
+        return new TradingTools(access).createTradeTask(companion, caller, args);
     }
 
-    public static dev.friendai.task.Task waitFromMenu(CompanionEntity companion, Caller caller, JsonObject args) {
-        return createRestockTask(companion, caller, args);
+    public static dev.friendai.task.Task waitFromMenu(
+            TradingToolAccess access, CompanionEntity companion, Caller caller, JsonObject args) {
+        return new TradingTools(access).createRestockTask(companion, caller, args);
     }
 
-    public static dev.friendai.task.Task barterFromMenu(CompanionEntity companion, Caller caller, JsonObject args) {
-        return createBarterTask(companion, caller, args);
+    public static dev.friendai.task.Task barterFromMenu(
+            TradingToolAccess access, CompanionEntity companion, Caller caller, JsonObject args) {
+        return new TradingTools(access).createBarterTask(companion, caller, args);
     }
 
     @Override
     public void register(FeatureToolRegistry registry) {
-        registry.registerTool(callerTool(
-                "find_traders",
-                "Find loaded merchants and adult piglins within the observation radius. This records visible identities only; it does not inspect offers or promise barter rewards.",
-                strict(SchemaBuilder.object().build()),
-                AccessLevel.OWNER,
-                () -> true,
-                TradingTools::findTraders), metadata("find_traders"));
+        registry.registerTool(
+                callerTool(
+                        "find_traders",
+                        "Find loaded merchants and adult piglins within the observation radius. This records visible identities only; it does not inspect offers or promise barter rewards.",
+                        strict(SchemaBuilder.object().build()),
+                        AccessLevel.OWNER,
+                        () -> true,
+                        this::findTraders),
+                metadata("find_traders"));
         registry.registerTask(task(
                 "inspect_trader",
                 "Approach the exact remembered merchant UUID and inspect its live offers. Never use a different nearest merchant as a substitute.",
-                strict(SchemaBuilder.object().string("trader", "Exact trader UUID from find_traders or known_trades").required("trader").build()),
+                strict(SchemaBuilder.object()
+                        .string("trader", "Exact trader UUID from find_traders or known_trades")
+                        .required("trader")
+                        .build()),
                 TaskToolDefinition.QueueTraits.DEFAULT,
                 (c, caller, args) -> {
                     rejectExtra(args, Set.of("trader"), false);
@@ -96,7 +111,10 @@ public final class TradingTools implements FeatureToolContributor {
         registry.registerTask(task(
                 "refresh_trades",
                 "Inspect up to 20 exact selected merchants; piglin barter has its own tool, and only a complete vanilla merchant inspection updates offers.",
-                strict(SchemaBuilder.object().array("traders", "Exact trader UUIDs to inspect", uuidSchema, 1, RefreshTradesTask.MAX_TRADERS).required("traders").build()),
+                strict(SchemaBuilder.object()
+                        .array("traders", "Exact trader UUIDs to inspect", uuidSchema, 1, RefreshTradesTask.MAX_TRADERS)
+                        .required("traders")
+                        .build()),
                 TaskToolDefinition.QueueTraits.DEFAULT,
                 (c, caller, args) -> {
                     rejectExtra(args, Set.of("traders"), false);
@@ -104,110 +122,226 @@ public final class TradingTools implements FeatureToolContributor {
                     var state = state(c);
                     List<UUID> selected = parseUuidArray(args.getAsJsonArray("traders"));
                     for (UUID id : selected) {
-                        if (state.tradeBook(owner).trader(id)
-                                .map(record -> "minecraft:piglin".equals(record.entityType())).orElse(false)) {
+                        if (state.tradeBook(owner)
+                                .trader(id)
+                                .map(record -> "minecraft:piglin".equals(record.entityType()))
+                                .orElse(false)) {
                             throw new IllegalArgumentException("piglin barter has no merchant offers to refresh");
                         }
                     }
-                    long deadline = Math.addExact(currentTick(c), state.tradingSettings().maxWaitTicks());
+                    long deadline = Math.addExact(
+                            currentTick(c), state.tradingSettings().maxWaitTicks());
                     return new RefreshTradesTask(selected, deadline);
                 }));
         registry.registerTask(task(
                 "wait_for_restock",
                 "Wait for one selected villager offer to restock naturally. Wandering traders and villagers without a workstation cannot restock.",
-                strict(SchemaBuilder.object().string("trader", "Exact trader UUID").string("offer_ref", "Exact known offer reference")
-                        .integer("wait_ticks", "Optional bounded wait, defaulting to server trading settings", 20, 12_000)
-                        .required("trader", "offer_ref").build()),
+                strict(SchemaBuilder.object()
+                        .string("trader", "Exact trader UUID")
+                        .string("offer_ref", "Exact known offer reference")
+                        .integer(
+                                "wait_ticks",
+                                "Optional bounded wait, defaulting to server trading settings",
+                                20,
+                                12_000)
+                        .required("trader", "offer_ref")
+                        .build()),
                 TaskToolDefinition.QueueTraits.DEFAULT,
                 (c, caller, args) -> createRestockTask(c, caller, args)));
         registry.registerTask(task(
                 "level_trader",
                 "Raise one selected villager's level using only the explicitly allowed offers and one shared cumulative spending cap; repeat a ref in the list to explicitly permit another fill. Never buy filler trades.",
-                strict(SchemaBuilder.object().string("trader", "Exact villager UUID").integer("target_level", "Target profession level", 2, 5)
-                        .array("allowed_offer_refs", "Exact offer references the owner permits for leveling", offerRefSchema(), 1, 64)
-                        .array("input_caps", "Shared cumulative spending ceiling and reserves", inputRowsSchema(), 1, MAX_TRADE_INPUTS)
-                        .array("allowed_payment_fingerprints", "Optional exact modified payment stacks", fingerprintSchema(), 0, 256)
+                strict(SchemaBuilder.object()
+                        .string("trader", "Exact villager UUID")
+                        .integer("target_level", "Target profession level", 2, 5)
+                        .array(
+                                "allowed_offer_refs",
+                                "Exact offer references the owner permits for leveling",
+                                offerRefSchema(),
+                                1,
+                                64)
+                        .array(
+                                "input_caps",
+                                "Shared cumulative spending ceiling and reserves",
+                                inputRowsSchema(),
+                                1,
+                                MAX_TRADE_INPUTS)
+                        .array(
+                                "allowed_payment_fingerprints",
+                                "Optional exact modified payment stacks",
+                                fingerprintSchema(),
+                                0,
+                                256)
                         .integer("deadline_ticks", "Shared execution deadline from now", 1, MAX_DEADLINE_TICKS)
-                        .required("trader", "target_level", "allowed_offer_refs", "input_caps", "deadline_ticks").build()),
+                        .required("trader", "target_level", "allowed_offer_refs", "input_caps", "deadline_ticks")
+                        .build()),
                 new TaskToolDefinition.QueueTraits(false, null, true),
-                TradingTools::createLevelTraderTask));
+                this::createLevelTraderTask));
         registry.registerTask(task(
                 "barter",
                 "Exchange up to the explicit gold budget with one selected adult piglin. Results are random; only piglin-owned output entities are collected, and accepted gold is never retried.",
-                strict(SchemaBuilder.object().string("piglin", "Exact adult piglin UUID from find_traders")
+                strict(SchemaBuilder.object()
+                        .string("piglin", "Exact adult piglin UUID from find_traders")
                         .integer("max_ingots", "Maximum plain gold ingots to spend", 1, 64)
                         .string("stop_item_id", "Optional exact collected item id for early stop")
                         .string("stop_components_json", "Optional exact component requirements for the early-stop item")
                         .integer("stop_count", "Optional collected target quantity", 1, MAX_COUNT)
                         .integer("deadline_ticks", "Bounded wait deadline from now", 20, 12_000)
-                        .required("piglin").build()),
+                        .required("piglin")
+                        .build()),
                 new TaskToolDefinition.QueueTraits(false, null, true),
-                TradingTools::createBarterTask));
-        registry.registerTool(callerTool(
-                "known_trades",
-                "Query remembered buy or sell offers. Results show freshness and stock; a quote is historical and is never permission to pay.",
-                strict(SchemaBuilder.object().enumeration("direction", "Query offers by output (buy) or input (sell)", "buy", "sell")
-                        .string("item_id", "Exact namespaced item id, such as minecraft:emerald")
-                        .string("components_json", "Optional exact component requirements as a JSON object; use Minecraft component ids and exact levels for enchantments")
-                        .integer("limit", "Maximum results", 1, TradeQuery.MAX_RESULTS).required("direction", "item_id").build()),
-                AccessLevel.OWNER, () -> true, TradingTools::knownTrades), metadata("known_trades"));
+                this::createBarterTask));
+        registry.registerTool(
+                callerTool(
+                        "known_trades",
+                        "Query remembered buy or sell offers. Results show freshness and stock; a quote is historical and is never permission to pay.",
+                        strict(SchemaBuilder.object()
+                                .enumeration("direction", "Query offers by output (buy) or input (sell)", "buy", "sell")
+                                .string("item_id", "Exact namespaced item id, such as minecraft:emerald")
+                                .string(
+                                        "components_json",
+                                        "Optional exact component requirements as a JSON object; use Minecraft component ids and exact levels for enchantments")
+                                .integer("limit", "Maximum results", 1, TradeQuery.MAX_RESULTS)
+                                .required("direction", "item_id")
+                                .build()),
+                        AccessLevel.OWNER,
+                        () -> true,
+                        this::knownTrades),
+                metadata("known_trades"));
         JsonObject inputRows = inputRowsSchema();
-        registry.registerTool(callerTool(
-                "plan_trade",
-                "Explain which remembered offers can satisfy a buy or sell request using the companion's current inventory and explicit per-input caps. Planning never spends.",
-                strict(SchemaBuilder.object().enumeration("direction", "Query offers by output (buy) or input (sell)", "buy", "sell")
-                        .string("item_id", "Exact namespaced item id")
-                        .string("components_json", "Optional exact component requirements as a JSON object; use Minecraft component ids and exact levels for enchantments")
-                        .integer("desired_count", "Positive target quantity", 1, MAX_COUNT)
-                        .array("input_caps", "Maximum item totals to spend and amounts to preserve", inputRows, 1, MAX_PLAN_INPUTS)
-                        .bool("allow_overshoot", "Allow complete vanilla output batches to exceed the requested count")
-                        .required("direction", "item_id", "desired_count", "input_caps").build()),
-                AccessLevel.OWNER, () -> true, TradingTools::planTrade), metadata("plan_trade"));
-        JsonObject tradeSchema = strict(SchemaBuilder.object().string("trader", "Exact trader UUID from a remembered offer")
+        registry.registerTool(
+                callerTool(
+                        "plan_trade",
+                        "Explain which remembered offers can satisfy a buy or sell request using the companion's current inventory and explicit per-input caps. Planning never spends.",
+                        strict(SchemaBuilder.object()
+                                .enumeration("direction", "Query offers by output (buy) or input (sell)", "buy", "sell")
+                                .string("item_id", "Exact namespaced item id")
+                                .string(
+                                        "components_json",
+                                        "Optional exact component requirements as a JSON object; use Minecraft component ids and exact levels for enchantments")
+                                .integer("desired_count", "Positive target quantity", 1, MAX_COUNT)
+                                .array(
+                                        "input_caps",
+                                        "Maximum item totals to spend and amounts to preserve",
+                                        inputRows,
+                                        1,
+                                        MAX_PLAN_INPUTS)
+                                .bool(
+                                        "allow_overshoot",
+                                        "Allow complete vanilla output batches to exceed the requested count")
+                                .required("direction", "item_id", "desired_count", "input_caps")
+                                .build()),
+                        AccessLevel.OWNER,
+                        () -> true,
+                        this::planTrade),
+                metadata("plan_trade"));
+        JsonObject tradeSchema = strict(SchemaBuilder.object()
+                .string("trader", "Exact trader UUID from a remembered offer")
                 .string("offer_ref", "Stable offer reference returned by known_trades")
                 .integer("revision", "Trader observation revision returned by known_trades", 0, Integer.MAX_VALUE)
                 .integer("desired_output_count", "Positive exact component output quantity to receive", 1, MAX_COUNT)
-                .array("input_caps", "Explicit maximum spend and reserve for every offer input", inputRows, 1, MAX_TRADE_INPUTS)
-                .array("allowed_payment_fingerprints", "Optional SHA-256 stack fingerprints authorizing modified payment stacks", fingerprintSchema(), 0, 256)
+                .array(
+                        "input_caps",
+                        "Explicit maximum spend and reserve for every offer input",
+                        inputRows,
+                        1,
+                        MAX_TRADE_INPUTS)
+                .array(
+                        "allowed_payment_fingerprints",
+                        "Optional SHA-256 stack fingerprints authorizing modified payment stacks",
+                        fingerprintSchema(),
+                        0,
+                        256)
                 .bool("allow_overshoot", "Allow full output batches to exceed desired_output_count")
                 .bool("allow_partial", "Accept a real partial receipt if execution stops early")
                 .integer("deadline_ticks", "Execution deadline from now, in ticks", 1, MAX_DEADLINE_TICKS)
-                .required("trader", "offer_ref", "revision", "desired_output_count", "input_caps", "allow_overshoot", "allow_partial", "deadline_ticks").build());
+                .required(
+                        "trader",
+                        "offer_ref",
+                        "revision",
+                        "desired_output_count",
+                        "input_caps",
+                        "allow_overshoot",
+                        "allow_partial",
+                        "deadline_ticks")
+                .build());
         registry.registerTask(task(
                 "trade_item",
                 "Execute one remembered merchant offer for an explicit output count and per-input spending caps. The live merchant and offer are reread before every fill; stale quotes must be inspected again.",
                 tradeSchema,
                 new TaskToolDefinition.QueueTraits(false, null, true),
-                TradingTools::createTradeTask));
+                this::createTradeTask));
     }
 
     private static TaskToolDefinition task(
-            String name, String description, JsonObject schema,
-            TaskToolDefinition.QueueTraits queueTraits, TaskToolDefinition.CallerFactory callerFactory) {
-        return new TaskToolDefinition(name, description, schema, null, callerFactory, true, AccessLevel.OWNER,
-                queueTraits, true, true, metadata(name));
+            String name,
+            String description,
+            JsonObject schema,
+            TaskToolDefinition.QueueTraits queueTraits,
+            TaskToolDefinition.CallerFactory callerFactory) {
+        return new TaskToolDefinition(
+                name,
+                description,
+                schema,
+                null,
+                callerFactory,
+                true,
+                AccessLevel.OWNER,
+                queueTraits,
+                true,
+                true,
+                metadata(name));
     }
 
     private static Tool<CompanionEntity> callerTool(
-            String name, String description, JsonObject schema, AccessLevel minAccess,
-            java.util.function.BooleanSupplier enabled, CallerAction action) {
+            String name,
+            String description,
+            JsonObject schema,
+            AccessLevel minAccess,
+            java.util.function.BooleanSupplier enabled,
+            CallerAction action) {
         return new Tool<>() {
-            @Override public String name() { return name; }
-            @Override public String description() { return description; }
-            @Override public JsonObject schema() { return schema; }
-            @Override public AccessLevel minAccess() { return minAccess; }
-            @Override public boolean enabled() { return enabled.getAsBoolean(); }
-            @Override public ToolResult execute(CompanionEntity companion, JsonObject args) {
+            @Override
+            public String name() {
+                return name;
+            }
+
+            @Override
+            public String description() {
+                return description;
+            }
+
+            @Override
+            public JsonObject schema() {
+                return schema;
+            }
+
+            @Override
+            public AccessLevel minAccess() {
+                return minAccess;
+            }
+
+            @Override
+            public boolean enabled() {
+                return enabled.getAsBoolean();
+            }
+
+            @Override
+            public ToolResult execute(CompanionEntity companion, JsonObject args) {
                 return action.run(companion, new Caller(null, "", minAccess), args);
             }
-            @Override public ToolResult execute(CompanionEntity companion, Caller caller, JsonObject args) {
+
+            @Override
+            public ToolResult execute(CompanionEntity companion, Caller caller, JsonObject args) {
                 return action.run(companion, caller, args);
             }
         };
     }
 
     private static ToolMeta metadata(String name) {
-        return ToolCatalog.defaults().meta(name).orElseThrow(() -> new IllegalStateException("Missing tool metadata: " + name));
+        return ToolCatalog.defaults()
+                .meta(name)
+                .orElseThrow(() -> new IllegalStateException("Missing tool metadata: " + name));
     }
 
     @FunctionalInterface
@@ -215,11 +349,11 @@ public final class TradingTools implements FeatureToolContributor {
         ToolResult run(CompanionEntity companion, Caller caller, JsonObject args);
     }
 
-    private static ToolResult findTraders(CompanionEntity companion, Caller caller, JsonObject args) {
+    private ToolResult findTraders(CompanionEntity companion, Caller caller, JsonObject args) {
         rejectExtra(args, Set.of(), false);
-        UUID owner = requireOwner(companion, caller);
+        requireOwner(companion, caller);
         var state = state(companion);
-        List<TraderRecord> records = state.traderObserver().observe(companion);
+        List<TraderRecord> records = state.observeTraders(companion);
         return ToolResult.ok(
                 records.isEmpty()
                         ? "No loaded merchants or adult piglins were observed nearby."
@@ -232,7 +366,7 @@ public final class TradingTools implements FeatureToolContributor {
                                                 .toList()));
     }
 
-    private static ToolResult knownTrades(CompanionEntity companion, Caller caller, JsonObject args) {
+    private ToolResult knownTrades(CompanionEntity companion, Caller caller, JsonObject args) {
         rejectExtra(args, Set.of("direction", "item_id", "components_json", "limit"), false);
         UUID owner = requireOwner(companion, caller);
         TradeQuery query = parseQuery(args);
@@ -257,7 +391,7 @@ public final class TradingTools implements FeatureToolContributor {
                                                 .toList()));
     }
 
-    private static ToolResult planTrade(CompanionEntity companion, Caller caller, JsonObject args) {
+    private ToolResult planTrade(CompanionEntity companion, Caller caller, JsonObject args) {
         rejectExtra(
                 args,
                 Set.of("direction", "item_id", "components_json", "desired_count", "input_caps", "allow_overshoot"),
@@ -292,7 +426,7 @@ public final class TradingTools implements FeatureToolContributor {
         return ToolResult.ok(describePlan(plan, records));
     }
 
-    private static dev.friendai.task.Task createTradeTask(CompanionEntity companion, Caller caller, JsonObject args) {
+    private dev.friendai.task.Task createTradeTask(CompanionEntity companion, Caller caller, JsonObject args) {
         // QueueTradeScope is injected only after the first caller-aware preview. It must agree with the caller.
         rejectExtra(
                 args,
@@ -380,15 +514,16 @@ public final class TradingTools implements FeatureToolContributor {
         return new TradeTask(authorized);
     }
 
-    private static dev.friendai.task.Task createRestockTask(CompanionEntity companion, Caller caller, JsonObject args) {
+    private dev.friendai.task.Task createRestockTask(CompanionEntity companion, Caller caller, JsonObject args) {
         rejectExtra(args, Set.of("trader", "offer_ref", "wait_ticks"), false);
         requireOwner(companion, caller);
         var state = state(companion);
         UUID traderId = parseUuid(requiredString(args, "trader"), "trader");
         String offerRef = requiredString(args, "offer_ref");
         int maximum = state.tradingSettings().maxWaitTicks();
-        int waitTicks =
-                args.has("wait_ticks") ? args.get("wait_ticks").getAsInt() : state.tradingSettings().waitTicks();
+        int waitTicks = args.has("wait_ticks")
+                ? args.get("wait_ticks").getAsInt()
+                : state.tradingSettings().waitTicks();
         if (waitTicks < 20 || waitTicks > maximum) {
             throw new IllegalArgumentException("wait_ticks must be between 20 and the configured maximum " + maximum);
         }
@@ -396,8 +531,7 @@ public final class TradingTools implements FeatureToolContributor {
         return new WaitForRestockTask(traderId, offerRef, deadline);
     }
 
-    private static dev.friendai.task.Task createLevelTraderTask(
-            CompanionEntity companion, Caller caller, JsonObject args) {
+    private dev.friendai.task.Task createLevelTraderTask(CompanionEntity companion, Caller caller, JsonObject args) {
         rejectExtra(
                 args,
                 Set.of(
@@ -486,7 +620,7 @@ public final class TradingTools implements FeatureToolContributor {
         return new LevelTraderTask(traderId, targetLevel, orders);
     }
 
-    private static dev.friendai.task.Task createBarterTask(CompanionEntity companion, Caller caller, JsonObject args) {
+    private dev.friendai.task.Task createBarterTask(CompanionEntity companion, Caller caller, JsonObject args) {
         rejectExtra(
                 args,
                 Set.of(
@@ -536,9 +670,8 @@ public final class TradingTools implements FeatureToolContributor {
             if (targetCount < 1 || targetCount > MAX_COUNT)
                 throw new IllegalArgumentException("stop_count is out of range");
         }
-        state.traderObserver().observe(companion);
-        TraderRecord known = state
-                .tradeBook(owner)
+        state.observeTraders(companion);
+        TraderRecord known = state.tradeBook(owner)
                 .trader(piglinId)
                 .orElseThrow(() -> new IllegalArgumentException("piglin must be discovered nearby first"));
         if (!"minecraft:piglin".equals(known.entityType()))
@@ -726,13 +859,12 @@ public final class TradingTools implements FeatureToolContributor {
         return companion.ownerUuid();
     }
 
-    private static FriendaiServerState state(CompanionEntity companion) {
+    private TradingToolAccess state(CompanionEntity companion) {
         if (companion.level().isClientSide() || companion.level().getServer() == null) {
             throw new IllegalArgumentException("trading tools require a server companion");
         }
-        var state = FriendaiServerState.get(companion.level().getServer());
-        if (!state.tradingSettings().enabled())
-            throw new IllegalArgumentException("trading is disabled by the server");
+        var state = access;
+        if (!state.tradingSettings().enabled()) throw new IllegalArgumentException("trading is disabled by the server");
         return state;
     }
 

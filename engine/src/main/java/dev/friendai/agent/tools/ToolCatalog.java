@@ -30,6 +30,15 @@ public final class ToolCatalog {
         return List.copyOf(byName.values());
     }
 
+    /** Returns a catalog with contribution metadata replacing defaults for matching names. */
+    public ToolCatalog withOverrides(List<ToolMeta> overrides) {
+        Map<String, ToolMeta> merged = new LinkedHashMap<>(byName);
+        for (ToolMeta meta : overrides) {
+            merged.put(meta.name(), meta);
+        }
+        return new ToolCatalog(new ArrayList<>(merged.values()));
+    }
+
     public boolean visible(String tool, Set<ToolGroup> groups) {
         ToolMeta meta = byName.get(tool);
         return meta == null || meta.core() || groups.contains(meta.group());

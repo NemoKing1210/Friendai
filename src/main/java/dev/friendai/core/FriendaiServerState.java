@@ -13,6 +13,7 @@ import dev.friendai.features.places.PlaceLimits;
 import dev.friendai.features.trading.TradeAuthority;
 import dev.friendai.features.trading.TradeBook;
 import dev.friendai.features.trading.TradingRuntimeSettings;
+import dev.friendai.features.trading.minecraft.tool.TradingToolAccess;
 import dev.friendai.features.trading.minecraft.trading.BarterDropTracker;
 import dev.friendai.features.trading.minecraft.trading.MerchantAdapter;
 import dev.friendai.features.trading.minecraft.trading.MerchantLeases;
@@ -42,7 +43,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.storage.LevelResource;
 
 /** Existing server service graph, now constructed and closed only by {@code ServerRuntime}. */
-public final class FriendaiServerState {
+public final class FriendaiServerState implements TradingToolAccess {
     private final MinecraftServer server;
     private final ConfigStore<ServerConfig> store;
     private final ServerConfiguration configuration;
@@ -121,7 +122,17 @@ public final class FriendaiServerState {
                 () -> this.config.tasks.resources.observationRadius);
         this.resources.attach(observations);
         this.sessions = resources.own(new CompanionSessions(
-                server, config, memory, this::settings, skills, goals, trading, places, this.resources, freeTime));
+                server,
+                config,
+                memory,
+                this::settings,
+                skills,
+                goals,
+                trading,
+                places,
+                this.resources,
+                freeTime,
+                this));
         this.taskPersistence = new TaskPersistenceCoordinator(
                 this::settings,
                 sessions.taskRestoreRegistry(),
@@ -245,6 +256,11 @@ public final class FriendaiServerState {
 
     public TraderObserver traderObserver() {
         return traderObserver;
+    }
+
+    @Override
+    public List<dev.friendai.features.trading.TraderRecord> observeTraders(CompanionEntity companion) {
+        return traderObserver.observe(companion);
     }
 
     public BarterDropTracker barterDropTracker() {

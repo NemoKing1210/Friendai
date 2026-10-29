@@ -17,8 +17,7 @@ final class PackageDependencyRules {
             "dev.friendai.features.trading.minecraft.task.BarterTask",
             "dev.friendai.features.trading.minecraft.task.InspectTraderTask",
             "dev.friendai.features.trading.minecraft.task.TradeTask",
-            "dev.friendai.features.trading.minecraft.task.WaitForRestockTask",
-            "dev.friendai.features.trading.minecraft.tool.TradingTools");
+            "dev.friendai.features.trading.minecraft.task.WaitForRestockTask");
     private static final Set<FeatureDependency> ALLOWED_FEATURE_DEPENDENCIES = Set.of(
             new FeatureDependency("animals", "combat"),
             new FeatureDependency("animals", "mining"),

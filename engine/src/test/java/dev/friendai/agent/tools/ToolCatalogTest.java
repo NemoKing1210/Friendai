@@ -111,6 +111,20 @@ class ToolCatalogTest {
     }
 
     @Test
+    void contributorMetadataOverridesDefaultsWithoutDuplicatingEntries() {
+        ToolMeta contributed = new ToolMeta(
+                "mine_blocks", ToolGroup.CORE, true, "Use mine_blocks immediately.", List.of("pickaxe"), Cost.LOW);
+
+        ToolCatalog merged = catalog.withOverrides(List.of(contributed));
+
+        assertEquals(contributed, merged.meta("mine_blocks").orElseThrow());
+        assertEquals(catalog.all().size(), merged.all().size());
+        assertEquals(
+                catalog.all().stream().map(ToolMeta::name).toList(),
+                merged.all().stream().map(ToolMeta::name).toList());
+    }
+
+    @Test
     void creativeToolsExplainWhenToUseThemAndTheirLimits() {
         List<String> hints = catalog.hints(EnumSet.of(ToolGroup.CONTROL));
         assertTrue(

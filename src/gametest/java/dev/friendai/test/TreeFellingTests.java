@@ -2,6 +2,7 @@ package dev.friendai.test;
 
 import com.google.gson.JsonParser;
 import dev.friendai.agent.llm.model.ToolCall;
+import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.execution.tool.AccessLevel;
@@ -11,6 +12,7 @@ import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
 import dev.friendai.features.mining.minecraft.mining.TreeFinder;
 import dev.friendai.features.mining.minecraft.task.FellTreeTask;
+import dev.friendai.perception.PerceptionContext;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
@@ -29,6 +31,21 @@ import net.minecraft.world.level.block.LeavesBlock;
  * and looks only at the trees of those types.
  */
 public class TreeFellingTests {
+    private static ToolExecutor tools(CompanionEntity companion) {
+        var state = FriendaiServerState.get(companion.level().getServer());
+        return FriendaiTools.build(
+                        () -> 32,
+                        () -> 32,
+                        dev.friendai.tool.builtin.MemoryAccess.DISABLED,
+                        () -> new PerceptionContext(state.resources(), state.settings(), state.freeTime()),
+                        () -> true,
+                        () -> true,
+                        state.resources(),
+                        state)
+                .registry()
+                .bind(companion);
+    }
+
     /** Persistent leaves, so they do not decay while the test waits. */
     private static void leaf(GameTestHelper h, int x, int y, int z) {
         h.setBlock(new BlockPos(x, y, z), Blocks.OAK_LEAVES.defaultBlockState().setValue(LeavesBlock.PERSISTENT, true));
@@ -321,7 +338,7 @@ public class TreeFellingTests {
                         "front face of the log structure should be visible at " + x + " " + y + " 10");
             }
         }
-        var tools = FriendaiTools.create(() -> 32).bind(c);
+        var tools = tools(c);
         var anonymous = new Caller(null, "", AccessLevel.TRUSTED);
         h.assertTrue(
                 run(tools, anonymous, "fell_tree", "{\"near\":\"self\",\"radius\":6}")
@@ -366,7 +383,7 @@ public class TreeFellingTests {
         BlockPos speakers = h.absolutePos(new BlockPos(16, 2, 16));
         BlockPos nearCompanion = h.absolutePos(new BlockPos(2, 2, 2));
         var result = run(
-                FriendaiTools.create(() -> 32).bind(c),
+                tools(c),
                 new Caller(owner.getUUID(), "owner", AccessLevel.OWNER),
                 "fell_tree",
                 "{\"near\":\"me\",\"radius\":6}");
@@ -394,7 +411,7 @@ public class TreeFellingTests {
                 GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(5, 2, 5))),
                 "nearby block should be directly visible");
         var started = run(
-                FriendaiTools.create(() -> 32).bind(c),
+                tools(c),
                 new Caller(owner.getUUID(), "owner", AccessLevel.OWNER),
                 "mine_blocks",
                 "{\"block\":\"minecraft:dark_prismarine\",\"count\":1,\"near\":\"me\"}");
@@ -425,10 +442,7 @@ public class TreeFellingTests {
                 GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(12, 2, 12))),
                 "farther tree should be directly visible");
         ToolResult result = run(
-                FriendaiTools.create(() -> 32).bind(c),
-                new Caller(null, "", AccessLevel.TRUSTED),
-                "find_trees",
-                "{\"near\":\"self\",\"radius\":16}");
+                tools(c), new Caller(null, "", AccessLevel.TRUSTED), "find_trees", "{\"near\":\"self\",\"radius\":16}");
         h.assertTrue(!result.error(), result.content());
         h.assertTrue(result.content().contains("mangrove_log at "), result.content());
         h.assertTrue(result.content().contains("dark_oak_log at "), result.content());
@@ -456,7 +470,7 @@ public class TreeFellingTests {
                 "speaker's tree should be directly visible");
         BlockPos mangrove = h.absolutePos(new BlockPos(13, 2, 13));
         ToolResult result = run(
-                FriendaiTools.create(() -> 32).bind(c),
+                tools(c),
                 new Caller(owner.getUUID(), "owner", AccessLevel.OWNER),
                 "find_trees",
                 "{\"near\":\"me\",\"radius\":8,\"limit\":1}");
@@ -580,7 +594,7 @@ public class TreeFellingTests {
         h.assertTrue(
                 GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(6, 2, 6))),
                 "acacia base should be directly visible");
-        var tools = FriendaiTools.create(() -> 32).bind(c);
+        var tools = tools(c);
         var anonymous = new Caller(null, "", AccessLevel.TRUSTED);
         h.succeedWhen(() -> {
             ToolResult result = run(tools, anonymous, "find_trees", "{\"near\":\"self\",\"radius\":16}");

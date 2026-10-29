@@ -9,6 +9,7 @@ import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolExecutor;
 import dev.friendai.execution.tool.ToolResult;
+import dev.friendai.perception.PerceptionContext;
 import dev.friendai.tool.builtin.FriendaiTools;
 import java.util.List;
 import java.util.Set;
@@ -33,7 +34,18 @@ public final class TradingToolsTests {
             "barter");
 
     private static ToolExecutor tools(CompanionEntity companion) {
-        return FriendaiTools.create(() -> 32).bind(companion);
+        var state = dev.friendai.core.FriendaiServerState.get(companion.level().getServer());
+        return FriendaiTools.build(
+                        () -> 32,
+                        () -> 32,
+                        dev.friendai.tool.builtin.MemoryAccess.DISABLED,
+                        () -> new PerceptionContext(state.resources(), state.settings(), state.freeTime()),
+                        () -> true,
+                        () -> true,
+                        state.resources(),
+                        state)
+                .registry()
+                .bind(companion);
     }
 
     private static ToolResult run(ToolExecutor tools, String name, String json, Caller caller) {

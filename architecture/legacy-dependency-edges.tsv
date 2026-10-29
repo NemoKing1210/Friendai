@@ -31,7 +31,6 @@ legacy-server-state-lookup	dev.friendai.features.survival.minecraft.task.SleepTa
 legacy-server-state-lookup	dev.friendai.task.interact.ContainerAccess	dev.friendai.core.FriendaiServerState	11
 legacy-server-state-lookup	dev.friendai.features.mining.minecraft.mining.BreakAction	dev.friendai.core.FriendaiServerState	11
 legacy-server-state-lookup	dev.friendai.tool.builtin.FreeTimeTools	dev.friendai.core.FriendaiServerState	5
-legacy-server-state-lookup	dev.friendai.features.mining.minecraft.tool.GatheringTools	dev.friendai.core.FriendaiServerState	11
 legacy-server-state-lookup	dev.friendai.tool.builtin.GoalTools	dev.friendai.core.FriendaiServerState	11
 legacy-server-state-lookup	dev.friendai.tool.builtin.InfoTools	dev.friendai.core.FriendaiServerState	11
 legacy-server-state-lookup	dev.friendai.tool.builtin.QueueTools	dev.friendai.core.FriendaiServerState	8

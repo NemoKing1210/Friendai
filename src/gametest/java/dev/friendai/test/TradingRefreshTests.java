@@ -9,6 +9,7 @@ import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolExecutor;
 import dev.friendai.execution.tool.ToolResult;
+import dev.friendai.perception.PerceptionContext;
 import dev.friendai.tool.builtin.FriendaiTools;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -27,7 +28,18 @@ public final class TradingRefreshTests {
         var owner = GameTestSupport.mockPlayerAt(h, 4, 2, 2);
         companion.setOwner(owner.getUUID());
         var villager = h.spawn(EntityTypes.VILLAGER, 3, 2, 2);
-        ToolExecutor tools = FriendaiTools.create(() -> 32).bind(companion);
+        var state = dev.friendai.core.FriendaiServerState.get(h.getLevel().getServer());
+        ToolExecutor tools = FriendaiTools.build(
+                        () -> 32,
+                        () -> 32,
+                        dev.friendai.tool.builtin.MemoryAccess.DISABLED,
+                        () -> new PerceptionContext(state.resources(), state.settings(), state.freeTime()),
+                        () -> true,
+                        () -> true,
+                        state.resources(),
+                        state)
+                .registry()
+                .bind(companion);
 
         ToolResult result = run(
                 tools,
