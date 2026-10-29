@@ -6,6 +6,7 @@ import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.component.SwingAnimation;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
@@ -125,6 +126,10 @@ public final class BreakAction {
         }
         if (dropsLoot) {
             Block.dropResources(brokenState, level, pos, blockEntity, companion, heldTool);
+        }
+        // Vanilla wears one point per block that takes time to break; the stack breaks on its last use.
+        if (heldTool.isDamageableItem() && brokenState.getDestroySpeed(level, pos) > 0.0F) {
+            heldTool.hurtAndBreak(1, companion, EquipmentSlot.MAINHAND);
         }
         c.resources().ownBreak(companion, pos);
         c.addBlockExhaustion();

@@ -201,6 +201,52 @@ public class MineBlocksTests {
         });
     }
 
+    @GameTest(maxTicks = 600)
+    public void breakingABlockWearsTheHeldTool(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(4, 2, 2, Blocks.STONE);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(java.util.UUID.randomUUID());
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(4, 2, 2))), "stone should be visible");
+        c.inventory().addItem(new ItemStack(Items.STONE_PICKAXE));
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(mine("minecraft:stone", 1), "mine_blocks");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(c.getMainHandItem().is(Items.STONE_PICKAXE), "main hand holds " + c.getMainHandItem());
+            h.assertTrue(
+                    c.getMainHandItem().getDamageValue() == 1,
+                    "one point of durability per block, got "
+                            + c.getMainHandItem().getDamageValue());
+        });
+    }
+
+    @GameTest(maxTicks = 600)
+    public void theLastUseBreaksTheHeldTool(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(4, 2, 2, Blocks.STONE);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(java.util.UUID.randomUUID());
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(4, 2, 2))), "stone should be visible");
+        ItemStack pickaxe = new ItemStack(Items.STONE_PICKAXE);
+        pickaxe.setDamageValue(pickaxe.getMaxDamage() - 1);
+        c.inventory().addItem(pickaxe);
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(mine("minecraft:stone", 1), "mine_blocks");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(
+                    c.getMainHandItem().isEmpty(),
+                    "the last use must break the tool, main hand holds " + c.getMainHandItem());
+        });
+    }
+
     @GameTest
     public void unknownBlockDoesNotParse(GameTestHelper h) {
         h.assertTrue(BlockMatcher.parse("nonsense:block").isEmpty(), "unknown block must not parse");
