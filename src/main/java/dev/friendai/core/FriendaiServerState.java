@@ -47,7 +47,6 @@ import dev.friendai.server.configuration.ServerConfiguration;
 import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.server.execution.persistence.TaskPersistenceCoordinator;
 import dev.friendai.server.runtime.RuntimeResources;
-import dev.friendai.server.runtime.ServerRuntimeRegistry;
 import java.util.List;
 import java.util.UUID;
 import net.fabricmc.loader.api.FabricLoader;
@@ -183,16 +182,6 @@ public final class FriendaiServerState implements TradingToolAccess, TrustAccess
         CompanionManager.Listener listener = sessions::onCompanionRemoved;
         manager.addListener(listener);
         resources.onClose(() -> manager.removeListener(listener));
-    }
-
-    /** Temporary bridge while service callers move to their owning adapters; expiry owners are in the edge manifest. */
-    public static FriendaiServerState get(MinecraftServer server) {
-        return ServerRuntimeRegistry.getOrCreate(server).state();
-    }
-
-    /** Temporary test/transition bridge; lifecycle callbacks use ServerRuntimeRegistry directly. */
-    public static void close(MinecraftServer server) {
-        ServerRuntimeRegistry.removeAndClose(server);
     }
 
     public ServerConfig config() {

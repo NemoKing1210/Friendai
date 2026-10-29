@@ -91,7 +91,7 @@ public final class TradingTaskTests {
                         new ItemCost(Items.EMERALD, 1), new ItemStack(Items.BREAD, outputCount), 8, 4, 0.05F));
         companion.inventory().setItem(0, new ItemStack(Items.EMERALD, emeraldCap));
 
-        FriendaiServerState state = FriendaiServerState.get(h.getLevel().getServer());
+        FriendaiServerState state = GameTestSupport.serverState(h.getLevel().getServer());
         MerchantAdapter adapter = state.merchantAdapter();
         TraderRecord quote =
                 adapter.inspect(companion, villager, h.getLevel().getGameTime()).orElseThrow();

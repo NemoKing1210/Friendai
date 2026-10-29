@@ -89,7 +89,7 @@ public class GuestTests {
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         ServerPlayer guest = GameTestSupport.mockPlayerAt(h, 3, 2, 3);
         var server = h.getLevel().getServer();
-        var brains = FriendaiServerState.get(server).sessions();
+        var brains = GameTestSupport.serverState(server).sessions();
         Script script = new Script().text("Hello");
         Said said = new Said();
         brains.setGatewayOverride(owner.getUUID(), script);
@@ -114,7 +114,7 @@ public class GuestTests {
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         ServerPlayer guest = GameTestSupport.mockPlayerAt(h, 3, 2, 3);
         var server = h.getLevel().getServer();
-        var brains = FriendaiServerState.get(server).sessions();
+        var brains = GameTestSupport.serverState(server).sessions();
         Script script = new Script().call("stay", "{}").text("No");
         brains.setGatewayOverride(owner.getUUID(), script);
         CompanionManager.get(server).summon(owner);
@@ -134,7 +134,7 @@ public class GuestTests {
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         ServerPlayer guest = GameTestSupport.mockPlayerAt(h, 3, 2, 3);
         var server = h.getLevel().getServer();
-        FriendaiServerState state = FriendaiServerState.get(server);
+        FriendaiServerState state = GameTestSupport.serverState(server);
         state.memory()
                 .book(owner.getUUID())
                 .setTrusted(guest.getUUID(), guest.getName().getString(), true, 0);
@@ -157,7 +157,7 @@ public class GuestTests {
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         ServerPlayer guest = GameTestSupport.mockPlayerAt(h, 3, 2, 3);
         var server = h.getLevel().getServer();
-        FriendaiServerState state = FriendaiServerState.get(server);
+        FriendaiServerState state = GameTestSupport.serverState(server);
         var brains = state.sessions();
         brains.setGatewayOverride(
                 owner.getUUID(),

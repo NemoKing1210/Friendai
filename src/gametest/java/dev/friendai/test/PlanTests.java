@@ -4,7 +4,6 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.friendai.agent.llm.model.ToolCall;
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.execution.tool.AccessLevel;
@@ -350,7 +349,7 @@ public class PlanTests {
                 // The first step is done: take the plan's state as the reload would.
                 saved[0] = c.executionCoordinator().current().orElseThrow().saveData();
                 h.assertTrue(saved[0] != null && saved[0].startsWith("{"), "saved was " + saved[0]);
-                Task restored = FriendaiServerState.get(h.getLevel().getServer())
+                Task restored = GameTestSupport.serverState(h.getLevel().getServer())
                         .sessions()
                         .taskRestoreRegistry()
                         .restore(new TaskState("run_plan", saved[0]), c)
@@ -373,7 +372,7 @@ public class PlanTests {
         String saved = PlanSave.encode(
                 "missing actor", 0, List.of(), null, List.of(new PlanSave.Step("drop_items", new JsonObject())));
 
-        boolean restored = FriendaiServerState.get(h.getLevel().getServer())
+        boolean restored = GameTestSupport.serverState(h.getLevel().getServer())
                 .sessions()
                 .taskRestoreRegistry()
                 .restore(new TaskState("run_plan", saved), c)

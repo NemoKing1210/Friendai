@@ -104,7 +104,7 @@ public class CompanionDeathTests {
                 new BlockPos(BED_X, BED_Y, BED_Z - 1),
                 Blocks.BED.red().defaultBlockState().setValue(BlockStateProperties.BED_PART, BedPart.HEAD));
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
-        FriendaiServerState.get(h.getLevel().getServer())
+        GameTestSupport.serverState(h.getLevel().getServer())
                 .companionLife()
                 .setRespawnPoint(
                         owner.getUUID(),
@@ -125,7 +125,7 @@ public class CompanionDeathTests {
     public void deathKeepsInventoryEquipmentAndVitals(GameTestHelper h) {
         ServerPlayer owner = ready(h);
         CompanionManager manager = CompanionManager.get(h.getLevel().getServer());
-        FriendaiServerState state = FriendaiServerState.get(h.getLevel().getServer());
+        FriendaiServerState state = GameTestSupport.serverState(h.getLevel().getServer());
         CompanionEntity companion = manager.summon(owner);
         byte[] skin = {1, 2, 3};
         state.skins().save(owner.getUUID(), skin, true);
@@ -267,7 +267,7 @@ public class CompanionDeathTests {
     public void summonAfterDeathRestoresWhenAutoRespawnIsOff(GameTestHelper h) {
         ServerPlayer owner = ready(h);
         CompanionManager manager = CompanionManager.get(h.getLevel().getServer());
-        FriendaiServerState state = FriendaiServerState.get(h.getLevel().getServer());
+        FriendaiServerState state = GameTestSupport.serverState(h.getLevel().getServer());
         state.companionLife().setAutoRespawn(owner.getUUID(), false);
         CompanionEntity companion = manager.summon(owner);
         companion.inventory().addItem(new ItemStack(Items.OAK_LOG, 4));
@@ -293,7 +293,7 @@ public class CompanionDeathTests {
     public void deathKeepsPerOwnerStores(GameTestHelper h) {
         ServerPlayer owner = ready(h);
         CompanionManager manager = CompanionManager.get(h.getLevel().getServer());
-        FriendaiServerState state = FriendaiServerState.get(h.getLevel().getServer());
+        FriendaiServerState state = GameTestSupport.serverState(h.getLevel().getServer());
         CompanionEntity companion = manager.summon(owner);
         UUID ownerId = owner.getUUID();
         long tick = h.getLevel().getGameTime();
@@ -369,7 +369,7 @@ public class CompanionDeathTests {
     public void deathKeepsAFreeTimeShiftPlan(GameTestHelper h) {
         ServerPlayer owner = ready(h);
         CompanionManager manager = CompanionManager.get(h.getLevel().getServer());
-        FriendaiServerState state = FriendaiServerState.get(h.getLevel().getServer());
+        FriendaiServerState state = GameTestSupport.serverState(h.getLevel().getServer());
         CompanionEntity companion = manager.summon(owner);
         UUID ownerId = owner.getUUID();
         long now = System.currentTimeMillis();
@@ -419,7 +419,7 @@ public class CompanionDeathTests {
         h.succeedWhen(() -> {
             Optional<CompanionEntity> back = replacement(manager, owner.getUUID(), dead);
             h.assertTrue(back.isPresent(), "the companion should respawn automatically");
-            var state = FriendaiServerState.get(h.getLevel().getServer());
+            var state = GameTestSupport.serverState(h.getLevel().getServer());
             String prompt = new CompanionPerception(
                             back.get(),
                             () -> new PerceptionContext(state.resources(), state.settings(), state.freeTime()))
@@ -435,7 +435,7 @@ public class CompanionDeathTests {
     public void firstTurnAfterDeathIsAnswered(GameTestHelper h) {
         ServerPlayer owner = ready(h);
         CompanionManager manager = CompanionManager.get(h.getLevel().getServer());
-        FriendaiServerState state = FriendaiServerState.get(h.getLevel().getServer());
+        FriendaiServerState state = GameTestSupport.serverState(h.getLevel().getServer());
         CompanionEntity companion = manager.summon(owner);
         UUID dead = companion.getUUID();
         Script script = new Script();

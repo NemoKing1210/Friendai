@@ -84,7 +84,7 @@ public class PlannerTests {
         GameTestSupport.platform(h, 16);
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
         var server = h.getLevel().getServer();
-        FriendaiServerState state = FriendaiServerState.get(server);
+        FriendaiServerState state = GameTestSupport.serverState(server);
         CompanionSessions brains = state.sessions();
         AtomicInteger asked = new AtomicInteger();
         brains.setPlannerOverride(player.getUUID(), jumpPlanner(asked));
@@ -117,7 +117,7 @@ public class PlannerTests {
         GameTestSupport.platform(h, 16);
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
         var server = h.getLevel().getServer();
-        FriendaiServerState state = FriendaiServerState.get(server);
+        FriendaiServerState state = GameTestSupport.serverState(server);
         CompanionSessions brains = state.sessions();
         AtomicInteger asked = new AtomicInteger();
         brains.setPlannerOverride(player.getUUID(), jumpPlanner(asked));
@@ -158,7 +158,7 @@ public class PlannerTests {
         GameTestSupport.platform(h, 16);
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
         var server = h.getLevel().getServer();
-        FriendaiServerState state = FriendaiServerState.get(server);
+        FriendaiServerState state = GameTestSupport.serverState(server);
         CompanionSessions brains = state.sessions();
         AtomicInteger asked = new AtomicInteger();
         brains.setPlannerOverride(player.getUUID(), jumpPlanner(asked));
@@ -195,7 +195,7 @@ public class PlannerTests {
         GameTestSupport.platform(h, 16);
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 12, 2, 2);
         var server = h.getLevel().getServer();
-        FriendaiServerState state = FriendaiServerState.get(server);
+        FriendaiServerState state = GameTestSupport.serverState(server);
         CompanionSessions brains = state.sessions();
         brains.setPlannerOverride(
                 player.getUUID(),

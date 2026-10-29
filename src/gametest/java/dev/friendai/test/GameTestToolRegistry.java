@@ -27,7 +27,8 @@ final class GameTestToolRegistry {
     }
 
     static ToolRegistry<CompanionEntity> create(CompanionEntity companion, IntSupplier radius, MemoryAccess memory) {
-        FriendaiServerState state = FriendaiServerState.get(companion.level().getServer());
+        FriendaiServerState state =
+                GameTestSupport.serverState(companion.level().getServer());
         CompanionSessions sessions = state.sessions();
         ToolDependencies dependencies = new ToolDependencies(
                 memory,
@@ -59,7 +60,7 @@ final class GameTestToolRegistry {
             Map<String, TaskToolDefinition> definitions,
             boolean linkGoal,
             Set<String> denied) {
-        var access = FriendaiServerState.get(companion.level().getServer()).sessions();
+        var access = GameTestSupport.serverState(companion.level().getServer()).sessions();
         return QueueTools.addPlan(access, companion, caller, args, definitions, linkGoal, denied);
     }
 

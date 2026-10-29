@@ -1,6 +1,5 @@
 package dev.friendai.test;
 
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.features.acquisition.WorldFacts;
@@ -41,7 +40,7 @@ public final class ExploreTests {
         var level = h.getLevel();
         h.setBlock(10, 2, 2, Blocks.ACACIA_LOG);
         BlockPos log = h.absolutePos(new BlockPos(10, 2, 2));
-        var state = FriendaiServerState.get(level.getServer());
+        var state = GameTestSupport.serverState(level.getServer());
         var config = state.config();
         int oldRadius = config.tasks.resources.observationRadius;
         config.tasks.resources.observationRadius = 1;

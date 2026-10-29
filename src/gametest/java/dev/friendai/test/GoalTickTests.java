@@ -64,7 +64,7 @@ public class GoalTickTests {
         GameTestSupport.platform(h, 16);
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
         var server = h.getLevel().getServer();
-        FriendaiServerState state = FriendaiServerState.get(server);
+        FriendaiServerState state = GameTestSupport.serverState(server);
         ServerConfig original = state.config();
         state.applyConfig(fastTicks("assistive"));
         CompanionSessions brains = state.sessions();

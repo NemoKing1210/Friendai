@@ -1,6 +1,5 @@
 package dev.friendai.test;
 
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.FriendaiEntities;
@@ -167,7 +166,7 @@ public class ResourceObservationTests {
                             || x == 8 && y == 2 && z == 5) continue;
                     h.setBlock(x, y, z, Blocks.STONE);
                 }
-        var resources = FriendaiServerState.get(h.getLevel().getServer()).resources();
+        var resources = GameTestSupport.serverState(h.getLevel().getServer()).resources();
         var facts = WorldScan.scan(h.getLevel(), companion, 16, true, false);
         h.assertTrue(!facts.blocksNearby().containsKey("minecraft:coal_ore"), "hidden ore entered WorldFacts");
         h.assertTrue(
@@ -198,7 +197,7 @@ public class ResourceObservationTests {
         companion.setNoGravity(true);
         companion.executionCoordinator().start(new dev.friendai.features.navigation.minecraft.task.StayTask(), "stay");
         h.setBlock(5, 3, 5, Blocks.COAL_ORE);
-        var state = FriendaiServerState.get(h.getLevel().getServer());
+        var state = GameTestSupport.serverState(h.getLevel().getServer());
         h.assertTrue(state.sessions().brainOf(owner.getUUID()).isEmpty(), "test must start without a brain turn");
         CompanionManager.get(h.getLevel().getServer()).register(companion);
         var scheduler = new ObservationScheduler(state.resources()::observe);
@@ -234,7 +233,7 @@ public class ResourceObservationTests {
                 for (int z = 1; z <= 10; z++) {
                     h.setBlock(x, y, z, Blocks.COAL_ORE);
                 }
-        var state = FriendaiServerState.get(h.getLevel().getServer());
+        var state = GameTestSupport.serverState(h.getLevel().getServer());
         BlockPos target = h.absolutePos(new BlockPos(5, 3, 5));
         var ray = ResourceSight.rayTo(h.getLevel(), companion.getEyePosition(), Vec3.atCenterOf(target), target);
         ResourceSight.Outcome outcome;
@@ -272,7 +271,7 @@ public class ResourceObservationTests {
         companion.executionCoordinator().start(new dev.friendai.features.navigation.minecraft.task.StayTask(), "stay");
         h.setBlock(5, 3, 5, Blocks.COAL_ORE);
         BlockPos target = h.absolutePos(new BlockPos(5, 3, 5));
-        var state = FriendaiServerState.get(h.getLevel().getServer());
+        var state = GameTestSupport.serverState(h.getLevel().getServer());
         var scheduler = new ObservationScheduler(state.resources()::observe);
         scheduler.register(companion);
         scheduler.observer(companion).inspect(target);
@@ -331,7 +330,7 @@ public class ResourceObservationTests {
                         .isPresent(),
                 "fixture ray must pass through the detector's opening geometry; cells=" + direct.openAirCells()
                         + ", eye=" + eyeCell + ", hit=" + direct.hitBlock());
-        var state = FriendaiServerState.get(h.getLevel().getServer());
+        var state = GameTestSupport.serverState(h.getLevel().getServer());
         var scheduler = new dev.friendai.perception.resource.ObservationScheduler(
                 state.resources()::observe, state.resources()::observeCaveEntrance);
         scheduler.register(companion);
@@ -370,7 +369,7 @@ public class ResourceObservationTests {
             }
         h.setBlock(8, 6, 8, Blocks.STONE);
         BlockPos wall = h.absolutePos(new BlockPos(8, 6, 8));
-        var state = FriendaiServerState.get(h.getLevel().getServer());
+        var state = GameTestSupport.serverState(h.getLevel().getServer());
         var scheduler = new dev.friendai.perception.resource.ObservationScheduler(
                 state.resources()::observe, state.resources()::observeCaveEntrance);
         scheduler.register(companion);
@@ -389,7 +388,7 @@ public class ResourceObservationTests {
     public void manyCompanionsRespectGlobalObservationCaps(GameTestHelper h) {
         GameTestSupport.platform(h, 32);
         var server = h.getLevel().getServer();
-        var state = FriendaiServerState.get(server);
+        var state = GameTestSupport.serverState(server);
         List<CompanionEntity> companions = new ArrayList<>();
         for (int x = 0; x < 4; x++)
             for (int z = 0; z < 4; z++) {
@@ -475,7 +474,7 @@ public class ResourceObservationTests {
     public void recentEvidenceSurvivesTicks(GameTestHelper h) {
         GameTestSupport.platform(h, 12);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 5);
-        var state = FriendaiServerState.get(h.getLevel().getServer());
+        var state = GameTestSupport.serverState(h.getLevel().getServer());
         ServerLevel level = h.getLevel();
         BlockPos target = h.absolutePos(new BlockPos(5, 3, 5));
         h.setBlock(5, 3, 5, Blocks.ACACIA_LOG);
@@ -509,7 +508,7 @@ public class ResourceObservationTests {
     public void replacedBlockDropsOutOfRecentEvidence(GameTestHelper h) {
         GameTestSupport.platform(h, 12);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 5);
-        var state = FriendaiServerState.get(h.getLevel().getServer());
+        var state = GameTestSupport.serverState(h.getLevel().getServer());
         ServerLevel level = h.getLevel();
         BlockPos target = h.absolutePos(new BlockPos(5, 3, 5));
         h.setBlock(5, 3, 5, Blocks.ACACIA_LOG);
@@ -551,7 +550,7 @@ public class ResourceObservationTests {
         var owner = GameTestSupport.mockPlayerAt(h, 2, 2, 3);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 5);
         companion.setOwner(owner.getUUID());
-        var state = FriendaiServerState.get(h.getLevel().getServer());
+        var state = GameTestSupport.serverState(h.getLevel().getServer());
         var book = state.knowledge().book(owner.getUUID());
         BlockPos first = h.absolutePos(new BlockPos(5, 3, 5));
         BlockPos second = h.absolutePos(new BlockPos(6, 3, 5));
@@ -573,15 +572,15 @@ public class ResourceObservationTests {
         companion.setOwner(owner.getUUID());
         CompanionManager.get(h.getLevel().getServer()).register(companion);
         var server = h.getLevel().getServer();
-        var state = FriendaiServerState.get(server);
+        var state = GameTestSupport.serverState(server);
         BlockPos ore = h.absolutePos(new BlockPos(5, 3, 5));
         long siteId = state.knowledge()
                 .book(owner.getUUID())
                 .observe(observation(ore, companion.blockPosition()), "minecraft:coal_ore");
         state.knowledge().flushAll();
         h.assertTrue(CompanionManager.get(server).dismiss(owner), "test companion should be dismissed");
-        FriendaiServerState.close(server);
-        var reloaded = FriendaiServerState.get(server);
+        GameTestSupport.closeRuntime(server);
+        var reloaded = GameTestSupport.serverState(server);
         h.assertTrue(
                 reloaded.knowledge().book(owner.getUUID()).site(siteId, 2).isPresent(),
                 "dismiss and server-state reload must retain the owner's site");
@@ -595,7 +594,7 @@ public class ResourceObservationTests {
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 5);
         companion.setOwner(owner.getUUID());
         var server = h.getLevel().getServer();
-        var state = FriendaiServerState.get(server);
+        var state = GameTestSupport.serverState(server);
         CompanionManager.get(server).register(companion);
         state.observations().register(companion);
         ResourceObserver previous = state.observations().observer(companion);

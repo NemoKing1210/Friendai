@@ -1,7 +1,6 @@
 package dev.friendai.test;
 
 import dev.friendai.agent.perception.PerceptionSnapshot;
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.server.agent.perception.PerceptionBuilder;
@@ -14,7 +13,7 @@ import net.minecraft.world.level.block.Blocks;
 
 public class PerceptionTests {
     private static PerceptionSnapshot brief(CompanionEntity companion) {
-        var state = FriendaiServerState.get(companion.level().getServer());
+        var state = GameTestSupport.serverState(companion.level().getServer());
         return PerceptionBuilder.brief(
                 companion, new PerceptionContext(state.resources(), state.settings(), state.freeTime()));
     }

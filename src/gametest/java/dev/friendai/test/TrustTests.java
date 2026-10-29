@@ -103,7 +103,7 @@ public class TrustTests {
     }
 
     private static ToolResult runTool(ServerPlayer owner, String name, String json) {
-        return FriendaiServerState.get(owner.level().getServer()).sessions().runTool(owner.getUUID(), name, json);
+        return GameTestSupport.serverState(owner.level().getServer()).sessions().runTool(owner.getUUID(), name, json);
     }
 
     @GameTest(maxTicks = 100)
@@ -120,7 +120,7 @@ public class TrustTests {
         h.assertTrue(!result.error(), "result was " + result.content());
         h.assertTrue(
                 result.content().startsWith("asked the owner to confirm (request #"), "result was " + result.content());
-        FriendaiServerState state = FriendaiServerState.get(h.getLevel().getServer());
+        FriendaiServerState state = GameTestSupport.serverState(h.getLevel().getServer());
         h.assertTrue(
                 !state.memory()
                         .book(owner.player().getUUID())
@@ -153,7 +153,7 @@ public class TrustTests {
         Mock owner = mockPlayerNamed(h, unique("owner"), 2, 2, 2);
         Mock target = mockPlayerNamed(h, unique("target"), 5, 2, 2);
         summon(owner.player());
-        FriendaiServerState state = FriendaiServerState.get(h.getLevel().getServer());
+        FriendaiServerState state = GameTestSupport.serverState(h.getLevel().getServer());
         String targetName = target.player().getName().getString();
         state.memory().book(owner.player().getUUID()).setTrusted(target.player().getUUID(), targetName, true, 0);
 
@@ -183,13 +183,13 @@ public class TrustTests {
 
     private static Recorder gateway(GameTestHelper h, ServerPlayer owner) {
         Recorder recorder = new Recorder();
-        FriendaiServerState.get(h.getLevel().getServer()).sessions().setGatewayOverride(owner.getUUID(), recorder);
+        GameTestSupport.serverState(h.getLevel().getServer()).sessions().setGatewayOverride(owner.getUUID(), recorder);
         return recorder;
     }
 
     /** A test-private confirmation queue, so a synthetic future tick cannot expire another test's request. */
     private static TrustConfirmations isolated(GameTestHelper h) {
-        FriendaiServerState state = FriendaiServerState.get(h.getLevel().getServer());
+        FriendaiServerState state = GameTestSupport.serverState(h.getLevel().getServer());
         return new TrustConfirmations(h.getLevel().getServer(), state.memory(), state.sessions(), state::config);
     }
 
@@ -198,7 +198,7 @@ public class TrustTests {
         Mock owner = mockPlayerNamed(h, unique("owner"), 2, 2, 2);
         Mock target = mockPlayerNamed(h, unique("target"), 5, 2, 2);
         summon(owner.player());
-        FriendaiServerState state = FriendaiServerState.get(h.getLevel().getServer());
+        FriendaiServerState state = GameTestSupport.serverState(h.getLevel().getServer());
         Recorder recorder = gateway(h, owner.player());
         String name = target.player().getName().getString();
         state.trust().request(owner.player(), target.player().getUUID(), name, true);
@@ -219,7 +219,7 @@ public class TrustTests {
         Mock owner = mockPlayerNamed(h, unique("owner"), 2, 2, 2);
         Mock target = mockPlayerNamed(h, unique("target"), 5, 2, 2);
         summon(owner.player());
-        FriendaiServerState state = FriendaiServerState.get(h.getLevel().getServer());
+        FriendaiServerState state = GameTestSupport.serverState(h.getLevel().getServer());
         Recorder recorder = gateway(h, owner.player());
         String name = target.player().getName().getString();
         state.trust().request(owner.player(), target.player().getUUID(), name, true);
@@ -241,7 +241,7 @@ public class TrustTests {
         Mock owner = mockPlayerNamed(h, unique("owner"), 2, 2, 2);
         Mock target = mockPlayerNamed(h, unique("target"), 5, 2, 2);
         summon(owner.player());
-        FriendaiServerState state = FriendaiServerState.get(h.getLevel().getServer());
+        FriendaiServerState state = GameTestSupport.serverState(h.getLevel().getServer());
         state.trust()
                 .request(
                         owner.player(),
@@ -260,7 +260,7 @@ public class TrustTests {
         Mock target = mockPlayerNamed(h, unique("target"), 5, 2, 2);
         Mock other = mockPlayerNamed(h, unique("other"), 4, 2, 4);
         summon(owner.player());
-        FriendaiServerState state = FriendaiServerState.get(h.getLevel().getServer());
+        FriendaiServerState state = GameTestSupport.serverState(h.getLevel().getServer());
         state.trust()
                 .request(
                         owner.player(),
@@ -277,7 +277,7 @@ public class TrustTests {
     public void yesWithoutRequestRoutes(GameTestHelper h) {
         Mock owner = mockPlayerNamed(h, unique("owner"), 2, 2, 2);
         summon(owner.player());
-        FriendaiServerState state = FriendaiServerState.get(h.getLevel().getServer());
+        FriendaiServerState state = GameTestSupport.serverState(h.getLevel().getServer());
         Recorder recorder = gateway(h, owner.player());
 
         h.assertTrue(!state.trust().answer(owner.player(), "да"), "nothing to confirm");
@@ -311,7 +311,7 @@ public class TrustTests {
         Mock owner = mockPlayerNamed(h, unique("owner"), 2, 2, 2);
         Mock target = mockPlayerNamed(h, unique("target"), 5, 2, 2);
         summon(owner.player());
-        FriendaiServerState state = FriendaiServerState.get(h.getLevel().getServer());
+        FriendaiServerState state = GameTestSupport.serverState(h.getLevel().getServer());
         gateway(h, owner.player());
         UUID targetId = target.player().getUUID();
         String name = target.player().getName().getString();
@@ -330,7 +330,7 @@ public class TrustTests {
         Mock owner = mockPlayerNamed(h, unique("owner"), 2, 2, 2);
         Mock target = mockPlayerNamed(h, unique("target"), 5, 2, 2);
         summon(owner.player());
-        FriendaiServerState state = FriendaiServerState.get(h.getLevel().getServer());
+        FriendaiServerState state = GameTestSupport.serverState(h.getLevel().getServer());
         gateway(h, owner.player());
         String name = target.player().getName().getString();
         state.memory().book(owner.player().getUUID()).setTrusted(target.player().getUUID(), name, true, 0);
@@ -353,7 +353,7 @@ public class TrustTests {
         Mock owner = mockPlayerNamed(h, unique("owner"), 2, 2, 2);
         Mock target = mockPlayerNamed(h, unique("target"), 5, 2, 2);
         summon(owner.player());
-        FriendaiServerState state = FriendaiServerState.get(h.getLevel().getServer());
+        FriendaiServerState state = GameTestSupport.serverState(h.getLevel().getServer());
         Recorder recorder = gateway(h, owner.player());
         String name = target.player().getName().getString();
         TrustConfirmations confirmations = isolated(h);

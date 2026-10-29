@@ -1,7 +1,6 @@
 package dev.friendai.test;
 
 import com.google.gson.JsonObject;
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.execution.queue.FailurePolicy;
@@ -93,7 +92,7 @@ public class ProtectionTests {
 
     private static void rememberHome(GameTestHelper h, CompanionEntity companion) {
         BlockPos anchor = companion.blockPosition();
-        FriendaiServerState.get(h.getLevel().getServer())
+        GameTestSupport.serverState(h.getLevel().getServer())
                 .placeService()
                 .remember(
                         companion,

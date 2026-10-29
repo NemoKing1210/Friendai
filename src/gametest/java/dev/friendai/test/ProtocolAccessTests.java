@@ -1,6 +1,5 @@
 package dev.friendai.test;
 
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.foundation.diagnostics.LogKind;
 import dev.friendai.protocol.ClientRequestCodec;
@@ -58,7 +57,7 @@ public class ProtocolAccessTests {
 
         ServerRequestDispatcher.handle(context, new MemoryRequest.TrustSet(owner.getUUID(), true));
 
-        var memory = FriendaiServerState.get(h.getLevel().getServer()).memory();
+        var memory = GameTestSupport.serverState(h.getLevel().getServer()).memory();
         h.assertTrue(
                 memory.book(guest.getUUID()).isTrusted(owner.getUUID()), "requester trust state should be updated");
         h.assertTrue(memory.book(owner.getUUID()).trusted().isEmpty(), "target player's book must remain unchanged");
@@ -69,7 +68,7 @@ public class ProtocolAccessTests {
     public void typedSnapshotCodecRemovesDebugFieldsForGuest(GameTestHelper h) {
         ServerPlayer guest = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         h.assertTrue(!Operators.isOperator(guest), "mock player should be a guest");
-        var state = FriendaiServerState.get(h.getLevel().getServer());
+        var state = GameTestSupport.serverState(h.getLevel().getServer());
         state.sessions().debug().logOf(guest.getUUID()).add(LogKind.ERROR, "private debug detail");
 
         var runtime = ServerRuntimeRegistry.getOrCreate(h.getLevel().getServer());

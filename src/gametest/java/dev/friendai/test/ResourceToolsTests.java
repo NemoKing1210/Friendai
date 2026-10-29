@@ -2,7 +2,6 @@ package dev.friendai.test;
 
 import com.google.gson.JsonObject;
 import dev.friendai.agent.llm.model.ToolCall;
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.execution.tool.AccessLevel;
@@ -41,7 +40,7 @@ public final class ResourceToolsTests {
         h.assertTrue(planks.executable(), planks.reason());
         h.assertTrue(planks.family().equals("#minecraft:logs"), planks.family());
 
-        var state = FriendaiServerState.get(h.getLevel().getServer());
+        var state = GameTestSupport.serverState(h.getLevel().getServer());
         BlockPos sitePos = companion.blockPosition().offset(3, 0, 4);
         var location = new ResourceObservation.Location(
                 h.getLevel().dimension().identifier().toString(),
@@ -94,7 +93,7 @@ public final class ResourceToolsTests {
         BlockPos far = new BlockPos(4096, 20, 4096);
         var level = h.getLevel();
         h.assertTrue(!level.hasChunkAt(far), "test location should start unloaded");
-        var state = FriendaiServerState.get(level.getServer());
+        var state = GameTestSupport.serverState(level.getServer());
         var location = new ResourceObservation.Location(
                 level.dimension().identifier().toString(), new Pos(far.getX(), far.getY(), far.getZ()));
         state.knowledge()

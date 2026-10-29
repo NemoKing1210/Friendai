@@ -1,6 +1,5 @@
 package dev.friendai.test;
 
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.FriendaiEntities;
@@ -216,7 +215,7 @@ public class PathingTests {
     public void taskDebugReachesLog(GameTestHelper h) {
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         var server = h.getLevel().getServer();
-        CompanionSessions brains = FriendaiServerState.get(server).sessions();
+        CompanionSessions brains = GameTestSupport.serverState(server).sessions();
         CompanionEntity c = CompanionManager.get(server).summon(player);
         // The task listener is installed with the owner's brain entry, as it already is for notices.
         brains.currentPrompt(player.getUUID());

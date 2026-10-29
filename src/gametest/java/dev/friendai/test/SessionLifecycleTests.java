@@ -12,7 +12,6 @@ import dev.friendai.agent.plan.Planner;
 import dev.friendai.agent.turn.BrainEvent;
 import dev.friendai.agent.turn.LlmGateway;
 import dev.friendai.agent.turn.Speaker;
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.execution.queue.GuardAction;
@@ -91,7 +90,7 @@ public class SessionLifecycleTests {
     @GameTest(maxTicks = 120)
     public void lateModelCompletionAfterOwnerLogoutHasNoEffects(GameTestHelper h) {
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
-        var sessions = FriendaiServerState.get(h.getLevel().getServer()).sessions();
+        var sessions = GameTestSupport.serverState(h.getLevel().getServer()).sessions();
         DeferredGateway gateway = new DeferredGateway();
         CaptureSpeaker speaker = new CaptureSpeaker();
         sessions.setGatewayOverride(owner.getUUID(), gateway);
@@ -119,7 +118,7 @@ public class SessionLifecycleTests {
     public void replacedEntityRejectsOldTurnAndReceivesNewTurn(GameTestHelper h) {
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         var server = h.getLevel().getServer();
-        var sessions = FriendaiServerState.get(server).sessions();
+        var sessions = GameTestSupport.serverState(server).sessions();
         CompanionManager manager = CompanionManager.get(server);
         DeferredGateway oldGateway = new DeferredGateway();
         CaptureSpeaker oldSpeaker = new CaptureSpeaker();
@@ -171,8 +170,8 @@ public class SessionLifecycleTests {
     public void latePlannerCompletionAfterOwnerLogoutDoesNotQueueOrSpeak(GameTestHelper h) {
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         var server = h.getLevel().getServer();
-        var sessions = FriendaiServerState.get(server).sessions();
-        var goals = FriendaiServerState.get(server).goals();
+        var sessions = GameTestSupport.serverState(server).sessions();
+        var goals = GameTestSupport.serverState(server).goals();
         var board = goals.board(owner.getUUID());
         var goal = board.set("build a house", List.of(), false, server.getTickCount())
                 .value();
@@ -207,7 +206,7 @@ public class SessionLifecycleTests {
         ServerPlayer first = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         ServerPlayer second = GameTestSupport.mockPlayerAt(h, 5, 2, 2);
         var server = h.getLevel().getServer();
-        var sessions = FriendaiServerState.get(server).sessions();
+        var sessions = GameTestSupport.serverState(server).sessions();
         CaptureSpeaker firstSpeaker = new CaptureSpeaker();
         CaptureSpeaker secondSpeaker = new CaptureSpeaker();
         sessions.setGatewayOverride(first.getUUID(), textGateway("first owner reply"));

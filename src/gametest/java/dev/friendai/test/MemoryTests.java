@@ -81,7 +81,7 @@ public class MemoryTests {
     public void rememberedFactSurvivesDismissAndSummon(GameTestHelper h) {
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         var server = h.getLevel().getServer();
-        FriendaiServerState state = FriendaiServerState.get(server);
+        FriendaiServerState state = GameTestSupport.serverState(server);
         Script script = new Script()
                 .call("remember", "{\"subject\":\"me\",\"category\":\"PREFERENCE\",\"text\":\"Likes oak logs\"}")
                 .text("Noted")
@@ -114,7 +114,7 @@ public class MemoryTests {
     public void theOwnersWordsBecomeProfileFacts(GameTestHelper h) {
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         var server = h.getLevel().getServer();
-        FriendaiServerState state = FriendaiServerState.get(server);
+        FriendaiServerState state = GameTestSupport.serverState(server);
         state.sessions()
                 .setGatewayOverride(
                         owner.getUUID(),
@@ -144,7 +144,7 @@ public class MemoryTests {
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         ServerPlayer guest = GameTestSupport.mockPlayerAt(h, 3, 2, 3);
         var server = h.getLevel().getServer();
-        FriendaiServerState state = FriendaiServerState.get(server);
+        FriendaiServerState state = GameTestSupport.serverState(server);
         Script script = new Script()
                 .call("remember", "{\"subject\":\"owner\",\"category\":\"NOTE\",\"text\":\"Lets Gus take diamonds\"}")
                 .text("No");

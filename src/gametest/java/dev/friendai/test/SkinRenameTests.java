@@ -1,6 +1,5 @@
 package dev.friendai.test;
 
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.features.appearance.SkinHash;
@@ -35,7 +34,7 @@ public class SkinRenameTests {
     }
 
     private static String storedName(GameTestHelper h, ServerPlayer owner) {
-        return FriendaiServerState.get(h.getLevel().getServer())
+        return GameTestSupport.serverState(h.getLevel().getServer())
                 .profiles()
                 .profile(owner.getUUID())
                 .name();
@@ -152,7 +151,8 @@ public class SkinRenameTests {
 
         h.assertTrue(canonicalHash(png).equals(companion.getSkinHash()), "the entity carries the skin hash");
         h.assertTrue(companion.isSlimSkin(), "the slim flag is synced");
-        var stored = FriendaiServerState.get(h.getLevel().getServer()).skins().load(owner.getUUID());
+        var stored =
+                GameTestSupport.serverState(h.getLevel().getServer()).skins().load(owner.getUUID());
         h.assertTrue(stored.isPresent() && stored.get().slim(), "the skin is stored for the owner");
         h.succeed();
     }
@@ -180,7 +180,7 @@ public class SkinRenameTests {
         SkinHandler.upload(TestMenuRequests.runtime(owner), owner, new SkinUploadC2SPayload(false, skinPng(25)));
 
         h.assertTrue(
-                FriendaiServerState.get(h.getLevel().getServer())
+                GameTestSupport.serverState(h.getLevel().getServer())
                         .skins()
                         .load(owner.getUUID())
                         .isEmpty(),
@@ -199,7 +199,7 @@ public class SkinRenameTests {
 
         h.assertTrue(companion.getSkinHash().isEmpty(), "the hash is cleared");
         h.assertTrue(
-                FriendaiServerState.get(h.getLevel().getServer())
+                GameTestSupport.serverState(h.getLevel().getServer())
                         .skins()
                         .load(owner.getUUID())
                         .isEmpty(),

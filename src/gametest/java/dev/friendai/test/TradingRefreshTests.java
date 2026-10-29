@@ -28,7 +28,7 @@ public final class TradingRefreshTests {
         var owner = GameTestSupport.mockPlayerAt(h, 4, 2, 2);
         companion.setOwner(owner.getUUID());
         var villager = h.spawn(EntityTypes.VILLAGER, 3, 2, 2);
-        var state = dev.friendai.core.FriendaiServerState.get(h.getLevel().getServer());
+        var state = GameTestSupport.serverState(h.getLevel().getServer());
         ToolExecutor tools = FriendaiTools.build(
                         () -> 32,
                         () -> 32,

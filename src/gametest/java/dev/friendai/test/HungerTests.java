@@ -175,7 +175,7 @@ public class HungerTests {
     public void hungerInPerception(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.hunger().load(14, 0.0f, 0.0f);
-        var state = dev.friendai.core.FriendaiServerState.get(h.getLevel().getServer());
+        var state = GameTestSupport.serverState(h.getLevel().getServer());
         String text = PerceptionBuilder.brief(
                         c,
                         new dev.friendai.server.agent.perception.PerceptionContext(

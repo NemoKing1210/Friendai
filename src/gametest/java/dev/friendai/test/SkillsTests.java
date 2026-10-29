@@ -3,7 +3,6 @@ package dev.friendai.test;
 import com.google.gson.*;
 import dev.friendai.agent.llm.model.*;
 import dev.friendai.agent.turn.*;
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.execution.tool.*;
 import dev.friendai.features.instructions.*;
@@ -34,7 +33,7 @@ public class SkillsTests {
         GameTestSupport.platform(h, 8);
         var owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         var other = GameTestSupport.mockPlayerAt(h, 4, 2, 2);
-        var state = FriendaiServerState.get(h.getLevel().getServer());
+        var state = GameTestSupport.serverState(h.getLevel().getServer());
         JsonObject input = new JsonObject();
         input.addProperty("name", "Long instruction");
         input.addProperty("body", "😀".repeat(2000));
@@ -61,7 +60,7 @@ public class SkillsTests {
         GameTestSupport.platform(h, 8);
         var player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         var server = h.getLevel().getServer();
-        var state = FriendaiServerState.get(server);
+        var state = GameTestSupport.serverState(server);
         var owner = player.getUUID();
         var s = state.skills()
                 .store()
@@ -105,7 +104,7 @@ public class SkillsTests {
         GameTestSupport.platform(h, 8);
         var player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         var server = h.getLevel().getServer();
-        var state = FriendaiServerState.get(server);
+        var state = GameTestSupport.serverState(server);
         var owner = player.getUUID();
         var skill = state.skills()
                 .store()

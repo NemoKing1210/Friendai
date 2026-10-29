@@ -2,7 +2,6 @@ package dev.friendai.test;
 
 import com.google.gson.JsonObject;
 import dev.friendai.agent.llm.model.ToolCall;
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.execution.tool.AccessLevel;
@@ -255,7 +254,7 @@ public final class TargetSearchTests {
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         companion.setOwner(owner.getUUID());
         BlockPos at = companion.blockPosition();
-        FriendaiServerState.get(h.getLevel().getServer())
+        GameTestSupport.serverState(h.getLevel().getServer())
                 .placeService()
                 .remember(
                         companion,

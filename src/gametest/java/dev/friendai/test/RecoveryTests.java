@@ -47,7 +47,7 @@ public class RecoveryTests {
         GameTestSupport.platform(h, 16);
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
         var server = h.getLevel().getServer();
-        CompanionSessions brains = FriendaiServerState.get(server).sessions();
+        CompanionSessions brains = GameTestSupport.serverState(server).sessions();
         brains.setGatewayOverride(player.getUUID(), silent());
         CompanionEntity c = CompanionManager.get(server).summon(player);
         // The brain, and with it the task listener, is created on its first event.
@@ -67,7 +67,7 @@ public class RecoveryTests {
         GameTestSupport.platform(h, 16);
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
         var server = h.getLevel().getServer();
-        FriendaiServerState state = FriendaiServerState.get(server);
+        FriendaiServerState state = GameTestSupport.serverState(server);
         ServerConfig original = state.config();
         ServerConfig noReplans = ServerConfig.defaults();
         noReplans.agent.maxReplans = 0;

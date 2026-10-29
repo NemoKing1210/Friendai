@@ -34,7 +34,7 @@ public final class TradingToolsTests {
             "barter");
 
     private static ToolExecutor tools(CompanionEntity companion) {
-        var state = dev.friendai.core.FriendaiServerState.get(companion.level().getServer());
+        var state = GameTestSupport.serverState(companion.level().getServer());
         return FriendaiTools.build(
                         () -> 32,
                         () -> 32,
@@ -126,8 +126,7 @@ public final class TradingToolsTests {
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         UUID owner = UUID.randomUUID();
         companion.setOwner(owner);
-        Caller ownerTurn = dev.friendai.core.FriendaiServerState.get(
-                        h.getLevel().getServer())
+        Caller ownerTurn = GameTestSupport.serverState(h.getLevel().getServer())
                 .sessions()
                 .tradeAuthorityFor(owner)
                 .begin(new Caller(owner, "owner", AccessLevel.OWNER), true);

@@ -2,7 +2,6 @@ package dev.friendai.test;
 
 import com.google.gson.JsonParser;
 import dev.friendai.agent.llm.model.ToolCall;
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.execution.tool.AccessLevel;
@@ -32,7 +31,7 @@ import net.minecraft.world.level.block.LeavesBlock;
  */
 public class TreeFellingTests {
     private static ToolExecutor tools(CompanionEntity companion) {
-        var state = FriendaiServerState.get(companion.level().getServer());
+        var state = GameTestSupport.serverState(companion.level().getServer());
         return FriendaiTools.build(
                         () -> 32,
                         () -> 32,

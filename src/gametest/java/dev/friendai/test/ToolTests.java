@@ -239,7 +239,7 @@ public class ToolTests {
     public void setNameRenamesCompanionAndUpdatesPrompt(GameTestHelper h) {
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         var server = h.getLevel().getServer();
-        FriendaiServerState state = FriendaiServerState.get(server);
+        FriendaiServerState state = GameTestSupport.serverState(server);
         CompanionEntity companion = CompanionManager.get(server).summon(owner);
 
         ToolResult renamed = runAs(

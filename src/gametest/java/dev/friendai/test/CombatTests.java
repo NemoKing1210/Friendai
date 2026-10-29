@@ -940,7 +940,7 @@ public class CombatTests {
         c.setCombatSettings(c.combatSettings()
                 .withProtection(dev.friendai.features.combat.ProtectionPolicy.SELF_ONLY)
                 .withStyle(dev.friendai.features.combat.FightingStyle.RANGED));
-        var state = dev.friendai.core.FriendaiServerState.get(h.getLevel().getServer());
+        var state = GameTestSupport.serverState(h.getLevel().getServer());
         String text = dev.friendai.server.agent.perception.PerceptionBuilder.brief(
                         c,
                         new dev.friendai.server.agent.perception.PerceptionContext(

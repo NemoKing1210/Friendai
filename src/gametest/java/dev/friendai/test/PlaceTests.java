@@ -4,7 +4,6 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import dev.friendai.agent.llm.model.ToolCall;
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.FriendaiEntities;
@@ -67,7 +66,7 @@ public class PlaceTests {
     }
 
     private static PlaceService placeService(CompanionEntity companion) {
-        return FriendaiServerState.get(companion.level().getServer()).placeService();
+        return GameTestSupport.serverState(companion.level().getServer()).placeService();
     }
 
     private static ToolResult runAs(ToolExecutor tools, String name, String json, Caller caller) {

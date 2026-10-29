@@ -1,7 +1,6 @@
 package dev.friendai.test;
 
 import com.google.gson.JsonObject;
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.FriendaiEntities;
@@ -453,7 +452,7 @@ public class BuildTests {
             h.assertTrue(companion.executionCoordinator().current().isPresent(), "the build must still be running");
             String saved =
                     companion.executionCoordinator().current().orElseThrow().saveData();
-            FriendaiServerState.get(server).sessions().onOwnerLeft(owner.getUUID());
+            GameTestSupport.serverState(server).sessions().onOwnerLeft(owner.getUUID());
             h.assertTrue(
                     saved.equals(companion
                             .executionCoordinator()
@@ -462,7 +461,7 @@ public class BuildTests {
                             .orElse("")),
                     "owner leave cancelled the build");
             h.assertTrue(companion.executionCoordinator().suspended(), "the runner must pause while the owner is away");
-            FriendaiServerState.get(server).sessions().onOwnerJoined(owner.getUUID());
+            GameTestSupport.serverState(server).sessions().onOwnerJoined(owner.getUUID());
             h.assertTrue(
                     !companion.executionCoordinator().suspended(), "the runner must resume when the owner returns");
             companion.executionCoordinator().stop("test");
