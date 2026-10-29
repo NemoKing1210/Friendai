@@ -9,7 +9,6 @@ import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.features.navigation.minecraft.task.FollowTask;
 import dev.friendai.features.navigation.minecraft.task.GoToTask;
 import dev.friendai.features.navigation.movement.PaceMode;
-import dev.friendai.tool.builtin.FriendaiTools;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
@@ -198,7 +197,7 @@ public class PaceTests {
     @GameTest
     public void setPaceToolSwitchesMode(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
-        ToolExecutor tools = FriendaiTools.create(() -> 32).bind(c);
+        ToolExecutor tools = GameTestToolRegistry.create(c, () -> 32).bind(c);
         String ok = "{\"mode\":\"run\"}";
         ToolResult r = tools.execute(
                 new ToolCall("1", "set_pace", JsonParser.parseString(ok).getAsJsonObject(), ok, null));

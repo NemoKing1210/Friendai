@@ -13,7 +13,6 @@ import dev.friendai.features.creative.CreativeActionContext;
 import dev.friendai.features.creative.minecraft.CreativeItemCapability;
 import dev.friendai.features.creative.minecraft.task.CreateItemsTask;
 import dev.friendai.task.TaskContext;
-import dev.friendai.tool.builtin.FriendaiTools;
 import java.util.Optional;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -192,7 +191,7 @@ public final class CreativeToolsTests {
         GameTestSupport.platform(h, 8);
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         CompanionEntity companion = creativeCompanion(h, owner);
-        ToolExecutor tools = FriendaiTools.create(() -> 32).bind(companion);
+        ToolExecutor tools = GameTestToolRegistry.create(companion, () -> 32).bind(companion);
         Caller caller = ownerCaller(owner);
 
         JsonObject unknown = new JsonObject();

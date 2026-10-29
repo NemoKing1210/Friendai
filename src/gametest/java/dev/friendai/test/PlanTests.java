@@ -22,7 +22,6 @@ import dev.friendai.task.inventory.ItemMatcher;
 import dev.friendai.task.plan.PlanEntry;
 import dev.friendai.task.plan.PlanSave;
 import dev.friendai.task.plan.SequenceTask;
-import dev.friendai.tool.builtin.FriendaiTools;
 import java.util.List;
 import java.util.UUID;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -67,7 +66,7 @@ public class PlanTests {
 
     private static ToolExecutor ownerTools(CompanionEntity companion) {
         companion.setOwner(UUID.randomUUID());
-        return FriendaiTools.create(() -> 32).bind(companion);
+        return GameTestToolRegistry.create(companion, () -> 32).bind(companion);
     }
 
     private static ToolResult addPlan(ToolExecutor tools, CompanionEntity companion, ToolCall call) {
@@ -315,7 +314,7 @@ public class PlanTests {
         c.inventory().addItem(new ItemStack(Items.MUD_BRICKS, 2));
         Result result = new Result();
         c.executionCoordinator().setListener(result);
-        ToolExecutor tools = FriendaiTools.create(() -> 32).bind(c);
+        ToolExecutor tools = GameTestToolRegistry.create(c, () -> 32).bind(c);
         String json = "{\"goal\":\"drop twice\",\"steps\":["
                 + "{\"tool\":\"drop_items\",\"args\":\"{\\\"item\\\":\\\"minecraft:mud_bricks\\\",\\\"count\\\":1}\"},"
                 + "{\"tool\":\"drop_items\",\"args\":\"{\\\"item\\\":\\\"minecraft:mud_bricks\\\",\\\"count\\\":1}\"}]}";

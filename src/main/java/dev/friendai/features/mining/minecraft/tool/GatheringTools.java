@@ -1,7 +1,8 @@
 package dev.friendai.features.mining.minecraft.tool;
 
 import com.google.gson.JsonObject;
-import dev.friendai.agent.tools.ToolCatalog;
+import dev.friendai.agent.tools.Cost;
+import dev.friendai.agent.tools.ToolGroup;
 import dev.friendai.agent.tools.ToolMeta;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.tool.AccessLevel;
@@ -25,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
+import java.util.function.Function;
 import java.util.function.IntSupplier;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -35,7 +37,7 @@ public final class GatheringTools implements FeatureToolContributor {
     private final IntSupplier treeRadius;
     private final BooleanSupplier mineCollectDrops;
     private final BooleanSupplier fellCollectDrops;
-    private final ResourceCandidates resourceCandidates;
+    private final Function<CompanionEntity, ResourceCandidates> resourceCandidates;
 
     public GatheringTools(IntSupplier mineRadius, IntSupplier treeRadius) {
         this(mineRadius, treeRadius, () -> true, () -> true);
@@ -46,7 +48,7 @@ public final class GatheringTools implements FeatureToolContributor {
             IntSupplier treeRadius,
             BooleanSupplier mineCollectDrops,
             BooleanSupplier fellCollectDrops) {
-        this(mineRadius, treeRadius, mineCollectDrops, fellCollectDrops, null);
+        this(mineRadius, treeRadius, mineCollectDrops, fellCollectDrops, (ResourceCandidates) null);
     }
 
     public GatheringTools(
@@ -55,6 +57,15 @@ public final class GatheringTools implements FeatureToolContributor {
             BooleanSupplier mineCollectDrops,
             BooleanSupplier fellCollectDrops,
             ResourceCandidates resourceCandidates) {
+        this(mineRadius, treeRadius, mineCollectDrops, fellCollectDrops, ignored -> resourceCandidates);
+    }
+
+    public GatheringTools(
+            IntSupplier mineRadius,
+            IntSupplier treeRadius,
+            BooleanSupplier mineCollectDrops,
+            BooleanSupplier fellCollectDrops,
+            Function<CompanionEntity, ResourceCandidates> resourceCandidates) {
         this.mineRadius = mineRadius;
         this.treeRadius = treeRadius;
         this.mineCollectDrops = mineCollectDrops;
@@ -191,9 +202,9 @@ public final class GatheringTools implements FeatureToolContributor {
         BlockMatcher logs = matcher != null
                 ? matcher
                 : BlockMatcher.parse("#minecraft:logs").orElseThrow();
-        Map<BlockPos, String> observedIds = resourceCandidates == null
-                ? Map.of()
-                : resourceCandidates.recentOrRememberedBlockIds(c, evidenceRadius, 1024);
+        ResourceCandidates resources = resourceCandidates.apply(c);
+        Map<BlockPos, String> observedIds =
+                resources == null ? Map.of() : resources.recentOrRememberedBlockIds(c, evidenceRadius, 1024);
         var observed = observedIds.entrySet().stream()
                 .filter(entry -> entry.getKey().distSqr(origin) <= (double) radius * radius)
                 .filter(entry -> {
@@ -208,9 +219,8 @@ public final class GatheringTools implements FeatureToolContributor {
                         (java.util.Map.Entry<BlockPos, String> entry) -> entry.getKey(),
                         (java.util.Map.Entry<BlockPos, String> entry) -> entry.getValue()));
         var leavesMatcher = BlockMatcher.parse("#minecraft:leaves").orElseThrow();
-        Set<BlockPos> observedLeaves = resourceCandidates == null
-                ? Set.of()
-                : resourceCandidates.recentOrRemembered(c, leavesMatcher, evidenceRadius, 1024);
+        Set<BlockPos> observedLeaves =
+                resources == null ? Set.of() : resources.recentOrRemembered(c, leavesMatcher, evidenceRadius, 1024);
         Set<BlockPos> leaves = observedLeaves.stream()
                 .filter(pos -> pos.distSqr(origin) <= (double) radius * radius)
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
@@ -262,8 +272,16 @@ public final class GatheringTools implements FeatureToolContributor {
     }
 
     private static ToolMeta metadata(String name) {
-        return ToolCatalog.defaults()
-                .meta(name)
-                .orElseThrow(() -> new IllegalArgumentException("missing tool metadata: " + name));
+        String hint = switch (name) {
+            case "fell_tree" ->
+                "- To chop a tree, call find_trees when the kind or the exact tree is unclear, then fell_tree. It climbs the trunk once and cuts the tree from the crown down, so the logs fall to the foot. limit takes the top N logs and leaves the trunk standing; it is a cap, not a shortcut. Pass collect:false only when speed matters more than the drops.\n"
+                        + "- When the player says 'near me', near: \"me\" is the default for the tree tools and means their position; near: \"self\" means yours.";
+            case "mine_blocks" ->
+                "- Use mine_blocks for a kind of block (ore, stone, a named log type); use fell_tree when the player asks for a tree.\n"
+                        + "- After placing blocks, mine_blocks with placed:true takes back only those blocks; it never touches an unplaced neighbour.";
+            case "mine_block_at" -> "";
+            default -> throw new IllegalArgumentException("unknown gathering tool: " + name);
+        };
+        return new ToolMeta(name, ToolGroup.GATHERING, false, hint, List.of(), Cost.HIGH);
     }
 }

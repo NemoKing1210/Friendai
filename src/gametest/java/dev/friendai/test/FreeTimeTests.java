@@ -221,20 +221,20 @@ public class FreeTimeTests {
     public void deniedToolsAreRefused(GameTestHelper h) {
         GameTestSupport.platform(h, 8);
         CompanionEntity c = companion(h);
-        var builtins = dev.friendai.tool.builtin.FriendaiTools.build(
-                () -> 16, dev.friendai.tool.builtin.MemoryAccess.DISABLED);
+        var builtins = dev.friendai.server.agent.tools.FriendaiTools.build(
+                () -> 16, dev.friendai.features.memory.minecraft.tool.MemoryAccess.DISABLED);
         var args = com.google.gson.JsonParser.parseString(
                         "{\"goal\":\"g\",\"priority\":-10,\"steps\":[{\"tool\":\"stay\"},{\"tool\":\"attack_player\","
                                 + "\"args\":\"{\\\"player\\\":\\\"x\\\"}\"}]}")
                 .getAsJsonObject();
         var caller = new dev.friendai.execution.tool.Caller(
                 c.ownerUuid(), "owner", dev.friendai.execution.tool.AccessLevel.OWNER);
-        var refused = dev.friendai.tool.builtin.FriendaiTools.addPlan(
-                c, caller, args, builtins.plannable(), false, Set.of("attack_player"));
+        var refused =
+                GameTestToolRegistry.addPlan(c, caller, args, builtins.plannable(), false, Set.of("attack_player"));
         h.assertTrue(refused.error(), "a denied step must be refused: " + refused.content());
         h.assertTrue(refused.content().contains("attack_player is not allowed in free time"), refused.content());
         h.assertValueEqual(c.executionCoordinator().queue().planCount(), 0, "nothing queued");
-        var ok = dev.friendai.tool.builtin.FriendaiTools.addPlan(
+        var ok = GameTestToolRegistry.addPlan(
                 c,
                 caller,
                 com.google.gson.JsonParser.parseString(
@@ -299,11 +299,11 @@ public class FreeTimeTests {
 
     /** Queues a free-time shift by hand: one plan the driver owns, the way a reflex would. */
     private static long shiftPlan(GameTestHelper h, CompanionEntity c, String steps) {
-        var builtins = dev.friendai.tool.builtin.FriendaiTools.build(
-                () -> 16, dev.friendai.tool.builtin.MemoryAccess.DISABLED);
+        var builtins = dev.friendai.server.agent.tools.FriendaiTools.build(
+                () -> 16, dev.friendai.features.memory.minecraft.tool.MemoryAccess.DISABLED);
         var caller = new dev.friendai.execution.tool.Caller(
                 c.ownerUuid(), "", dev.friendai.execution.tool.AccessLevel.OWNER);
-        var result = dev.friendai.tool.builtin.FriendaiTools.addPlan(
+        var result = GameTestToolRegistry.addPlan(
                 c,
                 caller,
                 com.google.gson.JsonParser.parseString("{\"goal\":\""
@@ -383,9 +383,9 @@ public class FreeTimeTests {
         driver(h).start(c, dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, "");
         long plan = shiftPlan(h, c, "[{\"tool\":\"stay\"}]");
         var caller = new dev.friendai.execution.tool.Caller(owner, "", dev.friendai.execution.tool.AccessLevel.OWNER);
-        var builtins = dev.friendai.tool.builtin.FriendaiTools.build(
-                () -> 16, dev.friendai.tool.builtin.MemoryAccess.DISABLED);
-        dev.friendai.tool.builtin.FriendaiTools.addPlan(
+        var builtins = dev.friendai.server.agent.tools.FriendaiTools.build(
+                () -> 16, dev.friendai.features.memory.minecraft.tool.MemoryAccess.DISABLED);
+        GameTestToolRegistry.addPlan(
                 c,
                 caller,
                 com.google.gson.JsonParser.parseString("{\"goal\":\"owner\",\"steps\":[{\"tool\":\"stay\"}]}")
@@ -1186,10 +1186,10 @@ public class FreeTimeTests {
         GameTestSupport.platform(h, 8);
         UUID owner = UUID.randomUUID();
         CompanionEntity c = registered(h, owner);
-        var builtins = dev.friendai.tool.builtin.FriendaiTools.build(
-                () -> 16, dev.friendai.tool.builtin.MemoryAccess.DISABLED);
+        var builtins = dev.friendai.server.agent.tools.FriendaiTools.build(
+                () -> 16, dev.friendai.features.memory.minecraft.tool.MemoryAccess.DISABLED);
         var caller = new dev.friendai.execution.tool.Caller(owner, "", dev.friendai.execution.tool.AccessLevel.OWNER);
-        dev.friendai.tool.builtin.FriendaiTools.addPlan(
+        GameTestToolRegistry.addPlan(
                 c,
                 caller,
                 com.google.gson.JsonParser.parseString("{\"goal\":\"owner work\",\"steps\":[{\"tool\":\"stay\"}]}")

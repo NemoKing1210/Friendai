@@ -4,13 +4,17 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.JsonObject;
+import dev.friendai.agent.tools.Cost;
+import dev.friendai.agent.tools.ToolGroup;
+import dev.friendai.agent.tools.ToolMeta;
 import dev.friendai.execution.queue.FailurePolicy;
 import dev.friendai.execution.queue.GuardAction;
 import dev.friendai.execution.queue.PlanDefinition;
 import dev.friendai.execution.queue.PlanNode;
 import dev.friendai.execution.queue.PlanRecord;
 import dev.friendai.execution.queue.QueuedStep;
-import dev.friendai.tool.builtin.TaskToolDef;
+import dev.friendai.execution.tool.AccessLevel;
+import dev.friendai.server.execution.tools.TaskToolDefinition;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -19,8 +23,7 @@ import org.junit.jupiter.api.Test;
 class TaskRestoreRegistryTest {
     @Test
     void nonRestorableTaskIsExcludedFromRestoreLookup() {
-        TaskToolDef task =
-                new TaskToolDef("temporary", "Temporary task", new JsonObject(), (companion, args) -> null, false);
+        TaskToolDefinition task = task("temporary", false, false);
         TaskRestoreRegistry registry = new TaskRestoreRegistry(
                 Map.of(task.name(), task), Map.of(), Set.of(), () -> null, (owner, principal) -> null);
 
@@ -29,7 +32,7 @@ class TaskRestoreRegistryTest {
 
     @Test
     void restorableTaskRemainsInRestoreLookup() {
-        TaskToolDef task = new TaskToolDef("saved", "Saved task", new JsonObject(), (companion, args) -> null, false);
+        TaskToolDefinition task = task("saved", false, true);
         TaskRestoreRegistry registry = new TaskRestoreRegistry(
                 Map.of(task.name(), task), Map.of(), Set.of(task.name()), () -> null, (owner, principal) -> null);
 
@@ -38,8 +41,7 @@ class TaskRestoreRegistryTest {
 
     @Test
     void nonRestorableTaskCannotBeUsedByARestoredPlan() {
-        TaskToolDef task =
-                new TaskToolDef("temporary", "Temporary task", new JsonObject(), (companion, args) -> null, true);
+        TaskToolDefinition task = task("temporary", true, false);
         TaskRestoreRegistry registry = new TaskRestoreRegistry(
                 Map.of(task.name(), task), Map.of(task.name(), task), Set.of(), () -> null, (owner, principal) -> null);
         PlanRecord plan = new PlanRecord(
@@ -61,5 +63,20 @@ class TaskRestoreRegistryTest {
                 null);
 
         assertFalse(registry.hasPlanTools(plan));
+    }
+
+    private static TaskToolDefinition task(String name, boolean plannable, boolean restorable) {
+        return new TaskToolDefinition(
+                name,
+                name,
+                new JsonObject(),
+                (companion, args) -> null,
+                null,
+                plannable,
+                AccessLevel.TRUSTED,
+                TaskToolDefinition.QueueTraits.DEFAULT,
+                restorable,
+                false,
+                new ToolMeta(name, ToolGroup.CORE, false, "", List.of(), Cost.LOW));
     }
 }

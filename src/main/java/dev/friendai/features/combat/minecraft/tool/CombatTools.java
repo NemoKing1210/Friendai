@@ -1,7 +1,8 @@
 package dev.friendai.features.combat.minecraft.tool;
 
 import com.google.gson.JsonObject;
-import dev.friendai.agent.tools.ToolCatalog;
+import dev.friendai.agent.tools.Cost;
+import dev.friendai.agent.tools.ToolGroup;
 import dev.friendai.agent.tools.ToolMeta;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
@@ -22,6 +23,7 @@ import dev.friendai.server.execution.tools.FeatureToolContributor;
 import dev.friendai.server.execution.tools.FeatureToolRegistry;
 import dev.friendai.server.execution.tools.TaskToolDefinition;
 import dev.friendai.task.Task;
+import java.util.List;
 import java.util.function.Predicate;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
@@ -160,9 +162,7 @@ public final class CombatTools implements FeatureToolContributor {
     }
 
     private static ToolMeta metadata(String name) {
-        return ToolCatalog.defaults()
-                .meta(name)
-                .orElseThrow(() -> new IllegalStateException("Missing tool metadata: " + name));
+        return new ToolMeta(name, ToolGroup.COMBAT, false, "", List.of(), Cost.MEDIUM);
     }
 
     private static Task huntTask(JsonObject args, boolean ownerOrder) {

@@ -14,7 +14,7 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.ToolResult;
-import dev.friendai.tool.builtin.FriendaiTools;
+import dev.friendai.server.agent.tools.FriendaiTools;
 import io.netty.channel.embedded.EmbeddedChannel;
 import java.util.ArrayList;
 import java.util.Collections;

@@ -26,9 +26,13 @@ import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolRegistry;
 import dev.friendai.execution.tool.ToolResult;
-import dev.friendai.features.memory.MemoryBook;
+import dev.friendai.features.instructions.minecraft.tool.SkillToolAccess;
+import dev.friendai.features.memory.MemoryActions;
 import dev.friendai.features.memory.MemoryLimits;
 import dev.friendai.features.memory.MemoryPromptRenderer;
+import dev.friendai.features.memory.PlayerRef;
+import dev.friendai.features.memory.minecraft.tool.MemoryAccess;
+import dev.friendai.features.memory.minecraft.tool.TrustAccess;
 import dev.friendai.features.places.PlaceCandidate;
 import dev.friendai.features.places.PlaceText;
 import dev.friendai.features.places.minecraft.PlaceService;
@@ -42,13 +46,15 @@ import dev.friendai.infrastructure.persistence.places.PlaceStore;
 import dev.friendai.infrastructure.persistence.trading.TradeStore;
 import dev.friendai.perception.PerceptionContext;
 import dev.friendai.perception.resource.ResourceCandidates;
+import dev.friendai.server.agent.tools.FriendaiTools;
+import dev.friendai.server.agent.tools.GoalToolAccess;
+import dev.friendai.server.agent.tools.ToolDependencies;
 import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.server.execution.persistence.TaskRestoreRegistry;
+import dev.friendai.server.execution.tools.QueueToolAccess;
+import dev.friendai.server.execution.tools.TaskToolDefinition;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
-import dev.friendai.tool.builtin.FriendaiTools;
-import dev.friendai.tool.builtin.MemoryAccess;
-import dev.friendai.tool.builtin.TaskToolDef;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -62,7 +68,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 
 /** Owns one {@link CompanionBrain} per player and the LLM client they share. All methods run on the server thread. */
-public final class CompanionSessions implements AutoCloseable {
+public final class CompanionSessions implements AutoCloseable, QueueToolAccess, GoalToolAccess, SkillToolAccess {
     private final MinecraftServer server;
     private final ServerBrainScheduler scheduler;
     private final MemoryStore memory;
@@ -72,15 +78,16 @@ public final class CompanionSessions implements AutoCloseable {
     private final TradeStore trading;
     private final PlaceStore places;
     private final Supplier<PerceptionContext> perceptionContext;
+    private final dev.friendai.features.knowledge.search.SearchHintStore searchHints;
     private final Map<UUID, CompanionSession> sessions = new HashMap<>();
     private boolean acceptingWork = true;
     private final ToolRegistry<CompanionEntity> tools;
     private final dev.friendai.agent.tools.ToolCatalog toolCatalog;
     private final java.util.Set<String> restorableTaskNames;
     /** The plan-step tools by name, kept so a saved plan can be rebuilt after a reload. */
-    private final Map<String, TaskToolDef> planTools;
+    private final Map<String, TaskToolDefinition> planTools;
 
-    private final Map<String, TaskToolDef> taskTools;
+    private final Map<String, TaskToolDefinition> taskTools;
     private final AgentGatewayFactory gateways = new AgentGatewayFactory();
     private final DebugService debug;
     private final PlannerAdapter planners;
@@ -99,7 +106,9 @@ public final class CompanionSessions implements AutoCloseable {
             PlaceStore places,
             ResourceCandidates resources,
             dev.friendai.agent.autonomy.FreeTimeService freeTimeService,
-            dev.friendai.features.trading.minecraft.tool.TradingToolAccess tradingToolAccess) {
+            dev.friendai.features.trading.minecraft.tool.TradingToolAccess tradingToolAccess,
+            TrustAccess trustAccess,
+            dev.friendai.features.knowledge.search.SearchHintStore searchHints) {
         this.server = server;
         this.scheduler = new ServerBrainScheduler(server);
         this.memory = memory;
@@ -108,33 +117,49 @@ public final class CompanionSessions implements AutoCloseable {
         this.goals = goals;
         this.trading = trading;
         this.places = places;
+        this.searchHints = searchHints;
         this.perceptionContext = () -> new PerceptionContext(resources, settings.get(), freeTimeService);
         this.debug = new DebugService(gateways.redactor(), System::currentTimeMillis);
         this.planners = new PlannerAdapter(scheduler, debug, gateways, () -> this.config, settings);
+        MemoryAccess memoryAccess = new MemoryAccess() {
+            @Override
+            public boolean enabled() {
+                return config != null && config.memory.enabled;
+            }
+
+            @Override
+            public MemoryActions actions(CompanionEntity companion, Caller caller) {
+                UUID owner = companion.ownerUuid();
+                MemoryLimits limits = config == null ? MemoryLimits.DEFAULTS : config.memory.limits();
+                return new MemoryActions(
+                        memory.book(owner), owner, caller, limits, System.currentTimeMillis(), name -> {
+                            if (!(companion.level() instanceof ServerLevel level) || level.getServer() == null)
+                                return Optional.empty();
+                            for (var player : level.getServer().getPlayerList().getPlayers()) {
+                                String playerName = player.getName().getString();
+                                if (playerName != null && playerName.equalsIgnoreCase(name))
+                                    return Optional.of(new PlayerRef(player.getUUID(), playerName));
+                            }
+                            return Optional.empty();
+                        });
+            }
+        };
         FriendaiTools.Builtins builtins = FriendaiTools.build(
                 () -> settings.get().tasks().mineSearchRadius(),
                 () -> settings.get().tasks().treeSearchRadius(),
-                new MemoryAccess() {
-                    @Override
-                    public boolean enabled() {
-                        return config != null && config.memory.enabled;
-                    }
-
-                    @Override
-                    public MemoryLimits limits() {
-                        return config == null ? MemoryLimits.DEFAULTS : config.memory.limits();
-                    }
-
-                    @Override
-                    public MemoryBook book(UUID owner) {
-                        return memory.book(owner);
-                    }
-                },
-                perceptionContext,
+                new ToolDependencies(
+                        memoryAccess,
+                        companion -> perceptionContext.get(),
+                        companion -> resources,
+                        tradingToolAccess,
+                        this,
+                        this,
+                        companion -> this,
+                        companion -> trustAccess,
+                        companion -> freeTime(),
+                        this::searchHintLine),
                 () -> settings.get().tasks().mineCollectDrops(),
-                () -> settings.get().tasks().fellCollectDrops(),
-                resources,
-                tradingToolAccess);
+                () -> settings.get().tasks().fellCollectDrops());
         this.tools = builtins.registry();
         this.toolCatalog = builtins.catalog();
         this.restorableTaskNames = builtins.restorableTaskNames();
@@ -320,6 +345,32 @@ public final class CompanionSessions implements AutoCloseable {
         if (config.skills.enabled) post(owner, new BrainEvent.SkillOutcome(id, kind, summary));
     }
 
+    @Override
+    public dev.friendai.agent.goal.GoalService goals(ServerLevel level) {
+        if (level.getServer() != server) throw new IllegalArgumentException("goal access belongs to another server");
+        return goals;
+    }
+
+    @Override
+    public void skillOutcome(
+            ServerLevel level,
+            UUID owner,
+            String source,
+            dev.friendai.foundation.teaching.TeachingContext.OutcomeKind kind,
+            String summary) {
+        if (level.getServer() == server) skillOutcome(owner, source, kind, summary);
+    }
+
+    @Override
+    public ToolResult request(UUID owner, String id) {
+        return skillSession(owner).request(id);
+    }
+
+    @Override
+    public ToolResult teach(UUID owner, Caller caller, JsonObject args) {
+        return skills.teach(owner, caller, args);
+    }
+
     public void cancel(UUID owner) {
         CompanionSession session = sessions.get(owner);
         if (session != null && session.brain() != null) session.brain().cancel();
@@ -368,6 +419,33 @@ public final class CompanionSessions implements AutoCloseable {
                 ? AccessLevel.OWNER
                 : owner != null && memory.book(owner).isTrusted(principal) ? AccessLevel.TRUSTED : AccessLevel.GUEST;
         return new Caller(principal, "", access);
+    }
+
+    @Override
+    public Caller currentCaller(CompanionEntity companion, UUID principal) {
+        return currentCaller(companion.ownerUuid(), principal);
+    }
+
+    @Override
+    public void linkPlan(CompanionEntity companion, long planId) {
+        UUID owner = companion.ownerUuid();
+        if (owner == null || !(companion.level() instanceof ServerLevel level) || level.getServer() != server) return;
+        goals.board(owner)
+                .primary()
+                .filter(goal -> goal.status() == dev.friendai.agent.goal.GoalStatus.ACTIVE && goal.planId() == 0)
+                .ifPresent(goal -> {
+                    goals.board(owner).linkPlan(goal.id(), planId);
+                    goals.save(owner);
+                });
+    }
+
+    private String searchHintLine(CompanionEntity companion) {
+        if (companion.ownerUuid() == null || companion.level().getServer() != server) return "";
+        long now = server.overworld().getGameTime();
+        return searchHints
+                .get(companion.ownerUuid(), now)
+                .map(hint -> "\nsearch hint: " + hint.describe(now))
+                .orElse("\nsearch hint: none");
     }
 
     public void tick() {
@@ -594,7 +672,7 @@ public final class CompanionSessions implements AutoCloseable {
     }
 
     /** {@code name(arg*, arg): first sentence of the description}; a star marks a required argument. */
-    static String describeTool(TaskToolDef def) {
+    static String describeTool(TaskToolDefinition def) {
         JsonObject schema = def.schema();
         java.util.Set<String> required = new java.util.HashSet<>();
         if (schema.has("required")) {

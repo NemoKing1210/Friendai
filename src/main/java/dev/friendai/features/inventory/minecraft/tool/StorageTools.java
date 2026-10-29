@@ -1,7 +1,8 @@
 package dev.friendai.features.inventory.minecraft.tool;
 
 import com.google.gson.JsonObject;
-import dev.friendai.agent.tools.ToolCatalog;
+import dev.friendai.agent.tools.Cost;
+import dev.friendai.agent.tools.ToolGroup;
 import dev.friendai.agent.tools.ToolMeta;
 import dev.friendai.execution.tool.SchemaBuilder;
 import dev.friendai.features.inventory.minecraft.task.CheckContainerTask;
@@ -12,6 +13,7 @@ import dev.friendai.server.execution.tools.FeatureToolContributor;
 import dev.friendai.server.execution.tools.FeatureToolRegistry;
 import dev.friendai.server.execution.tools.TaskToolDefinition;
 import dev.friendai.task.inventory.ItemMatcher;
+import java.util.List;
 
 /** Moving items between the companion's inventory, storage containers and remembered places. */
 public final class StorageTools implements FeatureToolContributor {
@@ -83,9 +85,12 @@ public final class StorageTools implements FeatureToolContributor {
     }
 
     private static ToolMeta metadata(String name) {
-        return ToolCatalog.defaults()
-                .meta(name)
-                .orElseThrow(() -> new IllegalArgumentException("missing tool metadata: " + name));
+        String hint = name.equals("store_items")
+                ? "- When the player says to store it again in the container you placed, pass placed:true; it uses the nearest container from your placement record."
+                : name.equals("deposit_items")
+                        ? "- To unload loot at the base, use deposit_items with the storage place name; it keeps your tools and food. Use store_items only for one container or one item."
+                        : "";
+        return new ToolMeta(name, ToolGroup.STORAGE, false, hint, List.of(), Cost.MEDIUM);
     }
 
     private static ItemMatcher matcher(String idOrTag) {

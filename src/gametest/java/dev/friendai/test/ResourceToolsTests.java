@@ -10,9 +10,8 @@ import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolRegistry;
 import dev.friendai.features.acquisition.minecraft.search.ResourceResolver;
 import dev.friendai.features.knowledge.ResourceObservation;
+import dev.friendai.features.memory.minecraft.tool.MemoryAccess;
 import dev.friendai.features.navigation.pathing.Pos;
-import dev.friendai.tool.builtin.FriendaiTools;
-import dev.friendai.tool.builtin.MemoryAccess;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -60,7 +59,7 @@ public final class ResourceToolsTests {
                                 h.getLevel().getServer().overworld().getGameTime()),
                         "minecraft:iron_ore");
 
-        ToolRegistry<CompanionEntity> tools = FriendaiTools.create(() -> 16, MemoryAccess.DISABLED);
+        ToolRegistry<CompanionEntity> tools = GameTestToolRegistry.create(companion, () -> 16, MemoryAccess.DISABLED);
         var guest = tools.bind(companion)
                 .execute(
                         call("minecraft:raw_iron"),
@@ -110,7 +109,7 @@ public final class ResourceToolsTests {
         JsonObject args = new JsonObject();
         args.addProperty("resource", "minecraft:coal_ore");
         args.addProperty("max_distance", 30_000_000);
-        var result = FriendaiTools.create(() -> 16, MemoryAccess.DISABLED)
+        var result = GameTestToolRegistry.create(companion, () -> 16, MemoryAccess.DISABLED)
                 .bind(companion)
                 .execute(
                         new ToolCall("test", "known_resources", args, args.toString(), null),
@@ -128,7 +127,7 @@ public final class ResourceToolsTests {
         companion.setOwner(owner.getUUID());
         JsonObject args = new JsonObject();
         args.addProperty("resource", "#minecraft:logs");
-        var result = FriendaiTools.create(() -> 16, MemoryAccess.DISABLED)
+        var result = GameTestToolRegistry.create(companion, () -> 16, MemoryAccess.DISABLED)
                 .bind(companion)
                 .execute(
                         new ToolCall("test", "search_resource", args, args.toString(), null),

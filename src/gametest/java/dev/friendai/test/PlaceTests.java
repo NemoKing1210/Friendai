@@ -21,7 +21,6 @@ import dev.friendai.features.places.PlaceValues;
 import dev.friendai.features.places.minecraft.PlaceService;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
-import dev.friendai.tool.builtin.FriendaiTools;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -72,7 +71,7 @@ public class PlaceTests {
     }
 
     private static ToolExecutor tools(CompanionEntity companion) {
-        return FriendaiTools.create(() -> 32).bind(companion);
+        return GameTestToolRegistry.create(companion, () -> 32).bind(companion);
     }
 
     /** Collects what a command sends to its source, so a command test can read the player-facing text. */

@@ -22,7 +22,6 @@ import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.execution.tools.MinecraftObtainSubtaskFactory;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
-import dev.friendai.tool.builtin.FriendaiTools;
 import java.util.List;
 import java.util.Optional;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -756,7 +755,7 @@ public class ObtainTests {
         h.setBlock(4, 2, 2, Blocks.IRON_ORE);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.inventory().addItem(new ItemStack(Items.STONE_PICKAXE));
-        ToolExecutor tools = FriendaiTools.create(() -> 32).bind(c);
+        ToolExecutor tools = GameTestToolRegistry.create(c, () -> 32).bind(c);
         String json = "{\"item\":\"minecraft:raw_iron\",\"count\":1}";
         ToolResult r = tools.execute(
                 new ToolCall("1", "plan_obtain", JsonParser.parseString(json).getAsJsonObject(), json, null));

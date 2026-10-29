@@ -14,7 +14,6 @@ import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolExecutor;
 import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.features.navigation.minecraft.task.StayTask;
-import dev.friendai.tool.builtin.FriendaiTools;
 import java.util.List;
 import java.util.Optional;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -69,7 +68,7 @@ public final class CreativeQueueTests {
                 runner.queue().job(jobId).orElseThrow().state() == JobState.FAILED,
                 "creative job did not reach FAILED state");
 
-        ToolExecutor tools = FriendaiTools.create(() -> 32).bind(companion);
+        ToolExecutor tools = GameTestToolRegistry.create(companion, () -> 32).bind(companion);
         ToolResult trustedRetry = retry(tools, jobId, caller(trusted, AccessLevel.TRUSTED));
         h.assertTrue(trustedRetry.error(), "trusted caller retried an owner creative job: " + trustedRetry.content());
         h.assertTrue(

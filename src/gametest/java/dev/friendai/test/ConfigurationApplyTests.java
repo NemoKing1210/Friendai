@@ -5,15 +5,15 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
+import dev.friendai.features.memory.minecraft.tool.MemoryAccess;
 import dev.friendai.infrastructure.config.ServerConfig;
+import dev.friendai.server.agent.tools.FriendaiTools;
 import dev.friendai.server.configuration.ServerConfiguration;
 import dev.friendai.server.configuration.ServerSettings;
+import dev.friendai.server.execution.tools.TaskToolDefinition;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
-import dev.friendai.tool.builtin.FriendaiTools;
-import dev.friendai.tool.builtin.MemoryAccess;
-import dev.friendai.tool.builtin.TaskToolDef;
 import java.util.UUID;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
@@ -47,7 +47,7 @@ public class ConfigurationApplyTests {
                 () -> configuration.current().tasks().mineSearchRadius(),
                 () -> configuration.current().tasks().treeSearchRadius(),
                 MemoryAccess.DISABLED);
-        TaskToolDef mineBlocks = builtins.taskTools().get("mine_blocks");
+        TaskToolDefinition mineBlocks = builtins.taskTools().get("mine_blocks");
         Caller caller = new Caller(companion.ownerUuid(), "test", AccessLevel.TRUSTED);
         Task existing = mineBlocks.callerFactory().create(companion, caller, mineArgs());
         TaskContext existingContext = context(companion, firstSnapshot);

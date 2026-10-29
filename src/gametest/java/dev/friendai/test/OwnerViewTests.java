@@ -67,7 +67,7 @@ public class OwnerViewTests {
         h.setBlock(8, 3, 2, Blocks.OAK_LOG);
         ServerPlayer owner = lookingEast(h, 2.5, 2, 2.5);
         CompanionEntity companion = companionFor(h, owner);
-        var tools = dev.friendai.tool.builtin.FriendaiTools.create(() -> 32).bind(companion);
+        var tools = GameTestToolRegistry.create(companion, () -> 32).bind(companion);
         var call = new dev.friendai.agent.llm.model.ToolCall(
                 "1", "player_view", new com.google.gson.JsonObject(), "{}", null);
         var result = tools.execute(

@@ -1,7 +1,8 @@
 package dev.friendai.features.fire.minecraft.tool;
 
 import com.google.gson.JsonObject;
-import dev.friendai.agent.tools.ToolCatalog;
+import dev.friendai.agent.tools.Cost;
+import dev.friendai.agent.tools.ToolGroup;
 import dev.friendai.agent.tools.ToolMeta;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.tool.AccessLevel;
@@ -13,6 +14,7 @@ import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.server.execution.tools.FeatureToolContributor;
 import dev.friendai.server.execution.tools.FeatureToolRegistry;
 import dev.friendai.server.execution.tools.TaskToolDefinition;
+import java.util.List;
 import java.util.Locale;
 
 /** The fire skill: one task, whichever target the player means. */
@@ -40,9 +42,13 @@ public final class FireTools implements FeatureToolContributor {
     }
 
     private static ToolMeta metadata(String name) {
-        return ToolCatalog.defaults()
-                .meta(name)
-                .orElseThrow(() -> new IllegalStateException("Missing tool metadata: " + name));
+        return new ToolMeta(
+                name,
+                ToolGroup.FIRE,
+                false,
+                "- A fire is an emergency: call extinguish_fire at once for your own fire (target self), the owner's (owner), a burning mob (entity) or the fires around you (near). A water bucket is poured and taken back; without water a fire block is broken by hand. Never break a lit campfire — it is a cooking station — and never pour water in the nether.",
+                List.of(),
+                Cost.MEDIUM);
     }
 
     private static ExtinguishFireTask create(CompanionEntity companion, JsonObject args) {

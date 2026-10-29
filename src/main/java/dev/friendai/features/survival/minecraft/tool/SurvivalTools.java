@@ -1,7 +1,8 @@
 package dev.friendai.features.survival.minecraft.tool;
 
 import com.google.gson.JsonObject;
-import dev.friendai.agent.tools.ToolCatalog;
+import dev.friendai.agent.tools.Cost;
+import dev.friendai.agent.tools.ToolGroup;
 import dev.friendai.agent.tools.ToolMeta;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.tool.AccessLevel;
@@ -139,9 +140,10 @@ public final class SurvivalTools implements FeatureToolContributor {
     }
 
     private static ToolMeta metadata(String name) {
-        return ToolCatalog.defaults()
-                .meta(name)
-                .orElseThrow(() -> new IllegalStateException("Missing tool metadata: " + name));
+        String hint = name.equals("get_food")
+                ? "- When you are hungry with no food: if the owner is near, ask them; otherwise call get_food."
+                : "";
+        return new ToolMeta(name, ToolGroup.SURVIVAL, false, hint, List.of(), Cost.MEDIUM);
     }
 
     private static EatTask eatTask(CompanionEntity companion, @Nullable Caller caller, JsonObject args) {

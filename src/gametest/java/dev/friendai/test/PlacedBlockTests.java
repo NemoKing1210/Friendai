@@ -99,7 +99,7 @@ public class PlacedBlockTests {
         h.assertTrue(h.getLevel().getBlockState(logCell).is(Blocks.OAK_LOG), "log missing");
         h.assertTrue(h.getLevel().getBlockState(chestCell).is(Blocks.CHEST), "chest missing");
 
-        var tools = dev.friendai.tool.builtin.FriendaiTools.create(() -> 32).bind(c);
+        var tools = GameTestToolRegistry.create(c, () -> 32).bind(c);
         Caller ownerCaller = new Caller(owner, "Steve", AccessLevel.OWNER);
         var args = new com.google.gson.JsonObject();
         var listed = tools.execute(

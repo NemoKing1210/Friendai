@@ -18,6 +18,7 @@ import dev.friendai.features.navigation.minecraft.task.FollowTask;
 import dev.friendai.features.navigation.minecraft.task.GoToTask;
 import dev.friendai.features.navigation.minecraft.task.StayTask;
 import dev.friendai.server.configuration.ServerSettings;
+import dev.friendai.server.execution.tools.TaskToolDefinition;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskState;
@@ -26,7 +27,6 @@ import dev.friendai.task.plan.PlanSave;
 import dev.friendai.task.plan.PlanStepFactory;
 import dev.friendai.task.plan.SequenceTask;
 import dev.friendai.task.plan.StepFactory;
-import dev.friendai.tool.builtin.TaskToolDef;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -45,22 +45,22 @@ import net.minecraft.world.phys.Vec3;
 
 /** Resolves persisted tool/task keys against this server's current fixed contribution set. */
 public final class TaskRestoreRegistry {
-    private final Map<String, TaskToolDef> taskTools;
-    private final Map<String, TaskToolDef> planTools;
+    private final Map<String, TaskToolDefinition> taskTools;
+    private final Map<String, TaskToolDefinition> planTools;
     private final Supplier<ServerSettings> settings;
     private final BiFunction<UUID, UUID, Caller> callers;
 
     public TaskRestoreRegistry(
-            Map<String, TaskToolDef> taskTools,
-            Map<String, TaskToolDef> planTools,
+            Map<String, TaskToolDefinition> taskTools,
+            Map<String, TaskToolDefinition> planTools,
             Supplier<ServerSettings> settings,
             BiFunction<UUID, UUID, Caller> callers) {
         this(taskTools, planTools, taskTools.keySet(), settings, callers);
     }
 
     public TaskRestoreRegistry(
-            Map<String, TaskToolDef> taskTools,
-            Map<String, TaskToolDef> planTools,
+            Map<String, TaskToolDefinition> taskTools,
+            Map<String, TaskToolDefinition> planTools,
             Set<String> restorableTaskNames,
             Supplier<ServerSettings> settings,
             BiFunction<UUID, UUID, Caller> callers) {
@@ -70,9 +70,9 @@ public final class TaskRestoreRegistry {
         this.callers = callers;
     }
 
-    private static Map<String, TaskToolDef> restorable(
-            Map<String, TaskToolDef> tools, Set<String> restorableTaskNames) {
-        Map<String, TaskToolDef> eligible = new HashMap<>();
+    private static Map<String, TaskToolDefinition> restorable(
+            Map<String, TaskToolDefinition> tools, Set<String> restorableTaskNames) {
+        Map<String, TaskToolDefinition> eligible = new HashMap<>();
         tools.forEach((name, definition) -> {
             if (restorableTaskNames.contains(name)) eligible.put(name, definition);
         });
@@ -82,7 +82,7 @@ public final class TaskRestoreRegistry {
     public Map<Long, StepFactory> stepFactories(JobQueue queue) {
         Map<Long, StepFactory> factories = new HashMap<>();
         for (Job job : queue.jobs()) {
-            TaskToolDef def = taskTools.get(job.tool());
+            TaskToolDefinition def = taskTools.get(job.tool());
             if (def == null) continue;
             JsonObject args = job.args();
             UUID principal = job.principal();
@@ -95,11 +95,11 @@ public final class TaskRestoreRegistry {
         Map<Long, Map<String, PlanStepFactory>> result = new HashMap<>();
         for (PlanRecord plan : queue.plans()) {
             if (plan.definition() == null || plan.cursor() == null) continue;
-            Map<String, TaskToolDef> definitions = new HashMap<>();
+            Map<String, TaskToolDefinition> definitions = new HashMap<>();
             collectPlanTools(plan.definition().nodes(), definitions);
             Map<String, PlanStepFactory> byTool = new HashMap<>();
             for (var entry : definitions.entrySet()) {
-                TaskToolDef def = entry.getValue();
+                TaskToolDefinition def = entry.getValue();
                 if (def == null || !def.plannable()) continue;
                 byTool.put(entry.getKey(), new PlanStepFactory() {
                     @Override
@@ -127,18 +127,18 @@ public final class TaskRestoreRegistry {
 
     public boolean hasPlanTools(PlanRecord plan) {
         if (plan.definition() == null) return plan.cursor() == null;
-        Map<String, TaskToolDef> definitions = new HashMap<>();
+        Map<String, TaskToolDefinition> definitions = new HashMap<>();
         collectPlanTools(plan.definition().nodes(), definitions);
         return definitions.values().stream().allMatch(def -> def != null && def.plannable());
     }
 
     public boolean authorized(Job job, UUID owner) {
-        TaskToolDef def = taskTools.get(job.tool());
+        TaskToolDefinition def = taskTools.get(job.tool());
         return def != null && callers.apply(owner, job.principal()).access().allows(def.minAccess());
     }
 
     public boolean requiresFreshAuthority(Job job) {
-        TaskToolDef def = taskTools.get(job.tool());
+        TaskToolDefinition def = taskTools.get(job.tool());
         return QueueTradeScope.requiresFreshAuthority(
                 job.args(), def != null && def.queueTraits().requiresTradingScope());
     }
@@ -167,7 +167,7 @@ public final class TaskRestoreRegistry {
                 && job.args().get("explore").getAsBoolean();
     }
 
-    private Task create(TaskToolDef def, TaskContext context, UUID principal, JsonObject args) {
+    private Task create(TaskToolDefinition def, TaskContext context, UUID principal, JsonObject args) {
         Caller caller =
                 callers.apply(context.companion().ownerUuid(), principal).withTradingScope(QueueTradeScope.read(args));
         return def.callerFactory() == null
@@ -180,13 +180,13 @@ public final class TaskRestoreRegistry {
         if (decoded.isEmpty()) return Optional.empty();
         PlanSave.Saved data = decoded.get();
         if (data.steps().stream().anyMatch(step -> {
-            TaskToolDef def = planTools.get(step.tool());
+            TaskToolDefinition def = planTools.get(step.tool());
             return QueueTradeScope.requiresFreshAuthority(
                     step.args(), def != null && def.queueTraits().requiresTradingScope());
         })) return Optional.empty();
         List<PlanEntry> entries = new ArrayList<>(data.steps().size());
         for (PlanSave.Step step : data.steps()) {
-            TaskToolDef def = planTools.get(step.tool());
+            TaskToolDefinition def = planTools.get(step.tool());
             if (def == null
                     || !def.plannable()
                     || step.principal() == null
@@ -289,7 +289,7 @@ public final class TaskRestoreRegistry {
         }
     }
 
-    private void collectPlanTools(List<PlanNode> nodes, Map<String, TaskToolDef> result) {
+    private void collectPlanTools(List<PlanNode> nodes, Map<String, TaskToolDefinition> result) {
         for (PlanNode node : nodes) {
             if (node instanceof PlanNode.Action action)
                 result.put(action.step().tool(), planTools.get(action.step().tool()));
@@ -303,7 +303,7 @@ public final class TaskRestoreRegistry {
     private boolean structuredPlanNeedsFreshAuthority(List<PlanNode> nodes) {
         for (PlanNode node : nodes) {
             if (node instanceof PlanNode.Action action) {
-                TaskToolDef def = planTools.get(action.step().tool());
+                TaskToolDefinition def = planTools.get(action.step().tool());
                 if (QueueTradeScope.requiresFreshAuthority(
                         action.step().args(), def != null && def.queueTraits().requiresTradingScope())) return true;
             } else if (node instanceof PlanNode.Conditional conditional) {

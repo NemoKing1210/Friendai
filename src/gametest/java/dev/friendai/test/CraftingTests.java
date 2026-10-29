@@ -19,7 +19,6 @@ import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
-import dev.friendai.tool.builtin.FriendaiTools;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -162,7 +161,7 @@ public class CraftingTests {
     }
 
     private static ToolResult tool(CompanionEntity c, String name, String json) {
-        ToolExecutor tools = FriendaiTools.create(() -> 32).bind(c);
+        ToolExecutor tools = GameTestToolRegistry.create(c, () -> 32).bind(c);
         return tools.execute(
                 new ToolCall("1", name, JsonParser.parseString(json).getAsJsonObject(), json, null));
     }

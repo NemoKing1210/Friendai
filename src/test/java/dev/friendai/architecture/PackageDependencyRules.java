@@ -28,6 +28,7 @@ final class PackageDependencyRules {
             new FeatureDependency("mining", "places"),
             new FeatureDependency("navigation", "mining"),
             new FeatureDependency("navigation", "knowledge"),
+            new FeatureDependency("placements", "mining"),
             new FeatureDependency("exploration", "acquisition"),
             new FeatureDependency("exploration", "knowledge"),
             new FeatureDependency("exploration", "mining"),
@@ -207,9 +208,6 @@ final class PackageDependencyRules {
     }
 
     private static boolean isPurePackage(String className) {
-        if (isUnder(className, "dev.friendai.tool.builtin")) {
-            return false;
-        }
         return PURE_PACKAGES.stream().anyMatch(prefix -> isUnder(className, prefix));
     }
 

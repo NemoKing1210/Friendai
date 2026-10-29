@@ -13,10 +13,10 @@ import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
 import dev.friendai.features.mining.minecraft.mining.TreeFinder;
 import dev.friendai.features.mining.minecraft.task.FellTreeTask;
 import dev.friendai.perception.PerceptionContext;
+import dev.friendai.server.agent.tools.FriendaiTools;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
-import dev.friendai.tool.builtin.FriendaiTools;
 import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
@@ -36,7 +36,7 @@ public class TreeFellingTests {
         return FriendaiTools.build(
                         () -> 32,
                         () -> 32,
-                        dev.friendai.tool.builtin.MemoryAccess.DISABLED,
+                        dev.friendai.features.memory.minecraft.tool.MemoryAccess.DISABLED,
                         () -> new PerceptionContext(state.resources(), state.settings(), state.freeTime()),
                         () -> true,
                         () -> true,
@@ -534,17 +534,18 @@ public class TreeFellingTests {
 
     @GameTest(maxTicks = 400)
     public void treesSortBeforeStructures(GameTestHelper h) {
-        GameTestSupport.platform(h, 16);
-        for (int y = 2; y <= 5; y++) {
+        // Keep the scan volume above terrain trees outside the small test platform.
+        GameTestSupport.platformAt(h, 100, 16);
+        for (int y = 101; y <= 104; y++) {
             h.setBlock(new BlockPos(12, y, 12), Blocks.JUNGLE_LOG); // tree, farther away
         }
-        leaf(h, 11, 5, 12);
+        leaf(h, 11, 104, 12);
         for (int x = 3; x <= 5; x++) {
             for (int z = 3; z <= 5; z++) {
-                h.setBlock(new BlockPos(x, 2, z), Blocks.ACACIA_LOG); // structure, nearer
+                h.setBlock(new BlockPos(x, 101, z), Blocks.ACACIA_LOG); // structure, nearer
             }
         }
-        BlockPos origin = h.absolutePos(new BlockPos(2, 2, 2));
+        BlockPos origin = h.absolutePos(new BlockPos(2, 101, 2));
         List<TreeFinder.TreeInfo> found =
                 ofType(TreeFinder.find(h.getLevel(), origin, 16, 16, 32, null, 20, false), "jungle_log", "acacia_log");
         h.assertValueEqual(found.size(), 2, "trees: " + found);

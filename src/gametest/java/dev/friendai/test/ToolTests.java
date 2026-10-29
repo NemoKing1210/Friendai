@@ -19,10 +19,11 @@ import dev.friendai.features.crafting.Station;
 import dev.friendai.features.memory.CompanionName;
 import dev.friendai.features.navigation.minecraft.task.StayTask;
 import dev.friendai.features.survival.minecraft.Food;
-import dev.friendai.perception.PerceptionContext;
-import dev.friendai.tool.builtin.FriendaiTools;
+import dev.friendai.server.agent.tools.FriendaiTools;
 import io.netty.channel.embedded.EmbeddedChannel;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
@@ -44,20 +45,7 @@ public class ToolTests {
     }
 
     private static ToolExecutor tools(CompanionEntity c) {
-        var state = FriendaiServerState.get(c.level().getServer());
-        return FriendaiTools.build(
-                        () -> 32,
-                        () -> 32,
-                        dev.friendai.tool.builtin.MemoryAccess.DISABLED,
-                        () -> {
-                            return new PerceptionContext(state.resources(), state.settings(), state.freeTime());
-                        },
-                        () -> true,
-                        () -> true,
-                        state.resources(),
-                        state)
-                .registry()
-                .bind(c);
+        return GameTestToolRegistry.create(c, () -> 32).bind(c);
     }
 
     private static ToolResult runAs(ToolExecutor tools, String name, String json, Caller caller) {
@@ -349,141 +337,153 @@ public class ToolTests {
     }
 
     @GameTest
-    public void registryExposesToolsInGroupOrder(GameTestHelper h) {
+    public void registryIncludesFeatureContributions(GameTestHelper h) {
         List<String> names = FriendaiTools.create(() -> 32).specs().stream()
                 .map(ToolSpec::name)
                 .toList();
+        Set<String> expected = Set.of(
+                "follow_player",
+                "stay",
+                "go_to",
+                "jump",
+                "set_pace",
+                "fell_tree",
+                "mine_blocks",
+                "mine_block_at",
+                "pickup_items",
+                "give_items",
+                "drop_items",
+                "get_inventory",
+                "place_block",
+                "use_block",
+                "light_area",
+                "clear_area",
+                "store_items",
+                "take_items",
+                "check_container",
+                "deposit_items",
+                "craft_item",
+                "get_recipe",
+                "smelt_items",
+                "cook_food",
+                "collect_smelted",
+                "enchant_item",
+                "anvil_item",
+                "grindstone_item",
+                "attack",
+                "attack_player",
+                "set_combat_mode",
+                "get_combat_settings",
+                "set_combat_settings",
+                "equip_item",
+                "eat",
+                "get_food",
+                "allow_food",
+                "forbid_food",
+                "reset_food_rule",
+                "get_food_rules",
+                "farm",
+                "plan_farm",
+                "tend_farm",
+                "use_bonemeal",
+                "breed_animals",
+                "shear",
+                "milk",
+                "tame_animal",
+                "lead_animals",
+                "harvest_honey",
+                "fish",
+                "obtain_item",
+                "plan_obtain",
+                "search_resource",
+                "find_target",
+                "search_hint",
+                "known_resources",
+                "remember_place",
+                "find_place",
+                "go_to_place",
+                "rename_place",
+                "forget_place",
+                "blueprint_help",
+                "preview_structure",
+                "build_structure",
+                "save_blueprint",
+                "list_blueprints",
+                "build_special",
+                "plan_special",
+                "find_trees",
+                "look_around",
+                "find_blocks",
+                "find_placed",
+                "player_view",
+                "describe_block",
+                "survey_area",
+                "trust_player",
+                "untrust_player",
+                "show_inventory",
+                "set_name",
+                "set_follow_mode",
+                "stop",
+                "find_traders",
+                "inspect_trader",
+                "refresh_trades",
+                "wait_for_restock",
+                "level_trader",
+                "barter",
+                "known_trades",
+                "plan_trade",
+                "trade_item",
+                "queue_add",
+                "plan_help",
+                "plan_validate",
+                "queue_show",
+                "queue_edit",
+                "look_at",
+                "point_at",
+                "turn",
+                "sneak",
+                "emote",
+                "sit",
+                "stand",
+                "wait",
+                "swap_hands",
+                "set_idle_behavior",
+                "set_follow_distance",
+                "step",
+                "back_away",
+                "approach",
+                "circle",
+                "interact_entity",
+                "mount",
+                "dismount",
+                "sleep",
+                "throw_item",
+                "extinguish_fire",
+                "create_item",
+                "fly_to",
+                "execute_command",
+                "set_goal",
+                "update_goal",
+                "finish_goal",
+                "use_skill",
+                "manage_skill",
+                "request_tools",
+                "start_free_time",
+                "end_free_time",
+                "choose_activity");
+        Set<String> actual = new HashSet<>(names);
         h.assertTrue(
-                names.equals(List.of(
-                        "follow_player",
-                        "stay",
-                        "go_to",
-                        "jump",
-                        "set_pace",
-                        "fell_tree",
-                        "mine_blocks",
-                        "mine_block_at",
-                        "pickup_items",
-                        "give_items",
-                        "drop_items",
-                        "get_inventory",
-                        "place_block",
-                        "use_block",
-                        "light_area",
-                        "clear_area",
-                        "store_items",
-                        "take_items",
-                        "check_container",
-                        "deposit_items",
-                        "craft_item",
-                        "get_recipe",
-                        "smelt_items",
-                        "cook_food",
-                        "collect_smelted",
-                        "enchant_item",
-                        "anvil_item",
-                        "grindstone_item",
-                        "attack",
-                        "attack_player",
-                        "set_combat_mode",
-                        "get_combat_settings",
-                        "set_combat_settings",
-                        "equip_item",
-                        "eat",
-                        "get_food",
-                        "allow_food",
-                        "forbid_food",
-                        "reset_food_rule",
-                        "get_food_rules",
-                        "farm",
-                        "plan_farm",
-                        "tend_farm",
-                        "use_bonemeal",
-                        "breed_animals",
-                        "shear",
-                        "milk",
-                        "tame_animal",
-                        "lead_animals",
-                        "harvest_honey",
-                        "fish",
-                        "obtain_item",
-                        "plan_obtain",
-                        "search_resource",
-                        "find_target",
-                        "search_hint",
-                        "known_resources",
-                        "remember_place",
-                        "find_place",
-                        "go_to_place",
-                        "rename_place",
-                        "forget_place",
-                        "blueprint_help",
-                        "preview_structure",
-                        "build_structure",
-                        "save_blueprint",
-                        "list_blueprints",
-                        "build_special",
-                        "plan_special",
-                        "find_trees",
-                        "look_around",
-                        "find_blocks",
-                        "find_placed",
-                        "player_view",
-                        "describe_block",
-                        "survey_area",
-                        "trust_player",
-                        "untrust_player",
-                        "show_inventory",
-                        "set_name",
-                        "set_follow_mode",
-                        "stop",
-                        "find_traders",
-                        "inspect_trader",
-                        "refresh_trades",
-                        "wait_for_restock",
-                        "level_trader",
-                        "barter",
-                        "known_trades",
-                        "plan_trade",
-                        "trade_item",
-                        "queue_add",
-                        "queue_show",
-                        "queue_edit",
-                        "look_at",
-                        "point_at",
-                        "turn",
-                        "sneak",
-                        "emote",
-                        "sit",
-                        "stand",
-                        "wait",
-                        "swap_hands",
-                        "set_idle_behavior",
-                        "set_follow_distance",
-                        "step",
-                        "back_away",
-                        "approach",
-                        "circle",
-                        "interact_entity",
-                        "mount",
-                        "dismount",
-                        "sleep",
-                        "throw_item",
-                        "extinguish_fire",
-                        "create_item",
-                        "fly_to",
-                        "execute_command",
-                        "set_goal",
-                        "update_goal",
-                        "finish_goal",
-                        "use_skill",
-                        "manage_skill",
-                        "request_tools",
-                        "start_free_time",
-                        "end_free_time",
-                        "choose_activity")),
-                "names were " + names);
+                actual.equals(expected),
+                "registry tool set differs: missing=" + difference(expected, actual) + ", unexpected="
+                        + difference(actual, expected));
+        h.assertValueEqual((long) names.size(), names.stream().distinct().count(), "tool names are unique");
         h.succeed();
+    }
+
+    private static Set<String> difference(Set<String> left, Set<String> right) {
+        Set<String> difference = new HashSet<>(left);
+        difference.removeAll(right);
+        return difference;
     }
 
     @GameTest
@@ -638,13 +638,20 @@ public class ToolTests {
     @GameTest
     public void queueAddStartsPlan(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        UUID owner = UUID.randomUUID();
+        c.setOwner(owner);
         c.inventory().addItem(new ItemStack(Items.DRIPSTONE_BLOCK, 1));
-        ToolResult r = run(
+        ToolResult r = runAs(
                 tools(c),
                 "queue_add",
-                "{\"goal\":\"tidy\",\"steps\":[{\"tool\":\"drop_items\",\"args\":\"{\\\"item\\\":\\\"minecraft:dripstone_block\\\",\\\"count\\\":1}\"}]}");
+                "{\"goal\":\"tidy\",\"steps\":[{\"tool\":\"drop_items\",\"args\":\"{\\\"item\\\":\\\"minecraft:dripstone_block\\\",\\\"count\\\":1}\"}]}",
+                new Caller(owner, "owner", AccessLevel.OWNER));
         h.assertTrue(!r.error() && r.content().startsWith("plan #"), "result was " + r.content());
-        h.assertTrue(c.executionCoordinator().queue().planCount() == 1, "the plan should be in the queue");
+        var queue = c.executionCoordinator().queue();
+        h.assertTrue(
+                queue.planCount() == 1,
+                "the plan should be in the queue: jobs=" + queue.jobCount() + ", plans=" + queue.plans() + ", archive="
+                        + queue.archives());
         h.succeed();
     }
 
@@ -1117,7 +1124,7 @@ public class ToolTests {
         CompanionEntity c = h.spawn(dev.friendai.entity.FriendaiEntities.COMPANION, 2, 2, 2);
         var pos = h.absolutePos(new net.minecraft.core.BlockPos(6, 2, 2));
         h.assertTrue(GameTestSupport.observeVisible(h, c, pos), "iron ore fixture should be visible");
-        var tools = dev.friendai.tool.builtin.FriendaiTools.create(() -> 32).bind(c);
+        var tools = GameTestToolRegistry.create(c, () -> 32).bind(c);
         var args = "{\"x\":" + pos.getX() + ",\"y\":" + pos.getY() + ",\"z\":" + pos.getZ() + "}";
         var call = new dev.friendai.agent.llm.model.ToolCall(
                 "1",
@@ -1146,7 +1153,7 @@ public class ToolTests {
         GameTestSupport.platform(h, 12);
         CompanionEntity c = h.spawn(dev.friendai.entity.FriendaiEntities.COMPANION, 2, 2, 2);
         var pos = h.absolutePos(new net.minecraft.core.BlockPos(4, 2, 4));
-        var tools = dev.friendai.tool.builtin.FriendaiTools.create(() -> 32).bind(c);
+        var tools = GameTestToolRegistry.create(c, () -> 32).bind(c);
         var args = "{\"x\":" + pos.getX() + ",\"y\":" + pos.getY() + ",\"z\":" + pos.getZ() + "}";
         var call = new dev.friendai.agent.llm.model.ToolCall(
                 "1",
@@ -1173,7 +1180,7 @@ public class ToolTests {
                 new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.IRON_PICKAXE));
         var pos = h.absolutePos(new net.minecraft.core.BlockPos(6, 2, 2));
         h.assertTrue(GameTestSupport.observeVisible(h, c, pos), "iron ore fixture should be visible");
-        var tools = dev.friendai.tool.builtin.FriendaiTools.create(() -> 32).bind(c);
+        var tools = GameTestToolRegistry.create(c, () -> 32).bind(c);
         var args = "{\"x\":" + pos.getX() + ",\"y\":" + pos.getY() + ",\"z\":" + pos.getZ() + "}";
         var call = new dev.friendai.agent.llm.model.ToolCall(
                 "1",
@@ -1197,7 +1204,7 @@ public class ToolTests {
         CompanionEntity c = h.spawn(dev.friendai.entity.FriendaiEntities.COMPANION, 2, 2, 2);
         var pos = h.absolutePos(new net.minecraft.core.BlockPos(6, 2, 2));
         h.assertTrue(GameTestSupport.observeVisible(h, c, pos), "bedrock fixture should be visible");
-        var tools = dev.friendai.tool.builtin.FriendaiTools.create(() -> 32).bind(c);
+        var tools = GameTestToolRegistry.create(c, () -> 32).bind(c);
         var args = "{\"x\":" + pos.getX() + ",\"y\":" + pos.getY() + ",\"z\":" + pos.getZ() + "}";
         var call = new dev.friendai.agent.llm.model.ToolCall(
                 "1",

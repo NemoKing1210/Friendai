@@ -1,7 +1,8 @@
 package dev.friendai.features.inventory.minecraft.tool;
 
 import com.google.gson.JsonObject;
-import dev.friendai.agent.tools.ToolCatalog;
+import dev.friendai.agent.tools.Cost;
+import dev.friendai.agent.tools.ToolGroup;
 import dev.friendai.agent.tools.ToolMeta;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.tool.SchemaBuilder;
@@ -20,6 +21,7 @@ import dev.friendai.server.execution.tools.FeatureToolRegistry;
 import dev.friendai.server.execution.tools.TaskToolDefinition;
 import dev.friendai.task.Task;
 import dev.friendai.task.inventory.ItemMatcher;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -155,9 +157,21 @@ public final class InventoryTools implements FeatureToolContributor {
     }
 
     private static ToolMeta metadata(String name) {
-        return ToolCatalog.defaults()
-                .meta(name)
-                .orElseThrow(() -> new IllegalArgumentException("missing tool metadata: " + name));
+        return switch (name) {
+            case "get_inventory" -> new ToolMeta(name, ToolGroup.CORE, true, "", List.of(), Cost.LOW);
+            case "give_items", "drop_items", "equip_item" ->
+                new ToolMeta(name, ToolGroup.INVENTORY, false, "", List.of(), Cost.LOW);
+            case "pickup_items" ->
+                new ToolMeta(
+                        name,
+                        ToolGroup.GATHERING,
+                        false,
+                        "- To pick up what fell around a block you placed, pass placed:true; the round is centred on that block, not on you.",
+                        List.of(),
+                        Cost.HIGH);
+            case "throw_item" -> new ToolMeta(name, ToolGroup.INTERACTION, false, "", List.of(), Cost.MEDIUM);
+            default -> throw new IllegalArgumentException("unknown inventory tool metadata: " + name);
+        };
     }
 
     private static Task throwItem(CompanionEntity companion, JsonObject args) {

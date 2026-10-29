@@ -23,7 +23,6 @@ import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
-import dev.friendai.tool.builtin.FriendaiTools;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -78,7 +77,7 @@ public final class QueueTests {
     @GameTest
     public void queueAddRejectsBadStepsWithoutAdding(GameTestHelper h) {
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
-        ToolExecutor tools = FriendaiTools.create(() -> 32).bind(companion);
+        ToolExecutor tools = GameTestToolRegistry.create(companion, () -> 32).bind(companion);
         ToolResult badDependency = run(
                 tools,
                 "queue_add",
@@ -97,7 +96,7 @@ public final class QueueTests {
         UUID owner = UUID.randomUUID();
         companion.setOwner(owner);
         Caller caller = new Caller(owner, "queue-test", AccessLevel.OWNER);
-        ToolExecutor tools = FriendaiTools.create(() -> 32).bind(companion);
+        ToolExecutor tools = GameTestToolRegistry.create(companion, () -> 32).bind(companion);
         ToolResult added = run(
                 tools,
                 "queue_add",

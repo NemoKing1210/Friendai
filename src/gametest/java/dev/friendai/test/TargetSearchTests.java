@@ -6,12 +6,12 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
-import dev.friendai.execution.tool.ToolRegistry;
 import dev.friendai.features.acquisition.minecraft.task.ResourceSearchDriver;
 import dev.friendai.features.acquisition.minecraft.task.SearchResourceTask;
 import dev.friendai.features.knowledge.search.ResourceSearchProfile;
 import dev.friendai.features.knowledge.search.SearchSession;
 import dev.friendai.features.knowledge.search.TargetKind;
+import dev.friendai.features.memory.minecraft.tool.MemoryAccess;
 import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.features.places.PlaceKind;
 import dev.friendai.features.places.PlaceSource;
@@ -20,8 +20,6 @@ import dev.friendai.features.places.minecraft.PlaceService;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
-import dev.friendai.tool.builtin.FriendaiTools;
-import dev.friendai.tool.builtin.MemoryAccess;
 import java.util.OptionalInt;
 import java.util.Set;
 import java.util.UUID;
@@ -64,7 +62,8 @@ public final class TargetSearchTests {
         args.addProperty("strategy", "surface");
         args.addProperty("scope", "local");
         args.addProperty("heading", "east");
-        var started = tools().bind(companion)
+        var started = GameTestToolRegistry.create(companion, () -> 16, MemoryAccess.DISABLED)
+                .bind(companion)
                 .execute(
                         new ToolCall("test", "search_resource", args, args.toString(), null),
                         new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
@@ -97,7 +96,8 @@ public final class TargetSearchTests {
         args.addProperty("resource", "#minecraft:logs");
         args.addProperty("strategy", "surface");
         args.addProperty("scope", "local");
-        var started = tools().bind(companion)
+        var started = GameTestToolRegistry.create(companion, () -> 16, MemoryAccess.DISABLED)
+                .bind(companion)
                 .execute(
                         new ToolCall("test", "search_resource", args, args.toString(), null),
                         new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
@@ -182,7 +182,8 @@ public final class TargetSearchTests {
         args.addProperty("resource", "#minecraft:logs");
         args.addProperty("strategy", "surface");
         args.addProperty("scope", "local");
-        tools().bind(companion)
+        GameTestToolRegistry.create(companion, () -> 16, MemoryAccess.DISABLED)
+                .bind(companion)
                 .execute(
                         new ToolCall("test", "search_resource", args, args.toString(), null),
                         new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
@@ -213,7 +214,8 @@ public final class TargetSearchTests {
         h.assertTrue(GameTestSupport.observeVisible(h, companion, bell), "the bell must be in sight");
         Result result = new Result();
         companion.executionCoordinator().setListener(result);
-        var started = tools().bind(companion)
+        var started = GameTestToolRegistry.create(companion, () -> 16, MemoryAccess.DISABLED)
+                .bind(companion)
                 .execute(
                         targetCall("structure", "village"),
                         new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
@@ -232,7 +234,8 @@ public final class TargetSearchTests {
                 h.assertTrue(result.summary.contains("found"), result.summary);
                 biomeStarted[0] = true;
                 companion.executionCoordinator().setListener(biomeResult);
-                var biomeStart = tools().bind(companion)
+                var biomeStart = GameTestToolRegistry.create(companion, () -> 16, MemoryAccess.DISABLED)
+                        .bind(companion)
                         .execute(
                                 targetCall("biome", biome),
                                 new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
@@ -269,7 +272,8 @@ public final class TargetSearchTests {
                 h.getLevel().getServer().overworld().getGameTime());
         Result result = new Result();
         companion.executionCoordinator().setListener(result);
-        var started = tools().bind(companion)
+        var started = GameTestToolRegistry.create(companion, () -> 16, MemoryAccess.DISABLED)
+                .bind(companion)
                 .execute(
                         targetCall("place", "camp"),
                         new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
@@ -287,10 +291,6 @@ public final class TargetSearchTests {
         args.addProperty("target", target);
         args.addProperty("scope", "local");
         return new ToolCall("test", "find_target", args, args.toString(), null);
-    }
-
-    private static ToolRegistry<CompanionEntity> tools() {
-        return FriendaiTools.create(() -> 16, MemoryAccess.DISABLED);
     }
 
     private static final class Result implements TaskListener {

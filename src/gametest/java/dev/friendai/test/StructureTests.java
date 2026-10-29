@@ -18,7 +18,6 @@ import dev.friendai.task.TaskStatus;
 import dev.friendai.task.structure.StructureIndex;
 import dev.friendai.task.structure.StructureSite;
 import dev.friendai.task.structure.StructureSnapshotBuilder;
-import dev.friendai.tool.builtin.FriendaiTools;
 import java.util.UUID;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
@@ -166,7 +165,9 @@ public class StructureTests {
     private static ToolResult callTool(
             GameTestHelper h, CompanionEntity c, AccessLevel access, String name, String json) {
         ToolCall call = new ToolCall("1", name, JsonParser.parseString(json).getAsJsonObject(), json, null);
-        return FriendaiTools.create(() -> 32).bind(c).execute(call, new Caller(UUID.randomUUID(), "tester", access));
+        return GameTestToolRegistry.create(c, () -> 32)
+                .bind(c)
+                .execute(call, new Caller(UUID.randomUUID(), "tester", access));
     }
 
     private static String siteArgs(GameTestHelper h, String kind, int x, int y, int z) {

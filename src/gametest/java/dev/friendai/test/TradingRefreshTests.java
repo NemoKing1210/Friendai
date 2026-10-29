@@ -10,7 +10,7 @@ import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolExecutor;
 import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.perception.PerceptionContext;
-import dev.friendai.tool.builtin.FriendaiTools;
+import dev.friendai.server.agent.tools.FriendaiTools;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.entity.EntityTypes;
@@ -32,7 +32,7 @@ public final class TradingRefreshTests {
         ToolExecutor tools = FriendaiTools.build(
                         () -> 32,
                         () -> 32,
-                        dev.friendai.tool.builtin.MemoryAccess.DISABLED,
+                        dev.friendai.features.memory.minecraft.tool.MemoryAccess.DISABLED,
                         () -> new PerceptionContext(state.resources(), state.settings(), state.freeTime()),
                         () -> true,
                         () -> true,

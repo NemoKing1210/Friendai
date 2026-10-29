@@ -36,8 +36,8 @@ import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.infrastructure.config.ServerConfig;
 import dev.friendai.infrastructure.persistence.places.PlaceStore;
 import dev.friendai.server.configuration.ServerSettings;
-import dev.friendai.tool.builtin.FriendaiTools;
-import dev.friendai.tool.builtin.TaskToolDef;
+import dev.friendai.server.execution.tools.QueueTools;
+import dev.friendai.server.execution.tools.TaskToolDefinition;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -92,8 +92,8 @@ public final class FreeTimeDriver {
     private final Supplier<ServerSettings> settings;
     private final FreeTimeService freeTimeService;
     private final PlaceStore places;
-    private final Map<String, TaskToolDef> taskTools;
-    private final Map<String, TaskToolDef> planTools;
+    private final Map<String, TaskToolDefinition> taskTools;
+    private final Map<String, TaskToolDefinition> planTools;
     private final Map<UUID, Long> awaitingSince = new HashMap<>();
     private final Set<UUID> planning = new java.util.HashSet<>();
     private final Map<UUID, String> stageAtStart = new HashMap<>();
@@ -121,8 +121,8 @@ public final class FreeTimeDriver {
             Supplier<ServerSettings> settings,
             FreeTimeService freeTimeService,
             PlaceStore places,
-            Map<String, TaskToolDef> taskTools,
-            Map<String, TaskToolDef> planTools) {
+            Map<String, TaskToolDefinition> taskTools,
+            Map<String, TaskToolDefinition> planTools) {
         this.server = server;
         this.brains = brains;
         this.config = config;
@@ -779,7 +779,7 @@ public final class FreeTimeDriver {
             String goal,
             List<ReflexStep> steps,
             int minutes,
-            Map<String, TaskToolDef> tools) {
+            Map<String, TaskToolDefinition> tools) {
         JsonArray array = new JsonArray();
         for (ReflexStep step : steps) {
             JsonObject o = new JsonObject();
@@ -797,7 +797,7 @@ public final class FreeTimeDriver {
             String goal,
             JsonArray steps,
             int minutes,
-            Map<String, TaskToolDef> tools) {
+            Map<String, TaskToolDefinition> tools) {
         JsonObject args = new JsonObject();
         String marked = goal.startsWith(PLAN_PREFIX) ? goal : PLAN_PREFIX + goal;
         args.addProperty("goal", marked.length() > 200 ? marked.substring(0, 200) : marked);
@@ -805,7 +805,7 @@ public final class FreeTimeDriver {
         args.addProperty("priority", -10);
         args.addProperty("on_failure", "stop_plan");
         args.addProperty("time_limit_min", minutes);
-        ToolResult result = FriendaiTools.addPlan(companion, ownerCaller(owner), args, tools, false, DENIED);
+        ToolResult result = QueueTools.addPlan(brains, companion, ownerCaller(owner), args, tools, false, DENIED);
         Matcher matcher = PLAN_ID.matcher(result.content());
         if (result.error() || !matcher.find()) {
             FriendaiMod.LOGGER.debug("Free-time plan refused: {}", result.content());

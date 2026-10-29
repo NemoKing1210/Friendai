@@ -17,7 +17,6 @@ import dev.friendai.foundation.diagnostics.LogEntry;
 import dev.friendai.foundation.diagnostics.LogKind;
 import dev.friendai.infrastructure.config.ServerConfig;
 import dev.friendai.server.agent.CompanionSessions;
-import dev.friendai.tool.builtin.FriendaiTools;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -30,7 +29,7 @@ public class RecoveryTests {
 
     private static ToolResult call(CompanionEntity c, Caller caller, String name, String json) {
         ToolCall call = new ToolCall("1", name, JsonParser.parseString(json).getAsJsonObject(), json, null);
-        return FriendaiTools.create(() -> 32).bind(c).execute(call, caller);
+        return GameTestToolRegistry.create(c, () -> 32).bind(c).execute(call, caller);
     }
 
     private static LlmGateway silent() {

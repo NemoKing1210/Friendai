@@ -8,6 +8,10 @@ import dev.friendai.entity.CompanionLifeData;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.features.knowledge.KnowledgeLimits;
 import dev.friendai.features.memory.MemoryViewers;
+import dev.friendai.features.memory.PlayerRecord;
+import dev.friendai.features.memory.PlayerRef;
+import dev.friendai.features.memory.TrustRequest;
+import dev.friendai.features.memory.minecraft.tool.TrustAccess;
 import dev.friendai.features.placements.PlacedLimits;
 import dev.friendai.features.places.PlaceLimits;
 import dev.friendai.features.trading.TradeAuthority;
@@ -43,7 +47,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.storage.LevelResource;
 
 /** Existing server service graph, now constructed and closed only by {@code ServerRuntime}. */
-public final class FriendaiServerState implements TradingToolAccess {
+public final class FriendaiServerState implements TradingToolAccess, TrustAccess {
     private final MinecraftServer server;
     private final ConfigStore<ServerConfig> store;
     private final ServerConfiguration configuration;
@@ -132,7 +136,9 @@ public final class FriendaiServerState implements TradingToolAccess {
                 places,
                 this.resources,
                 freeTime,
-                this));
+                this,
+                this,
+                searchHints));
         this.taskPersistence = new TaskPersistenceCoordinator(
                 this::settings,
                 sessions.taskRestoreRegistry(),
@@ -261,6 +267,40 @@ public final class FriendaiServerState implements TradingToolAccess {
     @Override
     public List<dev.friendai.features.trading.TraderRecord> observeTraders(CompanionEntity companion) {
         return traderObserver.observe(companion);
+    }
+
+    @Override
+    public UUID ownerUuid(CompanionEntity companion) {
+        return companion.ownerUuid();
+    }
+
+    @Override
+    public boolean ownerOnline(CompanionEntity companion) {
+        return companion.owner().isPresent();
+    }
+
+    @Override
+    public java.util.Optional<PlayerRef> findOnlinePlayer(String name) {
+        return server.getPlayerList().getPlayers().stream()
+                .filter(player -> player.getName().getString().equalsIgnoreCase(name))
+                .findFirst()
+                .map(player -> new PlayerRef(player.getUUID(), player.getName().getString()));
+    }
+
+    @Override
+    public java.util.Optional<PlayerRecord> findKnownPlayer(UUID owner, String name) {
+        return memory.book(owner).findByName(name);
+    }
+
+    @Override
+    public boolean isTrusted(UUID owner, UUID target) {
+        return memory.book(owner).isTrusted(target);
+    }
+
+    @Override
+    public TrustRequest request(CompanionEntity companion, UUID target, String targetName, boolean trustPlayer) {
+        var owner = companion.owner().orElseThrow(() -> new IllegalStateException("the owner is offline"));
+        return trust.request(owner, target, targetName, trustPlayer);
     }
 
     public BarterDropTracker barterDropTracker() {

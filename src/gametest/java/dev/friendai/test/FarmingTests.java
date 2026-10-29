@@ -743,7 +743,7 @@ public class FarmingTests {
         BlockPos center = h.absolutePos(new BlockPos(5, 2, 4));
         String json =
                 "{\"radius\":4,\"x\":" + center.getX() + ",\"y\":" + center.getY() + ",\"z\":" + center.getZ() + "}";
-        dev.friendai.execution.tool.ToolResult r = dev.friendai.tool.builtin.FriendaiTools.create(() -> 32)
+        dev.friendai.execution.tool.ToolResult r = GameTestToolRegistry.create(c, () -> 32)
                 .bind(c)
                 .execute(
                         new dev.friendai.agent.llm.model.ToolCall(

@@ -16,7 +16,6 @@ import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.server.agent.CompanionSessions;
-import dev.friendai.tool.builtin.FriendaiTools;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -51,7 +50,7 @@ public class PlannerTests {
 
     private static ToolResult call(CompanionEntity c, Caller caller, String name, String json) {
         ToolCall call = new ToolCall("1", name, JsonParser.parseString(json).getAsJsonObject(), json, null);
-        return FriendaiTools.create(() -> 32).bind(c).execute(call, caller);
+        return GameTestToolRegistry.create(c, () -> 32).bind(c).execute(call, caller);
     }
 
     /** A planner that always proposes one jump, and counts how often it was asked. */

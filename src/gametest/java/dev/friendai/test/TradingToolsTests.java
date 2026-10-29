@@ -10,7 +10,7 @@ import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolExecutor;
 import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.perception.PerceptionContext;
-import dev.friendai.tool.builtin.FriendaiTools;
+import dev.friendai.server.agent.tools.FriendaiTools;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -38,7 +38,7 @@ public final class TradingToolsTests {
         return FriendaiTools.build(
                         () -> 32,
                         () -> 32,
-                        dev.friendai.tool.builtin.MemoryAccess.DISABLED,
+                        dev.friendai.features.memory.minecraft.tool.MemoryAccess.DISABLED,
                         () -> new PerceptionContext(state.resources(), state.settings(), state.freeTime()),
                         () -> true,
                         () -> true,

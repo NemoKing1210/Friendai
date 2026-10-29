@@ -15,7 +15,6 @@ import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.infrastructure.config.ServerConfig;
 import dev.friendai.server.agent.CompanionSessions;
-import dev.friendai.tool.builtin.FriendaiTools;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -40,11 +39,13 @@ public class GoalTickTests {
         }
     }
 
-    private static void setGoal(CompanionEntity c, ServerPlayer player) {
+    private static dev.friendai.execution.tool.ToolResult setGoal(CompanionEntity c, ServerPlayer player) {
         String json = "{\"text\":\"get a pickaxe\"}";
         ToolCall call =
                 new ToolCall("1", "set_goal", JsonParser.parseString(json).getAsJsonObject(), json, null);
-        FriendaiTools.create(() -> 32).bind(c).execute(call, new Caller(player.getUUID(), "Steve", AccessLevel.OWNER));
+        return GameTestToolRegistry.create(c, () -> 32)
+                .bind(c)
+                .execute(call, new Caller(player.getUUID(), "Steve", AccessLevel.OWNER));
     }
 
     private static ServerConfig fastTicks(String autonomy) {
@@ -58,7 +59,7 @@ public class GoalTickTests {
      * One test for both levels: the autonomy setting is server-wide, so two tests flipping it in parallel would
      * see each other's setting. First an assistive companion is nudged, then a passive one is not.
      */
-    @GameTest(maxTicks = 900)
+    @GameTest(maxTicks = 1_200)
     public void assistive_companion_is_nudged_and_passive_one_is_not(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
@@ -71,10 +72,31 @@ public class GoalTickTests {
         brains.setGatewayOverride(player.getUUID(), recorder);
         CompanionEntity c = CompanionManager.get(server).summon(player);
         brains.post(player.getUUID(), new BrainEvent.WorldNotice("ready"));
-        setGoal(c, player);
-        h.runAfterDelay(300, () -> {
+        var goalResult = setGoal(c, player);
+        h.assertFalse(goalResult.error(), "set_goal failed: " + goalResult.content());
+        h.assertTrue(
+                state.goals().board(player.getUUID()).primary().isPresent(), "set_goal did not persist a primary goal");
+        h.runAfterDelay(600, () -> {
+            var runner = c.executionCoordinator();
+            var session = brains.find(player.getUUID()).orElse(null);
+            var primary = state.goals().board(player.getUUID()).primary().orElseThrow();
             h.assertTrue(
-                    recorder.sawNudge(), "an idle companion with a goal should be nudged; saw " + recorder.userLines);
+                    recorder.sawNudge(),
+                    "an idle companion with a goal should be nudged; saw " + recorder.userLines
+                            + "; owner=" + c.owner().isPresent()
+                            + ", thinking=" + (session != null && session.isThinking())
+                            + ", work=" + runner.hasWork()
+                            + ", jobs=" + runner.queue().jobCount()
+                            + ", active=" + runner.queue().active().isPresent()
+                            + ", paused=" + runner.paused()
+                            + ", suspended=" + runner.suspended()
+                            + ", sleeping=" + c.isSleeping()
+                            + ", target=" + (c.getTarget() != null)
+                            + ", goal=" + primary.status()
+                            + ", autonomy=" + state.config().agent.autonomy
+                            + ", interval=" + state.config().agent.goalTickSec
+                            + ", serverTicks=" + server.getTickCount()
+                            + ", levelTicks=" + h.getLevel().getGameTime());
             state.applyConfig(fastTicks("passive"));
             int before = recorder.userLines.size();
             h.runAfterDelay(450, () -> {

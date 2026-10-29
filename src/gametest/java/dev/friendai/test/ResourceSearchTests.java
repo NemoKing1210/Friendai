@@ -7,15 +7,13 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
-import dev.friendai.execution.tool.ToolRegistry;
 import dev.friendai.features.knowledge.ResourceObservation;
 import dev.friendai.features.knowledge.search.SearchSession;
+import dev.friendai.features.memory.minecraft.tool.MemoryAccess;
 import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.perception.resource.CaveEntranceObservation;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
-import dev.friendai.tool.builtin.FriendaiTools;
-import dev.friendai.tool.builtin.MemoryAccess;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -38,7 +36,8 @@ public final class ResourceSearchTests {
         companion.inventory().setItem(0, Items.WOODEN_PICKAXE.getDefaultInstance());
         Result result = new Result();
         companion.executionCoordinator().setListener(result);
-        var started = tools().bind(companion)
+        var started = GameTestToolRegistry.create(companion, () -> 16, MemoryAccess.DISABLED)
+                .bind(companion)
                 .execute(
                         searchCall("minecraft:stone", "auto", "local"),
                         new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
@@ -76,7 +75,8 @@ public final class ResourceSearchTests {
         config.companion.chunkLoading.enabled = true;
         state.applyConfig(config);
 
-        var result = tools().bind(companion)
+        var result = GameTestToolRegistry.create(companion, () -> 16, MemoryAccess.DISABLED)
+                .bind(companion)
                 .execute(
                         searchCall("minecraft:coal_ore", "auto", "expedition"),
                         new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.TRUSTED));
@@ -106,7 +106,8 @@ public final class ResourceSearchTests {
         config.companion.chunkLoading.enabled = true;
         state.applyConfig(config);
 
-        var result = tools().bind(companion)
+        var result = GameTestToolRegistry.create(companion, () -> 16, MemoryAccess.DISABLED)
+                .bind(companion)
                 .execute(
                         searchCall("minecraft:coal_ore", "surface", "expedition"),
                         new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
@@ -140,7 +141,8 @@ public final class ResourceSearchTests {
         var owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         CompanionEntity original = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         original.setOwner(owner.getUUID());
-        var started = tools().bind(original)
+        var started = GameTestToolRegistry.create(original, () -> 16, MemoryAccess.DISABLED)
+                .bind(original)
                 .execute(
                         searchCall("minecraft:coal_ore", "surface", "local"),
                         new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
@@ -187,7 +189,8 @@ public final class ResourceSearchTests {
         config.tasks.resources.allowExpeditions = true;
         config.companion.chunkLoading.enabled = true;
         state.applyConfig(config);
-        tools().bind(companion)
+        GameTestToolRegistry.create(companion, () -> 16, MemoryAccess.DISABLED)
+                .bind(companion)
                 .execute(
                         searchCall("minecraft:coal_ore", "surface", "expedition"),
                         new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
@@ -226,7 +229,8 @@ public final class ResourceSearchTests {
         companion.inventory().setItem(0, Items.IRON_PICKAXE.getDefaultInstance());
         companion.inventory().setItem(1, Items.TORCH.getDefaultInstance().copyWithCount(16));
 
-        var result = tools().bind(companion)
+        var result = GameTestToolRegistry.create(companion, () -> 16, MemoryAccess.DISABLED)
+                .bind(companion)
                 .execute(
                         searchCall("minecraft:iron_ore", "mine", "local"),
                         new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
@@ -268,7 +272,8 @@ public final class ResourceSearchTests {
         companion.setOwner(owner.getUUID());
         companion.inventory().setItem(0, Items.IRON_PICKAXE.getDefaultInstance());
 
-        var result = tools().bind(companion)
+        var result = GameTestToolRegistry.create(companion, () -> 16, MemoryAccess.DISABLED)
+                .bind(companion)
                 .execute(
                         searchCall("minecraft:iron_ore", "mine", "local"),
                         new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
@@ -300,7 +305,8 @@ public final class ResourceSearchTests {
         companion.setOwner(owner.getUUID());
         companion.hunger().load(5, 0.0F, 0.0F);
 
-        var result = tools().bind(companion)
+        var result = GameTestToolRegistry.create(companion, () -> 16, MemoryAccess.DISABLED)
+                .bind(companion)
                 .execute(
                         searchCall("minecraft:coal_ore", "surface", "local"),
                         new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
@@ -332,7 +338,8 @@ public final class ResourceSearchTests {
         companion.setOwner(owner.getUUID());
         var state = FriendaiServerState.get(h.getLevel().getServer());
 
-        var result = tools().bind(companion)
+        var result = GameTestToolRegistry.create(companion, () -> 16, MemoryAccess.DISABLED)
+                .bind(companion)
                 .execute(
                         searchCall("minecraft:coal_ore", "cave", "local"),
                         new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
@@ -370,7 +377,8 @@ public final class ResourceSearchTests {
                         new CaveEntranceObservation(
                                 dimension, new Pos(3, 3, 2), new Pos(4, 2, 2), new Pos(5, 1, 2), now));
 
-        var result = tools().bind(companion)
+        var result = GameTestToolRegistry.create(companion, () -> 16, MemoryAccess.DISABLED)
+                .bind(companion)
                 .execute(
                         searchCall("minecraft:coal_ore", "cave", "local"),
                         new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
@@ -400,7 +408,8 @@ public final class ResourceSearchTests {
         Result result = new Result();
         companion.executionCoordinator().setListener(result);
 
-        var started = tools().bind(companion)
+        var started = GameTestToolRegistry.create(companion, () -> 16, MemoryAccess.DISABLED)
+                .bind(companion)
                 .execute(
                         searchCall("minecraft:gravel", "auto", "local"),
                         new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
@@ -437,7 +446,8 @@ public final class ResourceSearchTests {
         Result result = new Result();
         companion.executionCoordinator().setListener(result);
 
-        var started = tools().bind(companion)
+        var started = GameTestToolRegistry.create(companion, () -> 16, MemoryAccess.DISABLED)
+                .bind(companion)
                 .execute(
                         searchCall("#minecraft:logs", "auto", "local"),
                         new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
@@ -468,10 +478,6 @@ public final class ResourceSearchTests {
 
         @Override
         public void onCancelled(int id, String toolName, String reason) {}
-    }
-
-    private static ToolRegistry<CompanionEntity> tools() {
-        return FriendaiTools.create(() -> 16, MemoryAccess.DISABLED);
     }
 
     private static ToolCall searchCall(String resource, String strategy, String scope) {

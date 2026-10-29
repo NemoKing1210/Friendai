@@ -3,7 +3,8 @@ package dev.friendai.features.trading.minecraft.tool;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import dev.friendai.agent.tools.ToolCatalog;
+import dev.friendai.agent.tools.Cost;
+import dev.friendai.agent.tools.ToolGroup;
 import dev.friendai.agent.tools.ToolMeta;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.queue.QueueTradeScope;
@@ -339,9 +340,27 @@ public final class TradingTools implements FeatureToolContributor {
     }
 
     private static ToolMeta metadata(String name) {
-        return ToolCatalog.defaults()
-                .meta(name)
-                .orElseThrow(() -> new IllegalStateException("Missing tool metadata: " + name));
+        String hint = switch (name) {
+            case "find_traders" ->
+                "- Trading knowledge belongs to the owner. Find only loaded nearby traders; remembered locations and offers can be stale.";
+            case "refresh_trades" ->
+                "- Refresh at most 20 explicitly selected traders; only complete live inspection replaces remembered offers.";
+            case "wait_for_restock" ->
+                "- Wait between checks with merchant sessions closed; only real vanilla restocks count, and no stock or workstation is forced.";
+            case "known_trades" ->
+                "- Known prices are historical quotes. Check freshness and inspect a trader before any purchase; never promise a piglin barter reward.";
+            case "plan_trade" ->
+                "- plan_trade is read-only: check exact stock, output batches and every required currency before placing an order.";
+            case "trade_item" ->
+                "- Spend only for an explicit owner order with a cap and reserve for every input. Respect missing currency and explicit offer refs; never buy filler to level a villager.";
+            case "level_trader" ->
+                "- Level only the exact selected villager, using only the owner's allowed offer refs under one shared cumulative cap. Stop at the requested level; never buy filler.";
+            case "barter" ->
+                "- Piglin barter is random. Pay only one plain gold ingot at a time under the owner's explicit cap, attribute only drops owned by the selected piglin, and never retry accepted gold with no output.";
+            case "inspect_trader" -> "";
+            default -> throw new IllegalArgumentException("unknown trading tool: " + name);
+        };
+        return new ToolMeta(name, ToolGroup.TRADING, false, hint, List.of(), Cost.HIGH);
     }
 
     @FunctionalInterface

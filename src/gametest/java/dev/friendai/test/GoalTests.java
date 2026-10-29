@@ -9,7 +9,6 @@ import dev.friendai.entity.CompanionManager;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolResult;
-import dev.friendai.tool.builtin.FriendaiTools;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
@@ -17,7 +16,7 @@ import net.minecraft.server.level.ServerPlayer;
 public class GoalTests {
     private static ToolResult call(CompanionEntity c, Caller caller, String name, String json) {
         ToolCall call = new ToolCall("1", name, JsonParser.parseString(json).getAsJsonObject(), json, null);
-        return FriendaiTools.create(() -> 32).bind(c).execute(call, caller);
+        return GameTestToolRegistry.create(c, () -> 32).bind(c).execute(call, caller);
     }
 
     private static Caller owner(ServerPlayer player) {

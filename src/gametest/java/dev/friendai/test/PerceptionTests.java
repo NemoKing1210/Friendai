@@ -164,7 +164,7 @@ public class PerceptionTests {
         h.assertTrue(
                 GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(2, 2, 6))),
                 "wall should be directly visible");
-        var tools = dev.friendai.tool.builtin.FriendaiTools.create(() -> 32).bind(c);
+        var tools = GameTestToolRegistry.create(c, () -> 32).bind(c);
         var call = new dev.friendai.agent.llm.model.ToolCall(
                 "1", "survey_area", new com.google.gson.JsonObject(), "{}", null);
         var result = tools.execute(

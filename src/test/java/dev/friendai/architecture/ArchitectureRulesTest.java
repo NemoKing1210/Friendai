@@ -159,6 +159,9 @@ class ArchitectureRulesTest {
                 edge("dev.friendai.features.places.Place", "dev.friendai.features.navigation.pathing.Pos"),
                 edge("dev.friendai.features.places.Place", "dev.friendai.features.memory.MenuStatus"),
                 edge("dev.friendai.features.placements.PlacedBlock", "dev.friendai.features.navigation.pathing.Pos"),
+                edge(
+                        "dev.friendai.features.placements.minecraft.tool.PlacedTools",
+                        "dev.friendai.features.mining.minecraft.mining.BlockMatcher"),
                 edge("dev.friendai.features.instructions.SkillView", "dev.friendai.features.memory.MenuStatus"),
                 edge(
                         "dev.friendai.features.interaction.minecraft.task.ReachEntityTask",
@@ -487,6 +490,25 @@ class ArchitectureRulesTest {
                     assertTrue(
                             loader.getResource(resourceName) != null,
                             "Resource is absent from production classpath: " + resourceName);
+                }
+            }
+        }
+    }
+
+    @Test
+    void productionToolContributorsDeclareTheirOwnCatalogMetadata() throws IOException {
+        List<Path> sourceRoots = List.of(
+                PROJECT_ROOT.resolve("src/main/java/dev/friendai/features"),
+                PROJECT_ROOT.resolve("src/main/java/dev/friendai/server/agent/tools"),
+                PROJECT_ROOT.resolve("src/main/java/dev/friendai/server/execution/tools"));
+        for (Path sourceRoot : sourceRoots) {
+            try (Stream<Path> files = Files.walk(sourceRoot)) {
+                for (Path file : files.filter(
+                                path -> path.getFileName().toString().endsWith(".java"))
+                        .toList()) {
+                    assertFalse(
+                            Files.readString(file).contains("ToolCatalog.defaults()"),
+                            "Tool metadata must be declared by its contributor, not looked up centrally: " + file);
                 }
             }
         }
