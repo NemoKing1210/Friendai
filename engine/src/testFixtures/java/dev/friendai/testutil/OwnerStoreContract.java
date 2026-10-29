@@ -87,15 +87,17 @@ public final class OwnerStoreContract {
                     require(!Files.exists(h.file()) && h.queued() == 0, "missing file was written");
                     require(h.status().currentRevision() == h.status().savedRevision(), "fresh book is dirty");
                 }),
-                new Case("corruption backup allows recovery", Fault.NONE, h -> {
+                new Case("corruption backup preserves the original as read-only", Fault.NONE, h -> {
                     Files.writeString(h.file(), h.corruptInput());
                     h.read();
                     require(Files.readString(backup(h)).equals(h.corruptInput()), "backup lost original");
-                    require(h.status().readOnlyReason() == null, "successful recovery is read-only");
+                    require(
+                            h.status().readOnlyReason() == StoreReadOnlyReason.CORRUPT,
+                            "corrupt recovery was not marked read-only");
                     h.mutate();
                     h.flush();
-                    h.runNext();
-                    require(h.persistedMutations() == 1, "recovered book was not saved");
+                    require(h.queued() == 0, "corrupt recovery was queued for overwrite");
+                    require(Files.readString(h.file()).equals(h.corruptInput()), "corrupt original was overwritten");
                 }),
                 new Case("oversized input stays read-only", Fault.NONE, h -> {
                     Files.writeString(h.file(), h.oversizedInput());

@@ -42,19 +42,19 @@ class GoalSaveTest {
 
     @Test
     void brokenJsonDecodesToEmpty() {
-        assertTrue(GoalSave.decode("goals:v1:{", 3, 3).isEmpty());
+        assertTrue(GoalSave.decode("{", 3, 3).isEmpty());
         assertTrue(GoalSave.decode(null, 3, 3).isEmpty());
         assertTrue(GoalSave.decode("not a save", 3, 3).isEmpty());
     }
 
     @Test
     void unknownVersionDecodesToEmpty() {
-        assertTrue(GoalSave.decode("goals:v9:{\"goals\":[]}", 3, 3).isEmpty());
+        assertTrue(GoalSave.decode("{\"version\":9}", 3, 3).isEmpty());
     }
 
     @Test
     void oversizedInputDecodesToEmpty() {
-        String big = "goals:v1:{\"goals\":[],\"pad\":\"" + "x".repeat(40_000) + "\"}";
+        String big = "{\"goals\":[],\"pad\":\"" + "x".repeat(40_000) + "\"}";
         assertTrue(GoalSave.decode(big, 3, 3).isEmpty());
     }
 }

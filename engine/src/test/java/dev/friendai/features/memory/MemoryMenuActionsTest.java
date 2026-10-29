@@ -15,13 +15,30 @@ class MemoryMenuActionsTest {
     private static final MemoryLimits L = MemoryLimits.DEFAULTS;
 
     private final MemoryBook book = new MemoryBook();
+    private CompanionProfile profile = CompanionProfile.EMPTY;
+    private final CompanionProfileRepository profiles = new CompanionProfileRepository() {
+        @Override
+        public CompanionProfile profile(UUID owner) {
+            return profile;
+        }
+
+        @Override
+        public void save(UUID owner, CompanionProfile value) {
+            profile = value;
+        }
+
+        @Override
+        public long revision(UUID owner) {
+            return 0;
+        }
+    };
 
     private MemoryMenuActions actions(boolean enabled) {
-        return new MemoryMenuActions(book, O, "Steve", enabled, L, 5, this::online);
+        return new MemoryMenuActions(book, profiles, O, "Steve", enabled, L, 5, this::online);
     }
 
     private MemoryMenuActions actions(boolean enabled, MemoryLimits limits) {
-        return new MemoryMenuActions(book, O, "Steve", enabled, limits, 5, this::online);
+        return new MemoryMenuActions(book, profiles, O, "Steve", enabled, limits, 5, this::online);
     }
 
     private Optional<PlayerRef> online(UUID uuid) {
@@ -37,35 +54,35 @@ class MemoryMenuActionsTest {
         var s = actions(true).persona("  Calm  guide ");
         assertTrue(s.ok());
         assertEquals("friendai.menu.description.saved", s.message().key());
-        assertEquals(Optional.of("Calm guide"), book.persona());
+        assertEquals("Calm guide", profile.description().summary());
     }
 
     @Test
     void personaWorksWhenMemoryIsDisabled() {
         assertTrue(actions(false).persona("Calm guide").ok());
-        assertEquals(Optional.of("Calm guide"), book.persona());
+        assertEquals("Calm guide", profile.description().summary());
     }
 
     @Test
     void blankPersonaClears() {
-        book.setPersona("Calm guide");
+        actions(true).persona("Calm guide");
         var s = actions(true).persona("   ");
         assertTrue(s.ok());
         assertEquals("friendai.menu.description.cleared", s.message().key());
-        assertTrue(book.persona().isEmpty());
+        assertTrue(profile.description().summary().isEmpty());
     }
 
     @Test
     void badPersonaIsRefusedAndKeepsTheOldOne() {
-        book.setPersona("Calm guide");
+        actions(true).persona("Calm guide");
         for (String bad : new String[] {"§x", "y".repeat(PersonaText.MAX_LENGTH + 1)}) {
             var s = actions(true).persona(bad);
             assertEquals(false, s.ok());
             assertEquals("friendai.menu.description.invalid", s.message().key());
         }
-        assertEquals(Optional.of("Calm guide"), book.persona());
+        assertEquals("Calm guide", profile.description().summary());
         assertTrue(actions(true).persona("Line one\nline two").ok());
-        assertEquals(Optional.of("Line one line two"), book.persona());
+        assertEquals("Line one line two", profile.description().summary());
     }
 
     @Test

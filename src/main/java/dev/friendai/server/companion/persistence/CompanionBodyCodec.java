@@ -50,7 +50,9 @@ public final class CompanionBodyCodec {
         if (entity.level() instanceof ServerLevel serverLevel) {
             var persistence = FriendaiServerState.get(serverLevel.getServer()).taskPersistence();
             input.read("SavedExecution", Codec.STRING.listOf())
-                    .ifPresent(parts -> persistence.restoreEncoded(entity, parts));
+                    .ifPresentOrElse(
+                            parts -> persistence.restoreEncoded(entity, parts),
+                            () -> persistence.reconcileFreeTimePlan(entity));
         }
     }
 }

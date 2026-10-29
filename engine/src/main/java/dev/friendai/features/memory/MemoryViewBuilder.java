@@ -34,6 +34,19 @@ public final class MemoryViewBuilder {
             MemoryLimits limits,
             Optional<MenuStatus> status,
             String serverPersona) {
+        return build(book, owner, ownerName, online, enabled, limits, status, CompanionProfile.EMPTY, serverPersona);
+    }
+
+    public static MemoryView build(
+            MemoryBook book,
+            UUID owner,
+            String ownerName,
+            List<PlayerRef> online,
+            boolean enabled,
+            MemoryLimits limits,
+            Optional<MenuStatus> status,
+            CompanionProfile profile,
+            String serverPersona) {
         Map<UUID, String> onlineNames = new LinkedHashMap<>();
         for (PlayerRef ref : online) {
             onlineNames.put(ref.uuid(), ref.name());
@@ -94,9 +107,10 @@ public final class MemoryViewBuilder {
                 facts = new ArrayList<>(facts.subList(0, MemoryViewCodec.MAX_FACTS));
             }
         }
+        boolean customPersona = !profile.description().summary().isEmpty();
         MemoryView.PersonaView persona = new MemoryView.PersonaView(
-                book.persona().orElse(serverPersona == null ? "" : serverPersona),
-                book.persona().isPresent());
+                customPersona ? profile.description().summary() : serverPersona == null ? "" : serverPersona,
+                customPersona);
         return new MemoryView(enabled, limits, List.copyOf(groups), List.copyOf(facts), status, persona);
     }
 

@@ -6,8 +6,9 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * The companion's persistent intentions: at most one primary goal and a few background ones. Pure; the owner's
- * memory book stores the encoded form ({@link GoalSave}). Finished goals leave the board.
+ * The companion's persistent intentions: at most one primary goal and a few background ones. Pure; the
+ * {@link GoalRepository} persists the encoded form ({@link GoalSave}) in an independent goal record. Finished goals
+ * leave the board.
  */
 public final class GoalBoard {
     public static final int MAX_TEXT = 200;

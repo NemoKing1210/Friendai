@@ -174,7 +174,7 @@ const FLOW = {
 /* ---- memory & data + architecture cards ---- */
 const MEM_CARDS = [
   { title: "Per-owner files", sub: "<world>/friendai/ - one file per owner UUID, atomic writes, .bak recovery", wide: true,
-    hub: { label: "Owner data", icon: "🗂️", color: COLORS.amethyst, desc: "Each book has its own format version and revision. Debounced 5 s flush; unsupported versions are never overwritten." },
+    hub: { label: "Owner data", icon: "🗂️", color: COLORS.amethyst, desc: "Memory, profile, goals and free-time stores share one bounded runtime writer; it flushes latest-revision snapshots on a 5 s server-tick cadence. Unsupported versions are never overwritten." },
     color: COLORS.amethyst, items: [
       "~Memory|Facts about players, trust, learned language, food rules.", "~Companion profile|Name, description, language and address.", "~Goals|One primary and three background goals, lessons, replan budget.",
       "~Free time|Shifts, history, cooldowns, away summaries.", "~Instruction skills|Builtin, global and owner records.", "~Places|Named places with aliases, dimension and visits.",

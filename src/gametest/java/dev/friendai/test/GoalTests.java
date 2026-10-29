@@ -1,7 +1,6 @@
 package dev.friendai.test;
 
 import com.google.gson.JsonParser;
-import dev.friendai.agent.goal.GoalService;
 import dev.friendai.agent.llm.model.ToolCall;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
@@ -24,7 +23,7 @@ public class GoalTests {
     }
 
     @GameTest
-    public void set_goal_stores_the_goal_in_the_owners_book(GameTestHelper h) {
+    public void set_goal_stores_the_goal_in_the_owner_record(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
         CompanionEntity c = CompanionManager.get(h.getLevel().getServer()).summon(player);
@@ -40,7 +39,7 @@ public class GoalTests {
         h.assertTrue(
                 board.primary().get().criteria().get(0).check().isPresent(), "the guard criterion keeps its check");
         h.assertTrue(board.primary().get().criteria().get(1).check().isEmpty(), "the text criterion has no check");
-        h.assertTrue(state.memory().book(player.getUUID()).goals().isPresent(), "the book holds the encoded goals");
+        h.assertTrue(state.goalStore().status(player.getUUID()).currentRevision() > 0, "the goal record is dirty");
         h.succeed();
     }
 
@@ -58,11 +57,15 @@ public class GoalTests {
         manager.summon(player);
 
         var state = FriendaiServerState.get(h.getLevel().getServer());
-        GoalService fresh = new GoalService(state.memory()::book, () -> 3);
         h.assertTrue(
-                fresh.board(player.getUUID()).primary().isPresent()
-                        && fresh.board(player.getUUID()).primary().get().text().equals("build a house"),
-                "a board decoded from the book still has the goal");
+                state.goals().board(player.getUUID()).primary().isPresent()
+                        && state.goals()
+                                .board(player.getUUID())
+                                .primary()
+                                .get()
+                                .text()
+                                .equals("build a house"),
+                "the owner's board survives entity dismissal and summon");
         h.succeed();
     }
 

@@ -107,12 +107,13 @@ public final class MemoryViewStream {
                 state.config().memory.enabled,
                 state.config().memory.limits(),
                 status,
+                state.profiles().profile(uuid),
                 state.config().companion.description);
         if (ServerPlayNetworking.canSend(player, MemoryViewS2CPayload.TYPE)) {
             ServerPlayNetworking.send(
                     player,
                     new MemoryViewS2CPayload(MemoryViewCodec.encodeFitting(view, MemoryViewS2CPayload.MAX_BYTES)));
         }
-        state.memoryViewers().markSent(uuid, book.revision(), viewEpoch);
+        state.memoryViewers().markSent(uuid, book.revision() + state.profiles().revision(uuid), viewEpoch);
     }
 }

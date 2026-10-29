@@ -27,6 +27,7 @@ import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolRegistry;
 import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.features.instructions.minecraft.tool.SkillToolAccess;
+import dev.friendai.features.memory.CompanionProfileRepository;
 import dev.friendai.features.memory.MemoryActions;
 import dev.friendai.features.memory.MemoryLimits;
 import dev.friendai.features.memory.MemoryPromptRenderer;
@@ -72,6 +73,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
     private final MinecraftServer server;
     private final ServerBrainScheduler scheduler;
     private final MemoryStore memory;
+    private final CompanionProfileRepository profiles;
     private final Supplier<ServerSettings> settings;
     private final SkillService skills;
     private final GoalService goals;
@@ -99,6 +101,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
             MinecraftServer server,
             ServerConfig initial,
             MemoryStore memory,
+            CompanionProfileRepository profiles,
             Supplier<ServerSettings> settings,
             SkillService skills,
             GoalService goals,
@@ -112,6 +115,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
         this.server = server;
         this.scheduler = new ServerBrainScheduler(server);
         this.memory = memory;
+        this.profiles = profiles;
         this.settings = settings;
         this.skills = skills;
         this.goals = goals;
@@ -792,7 +796,9 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
         CompanionBrain brain = new CompanionBrain(
                 () -> new Persona(
                         companion.getName().getString(),
-                        memory.book(owner).persona().orElse(config.companion.description),
+                        profiles.profile(owner).description().summary().isEmpty()
+                                ? config.companion.description
+                                : profiles.profile(owner).description().summary(),
                         config.companion.language,
                         memory.book(owner).ownerLanguage(owner).orElse(null)),
                 () -> new BrainSettings(

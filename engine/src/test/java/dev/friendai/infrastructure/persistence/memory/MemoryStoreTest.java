@@ -29,6 +29,7 @@ class MemoryStoreTest {
         MemoryStore store = new MemoryStore(dir, () -> now[0]);
         assertTrue(store.book(A).trusted().isEmpty());
         assertFalse(Files.exists(dir.resolve(A + ".json")));
+        store.close();
     }
 
     @Test
@@ -41,8 +42,9 @@ class MemoryStoreTest {
         assertFalse(Files.exists(dir.resolve(A + ".json")));
         now[0] = 5_000;
         store.flushIfDue();
+        store.close();
         assertTrue(Files.exists(dir.resolve(A + ".json")));
-        assertFalse(store.book(A).isDirty());
+        assertFalse(store.status(A).dirty());
     }
 
     @Test
@@ -51,7 +53,10 @@ class MemoryStoreTest {
         MemoryStore store = new MemoryStore(dir, () -> now[0]);
         store.book(A).setTrusted(B, "Bob", true, 0);
         store.flushAll();
-        assertTrue(new MemoryStore(dir, () -> 0).book(A).isTrusted(B));
+        store.close();
+        MemoryStore reopened = new MemoryStore(dir, () -> 0);
+        assertTrue(reopened.book(A).isTrusted(B));
+        reopened.close();
     }
 
     @Test
@@ -63,6 +68,7 @@ class MemoryStoreTest {
         assertTrue(Files.exists(dir.resolve(A + ".json.bak")));
         assertTrue(store.takeCorruptionNotice(A));
         assertFalse(store.takeCorruptionNotice(A));
+        store.close();
     }
 
     @Test
@@ -71,9 +77,11 @@ class MemoryStoreTest {
         store.book(A)
                 .addFact(Subject.player(B), Category.PROFILE, "Builds farms", A, "Steve", 0, MemoryLimits.DEFAULTS);
         store.flushAll();
+        store.close();
         MemoryStore reopened = new MemoryStore(dir, () -> 0);
         assertEquals(1, reopened.book(A).allFacts().size());
         assertEquals("Builds farms", reopened.book(A).allFacts().get(0).text());
+        reopened.close();
     }
 
     @Test
@@ -82,39 +90,24 @@ class MemoryStoreTest {
         store.book(A).setFoodRule("minecraft:rotten_flesh", true);
         store.book(A).setFoodRule("minecraft:bread", false);
         store.flushAll();
+        store.close();
         MemoryStore reopened = new MemoryStore(dir, () -> 0);
         assertEquals(Optional.of(true), reopened.book(A).foodRule("minecraft:rotten_flesh"));
         assertEquals(Optional.of(false), reopened.book(A).foodRule("minecraft:bread"));
+        reopened.close();
     }
 
     @Test
-    void companionNamePersistsAcrossStores() {
-        MemoryStore store = new MemoryStore(dir, () -> 0);
-        store.book(A).setCompanionName("Bob");
-        store.flushAll();
-        MemoryStore reopened = new MemoryStore(dir, () -> 0);
-        assertEquals(Optional.of("Bob"), reopened.book(A).companionName());
-    }
-
-    @Test
-    void personaPersistsAcrossStores() {
-        MemoryStore store = new MemoryStore(dir, () -> 0);
-        store.book(A).setPersona("Calm guide");
-        store.flushAll();
-        assertEquals(
-                Optional.of("Calm guide"), new MemoryStore(dir, () -> 0).book(A).persona());
-    }
-
-    @Test
-    void unsupportedOldFileVersionIsBackedUpAndStartsEmpty() throws IOException {
+    void unsupportedFormatIsReadOnlyAndPreserved() throws IOException {
         Path file = dir.resolve(A + ".json");
-        Files.writeString(file, "{\"version\":3,\"persona\":\"legacy guide\"}");
+        Files.writeString(file, "{\"formatVersion\":3,\"revision\":2}");
 
         String old = Files.readString(file);
         MemoryStore store = new MemoryStore(dir, () -> 0L);
         assertThrows(UnsupportedStoreVersionException.class, () -> store.book(A));
         store.flushAll();
         assertEquals(old, Files.readString(file));
+        store.close();
     }
 
     @Test
@@ -125,6 +118,7 @@ class MemoryStoreTest {
         MemoryStore bad = new MemoryStore(blocker.resolve("memory"), () -> now[0]);
         bad.book(A).touch(B, "Bob", 0);
         assertDoesNotThrow(bad::flushAll);
-        assertTrue(bad.book(A).isDirty());
+        bad.close();
+        assertTrue(bad.status(A).dirty());
     }
 }

@@ -178,6 +178,7 @@ public final class OwnerFileStore<T> implements AutoCloseable {
                 return adopt(owner, fresh());
             }
             if (attempt.failure != null) return unreadable(owner);
+            readOnly.put(owner, StoreReadOnlyReason.CORRUPT);
             backup(owner, target);
             return adopt(owner, fresh());
         }

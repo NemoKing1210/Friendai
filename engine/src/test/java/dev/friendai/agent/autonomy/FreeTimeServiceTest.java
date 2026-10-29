@@ -5,17 +5,28 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import dev.friendai.features.memory.MemoryBook;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 class FreeTimeServiceTest {
     private static final UUID OWNER = UUID.fromString("00000000-0000-0000-0000-000000000001");
-    private final Map<UUID, MemoryBook> books = new HashMap<>();
-    private final FreeTimeService service = new FreeTimeService(id -> books.computeIfAbsent(id, x -> new MemoryBook()));
+    private final Map<UUID, FreeTime> saved = new HashMap<>();
+    private final FreeTimeRepository repository = new FreeTimeRepository() {
+        @Override
+        public FreeTime state(UUID owner) {
+            return saved.getOrDefault(owner, FreeTime.OFF);
+        }
+
+        @Override
+        public void save(UUID owner, FreeTime state) {
+            saved.put(owner, state);
+        }
+    };
+    private final FreeTimeService service = new FreeTimeService(repository);
 
     @Test
     void startStopRoundTrip() {
@@ -81,17 +92,9 @@ class FreeTimeServiceTest {
         service.start(OWNER, FreeTime.Origin.COMMAND, "wood", 0);
         service.beginShift(OWNER, "a", List.of(), "", NeedKind.STOCK, false, 1, 2);
         service.addLesson(OWNER, "no axe");
-        FreeTimeService fresh = new FreeTimeService(id -> books.get(id));
+        FreeTimeService fresh = new FreeTimeService(repository);
         assertEquals(service.state(OWNER), fresh.state(OWNER));
         assertEquals(List.of("no axe"), fresh.state(OWNER).lessons());
-    }
-
-    @Test
-    void corruptSaveIsOff() {
-        MemoryBook book = new MemoryBook();
-        book.setFreeTime("freetime:v1:{broken");
-        books.put(OWNER, book);
-        assertEquals(FreeTime.OFF, service.state(OWNER));
     }
 
     @Test
@@ -105,10 +108,38 @@ class FreeTimeServiceTest {
     @Test
     void updateSavesAnyChange() {
         service.update(OWNER, s -> AwaySummary.add(s, "hello"));
+        assertEquals(List.of("hello"), saved.get(OWNER).away());
+    }
+
+    @Test
+    void restoredShiftPlanIsKeptOnlyWhenTheExecutionPlanWasRestored() {
+        service.start(OWNER, FreeTime.Origin.COMMAND, "", 0);
+        service.beginShift(OWNER, "gather", List.of(), "", NeedKind.FARM, false, 1, 100);
+        service.linkPlan(OWNER, 42);
+
         assertEquals(
-                List.of("hello"),
-                FreeTimeSave.decode(books.get(OWNER).freeTime().orElseThrow())
-                        .orElseThrow()
-                        .away());
+                42,
+                service.reconcileRestoredPlan(OWNER, Set.of(42L)::contains)
+                        .shift()
+                        .planId());
+        assertNull(
+                service.reconcileRestoredPlan(OWNER, Set.<Long>of()::contains).shift());
+        assertTrue(service.reconcileRestoredPlan(OWNER, Set.<Long>of()::contains).history().stream()
+                .anyMatch(record -> !record.success()));
+    }
+
+    @Test
+    void restoredShiftWithoutAPlanIsClosedAsOrphaned() {
+        service.start(OWNER, FreeTime.Origin.COMMAND, "", 0);
+        service.beginShift(OWNER, "gather", List.of(), "", NeedKind.FARM, false, 1, 100);
+        FreeTime reconciled = service.reconcileRestoredPlan(OWNER, ignored -> false, 200);
+
+        assertNull(reconciled.shift());
+        assertEquals(1, reconciled.history().size());
+        assertFalse(reconciled.history().get(0).success());
+        assertEquals(
+                "the saved work plan was not restored",
+                reconciled.history().get(0).summary());
+        assertEquals(200, reconciled.history().get(0).endedMillis());
     }
 }

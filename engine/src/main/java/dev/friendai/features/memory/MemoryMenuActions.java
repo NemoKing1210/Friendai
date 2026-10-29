@@ -15,6 +15,7 @@ import java.util.function.Function;
  */
 public final class MemoryMenuActions {
     private final MemoryBook book;
+    private final CompanionProfileRepository profiles;
     private final UUID owner;
     private final String ownerName;
     private final boolean enabled;
@@ -30,7 +31,45 @@ public final class MemoryMenuActions {
             MemoryLimits limits,
             long now,
             Function<UUID, Optional<PlayerRef>> onlineById) {
+        this(
+                book,
+                new CompanionProfileRepository() {
+                    private CompanionProfile value = CompanionProfile.EMPTY;
+
+                    @Override
+                    public CompanionProfile profile(UUID ignored) {
+                        return value;
+                    }
+
+                    @Override
+                    public void save(UUID ignored, CompanionProfile profile) {
+                        value = profile;
+                    }
+
+                    @Override
+                    public long revision(UUID ignored) {
+                        return 0;
+                    }
+                },
+                owner,
+                ownerName,
+                enabled,
+                limits,
+                now,
+                onlineById);
+    }
+
+    public MemoryMenuActions(
+            MemoryBook book,
+            CompanionProfileRepository profiles,
+            UUID owner,
+            String ownerName,
+            boolean enabled,
+            MemoryLimits limits,
+            long now,
+            Function<UUID, Optional<PlayerRef>> onlineById) {
         this.book = book;
+        this.profiles = profiles;
         this.owner = owner;
         this.ownerName = ownerName;
         this.enabled = enabled;
@@ -138,11 +177,22 @@ public final class MemoryMenuActions {
      */
     public MenuStatus persona(String text) {
         if (text == null || text.isBlank()) {
-            book.clearPersona();
+            CompanionProfile profile = profiles.profile(owner);
+            profiles.save(
+                    owner, new CompanionProfile(profile.name(), CompanionDescription.EMPTY, profile.ownerProfile()));
             return ok("friendai.menu.description.cleared");
         }
         try {
-            book.setPersona(text);
+            String normalized =
+                    PersonaText.parse(text).orElseThrow(() -> new IllegalArgumentException("invalid persona"));
+            CompanionProfile profile = profiles.profile(owner);
+            profiles.save(
+                    owner,
+                    new CompanionProfile(
+                            profile.name(),
+                            new CompanionDescription(
+                                    normalized, profile.description().details()),
+                            profile.ownerProfile()));
             return ok("friendai.menu.description.saved");
         } catch (IllegalArgumentException e) {
             return error("friendai.menu.description.invalid");

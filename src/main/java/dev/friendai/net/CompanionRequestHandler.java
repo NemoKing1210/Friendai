@@ -192,6 +192,7 @@ public final class CompanionRequestHandler {
                 var cfg = state.config();
                 MemoryMenuActions actions = new MemoryMenuActions(
                         state.memory().book(owner),
+                        state.profiles(),
                         owner,
                         player.getName().getString(),
                         cfg.memory.enabled,

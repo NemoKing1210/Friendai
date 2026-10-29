@@ -1,33 +1,30 @@
 package dev.friendai.agent.autonomy;
 
-import dev.friendai.features.memory.MemoryBook;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.function.Function;
+import java.util.function.LongPredicate;
 import java.util.function.UnaryOperator;
 
 /**
- * One cached {@link FreeTime} per owner, stored as text in that owner's memory book so free time outlives the
- * companion entity and restarts. Every mutation saves. Server thread only.
+ * One cached {@link FreeTime} per owner, loaded and saved through {@link FreeTimeRepository} so free time outlives
+ * the companion entity and restarts. Every mutation saves. Server thread only.
  */
 public final class FreeTimeService {
-    private final Function<UUID, MemoryBook> books;
+    private final FreeTimeRepository repository;
     private final Map<UUID, FreeTime> states = new HashMap<>();
     private final Map<UUID, Long> lastEnd = new HashMap<>();
 
-    public FreeTimeService(Function<UUID, MemoryBook> books) {
-        this.books = books;
+    public FreeTimeService(FreeTimeRepository repository) {
+        this.repository = repository;
     }
 
-    /** The owner's state, decoded from the book on first use; a missing or broken save is {@link FreeTime#OFF}. */
+    /** The owner's state, loaded by the repository on first use; a missing or broken save is {@link FreeTime#OFF}. */
     public FreeTime state(UUID owner) {
-        return states.computeIfAbsent(
-                owner,
-                id -> books.apply(id).freeTime().flatMap(FreeTimeSave::decode).orElse(FreeTime.OFF));
+        return states.computeIfAbsent(owner, repository::state);
     }
 
     /** Turns free time on; when it is already on, only the wish changes. */
@@ -207,12 +204,25 @@ public final class FreeTimeService {
         });
     }
 
-    /** Applies a change and saves it into the owner's book. */
+    /** Applies a change and saves it through the repository. */
     public FreeTime update(UUID owner, UnaryOperator<FreeTime> change) {
         FreeTime next = change.apply(state(owner));
         states.put(owner, next);
-        books.apply(owner).setFreeTime(FreeTimeSave.encode(next));
+        repository.save(owner, next);
         return next;
+    }
+
+    /** Reconciles the saved shift only after its execution queue has finished restoring. */
+    public FreeTime reconcileRestoredPlan(UUID owner, LongPredicate restoredPlanExists) {
+        return reconcileRestoredPlan(owner, restoredPlanExists, System.currentTimeMillis());
+    }
+
+    public FreeTime reconcileRestoredPlan(UUID owner, LongPredicate restoredPlanExists, long nowMillis) {
+        FreeTime current = state(owner);
+        if (current.shift() == null
+                || current.shift().planId() != 0
+                        && restoredPlanExists.test(current.shift().planId())) return current;
+        return finishShift(owner, false, "the saved work plan was not restored", nowMillis);
     }
 
     private static List<ShiftRecord> withRecord(FreeTime s, boolean success, String summary, long now) {

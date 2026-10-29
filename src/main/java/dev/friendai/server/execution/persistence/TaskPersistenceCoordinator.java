@@ -191,6 +191,7 @@ public final class TaskPersistenceCoordinator {
                         factories,
                         planFactories,
                         activeTask);
+        reconcileFreeTimePlan(companion);
         if (creativeRejected)
             companion
                     .executionCoordinator()
@@ -211,14 +212,29 @@ public final class TaskPersistenceCoordinator {
         Optional<String> encoded = join(parts);
         if (encoded.isEmpty()) {
             FriendaiMod.LOGGER.warn("Discarding malformed saved execution for {}", companion.ownerUuid());
+            reconcileFreeTimePlan(companion);
             return new RestoreReport(List.of(), List.of("saved execution is malformed"));
         }
         Optional<SavedExecution> saved = decode(encoded.get());
         if (saved.isEmpty()) {
             FriendaiMod.LOGGER.warn(
                     "Discarding unsupported or malformed saved execution for {}", companion.ownerUuid());
+            reconcileFreeTimePlan(companion);
             return new RestoreReport(List.of(), List.of("saved execution format is unsupported"));
         }
         return restore(companion, saved.get());
+    }
+
+    /** Resolves persisted free-time state after a queue restore, including bodies with no saved queue. */
+    public void reconcileFreeTimePlan(CompanionEntity companion) {
+        UUID owner = companion.ownerUuid();
+        if (owner == null || companion.level().getServer() == null) return;
+        dev.friendai.core.FriendaiServerState.get(companion.level().getServer())
+                .freeTime()
+                .reconcileRestoredPlan(owner, id -> {
+                    var status = companion.executionCoordinator().queue().planStatus(id);
+                    return status == dev.friendai.execution.queue.PlanStatus.ACTIVE
+                            || status == dev.friendai.execution.queue.PlanStatus.NEEDS_DECISION;
+                });
     }
 }

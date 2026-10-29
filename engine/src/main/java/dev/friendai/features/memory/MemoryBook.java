@@ -19,16 +19,6 @@ public final class MemoryBook {
     private final TreeMap<Integer, Fact> facts = new TreeMap<>();
     /** Item id to allowed: true when the owner allowed a food the companion refuses by default, false to ban one. */
     private final TreeMap<String, Boolean> foodRules = new TreeMap<>();
-    /** The name the owner gave the companion; null means the configured default applies. */
-    private String companionName;
-    /** The personality the owner gave the companion; null means the configured default applies. */
-    private CompanionDescription description = CompanionDescription.EMPTY;
-
-    private OwnerProfile ownerProfile = OwnerProfile.EMPTY;
-    /** The encoded goal board; null when there are no goals. */
-    private String goals;
-    /** The encoded free-time state; null when free time was never used. */
-    private String freeTime;
 
     private int nextId = 1;
     private long revision;
@@ -142,94 +132,6 @@ public final class MemoryBook {
                 .filter(PlayerRecord::trusted)
                 .sorted(Comparator.comparing(PlayerRecord::lastName, String.CASE_INSENSITIVE_ORDER))
                 .toList();
-    }
-
-    /** The name the owner gave the companion, or empty when the configured default still applies. */
-    public Optional<String> companionName() {
-        return Optional.ofNullable(companionName);
-    }
-
-    /**
-     * Stores the owner's name for the companion. Returns whether it changed. The name is trimmed and checked by
-     * {@link CompanionName#parse}; an unusable name throws with a message written for the model.
-     */
-    public boolean setCompanionName(String name) {
-        String normalized = CompanionName.parse(name)
-                .orElseThrow(() -> new IllegalArgumentException("Invalid companion name. " + CompanionName.PROBLEM));
-        if (normalized.equals(companionName)) {
-            return false;
-        }
-        companionName = normalized;
-        dirty = true;
-        revision++;
-        return true;
-    }
-
-    /** The personality the owner gave the companion, or empty when the configured default still applies. */
-    public Optional<String> persona() {
-        return description.summary().isEmpty() ? Optional.empty() : Optional.of(description.summary());
-    }
-
-    /**
-     * Stores the owner's personality text. Returns whether it changed. The text is cleaned by
-     * {@link PersonaText#parse}; an unusable text throws and leaves the old value.
-     */
-    public boolean setPersona(String text) {
-        String normalized = PersonaText.parse(text)
-                .orElseThrow(() -> new IllegalArgumentException(
-                        "Invalid persona. Use 1-" + PersonaText.MAX_LENGTH + " characters, without formatting codes."));
-        if (normalized.equals(description.summary())) {
-            return false;
-        }
-        description = new CompanionDescription(normalized, description.details());
-        dirty = true;
-        revision++;
-        return true;
-    }
-
-    /** The encoded goal board, or empty when the companion has no goals. */
-    public Optional<String> goals() {
-        return Optional.ofNullable(goals);
-    }
-
-    /** Stores the encoded goal board (null or blank clears it). Returns whether it changed. */
-    public boolean setGoals(String encoded) {
-        String value = encoded == null || encoded.isBlank() ? null : encoded;
-        if (java.util.Objects.equals(value, goals)) {
-            return false;
-        }
-        goals = value;
-        dirty = true;
-        revision++;
-        return true;
-    }
-
-    /** The encoded free-time state, or empty when free time was never used. */
-    public Optional<String> freeTime() {
-        return Optional.ofNullable(freeTime);
-    }
-
-    /** Stores the encoded free-time state (null or blank clears it). Returns whether it changed. */
-    public boolean setFreeTime(String encoded) {
-        String value = encoded == null || encoded.isBlank() ? null : encoded;
-        if (java.util.Objects.equals(value, freeTime)) {
-            return false;
-        }
-        freeTime = value;
-        dirty = true;
-        revision++;
-        return true;
-    }
-
-    /** Returns to the configured default. True when a personality was set. */
-    public boolean clearPersona() {
-        if (description.summary().isEmpty()) {
-            return false;
-        }
-        description = new CompanionDescription("", description.details());
-        dirty = true;
-        revision++;
-        return true;
     }
 
     /** The owner's rule for one food: true if allowed, false if forbidden; empty when the default applies. */
@@ -455,40 +357,9 @@ public final class MemoryBook {
         dirty = false;
     }
 
-    public CompanionDescription description() {
-        return description;
-    }
-
-    public OwnerProfile ownerProfile() {
-        return ownerProfile;
-    }
-
-    public boolean setDescription(CompanionDescription value) {
-        java.util.Objects.requireNonNull(value);
-        if (value.equals(description)) return false;
-        description = value;
-        dirty = true;
-        revision++;
-        return true;
-    }
-
-    public boolean setOwnerProfile(OwnerProfile value) {
-        java.util.Objects.requireNonNull(value);
-        if (value.equals(ownerProfile)) return false;
-        ownerProfile = value;
-        dirty = true;
-        revision++;
-        return true;
-    }
-
     public MemoryFile toFile() {
         MemoryFile file = new MemoryFile();
         file.nextId = nextId;
-        file.companionName = companionName;
-        file.description = new MemoryFile.DescriptionEntry(description.summary(), description.details());
-        file.ownerProfile = new MemoryFile.OwnerProfileEntry(ownerProfile.language(), ownerProfile.address());
-        file.goals = goals;
-        file.freeTime = freeTime;
         for (Fact fact : facts.values()) {
             MemoryFile.FactEntry entry = new MemoryFile.FactEntry();
             entry.id = fact.id();
@@ -522,29 +393,6 @@ public final class MemoryBook {
     /** Loads a file, skipping entries whose UUID is missing or unparsable. The result is clean. */
     public static MemoryBook fromFile(MemoryFile file) {
         MemoryBook book = new MemoryBook();
-        if (file != null) {
-            CompanionName.parse(file.companionName).ifPresent(name -> book.companionName = name);
-            if (file.description != null) {
-                try {
-                    book.description = new CompanionDescription(file.description.summary(), file.description.details());
-                } catch (IllegalArgumentException ignored) {
-                    /* Keep other memory when description is malformed. */
-                }
-            }
-            if (file.ownerProfile != null) {
-                try {
-                    book.ownerProfile = new OwnerProfile(file.ownerProfile.language(), file.ownerProfile.address());
-                } catch (IllegalArgumentException ignored) {
-                    /* Keep unrelated memory. */
-                }
-            }
-            if (file.goals != null && !file.goals.isBlank()) {
-                book.goals = file.goals;
-            }
-            if (file.freeTime != null && !file.freeTime.isBlank()) {
-                book.freeTime = file.freeTime;
-            }
-        }
         if (file != null && file.players != null) {
             for (MemoryFile.PlayerEntry entry : file.players) {
                 if (entry == null || entry.uuid == null) {
@@ -594,6 +442,14 @@ public final class MemoryBook {
                 book.foodRules.put(entry.item, entry.allowed);
             }
         }
+        book.dirty = false;
+        return book;
+    }
+
+    /** Restores the monotonic persisted revision for an immutable target-format snapshot. */
+    public static MemoryBook fromRecord(MemoryRecord record) {
+        MemoryBook book = fromFile(record.toFile());
+        book.revision = Math.max(0, record.revision());
         book.dirty = false;
         return book;
     }

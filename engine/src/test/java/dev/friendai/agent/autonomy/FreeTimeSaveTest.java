@@ -53,11 +53,9 @@ class FreeTimeSaveTest {
     @Test
     void malformedIsEmpty() {
         assertTrue(FreeTimeSave.decode(null).isEmpty());
-        assertTrue(FreeTimeSave.decode("goals:v1:{}").isEmpty());
-        assertTrue(FreeTimeSave.decode("freetime:v1:{not json").isEmpty());
-        assertTrue(FreeTimeSave.decode("freetime:v1:{\"on\":true,\"origin\":\"SOMETHING\"}")
-                .isEmpty());
-        assertTrue(FreeTimeSave.decode("freetime:v1:" + "x".repeat(40_000)).isEmpty());
+        assertTrue(FreeTimeSave.decode("not json").isEmpty());
+        assertTrue(FreeTimeSave.decode("{\"on\":true,\"origin\":\"SOMETHING\"}").isEmpty());
+        assertTrue(FreeTimeSave.decode("x".repeat(40_000)).isEmpty());
     }
 
     @Test

@@ -306,7 +306,12 @@ public class CompanionDeathTests {
                         "Owner",
                         System.currentTimeMillis(),
                         MemoryLimits.DEFAULTS);
-        state.memory().book(ownerId).setCompanionName("Mira");
+        var profile = state.profiles().profile(ownerId);
+        state.profiles()
+                .save(
+                        ownerId,
+                        new dev.friendai.features.memory.CompanionProfile(
+                                "Mira", profile.description(), profile.ownerProfile()));
         state.goals().board(ownerId).set("gather oak", List.of(), false, tick);
         state.places()
                 .book(ownerId)
@@ -336,7 +341,7 @@ public class CompanionDeathTests {
                     state.memory().book(ownerId).allFacts().stream()
                             .anyMatch(fact -> fact.text().equals("the owner likes oak")),
                     "the memory fact must survive");
-            h.assertValueEqual(state.memory().book(ownerId).companionName().orElse(""), "Mira", "the name");
+            h.assertValueEqual(state.profiles().profile(ownerId).name(), "Mira", "the name");
             h.assertValueEqual(
                     back.get().getCustomName() == null
                             ? ""

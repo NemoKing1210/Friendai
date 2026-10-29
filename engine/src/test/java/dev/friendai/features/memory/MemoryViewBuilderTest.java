@@ -18,6 +18,7 @@ class MemoryViewBuilderTest {
     private static final MemoryLimits L = MemoryLimits.DEFAULTS;
 
     private final MemoryBook book = new MemoryBook();
+    private CompanionProfile profile = CompanionProfile.EMPTY;
 
     private MemoryView build(List<PlayerRef> online, boolean enabled, Optional<MenuStatus> status) {
         return MemoryViewBuilder.build(book, O, "Steve", online, enabled, L, status);
@@ -35,13 +36,13 @@ class MemoryViewBuilderTest {
     }
 
     private MemoryView.PersonaView personaFor(String serverDefault) {
-        return MemoryViewBuilder.build(book, O, "Steve", List.of(), true, L, Optional.empty(), serverDefault)
+        return MemoryViewBuilder.build(book, O, "Steve", List.of(), true, L, Optional.empty(), profile, serverDefault)
                 .persona();
     }
 
     @Test
     void viewShowsOwnPersonaAsCustom() {
-        book.setPersona("Calm guide");
+        profile = new CompanionProfile(null, new CompanionDescription("Calm guide", ""), OwnerProfile.EMPTY);
         assertEquals(new MemoryView.PersonaView("Calm guide", true), personaFor("Default"));
     }
 

@@ -10,9 +10,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-/** The versioned text form of a {@link FreeTime}: {@code freetime:v1:} followed by JSON. */
+/** JSON payload for a {@link FreeTime}; the owner record supplies its format version. */
 public final class FreeTimeSave {
-    public static final String PREFIX = "freetime:v1:";
     static final int MAX_INPUT = 32 * 1024;
 
     private FreeTimeSave() {}
@@ -45,17 +44,27 @@ public final class FreeTimeSave {
         state.cooldownUntil().forEach((need, until) -> cooldowns.addProperty(need.name(), until));
         root.add("cooldowns", cooldowns);
         root.add("away", strings(state.away()));
-        return PREFIX + root;
+        return root.toString();
+    }
+
+    /** New owner-file payload without the legacy in-memory prefix. */
+    public static String encodePayload(FreeTime state) {
+        return encode(state);
     }
 
     /** The state, or empty when the text is missing, from another version, oversized or broken. */
     public static Optional<FreeTime> decode(String saved) {
-        if (saved == null || saved.length() > MAX_INPUT || !saved.startsWith(PREFIX)) {
+        if (saved == null || saved.length() > MAX_INPUT) {
             return Optional.empty();
         }
+        return decodePayload(saved);
+    }
+
+    /** Decodes only the current JSON payload format used by the independent free-time record. */
+    public static Optional<FreeTime> decodePayload(String json) {
+        if (json == null || json.length() > MAX_INPUT) return Optional.empty();
         try {
-            JsonObject root =
-                    JsonParser.parseString(saved.substring(PREFIX.length())).getAsJsonObject();
+            JsonObject root = JsonParser.parseString(json).getAsJsonObject();
             List<ShiftRecord> history = new ArrayList<>();
             for (JsonElement e : root.getAsJsonArray("history")) {
                 JsonObject o = e.getAsJsonObject();

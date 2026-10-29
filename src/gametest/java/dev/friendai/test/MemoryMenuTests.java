@@ -7,7 +7,6 @@ import dev.friendai.features.memory.MemoryBook;
 import dev.friendai.foundation.limits.RateLimiter;
 import dev.friendai.net.CompanionRequestC2SPayload;
 import dev.friendai.net.CompanionRequestHandler;
-import java.util.Optional;
 import java.util.UUID;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -68,8 +67,8 @@ public class MemoryMenuTests {
         String text = "Persona " + UUID.randomUUID();
         CompanionRequestHandler.handle(a, new CompanionRequestC2SPayload(RequestType.PERSONA_SET, text, ""));
         h.assertTrue(
-                state.memory().book(a.getUUID()).persona().equals(Optional.of(text)),
-                "the persona should be in the sender's book");
+                state.profiles().profile(a.getUUID()).description().summary().equals(text),
+                "the persona should be in the sender's profile");
         var prompt = state.sessions().currentPrompt(a.getUUID());
         h.assertTrue(prompt.isPresent() && prompt.get().contains(text), "prompt: " + prompt);
         h.succeed();
@@ -84,7 +83,9 @@ public class MemoryMenuTests {
         String text = "Persona " + UUID.randomUUID();
         CompanionRequestHandler.handle(a, new CompanionRequestC2SPayload(RequestType.PERSONA_SET, text, ""));
         CompanionRequestHandler.handle(a, new CompanionRequestC2SPayload(RequestType.PERSONA_SET, "  ", ""));
-        h.assertTrue(state.memory().book(a.getUUID()).persona().isEmpty(), "the persona should be cleared");
+        h.assertTrue(
+                state.profiles().profile(a.getUUID()).description().summary().isEmpty(),
+                "the persona should be cleared");
         String prompt = state.sessions().currentPrompt(a.getUUID()).orElse("");
         h.assertTrue(prompt.contains(state.config().companion.description), "prompt: " + prompt);
         h.assertTrue(!prompt.contains(text), "the custom text should be gone: " + prompt);
@@ -99,7 +100,7 @@ public class MemoryMenuTests {
         CompanionRequestHandler.handle(a, new CompanionRequestC2SPayload(RequestType.PERSONA_SET, good, ""));
         CompanionRequestHandler.handle(a, new CompanionRequestC2SPayload(RequestType.PERSONA_SET, "§bad", ""));
         h.assertTrue(
-                state.memory().book(a.getUUID()).persona().equals(Optional.of(good)),
+                state.profiles().profile(a.getUUID()).description().summary().equals(good),
                 "a refused text must keep the old persona");
         h.succeed();
     }
@@ -111,8 +112,11 @@ public class MemoryMenuTests {
         var state = FriendaiServerState.get(h.getLevel().getServer());
         String text = "Persona " + UUID.randomUUID();
         CompanionRequestHandler.handle(a, new CompanionRequestC2SPayload(RequestType.PERSONA_SET, text, ""));
-        h.assertTrue(state.memory().book(a.getUUID()).persona().equals(Optional.of(text)), "A's book holds it");
-        h.assertTrue(state.memory().book(c.getUUID()).persona().isEmpty(), "C's book must stay without one");
+        h.assertTrue(
+                state.profiles().profile(a.getUUID()).description().summary().equals(text), "A's profile holds it");
+        h.assertTrue(
+                state.profiles().profile(c.getUUID()).description().summary().isEmpty(),
+                "C's profile must stay without one");
         h.succeed();
     }
 

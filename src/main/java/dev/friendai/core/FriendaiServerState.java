@@ -7,6 +7,7 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionLifeData;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.features.knowledge.KnowledgeLimits;
+import dev.friendai.features.memory.CompanionProfileRepository;
 import dev.friendai.features.memory.MemoryViewers;
 import dev.friendai.features.memory.PlayerRecord;
 import dev.friendai.features.memory.PlayerRef;
@@ -28,7 +29,10 @@ import dev.friendai.infrastructure.config.ConfigStore;
 import dev.friendai.infrastructure.config.ServerConfig;
 import dev.friendai.infrastructure.persistence.OwnerStoreWriter;
 import dev.friendai.infrastructure.persistence.appearance.SkinStore;
+import dev.friendai.infrastructure.persistence.autonomy.FreeTimeStore;
+import dev.friendai.infrastructure.persistence.goals.GoalStore;
 import dev.friendai.infrastructure.persistence.knowledge.KnowledgeStore;
+import dev.friendai.infrastructure.persistence.memory.CompanionProfileStore;
 import dev.friendai.infrastructure.persistence.memory.MemoryStore;
 import dev.friendai.infrastructure.persistence.placements.PlacedStore;
 import dev.friendai.infrastructure.persistence.places.PlaceStore;
@@ -56,6 +60,9 @@ public final class FriendaiServerState implements TradingToolAccess, TrustAccess
     private final TaskPersistenceCoordinator taskPersistence;
     private final CompanionChunkLoader chunkLoader;
     private final MemoryStore memory;
+    private final CompanionProfileStore profiles;
+    private final GoalStore goalStore;
+    private final FreeTimeStore freeTimeStore;
     private final SkillService skills;
     private final GoalService goals;
     private final dev.friendai.agent.autonomy.FreeTimeService freeTime;
@@ -94,17 +101,21 @@ public final class FriendaiServerState implements TradingToolAccess, TrustAccess
         this.configuration = new ServerConfiguration(
                 entry -> FriendaiMod.LOGGER.warn("Unknown pathing break blacklist entry: {}", entry));
         logProblems(configuration.apply(config));
-        this.memory = new MemoryStore(
-                server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("memory"),
-                System::currentTimeMillis);
-        resources.onClose(memory::flushAll);
+        this.memory = resources.own(new MemoryStore(
+                server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("memory"), writer));
+        this.profiles = resources.own(new CompanionProfileStore(
+                server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("profiles"), writer));
         this.skills = resources.own(new SkillService(
                 server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("skills"),
                 () -> this.config,
-                memory,
+                profiles,
                 writer));
-        this.goals = new GoalService(memory::book, () -> this.config.agent.maxReplans);
-        this.freeTime = new dev.friendai.agent.autonomy.FreeTimeService(memory::book);
+        this.goalStore = resources.own(new GoalStore(
+                server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("goals"), writer));
+        this.freeTimeStore = resources.own(new FreeTimeStore(
+                server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("free-time"), writer));
+        this.goals = new GoalService(goalStore, () -> this.config.agent.maxReplans);
+        this.freeTime = new dev.friendai.agent.autonomy.FreeTimeService(freeTimeStore);
         this.skins = new SkinStore(
                 server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("skins"));
         this.knowledge = resources.own(new KnowledgeStore(
@@ -137,6 +148,7 @@ public final class FriendaiServerState implements TradingToolAccess, TrustAccess
                 server,
                 config,
                 memory,
+                profiles,
                 this::settings,
                 skills,
                 goals,
@@ -203,23 +215,42 @@ public final class FriendaiServerState implements TradingToolAccess, TrustAccess
         return CompanionLifeData.get(server);
     }
 
-    /** The owners' goal boards, kept in their memory books. */
-    /** Each owner's free-time state, kept in their memory book. */
+    /** Each owner's free-time state, backed by its own versioned record. */
     public dev.friendai.agent.autonomy.FreeTimeService freeTime() {
         return freeTime;
     }
 
+    /** Per-owner goal boards, backed by independent versioned records. */
     public GoalService goals() {
         return goals;
     }
 
-    /** Per-owner memory books: trust, player records, food rules and the companion's name. */
+    public GoalStore goalStore() {
+        return goalStore;
+    }
+
+    public FreeTimeStore freeTimeStore() {
+        return freeTimeStore;
+    }
+
+    /** Instruction skills stored for each companion and for the server. */
     public SkillService skills() {
         return skills;
     }
 
+    /** Per-owner memory books: facts, trust and player records, learned language, and food rules. */
     public MemoryStore memory() {
         return memory;
+    }
+
+    /** Owner-authored companion identity and communication settings. */
+    public CompanionProfileRepository profiles() {
+        return profiles;
+    }
+
+    /** File-backed profile store, used by the server tick flush pipeline. */
+    public CompanionProfileStore profileStore() {
+        return profiles;
     }
 
     /** Custom companion skins, one per owner. */
@@ -343,7 +374,9 @@ public final class FriendaiServerState implements TradingToolAccess, TrustAccess
 
     /** The name the owner gave their companion, or the configured default. */
     public String companionName(UUID owner) {
-        return memory.book(owner).companionName().orElse(config.companion.name);
+        return profiles.profile(owner).name() == null
+                ? config.companion.name
+                : profiles.profile(owner).name();
     }
 
     /** Who has the memory tab open, and the last book revision each received. */
@@ -399,7 +432,7 @@ public final class FriendaiServerState implements TradingToolAccess, TrustAccess
     private void syncCompanionNames(ServerConfig cfg) {
         for (CompanionEntity companion : CompanionManager.get(server).all()) {
             UUID owner = companion.ownerUuid();
-            if (owner != null && memory.book(owner).companionName().isEmpty()) {
+            if (owner != null && profiles.profile(owner).name() == null) {
                 companion.applyName(cfg.companion.name);
             }
         }

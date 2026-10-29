@@ -78,66 +78,6 @@ class MemoryBookTest {
     }
 
     @Test
-    void personaRoundTripsAndMarksDirty() {
-        var b = new MemoryBook();
-        assertTrue(b.persona().isEmpty());
-        assertTrue(b.setPersona("  Calm  guide "));
-        assertEquals(Optional.of("Calm guide"), b.persona());
-        assertTrue(b.isDirty());
-        assertFalse(b.setPersona("Calm guide"));
-
-        var copy = MemoryBook.fromFile(b.toFile());
-        assertEquals(Optional.of("Calm guide"), copy.persona());
-        assertFalse(copy.isDirty());
-    }
-
-    @Test
-    void invalidPersonaIsRejectedAndKeepsOldValue() {
-        var b = new MemoryBook();
-        b.setPersona("Calm guide");
-        assertThrows(IllegalArgumentException.class, () -> b.setPersona("§x"));
-        assertThrows(IllegalArgumentException.class, () -> b.setPersona("  "));
-        assertEquals(Optional.of("Calm guide"), b.persona());
-    }
-
-    @Test
-    void clearPersonaResetsAndReportsChange() {
-        var b = new MemoryBook();
-        b.setPersona("Calm guide");
-        long before = b.revision();
-        assertTrue(b.clearPersona());
-        assertTrue(b.persona().isEmpty());
-        assertTrue(b.revision() > before);
-        long after = b.revision();
-        assertFalse(b.clearPersona());
-        assertEquals(after, b.revision());
-    }
-
-    @Test
-    void companionNameRoundTripsAndMarksDirty() {
-        var b = new MemoryBook();
-        assertTrue(b.companionName().isEmpty());
-        assertTrue(b.setCompanionName("  Bob  "));
-        assertEquals(Optional.of("Bob"), b.companionName());
-        assertTrue(b.isDirty());
-        assertFalse(b.setCompanionName("Bob"));
-
-        var copy = MemoryBook.fromFile(b.toFile());
-        assertEquals(Optional.of("Bob"), copy.companionName());
-        assertFalse(copy.isDirty());
-    }
-
-    @Test
-    void invalidCompanionNameIsRejected() {
-        var b = new MemoryBook();
-        assertEquals(
-                "Invalid companion name. " + CompanionName.PROBLEM,
-                assertThrows(IllegalArgumentException.class, () -> b.setCompanionName("  "))
-                        .getMessage());
-        assertTrue(b.companionName().isEmpty());
-    }
-
-    @Test
     void fromFileSkipsBadUuids() {
         var f = new MemoryFile();
         var e = new MemoryFile.PlayerEntry();

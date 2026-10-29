@@ -5,10 +5,14 @@ import static org.junit.jupiter.api.Assertions.*;
 import com.google.gson.JsonParser;
 import dev.friendai.execution.tool.*;
 import dev.friendai.features.instructions.*;
+import dev.friendai.features.memory.CompanionProfile;
+import dev.friendai.features.memory.CompanionProfileRepository;
+import dev.friendai.features.memory.OwnerProfile;
 import dev.friendai.foundation.teaching.TeachingContext;
 import dev.friendai.infrastructure.config.ServerConfig;
-import dev.friendai.infrastructure.persistence.memory.MemoryStore;
 import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -22,9 +26,9 @@ class SkillTeachingActionsTest {
         UUID owner = UUID.randomUUID();
         var config = ServerConfig.defaults();
         config.skills.enabled = false;
-        var memory = new MemoryStore(dir.resolve("memory"), () -> 0L);
-        memory.book(owner).setOwnerProfile(new dev.friendai.features.memory.OwnerProfile("ru", "Alex"));
-        try (var service = new SkillService(dir.resolve("skills"), () -> config, memory)) {
+        var profiles = new TestProfiles();
+        profiles.save(owner, new CompanionProfile(null, null, new OwnerProfile("ru", "Alex")));
+        try (var service = new SkillService(dir.resolve("skills"), () -> config, profiles, null)) {
             var ownerTurn = service.begin(
                     owner,
                     new Caller(owner, "Owner", AccessLevel.OWNER),
@@ -60,8 +64,7 @@ class SkillTeachingActionsTest {
         UUID owner = UUID.randomUUID();
         var config = ServerConfig.defaults();
         config.skills.ownerCount = 1;
-        try (var service = new SkillService(
-                dir.resolve("skills"), () -> config, new MemoryStore(dir.resolve("memory"), () -> 0L))) {
+        try (var service = new SkillService(dir.resolve("skills"), () -> config, new TestProfiles(), null)) {
             var actor = new SkillActor(owner, new Caller(owner, "Owner", AccessLevel.OWNER), false);
             var created = service.actions()
                     .apply(actor, SkillAction.create(SkillDraft.simple("One", "future-private-value")));
@@ -85,8 +88,7 @@ class SkillTeachingActionsTest {
         UUID owner = UUID.randomUUID();
         var caller = new Caller(owner, "Owner", AccessLevel.OWNER);
         var config = ServerConfig.defaults();
-        try (var service = new SkillService(
-                dir.resolve("skills"), () -> config, new MemoryStore(dir.resolve("memory"), () -> 0L))) {
+        try (var service = new SkillService(dir.resolve("skills"), () -> config, new TestProfiles(), null)) {
             var args = JsonParser.parseString(
                             "{\"action\":\"create\",\"name\":\"Material check\",\"body\":\"Inspect materials before planning.\"}")
                     .getAsJsonObject();
@@ -108,6 +110,27 @@ class SkillTeachingActionsTest {
                     service.teach(owner, caller, args).error(), "two successful writes consume the outcome allowance");
             service.setTeachingContextSource(id -> null);
             assertTrue(service.teach(owner, caller, args).error());
+        }
+    }
+
+    private static final class TestProfiles implements CompanionProfileRepository {
+        private final Map<UUID, CompanionProfile> profiles = new HashMap<>();
+        private final Map<UUID, Long> revisions = new HashMap<>();
+
+        @Override
+        public CompanionProfile profile(UUID owner) {
+            return profiles.getOrDefault(owner, CompanionProfile.EMPTY);
+        }
+
+        @Override
+        public void save(UUID owner, CompanionProfile profile) {
+            profiles.put(owner, profile);
+            revisions.merge(owner, 1L, Long::sum);
+        }
+
+        @Override
+        public long revision(UUID owner) {
+            return revisions.getOrDefault(owner, 0L);
         }
     }
 }

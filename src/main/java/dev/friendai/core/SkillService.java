@@ -9,7 +9,6 @@ import dev.friendai.foundation.teaching.TeachingContext;
 import dev.friendai.infrastructure.config.*;
 import dev.friendai.infrastructure.persistence.OwnerStoreWriter;
 import dev.friendai.infrastructure.persistence.instructions.SkillStore;
-import dev.friendai.infrastructure.persistence.memory.MemoryStore;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.util.*;
@@ -18,18 +17,15 @@ import java.util.function.*;
 /** Server-owned bridge; all calls are serialized by the server thread. */
 public final class SkillService implements AutoCloseable {
     private final Supplier<ServerConfig> config;
-    private final MemoryStore memory;
+    private final CompanionProfileRepository profiles;
     private final SkillStore store;
     private final UnaryOperator<String> redact;
     private final SkillActions actions;
 
-    public SkillService(Path dir, Supplier<ServerConfig> config, MemoryStore memory) {
-        this(dir, config, memory, null);
-    }
-
-    public SkillService(Path dir, Supplier<ServerConfig> config, MemoryStore memory, OwnerStoreWriter writer) {
+    public SkillService(
+            Path dir, Supplier<ServerConfig> config, CompanionProfileRepository profiles, OwnerStoreWriter writer) {
         this.config = config;
-        this.memory = memory;
+        this.profiles = profiles;
         redact = SecretRedactor.of(() -> config.get().profiles.values().stream()
                 .map(p -> SecretResolver.resolve(p.apiKey, System::getenv))
                 .toList());
@@ -102,10 +98,10 @@ public final class SkillService implements AutoCloseable {
             if (taskId.contains("build") || taskId.contains("place")) kinds.add(InstructionSkill.Kind.BUILDING);
             if (combat || taskId.contains("attack") || taskId.contains("combat"))
                 kinds.add(InstructionSkill.Kind.COMBAT);
-            MemoryBook book = memory.book(owner);
             boolean owns = caller != null && caller.access() == AccessLevel.OWNER && owner.equals(caller.uuid());
-            OwnerProfile profile = owns ? book.ownerProfile() : OwnerProfile.EMPTY;
-            CompanionDescription description = owns ? book.description() : CompanionDescription.EMPTY;
+            CompanionProfile stored = owns ? profiles.profile(owner) : CompanionProfile.EMPTY;
+            OwnerProfile profile = stored.ownerProfile();
+            CompanionDescription description = stored.description();
             SkillContext context = new SkillContext(
                     caller, message, taskId, kinds, owns && profile.language().equals("auto"), description, profile);
             return new SkillPromptSession(

@@ -36,8 +36,8 @@ public final class SkillRequestHandler {
                         o.get("summary").getAsString(), o.get("details").getAsString());
                 var profile = new OwnerProfile(
                         o.get("language").getAsString(), o.get("address").getAsString());
-                state.memory().book(p.getUUID()).setDescription(description);
-                state.memory().book(p.getUUID()).setOwnerProfile(profile);
+                var current = state.profiles().profile(p.getUUID());
+                state.profiles().save(p.getUUID(), new CompanionProfile(current.name(), description, profile));
                 return SkillActionResult.ok(null);
             }
             if (!state.config().skills.enabled

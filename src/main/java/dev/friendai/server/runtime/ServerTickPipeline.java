@@ -16,11 +16,13 @@ public final class ServerTickPipeline {
     private final MinecraftServer server;
     private final FriendaiServerState state;
     private final TraderRefreshService traderRefresh;
+    private final OwnerRecordFlush ownerRecordFlush;
 
     public ServerTickPipeline(MinecraftServer server, FriendaiServerState state, TraderRefreshService traderRefresh) {
         this.server = server;
         this.state = state;
         this.traderRefresh = traderRefresh;
+        this.ownerRecordFlush = new OwnerRecordFlush(state.profileStore(), state.goalStore(), state.freeTimeStore());
     }
 
     public void tick() {
@@ -37,6 +39,7 @@ public final class ServerTickPipeline {
         state.places().flushIfDue();
         state.placed().flushIfDue();
         state.trading().flushIfDue();
+        ownerRecordFlush.tick();
         DebugStream.tick(server);
         MemoryViewStream.tick(server);
         SkillsViewStream.tick(server);

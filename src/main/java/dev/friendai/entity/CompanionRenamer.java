@@ -2,6 +2,7 @@ package dev.friendai.entity;
 
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.features.memory.CompanionName;
+import dev.friendai.features.memory.CompanionProfile;
 import java.util.Optional;
 
 /** The one place a companion is renamed, shared by the {@code set_name} tool and the companion menu. */
@@ -27,10 +28,9 @@ public final class CompanionRenamer {
             return new Result(Outcome.NO_OWNER, null);
         }
         String name = parsed.get();
-        FriendaiServerState.get(companion.level().getServer())
-                .memory()
-                .book(companion.ownerUuid())
-                .setCompanionName(name);
+        var profiles = FriendaiServerState.get(companion.level().getServer()).profiles();
+        var profile = profiles.profile(companion.ownerUuid());
+        profiles.save(companion.ownerUuid(), new CompanionProfile(name, profile.description(), profile.ownerProfile()));
         companion.applyName(name);
         return new Result(Outcome.RENAMED, name);
     }

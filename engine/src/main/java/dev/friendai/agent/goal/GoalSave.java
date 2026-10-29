@@ -9,9 +9,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-/** The versioned text form of a {@link GoalBoard}: {@code goals:v1:} followed by JSON. */
+/** JSON payload for a {@link GoalBoard}; the owner record supplies its format version. */
 public final class GoalSave {
-    public static final String PREFIX = "goals:v1:";
     static final int MAX_INPUT = 32 * 1024;
 
     private GoalSave() {}
@@ -43,17 +42,27 @@ public final class GoalSave {
             array.add(g);
         }
         root.add("goals", array);
-        return PREFIX + root;
+        return root.toString();
+    }
+
+    /** New owner-file payload without the legacy in-memory prefix. */
+    public static String encodePayload(GoalBoard board) {
+        return encode(board);
     }
 
     /** The board, or empty when the text is missing, from another version, oversized or broken. */
     public static Optional<GoalBoard> decode(String saved, int maxBackground, int maxReplans) {
-        if (saved == null || saved.length() > MAX_INPUT || !saved.startsWith(PREFIX)) {
+        if (saved == null || saved.length() > MAX_INPUT) {
             return Optional.empty();
         }
+        return decodePayload(saved, maxBackground, maxReplans);
+    }
+
+    /** Decodes only the current JSON payload format used by the independent goal record. */
+    public static Optional<GoalBoard> decodePayload(String json, int maxBackground, int maxReplans) {
+        if (json == null || json.length() > MAX_INPUT) return Optional.empty();
         try {
-            JsonObject root =
-                    JsonParser.parseString(saved.substring(PREFIX.length())).getAsJsonObject();
+            JsonObject root = JsonParser.parseString(json).getAsJsonObject();
             List<Goal> goals = new ArrayList<>();
             for (JsonElement element : root.getAsJsonArray("goals")) {
                 JsonObject g = element.getAsJsonObject();

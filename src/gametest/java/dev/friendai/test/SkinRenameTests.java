@@ -36,10 +36,9 @@ public class SkinRenameTests {
 
     private static String storedName(GameTestHelper h, ServerPlayer owner) {
         return FriendaiServerState.get(h.getLevel().getServer())
-                .memory()
-                .book(owner.getUUID())
-                .companionName()
-                .orElse("");
+                .profiles()
+                .profile(owner.getUUID())
+                .name();
     }
 
     private static void rename(ServerPlayer owner, String name) {

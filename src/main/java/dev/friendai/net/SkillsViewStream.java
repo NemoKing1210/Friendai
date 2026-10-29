@@ -52,8 +52,10 @@ public final class SkillsViewStream {
         var service = state.skills();
         try {
             var local = service.store().book(p.getUUID());
-            var memory = state.memory().book(p.getUUID());
-            long revision = local.revision() + service.store().global().revision() + memory.revision();
+            var profile = state.profiles().profile(p.getUUID());
+            long revision = local.revision()
+                    + service.store().global().revision()
+                    + state.profiles().revision(p.getUUID());
             var view = SkillViewBuilder.build(
                     state.config().skills.enabled,
                     revision,
@@ -61,8 +63,8 @@ public final class SkillsViewStream {
                     local.disabledIds(),
                     query.page(),
                     query.selected(),
-                    memory.description(),
-                    memory.ownerProfile(),
+                    profile.description(),
+                    profile.ownerProfile(),
                     result);
             ServerPlayNetworking.send(
                     p, new SkillsViewS2CPayload(SkillViewCodec.encode(view.withResponseId(requestId))));

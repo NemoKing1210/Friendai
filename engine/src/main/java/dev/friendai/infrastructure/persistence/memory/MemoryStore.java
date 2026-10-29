@@ -1,95 +1,107 @@
 package dev.friendai.infrastructure.persistence.memory;
 
-import dev.friendai.features.memory.*;
-import dev.friendai.infrastructure.config.ConfigStore;
-import java.io.UncheckedIOException;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import dev.friendai.features.memory.MemoryBook;
+import dev.friendai.features.memory.MemoryRecord;
+import dev.friendai.features.memory.MemoryRepository;
+import dev.friendai.foundation.persistence.StoreCodec;
+import dev.friendai.foundation.persistence.StoreWriteStatus;
+import dev.friendai.foundation.persistence.UnsupportedStoreVersionException;
+import dev.friendai.infrastructure.persistence.OwnerFileStore;
+import dev.friendai.infrastructure.persistence.OwnerStoreWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.LongSupplier;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-/**
- * Loads, caches and persists one {@link MemoryBook} per owner. Dirty books are written at most once per
- * {@link #FLUSH_INTERVAL_MS}, and all of them on shutdown. Must be called on the server thread.
- */
-public final class MemoryStore {
-    public static final long FLUSH_INTERVAL_MS = 5_000;
-    private static final Logger LOGGER = LoggerFactory.getLogger("friendai/memory");
-
-    private record Loaded(MemoryBook book, ConfigStore<MemoryFile> store) {}
-
+/** Lazy owner memory cache with asynchronous snapshots through the runtime writer. Server thread only. */
+public final class MemoryStore implements MemoryRepository, AutoCloseable {
+    public static final long FLUSH_INTERVAL_MS = OwnerFileStore.FLUSH_INTERVAL_MS;
+    private static final Gson GSON =
+            new GsonBuilder().setPrettyPrinting().serializeNulls().create();
     private final Path dir;
     private final LongSupplier clock;
-    private final Map<UUID, Loaded> books = new HashMap<>();
+    private final OwnerFileStore<MemoryBook> store;
     private final Set<UUID> corruptionNotices = new HashSet<>();
-    private long lastFlush;
 
+    /** Standalone store for tests; it owns its writer. */
     public MemoryStore(Path dir, LongSupplier clock) {
         this.dir = dir;
         this.clock = clock;
+        this.store = OwnerFileStore.withWriterThread(dir, new Codec());
     }
 
-    /** The owner's book, loaded from disk on first use. A missing file gives an empty book and writes nothing. */
+    /** Production store borrows the single server-runtime writer. */
+    public MemoryStore(Path dir, OwnerStoreWriter writer) {
+        this.dir = dir;
+        this.clock = System::currentTimeMillis;
+        this.store = OwnerFileStore.Factory.borrowing(writer).create(dir, new Codec());
+    }
+
+    @Override
     public synchronized MemoryBook book(UUID owner) {
-        Loaded loaded = books.get(owner);
-        if (loaded != null) {
-            return loaded.book();
-        }
         Path file = dir.resolve(owner + ".json");
-        ConfigStore<MemoryFile> store = new ConfigStore<>(file, MemoryFile.class, MemoryFile::new, 5, (json, from) -> {
-            throw new dev.friendai.foundation.persistence.UnsupportedStoreVersionException();
-        });
-        MemoryBook book;
-        if (Files.exists(file)) {
-            book = MemoryBook.fromFile(store.load());
-            if (store.recoveredOnLastLoad()) {
-                corruptionNotices.add(owner);
-            }
-        } else {
-            book = new MemoryBook();
-        }
-        Loaded created = new Loaded(book, store);
-        books.put(owner, created);
+        Path backup = file.resolveSibling(file.getFileName() + ".bak");
+        boolean hadFile = Files.exists(file);
+        boolean hadBackup = Files.exists(backup);
+        MemoryBook book = store.book(owner);
+        if (hadFile && !hadBackup && Files.exists(backup)) corruptionNotices.add(owner);
         return book;
     }
 
-    /** True once after that owner's book was recovered from a corrupt file. */
     public synchronized boolean takeCorruptionNotice(UUID owner) {
         return corruptionNotices.remove(owner);
     }
 
-    /** Saves every dirty book if at least {@link #FLUSH_INTERVAL_MS} passed since the last flush. */
-    public synchronized void flushIfDue() {
-        long now = clock.getAsLong();
-        if (now - lastFlush < FLUSH_INTERVAL_MS) {
-            return;
+    public void flushIfDue() {
+        store.flushIfDue(clock.getAsLong());
+    }
+
+    public void flushIfDue(long nowMillis) {
+        store.flushIfDue(nowMillis);
+    }
+
+    public void flushAll() {
+        store.flushAll();
+    }
+
+    public StoreWriteStatus status(UUID owner) {
+        return store.status(owner);
+    }
+
+    @Override
+    public void close() {
+        store.close();
+    }
+
+    private static final class Codec implements StoreCodec<MemoryBook> {
+        private static final long MAX_BYTES = 8L * 1024 * 1024;
+
+        @Override
+        public MemoryBook load(String json) {
+            if (json == null) return new MemoryBook();
+            MemoryRecord record = GSON.fromJson(json, MemoryRecord.class);
+            if (record == null) throw new IllegalArgumentException("Empty memory file.");
+            if (record.formatVersion() != MemoryRecord.FORMAT_VERSION) throw new UnsupportedStoreVersionException();
+            return MemoryBook.fromRecord(record);
         }
-        lastFlush = now;
-        saveDirty();
-    }
 
-    /** Saves every dirty book now. */
-    public synchronized void flushAll() {
-        saveDirty();
-    }
+        @Override
+        public String save(MemoryBook book) {
+            return GSON.toJson(MemoryRecord.capture(book));
+        }
 
-    private void saveDirty() {
-        for (Loaded loaded : books.values()) {
-            if (!loaded.book().isDirty()) {
-                continue;
-            }
-            try {
-                loaded.store().save(loaded.book().toFile());
-                loaded.book().markClean();
-            } catch (UncheckedIOException e) {
-                LOGGER.warn("Could not save memory file {}", loaded.store().file(), e);
-            }
+        @Override
+        public long revision(MemoryBook book) {
+            return book.revision();
+        }
+
+        @Override
+        public long maxBytes() {
+            return MAX_BYTES;
         }
     }
 }

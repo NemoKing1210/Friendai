@@ -175,6 +175,26 @@ class OwnerStoreContractTest {
     }
 
     @Test
+    void corruptRecordIsReadOnlyAfterBackupAndCannotBeOverwritten() throws Exception {
+        UUID owner = UUID.randomUUID();
+        Path target = temp.resolve(owner + ".json");
+        String original = "not-a-counter";
+        Files.writeString(target, original);
+
+        try (OwnerStoreWriter writer = new OwnerStoreWriter(Runnable::run);
+                OwnerFileStore<Counter> store =
+                        new OwnerFileStore<>(temp, CODEC, writer, OwnerFileStore.WriterOwnership.BORROWED)) {
+            store.book(owner).increment();
+            assertEquals(StoreReadOnlyReason.CORRUPT, store.status(owner).readOnlyReason());
+            assertEquals(original, Files.readString(target));
+            assertEquals(original, Files.readString(target.resolveSibling(target.getFileName() + ".bak")));
+
+            store.flushAll();
+            assertEquals(original, Files.readString(target));
+        }
+    }
+
+    @Test
     void fileGrowthIsByteBoundedBeforeStreamingDecode() throws Exception {
         UUID owner = UUID.randomUUID();
         Path target = temp.resolve(owner + ".json");

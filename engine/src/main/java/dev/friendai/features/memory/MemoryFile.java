@@ -3,24 +3,9 @@ package dev.friendai.features.memory;
 import java.util.ArrayList;
 import java.util.List;
 
-/** The on-disk shape of a memory file. Gson POJO; keep field names stable for old saves. */
+/** Version-1 on-disk shape of memory facts and owner player records. */
 public final class MemoryFile {
-    public int version = 5;
     public int nextId = 1;
-    /** The name the owner gave their companion; null means the configured default. */
-    public String companionName;
-
-    public DescriptionEntry description;
-
-    public record DescriptionEntry(String summary, String details) {}
-
-    public OwnerProfileEntry ownerProfile;
-
-    public record OwnerProfileEntry(String language, String address) {}
-    /** The encoded goal board ({@code goals:v1:...}); null means no goals. */
-    public String goals;
-    /** The encoded free-time state ({@code freetime:v1:...}); null means free time was never used. */
-    public String freeTime;
 
     public List<PlayerEntry> players = new ArrayList<>();
     public List<FactEntry> facts = new ArrayList<>();

@@ -254,12 +254,8 @@ public class ToolTests {
                 "tag name was " + companion.getName().getString());
         h.assertTrue(companion.isCustomNameVisible(), "the name tag must be visible");
         h.assertTrue(
-                state.memory()
-                        .book(owner.getUUID())
-                        .companionName()
-                        .orElseThrow()
-                        .equals("Bob"),
-                "the name should be kept in the owner's book");
+                state.profiles().profile(owner.getUUID()).name().equals("Bob"),
+                "the name should be kept in the owner's profile");
 
         var prompt = state.sessions().currentPrompt(owner.getUUID());
         h.assertTrue(prompt.isPresent() && prompt.get().contains("You are Bob"), "prompt: " + prompt);

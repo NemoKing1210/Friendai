@@ -79,9 +79,10 @@ final class SkillCommands {
         var node = Commands.literal("description");
         node.then(Commands.literal("show").executes(ctx -> {
             var p = ctx.getSource().getPlayerOrException();
-            var book = FriendaiServerState.get(p.level().getServer()).memory().book(p.getUUID());
+            var profile =
+                    FriendaiServerState.get(p.level().getServer()).profiles().profile(p.getUUID());
             p.sendSystemMessage(
-                    Component.translatable("friendai.command.skills.result", new Gson().toJson(book.description())));
+                    Component.translatable("friendai.command.skills.result", new Gson().toJson(profile.description())));
             return 1;
         }));
         for (String op : new String[] {"set", "language", "address"}) {
@@ -90,14 +91,14 @@ final class SkillCommands {
                             .executes(ctx -> {
                                 var p = ctx.getSource().getPlayerOrException();
                                 String value = StringArgumentType.getString(ctx, "value");
-                                var book = FriendaiServerState.get(p.level().getServer())
-                                        .memory()
-                                        .book(p.getUUID());
+                                var profile = FriendaiServerState.get(p.level().getServer())
+                                        .profiles()
+                                        .profile(p.getUUID());
                                 JsonObject o = new JsonObject();
-                                o.addProperty("summary", book.description().summary());
-                                o.addProperty("details", book.description().details());
-                                o.addProperty("language", book.ownerProfile().language());
-                                o.addProperty("address", book.ownerProfile().address());
+                                o.addProperty("summary", profile.description().summary());
+                                o.addProperty("details", profile.description().details());
+                                o.addProperty("language", profile.ownerProfile().language());
+                                o.addProperty("address", profile.ownerProfile().address());
                                 try {
                                     if (value.length() > 32768) throw new IllegalArgumentException();
                                     if (op.equals("set")) {
@@ -115,12 +116,13 @@ final class SkillCommands {
         }
         node.then(Commands.literal("clear").executes(ctx -> {
             var p = ctx.getSource().getPlayerOrException();
-            var book = FriendaiServerState.get(p.level().getServer()).memory().book(p.getUUID());
+            var profile =
+                    FriendaiServerState.get(p.level().getServer()).profiles().profile(p.getUUID());
             JsonObject o = new JsonObject();
             o.addProperty("summary", "");
             o.addProperty("details", "");
-            o.addProperty("language", book.ownerProfile().language());
-            o.addProperty("address", book.ownerProfile().address());
+            o.addProperty("language", profile.ownerProfile().language());
+            o.addProperty("address", profile.ownerProfile().address());
             return descriptionResult(p, o);
         }));
         return node;
