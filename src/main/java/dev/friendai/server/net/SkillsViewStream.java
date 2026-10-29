@@ -28,6 +28,20 @@ public final class SkillsViewStream {
         queries(p.level().getServer()).put(p.getUUID(), new Query(page, selected));
     }
 
+    /** Changes only the catalogue page; the current selection and its detail stay valid. */
+    public static void page(ServerPlayer p, int page) {
+        Map<UUID, Query> map = queries(p.level().getServer());
+        Query current = map.get(p.getUUID());
+        if (current != null) map.put(p.getUUID(), new Query(page, current.selected()));
+    }
+
+    /** Changes only the selection; the current page is retained. */
+    public static void select(ServerPlayer p, String selected) {
+        Map<UUID, Query> map = queries(p.level().getServer());
+        Query current = map.get(p.getUUID());
+        if (current != null) map.put(p.getUUID(), new Query(current.page(), selected));
+    }
+
     public static void open(ServerRuntime runtime, ServerPlayer p, int page, String selected) {
         subscribe(p, page, selected);
         sendNow(runtime, p, null);
@@ -35,6 +49,18 @@ public final class SkillsViewStream {
 
     public static void close(ServerPlayer p) {
         queries(p.level().getServer()).remove(p.getUUID());
+    }
+
+    /** Current catalogue page of an open subscription; zero when the player has none. */
+    public static int pageOf(ServerPlayer p) {
+        Query query = queries(p.level().getServer()).get(p.getUUID());
+        return query == null ? 0 : query.page();
+    }
+
+    /** Current selected skill id of an open subscription; empty when the player has none selected. */
+    public static String selectionOf(ServerPlayer p) {
+        Query query = queries(p.level().getServer()).get(p.getUUID());
+        return query == null ? "" : query.selected();
     }
 
     public static void sendNow(ServerRuntime runtime, ServerPlayer p, SkillActionResult result) {

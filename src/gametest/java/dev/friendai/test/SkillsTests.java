@@ -90,12 +90,16 @@ public class SkillsTests {
                 "approved procedure reaches the next turn");
         state.skills().store().flushAll();
         var dir = server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("skills");
-        try (var reloaded = new SkillStore(dir, SkillLimits.defaults(), text -> text)) {
-            h.assertTrue(
-                    reloaded.book(owner).find(s.id()).orElseThrow().activation() == InstructionSkill.Activation.ACTIVE,
-                    "approval survives disk round-trip");
-        }
-        h.succeed();
+        h.succeedWhen(() -> {
+            // flushAll only queues the snapshot; wait for the writer before reopening the store.
+            if (state.skills().store().status(owner).dirty()) return;
+            try (var reloaded = new SkillStore(dir, SkillLimits.defaults(), text -> text)) {
+                h.assertTrue(
+                        reloaded.book(owner).find(s.id()).orElseThrow().activation()
+                                == InstructionSkill.Activation.ACTIVE,
+                        "approval survives disk round-trip");
+            }
+        });
     }
 
     // GameTest ticks are faster than the brain's 500 ms wall-clock turn cooldown.
@@ -144,5 +148,137 @@ public class SkillsTests {
             h.assertTrue(systems.size() >= 2, "waiting for second request");
             h.assertTrue(!systems.get(1).contains("LIVE_TOGGLE_SENTINEL"), "next turn omits disabled procedure");
         });
+    }
+
+    // Typed dispatch: the handler must map the wire request itself, not a legacy JSON envelope.
+    @GameTest(maxTicks = 80)
+    public void typedCreateEditDeleteReachTheOwnerBook(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        var player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        var owner = player.getUUID();
+        var state = GameTestSupport.runtime(h.getLevel().getServer());
+        var book = state.skills().store().book(owner);
+        SkillDraft draft = new SkillDraft(
+                "Typed procedure",
+                "typed description",
+                "TYPED_BODY",
+                true,
+                false,
+                Set.of(InstructionSkill.Kind.CHAT),
+                List.of("when asked"),
+                List.of("typed"),
+                true);
+        SkillDraft edited = new SkillDraft(
+                "Typed procedure",
+                "typed description",
+                "TYPED_EDITED",
+                true,
+                false,
+                Set.of(InstructionSkill.Kind.CHAT),
+                List.of("when asked"),
+                List.of("typed"),
+                true);
+        String[] id = new String[1];
+        h.runAfterDelay(2, () -> {
+            TestMenuRequests.handle(player, new InstructionRequest.Create(draft, false));
+            h.assertTrue(book.snapshot().size() == 1, "typed create must store the draft");
+            var saved = book.snapshot().getFirst();
+            h.assertTrue(saved.draft().equals(draft), "every submitted draft field survives typed mapping");
+            id[0] = saved.id();
+            h.runAfterDelay(2, () -> {
+                TestMenuRequests.handle(player, new InstructionRequest.Edit(id[0], 1, edited, false));
+                var changed = book.find(id[0]).orElseThrow();
+                h.assertTrue(changed.draft().equals(edited), "typed edit stores the new draft");
+                h.assertTrue(changed.version() == 2, "typed edit advances the record version");
+                h.runAfterDelay(2, () -> {
+                    TestMenuRequests.handle(player, new InstructionRequest.Delete(id[0], 2, false));
+                    h.assertTrue(book.snapshot().isEmpty(), "typed delete removes the record");
+                    h.succeed();
+                });
+            });
+        });
+    }
+
+    @GameTest(maxTicks = 80)
+    public void typedGlobalScopeRequiresOperatorAndLeavesLocalBookUnchanged(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        var player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        var owner = player.getUUID();
+        var state = GameTestSupport.runtime(h.getLevel().getServer());
+        var local = state.skills()
+                .store()
+                .book(owner)
+                .create(
+                        SkillDraft.simple("Local only", "LOCAL_SENTINEL"),
+                        InstructionSkill.Source.OWNER,
+                        owner,
+                        1,
+                        false);
+        h.runAfterDelay(2, () -> {
+            TestMenuRequests.handle(player, new InstructionRequest.Delete(local.id(), 1, true));
+            h.assertTrue(
+                    state.skills().store().book(owner).find(local.id()).isPresent(),
+                    "a nonoperator global delete must not remove the local record");
+            h.assertTrue(
+                    state.skills().store().global().snapshot().isEmpty(),
+                    "a nonoperator global delete must not touch the global book");
+            h.runAfterDelay(2, () -> {
+                TestMenuRequests.handle(
+                        player, new InstructionRequest.Create(SkillDraft.simple("Global", "GLOBAL_SENTINEL"), true));
+                h.assertTrue(
+                        state.skills().store().global().snapshot().isEmpty(),
+                        "a nonoperator global create must be rejected");
+                h.assertTrue(
+                        state.skills().store().book(owner).snapshot().size() == 1,
+                        "a rejected global create must not fall back to the local book");
+                h.succeed();
+            });
+        });
+    }
+
+    @GameTest(maxTicks = 80)
+    public void typedBuiltinOverrideChangesEffectiveState(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        var player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        var owner = player.getUUID();
+        var state = GameTestSupport.runtime(h.getLevel().getServer());
+        String builtin = "builtin:autonomy";
+        h.runAfterDelay(2, () -> {
+            TestMenuRequests.handle(player, new InstructionRequest.Disable(builtin, 1, false));
+            h.assertTrue(
+                    !state.skills().actions().enabled(owner, builtin),
+                    "typed disable hides the builtin from the effective catalogue");
+            h.runAfterDelay(2, () -> {
+                TestMenuRequests.handle(player, new InstructionRequest.Enable(builtin, 1, false));
+                h.assertTrue(
+                        state.skills().actions().enabled(owner, builtin),
+                        "typed enable restores the builtin to the effective catalogue");
+                h.succeed();
+            });
+        });
+    }
+
+    @GameTest(maxTicks = 60)
+    public void cataloguePageAndSelectionSubscriptionsAreIndependent(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        var player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        String builtin = "builtin:autonomy";
+        TestMenuRequests.handle(player, new InstructionRequest.Open());
+        TestMenuRequests.handle(player, new InstructionRequest.Page(1));
+        h.assertTrue(
+                dev.friendai.server.net.SkillsViewStream.pageOf(player) == 1,
+                "page request must move the catalogue to the requested page");
+        TestMenuRequests.handle(player, new InstructionRequest.Detail(builtin));
+        h.assertTrue(
+                dev.friendai.server.net.SkillsViewStream.pageOf(player) == 1, "selection must keep the current page");
+        h.assertTrue(
+                builtin.equals(dev.friendai.server.net.SkillsViewStream.selectionOf(player)),
+                "selection request must select the requested skill");
+        TestMenuRequests.handle(player, new InstructionRequest.Page(0));
+        h.assertTrue(dev.friendai.server.net.SkillsViewStream.pageOf(player) == 0, "page request must change the page");
+        h.assertTrue(
+                builtin.equals(dev.friendai.server.net.SkillsViewStream.selectionOf(player)),
+                "page request must keep the current selection");
+        h.succeed();
     }
 }

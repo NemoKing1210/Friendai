@@ -23,9 +23,14 @@ final class SkillsTab extends StatefulMenuTab {
         CompanionRequests.skills("open", "{}");
     }
 
-    private void query(int page, String id) {
+    private void queryPage(int page) {
         JsonObject o = new JsonObject();
         o.addProperty("page", page);
+        CompanionRequests.skills("page", o.toString());
+    }
+
+    private void select(String id) {
+        JsonObject o = new JsonObject();
         o.addProperty("id", id);
         CompanionRequests.skills("detail", o.toString());
     }
@@ -71,7 +76,7 @@ final class SkillsTab extends StatefulMenuTab {
                         selected = list.get(index).id();
                         deleteArmed = "";
                         model.select(selected);
-                        query(state.skillsView().map(SkillView::page).orElse(0), selected);
+                        select(selected);
                     })
                     .bounds(left, top + 27 + i * 23, listWidth, 20)
                     .build()));
@@ -97,13 +102,13 @@ final class SkillsTab extends StatefulMenuTab {
                 .build());
         host.add(Button.builder(Component.translatable("friendai.menu.skills.previous"), b -> {
                     offset = 0;
-                    query(Math.max(0, model.view().map(SkillView::page).orElse(0) - 1), selected);
+                    queryPage(Math.max(0, model.view().map(SkillView::page).orElse(0) - 1));
                 })
                 .bounds(left, bottom - 23, Math.max(40, (listWidth - 4) / 2), 20)
                 .build());
         host.add(Button.builder(Component.translatable("friendai.menu.skills.next"), b -> {
                     offset = 0;
-                    query(model.view().map(SkillView::page).orElse(0) + 1, selected);
+                    queryPage(model.view().map(SkillView::page).orElse(0) + 1);
                 })
                 .bounds(left + (listWidth + 4) / 2, bottom - 23, Math.max(40, (listWidth - 4) / 2), 20)
                 .build());

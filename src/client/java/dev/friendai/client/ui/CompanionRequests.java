@@ -68,10 +68,7 @@ public final class CompanionRequests {
             InstructionRequest request = switch (operation) {
                 case "open" -> new InstructionRequest.Open();
                 case "page" -> new InstructionRequest.Page(integer(body, "page", 0));
-                case "detail" -> {
-                    if (body.has("page")) send(new InstructionRequest.Page(integer(body, "page", 0)));
-                    yield new InstructionRequest.Detail(id);
-                }
+                case "detail" -> new InstructionRequest.Detail(id);
                 case "close" -> new InstructionRequest.Close();
                 case "create" -> new InstructionRequest.Create(GSON.fromJson(json, SkillDraft.class), serverScope);
                 case "edit" ->

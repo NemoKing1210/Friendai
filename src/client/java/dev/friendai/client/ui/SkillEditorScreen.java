@@ -332,8 +332,9 @@ final class SkillEditorScreen extends Screen {
         JsonObject o = new JsonObject();
         o.addProperty("id", current.id());
         o.addProperty("expectedVersion", current.version());
-        awaitingAction = operation;
-        model.awaitResponse(CompanionRequests.skills(operation, o.toString()));
+        String requested = operation.equals("toggle") ? (current.enabled() ? "disable" : "enable") : operation;
+        awaitingAction = requested;
+        model.awaitResponse(CompanionRequests.skills(requested, o.toString()));
         deleteArmed = false;
     }
 

@@ -4,6 +4,7 @@ import com.google.gson.*;
 import dev.friendai.execution.tool.*;
 import dev.friendai.features.instructions.*;
 import dev.friendai.features.memory.*;
+import dev.friendai.protocol.instructions.InstructionActions;
 import dev.friendai.protocol.instructions.InstructionRequest;
 import dev.friendai.server.runtime.ServerRuntime;
 import java.util.*;
@@ -52,12 +53,18 @@ public final class SkillRequestHandler {
         }
         boolean limited = !runtime.protocolConnections().allowSkillRequest(p.getUUID());
         try {
-            if (request instanceof InstructionRequest.Open
-                    || request instanceof InstructionRequest.Page
-                    || request instanceof InstructionRequest.Detail) {
-                int page = request instanceof InstructionRequest.Page pageRequest ? pageRequest.page() : 0;
-                String id = request instanceof InstructionRequest.Detail detail ? detail.skillId() : "";
-                SkillsViewStream.subscribe(p, page, id);
+            if (request instanceof InstructionRequest.Open) {
+                SkillsViewStream.subscribe(p, 0, "");
+                if (!limited) SkillsViewStream.sendNow(runtime, p, null, requestId);
+                return;
+            }
+            if (request instanceof InstructionRequest.Page page) {
+                SkillsViewStream.page(p, page.page());
+                if (!limited) SkillsViewStream.sendNow(runtime, p, null, requestId);
+                return;
+            }
+            if (request instanceof InstructionRequest.Detail detail) {
+                SkillsViewStream.select(p, detail.skillId());
                 if (!limited) SkillsViewStream.sendNow(runtime, p, null, requestId);
                 return;
             }
@@ -65,68 +72,40 @@ public final class SkillRequestHandler {
                 SkillsViewStream.sendNow(runtime, p, SkillActionResult.error(), requestId);
                 return;
             }
-            ActionRequest action = action(request);
+            if (request instanceof InstructionRequest.DescriptionSet description) {
+                saveDescription(
+                        runtime,
+                        p,
+                        new CompanionDescription(description.summary(), description.details()),
+                        new OwnerProfile(description.languageTag(), description.address()));
+                SkillsViewStream.sendNow(runtime, p, SkillActionResult.ok(null), requestId);
+                return;
+            }
+            SkillAction action = InstructionActions.toAction(request);
             if (action == null) return;
-            SkillActionResult result = apply(runtime, p, action.operation(), action.json());
+            SkillActionResult result = apply(runtime, p, action);
             SkillsViewStream.sendNow(runtime, p, result, requestId);
         } catch (RuntimeException | StackOverflowError e) {
             SkillsViewStream.sendNow(runtime, p, SkillActionResult.error(), requestId);
         }
     }
 
-    private static ActionRequest action(InstructionRequest request) {
-        JsonObject body = new JsonObject();
-        String operation;
-        if (request instanceof InstructionRequest.Create create) {
-            operation = "create";
-            body.add("draft", new Gson().toJsonTree(create.draft()));
-            body.addProperty("serverScope", create.serverScope());
-        } else if (request instanceof InstructionRequest.Edit edit) {
-            operation = "edit";
-            action(body, edit.skillId(), edit.expectedVersion(), edit.serverScope());
-            body.add("draft", new Gson().toJsonTree(edit.draft()));
-        } else if (request instanceof InstructionRequest.Duplicate duplicate) {
-            operation = "duplicate";
-            action(body, duplicate.skillId(), duplicate.expectedVersion(), duplicate.serverScope());
-        } else if (request instanceof InstructionRequest.Delete delete) {
-            operation = "delete";
-            action(body, delete.skillId(), delete.expectedVersion(), delete.serverScope());
-        } else if (request instanceof InstructionRequest.Enable enable) {
-            operation = "enable";
-            action(body, enable.skillId(), enable.expectedVersion(), enable.serverScope());
-        } else if (request instanceof InstructionRequest.Disable disable) {
-            operation = "disable";
-            action(body, disable.skillId(), disable.expectedVersion(), disable.serverScope());
-        } else if (request instanceof InstructionRequest.Approve approve) {
-            operation = "approve";
-            action(body, approve.skillId(), approve.expectedVersion(), approve.serverScope());
-        } else if (request instanceof InstructionRequest.Reject reject) {
-            operation = "reject";
-            action(body, reject.skillId(), reject.expectedVersion(), reject.serverScope());
-        } else if (request instanceof InstructionRequest.Export export) {
-            operation = "export";
-            action(body, export.skillId(), export.expectedVersion(), export.serverScope());
-        } else if (request instanceof InstructionRequest.Import imported) {
-            operation = "import";
-            body.add("draft", new Gson().toJsonTree(imported.draft()));
-            body.addProperty("serverScope", imported.serverScope());
-        } else if (request instanceof InstructionRequest.DescriptionSet description) {
-            operation = "description";
-            body.addProperty("summary", description.summary());
-            body.addProperty("details", description.details());
-            body.addProperty("language", description.languageTag());
-            body.addProperty("address", description.address());
-        } else {
-            return null;
-        }
-        return new ActionRequest(operation, new Gson().toJson(body));
+    /** Applies a typed action for the authenticated sender; global authority stays in the domain check. */
+    public static SkillActionResult apply(ServerRuntime runtime, ServerPlayer p, SkillAction action) {
+        if (!runtime.config().skills.enabled && !allowedWhileDisabled(action.operation()))
+            return SkillActionResult.error();
+        return runtime.skills().actions().apply(actor(p), action);
     }
 
-    private static void action(JsonObject body, String id, int expectedVersion, boolean serverScope) {
-        body.addProperty("id", id);
-        body.addProperty("expectedVersion", expectedVersion);
-        body.addProperty("serverScope", serverScope);
+    private static boolean allowedWhileDisabled(SkillAction.Operation operation) {
+        return operation == SkillAction.Operation.EXPORT
+                || operation == SkillAction.Operation.DELETE
+                || operation == SkillAction.Operation.REJECT;
     }
 
-    private record ActionRequest(String operation, String json) {}
+    private static void saveDescription(
+            ServerRuntime runtime, ServerPlayer p, CompanionDescription description, OwnerProfile profile) {
+        var current = runtime.profiles().profile(p.getUUID());
+        runtime.profiles().save(p.getUUID(), new CompanionProfile(current.name(), description, profile));
+    }
 }

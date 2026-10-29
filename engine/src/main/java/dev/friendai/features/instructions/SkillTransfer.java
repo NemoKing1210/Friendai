@@ -25,7 +25,12 @@ public final class SkillTransfer {
     }
 
     public static String write(InstructionSkill skill) {
-        return GSON.toJson(skill.draft());
+        return write(skill.draft());
+    }
+
+    /** Portable, flat representation of an editable draft; re-read through {@link #read(String)}. */
+    public static String write(SkillDraft draft) {
+        return GSON.toJson(draft);
     }
 
     private static String string(JsonObject o, String name) {
