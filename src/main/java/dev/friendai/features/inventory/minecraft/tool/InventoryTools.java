@@ -1,6 +1,7 @@
 package dev.friendai.features.inventory.minecraft.tool;
 
 import com.google.gson.JsonObject;
+import dev.friendai.agent.perception.PerceptionSnapshot;
 import dev.friendai.agent.tools.Cost;
 import dev.friendai.agent.tools.ToolGroup;
 import dev.friendai.agent.tools.ToolMeta;
@@ -15,7 +16,6 @@ import dev.friendai.features.inventory.minecraft.task.PickupItemsTask;
 import dev.friendai.features.inventory.minecraft.task.ThrowItemTask;
 import dev.friendai.features.navigation.minecraft.nav.EntityTargets;
 import dev.friendai.features.survival.HungerModel;
-import dev.friendai.perception.PerceptionSnapshot;
 import dev.friendai.server.execution.tools.FeatureToolContributor;
 import dev.friendai.server.execution.tools.FeatureToolRegistry;
 import dev.friendai.server.execution.tools.TaskToolDefinition;

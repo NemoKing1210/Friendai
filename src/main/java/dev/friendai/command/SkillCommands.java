@@ -25,7 +25,7 @@ final class SkillCommands {
         if (global) node.requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS));
         node.then(Commands.literal("list").executes(ctx -> {
             var p = ctx.getSource().getPlayerOrException();
-            var s = FriendaiServerState.get(p.level().getServer()).skills();
+            var s = runtime(p).skills();
             String text = (global ? s.globalListed() : s.listed(p.getUUID()))
                     .stream()
                             .map(v -> v.id() + " v" + v.version() + " " + v.name())
@@ -36,7 +36,7 @@ final class SkillCommands {
         node.then(Commands.literal("show")
                 .then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> {
                     var p = ctx.getSource().getPlayerOrException();
-                    var service = FriendaiServerState.get(p.level().getServer()).skills();
+                    var service = runtime(p).skills();
                     String id = StringArgumentType.getString(ctx, "id");
                     var found = (global ? service.globalListed() : service.listed(p.getUUID()))
                             .stream().filter(v -> v.id().equals(id)).findFirst();
@@ -80,8 +80,7 @@ final class SkillCommands {
         var node = Commands.literal("description");
         node.then(Commands.literal("show").executes(ctx -> {
             var p = ctx.getSource().getPlayerOrException();
-            var profile =
-                    FriendaiServerState.get(p.level().getServer()).profiles().profile(p.getUUID());
+            var profile = runtime(p).profiles().profile(p.getUUID());
             p.sendSystemMessage(
                     Component.translatable("friendai.command.skills.result", new Gson().toJson(profile.description())));
             return 1;
@@ -92,9 +91,7 @@ final class SkillCommands {
                             .executes(ctx -> {
                                 var p = ctx.getSource().getPlayerOrException();
                                 String value = StringArgumentType.getString(ctx, "value");
-                                var profile = FriendaiServerState.get(p.level().getServer())
-                                        .profiles()
-                                        .profile(p.getUUID());
+                                var profile = runtime(p).profiles().profile(p.getUUID());
                                 JsonObject o = new JsonObject();
                                 o.addProperty("summary", profile.description().summary());
                                 o.addProperty("details", profile.description().details());
@@ -117,8 +114,7 @@ final class SkillCommands {
         }
         node.then(Commands.literal("clear").executes(ctx -> {
             var p = ctx.getSource().getPlayerOrException();
-            var profile =
-                    FriendaiServerState.get(p.level().getServer()).profiles().profile(p.getUUID());
+            var profile = runtime(p).profiles().profile(p.getUUID());
             JsonObject o = new JsonObject();
             o.addProperty("summary", "");
             o.addProperty("details", "");

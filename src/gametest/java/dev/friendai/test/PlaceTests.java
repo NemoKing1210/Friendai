@@ -4,6 +4,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import dev.friendai.agent.llm.model.ToolCall;
+import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.FriendaiEntities;
@@ -60,9 +61,13 @@ public class PlaceTests {
         @Override
         public void onPlace(PlaceCandidate candidate, String toolName) {
             if (companion != null) {
-                PlaceService.autoRegister(companion, candidate);
+                placeService(companion).autoRegister(companion, candidate);
             }
         }
+    }
+
+    private static PlaceService placeService(CompanionEntity companion) {
+        return FriendaiServerState.get(companion.level().getServer()).placeService();
     }
 
     private static ToolResult runAs(ToolExecutor tools, String name, String json, Caller caller) {
@@ -158,19 +163,20 @@ public class PlaceTests {
 
         ToolResult remembered = runAs(tools, "remember_place", remember, trusted);
         h.assertTrue(!remembered.error(), "a trusted speaker should remember: " + remembered.content());
-        h.assertValueEqual(PlaceService.book(companion).all().size(), 1, "places after remember");
+        h.assertValueEqual(placeService(companion).book(companion).all().size(), 1, "places after remember");
 
         ToolResult trustedForget = runAs(tools, "forget_place", "{\"name\":\"home\"}", trusted);
         h.assertTrue(
                 trustedForget.error() && trustedForget.content().contains("not available"),
                 "a trusted speaker must not forget places: " + trustedForget.content());
-        h.assertValueEqual(PlaceService.book(companion).all().size(), 1, "places after refused forget");
+        h.assertValueEqual(placeService(companion).book(companion).all().size(), 1, "places after refused forget");
 
         ToolResult forgotten = runAs(tools, "forget_place", "{\"name\":\"home\"}", ownerCaller);
         h.assertTrue(!forgotten.error(), "the owner should forget: " + forgotten.content());
         h.assertTrue(
-                PlaceService.book(companion).all().isEmpty(),
-                "the place should be gone: " + PlaceService.book(companion).all());
+                placeService(companion).book(companion).all().isEmpty(),
+                "the place should be gone: "
+                        + placeService(companion).book(companion).all());
         h.succeed();
     }
 
@@ -183,7 +189,7 @@ public class PlaceTests {
         Commands commands = h.getLevel().getServer().getCommands();
 
         commands.performPrefixedCommand(owner.createCommandSourceStack(), "friendai place add shack");
-        List<Place> places = PlaceService.book(companion).all();
+        List<Place> places = placeService(companion).book(companion).all();
         h.assertValueEqual(places.size(), 1, "places after add: " + places);
         Place shack = places.get(0);
         BlockPos anchor = owner.blockPosition();
@@ -216,7 +222,8 @@ public class PlaceTests {
                 "a place without a label adds no label segment: " + shackRow.getArgs()[2]);
 
         // A labelled place renders the label inside the kind segment, so one row still fits in the chat line.
-        Place lookout = PlaceService.book(companion)
+        Place lookout = placeService(companion)
+                .book(companion)
                 .remember(
                         new PlaceValues(
                                 "lookout",
@@ -237,16 +244,18 @@ public class PlaceTests {
         h.assertTrue(
                 kindSegment.getSiblings().stream().anyMatch(s -> s.getString().contains("tower")),
                 "the kind segment should carry the label: " + kindSegment);
-        PlaceService.book(companion).remove(lookout.id());
+        placeService(companion).book(companion).remove(lookout.id());
 
         commands.performPrefixedCommand(owner.createCommandSourceStack(), "friendai place remove shack");
         h.assertTrue(
-                PlaceService.book(companion).all().isEmpty(),
-                "the place should be gone: " + PlaceService.book(companion).all());
+                placeService(companion).book(companion).all().isEmpty(),
+                "the place should be gone: "
+                        + placeService(companion).book(companion).all());
 
         // The sender is in the overworld while the same owner's book holds a nether place: remove must not
         // reach outside the sender's dimension, and must not mutate anything on the way to saying so.
-        PlaceService.book(companion)
+        placeService(companion)
+                .book(companion)
                 .remember(
                         new PlaceValues(
                                 "nether_home",
@@ -267,7 +276,7 @@ public class PlaceTests {
         h.assertTrue(
                 split.messages.stream().anyMatch(m -> containsKey(m, "friendai.command.place.notfound")),
                 "notfound missing: " + split.messages);
-        List<Place> kept = PlaceService.book(companion).all();
+        List<Place> kept = placeService(companion).book(companion).all();
         h.assertValueEqual(kept.size(), 1, "the nether place must stay: " + kept);
         h.assertValueEqual(kept.get(0).dimension(), "minecraft:the_nether", "dimension after refused remove");
         h.succeed();
@@ -282,7 +291,8 @@ public class PlaceTests {
         ToolExecutor tools = tools(companion);
         Caller caller = new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.TRUSTED);
 
-        PlaceService.book(companion)
+        placeService(companion)
+                .book(companion)
                 .remember(
                         new PlaceValues(
                                 "home",
@@ -338,7 +348,8 @@ public class PlaceTests {
                         + anchor.getZ() + ",\"radius\":4}",
                 caller);
         h.assertTrue(!remembered.error(), "remember failed: " + remembered.content());
-        PlaceService.book(companion)
+        placeService(companion)
+                .book(companion)
                 .remember(
                         new PlaceValues(
                                 "nethermine",
@@ -417,7 +428,7 @@ public class PlaceTests {
         ToolResult remembered =
                 runAs(tools, "remember_place", "{\"name\":\"home\",\"kind\":\"house\",\"radius\":8}", caller);
         h.assertTrue(!remembered.error(), "remember failed: " + remembered.content());
-        List<Place> places = PlaceService.book(companion).all();
+        List<Place> places = placeService(companion).book(companion).all();
         h.assertValueEqual(places.size(), 1, "places after remember");
         Place place = places.get(0);
         h.assertValueEqual(place.name(), "home", "stored name");
@@ -439,7 +450,8 @@ public class PlaceTests {
         h.succeedWhen(() -> {
             companion.executionCoordinator().tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
-            Place visited = PlaceService.book(companion).byId(place.id()).orElseThrow();
+            Place visited =
+                    placeService(companion).book(companion).byId(place.id()).orElseThrow();
             h.assertValueEqual(visited.visits(), 1, "visits");
             double horizontal = Math.hypot(
                     companion.getX() - (visited.anchor().x() + 0.5),
@@ -485,7 +497,7 @@ public class PlaceTests {
                     result.status == TaskStatus.SUCCESS,
                     (phase[0] == 0 ? "the first" : "the second") + " farm pass should finish: " + result.status + " "
                             + result.summary);
-            List<Place> places = PlaceService.book(companion).all();
+            List<Place> places = placeService(companion).book(companion).all();
             h.assertValueEqual(places.size(), 1, "places after pass " + (phase[0] + 1) + ": " + places);
             Place farm = places.get(0);
             h.assertValueEqual(farm.kind(), PlaceKind.FARM, "kind");

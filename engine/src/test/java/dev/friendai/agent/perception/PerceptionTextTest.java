@@ -1,7 +1,9 @@
-package dev.friendai.perception;
+package dev.friendai.agent.perception;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import dev.friendai.features.combat.Threat;
+import dev.friendai.features.knowledge.Landmark;
 import org.junit.jupiter.api.Test;
 
 class PerceptionTextTest {

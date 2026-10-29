@@ -19,9 +19,8 @@ import dev.friendai.features.knowledge.search.SearchHintStore;
 import dev.friendai.features.memory.MemoryViewers;
 import dev.friendai.features.navigation.pathing.BlockList;
 import dev.friendai.features.navigation.pathing.PathingConfig;
-import dev.friendai.features.placements.PlacedBook;
-import dev.friendai.features.places.PlaceRegistry;
-import dev.friendai.features.places.PlaceSettings;
+import dev.friendai.features.placements.minecraft.PlacedService;
+import dev.friendai.features.places.minecraft.PlaceService;
 import dev.friendai.features.survival.minecraft.FoodSubtaskFactory;
 import dev.friendai.features.trading.TradeAuthority;
 import dev.friendai.features.trading.TradeBook;
@@ -29,8 +28,6 @@ import dev.friendai.features.trading.minecraft.trading.*;
 import dev.friendai.infrastructure.config.ServerConfig;
 import dev.friendai.infrastructure.persistence.knowledge.KnowledgeStore;
 import dev.friendai.infrastructure.persistence.memory.MemoryStore;
-import dev.friendai.infrastructure.persistence.placements.PlacedStore;
-import dev.friendai.infrastructure.persistence.places.PlaceStore;
 import dev.friendai.infrastructure.persistence.trading.TradeStore;
 import dev.friendai.perception.resource.ObservationScheduler;
 import dev.friendai.perception.resource.ResourceCandidates;
@@ -184,24 +181,9 @@ public record TaskContext(
     public ServerConfig config() {
         return state().config();
     }
-    /** Place feature settings without exposing the server configuration representation. */
-    public PlaceSettings placeSettings() {
-        var places = state().config().places;
-        return new PlaceSettings(
-                places.enabled,
-                places.autoRemember,
-                places.maxPlaces,
-                places.mergeRadius,
-                places.promptLimit,
-                places.promptBudget);
-    }
-
-    public PlaceStore places() {
-        return state().places();
-    }
-    /** The companion owner's place book without exposing the persistence store to a feature task. */
-    public PlaceRegistry placeBook(UUID owner) {
-        return state().places().book(owner);
+    /** Feature-owned place operations; the service holds only the owner-book and settings providers. */
+    public PlaceService placeService() {
+        return state().placeService();
     }
     /** Search-specific policy values, detached from the server configuration representation. */
     public ResourceSearchSettings resourceSearchSettings() {
@@ -217,12 +199,9 @@ public record TaskContext(
                 resources.escort());
     }
 
-    public PlacedStore placed() {
-        return state().placed();
-    }
-    /** The owner's placement ledger without exposing the persistence store to a domain service. */
-    public PlacedBook placedBook(UUID owner) {
-        return state().placed().book(owner);
+    /** Feature-owned placed-ledger operations, backed by this server's owner books. */
+    public PlacedService placedService() {
+        return state().placedService();
     }
 
     public TradeStore trading() {

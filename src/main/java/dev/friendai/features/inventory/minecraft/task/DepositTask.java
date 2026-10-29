@@ -10,7 +10,6 @@ import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.features.places.Place;
 import dev.friendai.features.places.PlaceKind;
 import dev.friendai.features.places.PlaceQuery;
-import dev.friendai.features.places.minecraft.PlaceService;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
@@ -128,10 +127,10 @@ public final class DepositTask implements Task {
         CompanionEntity companion = c.companion();
         try {
             if (placeName != null) {
-                place = PlaceService.requireReachable(companion, placeName, "deposit_items");
+                place = c.placeService().requireReachable(companion, placeName, "deposit_items");
             } else {
-                place = nearest(companion, PlaceKind.STORAGE)
-                        .or(() -> nearest(companion, PlaceKind.HOUSE))
+                place = nearest(c.placeService(), companion, PlaceKind.STORAGE)
+                        .or(() -> nearest(c.placeService(), companion, PlaceKind.HOUSE))
                         .orElse(null);
                 if (place == null) {
                     return Optional.of("no storage place here; remember one with remember_place");
@@ -153,9 +152,12 @@ public final class DepositTask implements Task {
         return Optional.empty();
     }
 
-    private static Optional<Place> nearest(CompanionEntity companion, PlaceKind kind) {
-        return PlaceService.find(
-                        companion, new PlaceQuery.Request(Optional.empty(), Set.of(kind), Optional.empty(), 1, false))
+    private static Optional<Place> nearest(
+            dev.friendai.features.places.minecraft.PlaceService placeService,
+            CompanionEntity companion,
+            PlaceKind kind) {
+        return placeService
+                .find(companion, new PlaceQuery.Request(Optional.empty(), Set.of(kind), Optional.empty(), 1, false))
                 .stream()
                 .findFirst()
                 .map(PlaceQuery.Result::place);

@@ -1,7 +1,7 @@
 package dev.friendai.features.mining.minecraft.mining;
 
-import dev.friendai.perception.RelativeDirection;
-import dev.friendai.perception.TreeSummary;
+import dev.friendai.features.mining.tree.TreeSummary;
+import dev.friendai.features.navigation.RelativeDirection;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;

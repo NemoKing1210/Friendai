@@ -2,7 +2,6 @@ package dev.friendai.task.interact;
 
 import dev.friendai.debug.DebugAction;
 import dev.friendai.debug.DebugTarget;
-import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.navigation.minecraft.nav.Approach;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
@@ -20,7 +19,7 @@ import net.minecraft.world.Container;
 public final class ContainerSession {
     @FunctionalInterface
     public interface TargetFinder {
-        Optional<BlockPos> find(ServerLevel level, CompanionEntity companion);
+        Optional<BlockPos> find(TaskContext context);
     }
 
     @FunctionalInterface
@@ -64,9 +63,7 @@ public final class ContainerSession {
                     return TaskStatus.FAILED;
                 }
             } else {
-                Optional<BlockPos> found = targetFinder == null
-                        ? Optional.empty()
-                        : targetFinder.find(context.level(), context.companion());
+                Optional<BlockPos> found = targetFinder == null ? Optional.empty() : targetFinder.find(context);
                 if (found.isEmpty()) {
                     failureSummary = noTargetSummary.get();
                     return TaskStatus.FAILED;

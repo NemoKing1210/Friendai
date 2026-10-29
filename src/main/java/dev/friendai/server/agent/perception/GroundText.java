@@ -1,4 +1,4 @@
-package dev.friendai.perception;
+package dev.friendai.server.agent.perception;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;

@@ -14,7 +14,10 @@ import dev.friendai.features.memory.PlayerRef;
 import dev.friendai.features.memory.TrustRequest;
 import dev.friendai.features.memory.minecraft.tool.TrustAccess;
 import dev.friendai.features.placements.PlacedLimits;
+import dev.friendai.features.placements.minecraft.PlacedService;
 import dev.friendai.features.places.PlaceLimits;
+import dev.friendai.features.places.PlaceSettings;
+import dev.friendai.features.places.minecraft.PlaceService;
 import dev.friendai.features.trading.TradeAuthority;
 import dev.friendai.features.trading.TradeBook;
 import dev.friendai.features.trading.TradingRuntimeSettings;
@@ -70,6 +73,8 @@ public final class FriendaiServerState implements TradingToolAccess, TrustAccess
     private final KnowledgeStore knowledge;
     private final PlaceStore places;
     private final PlacedStore placed;
+    private final PlaceService placeService;
+    private final PlacedService placedService;
     private final TradeStore trading;
     private final MerchantLeases merchantLeases;
     private final TradeSessionGuard tradeSessionGuard;
@@ -130,6 +135,8 @@ public final class FriendaiServerState implements TradingToolAccess, TrustAccess
                 server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("placed"),
                 PlacedLimits.DEFAULTS,
                 writer));
+        this.placeService = new PlaceService(places::book, this::placeSettings);
+        this.placedService = new PlacedService(placed::book);
         this.trading = resources.own(new TradeStore(
                 server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("trading"), writer));
         this.merchantLeases = new MerchantLeases();
@@ -154,6 +161,8 @@ public final class FriendaiServerState implements TradingToolAccess, TrustAccess
                 goals,
                 trading,
                 places,
+                placeService,
+                placedService,
                 this.resources,
                 freeTime,
                 this,
@@ -164,7 +173,8 @@ public final class FriendaiServerState implements TradingToolAccess, TrustAccess
                 sessions.taskRestoreRegistry(),
                 sessions::prepareForTaskRestore,
                 owner -> sessions.tradeAuthorityFor(owner).invalidateAll("trading authority expired after restart"),
-                owner -> knowledge.book(owner).searchLedger());
+                owner -> knowledge.book(owner).searchLedger(),
+                freeTime);
         this.skills.setTeachingContextSource(sessions::teachingContext);
         this.chunkLoader = new CompanionChunkLoader(server, () -> this.config);
         resources.onClose(chunkLoader::stop);
@@ -267,9 +277,28 @@ public final class FriendaiServerState implements TradingToolAccess, TrustAccess
         return places;
     }
 
+    public PlaceService placeService() {
+        return placeService;
+    }
+
     /** Per-owner record of the blocks the companion placed and may still be there. */
     public PlacedStore placed() {
         return placed;
+    }
+
+    public PlacedService placedService() {
+        return placedService;
+    }
+
+    private PlaceSettings placeSettings() {
+        var config = this.config.places;
+        return new PlaceSettings(
+                config.enabled,
+                config.autoRemember,
+                config.maxPlaces,
+                config.mergeRadius,
+                config.promptLimit,
+                config.promptBudget);
     }
     /** Per-owner trader observations and informational order history. */
     public TradeStore trading() {

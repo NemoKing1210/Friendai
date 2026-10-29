@@ -1,4 +1,4 @@
-package dev.friendai.chat;
+package dev.friendai.server.agent.chat;
 
 import dev.friendai.agent.turn.Speaker;
 import dev.friendai.core.Components;
@@ -7,6 +7,7 @@ import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.protocol.ProtocolFamily;
 import dev.friendai.protocol.speech.CompanionSpeechProtocolViewCodec;
 import dev.friendai.protocol.speech.CompanionSpeechView;
+import dev.friendai.server.companion.CompanionNames;
 import dev.friendai.server.runtime.ServerRuntimeRegistry;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;

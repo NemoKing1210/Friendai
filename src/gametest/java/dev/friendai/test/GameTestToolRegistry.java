@@ -7,8 +7,8 @@ import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolRegistry;
 import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.features.memory.minecraft.tool.MemoryAccess;
-import dev.friendai.perception.PerceptionContext;
 import dev.friendai.server.agent.CompanionSessions;
+import dev.friendai.server.agent.perception.PerceptionContext;
 import dev.friendai.server.agent.tools.FriendaiTools;
 import dev.friendai.server.agent.tools.ToolDependencies;
 import dev.friendai.server.execution.tools.QueueTools;
@@ -39,7 +39,9 @@ final class GameTestToolRegistry {
                 ignored -> sessions,
                 ignored -> state,
                 ignored -> sessions.freeTime(),
-                candidate -> searchHintLine(state, candidate));
+                candidate -> searchHintLine(state, candidate),
+                state.placeService(),
+                state.placedService());
         return FriendaiTools.build(
                         radius,
                         radius,

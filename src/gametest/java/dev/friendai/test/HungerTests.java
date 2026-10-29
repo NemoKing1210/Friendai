@@ -10,7 +10,7 @@ import dev.friendai.features.navigation.minecraft.task.StayTask;
 import dev.friendai.features.survival.HungerModel;
 import dev.friendai.features.survival.minecraft.HungerWatcher;
 import dev.friendai.features.survival.minecraft.task.GetFoodTask;
-import dev.friendai.perception.PerceptionBuilder;
+import dev.friendai.server.agent.perception.PerceptionBuilder;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
@@ -178,7 +178,7 @@ public class HungerTests {
         var state = dev.friendai.core.FriendaiServerState.get(h.getLevel().getServer());
         String text = PerceptionBuilder.brief(
                         c,
-                        new dev.friendai.perception.PerceptionContext(
+                        new dev.friendai.server.agent.perception.PerceptionContext(
                                 state.resources(), state.settings(), state.freeTime()))
                 .toPromptText();
         h.assertTrue(text.contains("Health: 20/20\nHunger: 14/20\n"), text);

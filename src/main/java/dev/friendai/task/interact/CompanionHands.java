@@ -2,7 +2,7 @@ package dev.friendai.task.interact;
 
 import com.mojang.authlib.GameProfile;
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.placed.PlacedService;
+import dev.friendai.features.placements.minecraft.PlacedService;
 import dev.friendai.task.inventory.InventoryOps;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
@@ -44,13 +44,15 @@ public final class CompanionHands {
     private static final int FACE_HOLD_TICKS = 6;
 
     private final CompanionEntity companion;
+    private final PlacedService placed;
     private FakePlayer player;
     private @Nullable Merchant openMerchant;
     private boolean merchantSessionAcquired;
     private Predicate<BlockPos> protectionOverride;
 
-    public CompanionHands(CompanionEntity companion) {
+    public CompanionHands(CompanionEntity companion, PlacedService placed) {
         this.companion = companion;
+        this.placed = java.util.Objects.requireNonNull(placed, "placed");
     }
 
     /** Test hook: positions matching the predicate count as protected, like spawn protection would. Null clears. */
@@ -125,7 +127,7 @@ public final class CompanionHands {
     private void recordPlacement(ServerLevel level, BlockPos pos, BlockState before, BlockItem item) {
         BlockState after = level.getBlockState(pos);
         if (after.getBlock() == item.getBlock() && before.getBlock() != item.getBlock()) {
-            PlacedService.record(companion, pos, after, placementSource());
+            placed.record(companion, pos, after, placementSource());
         }
     }
 

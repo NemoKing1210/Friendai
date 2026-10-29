@@ -1,4 +1,4 @@
-package dev.friendai.perception;
+package dev.friendai.features.knowledge;
 
 import java.util.Locale;
 

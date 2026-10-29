@@ -1,7 +1,7 @@
 package dev.friendai.server.net;
 
 import dev.friendai.agent.turn.BrainEvent;
-import dev.friendai.chat.CompanionRouting;
+import dev.friendai.server.agent.chat.CompanionRouting;
 import dev.friendai.server.runtime.ServerRuntime;
 import java.util.Optional;
 import java.util.UUID;

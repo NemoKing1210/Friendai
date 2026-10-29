@@ -33,7 +33,6 @@ import dev.friendai.features.places.PlaceCandidate;
 import dev.friendai.features.places.PlaceKind;
 import dev.friendai.features.places.PlaceNames;
 import dev.friendai.features.places.PlaceSource;
-import dev.friendai.placed.PlacedService;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
@@ -857,7 +856,7 @@ public final class BuildTask implements Task {
                         return TaskStatus.RUNNING;
                     }
                     case BROKEN -> {
-                        PlacedService.forget(c.companion(), currentPos);
+                        c.placedService().forget(c.companion(), currentPos);
                         ownedCells.remove(currentPos);
                         ownPlaced.remove(currentPos);
                         takeBack = null;
@@ -1386,7 +1385,7 @@ public final class BuildTask implements Task {
 
     /** The scaffold this build adopted, plus every ledger placement inside the site. */
     private Set<BlockPos> ownership(TaskContext c) {
-        Set<BlockPos> owned = new HashSet<>(Site.ownedByCompanion(c.companion(), placed));
+        Set<BlockPos> owned = new HashSet<>(Site.ownedByCompanion(c.companion(), placed, c.placedService()));
         owned.addAll(scaffold.placed());
         return owned;
     }

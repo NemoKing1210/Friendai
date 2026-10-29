@@ -1,5 +1,6 @@
-package dev.friendai.perception;
+package dev.friendai.server.agent.perception;
 
+import dev.friendai.agent.perception.AreaMap;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.knowledge.ResourceObservation;
 import dev.friendai.perception.resource.ResourceCandidates;

@@ -57,12 +57,12 @@ final class AutonomyFactsBuilder {
 
     private final Map<UUID, Cached> cache = new HashMap<>();
 
-    AutonomyFacts build(CompanionEntity companion, UUID owner, long nowMillis) {
+    AutonomyFacts build(CompanionEntity companion, UUID owner, long nowMillis, PlaceService placeService) {
         Cached cached = cache.get(owner);
         if (cached != null && nowMillis - cached.at() < CACHE_MILLIS) {
             return cached.facts();
         }
-        AutonomyFacts facts = read(companion, nowMillis);
+        AutonomyFacts facts = read(companion, nowMillis, placeService);
         cache.put(owner, new Cached(facts, nowMillis));
         return facts;
     }
@@ -72,7 +72,7 @@ final class AutonomyFactsBuilder {
         cache.remove(owner);
     }
 
-    private static AutonomyFacts read(CompanionEntity companion, long nowMillis) {
+    private static AutonomyFacts read(CompanionEntity companion, long nowMillis, PlaceService placeService) {
         ServerLevel level = (ServerLevel) companion.level();
         var bag = companion.inventory();
         DropIndex tools = DropIndex.of(level);
@@ -141,11 +141,11 @@ final class AutonomyFactsBuilder {
 
         var owner = companion.owner();
         double ownerDistance = owner.map(p -> (double) p.distanceTo(companion)).orElse(Double.MAX_VALUE);
-        List<PlaceQuery.Result> homes = places(companion, PlaceKind.HOUSE);
-        List<PlaceQuery.Result> storages = places(companion, PlaceKind.STORAGE);
-        List<PlaceQuery.Result> farms = places(companion, PlaceKind.FARM);
-        List<PlaceQuery.Result> trades = places(companion, PlaceKind.TRADE);
-        boolean portalKnown = !places(companion, PlaceKind.PORTAL).isEmpty();
+        List<PlaceQuery.Result> homes = places(placeService, companion, PlaceKind.HOUSE);
+        List<PlaceQuery.Result> storages = places(placeService, companion, PlaceKind.STORAGE);
+        List<PlaceQuery.Result> farms = places(placeService, companion, PlaceKind.FARM);
+        List<PlaceQuery.Result> trades = places(placeService, companion, PlaceKind.TRADE);
+        boolean portalKnown = !places(placeService, companion, PlaceKind.PORTAL).isEmpty();
         Optional<PlaceQuery.Result> homeHere =
                 homes.stream().filter(PlaceQuery.Result::sameDimension).findFirst();
         long gameTime = level.getGameTime();
@@ -264,8 +264,9 @@ final class AutonomyFactsBuilder {
         return Optional.empty();
     }
 
-    private static List<PlaceQuery.Result> places(CompanionEntity companion, PlaceKind kind) {
-        return PlaceService.find(
+    private static List<PlaceQuery.Result> places(
+            PlaceService placeService, CompanionEntity companion, PlaceKind kind) {
+        return placeService.find(
                 companion,
                 new PlaceQuery.Request(Optional.empty(), Set.of(kind), Optional.empty(), PlaceQuery.LIMIT_MAX, true));
     }

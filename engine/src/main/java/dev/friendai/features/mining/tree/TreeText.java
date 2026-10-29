@@ -1,4 +1,4 @@
-package dev.friendai.perception;
+package dev.friendai.features.mining.tree;
 
 import java.util.List;
 import java.util.stream.Collectors;

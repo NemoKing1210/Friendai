@@ -1,4 +1,4 @@
-package dev.friendai.chat;
+package dev.friendai.server.companion;
 
 import dev.friendai.features.conversation.*;
 import net.minecraft.network.chat.Component;

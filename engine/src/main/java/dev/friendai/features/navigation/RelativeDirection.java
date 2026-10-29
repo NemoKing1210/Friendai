@@ -1,4 +1,4 @@
-package dev.friendai.perception;
+package dev.friendai.features.navigation;
 
 /** Compass and relative direction names for horizontal vectors. Pure text, no Minecraft types. */
 public final class RelativeDirection {

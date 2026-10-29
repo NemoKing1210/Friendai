@@ -3,25 +3,26 @@ package dev.friendai.features.places.minecraft;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
+import dev.friendai.features.navigation.RelativeDirection;
 import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.features.places.*;
-import dev.friendai.perception.RelativeDirection;
-import dev.friendai.task.TaskContext;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * The Minecraft-aware server-thread facade for the place feature: the server-thread facade that tools, the task hook, the
- * prompt and the menu go through. Every method runs on the server thread, resolves the owner's book from the
- * store and hands the actual work to the pure classes.
+ * The Minecraft-aware server-thread facade for the place feature. Every method uses injected owner-book and
+ * settings providers, then hands the actual work to the pure classes. Runtime composition supplies those providers;
+ * this adapter never looks up the full server runtime.
  *
  * <p>Rights are the tool layer's business ({@link AccessLevel} checks live in the tool definitions); the caller
  * here decides the author of a remembered place and the guest gate of the prompt block, and the mutators accept
@@ -31,11 +32,24 @@ public final class PlaceService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("friendai/places");
 
-    private PlaceService() {}
+    private final Function<UUID, PlaceRegistry> books;
+    private final Supplier<PlaceSettings> settings;
+
+    public PlaceService(Function<UUID, PlaceRegistry> books, Supplier<PlaceSettings> settings) {
+        this.books = Objects.requireNonNull(books, "books");
+        this.settings = Objects.requireNonNull(settings, "settings");
+    }
+
+    /** Isolated registry used by catalog-only tool registries that have no server persistence. */
+    public static PlaceService unavailable() {
+        return new PlaceService(
+                ignored -> new PlaceRegistry(PlaceLimits.DEFAULTS),
+                () -> new PlaceSettings(false, false, 64, 16, 8, 1_000));
+    }
 
     /** The places of the companion's owner; a companion without an owner has none. */
-    public static PlaceRegistry book(CompanionEntity companion) {
-        return context(companion).placeBook(owner(companion));
+    public PlaceRegistry book(CompanionEntity companion) {
+        return books.apply(owner(companion));
     }
 
     /**
@@ -43,13 +57,13 @@ public final class PlaceService {
      * owner otherwise (a plan step has no player). A new place is refused once the owner's book is at
      * {@code places.maxPlaces}; an update always passes.
      */
-    public static Place remember(CompanionEntity companion, Caller caller, PlaceValues values, long tick) {
+    public Place remember(CompanionEntity companion, Caller caller, PlaceValues values, long tick) {
         Objects.requireNonNull(values, "values");
         Objects.requireNonNull(caller, "caller");
         PlaceRegistry book = book(companion);
         UUID author = caller.uuid() != null ? caller.uuid() : owner(companion);
         if (book.find(values.name(), values.dimension()).isEmpty()) {
-            int maxPlaces = config(companion).maxPlaces();
+            int maxPlaces = settings.get().maxPlaces();
             if (book.all().size() >= maxPlaces) {
                 throw new IllegalArgumentException("no room for more places (" + maxPlaces + "); forget one first");
             }
@@ -71,21 +85,31 @@ public final class PlaceService {
     }
 
     /** Answers "which places do I know?" from the companion's own position and dimension. */
-    public static List<PlaceQuery.Result> find(CompanionEntity companion, PlaceQuery.Request request) {
+    public List<PlaceQuery.Result> find(CompanionEntity companion, PlaceQuery.Request request) {
         Objects.requireNonNull(request, "request");
         return PlaceQuery.find(book(companion), request, self(companion), dimension(companion));
     }
 
     /** Renames the one place {@code name} (or an alias) points at, keeping its id and aliases. */
-    public static Place rename(CompanionEntity companion, Caller caller, String name, String newName, long tick) {
+    public Place rename(CompanionEntity companion, Caller caller, String name, String newName, long tick) {
         Place place = unique(companion, name);
-        return book(companion).rename(place.id(), newName, tick);
+        return rename(book(companion), place.id(), newName, tick);
+    }
+
+    /** Renames the selected place through the feature operation shared by commands and tools. */
+    public Place rename(PlaceRegistry book, long placeId, String newName, long tick) {
+        return Objects.requireNonNull(book, "book").rename(placeId, newName, tick);
     }
 
     /** Forgets the one place {@code name} (or an alias) points at; false when it was already gone. */
-    public static boolean forget(CompanionEntity companion, Caller caller, String name) {
+    public boolean forget(CompanionEntity companion, Caller caller, String name) {
         Place place = unique(companion, name);
-        return book(companion).remove(place.id());
+        return forget(book(companion), place.id());
+    }
+
+    /** Removes the selected place through the feature operation shared by commands and tools. */
+    public boolean forget(PlaceRegistry book, long placeId) {
+        return Objects.requireNonNull(book, "book").remove(placeId);
     }
 
     /**
@@ -93,8 +117,8 @@ public final class PlaceService {
      * {@link AccessLevel#TRUSTED}, or the book holds nothing. Same-dimension places show distance and compass
      * side; the rest show their dimension.
      */
-    public static String promptBlock(CompanionEntity companion, Caller caller) {
-        PlaceSettings config = config(companion);
+    public String promptBlock(CompanionEntity companion, Caller caller) {
+        PlaceSettings config = settings.get();
         if (!config.enabled() || !caller.access().allows(AccessLevel.TRUSTED)) {
             return "";
         }
@@ -127,9 +151,9 @@ public final class PlaceService {
      * {@code places.enabled} and {@code places.autoRemember}. A rejected place (the owner's book is full) is
      * logged and forgotten: it must never fail the task that found it.
      */
-    public static void autoRegister(CompanionEntity companion, PlaceCandidate candidate) {
+    public void autoRegister(CompanionEntity companion, PlaceCandidate candidate) {
         Objects.requireNonNull(candidate, "candidate");
-        PlaceSettings config = config(companion);
+        PlaceSettings config = settings.get();
         if (!config.enabled() || !config.autoRemember()) {
             return;
         }
@@ -167,7 +191,7 @@ public final class PlaceService {
     }
 
     /** Counts a visit; a place forgotten since it was resolved is simply left alone. */
-    public static void markVisit(CompanionEntity companion, long placeId, long tick) {
+    public void markVisit(CompanionEntity companion, long placeId, long tick) {
         PlaceRegistry book = book(companion);
         if (book.byId(placeId).isPresent()) {
             book.visit(placeId, tick);
@@ -178,7 +202,7 @@ public final class PlaceService {
      * The one place whose name or alias matches, within the companion's dimension. Zero matches and several
      * matches both throw a message the model can act on, so an ambiguous name is never resolved by a guess.
      */
-    public static Optional<Place> requireSingle(CompanionEntity companion, String name) {
+    public Optional<Place> requireSingle(CompanionEntity companion, String name) {
         return Optional.of(unique(companion, name));
     }
 
@@ -187,7 +211,7 @@ public final class PlaceService {
      * dimension is reported as such, naming {@code what} as the action that cannot cross, so callers never
      * have to repeat that message; any other failure keeps the lookup's own message.
      */
-    public static Place requireReachable(CompanionEntity companion, String name, String what) {
+    public Place requireReachable(CompanionEntity companion, String name, String what) {
         Objects.requireNonNull(what, "what");
         Optional<Place> here;
         try {
@@ -204,7 +228,7 @@ public final class PlaceService {
     }
 
     /** The place matching this name or alias in another dimension, if one exists. */
-    private static Optional<Place> elsewhere(CompanionEntity companion, String name) {
+    private Optional<Place> elsewhere(CompanionEntity companion, String name) {
         String needle;
         try {
             needle = PlaceNames.normalize(name);
@@ -232,7 +256,7 @@ public final class PlaceService {
         return false;
     }
 
-    private static Place unique(CompanionEntity companion, String name) {
+    private Place unique(CompanionEntity companion, String name) {
         String dimension = dimension(companion);
         String needle = PlaceNames.normalize(name);
         List<Place> hits = new ArrayList<>();
@@ -273,14 +297,6 @@ public final class PlaceService {
             throw new IllegalArgumentException("The companion has no owner, so it has no places.");
         }
         return owner;
-    }
-
-    private static PlaceSettings config(CompanionEntity companion) {
-        return context(companion).placeSettings();
-    }
-
-    private static TaskContext context(CompanionEntity companion) {
-        return new TaskContext(companion, level(companion));
     }
 
     private static ServerLevel level(CompanionEntity companion) {

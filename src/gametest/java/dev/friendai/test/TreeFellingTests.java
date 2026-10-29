@@ -12,7 +12,7 @@ import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
 import dev.friendai.features.mining.minecraft.mining.TreeFinder;
 import dev.friendai.features.mining.minecraft.task.FellTreeTask;
-import dev.friendai.perception.PerceptionContext;
+import dev.friendai.server.agent.perception.PerceptionContext;
 import dev.friendai.server.agent.tools.FriendaiTools;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.TaskListener;

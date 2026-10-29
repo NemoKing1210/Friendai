@@ -1,5 +1,9 @@
-package dev.friendai.perception;
+package dev.friendai.agent.perception;
 
+import dev.friendai.features.combat.Threat;
+import dev.friendai.features.knowledge.Landmark;
+import dev.friendai.features.mining.tree.TreeSummary;
+import dev.friendai.features.mining.tree.TreeText;
 import dev.friendai.features.survival.HungerModel;
 import java.util.List;
 import java.util.Locale;

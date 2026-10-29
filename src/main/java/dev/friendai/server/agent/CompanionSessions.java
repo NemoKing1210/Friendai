@@ -15,7 +15,6 @@ import dev.friendai.agent.turn.DebugLogObserver;
 import dev.friendai.agent.turn.LlmGateway;
 import dev.friendai.agent.turn.Persona;
 import dev.friendai.agent.turn.Speaker;
-import dev.friendai.chat.CompanionSpeaker;
 import dev.friendai.core.OutcomeFacts;
 import dev.friendai.core.SkillService;
 import dev.friendai.debug.DebugService;
@@ -34,6 +33,7 @@ import dev.friendai.features.memory.MemoryPromptRenderer;
 import dev.friendai.features.memory.PlayerRef;
 import dev.friendai.features.memory.minecraft.tool.MemoryAccess;
 import dev.friendai.features.memory.minecraft.tool.TrustAccess;
+import dev.friendai.features.placements.minecraft.PlacedService;
 import dev.friendai.features.places.PlaceCandidate;
 import dev.friendai.features.places.PlaceText;
 import dev.friendai.features.places.minecraft.PlaceService;
@@ -45,8 +45,9 @@ import dev.friendai.infrastructure.config.ServerConfig;
 import dev.friendai.infrastructure.persistence.memory.MemoryStore;
 import dev.friendai.infrastructure.persistence.places.PlaceStore;
 import dev.friendai.infrastructure.persistence.trading.TradeStore;
-import dev.friendai.perception.PerceptionContext;
 import dev.friendai.perception.resource.ResourceCandidates;
+import dev.friendai.server.agent.chat.CompanionSpeaker;
+import dev.friendai.server.agent.perception.PerceptionContext;
 import dev.friendai.server.agent.tools.FriendaiTools;
 import dev.friendai.server.agent.tools.GoalToolAccess;
 import dev.friendai.server.agent.tools.ToolDependencies;
@@ -79,6 +80,8 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
     private final GoalService goals;
     private final TradeStore trading;
     private final PlaceStore places;
+    private final PlaceService placeService;
+    private final PlacedService placedService;
     private final Supplier<PerceptionContext> perceptionContext;
     private final dev.friendai.features.knowledge.search.SearchHintStore searchHints;
     private final Map<UUID, CompanionSession> sessions = new HashMap<>();
@@ -107,6 +110,8 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
             GoalService goals,
             TradeStore trading,
             PlaceStore places,
+            PlaceService placeService,
+            PlacedService placedService,
             ResourceCandidates resources,
             dev.friendai.agent.autonomy.FreeTimeService freeTimeService,
             dev.friendai.features.trading.minecraft.tool.TradingToolAccess tradingToolAccess,
@@ -121,6 +126,8 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
         this.goals = goals;
         this.trading = trading;
         this.places = places;
+        this.placeService = placeService;
+        this.placedService = placedService;
         this.searchHints = searchHints;
         this.perceptionContext = () -> new PerceptionContext(resources, settings.get(), freeTimeService);
         this.debug = new DebugService(gateways.redactor(), System::currentTimeMillis);
@@ -161,7 +168,9 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                         companion -> this,
                         companion -> trustAccess,
                         companion -> freeTime(),
-                        this::searchHintLine),
+                        this::searchHintLine,
+                        placeService,
+                        placedService),
                 () -> settings.get().tasks().mineCollectDrops(),
                 () -> settings.get().tasks().fellCollectDrops());
         this.tools = builtins.registry();
@@ -170,7 +179,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
         this.planTools = builtins.plannable();
         this.taskTools = builtins.taskTools();
         this.freeTime = new FreeTimeDriver(
-                server, this, () -> this.config, settings, freeTimeService, places, taskTools, planTools);
+                server, this, () -> this.config, settings, freeTimeService, places, placeService, taskTools, planTools);
         reload(initial);
     }
     /** Free time: the companion working on its own. */
@@ -848,9 +857,8 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                 config.agent.goalTickSec,
                 config.agent.promptBudget,
                 config.agent.plannerTimeoutSec));
-        brain.setPlaceSource(caller -> config.places.enabled ? PlaceService.promptBlock(companion, caller) : "");
-        brain.setPlacedSource(caller ->
-                config.places.enabled ? dev.friendai.placed.PlacedService.promptBlock(companion, caller) : "");
+        brain.setPlaceSource(caller -> config.places.enabled ? placeService.promptBlock(companion, caller) : "");
+        brain.setPlacedSource(caller -> config.places.enabled ? placedService.promptBlock(companion, caller) : "");
         brain.setGoalSource(caller -> {
             var board = goals.board(owner);
             var primary = board.primary();
@@ -955,7 +963,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
             public void onPlace(PlaceCandidate candidate, String toolName) {
                 if (!isCurrent(session, companion)) return;
                 // Not news for the model: a successful task quietly refreshes the owner's place book.
-                PlaceService.autoRegister(companion, candidate);
+                placeService.autoRegister(companion, candidate);
             }
 
             @Override

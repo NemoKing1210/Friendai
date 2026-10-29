@@ -1,7 +1,7 @@
 package dev.friendai.mixin;
 
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.features.trading.minecraft.trading.BarterOutputCapture;
+import dev.friendai.server.runtime.ServerRuntimeRegistry;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.ai.behavior.BehaviorUtils;
@@ -26,13 +26,12 @@ abstract class BehaviorUtilsBarterOutputMixin {
         boolean added = level.addFreshEntity(entity);
         BarterOutputCapture.Context capture = BarterOutputCapture.current();
         if (added && capture != null && entity instanceof ItemEntity item && level instanceof ServerLevel serverLevel) {
-            FriendaiServerState.get(serverLevel.getServer())
-                    .barterDropTracker()
-                    .observeVanillaOutput(
+            ServerRuntimeRegistry.find(serverLevel.getServer())
+                    .ifPresent(runtime -> runtime.captureBarterOutput(
                             capture.attempt(),
                             capture.piglin(),
                             item.getUUID(),
-                            serverLevel.getServer().overworld().getGameTime());
+                            serverLevel.getServer().overworld().getGameTime()));
         }
         return added;
     }

@@ -18,7 +18,6 @@ import dev.friendai.features.navigation.pathing.Node;
 import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.features.places.PlaceAutoRegistration;
 import dev.friendai.features.places.PlaceCandidate;
-import dev.friendai.placed.PlacedService;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
@@ -239,7 +238,7 @@ public final class MineBlocksTask implements Task {
                 breaker = null;
                 mined++;
                 rememberFirst(lastBroken);
-                PlacedService.forget(c.companion(), lastBroken);
+                c.placedService().forget(c.companion(), lastBroken);
                 yield TaskStatus.RUNNING;
             }
             case GONE -> {
@@ -278,7 +277,7 @@ public final class MineBlocksTask implements Task {
                 observationWaitTicks = 0;
                 mined++;
                 rememberFirst(lastBroken);
-                PlacedService.forget(c.companion(), lastBroken);
+                c.placedService().forget(c.companion(), lastBroken);
                 miningSessionActive = false;
                 yield TaskStatus.RUNNING;
             }
@@ -309,7 +308,7 @@ public final class MineBlocksTask implements Task {
         List<BlockPos> candidates;
         if (placedOnly) {
             candidates = new ArrayList<>(
-                    PlacedService.candidates(c.companion(), matcher, origin, radius, evidenceLimit(CANDIDATES)));
+                    c.placedService().candidates(c.companion(), matcher, origin, radius, evidenceLimit(CANDIDATES)));
             candidates.removeIf(this::excluded);
         } else {
             candidates = treeCandidates(c);

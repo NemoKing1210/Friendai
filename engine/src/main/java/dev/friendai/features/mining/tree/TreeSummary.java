@@ -1,4 +1,6 @@
-package dev.friendai.perception;
+package dev.friendai.features.mining.tree;
+
+import java.util.Locale;
 
 /**
  * One tree-like cluster of logs as the prompt and the {@code find_trees} tool show it, with no Minecraft types.
@@ -20,6 +22,7 @@ public record TreeSummary(
     }
 
     private String distanceText() {
-        return PerceptionSnapshot.number((float) distance);
+        float value = (float) distance;
+        return value == Math.rint(value) ? String.valueOf((int) value) : String.format(Locale.ROOT, "%.1f", value);
     }
 }

@@ -22,7 +22,7 @@ class PlacedToolsTest {
             throw new AssertionError("placed block query is not a task tool");
         });
 
-        new PlacedTools().register(contributions);
+        new PlacedTools(dev.friendai.features.placements.minecraft.PlacedService.unavailable()).register(contributions);
 
         assertEquals(List.of("find_placed"), names(tools, AccessLevel.TRUSTED));
         assertEquals(List.of(), names(tools, AccessLevel.GUEST));

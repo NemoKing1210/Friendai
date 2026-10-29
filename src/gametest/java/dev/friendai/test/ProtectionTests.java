@@ -1,6 +1,7 @@
 package dev.friendai.test;
 
 import com.google.gson.JsonObject;
+import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.execution.queue.FailurePolicy;
@@ -16,7 +17,6 @@ import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.features.places.PlaceKind;
 import dev.friendai.features.places.PlaceSource;
 import dev.friendai.features.places.PlaceValues;
-import dev.friendai.features.places.minecraft.PlaceService;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskListener;
@@ -93,21 +93,23 @@ public class ProtectionTests {
 
     private static void rememberHome(GameTestHelper h, CompanionEntity companion) {
         BlockPos anchor = companion.blockPosition();
-        PlaceService.remember(
-                companion,
-                new Caller(companion.ownerUuid(), "owner", AccessLevel.OWNER),
-                new PlaceValues(
-                        "home",
-                        PlaceKind.HOUSE,
-                        "",
-                        companion.level().dimension().identifier().toString(),
-                        new Pos(anchor.getX(), anchor.getY(), anchor.getZ()),
-                        4,
-                        Set.of(),
-                        PlaceSource.MANUAL,
-                        companion.ownerUuid(),
-                        ""),
-                companion.level().getGameTime());
+        FriendaiServerState.get(h.getLevel().getServer())
+                .placeService()
+                .remember(
+                        companion,
+                        new Caller(companion.ownerUuid(), "owner", AccessLevel.OWNER),
+                        new PlaceValues(
+                                "home",
+                                PlaceKind.HOUSE,
+                                "",
+                                companion.level().dimension().identifier().toString(),
+                                new Pos(anchor.getX(), anchor.getY(), anchor.getZ()),
+                                4,
+                                Set.of(),
+                                PlaceSource.MANUAL,
+                                companion.ownerUuid(),
+                                ""),
+                        companion.level().getGameTime());
     }
 
     @GameTest(maxTicks = 2400)

@@ -109,7 +109,7 @@ public final class SearchTargets {
     private static Resolution resolvePlace(TaskContext context, String dimension, String target) {
         var owner = context.companion().ownerUuid();
         if (owner == null) return Resolution.fail("unknown place in this dimension: " + target);
-        Optional<Place> place = context.placeBook(owner).find(target, dimension);
+        Optional<Place> place = context.placeService().book(context.companion()).find(target, dimension);
         if (place.isEmpty()) return Resolution.fail("unknown place in this dimension: " + target);
         return Resolution.ok(new TargetKind.Place(place.get().name(), dimension, 64));
     }
@@ -204,7 +204,7 @@ public final class SearchTargets {
         Set<String> names = new LinkedHashSet<>();
         var owner = companion.ownerUuid();
         if (owner == null) return names;
-        for (Place place : context.placeBook(owner).all()) {
+        for (Place place : context.placeService().book(companion).all()) {
             if (place.dimension().equals(dimension) && within(place, position)) names.add(place.name());
         }
         return names;

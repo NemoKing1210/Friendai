@@ -1,4 +1,4 @@
-package dev.friendai.perception;
+package dev.friendai.agent.perception;
 
 import dev.friendai.features.survival.HungerModel;
 import java.util.Locale;

@@ -5,7 +5,7 @@ import dev.friendai.features.construction.blueprint.PlacementRefusal;
 import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.features.placements.PlacedBlock;
 import dev.friendai.features.placements.PlacedQuery;
-import dev.friendai.placed.PlacedService;
+import dev.friendai.features.placements.minecraft.PlacedService;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -135,7 +135,8 @@ public final class Site {
      * The ledger placements inside the footprint: blocks this companion put there in this or an earlier run. A build
      * adds its scaffold to this set; a preview uses only the ledger, because it has no scaffold of its own.
      */
-    public static Set<BlockPos> ownedByCompanion(CompanionEntity companion, Placement.PlacedBlueprint placed) {
+    public static Set<BlockPos> ownedByCompanion(
+            CompanionEntity companion, Placement.PlacedBlueprint placed, PlacedService placedService) {
         Set<BlockPos> owned = new HashSet<>();
         try {
             int width = 0;
@@ -147,7 +148,7 @@ public final class Site {
                 depth = Math.max(depth, spec.pos().getZ() - placed.origin().getZ() + 1);
             }
             int radius = Math.max(width, Math.max(height, depth)) + 8;
-            PlacedQuery.Result result = PlacedService.findAt(
+            PlacedQuery.Result result = placedService.findAt(
                     companion,
                     null,
                     new Pos(

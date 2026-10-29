@@ -1,18 +1,18 @@
-package dev.friendai.placed;
+package dev.friendai.features.placements.minecraft;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
+import dev.friendai.features.navigation.RelativeDirection;
 import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.features.placements.*;
-import dev.friendai.perception.RelativeDirection;
-import dev.friendai.task.TaskContext;
 import dev.friendai.task.interact.ContainerAccess;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Function;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
@@ -20,9 +20,9 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
- * The server-thread facade over the owner's placement ledger. Recording happens at the one choke point every
- * placement path already uses, {@code CompanionHands.place}; this class only turns a world fact into an entry and
- * answers queries. A companion without an owner records nothing and sees nothing.
+ * The server-thread facade over the owner's placement ledger. It receives an owner-book provider at construction;
+ * recording happens at the one choke point every placement path already uses, {@code CompanionHands.place}. This
+ * class only turns a world fact into an entry and answers queries. A companion without an owner records nothing.
  */
 public final class PlacedService {
     /** How many entries one prune call may inspect: a query must never scan the whole book. */
@@ -36,19 +36,28 @@ public final class PlacedService {
     /** How many material lines the prompt block may show. */
     public static final int PROMPT_GROUPS = 6;
 
-    private PlacedService() {}
+    private final Function<UUID, PlacedBook> books;
+
+    public PlacedService(Function<UUID, PlacedBook> books) {
+        this.books = java.util.Objects.requireNonNull(books, "books");
+    }
+
+    /** Isolated ledger used by catalog-only tool registries that have no server persistence. */
+    public static PlacedService unavailable() {
+        return new PlacedService(ignored -> new PlacedBook(PlacedLimits.DEFAULTS));
+    }
 
     /** The owner's book, or a fresh empty one when the companion has no owner. */
-    public static PlacedBook book(CompanionEntity companion) {
+    public PlacedBook book(CompanionEntity companion) {
         UUID owner = companion.ownerUuid();
         if (owner == null || !(companion.level() instanceof ServerLevel level)) {
             return new PlacedBook(PlacedLimits.DEFAULTS);
         }
-        return context(companion).placedBook(owner);
+        return books.apply(owner);
     }
 
     /** Records one successful placement; a companion without an owner is not recorded. */
-    public static void record(CompanionEntity companion, BlockPos pos, BlockState state, String source) {
+    public void record(CompanionEntity companion, BlockPos pos, BlockState state, String source) {
         if (!(companion.level() instanceof ServerLevel level)) {
             return;
         }
@@ -63,11 +72,11 @@ public final class PlacedService {
                 blockId,
                 level.getGameTime(),
                 source);
-        context(companion).placedBook(owner).record(block);
+        books.apply(owner).record(block);
     }
 
     /** Forgets the entry for one cell, after the block was broken or taken back. */
-    public static void forget(CompanionEntity companion, BlockPos pos) {
+    public void forget(CompanionEntity companion, BlockPos pos) {
         if (!(companion.level() instanceof ServerLevel level)) {
             return;
         }
@@ -75,17 +84,16 @@ public final class PlacedService {
         if (owner == null) {
             return;
         }
-        context(companion)
-                .placedBook(owner)
+        books.apply(owner)
                 .remove(level.dimension().identifier().toString(), new Pos(pos.getX(), pos.getY(), pos.getZ()));
     }
 
     /** Drops entries whose loaded chunk no longer holds the recorded block; unloaded chunks are kept. */
-    public static int prune(CompanionEntity companion) {
+    public int prune(CompanionEntity companion) {
         return prune(companion, PRUNE_BUDGET);
     }
 
-    public static int prune(CompanionEntity companion, int budget) {
+    public int prune(CompanionEntity companion, int budget) {
         if (!(companion.level() instanceof ServerLevel level)) {
             return 0;
         }
@@ -116,7 +124,7 @@ public final class PlacedService {
     }
 
     /** The prompt block for this caller; empty for guests, an empty ledger or a companion without a level. */
-    public static String promptBlock(CompanionEntity companion, Caller caller) {
+    public String promptBlock(CompanionEntity companion, Caller caller) {
         if (caller == null
                 || !caller.access().allows(AccessLevel.TRUSTED)
                 || !(companion.level() instanceof ServerLevel level)) {
@@ -141,13 +149,13 @@ public final class PlacedService {
     }
 
     /** The recorded blocks matching {@code matcher} (or every block when null) within radius, nearest first. */
-    public static PlacedQuery.Result find(CompanionEntity companion, BlockMatcher matcher, int radius, int limit) {
+    public PlacedQuery.Result find(CompanionEntity companion, BlockMatcher matcher, int radius, int limit) {
         BlockPos origin = companion.blockPosition();
         return findAt(companion, matcher, new Pos(origin.getX(), origin.getY(), origin.getZ()), radius, limit);
     }
 
     /** As {@link #find}, around an explicit origin. */
-    public static PlacedQuery.Result findAt(
+    public PlacedQuery.Result findAt(
             CompanionEntity companion, BlockMatcher matcher, Pos origin, int radius, int limit) {
         prune(companion);
         if (!(companion.level() instanceof ServerLevel level)) {
@@ -166,7 +174,7 @@ public final class PlacedService {
      * Candidate cells for {@code mine_blocks(placed=true)}: only recorded blocks that still hold their block in a
      * loaded chunk, nearest first. An unplaced block is never a candidate, even when it sits beside one.
      */
-    public static List<BlockPos> candidates(
+    public List<BlockPos> candidates(
             CompanionEntity companion, BlockMatcher matcher, BlockPos origin, int radius, int limit) {
         if (!(companion.level() instanceof ServerLevel level)) {
             return List.of();
@@ -185,7 +193,7 @@ public final class PlacedService {
     }
 
     /** The nearest recorded block within {@code radius}, if any, for a pickup centred on it. */
-    public static Optional<BlockPos> nearestCenter(CompanionEntity companion, int radius) {
+    public Optional<BlockPos> nearestCenter(CompanionEntity companion, int radius) {
         PlacedQuery.Result result = find(companion, null, radius, 1);
         return result.entries().isEmpty()
                 ? Optional.empty()
@@ -193,7 +201,7 @@ public final class PlacedService {
     }
 
     /** The nearest recorded block that is still a storage container, for {@code store_items(placed=true)}. */
-    public static Optional<BlockPos> nearestContainer(CompanionEntity companion, int radius) {
+    public Optional<BlockPos> nearestContainer(CompanionEntity companion, int radius) {
         if (!(companion.level() instanceof ServerLevel level)) {
             return Optional.empty();
         }
@@ -219,7 +227,7 @@ public final class PlacedService {
     }
 
     /** True when the recorded block still stands at its cell; an unloaded chunk counts as unknown, not gone. */
-    public static boolean stillThere(ServerLevel level, PlacedBlock entry) {
+    public boolean stillThere(ServerLevel level, PlacedBlock entry) {
         BlockPos pos =
                 new BlockPos(entry.pos().x(), entry.pos().y(), entry.pos().z());
         if (!level.hasChunkAt(pos)) {
@@ -229,9 +237,5 @@ public final class PlacedService {
                 .getKey(level.getBlockState(pos).getBlock())
                 .toString()
                 .equals(entry.blockId());
-    }
-
-    private static TaskContext context(CompanionEntity companion) {
-        return new TaskContext(companion, (ServerLevel) companion.level());
     }
 }

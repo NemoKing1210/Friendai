@@ -1,10 +1,17 @@
-package dev.friendai.perception;
+package dev.friendai.server.agent.perception;
 
 import dev.friendai.agent.autonomy.FreeTimeText;
+import dev.friendai.agent.perception.OwnerFocus;
+import dev.friendai.agent.perception.PerceptionSnapshot;
+import dev.friendai.agent.perception.SelfStatus;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.combat.Threat;
 import dev.friendai.features.combat.minecraft.Threats;
+import dev.friendai.features.knowledge.minecraft.LandmarkScanner;
 import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
 import dev.friendai.features.mining.minecraft.mining.TreeFinder;
+import dev.friendai.features.mining.tree.TreeSummary;
+import dev.friendai.features.navigation.RelativeDirection;
 import dev.friendai.perception.resource.ResourceCandidates;
 import dev.friendai.server.configuration.ServerSettings;
 import java.util.Comparator;

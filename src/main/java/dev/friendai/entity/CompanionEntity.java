@@ -1,7 +1,6 @@
 package dev.friendai.entity;
 
 import com.mojang.serialization.Codec;
-import dev.friendai.chat.CompanionNames;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.execution.tool.InventoryAccess;
 import dev.friendai.features.combat.CombatMode;
@@ -26,6 +25,7 @@ import dev.friendai.features.survival.minecraft.HungerWatcher;
 import dev.friendai.features.survival.minecraft.task.SleepTask;
 import dev.friendai.menu.FriendaiMenus;
 import dev.friendai.server.companion.CompanionExecution;
+import dev.friendai.server.companion.CompanionNames;
 import dev.friendai.server.companion.CompanionPickup;
 import dev.friendai.server.companion.persistence.CompanionBodyCodec;
 import dev.friendai.server.companion.persistence.CompanionCarryCodec;
@@ -34,6 +34,7 @@ import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.execution.ExecutionHold;
 import dev.friendai.server.execution.HoldReason;
 import dev.friendai.server.net.DebugStream;
+import dev.friendai.server.runtime.ServerRuntimeRegistry;
 import dev.friendai.task.TaskExecutionPort;
 import dev.friendai.task.interact.CompanionHands;
 import java.util.List;
@@ -361,7 +362,10 @@ public class CompanionEntity extends PathfinderMob {
     /** The fake player that performs placements and right-clicks. Not saved. */
     public CompanionHands hands() {
         if (hands == null) {
-            hands = new CompanionHands(this);
+            var placed = level() instanceof ServerLevel serverLevel
+                    ? ServerRuntimeRegistry.getOrCreate(serverLevel.getServer()).placedService()
+                    : dev.friendai.features.placements.minecraft.PlacedService.unavailable();
+            hands = new CompanionHands(this, placed);
         }
         return hands;
     }

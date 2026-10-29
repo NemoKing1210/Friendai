@@ -1,7 +1,6 @@
 package dev.friendai.features.inventory.minecraft.task;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.placed.PlacedService;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.interact.ContainerAccess;
@@ -12,7 +11,6 @@ import java.util.Map;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
 
 /** Puts items from the 27-slot inventory into a storage container. Never touches the main hand. */
@@ -55,11 +53,11 @@ public final class StoreItemsTask extends ContainerTaskBase {
     }
 
     @Override
-    protected Optional<BlockPos> findTarget(ServerLevel level, CompanionEntity companion) {
+    protected Optional<BlockPos> findTarget(TaskContext context) {
         if (placed) {
-            return PlacedService.nearestContainer(companion, NEAR_PLACED_RADIUS);
+            return context.placedService().nearestContainer(context.companion(), NEAR_PLACED_RADIUS);
         }
-        return ContainerAccess.nearest(companion, RADIUS);
+        return ContainerAccess.nearest(context.companion(), RADIUS);
     }
 
     @Override

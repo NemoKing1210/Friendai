@@ -17,7 +17,6 @@ import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.features.places.PlaceKind;
 import dev.friendai.features.places.PlaceSource;
 import dev.friendai.features.places.PlaceValues;
-import dev.friendai.features.places.minecraft.PlaceService;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
@@ -79,7 +78,9 @@ public class FreeTimeTests {
 
     private static void storagePlace(GameTestHelper h, CompanionEntity c, String name, int x, int y, int z, int r) {
         BlockPos anchor = h.absolutePos(new BlockPos(x, y, z));
-        PlaceService.book(c)
+        dev.friendai.core.FriendaiServerState.get(c.level().getServer())
+                .placeService()
+                .book(c)
                 .remember(
                         new PlaceValues(
                                 name,
@@ -579,8 +580,13 @@ public class FreeTimeTests {
         driver(h).start(c, dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, "");
         h.succeedWhen(() -> {
             var state = driver(h).state(owner);
-            boolean farm = dev.friendai.features.places.minecraft.PlaceService.book(c).all().stream()
-                    .anyMatch(place -> place.kind() == PlaceKind.FARM);
+            boolean farm =
+                    dev.friendai.core.FriendaiServerState.get(c.level().getServer())
+                            .placeService()
+                            .book(c)
+                            .all()
+                            .stream()
+                            .anyMatch(place -> place.kind() == PlaceKind.FARM);
             h.assertTrue(farm, "the created farm is remembered: " + state);
             h.assertTrue(
                     state.history().stream()
@@ -836,7 +842,9 @@ public class FreeTimeTests {
 
     private static void housePlace(GameTestHelper h, CompanionEntity c, String name, int x, int y, int z, int r) {
         BlockPos anchor = h.absolutePos(new BlockPos(x, y, z));
-        PlaceService.book(c)
+        dev.friendai.core.FriendaiServerState.get(c.level().getServer())
+                .placeService()
+                .book(c)
                 .remember(
                         new PlaceValues(
                                 name,

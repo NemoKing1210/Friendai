@@ -11,7 +11,7 @@ import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
 import dev.friendai.features.mining.minecraft.task.MineBlocksTask;
 import dev.friendai.features.placements.PlacedBlock;
 import dev.friendai.features.placements.PlacedBook;
-import dev.friendai.placed.PlacedService;
+import dev.friendai.features.placements.minecraft.PlacedService;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
@@ -28,6 +28,9 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 
 public class PlacedBlockTests {
+    private static PlacedService placedService(CompanionEntity companion) {
+        return FriendaiServerState.get(companion.level().getServer()).placedService();
+    }
 
     private static final class Result implements TaskListener {
         TaskStatus status;
@@ -80,7 +83,7 @@ public class PlacedBlockTests {
 
         h.setBlock(LOG_CELLS[0], Blocks.AIR);
         BlockMatcher logs = BlockMatcher.parse("minecraft:oak_log").orElseThrow();
-        var found = PlacedService.find(c, logs, 16, 8);
+        var found = placedService(c).find(c, logs, 16, 8);
         h.assertTrue(found.total() == 2, "after pruning the ledger reported " + found.total() + ": " + found.entries());
         h.assertTrue(book.size() == 2, "book still holds " + book.size());
         h.succeed();
@@ -125,11 +128,12 @@ public class PlacedBlockTests {
         h.assertTrue(guest.error(), "a guest must not read the owner's placements");
         h.assertTrue(guest.content().contains("not available"), guest.content());
 
-        String prompt = PlacedService.promptBlock(c, ownerCaller);
+        String prompt = placedService(c).promptBlock(c, ownerCaller);
         h.assertTrue(prompt.contains("Blocks you placed"), prompt);
         h.assertTrue(prompt.contains("minecraft:oak_log"), prompt);
         h.assertTrue(
-                PlacedService.promptBlock(c, new Caller(UUID.randomUUID(), "Gus", AccessLevel.GUEST))
+                placedService(c)
+                        .promptBlock(c, new Caller(UUID.randomUUID(), "Gus", AccessLevel.GUEST))
                         .isEmpty(),
                 "a guest prompt must not carry the ledger");
         h.succeed();
@@ -239,14 +243,14 @@ public class PlacedBlockTests {
             for (int z = 2; z <= 9 && recorded < 65; z++) {
                 h.setBlock(new BlockPos(x, 2, z), Blocks.OAK_LOG);
                 BlockPos cell = h.absolutePos(new BlockPos(x, 2, z));
-                PlacedService.record(c, cell, h.getLevel().getBlockState(cell), "test");
+                placedService(c).record(c, cell, h.getLevel().getBlockState(cell), "test");
                 recorded++;
             }
         }
         h.setBlock(new BlockPos(13, 2, 13), Blocks.CHEST);
         BlockPos chest = h.absolutePos(new BlockPos(13, 2, 13));
-        PlacedService.record(c, chest, h.getLevel().getBlockState(chest), "test");
-        var found = PlacedService.nearestContainer(c, 64);
+        placedService(c).record(c, chest, h.getLevel().getBlockState(chest), "test");
+        var found = placedService(c).nearestContainer(c, 64);
         h.assertTrue(found.isPresent() && found.get().equals(chest), "container behind nearer placements was " + found);
         h.succeed();
     }

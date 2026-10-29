@@ -1,7 +1,6 @@
 package dev.friendai.features.inventory.minecraft.task;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.placed.PlacedService;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
@@ -51,7 +50,7 @@ public final class PickupItemsTask implements Task {
     public void start(TaskContext c) {
         origin = c.companion().position();
         if (nearPlaced) {
-            var placed = PlacedService.nearestCenter(c.companion(), NEAR_PLACED_RADIUS);
+            var placed = c.placedService().nearestCenter(c.companion(), NEAR_PLACED_RADIUS);
             if (placed.isEmpty()) {
                 failure = "you have not placed any block nearby";
                 return;

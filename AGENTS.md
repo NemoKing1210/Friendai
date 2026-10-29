@@ -117,7 +117,7 @@ The mod ships one mixin set — `friendai.mixins.json`, package `dev.friendai.mi
 - **A mixin is the last resort.** Prefer a Fabric event, a `Mob` goal, entity data or another vanilla hook. When vanilla offers no seam, as with hostile goals that ask for `Player`, the class javadoc says why, next to the code it patches.
 - One file per target class, named `<Target>Mixin`; prefix every injected member with `friendai$`; never `@Overwrite` — inject or redirect and leave the vanilla path intact.
 - `defaultRequire: 1` turns a renamed or removed vanilla method into a boot failure, not a compile error. A mixin change is verified by loading the game (GameTest boot or `runClient`), never by compilation alone, and the behavior it enables needs a GameTest.
-- The two current mixins let hostile mobs treat the companion as a player. Anything touching entity AI or targeting is checked against them before a new mixin is written.
+- The current set has four entries: `PiglinAiInvoker`, `BehaviorUtilsBarterOutputMixin`, `NearestAttackableTargetGoalMixin` and `TargetGoalAccessor`. The hostile-goal mixins let mobs treat the companion as a player; the barter mixin captures exact vanilla drop UUIDs. Check all four before changing entity AI, targeting or barter behavior.
 
 ## Language and localization
 

@@ -1,4 +1,4 @@
-package dev.friendai.chat;
+package dev.friendai.server.agent.chat;
 
 import dev.friendai.agent.turn.BrainEvent;
 import dev.friendai.core.FriendaiServerState;

@@ -1,10 +1,10 @@
 package dev.friendai.test;
 
+import dev.friendai.agent.perception.OwnerFocus;
+import dev.friendai.agent.perception.OwnerFocus.Visibility;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
-import dev.friendai.perception.OwnerFocus;
-import dev.friendai.perception.OwnerFocus.Visibility;
-import dev.friendai.perception.OwnerFocusBuilder;
+import dev.friendai.server.agent.perception.OwnerFocusBuilder;
 import java.util.UUID;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;

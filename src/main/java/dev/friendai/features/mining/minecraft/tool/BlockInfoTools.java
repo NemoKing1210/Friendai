@@ -12,12 +12,12 @@ import dev.friendai.execution.tool.Tool;
 import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
 import dev.friendai.features.mining.minecraft.mining.MiningRefusal;
+import dev.friendai.features.mining.minecraft.mining.MiningToolView;
 import dev.friendai.features.mining.minecraft.mining.TreeFinder;
+import dev.friendai.features.mining.tree.TreeSummary;
+import dev.friendai.features.mining.tree.TreeText;
 import dev.friendai.features.places.minecraft.NearResolver;
-import dev.friendai.perception.OwnerFocusBuilder;
-import dev.friendai.perception.PerceptionSnapshot;
-import dev.friendai.perception.TreeSummary;
-import dev.friendai.perception.TreeText;
+import dev.friendai.features.places.minecraft.PlaceService;
 import dev.friendai.perception.resource.ResourceCandidates;
 import dev.friendai.server.execution.tools.FeatureToolContributor;
 import dev.friendai.server.execution.tools.FeatureToolRegistry;
@@ -34,22 +34,38 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
 /** Queries over directly observed, remembered and visible blocks. */
 public final class BlockInfoTools implements FeatureToolContributor {
+    private static final double SPEAKER_VIEW_RANGE = 32.0;
+    private static final double LOOK_RANGE = 64.0;
+
     private final IntSupplier mineRadius;
     private final IntSupplier treeRadius;
     private final Function<CompanionEntity, ResourceCandidates> resourceCandidates;
+    private final PlaceService places;
 
     public BlockInfoTools(
             IntSupplier mineRadius,
             IntSupplier treeRadius,
             Function<CompanionEntity, ResourceCandidates> resourceCandidates) {
+        this(mineRadius, treeRadius, resourceCandidates, PlaceService.unavailable());
+    }
+
+    public BlockInfoTools(
+            IntSupplier mineRadius,
+            IntSupplier treeRadius,
+            Function<CompanionEntity, ResourceCandidates> resourceCandidates,
+            PlaceService places) {
         this.mineRadius = Objects.requireNonNull(mineRadius);
         this.treeRadius = Objects.requireNonNull(treeRadius);
         this.resourceCandidates = resourceCandidates;
+        this.places = Objects.requireNonNull(places);
     }
 
     @Override
@@ -108,7 +124,7 @@ public final class BlockInfoTools implements FeatureToolContributor {
 
     private ToolResult findTrees(CompanionEntity companion, Caller caller, JsonObject args) {
         ResourceCandidates resources = resourceCandidates == null ? null : resourceCandidates.apply(companion);
-        BlockPos origin = NearResolver.resolve(companion, caller, args);
+        BlockPos origin = NearResolver.resolve(places, companion, caller, args);
         BlockMatcher matcher = args.has("type") && !args.get("type").isJsonNull()
                 ? parseBlockMatcher(args.get("type").getAsString())
                 : null;
@@ -189,7 +205,7 @@ public final class BlockInfoTools implements FeatureToolContributor {
         Optional<BlockPos> asked = optionalPos(args);
         BlockPos pos = asked.orElse(null);
         if (pos == null) {
-            pos = OwnerFocusBuilder.lookedAtBlock(companion, caller.uuid()).orElse(null);
+            pos = lookedAtBlock(companion, caller.uuid()).orElse(null);
         }
         if (pos == null) {
             return ToolResult.error("no block in view; pass x, y and z");
@@ -218,13 +234,39 @@ public final class BlockInfoTools implements FeatureToolContributor {
         if (hardness < 0) {
             return ToolResult.ok(name + " at " + at + ": cannot be broken; light " + light);
         }
-        String facts = name + " at " + at + ": hardness " + PerceptionSnapshot.number(hardness);
+        String facts = name + " at " + at + ": hardness " + number(hardness);
         if (!state.requiresCorrectToolForDrops()) {
             return ToolResult.ok(facts + ", can be dug by hand; light " + light);
         }
-        String tool = OwnerFocusBuilder.toolFor(companion, state);
+        String tool = MiningToolView.currentToolFor(companion, state).orElse(null);
         return ToolResult.ok(
                 facts + ", needs a proper tool (you have " + (tool == null ? "none" : tool) + "); light " + light);
+    }
+
+    /** The visible speaker's looked-at block; an online speaker takes precedence over the owner. */
+    private static Optional<BlockPos> lookedAtBlock(CompanionEntity companion, java.util.UUID principal) {
+        if (!(companion.level() instanceof ServerLevel level)) {
+            return Optional.empty();
+        }
+        ServerPlayer speaker =
+                principal == null ? null : level.getServer().getPlayerList().getPlayer(principal);
+        if (speaker == null) {
+            speaker = companion.owner().orElse(null);
+        }
+        if (speaker == null
+                || speaker.level() != level
+                || companion.distanceTo(speaker) > SPEAKER_VIEW_RANGE
+                || !companion.hasLineOfSight(speaker)) {
+            return Optional.empty();
+        }
+        HitResult hit = speaker.pick(LOOK_RANGE, 1.0F, false);
+        return hit instanceof BlockHitResult blockHit && hit.getType() == HitResult.Type.BLOCK
+                ? Optional.of(blockHit.getBlockPos())
+                : Optional.empty();
+    }
+
+    private static String number(float value) {
+        return value == Math.rint(value) ? String.valueOf((int) value) : String.format(Locale.ROOT, "%.1f", value);
     }
 
     private static Optional<BlockPos> optionalPos(JsonObject args) {

@@ -18,6 +18,7 @@ import dev.friendai.features.construction.minecraft.build.Placement;
 import dev.friendai.features.construction.minecraft.build.PreviewOutline;
 import dev.friendai.features.construction.minecraft.build.Site;
 import dev.friendai.features.construction.minecraft.task.BuildTask;
+import dev.friendai.features.placements.minecraft.PlacedService;
 import dev.friendai.server.execution.tools.FeatureToolRegistry;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -75,7 +76,8 @@ final class BuildTools {
             palette: key "CC" must be one character, ops[1]: 'to' is below 'from', unknown block minecraft:oak_plank.
             """;
 
-    static void register(FeatureToolRegistry registry, BuildTask.ObtainFactory obtainFactory) {
+    static void register(
+            FeatureToolRegistry registry, BuildTask.ObtainFactory obtainFactory, PlacedService placedService) {
         ConstructionToolSupport.registerTool(
                 registry,
                 ToolGroup.BLUEPRINT,
@@ -89,7 +91,7 @@ final class BuildTools {
                 "preview_structure",
                 "Check a structure before building it: size, materials, site problems, and an outline for the owner.",
                 sourceSchema().build(),
-                BuildTools::preview);
+                (companion, args) -> preview(placedService, companion, args));
         ConstructionToolSupport.registerTask(
                 registry,
                 ToolGroup.BLUEPRINT,
@@ -186,7 +188,7 @@ final class BuildTools {
         return com.google.gson.JsonParser.parseString("{\"type\":\"string\"}").getAsJsonObject();
     }
 
-    private static ToolResult preview(CompanionEntity companion, JsonObject args) {
+    private static ToolResult preview(PlacedService placedService, CompanionEntity companion, JsonObject args) {
         ServerLevel level = (ServerLevel) companion.level();
         ParseResult parsed = BlueprintResolver.resolve(args, level, author(companion));
         if (parsed.blueprint().isEmpty()) {
@@ -198,7 +200,7 @@ final class BuildTools {
         Map<Item, Integer> needed;
         try {
             placed = Placement.of(blueprint, origin(args), facing(args), companion);
-            java.util.Set<BlockPos> owned = Site.ownedByCompanion(companion, placed);
+            java.util.Set<BlockPos> owned = Site.ownedByCompanion(companion, placed, placedService);
             site = Site.check(level, placed, companion, true, owned::contains);
             needed = Materials.needed(placed.specs(), site.foundation());
         } catch (IllegalArgumentException e) {

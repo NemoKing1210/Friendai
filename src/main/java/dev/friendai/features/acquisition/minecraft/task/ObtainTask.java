@@ -555,7 +555,7 @@ public final class ObtainTask implements Task {
             this.count = count;
             this.session = new ContainerSession(
                     null,
-                    (level, companion) -> ContainerAccess.nearest(companion, CONTAINER_RADIUS),
+                    context -> ContainerAccess.nearest(context.companion(), CONTAINER_RADIUS),
                     true,
                     () -> "no storage container with " + matcher.label() + " within " + CONTAINER_RADIUS + " blocks",
                     position -> "there is no chest, barrel or other storage at " + position.getX() + " "

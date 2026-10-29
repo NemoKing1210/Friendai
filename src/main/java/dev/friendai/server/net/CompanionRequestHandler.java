@@ -154,12 +154,13 @@ public final class CompanionRequestHandler {
             memoryStatus = applyMemoryRequest(player, runtime, server, memory);
         } else if (request instanceof PlaceRequest.Rename rename) {
             placeStatus = renamePlace(
+                    runtime.placeService(),
                     runtime.places().book(owner),
                     rename.oldName(),
                     rename.newName(),
                     player.level().getGameTime());
         } else if (request instanceof PlaceRequest.Forget forget) {
-            placeStatus = forgetPlace(runtime.places().book(owner), forget.name());
+            placeStatus = forgetPlace(runtime.placeService(), runtime.places().book(owner), forget.name());
         }
 
         if (memoryStatus != null) MemoryViewStream.sendNow(player, Optional.of(memoryStatus), requestId);
@@ -237,7 +238,12 @@ public final class CompanionRequestHandler {
     }
 
     /** Renames the sender's place matched by name or alias; an ambiguous name is reported, never guessed. */
-    private static MenuStatus renamePlace(PlaceRegistry book, String oldName, String newName, long tick) {
+    private static MenuStatus renamePlace(
+            dev.friendai.features.places.minecraft.PlaceService places,
+            PlaceRegistry book,
+            String oldName,
+            String newName,
+            long tick) {
         List<Place> matches = matches(book, oldName);
         if (matches.isEmpty()) return MenuStatus.error("friendai.menu.places.error.not_found", oldName);
         if (matches.size() > 1)
@@ -249,7 +255,7 @@ public final class CompanionRequestHandler {
         if (taken.isPresent() && taken.get().id() != place.id())
             return MenuStatus.error("friendai.menu.places.error.name_taken", name);
         try {
-            Place renamed = book.rename(place.id(), name, tick);
+            Place renamed = places.rename(book, place.id(), name, tick);
             return MenuStatus.ok("friendai.menu.places.status.renamed", place.name(), renamed.name());
         } catch (IllegalArgumentException rejected) {
             return MenuStatus.error("friendai.menu.places.error.name_invalid", PlaceLimits.NAME_MAX);
@@ -257,13 +263,14 @@ public final class CompanionRequestHandler {
     }
 
     /** Forgets the sender's place matched by name or alias; an ambiguous name is reported, never guessed. */
-    private static MenuStatus forgetPlace(PlaceRegistry book, String name) {
+    private static MenuStatus forgetPlace(
+            dev.friendai.features.places.minecraft.PlaceService places, PlaceRegistry book, String name) {
         List<Place> matches = matches(book, name);
         if (matches.isEmpty()) return MenuStatus.error("friendai.menu.places.error.not_found", name);
         if (matches.size() > 1)
             return MenuStatus.error("friendai.menu.places.error.ambiguous", name, describe(matches));
         Place place = matches.get(0);
-        book.remove(place.id());
+        places.forget(book, place.id());
         return MenuStatus.ok("friendai.menu.places.status.forgotten", place.name());
     }
 

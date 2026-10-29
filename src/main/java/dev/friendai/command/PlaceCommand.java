@@ -6,7 +6,6 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import dev.friendai.core.Components;
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.execution.tool.AccessLevel;
@@ -21,6 +20,7 @@ import dev.friendai.features.places.PlaceSource;
 import dev.friendai.features.places.PlaceValues;
 import dev.friendai.features.places.minecraft.PlaceService;
 import dev.friendai.foundation.text.UserMessage;
+import dev.friendai.server.runtime.ServerRuntimeRegistry;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -74,7 +74,12 @@ public final class PlaceCommand {
     }
 
     /** The sender, their companion and the book the owner reads; {@code dimension} is where the sender stands. */
-    private record Session(ServerPlayer player, CompanionEntity companion, PlaceRegistry book, String dimension) {}
+    private record Session(
+            ServerPlayer player,
+            CompanionEntity companion,
+            PlaceRegistry book,
+            String dimension,
+            PlaceService places) {}
 
     /** Empty after sending {@code no_companion}: a player without a companion has no book to change. */
     private static Optional<Session> session(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
@@ -85,11 +90,14 @@ public final class PlaceCommand {
             ctx.getSource().sendFailure(Component.translatable("friendai.command.no_companion"));
             return Optional.empty();
         }
+        PlaceService places =
+                ServerRuntimeRegistry.getOrCreate(ctx.getSource().getServer()).placeService();
         return Optional.of(new Session(
                 player,
                 companion.get(),
-                PlaceService.book(companion.get()),
-                player.level().dimension().identifier().toString()));
+                places.book(companion.get()),
+                player.level().dimension().identifier().toString(),
+                places));
     }
 
     private static int list(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
@@ -138,7 +146,8 @@ public final class PlaceCommand {
         }
         PlaceRegistry book = session.book();
         boolean existing = book.find(name, session.dimension()).isPresent();
-        int maxPlaces = FriendaiServerState.get(ctx.getSource().getServer()).config().places.maxPlaces;
+        int maxPlaces =
+                ServerRuntimeRegistry.getOrCreate(ctx.getSource().getServer()).config().places.maxPlaces;
         if (!existing && book.all().size() >= maxPlaces) {
             return failure(ctx, "friendai.command.place.cap", maxPlaces);
         }
@@ -157,8 +166,12 @@ public final class PlaceCommand {
                 PlaceSource.COMMAND,
                 session.player().getUUID(),
                 "");
-        Place place = PlaceService.remember(
-                session.companion(), caller, values, session.player().level().getGameTime());
+        Place place = session.places()
+                .remember(
+                        session.companion(),
+                        caller,
+                        values,
+                        session.player().level().getGameTime());
         reply(
                 ctx,
                 existing ? "friendai.command.place.updated" : "friendai.command.place.add",
@@ -212,8 +225,12 @@ public final class PlaceCommand {
         if (taken.isPresent() && taken.get().id() != place.id()) {
             return failure(ctx, "friendai.command.place.name.taken", newName);
         }
-        Place renamed = session.book()
-                .rename(place.id(), newName, session.player().level().getGameTime());
+        Place renamed = session.places()
+                .rename(
+                        session.book(),
+                        place.id(),
+                        newName,
+                        session.player().level().getGameTime());
         reply(ctx, "friendai.command.place.rename", place.name(), renamed.name());
         return 1;
     }
@@ -229,7 +246,7 @@ public final class PlaceCommand {
             return 0;
         }
         Place place = found.get();
-        session.book().remove(place.id());
+        session.places().forget(session.book(), place.id());
         reply(ctx, "friendai.command.place.remove", place.name());
         return 1;
     }

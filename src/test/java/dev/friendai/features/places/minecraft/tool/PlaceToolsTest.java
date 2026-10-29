@@ -26,7 +26,7 @@ class PlaceToolsTest {
     void contributesEveryPlaceToolWithMatchingCatalogMetadataAndAccess() {
         ToolRegistry<CompanionEntity> tools = new ToolRegistry<>();
         FeatureToolRegistry contributions = new FeatureToolRegistry(tools, PlaceToolsTest::taskTool);
-        new PlaceTools().register(contributions);
+        new PlaceTools(dev.friendai.features.places.minecraft.PlaceService.unavailable()).register(contributions);
 
         assertEquals(PLACE_TOOLS, toolNames(tools.specs()));
         assertEquals(TRUSTED_TOOLS, toolNames(tools.specs(AccessLevel.TRUSTED)));
@@ -49,7 +49,7 @@ class PlaceToolsTest {
     void goToPlaceKeepsItsPlannableRestorableTaskContract() {
         ToolRegistry<CompanionEntity> tools = new ToolRegistry<>();
         FeatureToolRegistry contributions = new FeatureToolRegistry(tools, PlaceToolsTest::taskTool);
-        new PlaceTools().register(contributions);
+        new PlaceTools(dev.friendai.features.places.minecraft.PlaceService.unavailable()).register(contributions);
 
         TaskToolDefinition definition = contributions.taskDefinitions().get("go_to_place");
 

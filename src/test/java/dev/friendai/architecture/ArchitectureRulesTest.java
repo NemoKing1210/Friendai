@@ -51,6 +51,74 @@ class ArchitectureRulesTest {
     }
 
     @Test
+    void gameChatAdaptersBelongToTheServerAgentLayer() {
+        Path target = PROJECT_ROOT.resolve("src/main/java/dev/friendai/server/agent/chat");
+        Path legacy = PROJECT_ROOT.resolve("src/main/java/dev/friendai/chat");
+
+        for (String adapter : List.of("ChatRouter.java", "CompanionRouting.java", "CompanionSpeaker.java")) {
+            assertTrue(
+                    Files.exists(target.resolve(adapter)),
+                    "Server chat adapter should live under server/agent/chat: " + adapter);
+            assertFalse(Files.exists(legacy.resolve(adapter)), "Legacy chat adapter should be removed: " + adapter);
+        }
+    }
+
+    @Test
+    void perceptionModelsAreEngineOwnedAndWorldBuildersAreServerAdapters() {
+        Path models = PROJECT_ROOT.resolve("engine/src/main/java/dev/friendai/agent/perception");
+        Path adapters = PROJECT_ROOT.resolve("src/main/java/dev/friendai/server/agent/perception");
+        Path legacy = PROJECT_ROOT.resolve("src/main/java/dev/friendai/perception");
+
+        for (String model : List.of("AreaMap.java", "OwnerFocus.java", "PerceptionSnapshot.java", "SelfStatus.java")) {
+            assertTrue(Files.exists(models.resolve(model)), "Pure perception model should live in engine: " + model);
+            assertFalse(Files.exists(legacy.resolve(model)), "Legacy perception model should be removed: " + model);
+        }
+        for (String adapter : List.of(
+                "AreaMapBuilder.java",
+                "GroundText.java",
+                "OwnerFocusBuilder.java",
+                "PerceptionBuilder.java",
+                "PerceptionContext.java")) {
+            assertTrue(
+                    Files.exists(adapters.resolve(adapter)),
+                    "World perception builder should be server-owned: " + adapter);
+            assertFalse(
+                    Files.exists(legacy.resolve(adapter)), "Legacy perception builder should be removed: " + adapter);
+        }
+        assertTrue(Files.exists(
+                PROJECT_ROOT.resolve("engine/src/main/java/dev/friendai/features/knowledge/Landmark.java")));
+        assertTrue(Files.exists(
+                PROJECT_ROOT.resolve("engine/src/main/java/dev/friendai/features/navigation/RelativeDirection.java")));
+        assertTrue(Files.exists(PROJECT_ROOT.resolve("engine/src/main/java/dev/friendai/features/combat/Threat.java")));
+        assertTrue(Files.exists(
+                PROJECT_ROOT.resolve("engine/src/main/java/dev/friendai/features/mining/tree/TreeSummary.java")));
+        assertTrue(Files.exists(
+                PROJECT_ROOT.resolve("engine/src/main/java/dev/friendai/features/mining/tree/TreeText.java")));
+        assertTrue(Files.exists(
+                PROJECT_ROOT.resolve("src/main/java/dev/friendai/features/knowledge/minecraft/LandmarkScanner.java")));
+    }
+
+    @Test
+    void commandAdaptersDoNotLookUpTheLegacyServerState() throws IOException {
+        Path commandRoot = PROJECT_ROOT.resolve("src/main/java/dev/friendai/command");
+        try (Stream<Path> files = Files.walk(commandRoot)) {
+            for (Path file :
+                    files.filter(path -> path.toString().endsWith(".java")).toList()) {
+                assertFalse(
+                        Files.readString(file).contains("FriendaiServerState"),
+                        "Command adapters should use runtime operations instead of the legacy state: " + file);
+            }
+        }
+    }
+
+    @Test
+    void placementServiceLivesWithItsFeature() {
+        assertTrue(Files.exists(
+                PROJECT_ROOT.resolve("src/main/java/dev/friendai/features/placements/minecraft/PlacedService.java")));
+        assertFalse(Files.exists(PROJECT_ROOT.resolve("src/main/java/dev/friendai/placed/PlacedService.java")));
+    }
+
+    @Test
     void forbiddenPackageDirectionsReportExactClassesAndAllowedViewsPass() {
         List<DependencyEdge> edges = List.of(
                 edge("dev.friendai.foundation.Text", "net.minecraft.world.level.Level"),
@@ -396,6 +464,20 @@ class ArchitectureRulesTest {
                         "legacy-server-state-lookup", gatheringTools, "dev.friendai.core.FriendaiServerState")),
                 PackageDependencyRules.validate(
                         List.of(edge(gatheringTools, "dev.friendai.core.FriendaiServerState"))));
+    }
+
+    @Test
+    void featureAdaptersReceiveNarrowServicesInsteadOfCreatingTaskContexts() {
+        String placeService = "dev.friendai.features.places.minecraft.PlaceService";
+        String placedService = "dev.friendai.features.placements.minecraft.PlacedService";
+
+        assertEquals(
+                List.of(
+                        violation("feature-task-context-leak", placedService, "dev.friendai.task.TaskContext"),
+                        violation("feature-task-context-leak", placeService, "dev.friendai.task.TaskContext")),
+                PackageDependencyRules.validate(List.of(
+                        edge(placeService, "dev.friendai.task.TaskContext"),
+                        edge(placedService, "dev.friendai.task.TaskContext"))));
     }
 
     @Test

@@ -1,4 +1,4 @@
-package dev.friendai.perception;
+package dev.friendai.server.agent.perception;
 
 import dev.friendai.agent.autonomy.FreeTimeService;
 import dev.friendai.perception.resource.ResourceCandidates;

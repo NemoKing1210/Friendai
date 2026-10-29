@@ -1,6 +1,7 @@
 package dev.friendai.server.execution.persistence;
 
 import dev.friendai.FriendaiMod;
+import dev.friendai.agent.autonomy.FreeTimeService;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.queue.Job;
 import dev.friendai.execution.queue.JobQueue;
@@ -31,18 +32,21 @@ public final class TaskPersistenceCoordinator {
     private final Consumer<CompanionEntity> attachOwnerEvents;
     private final Consumer<UUID> invalidateTradingAuthority;
     private final Function<UUID, SearchLedger> searchLedger;
+    private final FreeTimeService freeTime;
 
     public TaskPersistenceCoordinator(
             Supplier<ServerSettings> settings,
             TaskRestoreRegistry registry,
             Consumer<CompanionEntity> attachOwnerEvents,
             Consumer<UUID> invalidateTradingAuthority,
-            Function<UUID, SearchLedger> searchLedger) {
+            Function<UUID, SearchLedger> searchLedger,
+            FreeTimeService freeTime) {
         this.settings = settings;
         this.registry = registry;
         this.attachOwnerEvents = attachOwnerEvents;
         this.invalidateTradingAuthority = invalidateTradingAuthority;
         this.searchLedger = searchLedger;
+        this.freeTime = freeTime;
     }
 
     public Optional<SavedExecution> capture(ExecutionCoordinator runner) {
@@ -229,12 +233,10 @@ public final class TaskPersistenceCoordinator {
     public void reconcileFreeTimePlan(CompanionEntity companion) {
         UUID owner = companion.ownerUuid();
         if (owner == null || companion.level().getServer() == null) return;
-        dev.friendai.core.FriendaiServerState.get(companion.level().getServer())
-                .freeTime()
-                .reconcileRestoredPlan(owner, id -> {
-                    var status = companion.executionCoordinator().queue().planStatus(id);
-                    return status == dev.friendai.execution.queue.PlanStatus.ACTIVE
-                            || status == dev.friendai.execution.queue.PlanStatus.NEEDS_DECISION;
-                });
+        freeTime.reconcileRestoredPlan(owner, id -> {
+            var status = companion.executionCoordinator().queue().planStatus(id);
+            return status == dev.friendai.execution.queue.PlanStatus.ACTIVE
+                    || status == dev.friendai.execution.queue.PlanStatus.NEEDS_DECISION;
+        });
     }
 }

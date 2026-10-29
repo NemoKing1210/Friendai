@@ -1,6 +1,5 @@
 package dev.friendai.test;
 
-import dev.friendai.chat.CompanionSpeaker;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.features.conversation.NameColor;
@@ -8,6 +7,7 @@ import dev.friendai.protocol.DecodeResult;
 import dev.friendai.protocol.ProtocolView;
 import dev.friendai.protocol.speech.CompanionSpeechProtocolViewCodec;
 import dev.friendai.protocol.speech.CompanionSpeechView;
+import dev.friendai.server.agent.chat.CompanionSpeaker;
 import java.util.UUID;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;

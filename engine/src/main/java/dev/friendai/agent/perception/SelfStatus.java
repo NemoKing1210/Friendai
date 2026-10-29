@@ -1,4 +1,4 @@
-package dev.friendai.perception;
+package dev.friendai.agent.perception;
 
 /** The companion's own body and shelter, with no Minecraft types. Text is English, LLM-facing. */
 public record SelfStatus(

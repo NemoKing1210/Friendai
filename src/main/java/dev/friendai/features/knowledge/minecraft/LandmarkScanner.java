@@ -1,7 +1,9 @@
-package dev.friendai.perception;
+package dev.friendai.features.knowledge.minecraft;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.knowledge.Landmark;
 import dev.friendai.features.knowledge.ResourceObservation;
+import dev.friendai.features.navigation.RelativeDirection;
 import dev.friendai.perception.resource.ResourceCandidates;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;

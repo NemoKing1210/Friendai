@@ -32,6 +32,7 @@ import dev.friendai.execution.queue.JobQueue;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolResult;
+import dev.friendai.features.places.minecraft.PlaceService;
 import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.infrastructure.config.ServerConfig;
 import dev.friendai.infrastructure.persistence.places.PlaceStore;
@@ -92,6 +93,7 @@ public final class FreeTimeDriver {
     private final Supplier<ServerSettings> settings;
     private final FreeTimeService freeTimeService;
     private final PlaceStore places;
+    private final PlaceService placeService;
     private final Map<String, TaskToolDefinition> taskTools;
     private final Map<String, TaskToolDefinition> planTools;
     private final Map<UUID, Long> awaitingSince = new HashMap<>();
@@ -121,6 +123,7 @@ public final class FreeTimeDriver {
             Supplier<ServerSettings> settings,
             FreeTimeService freeTimeService,
             PlaceStore places,
+            PlaceService placeService,
             Map<String, TaskToolDefinition> taskTools,
             Map<String, TaskToolDefinition> planTools) {
         this.server = server;
@@ -129,6 +132,7 @@ public final class FreeTimeDriver {
         this.settings = settings;
         this.freeTimeService = freeTimeService;
         this.places = places;
+        this.placeService = placeService;
         this.taskTools = taskTools;
         this.planTools = planTools;
     }
@@ -204,7 +208,7 @@ public final class FreeTimeDriver {
     private void startWishShift(CompanionEntity companion, String wish, long nowMillis) {
         UUID owner = companion.ownerUuid();
         AutonomySettings s = config.get().autonomy.toSettings();
-        AutonomyFacts f = facts.build(companion, owner, nowMillis);
+        AutonomyFacts f = facts.build(companion, owner, nowMillis, placeService);
         NeedKind need =
                 NeedsAssessor.kindNamed("", NeedsAssessor.assess(f, service().state(owner), s));
         markStart(owner, f);
@@ -276,8 +280,8 @@ public final class FreeTimeDriver {
         long now = now();
         Shift shift = service().state(owner).shift();
         facts.invalidate(owner);
-        String stageAfter =
-                ProgressionLadder.evaluate(facts.build(companion, owner, now)).stage();
+        String stageAfter = ProgressionLadder.evaluate(facts.build(companion, owner, now, placeService))
+                .stage();
         String diagnosis = success
                 ? ""
                 : new dev.friendai.agent.recover.RecoveryAdvisor()
@@ -392,7 +396,7 @@ public final class FreeTimeDriver {
         if (shiftPlan != 0) {
             runner.markAutonomousPlan(shiftPlan); // after a restart the runner forgot its marks
         }
-        AutonomyFacts f = facts.build(companion, owner, nowMillis);
+        AutonomyFacts f = facts.build(companion, owner, nowMillis, placeService);
         if (state.awaitingChoice()
                 && !brainThinking
                 && nowMillis - awaitingSince.getOrDefault(owner, 0L) > CHOICE_GRACE_MILLIS) {
@@ -585,7 +589,7 @@ public final class FreeTimeDriver {
         long now = now();
         AutonomySettings s = config.get().autonomy.toSettings();
         int length = Math.max(3, Math.min(minutes, s.shiftMinutes()));
-        AutonomyFacts f = facts.build(companion, owner, now);
+        AutonomyFacts f = facts.build(companion, owner, now, placeService);
         NeedKind need = NeedsAssessor.kindNamed(needName, NeedsAssessor.assess(f, state, s));
         markStart(owner, f);
         Shift shift = service()
@@ -634,7 +638,7 @@ public final class FreeTimeDriver {
                                         : "planner disposition=given up");
                         // The director may keep its hour moving with a deterministic template. An owner-requested
                         // draft must report the planner failure and end without guessing at a different plan.
-                        AutonomyFacts f = facts.build(companion, owner, now);
+                        AutonomyFacts f = facts.build(companion, owner, now, placeService);
                         Optional<List<ReflexStep>> template = speakFailure
                                 ? Optional.empty()
                                 : ReflexPlans.fallback(state.shift().need(), f);
@@ -835,7 +839,7 @@ public final class FreeTimeDriver {
         var player = companion.owner();
         if (player.isPresent()) {
             player.get()
-                    .sendSystemMessage(dev.friendai.chat.CompanionSpeaker.chatLine(
+                    .sendSystemMessage(dev.friendai.server.agent.chat.CompanionSpeaker.chatLine(
                             companion.getName().getString(), text));
         } else {
             service().update(owner, s -> AwaySummary.add(s, text));
@@ -848,7 +852,7 @@ public final class FreeTimeDriver {
         if (player.isPresent()) {
             player.get()
                     .sendSystemMessage(net.minecraft.network.chat.Component.literal("<")
-                            .append(dev.friendai.chat.CompanionNames.styled(
+                            .append(dev.friendai.server.companion.CompanionNames.styled(
                                     companion.getName().getString()))
                             .append(net.minecraft.network.chat.Component.literal("> "))
                             .append(Components.of(message)));

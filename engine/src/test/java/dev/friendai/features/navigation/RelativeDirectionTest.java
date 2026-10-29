@@ -1,4 +1,4 @@
-package dev.friendai.perception;
+package dev.friendai.features.navigation;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 

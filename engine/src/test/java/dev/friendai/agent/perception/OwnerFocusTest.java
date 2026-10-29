@@ -1,9 +1,9 @@
-package dev.friendai.perception;
+package dev.friendai.agent.perception;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
-import dev.friendai.perception.OwnerFocus.Visibility;
+import dev.friendai.agent.perception.OwnerFocus.Visibility;
 import org.junit.jupiter.api.Test;
 
 class OwnerFocusTest {

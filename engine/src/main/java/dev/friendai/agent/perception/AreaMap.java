@@ -1,4 +1,4 @@
-package dev.friendai.perception;
+package dev.friendai.agent.perception;
 
 /** A top-down ASCII map of an area, with no Minecraft types. */
 public final class AreaMap {

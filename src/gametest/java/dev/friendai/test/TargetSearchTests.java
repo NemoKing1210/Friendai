@@ -2,6 +2,7 @@ package dev.friendai.test;
 
 import com.google.gson.JsonObject;
 import dev.friendai.agent.llm.model.ToolCall;
+import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.execution.tool.AccessLevel;
@@ -16,7 +17,6 @@ import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.features.places.PlaceKind;
 import dev.friendai.features.places.PlaceSource;
 import dev.friendai.features.places.PlaceValues;
-import dev.friendai.features.places.minecraft.PlaceService;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
@@ -255,21 +255,23 @@ public final class TargetSearchTests {
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         companion.setOwner(owner.getUUID());
         BlockPos at = companion.blockPosition();
-        PlaceService.remember(
-                companion,
-                new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER),
-                new PlaceValues(
-                        "camp",
-                        PlaceKind.HOUSE,
-                        "",
-                        h.getLevel().dimension().identifier().toString(),
-                        new Pos(at.getX(), at.getY(), at.getZ()),
-                        8,
-                        Set.of(),
-                        PlaceSource.MANUAL,
-                        owner.getUUID(),
-                        ""),
-                h.getLevel().getServer().overworld().getGameTime());
+        FriendaiServerState.get(h.getLevel().getServer())
+                .placeService()
+                .remember(
+                        companion,
+                        new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER),
+                        new PlaceValues(
+                                "camp",
+                                PlaceKind.HOUSE,
+                                "",
+                                h.getLevel().dimension().identifier().toString(),
+                                new Pos(at.getX(), at.getY(), at.getZ()),
+                                8,
+                                Set.of(),
+                                PlaceSource.MANUAL,
+                                owner.getUUID(),
+                                ""),
+                        h.getLevel().getServer().overworld().getGameTime());
         Result result = new Result();
         companion.executionCoordinator().setListener(result);
         var started = GameTestToolRegistry.create(companion, () -> 16, MemoryAccess.DISABLED)

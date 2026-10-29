@@ -6,6 +6,8 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionLifeData;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.features.memory.CompanionProfileRepository;
+import dev.friendai.features.placements.minecraft.PlacedService;
+import dev.friendai.features.places.minecraft.PlaceService;
 import dev.friendai.features.trading.minecraft.tool.TradingToolAccess;
 import dev.friendai.infrastructure.config.ServerConfig;
 import dev.friendai.infrastructure.persistence.appearance.SkinStore;
@@ -19,6 +21,7 @@ import dev.friendai.server.net.MovementDebugStream;
 import dev.friendai.server.net.PlaceViewStream;
 import dev.friendai.server.net.ServerProtocolConnections;
 import dev.friendai.server.net.SkillsViewStream;
+import java.util.List;
 import java.util.UUID;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
@@ -158,6 +161,14 @@ public final class ServerRuntime implements AutoCloseable {
         return state.places();
     }
 
+    public PlaceService placeService() {
+        return state.placeService();
+    }
+
+    public PlacedService placedService() {
+        return state.placedService();
+    }
+
     public TradeStore trading() {
         return state.trading();
     }
@@ -174,9 +185,20 @@ public final class ServerRuntime implements AutoCloseable {
         return state.trust();
     }
 
+    /** Records a barter drop captured at vanilla's item-spawn seam. */
+    public void captureBarterOutput(UUID attempt, UUID piglin, UUID item, long tick) {
+        if (acceptingWork) state.barterDropTracker().observeVanillaOutput(attempt, piglin, item, tick);
+    }
+
     /** Applies a validated integrated-server config through the server-owned runtime boundary. */
     public void applyConfig(ServerConfig config) {
         if (acceptingWork) state.applyConfig(config);
+    }
+
+    /** Loads and applies the server config through its lifecycle owner. */
+    public List<String> reloadConfig() {
+        if (!acceptingWork) return List.of();
+        return state.applyConfig(state.store().load());
     }
 
     /** Rejects future runtime work and cancels server-owned activity before stores are closed. */

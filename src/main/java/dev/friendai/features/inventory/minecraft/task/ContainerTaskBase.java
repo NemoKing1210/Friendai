@@ -8,7 +8,6 @@ import dev.friendai.task.interact.ContainerSession;
 import java.util.List;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.Container;
 
 /**
@@ -43,7 +42,7 @@ abstract class ContainerTaskBase implements Task {
     }
 
     /** Finds the container when no coordinates were given. */
-    protected abstract Optional<BlockPos> findTarget(ServerLevel level, dev.friendai.entity.CompanionEntity companion);
+    protected abstract Optional<BlockPos> findTarget(TaskContext context);
 
     /** Free time may use this task only on containers inside the owner's known places. */
     protected boolean onlyInsidePlacesInFreeTime() {

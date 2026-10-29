@@ -1,14 +1,10 @@
 # ruleId	sourceClass	targetClass	taskId
-legacy-server-state-lookup	dev.friendai.chat.ChatRouter	dev.friendai.core.FriendaiServerState	5
-legacy-server-state-lookup	dev.friendai.chat.CompanionRouting	dev.friendai.core.FriendaiServerState	5
-legacy-server-state-lookup	dev.friendai.command.FriendaiCommands	dev.friendai.core.FriendaiServerState	17
-legacy-server-state-lookup	dev.friendai.command.PlaceCommand	dev.friendai.core.FriendaiServerState	17
-legacy-server-state-lookup	dev.friendai.command.SkillCommands	dev.friendai.core.FriendaiServerState	17
+legacy-server-state-lookup	dev.friendai.server.agent.chat.ChatRouter	dev.friendai.core.FriendaiServerState	5
+legacy-server-state-lookup	dev.friendai.server.agent.chat.CompanionRouting	dev.friendai.core.FriendaiServerState	5
 legacy-server-state-lookup	dev.friendai.core.CreativeModeService	dev.friendai.core.FriendaiServerState	9
 legacy-server-state-lookup	dev.friendai.entity.CompanionEntity	dev.friendai.core.FriendaiServerState	9
 legacy-server-state-lookup	dev.friendai.entity.CompanionManager	dev.friendai.core.FriendaiServerState	9
 legacy-server-state-lookup	dev.friendai.entity.CompanionRenamer	dev.friendai.core.FriendaiServerState	9
-legacy-server-state-lookup	dev.friendai.mixin.BehaviorUtilsBarterOutputMixin	dev.friendai.core.FriendaiServerState	17
 legacy-server-state-lookup	dev.friendai.server.net.DebugStream	dev.friendai.core.FriendaiServerState	16
 legacy-server-state-lookup	dev.friendai.server.net.MemoryViewStream	dev.friendai.core.FriendaiServerState	16
 legacy-server-state-lookup	dev.friendai.server.net.MovementDebugStream	dev.friendai.core.FriendaiServerState	16
@@ -17,7 +13,6 @@ legacy-server-state-lookup	dev.friendai.server.net.SkillsViewStream	dev.friendai
 legacy-server-state-lookup	dev.friendai.server.net.SnapshotBuilder	dev.friendai.core.FriendaiServerState	16
 legacy-server-state-lookup	dev.friendai.server.net.TradeViewStream	dev.friendai.core.FriendaiServerState	16
 legacy-server-state-lookup	dev.friendai.server.companion.persistence.CompanionBodyCodec	dev.friendai.core.FriendaiServerState	9
-legacy-server-state-lookup	dev.friendai.server.execution.persistence.TaskPersistenceCoordinator	dev.friendai.core.FriendaiServerState	17
 legacy-server-state-lookup	dev.friendai.features.mining.minecraft.task.FellTreeSearchTask	dev.friendai.core.FriendaiServerState	11
 legacy-server-state-lookup	dev.friendai.features.survival.minecraft.task.GetFoodTask	dev.friendai.core.FriendaiServerState	11
 legacy-server-state-lookup	dev.friendai.features.animals.minecraft.task.HoneyTask	dev.friendai.core.FriendaiServerState	11

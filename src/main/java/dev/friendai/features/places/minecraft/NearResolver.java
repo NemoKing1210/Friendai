@@ -23,7 +23,7 @@ public final class NearResolver {
      * speaker, or the companion. A place in another dimension is refused by
      * {@link PlaceService#requireReachable}.
      */
-    public static BlockPos resolve(CompanionEntity c, Caller caller, JsonObject args) {
+    public static BlockPos resolve(PlaceService places, CompanionEntity c, Caller caller, JsonObject args) {
         Optional<BlockPos> coordinates = coordinates(args);
         if (coordinates.isPresent()) {
             return coordinates.get();
@@ -33,7 +33,7 @@ public final class NearResolver {
                 : null;
         Optional<String> placeName = PlaceNames.fromNear(raw);
         if (placeName.isPresent()) {
-            Place place = PlaceService.requireReachable(c, placeName.get(), "a search");
+            Place place = places.requireReachable(c, placeName.get(), "a search");
             return new BlockPos(
                     place.anchor().x(), place.anchor().y(), place.anchor().z());
         }

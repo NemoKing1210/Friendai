@@ -1,11 +1,11 @@
 package dev.friendai.test;
 
+import dev.friendai.agent.perception.PerceptionSnapshot;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
-import dev.friendai.perception.PerceptionBuilder;
-import dev.friendai.perception.PerceptionContext;
-import dev.friendai.perception.PerceptionSnapshot;
+import dev.friendai.server.agent.perception.PerceptionBuilder;
+import dev.friendai.server.agent.perception.PerceptionContext;
 import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
@@ -120,7 +120,7 @@ public class PerceptionTests {
     public void landmarksAtTheWorldFloorDoNotThrow(GameTestHelper h) {
         GameTestSupport.platform(h, 12);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
-        var list = dev.friendai.perception.LandmarkScanner.scan(
+        var list = dev.friendai.features.knowledge.minecraft.LandmarkScanner.scan(
                 h.getLevel(), new net.minecraft.core.BlockPos(0, h.getLevel().getMinY(), 0));
         h.assertTrue(list.size() <= 5, "landmarks: " + list.size());
         h.succeed();

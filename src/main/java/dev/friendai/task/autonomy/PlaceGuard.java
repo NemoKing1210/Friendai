@@ -44,13 +44,11 @@ public final class PlaceGuard {
         return null;
     }
 
-    /** True when {@code pos} lies inside any known place in the companion's dimension. */
-    /** True when {@code pos} lies in an owner-known place, using the task's already-scoped state access. */
+    /** True when {@code pos} lies inside an owner-known place in the companion's dimension. */
     public static boolean insideAnyPlace(TaskContext context, BlockPos pos) {
         return placesHere(context).stream().anyMatch(place -> inside(place, pos));
     }
 
-    /** True when the box from {@code min} to {@code max} touches any known place in the companion's dimension. */
     /** The first known place the box from {@code min} to {@code max} touches, or null. */
     public static Place overlapping(TaskContext context, BlockPos min, BlockPos max) {
         for (Place place : placesHere(context)) {
@@ -79,7 +77,7 @@ public final class PlaceGuard {
             return java.util.List.of();
         }
         String dimension = context.level().dimension().identifier().toString();
-        return context.placeBook(companion.ownerUuid()).all().stream()
+        return context.placeService().book(companion).all().stream()
                 .filter(p -> p.dimension().equals(dimension))
                 .toList();
     }

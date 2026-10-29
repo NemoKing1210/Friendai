@@ -36,7 +36,15 @@ import org.jetbrains.annotations.Nullable;
 
 /** Farming: one pass, farmer mode and bone meal. */
 public final class FarmingTools implements FeatureToolContributor {
-    public FarmingTools() {}
+    private final PlaceService places;
+
+    public FarmingTools() {
+        this(PlaceService.unavailable());
+    }
+
+    public FarmingTools(PlaceService places) {
+        this.places = java.util.Objects.requireNonNull(places);
+    }
 
     @Override
     public void register(FeatureToolRegistry registry) {
@@ -57,7 +65,7 @@ public final class FarmingTools implements FeatureToolContributor {
                                 "Use bone meal from the inventory on growing crops after the pass's other work")
                         .build(),
                 (c, a) -> {
-                    Optional<Place> place = place(c, a);
+                    Optional<Place> place = place(places, c, a);
                     return new FarmTask(
                             center(c, a, place), radius(a, place, 8), crop(a), till(a), flag(a, "bonemeal"));
                 },
@@ -107,7 +115,7 @@ public final class FarmingTools implements FeatureToolContributor {
                         .string("place", "Remembered place to tend; used only when x, y and z are absent")
                         .build(),
                 (c, a) -> {
-                    Optional<Place> place = place(c, a);
+                    Optional<Place> place = place(places, c, a);
                     return new TendFarmTask(center(c, a, place), radius(a, place, 8));
                 },
                 false,
@@ -134,7 +142,7 @@ public final class FarmingTools implements FeatureToolContributor {
     }
 
     /** The place a farm call names, or empty; a place is ignored when x, y and z are given. */
-    private static Optional<Place> place(CompanionEntity c, JsonObject args) {
+    private static Optional<Place> place(PlaceService places, CompanionEntity c, JsonObject args) {
         if (optionalPos(args).isPresent()
                 || !args.has("place")
                 || args.get("place").isJsonNull()) {
@@ -144,7 +152,7 @@ public final class FarmingTools implements FeatureToolContributor {
         if (name.isBlank()) {
             return Optional.empty();
         }
-        return Optional.of(PlaceService.requireReachable(c, name, "farming"));
+        return Optional.of(places.requireReachable(c, name, "farming"));
     }
 
     /** The centre of a pass: explicit coordinates, then a named place's anchor, then the companion. */

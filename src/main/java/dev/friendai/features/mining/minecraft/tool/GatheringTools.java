@@ -17,6 +17,7 @@ import dev.friendai.features.mining.minecraft.task.MineBlockAtTask;
 import dev.friendai.features.mining.minecraft.task.MineBlocksTask;
 import dev.friendai.features.places.PlaceNames;
 import dev.friendai.features.places.minecraft.NearResolver;
+import dev.friendai.features.places.minecraft.PlaceService;
 import dev.friendai.perception.resource.ResourceCandidates;
 import dev.friendai.server.execution.tools.FeatureToolContributor;
 import dev.friendai.server.execution.tools.FeatureToolRegistry;
@@ -38,6 +39,7 @@ public final class GatheringTools implements FeatureToolContributor {
     private final BooleanSupplier mineCollectDrops;
     private final BooleanSupplier fellCollectDrops;
     private final Function<CompanionEntity, ResourceCandidates> resourceCandidates;
+    private final PlaceService places;
 
     public GatheringTools(IntSupplier mineRadius, IntSupplier treeRadius) {
         this(mineRadius, treeRadius, () -> true, () -> true);
@@ -66,11 +68,28 @@ public final class GatheringTools implements FeatureToolContributor {
             BooleanSupplier mineCollectDrops,
             BooleanSupplier fellCollectDrops,
             Function<CompanionEntity, ResourceCandidates> resourceCandidates) {
+        this(
+                mineRadius,
+                treeRadius,
+                mineCollectDrops,
+                fellCollectDrops,
+                resourceCandidates,
+                PlaceService.unavailable());
+    }
+
+    public GatheringTools(
+            IntSupplier mineRadius,
+            IntSupplier treeRadius,
+            BooleanSupplier mineCollectDrops,
+            BooleanSupplier fellCollectDrops,
+            Function<CompanionEntity, ResourceCandidates> resourceCandidates,
+            PlaceService places) {
         this.mineRadius = mineRadius;
         this.treeRadius = treeRadius;
         this.mineCollectDrops = mineCollectDrops;
         this.fellCollectDrops = fellCollectDrops;
         this.resourceCandidates = resourceCandidates;
+        this.places = java.util.Objects.requireNonNull(places);
     }
 
     @Override
@@ -177,7 +196,7 @@ public final class GatheringTools implements FeatureToolContributor {
         boolean named = NearResolver.coordinates(a).isPresent()
                 || PlaceNames.fromNear(near).isPresent()
                 || (near != null && !near.isBlank() && NearTarget.parse(near) == NearTarget.ME);
-        BlockPos origin = named ? NearResolver.resolve(c, caller, a) : null;
+        BlockPos origin = named ? NearResolver.resolve(places, c, caller, a) : null;
         boolean collect = a.has("collect") && !a.get("collect").isJsonNull()
                 ? a.get("collect").getAsBoolean()
                 : mineCollectDrops.getAsBoolean();
@@ -188,7 +207,7 @@ public final class GatheringTools implements FeatureToolContributor {
     }
 
     private Task createFellTask(CompanionEntity c, Caller caller, JsonObject a) {
-        BlockPos origin = NearResolver.resolve(c, caller, a);
+        BlockPos origin = NearResolver.resolve(places, c, caller, a);
         int radius = a.has("radius") ? a.get("radius").getAsInt() : treeRadius.getAsInt();
         BlockMatcher matcher = a.has("type") && !a.get("type").isJsonNull()
                 ? parseBlockMatcher(a.get("type").getAsString())

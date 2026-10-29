@@ -12,7 +12,7 @@ import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
 import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.features.placements.PlacedQuery;
 import dev.friendai.features.placements.PlacedText;
-import dev.friendai.placed.PlacedService;
+import dev.friendai.features.placements.minecraft.PlacedService;
 import dev.friendai.server.execution.tools.FeatureToolContributor;
 import dev.friendai.server.execution.tools.FeatureToolRegistry;
 import java.util.List;
@@ -20,12 +20,18 @@ import java.util.Objects;
 
 /** Queries the companion's surviving placed blocks. */
 public final class PlacedTools implements FeatureToolContributor {
+    private final PlacedService placed;
+
+    public PlacedTools(PlacedService placed) {
+        this.placed = Objects.requireNonNull(placed, "placed");
+    }
+
     @Override
     public void register(FeatureToolRegistry registry) {
         Objects.requireNonNull(registry).registerTool(tool(), metadata("find_placed"));
     }
 
-    private static Tool<CompanionEntity> tool() {
+    private Tool<CompanionEntity> tool() {
         return new Tool<>() {
             @Override
             public String name() {
@@ -55,7 +61,7 @@ public final class PlacedTools implements FeatureToolContributor {
                         : null;
                 int radius = args.has("radius") ? args.get("radius").getAsInt() : 32;
                 int limit = args.has("limit") ? args.get("limit").getAsInt() : 8;
-                PlacedQuery.Result result = PlacedService.find(companion, matcher, radius, limit);
+                PlacedQuery.Result result = placed.find(companion, matcher, radius, limit);
                 net.minecraft.core.BlockPos here = companion.blockPosition();
                 return ToolResult.ok(PlacedText.listing(
                         result,
@@ -73,14 +79,15 @@ public final class PlacedTools implements FeatureToolContributor {
 
     private static ToolMeta metadata(String name) {
         return switch (name) {
-            case "find_placed" -> new ToolMeta(
-                    name,
-                    ToolGroup.INFO,
-                    false,
-                    "- Use find_placed when the player asks what you just placed or tells you to take those blocks back. "
-                            + "mine_blocks, pickup_items and store_items take placed:true to act on your own placements.",
-                    List.of(),
-                    Cost.LOW);
+            case "find_placed" ->
+                new ToolMeta(
+                        name,
+                        ToolGroup.INFO,
+                        false,
+                        "- Use find_placed when the player asks what you just placed or tells you to take those blocks back. "
+                                + "mine_blocks, pickup_items and store_items take placed:true to act on your own placements.",
+                        List.of(),
+                        Cost.LOW);
             default -> throw new IllegalArgumentException("unknown placement tool: " + name);
         };
     }

@@ -1,6 +1,10 @@
-package dev.friendai.perception;
+package dev.friendai.server.agent.perception;
 
+import dev.friendai.agent.perception.OwnerFocus;
+import dev.friendai.agent.perception.PerceptionSnapshot;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.mining.minecraft.mining.MiningToolView;
+import dev.friendai.features.navigation.RelativeDirection;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -13,7 +17,6 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.projectile.ProjectileUtil;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
@@ -181,37 +184,12 @@ public final class OwnerFocusBuilder {
         if (!state.requiresCorrectToolForDrops()) {
             return facts.append(", can be dug by hand").toString();
         }
-        String tool = toolFor(companion, state);
+        String tool = MiningToolView.currentToolFor(companion, state).orElse(null);
         return facts.append(
                         tool == null
                                 ? ", needs a proper tool (you have none)"
                                 : ", needs a proper tool (you have " + tool + ")")
                 .toString();
-    }
-
-    /** The short id of a tool the companion carries that harvests {@code state}, or null when it has none. */
-    public static String toolFor(CompanionEntity companion, BlockState state) {
-        String inHand = toolName(companion.getMainHandItem(), state);
-        if (inHand != null) {
-            return inHand;
-        }
-        String offHand = toolName(companion.getOffhandItem(), state);
-        if (offHand != null) {
-            return offHand;
-        }
-        for (int i = 0; i < companion.inventory().getContainerSize(); i++) {
-            String tool = toolName(companion.inventory().getItem(i), state);
-            if (tool != null) {
-                return tool;
-            }
-        }
-        return null;
-    }
-
-    private static String toolName(ItemStack stack, BlockState state) {
-        return !stack.isEmpty() && stack.isCorrectToolForDrops(state)
-                ? shortName(BuiltInRegistries.ITEM.getKey(stack.getItem()))
-                : null;
     }
 
     private static String holding(ServerPlayer player) {

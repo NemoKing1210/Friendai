@@ -35,8 +35,8 @@ import dev.friendai.features.places.minecraft.tool.PlaceTools;
 import dev.friendai.features.survival.minecraft.tool.SurvivalTools;
 import dev.friendai.features.trading.minecraft.tool.TradingToolAccess;
 import dev.friendai.features.trading.minecraft.tool.TradingTools;
-import dev.friendai.perception.PerceptionContext;
 import dev.friendai.perception.resource.ResourceCandidates;
+import dev.friendai.server.agent.perception.PerceptionContext;
 import dev.friendai.server.execution.tools.ControlTools;
 import dev.friendai.server.execution.tools.FeatureToolContributor;
 import dev.friendai.server.execution.tools.FeatureToolRegistry;
@@ -109,22 +109,27 @@ public final class FriendaiTools {
                 new BodyTools(),
                 new InteractionTools(),
                 new GatheringTools(
-                        mineRadius, treeRadius, mineCollectDrops, fellCollectDrops, dependencies.resourceCandidates()),
+                        mineRadius,
+                        treeRadius,
+                        mineCollectDrops,
+                        fellCollectDrops,
+                        dependencies.resourceCandidates(),
+                        dependencies.places()),
                 new InventoryTools(),
                 new ObtainTools(obtainSubtasks),
                 new ResourceTools(obtainSubtasks),
-                new ConstructionTools(obtainSubtasks::createForBuild),
+                new ConstructionTools(obtainSubtasks::createForBuild, dependencies.placed()),
                 new CookingTools(obtainSubtasks),
-                new FarmingTools(),
+                new FarmingTools(dependencies.places()),
                 new EnchantTools(),
                 new CombatTools(),
                 new SurvivalTools(),
                 new AnimalTools(),
-                new PlaceTools(),
+                new PlaceTools(dependencies.places()),
                 new StorageTools(),
                 new CraftingTools(),
-                new BlockInfoTools(mineRadius, treeRadius, dependencies.resourceCandidates()),
-                new PlacedTools(),
+                new BlockInfoTools(mineRadius, treeRadius, dependencies.resourceCandidates(), dependencies.places()),
+                new PlacedTools(dependencies.placed()),
                 new MemoryTools(dependencies.memory()),
                 new TrustTools(dependencies.trust()),
                 new ControlTools(),

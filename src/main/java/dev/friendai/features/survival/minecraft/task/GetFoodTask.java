@@ -269,7 +269,7 @@ public final class GetFoodTask implements Task {
             this.wanted = wanted;
             this.session = new ContainerSession(
                     null,
-                    (level, companion) -> ContainerAccess.nearest(companion, CONTAINER_RADIUS),
+                    context -> ContainerAccess.nearest(context.companion(), CONTAINER_RADIUS),
                     false,
                     () -> "no known storage container within " + CONTAINER_RADIUS + " blocks",
                     position -> "the storage container is no longer there");

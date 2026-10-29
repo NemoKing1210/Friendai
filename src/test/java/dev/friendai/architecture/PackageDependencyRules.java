@@ -18,6 +18,9 @@ final class PackageDependencyRules {
             "dev.friendai.features.trading.minecraft.task.InspectTraderTask",
             "dev.friendai.features.trading.minecraft.task.TradeTask",
             "dev.friendai.features.trading.minecraft.task.WaitForRestockTask");
+    private static final Set<String> FEATURE_SERVICES_WITH_NARROW_CONTEXT = Set.of(
+            "dev.friendai.features.places.minecraft.PlaceService",
+            "dev.friendai.features.placements.minecraft.PlacedService");
     private static final Set<FeatureDependency> ALLOWED_FEATURE_DEPENDENCIES = Set.of(
             new FeatureDependency("animals", "combat"),
             new FeatureDependency("animals", "mining"),
@@ -26,6 +29,7 @@ final class PackageDependencyRules {
             new FeatureDependency("enchanting", "navigation"),
             new FeatureDependency("mining", "navigation"),
             new FeatureDependency("mining", "places"),
+            new FeatureDependency("mining", "placements"),
             new FeatureDependency("navigation", "mining"),
             new FeatureDependency("navigation", "knowledge"),
             new FeatureDependency("placements", "mining"),
@@ -76,6 +80,7 @@ final class PackageDependencyRules {
             new FeatureDependency("interaction", "navigation"),
             new FeatureDependency("inventory", "acquisition"),
             new FeatureDependency("inventory", "navigation"),
+            new FeatureDependency("inventory", "placements"),
             new FeatureDependency("inventory", "places"),
             new FeatureDependency("inventory", "survival"),
             new FeatureDependency("survival", "combat"),
@@ -203,6 +208,10 @@ final class PackageDependencyRules {
             if (target.equals("dev.friendai.core.FriendaiServerState")
                     && !SERVER_STATE_ACCESS_OWNERS.contains(source)) {
                 add(violations, "legacy-server-state-lookup", edge);
+            }
+            if (FEATURE_SERVICES_WITH_NARROW_CONTEXT.contains(source)
+                    && target.equals("dev.friendai.task.TaskContext")) {
+                add(violations, "feature-task-context-leak", edge);
             }
         }
         return violations.stream().sorted(VIOLATION_ORDER).toList();

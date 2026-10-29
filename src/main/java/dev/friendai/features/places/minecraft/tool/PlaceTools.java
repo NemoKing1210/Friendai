@@ -39,7 +39,11 @@ public final class PlaceTools implements FeatureToolContributor {
     /** A speaker further away than this cannot mean their own position as "here". */
     private static final double MAX_SPEAKER_DISTANCE = 64.0;
 
-    public PlaceTools() {}
+    private final PlaceService places;
+
+    public PlaceTools(PlaceService places) {
+        this.places = java.util.Objects.requireNonNull(places, "places");
+    }
 
     @Override
     public void register(FeatureToolRegistry registry) {
@@ -50,7 +54,7 @@ public final class PlaceTools implements FeatureToolContributor {
                         + "Use the name the owner used; here:true stores the speaker's position and false yours.",
                 rememberSchema(),
                 AccessLevel.TRUSTED,
-                PlaceTools::remember);
+                (companion, caller, args) -> remember(places, companion, caller, args));
         registerTool(
                 registry,
                 "find_place",
@@ -58,7 +62,7 @@ public final class PlaceTools implements FeatureToolContributor {
                         + "dimension. Use the name from the result with go_to_place; this only reports.",
                 findSchema(),
                 AccessLevel.TRUSTED,
-                PlaceTools::find);
+                (companion, args) -> find(places, companion, args));
         registry.registerTask(new TaskToolDefinition(
                 "go_to_place",
                 "Walk to a remembered place by name or alias. Use find_place first when the name is unclear.",
@@ -66,7 +70,7 @@ public final class PlaceTools implements FeatureToolContributor {
                         .string("name", "Exact place name or alias")
                         .required("name")
                         .build(),
-                PlaceTools::goTo,
+                (companion, args) -> goTo(places, companion, args),
                 true,
                 new TaskToolDefinition.QueueTraits(true, null),
                 metadata("go_to_place")));
@@ -80,7 +84,7 @@ public final class PlaceTools implements FeatureToolContributor {
                         .required("name", "new_name")
                         .build(),
                 AccessLevel.OWNER,
-                PlaceTools::rename);
+                (companion, caller, args) -> rename(places, companion, caller, args));
         registerCallerTool(
                 registry,
                 "forget_place",
@@ -90,7 +94,7 @@ public final class PlaceTools implements FeatureToolContributor {
                         .required("name")
                         .build(),
                 AccessLevel.OWNER,
-                PlaceTools::forget);
+                (companion, caller, args) -> forget(places, companion, caller, args));
     }
 
     private static JsonObject rememberSchema() {
@@ -137,11 +141,11 @@ public final class PlaceTools implements FeatureToolContributor {
         return names;
     }
 
-    private static ToolResult remember(CompanionEntity companion, Caller caller, JsonObject args) {
+    private static ToolResult remember(PlaceService places, CompanionEntity companion, Caller caller, JsonObject args) {
         try {
             PlaceValues values = values(companion, caller, args);
-            Place place = PlaceService.remember(
-                    companion, caller, values, companion.level().getGameTime());
+            Place place =
+                    places.remember(companion, caller, values, companion.level().getGameTime());
             return ToolResult.ok("remembered " + place.name() + " as place #" + place.id() + " at "
                     + place.anchor().x() + " " + place.anchor().y() + " "
                     + place.anchor().z()
@@ -227,7 +231,7 @@ public final class PlaceTools implements FeatureToolContributor {
         return level.getServer().getPlayerList().getPlayer(caller.uuid());
     }
 
-    private static ToolResult find(CompanionEntity companion, JsonObject args) {
+    private static ToolResult find(PlaceService places, CompanionEntity companion, JsonObject args) {
         try {
             String text = text(args, "text");
             String dimension = text(args, "dimension");
@@ -241,7 +245,7 @@ public final class PlaceTools implements FeatureToolContributor {
                             ? args.get("limit").getAsInt()
                             : PlaceQuery.LIMIT_DEFAULT,
                     true);
-            List<PlaceQuery.Result> results = PlaceService.find(companion, request);
+            List<PlaceQuery.Result> results = places.find(companion, request);
             String summary = PlaceText.summary(results, SUMMARY_MAX_CHARS);
             return ToolResult.ok(results.isEmpty() ? summary : summary + "\npass the name to go_to_place");
         } catch (IllegalArgumentException rejected) {
@@ -249,22 +253,22 @@ public final class PlaceTools implements FeatureToolContributor {
         }
     }
 
-    private static Task goTo(CompanionEntity companion, JsonObject args) {
-        Place place = PlaceService.requireReachable(companion, args.get("name").getAsString(), "go_to_place");
+    private static Task goTo(PlaceService places, CompanionEntity companion, JsonObject args) {
+        Place place = places.requireReachable(companion, args.get("name").getAsString(), "go_to_place");
         BlockPos target = new BlockPos(
                 place.anchor().x(), place.anchor().y(), place.anchor().z());
         return new GoToPlaceTask(
                 place.name(),
                 target,
                 place.radius(),
-                context -> PlaceService.markVisit(
+                context -> places.markVisit(
                         context.companion(), place.id(), context.level().getGameTime()));
     }
 
-    private static ToolResult rename(CompanionEntity companion, Caller caller, JsonObject args) {
+    private static ToolResult rename(PlaceService places, CompanionEntity companion, Caller caller, JsonObject args) {
         String name = args.get("name").getAsString();
         try {
-            Place renamed = PlaceService.rename(
+            Place renamed = places.rename(
                     companion,
                     caller,
                     name,
@@ -276,10 +280,10 @@ public final class PlaceTools implements FeatureToolContributor {
         }
     }
 
-    private static ToolResult forget(CompanionEntity companion, Caller caller, JsonObject args) {
+    private static ToolResult forget(PlaceService places, CompanionEntity companion, Caller caller, JsonObject args) {
         String name = args.get("name").getAsString();
         try {
-            boolean removed = PlaceService.forget(companion, caller, name);
+            boolean removed = places.forget(companion, caller, name);
             return ToolResult.ok(removed ? "forgot " + name : "there was no place called " + name);
         } catch (IllegalArgumentException rejected) {
             return ToolResult.error(rejected.getMessage());
@@ -367,22 +371,24 @@ public final class PlaceTools implements FeatureToolContributor {
 
     private static ToolMeta metadata(String name) {
         return switch (name) {
-            case "find_place" -> new ToolMeta(
-                    name,
-                    ToolGroup.CORE,
-                    true,
-                    "- When a place name is uncertain, call find_place first, then go_to_place with the exact name from the result; never guess a name.",
-                    List.of(),
-                    Cost.LOW);
-            case "remember_place" -> new ToolMeta(
-                    name,
-                    ToolGroup.PLACE,
-                    false,
-                    "- When the owner teaches a place (\"remember this as home\"), call remember_place with the words they used; here:true stores their position, so do not guess coordinates.",
-                    List.of(),
-                    Cost.LOW);
+            case "find_place" ->
+                new ToolMeta(
+                        name,
+                        ToolGroup.CORE,
+                        true,
+                        "- When a place name is uncertain, call find_place first, then go_to_place with the exact name from the result; never guess a name.",
+                        List.of(),
+                        Cost.LOW);
+            case "remember_place" ->
+                new ToolMeta(
+                        name,
+                        ToolGroup.PLACE,
+                        false,
+                        "- When the owner teaches a place (\"remember this as home\"), call remember_place with the words they used; here:true stores their position, so do not guess coordinates.",
+                        List.of(),
+                        Cost.LOW);
             case "go_to_place", "rename_place", "forget_place" ->
-                    new ToolMeta(name, ToolGroup.PLACE, false, "", List.of(), Cost.LOW);
+                new ToolMeta(name, ToolGroup.PLACE, false, "", List.of(), Cost.LOW);
             default -> throw new IllegalArgumentException("unknown place tool: " + name);
         };
     }
