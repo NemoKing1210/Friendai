@@ -6,7 +6,7 @@ import dev.friendai.features.trading.TradeView;
 import dev.friendai.features.trading.TraderRecord;
 import dev.friendai.protocol.ProtocolFamily;
 import dev.friendai.protocol.trading.TradeProtocolViewCodec;
-import dev.friendai.server.runtime.ServerRuntimeRegistry;
+import dev.friendai.server.runtime.ServerRuntime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -17,19 +17,10 @@ import net.minecraft.server.level.ServerPlayer;
 public final class TradeViewStream {
     private TradeViewStream() {}
 
-    public static void send(ServerPlayer player, UUID queryId, int page, TradeQuery query) {
-        send(player, queryId, page, query, 0);
-    }
-
-    public static void send(ServerPlayer player, UUID queryId, int page, TradeQuery query, long requestId) {
-        var book = dev.friendai.core.FriendaiServerState.get(player.level().getServer())
-                .trading()
-                .book(player.getUUID());
-        var tradingSettings = dev.friendai.core.FriendaiServerState.get(
-                        player.level().getServer())
-                .config()
-                .tasks
-                .trading;
+    public static void send(
+            ServerRuntime runtime, ServerPlayer player, UUID queryId, int page, TradeQuery query, long requestId) {
+        var book = runtime.trading().book(player.getUUID());
+        var tradingSettings = runtime.config().tasks.trading;
         long serverTick = player.level().getServer().overworld().getGameTime();
         var records = book.snapshot().traders().stream()
                 .sorted(Comparator.comparing(TraderRecord::id))
@@ -83,8 +74,7 @@ public final class TradeViewStream {
                 tradingSettings.quoteFreshTicks);
         while (true) {
             try {
-                ServerRuntimeRegistry.getOrCreate(player.level().getServer())
-                        .protocolConnections()
+                runtime.protocolConnections()
                         .sendView(player, ProtocolFamily.TRADING, TradeProtocolViewCodec.encode(view, requestId));
                 return;
             } catch (IllegalArgumentException tooLarge) {

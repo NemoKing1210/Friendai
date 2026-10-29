@@ -33,12 +33,12 @@ public final class TradeRequestHandler {
 
         var book = runtime.trading().book(player.getUUID());
         if (request instanceof TradeRequest.Subscribe) {
-            TradeViewStream.send(player, queryId, 0, null, requestId);
+            TradeViewStream.send(runtime, player, queryId, 0, null, requestId);
         } else if (request instanceof TradeRequest.Close) {
             // Closing removes the sender's active query in the connection-scoped gate above.
         } else if (request instanceof TradeRequest.Query query) {
             if (query.itemId().isBlank()) {
-                TradeViewStream.send(player, queryId, query.page(), null, requestId);
+                TradeViewStream.send(runtime, player, queryId, query.page(), null, requestId);
             } else {
                 try {
                     TradeQuery tradeQuery = new TradeQuery(
@@ -48,7 +48,7 @@ public final class TradeRequestHandler {
                             query.itemId(),
                             query.componentsJson(),
                             TradeQuery.MAX_RESULTS);
-                    TradeViewStream.send(player, queryId, query.page(), tradeQuery, requestId);
+                    TradeViewStream.send(runtime, player, queryId, query.page(), tradeQuery, requestId);
                 } catch (IllegalArgumentException invalid) {
                     // Invalid domain query: do not mutate or publish an unfiltered result.
                 }
@@ -71,7 +71,7 @@ public final class TradeRequestHandler {
             if (!book.forget(forget.traderId())) {
                 player.sendSystemMessage(Component.translatable("friendai.menu.traders.forget_denied"));
             } else {
-                TradeViewStream.send(player, queryId, forget.page(), null, requestId);
+                TradeViewStream.send(runtime, player, queryId, forget.page(), null, requestId);
             }
         } else if (request instanceof TradeRequest.Preview
                 || request instanceof TradeRequest.Submit
