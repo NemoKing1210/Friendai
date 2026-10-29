@@ -1,22 +1,32 @@
 package dev.friendai.server.runtime;
 
 import dev.friendai.agent.autonomy.FreeTimeService;
+import dev.friendai.agent.goal.GoalService;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.core.TrustConfirmations;
 import dev.friendai.entity.CompanionChunkLoader;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionLifeData;
 import dev.friendai.entity.CompanionManager;
+import dev.friendai.features.knowledge.search.SearchHintStore;
 import dev.friendai.features.memory.CompanionProfileRepository;
 import dev.friendai.features.memory.MemoryViewers;
 import dev.friendai.features.placements.minecraft.PlacedService;
 import dev.friendai.features.places.minecraft.PlaceService;
 import dev.friendai.features.trading.minecraft.tool.TradingToolAccess;
+import dev.friendai.features.trading.minecraft.trading.BarterDropTracker;
+import dev.friendai.features.trading.minecraft.trading.MerchantAdapter;
+import dev.friendai.features.trading.minecraft.trading.MerchantLeases;
+import dev.friendai.features.trading.minecraft.trading.PiglinBarterAdapter;
+import dev.friendai.features.trading.minecraft.trading.TradeSessionGuard;
+import dev.friendai.features.trading.minecraft.trading.TraderObserver;
 import dev.friendai.infrastructure.config.ServerConfig;
 import dev.friendai.infrastructure.persistence.appearance.SkinStore;
+import dev.friendai.infrastructure.persistence.knowledge.KnowledgeStore;
 import dev.friendai.infrastructure.persistence.memory.MemoryStore;
 import dev.friendai.infrastructure.persistence.places.PlaceStore;
 import dev.friendai.infrastructure.persistence.trading.TradeStore;
+import dev.friendai.perception.resource.ObservationScheduler;
 import dev.friendai.perception.resource.ResourceCandidates;
 import dev.friendai.server.agent.CompanionSessions;
 import dev.friendai.server.configuration.ServerSettings;
@@ -166,6 +176,18 @@ public final class ServerRuntime implements AutoCloseable {
         return state.resources();
     }
 
+    public KnowledgeStore knowledge() {
+        return state.knowledge();
+    }
+
+    public SearchHintStore searchHints() {
+        return state.searchHints();
+    }
+
+    public ObservationScheduler observations() {
+        return state.observations();
+    }
+
     public ServerSettings settings() {
         return state.settings();
     }
@@ -176,6 +198,10 @@ public final class ServerRuntime implements AutoCloseable {
 
     public CompanionLifeData companionLife() {
         return state.companionLife();
+    }
+
+    public GoalService goals() {
+        return state.goals();
     }
 
     public CompanionChunkLoader chunkLoader() {
@@ -248,6 +274,30 @@ public final class ServerRuntime implements AutoCloseable {
 
     public TrustConfirmations trust() {
         return state.trust();
+    }
+
+    public MerchantLeases merchantLeases() {
+        return state.merchantLeases();
+    }
+
+    public TradeSessionGuard tradeSessionGuard() {
+        return state.tradeSessionGuard();
+    }
+
+    public TraderObserver traderObserver() {
+        return state.traderObserver();
+    }
+
+    public BarterDropTracker barterDropTracker() {
+        return state.barterDropTracker();
+    }
+
+    public PiglinBarterAdapter piglinBarterAdapter() {
+        return state.piglinBarterAdapter();
+    }
+
+    public MerchantAdapter merchantAdapter() {
+        return state.merchantAdapter();
     }
 
     /** Records a barter drop captured at vanilla's item-spawn seam. */

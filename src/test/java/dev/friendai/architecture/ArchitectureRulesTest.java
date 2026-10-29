@@ -233,6 +233,10 @@ class ArchitectureRulesTest {
                                 "dev.friendai.server.LegacyCaller",
                                 "dev.friendai.core.FriendaiServerState"),
                         violation(
+                                "legacy-server-state-lookup",
+                                "dev.friendai.task.TaskContext",
+                                "dev.friendai.core.FriendaiServerState"),
+                        violation(
                                 "optional-integration-isolation",
                                 "dev.friendai.server.runtime.ServerRuntime",
                                 "dev.isxander.yacl3.api.YetAnotherConfigLib"),

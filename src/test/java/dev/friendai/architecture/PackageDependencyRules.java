@@ -12,8 +12,7 @@ final class PackageDependencyRules {
     private static final Set<String> SERVER_STATE_ACCESS_OWNERS = Set.of(
             "dev.friendai.server.runtime.ServerRuntime",
             "dev.friendai.server.runtime.ServerRuntimeFactory",
-            "dev.friendai.server.runtime.ServerTickPipeline",
-            "dev.friendai.task.TaskContext");
+            "dev.friendai.server.runtime.ServerTickPipeline");
     private static final Set<String> FEATURE_SERVICES_WITH_NARROW_CONTEXT = Set.of(
             "dev.friendai.features.places.minecraft.PlaceService",
             "dev.friendai.features.placements.minecraft.PlacedService");
@@ -200,7 +199,7 @@ final class PackageDependencyRules {
                     && isProtocolForbidden(target)) {
                 add(violations, "protocol-direction", edge);
             }
-            // Runtime construction, tick orchestration and TaskContext's typed facade own state access.
+            // Runtime construction and tick orchestration own transitional state access.
             if (target.equals("dev.friendai.core.FriendaiServerState")
                     && !SERVER_STATE_ACCESS_OWNERS.contains(source)) {
                 add(violations, "legacy-server-state-lookup", edge);

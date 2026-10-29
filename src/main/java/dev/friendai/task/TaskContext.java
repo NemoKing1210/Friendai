@@ -4,7 +4,6 @@ import dev.friendai.agent.autonomy.FreeTimeService;
 import dev.friendai.agent.goal.GoalService;
 import dev.friendai.agent.turn.BrainEvent;
 import dev.friendai.core.CreativeModeService;
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.core.SkillService;
 import dev.friendai.core.TrustConfirmations;
 import dev.friendai.entity.CompanionEntity;
@@ -35,6 +34,8 @@ import dev.friendai.server.agent.CompanionSessions;
 import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.execution.tools.MinecraftFoodSubtaskFactory;
+import dev.friendai.server.runtime.ServerRuntime;
+import dev.friendai.server.runtime.ServerRuntimeRegistry;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -139,64 +140,64 @@ public record TaskContext(
     }
     /** Owner-scoped resource evidence for world tasks. The server state itself is never exposed to features. */
     public ResourceCandidates resources() {
-        return state().resources();
+        return runtime().resourceCandidates();
     }
 
     public KnowledgeStore knowledge() {
-        return state().knowledge();
+        return runtime().knowledge();
     }
     /** The companion owner's knowledge book without exposing the persistence store to a feature task. */
     public ResourceKnowledge ownerKnowledge() {
         UUID owner = companion.ownerUuid();
         if (owner == null) throw new IllegalStateException("owner knowledge is unavailable without an owner");
-        return state().knowledge().book(owner);
+        return runtime().knowledge().book(owner);
     }
 
     public SearchHintStore searchHints() {
-        return state().searchHints();
+        return runtime().searchHints();
     }
 
     public ObservationScheduler observations() {
-        return state().observations();
+        return runtime().observations();
     }
 
     public FreeTimeService freeTime() {
-        return state().freeTime();
+        return runtime().freeTime();
     }
 
     public CompanionSessions sessions() {
-        return state().sessions();
+        return runtime().sessions();
     }
     /** Trading authority for an owner, without exposing the session service to feature adapters. */
     public TradeAuthority tradeAuthorityFor(UUID owner) {
-        return state().sessions().tradeAuthorityFor(owner);
+        return runtime().sessions().tradeAuthorityFor(owner);
     }
 
     public void postWorldNotice(UUID owner, String message) {
-        state().sessions().post(owner, new BrainEvent.WorldNotice(message));
+        runtime().sessions().post(owner, new BrainEvent.WorldNotice(message));
     }
 
     /** Sets the owner's respawn point from a sleep task without exposing the companion-life store. */
     public void setRespawnPoint(UUID owner, CompanionLifeData.RespawnPoint point) {
-        state().companionLife().setRespawnPoint(owner, point);
+        runtime().companionLife().setRespawnPoint(owner, point);
     }
 
     public ExpeditionChunkHorizon.Lease requestExpeditionChunk(ChunkPos chunk) {
         UUID owner = companion.ownerUuid();
         if (owner == null) throw new IllegalStateException("chunk lease is unavailable without an owner");
-        return state().chunkLoader().expeditionHorizon().request(owner, level, chunk);
+        return runtime().chunkLoader().expeditionHorizon().request(owner, level, chunk);
     }
 
     public ServerConfig config() {
-        return state().config();
+        return runtime().config();
     }
     /** Feature-owned place operations; the service holds only the owner-book and settings providers. */
     public PlaceService placeService() {
-        return state().placeService();
+        return runtime().placeService();
     }
     /** Search-specific policy values, detached from the server configuration representation. */
     public ResourceSearchSettings resourceSearchSettings() {
-        var config = state().config();
+        var config = runtime().config();
         var resources = config.tasks.resources;
         return new ResourceSearchSettings(
                 resources.allowExpeditions,
@@ -210,66 +211,66 @@ public record TaskContext(
 
     /** Feature-owned placed-ledger operations, backed by this server's owner books. */
     public PlacedService placedService() {
-        return state().placedService();
+        return runtime().placedService();
     }
 
     public TradeStore trading() {
-        return state().trading();
+        return runtime().trading();
     }
     /** The owner's observed trades without exposing the persistence store to a feature adapter. */
     public TradeBook tradeBook(UUID owner) {
-        return state().trading().book(owner);
+        return runtime().trading().book(owner);
     }
 
     public MerchantLeases merchantLeases() {
-        return state().merchantLeases();
+        return runtime().merchantLeases();
     }
 
     public TradeSessionGuard tradeSessionGuard() {
-        return state().tradeSessionGuard();
+        return runtime().tradeSessionGuard();
     }
 
     public TraderObserver traderObserver() {
-        return state().traderObserver();
+        return runtime().traderObserver();
     }
 
     public BarterDropTracker barterDropTracker() {
-        return state().barterDropTracker();
+        return runtime().barterDropTracker();
     }
 
     public PiglinBarterAdapter piglinBarterAdapter() {
-        return state().piglinBarterAdapter();
+        return runtime().piglinBarterAdapter();
     }
 
     public MerchantAdapter merchantAdapter() {
-        return state().merchantAdapter();
+        return runtime().merchantAdapter();
     }
 
     public CompanionLifeData companionLife() {
-        return state().companionLife();
+        return runtime().companionLife();
     }
 
     public MemoryStore memory() {
-        return state().memory();
+        return runtime().memory();
     }
 
     public MemoryViewers memoryViewers() {
-        return state().memoryViewers();
+        return runtime().memoryViewers();
     }
 
     public GoalService goals() {
-        return state().goals();
+        return runtime().goals();
     }
 
     public SkillService skills() {
-        return state().skills();
+        return runtime().skills();
     }
 
     public TrustConfirmations trust() {
-        return state().trust();
+        return runtime().trust();
     }
 
-    private FriendaiServerState state() {
-        return FriendaiServerState.get(level.getServer());
+    private ServerRuntime runtime() {
+        return ServerRuntimeRegistry.getOrCreate(level.getServer());
     }
 }
