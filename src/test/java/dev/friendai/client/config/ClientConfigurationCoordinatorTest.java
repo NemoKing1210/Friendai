@@ -21,6 +21,24 @@ class ClientConfigurationCoordinatorTest {
     Path configDirectory;
 
     @Test
+    void aSessionPublishesItsDetachedDraftsThroughTheCoordinatorOnce() {
+        AtomicInteger applied = new AtomicInteger();
+        ClientConfigurationCoordinator coordinator = new ClientConfigurationCoordinator(
+                configDirectory, ignored -> applied.incrementAndGet(), ignored -> {});
+        var session = dev.friendai.presentation.config.SettingsSession.open(
+                1, coordinator.load(), coordinator.loadServer(), false);
+        session.serverDraft().companion.name = "Session name";
+        session.clientDraft().voice.stt.maxRecordSec = 999;
+
+        assertEquals(30, coordinator.load().voice.stt.maxRecordSec, "the live config is untouched before Save");
+        session.publish(coordinator::save, coordinator::saveServer);
+
+        assertEquals(1, applied.get(), "the integrated server is asked to apply exactly once");
+        assertEquals(120, coordinator.load().voice.stt.maxRecordSec, "Save validates the client draft");
+        assertEquals("Session name", coordinator.loadServer().companion.name, "Save persists the server draft");
+    }
+
+    @Test
     void savesValidatedClientConfigAndPublishesTheSameInstance() {
         AtomicReference<ClientConfig> published = new AtomicReference<>();
         ClientConfigurationCoordinator coordinator =

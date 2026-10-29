@@ -31,6 +31,7 @@ import dev.friendai.infrastructure.config.VoiceDraft;
 import dev.friendai.llm.LlmClient;
 import dev.friendai.llm.http.HttpTransport;
 import dev.friendai.presentation.companion.ClientSessionId;
+import dev.friendai.presentation.config.SettingsSession;
 import dev.isxander.yacl3.api.ButtonOption;
 import dev.isxander.yacl3.api.ConfigCategory;
 import dev.isxander.yacl3.api.LabelOption;
@@ -52,6 +53,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.ConfirmLinkScreen;
 import net.minecraft.client.gui.screens.Screen;
@@ -63,6 +65,14 @@ public final class FriendaiConfigScreen {
 
     /** Set while a rebuild writes pending widget values into the config, so listeners stay quiet. */
     private static boolean applying;
+
+    /** Set while a rebuild replaces the screen, so the old screen's removal does not close the session. */
+    private static boolean replacing;
+
+    /** The open settings session; a rebuild reuses it, a fresh open replaces and closes it. */
+    private static SettingsSession session;
+
+    private static long nextGeneration;
 
     private FriendaiConfigScreen() {}
 
@@ -103,10 +113,6 @@ public final class FriendaiConfigScreen {
     }
 
     public static Screen create(Screen parent) {
-        return create(parent, null, null);
-    }
-
-    private static Screen create(Screen parent, ProviderDraft draft, VoiceDraft voiceDraft) {
         Minecraft mc = Minecraft.getInstance();
         boolean serverEditable = mc.getSingleplayerServer() != null || mc.level == null;
         ClientConfigurationCoordinator configuration = FriendaiClient.runtime().configuration();
@@ -117,13 +123,25 @@ public final class FriendaiConfigScreen {
             serverConfigReadOnly = configuration.serverConfigReadOnly();
             if (serverConfigReadOnly) server = null;
         }
-        ClientConfig client = FriendaiClient.clientConfig();
+        if (session != null) session.close();
+        session = SettingsSession.open(++nextGeneration, FriendaiClient.clientConfig(), server, serverConfigReadOnly);
+        return create(parent, null, session.voiceDraft());
+    }
+
+    /**
+     * Builds the screen from the open session. Rebuilds carry widget drafts into the same session; nothing is
+     * written to the live or persisted configuration until Save.
+     */
+    private static Screen create(Screen parent, ProviderDraft draft, VoiceDraft voiceDraft) {
+        SettingsSession current = session;
+        if (current == null || !current.isOpen()) return parent;
+        current.voiceDraft(voiceDraft);
+        ClientConfigurationCoordinator configuration = FriendaiClient.runtime().configuration();
+        ServerConfig server = current.serverDraft();
+        boolean serverConfigReadOnly = current.serverReadOnly();
+        ClientConfig client = current.clientDraft();
         client.validate();
-        // A rebuild only carries the reveal flags. The config already holds the committed edits:
-        // reopen() applies its fresh draft, and the other rebuilds (profile category, download
-        // completion) read the live config. Re-applying a snapshot here would revert anything
-        // committed after it was taken, such as a key applied by a Test button.
-        VoiceDraft voice = voiceDraft == null ? VoiceDraft.from(client) : voiceDraft;
+        VoiceDraft voice = current.voiceDraft();
 
         YetAnotherConfigLib.Builder builder =
                 YetAnotherConfigLib.createBuilder().title(tr("friendai.config.title"));
@@ -143,18 +161,22 @@ public final class FriendaiConfigScreen {
         }
         builder.category(voiceCategory(parent, client, voice));
 
-        ServerConfig savedServer = server;
-        builder.save(() -> {
-            if (savedServer != null) {
-                configuration.saveServer(savedServer);
-            }
-            // YACL has already applied every changed option; writing the draft keeps the provider
-            // entries consistent with the widgets even when nothing looked changed.
-            VoiceDraft.from(client).applyTo(client);
-            client.validate();
-            configuration.save(client);
+        builder.save(() -> current.publish(configuration::save, configuration::saveServer));
+        Screen screen = builder.build().generateScreen(parent);
+        ScreenEvents.remove(screen).register(removed -> {
+            if (!replacing && session == current) current.close();
         });
-        return builder.build().generateScreen(parent);
+        return screen;
+    }
+
+    /** Replaces the screen as a rebuild, so the outgoing screen's removal keeps the session open. */
+    private static void show(Screen next) {
+        replacing = true;
+        try {
+            Minecraft.getInstance().setScreenAndShow(next);
+        } finally {
+            replacing = false;
+        }
     }
 
     private static Option<String> stringOption(
@@ -267,11 +289,14 @@ public final class FriendaiConfigScreen {
         };
 
         // Fetches the model list for the pending settings, then rebuilds the screen keeping them.
+        SettingsSession owner = session;
+        long generation = owner == null ? -1 : owner.generation();
         java.util.function.BiConsumer<ProviderDraft, Boolean> loadModelsThenReopen = (draftNow, reportSuccess) -> {
             pendingClient
                     .get()
                     .listModels()
                     .whenComplete((models, error) -> Minecraft.getInstance().execute(() -> {
+                        if (owner == null || !owner.current(generation)) return;
                         if (error != null) {
                             toast(Components.of(ErrorMessages.forUser(error)));
                             return;
@@ -280,7 +305,7 @@ public final class FriendaiConfigScreen {
                         if (reportSuccess) {
                             toast(Component.translatable("friendai.config.models_loaded", models.size()));
                         }
-                        Minecraft.getInstance().setScreenAndShow(create(parent, draftNow, voiceDraft));
+                        show(create(parent, draftNow, voiceDraft));
                     }));
         };
 
@@ -293,8 +318,7 @@ public final class FriendaiConfigScreen {
             boolean hasKey =
                     !SecretResolver.resolve(draftNow.apiKey(), System::getenv).isBlank();
             if (needsKey && !hasKey) {
-                Minecraft.getInstance()
-                        .execute(() -> Minecraft.getInstance().setScreenAndShow(create(parent, draftNow, voiceDraft)));
+                Minecraft.getInstance().execute(() -> show(create(parent, draftNow, voiceDraft)));
             } else {
                 loadModelsThenReopen.accept(draftNow, false);
             }
@@ -306,19 +330,18 @@ public final class FriendaiConfigScreen {
                 .build();
         ButtonOption toggleKey = ButtonOption.createBuilder()
                 .name(tr(revealKey ? "friendai.config.api_key.hide" : "friendai.config.api_key.show"))
-                .action((screen, button) -> Minecraft.getInstance()
-                        .setScreenAndShow(create(parent, currentDraft.get().withReveal(!revealKey), voiceDraft)))
+                .action((screen, button) ->
+                        show(create(parent, currentDraft.get().withReveal(!revealKey), voiceDraft)))
                 .build();
         ButtonOption testConnection = ButtonOption.createBuilder()
                 .name(tr("friendai.config.test_connection"))
                 .action((screen, button) -> pendingClient
                         .get()
                         .testConnection()
-                        .whenComplete((result, error) -> Minecraft.getInstance()
-                                .execute(() -> toast(
-                                        error != null
-                                                ? Components.of(ErrorMessages.forUser(error))
-                                                : Components.of(result)))))
+                        .whenComplete((result, error) -> Minecraft.getInstance().execute(() -> {
+                            if (owner == null || !owner.current(generation)) return;
+                            toast(error != null ? Components.of(ErrorMessages.forUser(error)) : Components.of(result));
+                        })))
                 .build();
 
         return ConfigCategory.createBuilder()
@@ -618,18 +641,22 @@ public final class FriendaiConfigScreen {
                 .action((screen, button) -> {
                     WhisperModel selected = WhisperModel.byId(model.pendingValue());
                     int[] lastStep = {-1};
+                    SettingsSession owner = session;
+                    long generation = owner == null ? -1 : owner.generation();
                     VoiceRuntime.manager()
                             .download(selected.spec(), fraction -> {
                                 int percent = (int) (fraction * 100);
                                 if (percent / 10 != lastStep[0]) {
                                     lastStep[0] = percent / 10;
-                                    Minecraft.getInstance()
-                                            .execute(() -> toast(Component.translatable(
-                                                    "friendai.config.voice.downloading", percent)));
+                                    Minecraft.getInstance().execute(() -> {
+                                        if (owner == null || !owner.current(generation)) return;
+                                        toast(Component.translatable("friendai.config.voice.downloading", percent));
+                                    });
                                 }
                             })
                             .whenComplete((path, error) -> Minecraft.getInstance()
                                     .execute(() -> {
+                                        if (owner == null || !owner.current(generation)) return;
                                         if (error != null) {
                                             toast(Components.of(ErrorMessages.forUser(error)));
                                         } else {
@@ -684,6 +711,8 @@ public final class FriendaiConfigScreen {
                 .action((screen, button) -> {
                     int[] lastDownloadStep = {-1};
                     int[] lastInstallStep = {-1};
+                    SettingsSession owner = session;
+                    long generation = owner == null ? -1 : owner.generation();
                     SpeechRuntime.models()
                             .download(effective, new VoiceModelManager.DownloadStage() {
                                 @Override
@@ -700,6 +729,7 @@ public final class FriendaiConfigScreen {
                             })
                             .whenComplete((path, error) -> Minecraft.getInstance()
                                     .execute(() -> {
+                                        if (owner == null || !owner.current(generation)) return;
                                         if (error != null) {
                                             toast(Components.of(ErrorMessages.forUser(error)));
                                         } else {
@@ -961,7 +991,7 @@ public final class FriendaiConfigScreen {
                 .withSttReveal(sttReveal)
                 .withTtsReveal(ttsReveal);
         next.applyTo(client);
-        Minecraft.getInstance().setScreenAndShow(create(parent, null, next));
+        show(create(parent, null, next));
     }
 
     private static VoiceModel effectiveVoice(ClientConfig.TtsSection tts) {
