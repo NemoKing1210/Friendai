@@ -7,6 +7,5 @@ legacy-server-state-lookup	dev.friendai.server.net.DebugStream	dev.friendai.core
 legacy-server-state-lookup	dev.friendai.server.net.MemoryViewStream	dev.friendai.core.FriendaiServerState	16
 legacy-server-state-lookup	dev.friendai.server.net.MovementDebugStream	dev.friendai.core.FriendaiServerState	16
 legacy-server-state-lookup	dev.friendai.server.net.PlaceViewStream	dev.friendai.core.FriendaiServerState	16
-legacy-server-state-lookup	dev.friendai.server.net.SkillsViewStream	dev.friendai.core.FriendaiServerState	16
 legacy-server-state-lookup	dev.friendai.server.net.SnapshotBuilder	dev.friendai.core.FriendaiServerState	16
 legacy-server-state-lookup	dev.friendai.server.companion.persistence.CompanionBodyCodec	dev.friendai.core.FriendaiServerState	9

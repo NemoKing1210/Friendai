@@ -25,7 +25,7 @@ public final class ServerTickPipeline {
         this.ownerRecordFlush = new OwnerRecordFlush(state.profileStore(), state.goalStore(), state.freeTimeStore());
     }
 
-    public void tick() {
+    public void tick(ServerRuntime runtime) {
         long gameTime = server.overworld().getGameTime();
         state.barterDropTracker().expire(gameTime);
         state.tradeSessionGuard().tick(gameTime);
@@ -42,7 +42,7 @@ public final class ServerTickPipeline {
         ownerRecordFlush.tick();
         DebugStream.tick(server);
         MemoryViewStream.tick(server);
-        SkillsViewStream.tick(server);
+        SkillsViewStream.tick(runtime);
         PlaceViewStream.tick(server);
         MovementDebugStream.tick(server);
     }

@@ -58,19 +58,19 @@ public final class SkillRequestHandler {
                 int page = request instanceof InstructionRequest.Page pageRequest ? pageRequest.page() : 0;
                 String id = request instanceof InstructionRequest.Detail detail ? detail.skillId() : "";
                 SkillsViewStream.subscribe(p, page, id);
-                if (!limited) SkillsViewStream.sendNow(p, null, requestId);
+                if (!limited) SkillsViewStream.sendNow(runtime, p, null, requestId);
                 return;
             }
             if (limited) {
-                SkillsViewStream.sendNow(p, SkillActionResult.error(), requestId);
+                SkillsViewStream.sendNow(runtime, p, SkillActionResult.error(), requestId);
                 return;
             }
             ActionRequest action = action(request);
             if (action == null) return;
             SkillActionResult result = apply(runtime, p, action.operation(), action.json());
-            SkillsViewStream.sendNow(p, result, requestId);
+            SkillsViewStream.sendNow(runtime, p, result, requestId);
         } catch (RuntimeException | StackOverflowError e) {
-            SkillsViewStream.sendNow(p, SkillActionResult.error(), requestId);
+            SkillsViewStream.sendNow(runtime, p, SkillActionResult.error(), requestId);
         }
     }
 

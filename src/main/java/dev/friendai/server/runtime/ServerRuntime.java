@@ -23,6 +23,7 @@ import dev.friendai.server.net.ServerProtocolConnections;
 import dev.friendai.server.net.SkillsViewStream;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Consumer;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -33,7 +34,7 @@ public final class ServerRuntime implements AutoCloseable {
 
     private final MinecraftServer server;
     private final FriendaiServerState state;
-    private final Runnable tickWork;
+    private final Consumer<ServerRuntime> tickWork;
     private final Runnable stopWork;
     private final RuntimeResources resources;
     private final ServerProtocolConnections protocolConnections;
@@ -50,13 +51,13 @@ public final class ServerRuntime implements AutoCloseable {
     }
 
     ServerRuntime(Runnable tickWork, Runnable stopWork, RuntimeResources resources) {
-        this(null, null, tickWork, stopWork, resources);
+        this(null, null, ignored -> tickWork.run(), stopWork, resources);
     }
 
     private ServerRuntime(
             MinecraftServer server,
             FriendaiServerState state,
-            Runnable tickWork,
+            Consumer<ServerRuntime> tickWork,
             Runnable stopWork,
             RuntimeResources resources) {
         this.server = server;
@@ -115,7 +116,7 @@ public final class ServerRuntime implements AutoCloseable {
     /** Runs the unchanged server tick pipeline until shutdown starts. */
     public void tick() {
         if (protocolConnections != null) protocolConnections.tick();
-        if (acceptingWork) tickWork.run();
+        if (acceptingWork) tickWork.accept(this);
     }
 
     public ServerProtocolConnections protocolConnections() {
