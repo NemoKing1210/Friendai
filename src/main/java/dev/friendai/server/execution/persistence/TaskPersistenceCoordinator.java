@@ -82,6 +82,8 @@ public final class TaskPersistenceCoordinator {
         // The task listener must exist before restore notices are placed on the runner.
         attachOwnerEvents.accept(companion);
         invalidateTradingAuthority.accept(owner);
+        // Restored work must not run before its owner logs in; free time may resume it under its own policy.
+        if (companion.owner().isEmpty()) companion.executionCoordinator().suspend();
 
         JobQueue queue = saved.queue().queue();
         List<String> restored = new ArrayList<>();

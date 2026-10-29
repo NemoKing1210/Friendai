@@ -115,6 +115,9 @@ public final class CompanionManager {
             // companion must not start working behind it.
             entity.addMenuViewer();
         }
+        if (server.getPlayerList().getPlayer(owner) == null)
+            entity.executionCoordinator().suspend();
+        else entity.executionCoordinator().resume();
     }
 
     public void unregister(CompanionEntity entity) {

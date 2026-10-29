@@ -69,6 +69,10 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     private boolean flushingEvents;
     private boolean paused;
     private boolean suspended;
+    /** A restored task held back because its owner was away; resume() starts it before the queue. */
+    private Task pendingRestoredTask;
+
+    private long pendingRestoredJobId;
     private final HoldRegistry holds = new HoldRegistry();
 
     public ExecutionCoordinator(CompanionEntity companion, IntSupplier timeoutSec, BooleanSupplier defaultFollow) {
@@ -127,7 +131,25 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     }
 
     public void resume() {
-        suspended = false;
+        inTransition(() -> {
+            suspended = false;
+            startPendingRestoredTask();
+        });
+    }
+
+    private void startPendingRestoredTask() {
+        Task task = pendingRestoredTask;
+        long jobId = pendingRestoredJobId;
+        pendingRestoredTask = null;
+        pendingRestoredJobId = 0;
+        if (task == null) return;
+        if (jobId == 0) {
+            restore(task);
+            return;
+        }
+        Job job = queueDriver.queue().job(jobId).orElse(null);
+        if (job == null || job.state() != JobState.RUNNING) return;
+        startRestoredTask(task, job);
     }
 
     @Override
@@ -1020,41 +1042,58 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
             Map<Long, Map<String, PlanStepFactory>> restoredPlanFactories,
             Task restoredTask) {
         syncSettings();
+        pendingRestoredTask = null;
+        pendingRestoredJobId = 0;
         queueDriver.restore(decoded, restoredFactories, restoredPlanFactories);
         activeTasks.reset();
         Job activeJob = decoded.activeJobId() == 0
                 ? null
                 : queueDriver.queue().job(decoded.activeJobId()).orElse(null);
         if (restoredTask != null && activeJob != null && activeJob.state() == JobState.RUNNING) {
-            CreativeActionContext actionContext = actionContext(activeJob.principal(), activeJob.creativeSensitive());
-            try {
-                ServerSettings settings = settingsSupplier.get();
-                activeTasks.start(
-                        restoredTask,
-                        new TaskStartContext(
-                                activeJob.tool(),
-                                callerFor(activeJob.principal()),
-                                actionContext,
-                                true,
-                                false,
-                                false,
-                                (int) activeJob.id(),
-                                activeJob.id(),
-                                activeJob.planId(),
-                                activeJob.creativeSensitive(),
-                                settings,
-                                new TaskContext(
-                                        companion, (ServerLevel) companion.level(), this, actionContext, settings)));
-            } catch (RuntimeException e) {
-                queueDriver.fail(activeJob.id(), "task crashed: " + e.getClass().getSimpleName());
+            if (suspended) {
+                pendingRestoredTask = restoredTask;
+                pendingRestoredJobId = activeJob.id();
+            } else {
+                startRestoredTask(restoredTask, activeJob);
             }
         } else if (restoredTask != null && activeJob == null) {
-            restore(restoredTask);
+            if (suspended) {
+                pendingRestoredTask = restoredTask;
+                pendingRestoredJobId = 0;
+            } else {
+                restore(restoredTask);
+            }
         }
         for (Job job : List.copyOf(queueDriver.queue().jobs()))
             if (job.state() == JobState.RUNNING
+                    && job.id() != pendingRestoredJobId
                     && (activeTask() == null || activeTask().jobId() != job.id())) queueDriver.requeue(job.id());
         queueDriver.rebuildAwaitingDecisionState();
+    }
+
+    private void startRestoredTask(Task restoredTask, Job activeJob) {
+        CreativeActionContext actionContext = actionContext(activeJob.principal(), activeJob.creativeSensitive());
+        try {
+            ServerSettings settings = settingsSupplier.get();
+            activeTasks.start(
+                    restoredTask,
+                    new TaskStartContext(
+                            activeJob.tool(),
+                            callerFor(activeJob.principal()),
+                            actionContext,
+                            true,
+                            false,
+                            false,
+                            (int) activeJob.id(),
+                            activeJob.id(),
+                            activeJob.planId(),
+                            activeJob.creativeSensitive(),
+                            settings,
+                            new TaskContext(
+                                    companion, (ServerLevel) companion.level(), this, actionContext, settings)));
+        } catch (RuntimeException e) {
+            queueDriver.fail(activeJob.id(), "task crashed: " + e.getClass().getSimpleName());
+        }
     }
 
     private TaskContext context() {

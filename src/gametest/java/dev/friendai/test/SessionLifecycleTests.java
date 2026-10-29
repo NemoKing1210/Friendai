@@ -20,6 +20,7 @@ import dev.friendai.execution.queue.PlanNode;
 import dev.friendai.execution.queue.QueuedStep;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
+import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.features.trading.TradeBudget;
 import dev.friendai.features.trading.TradeOrder;
 import java.util.List;
@@ -377,6 +378,49 @@ public class SessionLifecycleTests {
         public String resultSummary() {
             return "failed";
         }
+    }
+
+    @GameTest(maxTicks = 200)
+    public void restoredOwnerWorkStaysSuspendedUntilTheOwnerJoins(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        var server = h.getLevel().getServer();
+        var state = GameTestSupport.runtime(server);
+        CompanionEntity companion = h.spawn(dev.friendai.entity.FriendaiEntities.COMPANION, 2, 2, 2);
+        UUID owner = UUID.randomUUID();
+        companion.setOwner(owner);
+        CompanionManager.get(server).register(companion);
+        var tools = GameTestToolRegistry.create(companion, () -> 8).bind(companion);
+        ToolResult queued = run(
+                tools,
+                "queue_add",
+                "{\"steps\":[{\"tool\":\"wait\",\"args\":\"{\\\"seconds\\\":30}\"}]}",
+                new Caller(owner, "Owner", AccessLevel.OWNER));
+        h.assertTrue(!queued.error(), "queue_add failed: " + queued.content());
+        var saved = state.taskPersistence()
+                .capture(companion.executionCoordinator())
+                .orElseThrow();
+        state.taskPersistence().restore(companion, saved);
+        h.assertTrue(
+                companion.executionCoordinator().suspended(),
+                "restored owner work must stay suspended while the owner is away");
+        h.assertTrue(
+                companion.executionCoordinator().current().isEmpty(),
+                "restored work must not start before the owner logs in");
+        h.runAfterDelay(20, () -> {
+            h.assertTrue(
+                    companion.executionCoordinator().current().isEmpty(),
+                    "suspended work advanced before the owner joined");
+            state.sessions().onOwnerJoined(owner);
+            h.succeedWhen(() -> h.assertTrue(
+                    companion.executionCoordinator().current().isPresent(),
+                    "the restored work should start when the owner joins"));
+        });
+    }
+
+    private static ToolResult run(
+            dev.friendai.execution.tool.ToolExecutor tools, String name, String json, Caller caller) {
+        var args = com.google.gson.JsonParser.parseString(json).getAsJsonObject();
+        return tools.execute(new ToolCall("restore-test", name, args, json, null), caller);
     }
 
     private static void awaitPlanner(GameTestHelper h, DeferredPlanner planner, int remaining, Runnable action) {
