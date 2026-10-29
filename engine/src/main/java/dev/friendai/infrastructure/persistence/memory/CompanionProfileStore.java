@@ -33,27 +33,19 @@ public final class CompanionProfileStore implements CompanionProfileRepository, 
     @Override
     public CompanionProfile profile(UUID owner) {
         ProfileFile file = store.book(owner).record;
-        String name = CompanionName.parse(file.name()).orElse(null);
-        CompanionDescription description;
-        OwnerProfile ownerProfile;
-        try {
-            description = new CompanionDescription(file.summary(), file.details());
-        } catch (IllegalArgumentException invalid) {
-            description = CompanionDescription.EMPTY;
-        }
-        try {
-            ownerProfile = new OwnerProfile(file.language(), file.address());
-        } catch (IllegalArgumentException invalid) {
-            ownerProfile = OwnerProfile.EMPTY;
-        }
-        return new CompanionProfile(name, description, ownerProfile);
+        String name =
+                file.name() == null ? null : CompanionName.parse(file.name()).orElseThrow();
+        return new CompanionProfile(
+                name,
+                new CompanionDescription(file.summary(), file.details()),
+                new OwnerProfile(file.language(), file.address()));
     }
 
     @Override
     public void save(UUID owner, CompanionProfile profile) {
         ProfileState state = store.book(owner);
         ProfileFile previous = state.record;
-        state.record = new ProfileFile(
+        ProfileFile updated = new ProfileFile(
                 FORMAT_VERSION,
                 previous.revision() + 1,
                 profile.name(),
@@ -61,6 +53,8 @@ public final class CompanionProfileStore implements CompanionProfileRepository, 
                 profile.description().details(),
                 profile.ownerProfile().language(),
                 profile.ownerProfile().address());
+        validate(updated);
+        state.record = updated;
     }
 
     @Override
@@ -102,6 +96,16 @@ public final class CompanionProfileStore implements CompanionProfileRepository, 
         private ProfileFile record = ProfileFile.empty();
     }
 
+    private static void validate(ProfileFile file) {
+        if (file.revision() < 0) throw new IllegalArgumentException("Invalid profile revision.");
+        if (file.name() != null && CompanionName.parse(file.name()).isEmpty())
+            throw new IllegalArgumentException("Invalid companion name.");
+        if (file.summary() == null || file.details() == null || file.language() == null || file.address() == null)
+            throw new IllegalArgumentException("Profile fields must not be null.");
+        new CompanionDescription(file.summary(), file.details());
+        new OwnerProfile(file.language(), file.address());
+    }
+
     private static final class Codec implements StoreCodec<ProfileState> {
         @Override
         public ProfileState load(String json) {
@@ -110,6 +114,7 @@ public final class CompanionProfileStore implements CompanionProfileRepository, 
             ProfileFile file = GSON.fromJson(json, ProfileFile.class);
             if (file == null) throw new IllegalArgumentException("Empty profile file.");
             if (file.formatVersion() != FORMAT_VERSION) throw new UnsupportedStoreVersionException();
+            validate(file);
             state.record = file;
             return state;
         }

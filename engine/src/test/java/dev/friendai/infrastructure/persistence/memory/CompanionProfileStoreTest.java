@@ -70,6 +70,33 @@ class CompanionProfileStoreTest {
         }
     }
 
+    @Test
+    void semanticallyInvalidProfileIsBackedUpAndCannotBeOverwritten() throws Exception {
+        Files.createDirectories(dir);
+        Path original = dir.resolve(A + ".json");
+        String invalid = "{\"formatVersion\":1,\"revision\":3,\"name\":null,\"summary\":\""
+                + "x".repeat(301)
+                + "\",\"details\":\"\",\"language\":\"auto\",\"address\":\"\"}";
+        byte[] originalBytes = invalid.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        Files.write(original, originalBytes);
+
+        try (var writer = new OwnerStoreWriter();
+                var store = new CompanionProfileStore(dir, writer)) {
+            assertEquals(CompanionProfile.EMPTY, store.profile(A));
+            assertEquals(
+                    dev.friendai.foundation.persistence.StoreReadOnlyReason.CORRUPT,
+                    store.status(A).readOnlyReason());
+            assertTrue(Files.exists(original.resolveSibling(original.getFileName() + ".bak")));
+            assertTrue(java.util.Arrays.equals(
+                    originalBytes, Files.readAllBytes(original.resolveSibling(original.getFileName() + ".bak"))));
+
+            store.save(A, profile("Mira", "Valid", "auto", ""));
+            store.flushAll();
+        }
+
+        assertTrue(java.util.Arrays.equals(originalBytes, Files.readAllBytes(original)));
+    }
+
     private static CompanionProfile profile(String name, String summary, String language, String address) {
         return new CompanionProfile(
                 name, new CompanionDescription(summary, "details"), new OwnerProfile(language, address));
