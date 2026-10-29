@@ -122,6 +122,20 @@ class ArchitectureRulesTest {
     }
 
     @Test
+    void miningAndSurvivalTasksUseTaskContextServices() throws IOException {
+        for (String task : List.of(
+                "features/mining/minecraft/task/FellTreeSearchTask.java",
+                "features/mining/minecraft/task/MineBlocksTask.java",
+                "features/survival/minecraft/task/GetFoodTask.java",
+                "features/survival/minecraft/task/SleepTask.java")) {
+            Path source = PROJECT_ROOT.resolve("src/main/java/dev/friendai").resolve(task);
+            assertFalse(
+                    Files.readString(source).contains("FriendaiServerState"),
+                    "Feature tasks should receive runtime services through TaskContext: " + task);
+        }
+    }
+
+    @Test
     void placementServiceLivesWithItsFeature() {
         assertTrue(Files.exists(
                 PROJECT_ROOT.resolve("src/main/java/dev/friendai/features/placements/minecraft/PlacedService.java")));

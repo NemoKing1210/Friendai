@@ -1,6 +1,5 @@
 package dev.friendai.features.survival.minecraft.task;
 
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
 import dev.friendai.features.navigation.minecraft.nav.Approach;
 import dev.friendai.task.Task;
@@ -135,12 +134,10 @@ public final class SleepTask implements Task {
         healthAtSleep = c.companion().getHealth();
         BlockPos foot = foot(c, bed);
         if (foot != null && c.companion().ownerUuid() != null) {
-            FriendaiServerState.get(c.level().getServer())
-                    .companionLife()
-                    .setRespawnPoint(
-                            c.companion().ownerUuid(),
-                            new dev.friendai.entity.CompanionLifeData.RespawnPoint(
-                                    c.level().dimension(), foot));
+            c.setRespawnPoint(
+                    c.companion().ownerUuid(),
+                    new dev.friendai.entity.CompanionLifeData.RespawnPoint(
+                            c.level().dimension(), foot));
         }
         return TaskStatus.RUNNING;
     }
@@ -306,7 +303,7 @@ public final class SleepTask implements Task {
     private static @Nullable BlockPos findBed(TaskContext c) {
         BlockMatcher beds = BlockMatcher.parse("#minecraft:beds").orElse(null);
         if (beds == null) return null;
-        var resources = FriendaiServerState.get(c.level().getServer()).resources();
+        var resources = c.resources();
         return resources.knownOrVisible(c.companion(), beds, BED_SEARCH_RADIUS, 16).stream()
                 .map(p -> head(c, p))
                 .filter(java.util.Objects::nonNull)

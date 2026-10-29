@@ -1,6 +1,5 @@
 package dev.friendai.features.mining.minecraft.task;
 
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
 import dev.friendai.features.mining.minecraft.mining.TreeFinder;
 import dev.friendai.task.Task;
@@ -64,10 +63,10 @@ public final class FellTreeSearchTask implements Task {
             summary = "no " + logs.label() + " tree within " + radius + " blocks";
             return TaskStatus.FAILED;
         }
-        var state = FriendaiServerState.get(c.level().getServer());
+        var resources = c.resources();
         int evidenceRadius = Math.min(128, c.companion().blockPosition().distManhattan(origin) + radius);
         Map<BlockPos, String> observed = new LinkedHashMap<>();
-        state.resources()
+        resources
                 .recentOrRememberedBlockIds(c.companion(), evidenceRadius, MAX_OBSERVATIONS)
                 .forEach((pos, id) -> {
                     if (pos.distSqr(origin) > (double) radius * radius) return;
@@ -78,7 +77,7 @@ public final class FellTreeSearchTask implements Task {
                 });
         BlockMatcher leaves = BlockMatcher.parse("#minecraft:leaves").orElseThrow();
         Set<BlockPos> observedLeaves =
-                state.resources().recentOrRemembered(c.companion(), leaves, evidenceRadius, MAX_OBSERVATIONS).stream()
+                resources.recentOrRemembered(c.companion(), leaves, evidenceRadius, MAX_OBSERVATIONS).stream()
                         .filter(pos -> pos.distSqr(origin) <= (double) radius * radius)
                         .collect(java.util.stream.Collectors.toUnmodifiableSet());
         int searchLimit = limit > 0 ? Math.min(256, limit + 8) : 16;
@@ -87,7 +86,7 @@ public final class FellTreeSearchTask implements Task {
                         .filter(tree -> !treesOnly || tree.kind() != TreeFinder.Kind.LOG_STRUCTURE)
                         .toList();
         if (found.isEmpty()) {
-            state.observations()
+            c.observations()
                     .observer(c.companion())
                     .scheduleSweep(c.level().getServer().overworld().getGameTime());
             summary = "looking for a " + logs.label() + " tree within " + radius + " blocks";

@@ -317,9 +317,7 @@ public final class MineBlocksTask implements Task {
                     // The tree is finished: pick its drops up before going anywhere else.
                     return TaskStatus.RUNNING;
                 }
-                var evidence = dev.friendai.core.FriendaiServerState.get(
-                                c.level().getServer())
-                        .resources();
+                var evidence = c.resources();
                 int evidenceRadius = origin == null
                         ? radius
                         : Math.min(128, c.companion().blockPosition().distManhattan(origin) + radius);
@@ -364,10 +362,7 @@ public final class MineBlocksTask implements Task {
         if (candidates.isEmpty()) {
             if (pendingObservation != null && observationWaitTicks < OBSERVATION_WAIT_TICKS) {
                 if (observationWaitTicks++ == 0) {
-                    var observer = dev.friendai.core.FriendaiServerState.get(
-                                    c.level().getServer())
-                            .observations()
-                            .observer(c.companion());
+                    var observer = c.observations().observer(c.companion());
                     for (net.minecraft.core.Direction side : net.minecraft.core.Direction.values()) {
                         observer.inspect(pendingObservation.relative(side));
                     }
@@ -514,8 +509,7 @@ public final class MineBlocksTask implements Task {
         for (net.minecraft.core.Direction side : net.minecraft.core.Direction.values()) {
             seeds.add(lastBroken.relative(side));
         }
-        var evidence =
-                dev.friendai.core.FriendaiServerState.get(c.level().getServer()).resources();
+        var evidence = c.resources();
         List<BlockPos> result =
                 new ArrayList<>(evidence.knownOrVisible(c.companion(), matcher, radius, evidenceLimit(CANDIDATES)));
         result.removeIf(pos -> seeds.stream().noneMatch(seed -> seed.distManhattan(pos) <= 1));

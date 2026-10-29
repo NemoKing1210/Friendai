@@ -172,6 +172,11 @@ public record TaskContext(
         state().sessions().post(owner, new BrainEvent.WorldNotice(message));
     }
 
+    /** Sets the owner's respawn point from a sleep task without exposing the companion-life store. */
+    public void setRespawnPoint(UUID owner, CompanionLifeData.RespawnPoint point) {
+        state().companionLife().setRespawnPoint(owner, point);
+    }
+
     public ExpeditionChunkHorizon.Lease requestExpeditionChunk(ChunkPos chunk) {
         UUID owner = companion.ownerUuid();
         if (owner == null) throw new IllegalStateException("chunk lease is unavailable without an owner");
