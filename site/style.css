@@ -1,0 +1,135 @@
+:root {
+  --ink: #1b1b1b;
+  --panel: #c6c6c6;
+  --panel-hi: #ffffff;
+  --panel-lo: #555555;
+  --stone: #7f7f7f;
+  --stone-dark: #373737;
+  --grass: #5d9b3a;
+  --grass-dark: #3f6e26;
+  --dirt: #8b5a2b;
+  --gold: #ffd75e;
+  --tip-bg: #100010;
+  --tip-edge: #2a0a63;
+  --pixel: "Press Start 2P", "Courier New", monospace;
+  --body: "VT323", "Courier New", monospace;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  background: #6b4423;
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 22px;
+  line-height: 1.25;
+  image-rendering: pixelated;
+}
+.wrap { width: 100%; max-width: none; margin: 0; padding: 0 16px 48px; }
+
+/* ---------- hero ---------- */
+header.hero { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; padding: 16px 0 6px; }
+.logo {
+  font-family: var(--pixel);
+  font-size: clamp(16px, 2.4vw, 26px);
+  letter-spacing: 1px;
+  color: #d8d8d8;
+  text-shadow: 0 -2px 0 #fff, 2px 0 0 #8e8e8e, 0 2px 0 #555, -2px 0 0 #bdbdbd, 3px 4px 0 #000, 5px 5px 0 rgba(0,0,0,.35);
+  margin: 0;
+}
+.logo em { font-style: normal; color: #7fd14f; text-shadow: 0 -2px 0 #bff09c, 2px 0 0 #4d9a29, 0 2px 0 #2a5a14, -2px 0 0 #8fd95f, 3px 4px 0 #000, 5px 5px 0 rgba(0,0,0,.35); }
+.stats { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; margin-left: auto; }
+.stat { background: var(--stone-dark); border: 3px solid #000; box-shadow: inset 2px 2px 0 #5c5c5c, inset -2px -2px 0 #1f1f1f; padding: 4px 10px; min-width: 84px; color: #fff; text-align: center; }
+.stat b { display: block; font-family: var(--pixel); font-size: 12px; line-height: 1.5; color: var(--gold); text-shadow: 1px 1px 0 #3a2f00; }
+.stat span { font-size: 17px; line-height: 1; color: #ddd; }
+
+/* ---------- tabs ---------- */
+nav.tabs { position: sticky; top: 0; z-index: 20; display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; padding: 10px 0 0; }
+.tab {
+  font-family: var(--pixel); font-size: 10px; line-height: 1.4;
+  padding: 12px 14px 10px; cursor: pointer; color: #ddd;
+  background: var(--stone); border: 3px solid #000; border-bottom: 0;
+  box-shadow: inset 3px 3px 0 #a8a8a8, inset -3px 0 0 #565656;
+}
+.tab:hover { background: #8f8f8f; color: #fff; }
+.tab[aria-selected="true"] { background: var(--panel); color: var(--ink); box-shadow: inset 3px 3px 0 #fff, inset -3px 0 0 #8b8b8b; padding-bottom: 14px; position: relative; top: 3px; z-index: 2; }
+
+/* ---------- panels ---------- */
+.panel {
+  background: var(--panel); border: 4px solid #000;
+  box-shadow: inset 4px 4px 0 var(--panel-hi), inset -4px -4px 0 var(--panel-lo);
+  padding: 20px; margin-bottom: 18px;
+}
+.panel h2 { font-family: var(--pixel); font-size: 14px; line-height: 1.6; margin: 0 0 8px; color: #3f3f3f; }
+.panel p.lead { margin: 0 0 14px; font-size: 24px; color: #2b2b2b; max-width: 900px; }
+.graphbox { background: #1d1d1d; border: 4px solid #000; box-shadow: inset 4px 4px 0 #0b0b0b, inset -4px -4px 0 #3a3a3a; overflow: hidden; position: relative; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 18px; }
+.grid .panel { margin: 0; }
+.grid .panel.wide { grid-column: 1 / -1; }
+@media (max-width: 520px) { .grid { grid-template-columns: 1fr; } .vis { height: 460px !important; } .vis.main { height: 560px !important; } }
+
+/* category chips */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.chip {
+  font-family: var(--body); font-size: 22px; color: #222; cursor: pointer;
+  background: #b9b9b9; border: 3px solid #000; padding: 4px 12px 4px 10px;
+  box-shadow: inset 3px 3px 0 #fff, inset -3px -3px 0 #6d6d6d;
+  display: inline-flex; align-items: center; gap: 8px;
+}
+.chip i { font-style: normal; }
+.chip:hover { background: #cfe3c0; }
+.chip[aria-pressed="true"] { background: #8fd36a; box-shadow: inset 3px 3px 0 #d6f5c1, inset -3px -3px 0 #3d7a1f; }
+
+/* legend */
+.legend { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 14px; font-size: 21px; }
+.legend span { display: inline-flex; align-items: center; gap: 8px; }
+.sw { width: 26px; height: 18px; border: 2px solid #000; display: inline-block; }
+.sw.tool { background: #c6c6c6; box-shadow: inset 5px 0 0 var(--grass); }
+.sw.trait { background: #373737; box-shadow: inset 5px 0 0 #b27bff; }
+.sw.cat { background: var(--grass); box-shadow: inset 2px 2px 0 rgba(255,255,255,.5), inset -2px -2px 0 rgba(0,0,0,.35); }
+.sw.hub { background: linear-gradient(var(--grass) 35%, var(--dirt) 35%); }
+
+
+/* tooltip */
+#tip {
+  position: fixed; z-index: 50; pointer-events: none; max-width: 340px; padding: 8px 12px;
+  background: var(--tip-bg); color: #fff; border: 3px solid var(--tip-edge);
+  box-shadow: 0 0 0 3px #000, inset 0 0 0 2px #5c18bd;
+  font-size: 22px; opacity: 0; transition: opacity .08s;
+}
+#tip.show { opacity: .97; }
+#tip b { display: block; font-family: var(--pixel); font-size: 11px; line-height: 1.6; color: #fff; margin-bottom: 4px; word-break: break-word; }
+#tip small { display: block; color: #a8a8a8; font-size: 18px; margin-bottom: 2px; }
+#tip p { margin: 0; color: #cfcfcf; }
+
+footer { text-align: center; font-family: var(--pixel); font-size: 9px; line-height: 2; color: #e8d3b3; text-shadow: 2px 2px 0 #3a2410; padding: 18px 0 0; }
+.hidden { display: none; }
+
+/* ---------- graph canvas (vis-network) ---------- */
+.vis { width: 100%; height: 620px; outline: none; touch-action: none; }
+.vis.main { height: max(620px, calc(100vh - 345px)); }
+.tools { position: absolute; top: 8px; right: 8px; display: flex; gap: 4px; z-index: 2; }
+.tools button {
+  font-family: var(--body); font-size: 20px; line-height: 1; color: #222; cursor: pointer;
+  background: #b9b9b9; border: 3px solid #000; padding: 3px 10px;
+  box-shadow: inset 3px 3px 0 #fff, inset -3px -3px 0 #6d6d6d;
+}
+.tools button:hover { background: #cfe3c0; }
+.tools button:active { box-shadow: inset 3px 3px 0 #6d6d6d, inset -3px -3px 0 #fff; }
+
+/* ---------- scrollbar ---------- */
+/* Chromium ignores ::-webkit-scrollbar when scrollbar-color is set, so the standard property is only a Firefox fallback. */
+@supports not selector(::-webkit-scrollbar) { html { scrollbar-color: #8b8b8b #1d1d1d; } }
+::-webkit-scrollbar { width: 20px; height: 20px; }
+::-webkit-scrollbar-track {
+  background: #1d1d1d; border-left: 3px solid #000;
+  box-shadow: inset 3px 3px 0 #0b0b0b, inset -3px -3px 0 #3a3a3a;
+}
+::-webkit-scrollbar-thumb {
+  background: #8b8b8b; border: 3px solid #000;
+  box-shadow: inset 3px 3px 0 #dbdbdb, inset -3px -3px 0 #555555;
+}
+::-webkit-scrollbar-thumb:hover { background: #a3a3a3; }
+::-webkit-scrollbar-thumb:active { background: #7fd14f; box-shadow: inset 3px 3px 0 #bff09c, inset -3px -3px 0 #3d7a1f; }
+::-webkit-scrollbar-button { display: none; }
+::-webkit-scrollbar-corner { background: #1d1d1d; }

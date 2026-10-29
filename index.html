@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Friendai - Companion Map</title>
+<meta name="description" content="An interactive map of everything the Friendai Minecraft companion can do and remember.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="site/style.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <h1 class="logo">FRIEND<em>AI</em></h1>
+    <div class="stats" id="stats"></div>
+  </header>
+
+  <nav class="tabs" role="tablist" id="tabs">
+    <button class="tab" role="tab" data-tab="overview" aria-selected="true">Overview</button>
+    <button class="tab" role="tab" data-tab="categories" aria-selected="false">Skills &amp; Systems</button>
+    <button class="tab" role="tab" data-tab="flow" aria-selected="false">One Turn</button>
+    <button class="tab" role="tab" data-tab="memory" aria-selected="false">Memory &amp; Data</button>
+    <button class="tab" role="tab" data-tab="arch" aria-selected="false">Architecture</button>
+  </nav>
+
+  <main>
+    <section id="tab-overview" class="panel">
+      <h2>What the companion is</h2>
+      <p class="lead">One companion per owner. It hears you, thinks with an LLM of your choice, and acts in the world through tools. Every block below is a group of abilities; the three branches split what it <b>does</b>, how it <b>thinks</b> and how it <b>talks</b>.</p>
+      <div class="graphbox"><div id="g-overview" class="vis main" role="img" aria-label="Overview graph of companion capabilities"></div></div>
+      <div class="legend">
+        <span><i class="sw hub"></i> Companion / branch</span>
+        <span><i class="sw cat"></i> Category (click to open)</span>
+      </div>
+    </section>
+
+    <section id="tab-categories" class="panel hidden">
+      <h2 id="cat-title">Skills &amp; Systems</h2>
+      <p class="lead" id="cat-desc"></p>
+      <div class="chips" id="chips"></div>
+      <div class="graphbox"><div id="g-cat" class="vis main" role="img" aria-label="Category detail graph"></div></div>
+      <div class="legend">
+        <span><i class="sw tool"></i> Tool the LLM can call</span>
+        <span><i class="sw trait"></i> Built-in behaviour / feature</span>
+      </div>
+    </section>
+
+    <section id="tab-flow" class="panel hidden">
+      <h2>From a sentence to a block placed</h2>
+      <p class="lead">One chat or voice message becomes exactly one agent turn. Follow the arrows: dashed lines are feedback loops.</p>
+      <div class="graphbox"><div id="g-flow" class="vis main" role="img" aria-label="Flow of one chat turn"></div></div>
+    </section>
+
+    <section id="tab-memory" class="hidden">
+      <div class="grid" id="memory-grid"></div>
+    </section>
+
+    <section id="tab-arch" class="hidden">
+      <div class="panel">
+        <h2>Three layers, one mod</h2>
+        <p class="lead">The server owns the companion; the client adds screens, voice and rendering; the pure-Java engine holds the logic and never imports Minecraft.</p>
+        <div class="graphbox"><div id="g-arch" class="vis main" role="img" aria-label="Architecture layers"></div></div>
+      </div>
+      <div class="grid" id="arch-grid"></div>
+    </section>
+  </main>
+
+  <footer>BUILT FROM THE TOOL CATALOG AND ARCHITECTURE.MD &middot; MIT LICENSED</footer>
+</div>
+<div id="tip" role="tooltip"></div>
+
+<script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
+<script src="site/app.js"></script>
+</body>
+</html>
