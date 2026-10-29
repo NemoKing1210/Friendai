@@ -136,6 +136,26 @@ public final class TaskToolRuntime {
         }
     }
 
+    /** Resolves the queued job by its stable id at activation, so later optimization or edits are honoured. */
+    public static dev.friendai.task.plan.StepFactory queuedStepFactory(
+            QueueToolAccess access, long jobId, java.util.Map<String, TaskToolDefinition> definitions) {
+        Objects.requireNonNull(access);
+        Objects.requireNonNull(definitions);
+        return context -> {
+            var job = context.companion()
+                    .executionCoordinator()
+                    .queue()
+                    .job(jobId)
+                    .orElseThrow(() -> new IllegalStateException("queued task " + jobId + " was removed"));
+            TaskToolDefinition definition = definitions.get(job.tool());
+            if (definition == null) throw new IllegalStateException("task factory is unavailable for " + job.tool());
+            JsonObject args = job.args();
+            Caller caller = access.currentCaller(context.companion(), job.principal())
+                    .withTradingScope(QueueTradeScope.read(args));
+            return create(definition, context.companion(), caller, args);
+        };
+    }
+
     private static Task create(
             TaskToolDefinition definition, CompanionEntity companion, Caller caller, JsonObject args) {
         JsonObject safeArgs = args == null ? new JsonObject() : args.deepCopy();

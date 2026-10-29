@@ -31,12 +31,12 @@ import dev.friendai.task.inventory.ItemMatcher;
 import dev.friendai.task.plan.PlanStepFactory;
 import dev.friendai.task.plan.StepFactory;
 import dev.friendai.task.queue.CompanionGuardFacts;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.UUID;
 
 /** LLM-facing queue operations. */
 public final class QueueTools implements FeatureToolContributor {
@@ -281,8 +281,7 @@ public final class QueueTools implements FeatureToolContributor {
                                     c.executionCoordinator().queue().jobsOfPlan(planId).stream()
                                             .map(dev.friendai.execution.queue.Job::id)
                                             .toList(),
-                                    allowed,
-                                    caller.uuid());
+                                    allowed);
                         });
             } else {
                 id = c.executionCoordinator()
@@ -544,15 +543,7 @@ public final class QueueTools implements FeatureToolContributor {
                     if (!issues.isEmpty()) return error(String.join("; ", issues));
                     var r = q.updateArgs(id, obj, caller.uuid(), d.creativeSensitive());
                     if (!r.ok()) return error(r.text());
-                    UUID principal = caller.uuid();
-                    c.executionCoordinator()
-                            .registerFactory(
-                                    id,
-                                    ctx -> createTask(
-                                            d,
-                                            ctx.companion(),
-                                            access.currentCaller(ctx.companion(), principal),
-                                            obj.deepCopy()));
+                    registerFactories(access, c, List.of(id), all);
                 }
                 case "replace" -> {
                     if (!args.has("steps")) return error("queue_edit requires steps");
@@ -582,19 +573,9 @@ public final class QueueTools implements FeatureToolContributor {
                     long firstNewId = q.nextJobId();
                     var r = q.replace(id, steps);
                     if (!r.ok()) return error(r.text());
-                    UUID principal = caller.uuid();
-                    for (int i = 0; i < steps.size(); i++) {
-                        QueuedStep step = steps.get(i);
-                        TaskToolDefinition def = allowed.get(step.tool());
-                        c.executionCoordinator()
-                                .registerFactory(
-                                        firstNewId + i,
-                                        ctx -> createTask(
-                                                def,
-                                                ctx.companion(),
-                                                access.currentCaller(ctx.companion(), principal),
-                                                step.args()));
-                    }
+                    List<Long> replaced = new ArrayList<>();
+                    for (int i = 0; i < steps.size(); i++) replaced.add(firstNewId + i);
+                    registerFactories(access, c, replaced, all);
                 }
                 case "optimize" -> {
                     Long plan = args.has("plan") ? args.get("plan").getAsLong() : null;
@@ -602,6 +583,13 @@ public final class QueueTools implements FeatureToolContributor {
                         TaskToolDefinition d = all.get(n);
                         return d == null ? null : d.queueTraits().mergeableCountArg();
                     });
+                    List<Long> affected = new ArrayList<>();
+                    if (plan == null) {
+                        for (var record : q.plans()) for (var job : q.jobsOfPlan(record.id())) affected.add(job.id());
+                    } else {
+                        for (var job : q.jobsOfPlan(plan)) affected.add(job.id());
+                    }
+                    registerFactories(access, c, affected, all);
                     runner.wakeQueue();
                     return ToolResult.ok(r.text());
                 }
@@ -627,27 +615,9 @@ public final class QueueTools implements FeatureToolContributor {
     }
 
     private static void registerFactories(
-            QueueToolAccess access,
-            CompanionEntity c,
-            List<Long> ids,
-            Map<String, TaskToolDefinition> allowed,
-            UUID principal) {
+            QueueToolAccess access, CompanionEntity c, List<Long> ids, Map<String, TaskToolDefinition> definitions) {
         for (long id : ids) {
-            var job = c.executionCoordinator().queue().job(id).orElse(null);
-            if (job == null) continue;
-            TaskToolDefinition def = allowed.get(job.tool());
-            if (def != null) {
-                JsonObject savedArgs = job.args();
-                c.executionCoordinator()
-                        .registerFactory(
-                                id,
-                                ctx -> createTask(
-                                        def,
-                                        ctx.companion(),
-                                        access.currentCaller(ctx.companion(), principal)
-                                                .withTradingScope(QueueTradeScope.read(savedArgs)),
-                                        savedArgs.deepCopy()));
-            }
+            c.executionCoordinator().registerFactory(id, TaskToolRuntime.queuedStepFactory(access, id, definitions));
         }
     }
 

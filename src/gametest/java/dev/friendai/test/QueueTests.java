@@ -74,6 +74,58 @@ public final class QueueTests {
         return tools.execute(new ToolCall("queue-test", name, args, json, null), caller);
     }
 
+    @GameTest(maxTicks = 200)
+    public void optimizedJobsExecuteTheMergedArgumentsAsTheOriginalPrincipal(GameTestHelper h) {
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        UUID owner = UUID.randomUUID();
+        companion.setOwner(owner);
+        Caller ownerCaller = new Caller(owner, "queue-test", AccessLevel.OWNER);
+        Caller optimizer = new Caller(UUID.randomUUID(), "helper", AccessLevel.TRUSTED);
+        ToolExecutor tools = GameTestToolRegistry.create(companion, () -> 32).bind(companion);
+        var coordinator = companion.executionCoordinator();
+        coordinator.suspend();
+        ToolResult added = run(
+                tools,
+                "queue_add",
+                "{\"steps\":["
+                        + "{\"tool\":\"mine_blocks\",\"args\":\"{\\\"block\\\":\\\"minecraft:coal_ore\\\",\\\"count\\\":2}\"},"
+                        + "{\"tool\":\"mine_blocks\",\"args\":\"{\\\"block\\\":\\\"minecraft:iron_ore\\\",\\\"count\\\":3}\"}],"
+                        + "\"optimize\":true}",
+                ownerCaller);
+        h.assertTrue(!added.error(), "queue_add failed: " + added.content());
+        var queue = companion.executionCoordinator().queue();
+        var plan = queue.plans().getFirst();
+        var jobs = queue.jobsOfPlan(plan.id());
+        h.assertTrue(jobs.size() == 2, "the differing block keeps both jobs pending");
+        long second = jobs.get(1).id();
+        ToolResult updated = run(
+                tools,
+                "queue_edit",
+                "{\"action\":\"update\",\"job\":" + second
+                        + ",\"args\":\"{\\\"block\\\":\\\"minecraft:coal_ore\\\",\\\"count\\\":3}\"}",
+                ownerCaller);
+        h.assertTrue(!updated.error(), "update failed: " + updated.content());
+        ToolResult optimized =
+                run(tools, "queue_edit", "{\"action\":\"optimize\",\"plan\":" + plan.id() + "}", optimizer);
+        h.assertTrue(!optimized.error(), "optimize failed: " + optimized.content());
+        h.assertTrue(optimized.content().contains("count=5"), "the jobs should merge: " + optimized.content());
+        coordinator.resume();
+        String[] started = {null};
+        boolean[] principalKept = {false};
+        h.succeedWhen(() -> {
+            coordinator.tick();
+            if (started[0] == null) {
+                var task = coordinator.current().orElse(null);
+                if (task == null || !task.describe().startsWith("mining")) return;
+                started[0] = task.describe();
+                principalKept[0] =
+                        owner.equals(coordinator.activeJob().orElseThrow().principal());
+            }
+            h.assertTrue(started[0].contains("mining 5"), "execution must use the merged count, got: " + started[0]);
+            h.assertTrue(principalKept[0], "the optimized job keeps its original principal");
+        });
+    }
+
     @GameTest
     public void queueAddRejectsBadStepsWithoutAdding(GameTestHelper h) {
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
