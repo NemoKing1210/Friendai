@@ -45,9 +45,14 @@ public final class ClientConfigurationCoordinator {
 
     /** Loads a fresh server-settings draft for a screen; cancelled widget edits are not cached. */
     public ServerConfig loadServer() {
-        ServerConfig config = serverStore.load();
+        ServerConfig config = serverStore.loadWithDefaultsOnUnsupportedVersion();
         config.validate();
         return config;
+    }
+
+    /** True when unsupported on-disk server settings must remain read-only. */
+    public boolean serverConfigReadOnly() {
+        return serverStore.hasUnsupportedVersion();
     }
 
     /** Validates, persists and publishes one client configuration. */

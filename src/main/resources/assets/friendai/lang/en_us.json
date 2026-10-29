@@ -122,6 +122,7 @@
   "friendai.config.category.voice": "Voice",
   "friendai.config.category.server": "Server",
   "friendai.config.server_only": "These settings are configured on the server.",
+  "friendai.config.server_unsupported": "Server settings cannot be edited because friendai-server.json has an unsupported version. Back up and replace the file to edit these settings.",
   "friendai.config.profile": "Active profile",
   "friendai.config.provider": "Provider",
   "friendai.config.base_url": "Base URL",

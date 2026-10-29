@@ -45,6 +45,11 @@ public final class ConfigStore<T> {
         return recoveredOnLastLoad;
     }
 
+    /** True after the store encountered a version it cannot read or overwrite. */
+    public boolean hasUnsupportedVersion() {
+        return unsupported;
+    }
+
     public T load() {
         recoveredOnLastLoad = false;
         if (unsupported) throw new UnsupportedStoreVersionException();

@@ -2,10 +2,14 @@ package dev.friendai.client.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.friendai.foundation.persistence.UnsupportedStoreVersionException;
 import dev.friendai.infrastructure.config.ClientConfig;
 import dev.friendai.infrastructure.config.ServerConfig;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -59,5 +63,26 @@ class ClientConfigurationCoordinatorTest {
                 .loadServer()
                 .profiles
                 .containsKey(server.activeProfile));
+    }
+
+    @Test
+    void unsupportedServerConfigFallsBackWithoutChangingTheFileOrAllowingWrites() throws IOException {
+        Path serverFile = configDirectory.resolve("friendai-server.json");
+        String original = "{\"version\":15,\"activeProfile\":\"custom\"}";
+        Files.writeString(serverFile, original);
+        ClientConfigurationCoordinator coordinator =
+                new ClientConfigurationCoordinator(configDirectory, ignored -> {}, ignored -> {});
+
+        ServerConfig fallback = coordinator.loadServer();
+
+        assertEquals("main", fallback.activeProfile);
+        assertTrue(coordinator.serverConfigReadOnly());
+        assertEquals(original, Files.readString(serverFile));
+        assertThrows(UnsupportedStoreVersionException.class, () -> coordinator.saveServer(fallback));
+        assertEquals(original, Files.readString(serverFile));
+
+        coordinator.save(coordinator.load());
+        assertTrue(Files.exists(configDirectory.resolve("friendai-client.json")));
+        assertEquals(original, Files.readString(serverFile));
     }
 }

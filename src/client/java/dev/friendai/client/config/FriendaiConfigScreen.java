@@ -111,8 +111,11 @@ public final class FriendaiConfigScreen {
         boolean serverEditable = mc.getSingleplayerServer() != null || mc.level == null;
         ClientConfigurationCoordinator configuration = FriendaiClient.runtime().configuration();
         ServerConfig server = null;
+        boolean serverConfigReadOnly = false;
         if (serverEditable) {
             server = configuration.loadServer();
+            serverConfigReadOnly = configuration.serverConfigReadOnly();
+            if (serverConfigReadOnly) server = null;
         }
         ClientConfig client = FriendaiClient.clientConfig();
         client.validate();
@@ -132,7 +135,10 @@ public final class FriendaiConfigScreen {
         } else {
             builder.category(ConfigCategory.createBuilder()
                     .name(tr("friendai.config.category.server"))
-                    .option(LabelOption.create(tr("friendai.config.server_only")))
+                    .option(LabelOption.create(tr(
+                            serverConfigReadOnly
+                                    ? "friendai.config.server_unsupported"
+                                    : "friendai.config.server_only")))
                     .build());
         }
         builder.category(voiceCategory(parent, client, voice));

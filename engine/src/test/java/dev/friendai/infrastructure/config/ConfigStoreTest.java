@@ -94,6 +94,7 @@ class ConfigStoreTest {
             Sample fallback = store.loadWithDefaultsOnUnsupportedVersion();
 
             assertEquals("default", fallback.name);
+            assertTrue(store.hasUnsupportedVersion());
             assertEquals(original, Files.readString(file));
             assertThrows(UnsupportedStoreVersionException.class, () -> store.save(new Sample()));
             assertEquals(original, Files.readString(file));
