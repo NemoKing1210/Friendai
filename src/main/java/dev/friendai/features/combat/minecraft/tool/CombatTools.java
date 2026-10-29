@@ -11,7 +11,6 @@ import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.SchemaBuilder;
 import dev.friendai.execution.tool.Tool;
 import dev.friendai.execution.tool.ToolResult;
-import dev.friendai.features.combat.CombatMode;
 import dev.friendai.features.combat.CombatSettings;
 import dev.friendai.features.combat.FightingStyle;
 import dev.friendai.features.combat.ProtectionPolicy;
@@ -83,20 +82,6 @@ public final class CombatTools implements FeatureToolContributor {
                 true,
                 metadata("attack_player")));
 
-        registerInstant(
-                registry,
-                "set_combat_mode",
-                "Set how the companion fights with the legacy presets: defensive (bodyguard, balanced), guard (guard, balanced), passive (avoid combat, balanced). Owner only. Keeps potion, pursuit and retreat settings.",
-                SchemaBuilder.object()
-                        .enumeration("mode", "Combat mode", "defensive", "guard", "passive")
-                        .required("mode")
-                        .build(),
-                AccessLevel.OWNER,
-                (c, caller, a) -> {
-                    CombatMode mode = CombatMode.parse(a.get("mode").getAsString());
-                    c.setCombatMode(mode);
-                    return ToolResult.ok("combat mode is now " + mode.label());
-                });
         registerInstant(
                 registry,
                 "get_combat_settings",

@@ -6,8 +6,8 @@ import dev.friendai.features.inventory.minecraft.task.CheckContainerTask;
 import dev.friendai.features.inventory.minecraft.task.StoreItemsTask;
 import dev.friendai.features.inventory.minecraft.task.TakeItemsTask;
 import dev.friendai.server.execution.ExecutionCoordinator;
+import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.interact.ContainerAccess;
 import dev.friendai.task.interact.ContainerSession;
@@ -28,7 +28,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.ChestType;
 
 public class StorageTests {
-    private static final class Result implements TaskListener {
+    private static final class Result implements TaskEventSink {
         TaskStatus status;
         String summary;
         int cancelled;
@@ -47,7 +47,7 @@ public class StorageTests {
 
     private static ExecutionCoordinator runner(CompanionEntity c, Result result) {
         ExecutionCoordinator r = new ExecutionCoordinator(c, () -> 300, () -> false);
-        r.setListener(result);
+        r.setEventSink(result);
         return r;
     }
 

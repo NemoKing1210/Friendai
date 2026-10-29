@@ -143,8 +143,8 @@ class ServerConfigTest {
     void unsupportedOldAndFutureVersionsRemainIntactAndBlockWrites(@TempDir Path dir) throws IOException {
         Path file = dir.resolve("server.json");
         Files.writeString(file, "{\"version\":15,\"activeProfile\":\"legacy\"}");
-        ConfigStore<ServerConfig> store = new ConfigStore<>(
-                file, ServerConfig.class, ServerConfig::defaults, ServerConfig.VERSION, ServerConfig::migrate);
+        ConfigStore<ServerConfig> store =
+                new ConfigStore<>(file, ServerConfig.class, ServerConfig::defaults, ServerConfig.VERSION);
 
         String old = Files.readString(file);
         assertThrows(UnsupportedStoreVersionException.class, store::load);
@@ -152,8 +152,8 @@ class ServerConfigTest {
         assertEquals(old, Files.readString(file));
 
         Files.writeString(file, "{\"version\":17,\"activeProfile\":\"future\"}");
-        ConfigStore<ServerConfig> futureStore = new ConfigStore<>(
-                file, ServerConfig.class, ServerConfig::defaults, ServerConfig.VERSION, ServerConfig::migrate);
+        ConfigStore<ServerConfig> futureStore =
+                new ConfigStore<>(file, ServerConfig.class, ServerConfig::defaults, ServerConfig.VERSION);
         String future = Files.readString(file);
         assertThrows(UnsupportedStoreVersionException.class, futureStore::load);
         assertThrows(UnsupportedStoreVersionException.class, () -> futureStore.save(ServerConfig.defaults()));

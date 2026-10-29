@@ -10,7 +10,7 @@ import dev.friendai.features.acquisition.minecraft.task.VisitResourceTask;
 import dev.friendai.features.knowledge.ResourceObservation;
 import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.server.execution.ExecutionCoordinator;
-import dev.friendai.task.TaskListener;
+import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskStatus;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
@@ -20,7 +20,7 @@ import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Blocks;
 
 public final class ResourceJourneyTests {
-    private static final class Result implements TaskListener {
+    private static final class Result implements TaskEventSink {
         TaskStatus status;
         String summary;
 
@@ -135,7 +135,7 @@ public final class ResourceJourneyTests {
         Result result = new Result();
         dev.friendai.entity.CompanionManager.get(server).register(companion);
         ExecutionCoordinator runner = companion.executionCoordinator();
-        runner.setListener(result);
+        runner.setEventSink(result);
         runner.start(new VisitResourceTask(remembered.getFirst().site().id(), dimension, 400), "visit_resource");
         int[] phase = {0};
         h.succeedWhen(() -> {
@@ -240,7 +240,7 @@ public final class ResourceJourneyTests {
         Result result = new Result();
         dev.friendai.entity.CompanionManager.get(server).register(companion);
         ExecutionCoordinator runner = companion.executionCoordinator();
-        runner.setListener(result);
+        runner.setEventSink(result);
         runner.start(new VisitResourceTask(remembered.getFirst().site().id(), dimension, 1000), "visit_resource");
         int[] phase = {0};
         h.succeedWhen(() -> {
@@ -343,7 +343,7 @@ public final class ResourceJourneyTests {
 
         Result result = new Result();
         ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 2400, () -> false);
-        runner.setListener(result);
+        runner.setEventSink(result);
         var candidate =
                 state.resourceCandidates().plannerCandidates(companion, 20).get(0);
         runner.start(new VisitResourceTask(candidate.siteId(), dimension, 400), "visit_resource");

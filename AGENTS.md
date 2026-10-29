@@ -199,9 +199,9 @@ An agent slows itself down by running Gradle after every edit: a unit run costs 
 ### Add a config option
 
 1. Add the field and default to `engine/.../infrastructure/config/ServerConfig` or `ClientConfig`; enforce valid ranges in that config's validation path.
-2. For a persisted schema change, bump its version. Add a `ConfigStore` migration when older supported files must be upgraded; preserve the existing unsupported-version behavior.
+2. For a persisted schema change, bump its version. Older and future versions are unsupported and stay untouched; this project does not migrate config files.
 3. Expose editable settings in `src/client/java/dev/friendai/client/config/` when appropriate; keep YACL and Mod Menu optional.
-4. Add label/tooltip keys to both language files and focused validation/migration tests under `engine/src/test` or `src/test`.
+4. Add label/tooltip keys to both language files and focused validation and unsupported-version tests under `engine/src/test` or `src/test`.
 
 ### Add an LLM provider or protocol
 
@@ -230,8 +230,8 @@ An agent slows itself down by running Gradle after every edit: a unit run costs 
 ### Change persistence
 
 1. Start from the existing owner repository and `OwnerFileStore`/`StoreCodec` boundaries; persist owner-scoped memory, profile, goals, free time, places, placement, knowledge, trading and instruction-skill records independently.
-2. Bound and version the codec. Add a migration only for formats the product explicitly supports; corrupt, oversized or unsupported files remain protected from accidental overwrite. Keep atomic replace and backup recovery behavior.
-3. Add codec/repository round-trip and failure-path tests; for entity/world state, add a save/reload GameTest. Update the persistence table in `ARCHITECTURE.md` in the same change.
+2. Bound and version the codec. Older and future formats are unsupported and stay untouched; do not add migrations or old-format readers. Corrupt and oversized files remain protected from accidental overwrite. Keep atomic replace and backup recovery behavior.
+3. Add codec/repository round-trip, unsupported-version and failure-path tests; for entity/world state, add a save/reload GameTest. Update the persistence table in `ARCHITECTURE.md` in the same change.
 
 ## Troubleshooting
 
@@ -343,7 +343,7 @@ Bump it as part of any change that alters the shipped mod, by the size of the ch
 
 - While the major version is `0` (pre-1.0), breaking changes bump MINOR instead of MAJOR. Moving to `1.0.0` is the maintainer's decision; never do it on your own.
 - One bump per task/PR, sized by the largest change in it, not one per commit. Put it in the same commit as the change, or in a final `chore: bump version to X.Y.Z` commit.
-- Changing the config schema: also add the `ConfigStore` migration and bump the config version (see `config/`), in addition to the mod version.
+- Changing a persisted schema: bump its format version and the mod version; unsupported older files remain untouched and are not migrated.
 - Do not create tags or releases yourself; tagging `vX.Y.Z` is the maintainer's call. Tell them when the version is ready to release.
 - When unsure between two sizes, pick the larger one and say why in the final message.
 

@@ -27,7 +27,6 @@ import dev.friendai.server.execution.ActiveTaskController.ActiveTask;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskExecutionPort;
-import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskState;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.plan.PlanEntry;
@@ -45,7 +44,7 @@ import net.minecraft.server.level.ServerLevel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Runs one task at a time and schedules durable jobs when no urgent or legacy task owns the runner. */
+/** Runs one task at a time and schedules durable jobs when no urgent or direct task owns the coordinator. */
 public final class ExecutionCoordinator implements TaskExecutionPort {
     private static final int POLL_INTERVAL_TICKS = 10;
     private static final Logger LOGGER = LoggerFactory.getLogger("friendai/task");
@@ -105,14 +104,6 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
 
     private void syncSettings() {
         applySettings(settingsSupplier.get());
-    }
-
-    public void setListener(TaskListener listener) {
-        this.eventSink = listener;
-        if (listener != null) {
-            for (String notice : pendingNotices) emit(sink -> sink.onNotice(notice));
-            pendingNotices.clear();
-        }
     }
 
     public void setEventSink(TaskEventSink eventSink) {
@@ -371,7 +362,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     public void registerFactory(long jobId, StepFactory factory) {
         queueDriver.addFactory(jobId, factory);
     }
-    /** Legacy task entry point. A new task freezes a queue job so the queue can resume afterwards. */
+    /** Starts a direct task, freezing an active queue job so it can resume afterwards. */
     public int start(Task task, String toolName) {
         return start(task, toolName, null, false);
     }

@@ -78,7 +78,7 @@ public final class OwnerFileStore<T> implements AutoCloseable {
     private boolean closing;
     private boolean closed;
 
-    /** Standalone/manual-executor test compatibility; executor ownership stays with the caller. */
+    /** Allows deterministic tests to step the writer manually; the store owns its writer. */
     public OwnerFileStore(Path dir, StoreCodec<T> codec, Executor executor, LongSupplier clock, boolean waitForWrites) {
         this(
                 dir,
@@ -121,7 +121,7 @@ public final class OwnerFileStore<T> implements AutoCloseable {
                 policy);
     }
 
-    /** Narrow adapter seam for legacy move and backup failure tests. */
+    /** Narrow file-operation seam for testing replacement and backup failures. */
     public static <T> OwnerFileStore<T> withTestFileOperations(
             Path dir,
             StoreCodec<T> codec,

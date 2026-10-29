@@ -22,11 +22,11 @@ import dev.friendai.features.construction.minecraft.build.Site;
 import dev.friendai.features.construction.minecraft.build.SupportNeeds;
 import dev.friendai.features.construction.minecraft.task.BuildTask;
 import dev.friendai.server.execution.ExecutionCoordinator;
+import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.server.execution.persistence.TaskRestoreRegistry;
 import dev.friendai.server.execution.tools.MinecraftObtainSubtaskFactory;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskState;
 import dev.friendai.task.TaskStatus;
 import java.nio.file.Files;
@@ -948,7 +948,7 @@ public class BuildTests {
         h.succeed();
     }
 
-    private static final class Result implements TaskListener {
+    private static final class Result implements TaskEventSink {
         TaskStatus status;
         String summary;
         final java.util.List<String> notices = new java.util.ArrayList<>();
@@ -970,7 +970,7 @@ public class BuildTests {
 
     private static ExecutionCoordinator runner(CompanionEntity companion, Result result) {
         ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 300, () -> false);
-        runner.setListener(result);
+        runner.setEventSink(result);
         return runner;
     }
 

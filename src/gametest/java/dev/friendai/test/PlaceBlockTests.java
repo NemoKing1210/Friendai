@@ -4,7 +4,7 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.features.construction.minecraft.task.PlaceBlockTask;
 import dev.friendai.server.execution.ExecutionCoordinator;
-import dev.friendai.task.TaskListener;
+import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskStatus;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
@@ -19,7 +19,7 @@ import net.minecraft.world.level.block.AbstractFurnaceBlock;
 import net.minecraft.world.level.block.Blocks;
 
 public class PlaceBlockTests {
-    private static final class Result implements TaskListener {
+    private static final class Result implements TaskEventSink {
         TaskStatus status;
         String summary;
 
@@ -35,7 +35,7 @@ public class PlaceBlockTests {
 
     private static ExecutionCoordinator runner(CompanionEntity c, Result result) {
         ExecutionCoordinator r = new ExecutionCoordinator(c, () -> 300, () -> false);
-        r.setListener(result);
+        r.setEventSink(result);
         return r;
     }
 

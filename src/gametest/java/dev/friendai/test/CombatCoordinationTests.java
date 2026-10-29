@@ -3,7 +3,7 @@ package dev.friendai.test;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.features.combat.minecraft.CombatController;
-import dev.friendai.task.TaskListener;
+import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskStatus;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -17,7 +17,7 @@ public class CombatCoordinationTests {
 
     private static List<String> notices(CompanionEntity c) {
         List<String> texts = new CopyOnWriteArrayList<>();
-        c.executionCoordinator().setListener(new TaskListener() {
+        c.executionCoordinator().setEventSink(new TaskEventSink() {
             @Override
             public void onFinished(int id, String toolName, TaskStatus status, String summary) {}
 

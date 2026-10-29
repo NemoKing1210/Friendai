@@ -5,7 +5,7 @@ import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.features.enchanting.minecraft.task.AnvilItemTask;
 import dev.friendai.features.survival.ExperienceModel;
 import dev.friendai.server.execution.ExecutionCoordinator;
-import dev.friendai.task.TaskListener;
+import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.inventory.ItemMatcher;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -22,7 +22,7 @@ import net.minecraft.world.level.block.Blocks;
 
 /** The companion repairs, combines and renames items at an anvil with its own experience levels. */
 public class AnvilSkillTests {
-    private static final class Result implements TaskListener {
+    private static final class Result implements TaskEventSink {
         TaskStatus status;
         String summary;
 
@@ -88,7 +88,7 @@ public class AnvilSkillTests {
     private static void succeeds(GameTestHelper h, CompanionEntity c, AnvilItemTask task, Runnable check) {
         Result result = new Result();
         ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 300, () -> false);
-        runner.setListener(result);
+        runner.setEventSink(result);
         runner.start(task, "anvil_item");
         h.succeedWhen(() -> {
             runner.tick();
@@ -101,7 +101,7 @@ public class AnvilSkillTests {
             GameTestHelper h, CompanionEntity c, AnvilItemTask task, String expected, Runnable check) {
         Result result = new Result();
         ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 300, () -> false);
-        runner.setListener(result);
+        runner.setEventSink(result);
         runner.start(task, "anvil_item");
         h.succeedWhen(() -> {
             runner.tick();

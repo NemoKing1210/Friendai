@@ -24,14 +24,12 @@ public final class ClientConfigurationCoordinator {
                 configDirectory.resolve("friendai-client.json"),
                 ClientConfig.class,
                 ClientConfig::defaults,
-                ClientConfig.CURRENT_VERSION,
-                null);
+                ClientConfig.CURRENT_VERSION);
         this.serverStore = new ConfigStore<>(
                 configDirectory.resolve("friendai-server.json"),
                 ServerConfig.class,
                 ServerConfig::defaults,
-                ServerConfig.VERSION,
-                ServerConfig::migrate);
+                ServerConfig.VERSION);
         this.integratedServer = Objects.requireNonNull(integratedServer, "integratedServer");
         this.clientConfigChanged = Objects.requireNonNull(clientConfigChanged, "clientConfigChanged");
     }

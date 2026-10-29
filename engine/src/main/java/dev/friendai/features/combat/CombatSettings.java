@@ -19,7 +19,7 @@ public record CombatSettings(
         RetreatPreference retreatPreference) {
     public static final int MIN_PURSUIT = 8;
     public static final int MAX_PURSUIT = 64;
-    /** The old {@code FIGHT_DROPOFF} bound, kept as the default so migration changes nothing. */
+    /** Default distance from the protected anchor at which the companion stops pursuing a threat. */
     public static final int DEFAULT_PURSUIT = 24;
 
     public CombatSettings {
@@ -32,7 +32,7 @@ public record CombatSettings(
         }
     }
 
-    /** Current defaults: bodyguard and balanced, no potions, the old 24-block bound, standard retreat. */
+    /** Current defaults: bodyguard and balanced, no potions, a 24-block pursuit limit, standard retreat. */
     public static CombatSettings defaults() {
         return new CombatSettings(
                 ProtectionPolicy.BODYGUARD, FightingStyle.BALANCED, false, DEFAULT_PURSUIT, RetreatPreference.STANDARD);

@@ -36,8 +36,8 @@ class TradeStoreTest {
 
     @Test
     void readerDecodesAValidTradeSnapshot() throws IOException {
-        TradeFile snapshot =
-                new TradeFile(TradeFile.VERSION, 1, List.of(trader(ACTOR, 3, 30)), List.of(), java.util.Set.of());
+        TradeFile snapshot = new TradeFile(
+                TradeFile.VERSION, 1, List.of(trader(ACTOR, 3, 30)), List.of(), java.util.Set.of(), List.of());
         String json = new String(TradeFile.write(snapshot), java.nio.charset.StandardCharsets.UTF_8);
         assertEquals(1, TradeFile.read(new java.io.StringReader(json)).traders().size());
     }
@@ -47,8 +47,9 @@ class TradeStoreTest {
         Path directory = temp.resolve("invalid-utf8");
         Files.createDirectories(directory);
         UUID owner = new UUID(0, 92);
-        byte[] prefix = "{\"version\":1,\"traders\":[],\"history\":[],\"pinned\":[],\"unknown\":\""
-                .getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] prefix =
+                "{\"version\":2,\"revision\":0,\"traders\":[],\"history\":[],\"pinned\":[],\"barterHistory\":[],\"unknown\":\""
+                        .getBytes(java.nio.charset.StandardCharsets.UTF_8);
         byte[] suffix = "\"}".getBytes(java.nio.charset.StandardCharsets.UTF_8);
         byte[] malformed = java.util.Arrays.copyOf(prefix, prefix.length + 1 + suffix.length);
         malformed[prefix.length] = (byte) 0xc3;
@@ -215,7 +216,7 @@ class TradeStoreTest {
         Path directory = temp.resolve("bad-input");
         Files.createDirectories(directory);
         UUID truncatedOwner = new UUID(0, 8);
-        byte[] truncated = "{\"version\":1".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] truncated = "{\"version\":2".getBytes(java.nio.charset.StandardCharsets.UTF_8);
         Files.write(directory.resolve(truncatedOwner + ".json"), truncated);
         UUID oversizedOwner = new UUID(0, 9);
         byte[] oversized = new byte[TradeFile.MAX_FILE_BYTES + 1];
@@ -235,7 +236,9 @@ class TradeStoreTest {
             store.flushAll();
             awaitSaved(store, oversizedOwner);
             assertFalse(store.writesDisabled(oversizedOwner));
-            assertEquals(1, TradeFile.read(Files.readAllBytes(oversizedPath)).version());
+            assertEquals(
+                    TradeFile.VERSION,
+                    TradeFile.read(Files.readAllBytes(oversizedPath)).version());
         }
     }
 
@@ -283,7 +286,7 @@ class TradeStoreTest {
         Path directory = temp.resolve("deep");
         Files.createDirectories(directory);
         UUID owner = new UUID(0, 10);
-        String deep = "{\"version\":1,\"extra\":" + "[".repeat(80) + "0" + "]".repeat(80) + "}";
+        String deep = "{\"version\":2,\"extra\":" + "[".repeat(80) + "0" + "]".repeat(80) + "}";
         byte[] original = deep.getBytes(java.nio.charset.StandardCharsets.UTF_8);
         Files.write(directory.resolve(owner + ".json"), original);
         try (TradeStore store = new TradeStore(directory)) {
@@ -311,7 +314,8 @@ class TradeStoreTest {
             store.flushAll();
             awaitSaved(store, owner);
             assertFalse(store.writesDisabled(owner));
-            assertEquals(1, TradeFile.read(Files.readAllBytes(path)).version());
+            assertEquals(
+                    TradeFile.VERSION, TradeFile.read(Files.readAllBytes(path)).version());
         }
     }
 
@@ -335,22 +339,23 @@ class TradeStoreTest {
 
     @Test
     void collectionAndAggregateOfferLimitsAreCheckedWhileStreaming() {
-        String excessiveTraders = "{\"version\":1,\"traders\":[" + "null,".repeat(TradeFile.MAX_TRADERS)
-                + "null],\"history\":[],\"pinned\":[]}";
+        String excessiveTraders = "{\"version\":2,\"revision\":0,\"traders\":[" + "null,".repeat(TradeFile.MAX_TRADERS)
+                + "null],\"history\":[],\"pinned\":[],\"barterHistory\":[]}";
         assertThrows(
                 IllegalArgumentException.class,
                 () -> TradeFile.read(excessiveTraders.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
 
-        String sixtyFiveOffers = "{\"version\":1,\"traders\":[{\"offers\":["
-                + "null,".repeat(TradeFile.MAX_OFFERS_PER_TRADER) + "null]}],\"history\":[],\"pinned\":[]}";
+        String sixtyFiveOffers = "{\"version\":2,\"revision\":0,\"traders\":[{\"offers\":["
+                + "null,".repeat(TradeFile.MAX_OFFERS_PER_TRADER)
+                + "null]}],\"history\":[],\"pinned\":[],\"barterHistory\":[]}";
         assertThrows(
                 IllegalArgumentException.class,
                 () -> TradeFile.read(sixtyFiveOffers.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
 
         String traderWith64Offers = "{\"offers\":[" + "null,".repeat(TradeFile.MAX_OFFERS_PER_TRADER - 1) + "null]}";
-        String tooManyTotalOffers = "{\"version\":1,\"traders\":["
+        String tooManyTotalOffers = "{\"version\":2,\"revision\":0,\"traders\":["
                 + String.join(",", java.util.Collections.nCopies(TradeFile.MAX_TOTAL_OFFERS / 64, traderWith64Offers))
-                + ",{\"offers\":[null]}],\"history\":[],\"pinned\":[]}";
+                + ",{\"offers\":[null]}],\"history\":[],\"pinned\":[],\"barterHistory\":[]}";
         assertThrows(
                 IllegalArgumentException.class,
                 () -> TradeFile.read(tooManyTotalOffers.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
@@ -359,8 +364,9 @@ class TradeStoreTest {
     @Test
     void aggregateJsonNodeBudgetRejectsManySmallNestedArraysBeforeBuildingTheTree() {
         String inner = "[" + "[],".repeat(124) + "[]]";
-        String json = "{\"version\":1,\"traders\":[],\"history\":[],\"pinned\":[],\"unknown\":["
-                + String.join(",", java.util.Collections.nCopies(8_192, inner)) + "]}";
+        String json =
+                "{\"version\":2,\"revision\":0,\"traders\":[],\"history\":[],\"pinned\":[],\"barterHistory\":[],\"unknown\":["
+                        + String.join(",", java.util.Collections.nCopies(8_192, inner)) + "]}";
         byte[] encoded = json.getBytes(java.nio.charset.StandardCharsets.UTF_8);
         assertTrue(encoded.length < TradeFile.MAX_FILE_BYTES);
         assertThrows(IllegalArgumentException.class, () -> TradeFile.read(encoded));
@@ -374,7 +380,8 @@ class TradeStoreTest {
                 .mapToObj(i ->
                         new TradeProgress(new UUID(3, i), TradeProgress.State.COMPLETED, Map.of(), receipts, 1, ""))
                 .toList();
-        byte[] encoded = TradeFile.write(new TradeFile(TradeFile.VERSION, 1, List.of(), history, java.util.Set.of()));
+        byte[] encoded =
+                TradeFile.write(new TradeFile(TradeFile.VERSION, 1, List.of(), history, java.util.Set.of(), List.of()));
         assertTrue(encoded.length < TradeFile.MAX_FILE_BYTES);
         TradeFile decoded = TradeFile.read(encoded);
         assertEquals(32, decoded.history().size());
@@ -384,11 +391,18 @@ class TradeStoreTest {
     }
 
     @Test
-    void missingOptionalHistoryFieldsInVersionOneDecodeAsEmpty() {
-        TradeFile legacy = TradeFile.read(
-                "{\"version\":1,\"revision\":0,\"traders\":[]}".getBytes(java.nio.charset.StandardCharsets.UTF_8));
-        assertTrue(legacy.history().isEmpty());
-        assertTrue(legacy.pinned().isEmpty());
+    void oldVersionOneTradeFilesAreRejected() {
+        assertThrows(
+                TradeFile.UnsupportedVersionException.class,
+                () -> TradeFile.read("{\"version\":1}".getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+    }
+
+    @Test
+    void versionTwoRequiresBarterHistoryField() {
+        String json = "{\"version\":2,\"revision\":0,\"traders\":[],\"history\":[],\"pinned\":[]}";
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> TradeFile.read(json.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
     }
 
     @Test
@@ -460,7 +474,8 @@ class TradeStoreTest {
         Path directory = temp.resolve("protected-size");
         Files.createDirectories(directory);
         UUID owner = new UUID(0, 15);
-        byte[] durable = TradeFile.write(new TradeFile(TradeFile.VERSION, 0, List.of(), List.of(), java.util.Set.of()));
+        byte[] durable = TradeFile.write(
+                new TradeFile(TradeFile.VERSION, 0, List.of(), List.of(), java.util.Set.of(), List.of()));
         Path target = directory.resolve(owner + ".json");
         Files.write(target, durable);
         String payload = "y".repeat(7_900);

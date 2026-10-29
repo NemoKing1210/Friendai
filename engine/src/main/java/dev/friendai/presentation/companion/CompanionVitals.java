@@ -10,7 +10,6 @@ public record CompanionVitals(
         int food,
         int inventoryUsed,
         int inventorySlots,
-        String combatMode,
         String protection,
         String style,
         String action,
@@ -18,6 +17,5 @@ public record CompanionVitals(
         String paceMode,
         int xpLevel,
         float xpProgress) {
-    public static final CompanionVitals NONE =
-            new CompanionVitals(0, 0, 0, 0, 0, "", "", "", "none", "none", "", 0, 0f);
+    public static final CompanionVitals NONE = new CompanionVitals(0, 0, 0, 0, 0, "", "", "none", "none", "", 0, 0f);
 }

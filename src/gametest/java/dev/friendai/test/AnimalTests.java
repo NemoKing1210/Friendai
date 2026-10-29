@@ -10,7 +10,7 @@ import dev.friendai.features.animals.minecraft.task.MilkTask;
 import dev.friendai.features.animals.minecraft.task.ShearTask;
 import dev.friendai.features.animals.minecraft.task.TameTask;
 import dev.friendai.server.execution.ExecutionCoordinator;
-import dev.friendai.task.TaskListener;
+import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskStatus;
 import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -36,7 +36,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 public class AnimalTests {
-    private static final class Result implements TaskListener {
+    private static final class Result implements TaskEventSink {
         TaskStatus status;
         String summary;
         int cancelled;
@@ -55,7 +55,7 @@ public class AnimalTests {
 
     private static ExecutionCoordinator runner(CompanionEntity c, Result result) {
         ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 600, () -> false);
-        runner.setListener(result);
+        runner.setEventSink(result);
         return runner;
     }
 

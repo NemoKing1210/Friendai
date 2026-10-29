@@ -116,7 +116,7 @@ class PerceptionSnapshotTest {
                 blocks,
                 Map.of("zombie", 2),
                 Map.of(),
-                "Wearing: nothing; holding: nothing; combat mode: defensive",
+                "Wearing: nothing; holding: nothing; combat: bodyguard/balanced",
                 "follow",
                 null,
                 null,
@@ -130,7 +130,7 @@ class PerceptionSnapshotTest {
         assertTrue(text.contains("Nearby blocks: oak_log×12, poppy×3"), text);
         assertTrue(text.contains("Nearby entities: zombie×2"), text);
         assertTrue(text.contains("Inventory: empty"), text);
-        assertTrue(text.contains("combat mode: defensive"), text);
+        assertTrue(text.contains("combat: bodyguard/balanced"), text);
         assertTrue(text.contains("Current task: follow"), text);
         assertTrue(text.contains("3.3 blocks away") || text.contains("3.2 blocks away"), text);
     }
@@ -150,7 +150,7 @@ class PerceptionSnapshotTest {
                 Map.of(),
                 Map.of(),
                 Map.of(),
-                "Wearing: nothing; holding: nothing; combat mode: defensive",
+                "Wearing: nothing; holding: nothing; combat: bodyguard/balanced",
                 "none",
                 null,
                 null,
@@ -192,7 +192,7 @@ class PerceptionSnapshotTest {
                 Map.of(),
                 Map.of(),
                 Map.of(),
-                "Wearing: nothing; holding: nothing; combat mode: defensive",
+                "Wearing: nothing; holding: nothing; combat: bodyguard/balanced",
                 "none",
                 focus,
                 null,
@@ -220,7 +220,7 @@ class PerceptionSnapshotTest {
                 Map.of(),
                 Map.of(),
                 Map.of(),
-                "Wearing: nothing; holding: nothing; combat mode: defensive",
+                "Wearing: nothing; holding: nothing; combat: bodyguard/balanced",
                 "none",
                 null,
                 null,
@@ -263,7 +263,7 @@ class PerceptionSnapshotTest {
                 Map.of(),
                 Map.of(),
                 Map.of(),
-                "Wearing: nothing; holding: nothing; combat mode: defensive",
+                "Wearing: nothing; holding: nothing; combat: bodyguard/balanced",
                 "none",
                 focus,
                 self,
@@ -288,7 +288,7 @@ class PerceptionSnapshotTest {
                 Map.of(),
                 Map.of(),
                 Map.of(),
-                "Wearing: nothing; holding: nothing; combat mode: defensive",
+                "Wearing: nothing; holding: nothing; combat: bodyguard/balanced",
                 "none",
                 null,
                 self,
@@ -314,7 +314,7 @@ class PerceptionSnapshotTest {
                 Map.of(),
                 Map.of(),
                 Map.of(),
-                "Wearing: nothing; holding: nothing; combat mode: defensive",
+                "Wearing: nothing; holding: nothing; combat: bodyguard/balanced",
                 "none",
                 null,
                 null,
@@ -341,7 +341,7 @@ class PerceptionSnapshotTest {
                 Map.of(),
                 Map.of(),
                 Map.of(),
-                "Wearing: nothing; holding: nothing; combat mode: defensive",
+                "Wearing: nothing; holding: nothing; combat: bodyguard/balanced",
                 "none",
                 null,
                 null,

@@ -2,10 +2,12 @@ package dev.friendai.infrastructure.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import dev.friendai.foundation.persistence.UnsupportedStoreVersionException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -25,10 +27,7 @@ class ConfigStoreTest {
     Path dir;
 
     private ConfigStore<Sample> store() {
-        return new ConfigStore<>(dir.resolve("friendai-server.json"), Sample.class, Sample::new, 1, (json, from) -> {
-            json.addProperty("added", "migrated");
-            return json;
-        });
+        return new ConfigStore<>(dir.resolve("friendai-server.json"), Sample.class, Sample::new, 1);
     }
 
     @Test
@@ -74,14 +73,13 @@ class ConfigStoreTest {
     }
 
     @Test
-    void olderVersionMigrated() throws IOException {
+    void olderVersionIsPreservedAndBlocksWrites() throws IOException {
         Files.writeString(dir.resolve("friendai-server.json"), "{\"version\":0,\"name\":\"old\"}");
-        Sample s = store().load();
-        assertEquals("migrated", s.added);
-        assertEquals("old", s.name);
-        JsonObject saved = JsonParser.parseString(Files.readString(dir.resolve("friendai-server.json")))
-                .getAsJsonObject();
-        assertEquals(1, saved.get("version").getAsInt());
-        assertTrue(saved.has("added"));
+        String original = Files.readString(dir.resolve("friendai-server.json"));
+        ConfigStore<Sample> store = store();
+
+        assertThrows(UnsupportedStoreVersionException.class, store::load);
+        assertThrows(UnsupportedStoreVersionException.class, () -> store.save(new Sample()));
+        assertEquals(original, Files.readString(dir.resolve("friendai-server.json")));
     }
 }

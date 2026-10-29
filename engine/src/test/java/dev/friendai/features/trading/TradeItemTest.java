@@ -168,12 +168,20 @@ class TradeItemTest {
                 UUID.randomUUID(), TradeProgress.State.COMPLETED, java.util.Map.of(), List.of(), 1, "");
         assertThrows(
                 IllegalArgumentException.class,
-                () -> new TradeFile(1, 0, List.of(), java.util.Collections.nCopies(257, progress), java.util.Set.of()));
-        assertThrows(
-                IllegalArgumentException.class, () -> new TradeFile(2, 0, List.of(), List.of(), java.util.Set.of()));
+                () -> new TradeFile(
+                        TradeFile.VERSION,
+                        0,
+                        List.of(),
+                        java.util.Collections.nCopies(257, progress),
+                        java.util.Set.of(),
+                        List.of()));
         assertThrows(
                 IllegalArgumentException.class,
-                () -> new TradeFile(1, 0, List.of(), List.of(), java.util.Set.of(UUID.randomUUID())));
+                () -> new TradeFile(TradeFile.VERSION + 1, 0, List.of(), List.of(), java.util.Set.of(), List.of()));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new TradeFile(
+                        TradeFile.VERSION, 0, List.of(), List.of(), java.util.Set.of(UUID.randomUUID()), List.of()));
         assertThrows(
                 IllegalArgumentException.class, () -> new TradeItem("minecraft:book", "{\"value\":100e2147483647}", 1));
     }

@@ -15,9 +15,9 @@ import dev.friendai.features.crafting.minecraft.RecipeIndex;
 import dev.friendai.features.crafting.minecraft.Stations;
 import dev.friendai.features.crafting.minecraft.task.CraftTask;
 import dev.friendai.server.execution.ExecutionCoordinator;
+import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
 import java.util.List;
 import java.util.Optional;
@@ -37,7 +37,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 
 public class CraftingTests {
-    private static final class Result implements TaskListener {
+    private static final class Result implements TaskEventSink {
         TaskStatus status;
         String summary;
 
@@ -58,7 +58,7 @@ public class CraftingTests {
     private static ExecutionCoordinator craft(
             CompanionEntity c, Result result, String item, int count, StationPolicy policy) {
         ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 300, () -> false);
-        runner.setListener(result);
+        runner.setEventSink(result);
         runner.start(new CraftTask(item, count, policy), "craft_item");
         return runner;
     }
@@ -571,7 +571,7 @@ public class CraftingTests {
                 table[0] = stationAt(h, Blocks.CRAFTING_TABLE, 16, REUSE_DECK);
                 h.assertTrue(table[0] != null, "the table should still stand after the first craft");
                 secondStarted[0] = true;
-                runner.setListener(second);
+                runner.setEventSink(second);
                 runner.start(new CraftTask("minecraft:wooden_axe", 1, StationPolicy.AUTO), "craft_item");
                 return;
             }

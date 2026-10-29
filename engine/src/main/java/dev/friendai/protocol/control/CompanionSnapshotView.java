@@ -38,7 +38,6 @@ public record CompanionSnapshotView(
             int food,
             int inventoryUsed,
             int inventorySlots,
-            String combatMode,
             String protection,
             String style,
             String action,

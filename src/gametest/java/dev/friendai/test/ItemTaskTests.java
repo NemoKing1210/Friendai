@@ -6,7 +6,7 @@ import dev.friendai.features.inventory.minecraft.task.DropItemsTask;
 import dev.friendai.features.inventory.minecraft.task.GiveItemsTask;
 import dev.friendai.features.inventory.minecraft.task.PickupItemsTask;
 import dev.friendai.server.execution.ExecutionCoordinator;
-import dev.friendai.task.TaskListener;
+import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.inventory.ItemMatcher;
@@ -23,7 +23,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 public class ItemTaskTests {
-    private static final class Result implements TaskListener {
+    private static final class Result implements TaskEventSink {
         TaskStatus status;
         String summary;
 
@@ -39,7 +39,7 @@ public class ItemTaskTests {
 
     private static ExecutionCoordinator runner(CompanionEntity c, Result result) {
         ExecutionCoordinator r = new ExecutionCoordinator(c, () -> 300, () -> false);
-        r.setListener(result);
+        r.setEventSink(result);
         return r;
     }
 

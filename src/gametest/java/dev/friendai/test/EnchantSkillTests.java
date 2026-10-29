@@ -5,7 +5,7 @@ import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.features.enchanting.minecraft.task.EnchantItemTask;
 import dev.friendai.features.survival.ExperienceModel;
 import dev.friendai.server.execution.ExecutionCoordinator;
-import dev.friendai.task.TaskListener;
+import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.inventory.ItemMatcher;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -18,7 +18,7 @@ import net.minecraft.world.level.block.Blocks;
 
 /** The companion enchants items at an enchanting table with lapis and its own experience levels. */
 public class EnchantSkillTests {
-    private static final class Result implements TaskListener {
+    private static final class Result implements TaskEventSink {
         TaskStatus status;
         String summary;
 
@@ -63,7 +63,7 @@ public class EnchantSkillTests {
         levels(c, 30);
         Result result = new Result();
         ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 300, () -> false);
-        runner.setListener(result);
+        runner.setEventSink(result);
         runner.start(
                 new EnchantItemTask(ItemMatcher.parse("minecraft:iron_sword").orElseThrow(), 1, null), "enchant_item");
         h.succeedWhen(() -> {
@@ -86,7 +86,7 @@ public class EnchantSkillTests {
             GameTestHelper h, CompanionEntity c, EnchantItemTask task, String expected, Runnable extra) {
         Result result = new Result();
         ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 300, () -> false);
-        runner.setListener(result);
+        runner.setEventSink(result);
         runner.start(task, "enchant_item");
         h.succeedWhen(() -> {
             runner.tick();

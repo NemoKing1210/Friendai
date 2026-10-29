@@ -12,8 +12,8 @@ import dev.friendai.features.navigation.minecraft.task.FlyToTask;
 import dev.friendai.features.navigation.minecraft.task.FollowTask;
 import dev.friendai.features.navigation.minecraft.task.StayTask;
 import dev.friendai.features.navigation.movement.Facing;
+import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
 import java.util.Optional;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -157,7 +157,7 @@ public final class CreativeFlightTests {
         h.assertFalse(h.getLevel().hasChunkAt(target), "test target chunk should be unloaded before flight starts");
         final TaskStatus[] status = {null};
         final String[] summary = {""};
-        companion.executionCoordinator().setListener(new TaskListener() {
+        companion.executionCoordinator().setEventSink(new TaskEventSink() {
             @Override
             public void onFinished(int id, String toolName, TaskStatus taskStatus, String result) {
                 status[0] = taskStatus;

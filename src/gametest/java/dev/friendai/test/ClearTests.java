@@ -4,7 +4,7 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.features.construction.minecraft.task.ClearAreaTask;
 import dev.friendai.server.execution.ExecutionCoordinator;
-import dev.friendai.task.TaskListener;
+import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskStatus;
 import java.util.ArrayList;
 import java.util.List;
@@ -16,7 +16,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 
 public class ClearTests {
-    private static final class Result implements TaskListener {
+    private static final class Result implements TaskEventSink {
         TaskStatus status;
         String summary;
         final List<String> notices = new ArrayList<>();
@@ -38,7 +38,7 @@ public class ClearTests {
 
     private static ExecutionCoordinator runner(CompanionEntity companion, Result result) {
         ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 300, () -> false);
-        runner.setListener(result);
+        runner.setEventSink(result);
         return runner;
     }
 

@@ -13,7 +13,7 @@ import dev.friendai.features.construction.special.SpecialStructure;
 import dev.friendai.features.construction.special.StructureBook;
 import dev.friendai.features.construction.special.StructureSnapshot;
 import dev.friendai.server.execution.ExecutionCoordinator;
-import dev.friendai.task.TaskListener;
+import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.structure.StructureIndex;
 import dev.friendai.task.structure.StructureSite;
@@ -129,7 +129,7 @@ public class StructureTests {
         h.succeed();
     }
 
-    private static final class Result implements TaskListener {
+    private static final class Result implements TaskEventSink {
         TaskStatus status;
         String summary = "";
 
@@ -148,7 +148,7 @@ public class StructureTests {
 
     private static ExecutionCoordinator runner(CompanionEntity companion, Result result) {
         ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 600, () -> false);
-        runner.setListener(result);
+        runner.setEventSink(result);
         return runner;
     }
 

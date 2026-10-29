@@ -4,7 +4,7 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.features.enchanting.minecraft.task.GrindstoneItemTask;
 import dev.friendai.server.execution.ExecutionCoordinator;
-import dev.friendai.task.TaskListener;
+import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.inventory.ItemMatcher;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -21,7 +21,7 @@ import net.minecraft.world.level.block.Blocks;
 
 /** The companion strips enchantments at a grindstone and keeps the experience that comes out. */
 public class GrindstoneSkillTests {
-    private static final class Result implements TaskListener {
+    private static final class Result implements TaskEventSink {
         TaskStatus status;
         String summary;
 
@@ -68,7 +68,7 @@ public class GrindstoneSkillTests {
         c.inventory().addItem(sword);
         Result result = new Result();
         ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 300, () -> false);
-        runner.setListener(result);
+        runner.setEventSink(result);
         runner.start(new GrindstoneItemTask(match(Items.DIAMOND_SWORD), null, null), "grindstone_item");
         h.succeedWhen(() -> {
             runner.tick();
@@ -86,7 +86,7 @@ public class GrindstoneSkillTests {
         c.inventory().addItem(new ItemStack(Items.STICK));
         Result result = new Result();
         ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 300, () -> false);
-        runner.setListener(result);
+        runner.setEventSink(result);
         runner.start(new GrindstoneItemTask(match(Items.STICK), null, null), "grindstone_item");
         h.succeedWhen(() -> {
             runner.tick();
@@ -105,7 +105,7 @@ public class GrindstoneSkillTests {
         BlockPos nowhere = h.absolutePos(new BlockPos(6, 157, 6));
         Result result = new Result();
         ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 300, () -> false);
-        runner.setListener(result);
+        runner.setEventSink(result);
         runner.start(new GrindstoneItemTask(match(Items.DIAMOND_SWORD), null, nowhere), "grindstone_item");
         h.succeedWhen(() -> {
             runner.tick();

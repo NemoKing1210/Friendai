@@ -24,12 +24,12 @@ class QueueParserTest {
                 JsonParser.parseString("[{\"tool\":\"go_to\",\"args\":\"{}\"}]").getAsJsonArray();
         assertEquals(
                 1,
-                QueueParser.parse(good, SCHEMAS, Set.of("go_to"), 32, 8192, 49152)
+                QueueParser.parseFlatActions(good, SCHEMAS, Set.of("go_to"), 32, 8192, 49152)
                         .steps()
                         .size());
         JsonArray bad =
                 JsonParser.parseString("[{\"tool\":\"go_to\",\"after\":[1]}]").getAsJsonArray();
-        var result = QueueParser.parse(bad, SCHEMAS, Set.of("go_to"), 32, 8192, 49152);
+        var result = QueueParser.parseFlatActions(bad, SCHEMAS, Set.of("go_to"), 32, 8192, 49152);
         assertTrue(result.steps().isEmpty());
         assertTrue(result.errors().getFirst().contains("earlier step"));
     }
@@ -39,11 +39,11 @@ class QueueParserTest {
         String afters = "[1,1,1,1,1,1,1,1,1]";
         JsonArray many = JsonParser.parseString("[{\"tool\":\"go_to\"},{\"tool\":\"go_to\",\"after\":" + afters + "}]")
                 .getAsJsonArray();
-        var result = QueueParser.parse(many, SCHEMAS, Set.of("go_to"), 32, 8192, 49152);
+        var result = QueueParser.parseFlatActions(many, SCHEMAS, Set.of("go_to"), 32, 8192, 49152);
         assertTrue(result.errors().getFirst().contains("at most"));
         JsonArray attempts = JsonParser.parseString("[{\"tool\":\"go_to\",\"max_attempts\":9}]")
                 .getAsJsonArray();
-        assertTrue(!QueueParser.parse(attempts, SCHEMAS, Set.of("go_to"), 32, 8192, 49152)
+        assertTrue(!QueueParser.parseFlatActions(attempts, SCHEMAS, Set.of("go_to"), 32, 8192, 49152)
                 .ok());
     }
 
@@ -155,15 +155,15 @@ class QueueParserTest {
     }
 
     @Test
-    void flatParserKeepsLegacyGuardArraysAndRejectsTreeNodes() {
+    void flatActionParserSupportsGuardsAndRejectsConditionalNodes() {
         JsonArray flat = JsonParser.parseString("[{\"tool\":\"go_to\",\"when\":[{\"type\":\"fluid_ahead\"}]}]")
                 .getAsJsonArray();
-        var parsed = QueueParser.parse(flat, SCHEMAS, Set.of("go_to"), 32, 8192, 49152);
+        var parsed = QueueParser.parseFlatActions(flat, SCHEMAS, Set.of("go_to"), 32, 8192, 49152);
         assertTrue(parsed.ok(), parsed.errors().toString());
         assertEquals(1, parsed.steps().getFirst().guards().size());
         JsonArray tree = JsonParser.parseString("[{\"when\":{\"type\":\"fluid_ahead\"},\"then\":[]}]")
                 .getAsJsonArray();
-        assertFalse(QueueParser.parse(tree, SCHEMAS, Set.of("go_to"), 32, 8192, 49152)
+        assertFalse(QueueParser.parseFlatActions(tree, SCHEMAS, Set.of("go_to"), 32, 8192, 49152)
                 .ok());
     }
 

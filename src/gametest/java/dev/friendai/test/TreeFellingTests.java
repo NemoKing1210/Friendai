@@ -14,7 +14,7 @@ import dev.friendai.features.mining.minecraft.task.FellTreeTask;
 import dev.friendai.server.agent.perception.PerceptionContext;
 import dev.friendai.server.agent.tools.FriendaiTools;
 import dev.friendai.server.execution.ExecutionCoordinator;
-import dev.friendai.task.TaskListener;
+import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskStatus;
 import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -68,7 +68,7 @@ public class TreeFellingTests {
                 new ToolCall("1", name, JsonParser.parseString(json).getAsJsonObject(), json, null), caller);
     }
 
-    private static final class Result implements TaskListener {
+    private static final class Result implements TaskEventSink {
         TaskStatus status;
         String summary;
 
@@ -93,7 +93,7 @@ public class TreeFellingTests {
 
     private static ExecutionCoordinator start(CompanionEntity c, Result result, FellTreeTask task, int timeoutSec) {
         ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> timeoutSec, () -> false);
-        runner.setListener(result);
+        runner.setEventSink(result);
         runner.start(task, "fell_tree");
         return runner;
     }
@@ -668,7 +668,7 @@ public class TreeFellingTests {
         c.inventory().addItem(new ItemStack(Items.IRON_AXE));
         Result result = new Result();
         ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 60, () -> false);
-        runner.setListener(result);
+        runner.setEventSink(result);
         runner.start(new FellTreeTask(info(h, logs, "oak_log", 39), oak(), 0, false), "fell_tree");
         h.succeedWhen(() -> {
             runner.tick();
@@ -691,7 +691,7 @@ public class TreeFellingTests {
         c.inventory().addItem(new ItemStack(Items.IRON_AXE));
         Result result = new Result();
         ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 60, () -> false);
-        runner.setListener(result);
+        runner.setEventSink(result);
         runner.start(new FellTreeTask(info(h, logs, "oak_log", 19), oak(), 0, false), "fell_tree");
         h.succeedWhen(() -> {
             runner.tick();

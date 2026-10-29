@@ -84,7 +84,7 @@ final class CompanionSnapshotProtocolCodecTest {
                 List.of(new LogEntry(1, 2, LogKind.ERROR, "private log")),
                 "private perception",
                 List.of("private tool"),
-                new CompanionSnapshotView.Vitals(0, 0, 0, 0, 0, "", "", "", "none", "none", "", 0, 0),
+                new CompanionSnapshotView.Vitals(0, 0, 0, 0, 0, "", "", "none", "none", "", 0, 0),
                 List.of(),
                 true,
                 true,

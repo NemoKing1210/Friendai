@@ -17,7 +17,7 @@ import dev.friendai.features.places.PlaceKind;
 import dev.friendai.features.places.PlaceSource;
 import dev.friendai.features.places.PlaceValues;
 import dev.friendai.server.execution.ExecutionCoordinator;
-import dev.friendai.task.TaskListener;
+import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskStatus;
 import java.util.OptionalInt;
 import java.util.Set;
@@ -55,7 +55,7 @@ public final class TargetSearchTests {
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 4, 301, 4);
         companion.setOwner(owner.getUUID());
         Result result = new Result();
-        companion.executionCoordinator().setListener(result);
+        companion.executionCoordinator().setEventSink(result);
         JsonObject args = new JsonObject();
         args.addProperty("resource", "#minecraft:logs");
         args.addProperty("strategy", "surface");
@@ -90,7 +90,7 @@ public final class TargetSearchTests {
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         companion.setOwner(owner.getUUID());
         Result result = new Result();
-        companion.executionCoordinator().setListener(result);
+        companion.executionCoordinator().setEventSink(result);
         JsonObject args = new JsonObject();
         args.addProperty("resource", "#minecraft:logs");
         args.addProperty("strategy", "surface");
@@ -159,7 +159,7 @@ public final class TargetSearchTests {
                 session, target, profile, 32, false, ResourceSearchProfile.Strategy.SURFACE, null, null, null);
         Result result = new Result();
         ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 600, () -> false);
-        runner.setListener(result);
+        runner.setEventSink(result);
         runner.start(driver, "search");
         h.succeedWhen(() -> {
             runner.tick();
@@ -212,7 +212,7 @@ public final class TargetSearchTests {
         BlockPos bell = h.absolutePos(new BlockPos(6, 2, 2));
         h.assertTrue(GameTestSupport.observeVisible(h, companion, bell), "the bell must be in sight");
         Result result = new Result();
-        companion.executionCoordinator().setListener(result);
+        companion.executionCoordinator().setEventSink(result);
         var started = GameTestToolRegistry.create(companion, () -> 16, MemoryAccess.DISABLED)
                 .bind(companion)
                 .execute(
@@ -232,7 +232,7 @@ public final class TargetSearchTests {
                 h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
                 h.assertTrue(result.summary.contains("found"), result.summary);
                 biomeStarted[0] = true;
-                companion.executionCoordinator().setListener(biomeResult);
+                companion.executionCoordinator().setEventSink(biomeResult);
                 var biomeStart = GameTestToolRegistry.create(companion, () -> 16, MemoryAccess.DISABLED)
                         .bind(companion)
                         .execute(
@@ -272,7 +272,7 @@ public final class TargetSearchTests {
                                 ""),
                         h.getLevel().getServer().overworld().getGameTime());
         Result result = new Result();
-        companion.executionCoordinator().setListener(result);
+        companion.executionCoordinator().setEventSink(result);
         var started = GameTestToolRegistry.create(companion, () -> 16, MemoryAccess.DISABLED)
                 .bind(companion)
                 .execute(
@@ -294,7 +294,7 @@ public final class TargetSearchTests {
         return new ToolCall("test", "find_target", args, args.toString(), null);
     }
 
-    private static final class Result implements TaskListener {
+    private static final class Result implements TaskEventSink {
         TaskStatus status;
         String summary;
         final java.util.List<String> debug = new java.util.concurrent.CopyOnWriteArrayList<>();

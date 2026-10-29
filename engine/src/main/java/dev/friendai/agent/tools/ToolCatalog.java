@@ -140,7 +140,6 @@ public final class ToolCatalog {
                 Cost.MEDIUM,
                 "attack",
                 "attack_player",
-                "set_combat_mode",
                 "get_combat_settings",
                 "set_combat_settings");
         group(

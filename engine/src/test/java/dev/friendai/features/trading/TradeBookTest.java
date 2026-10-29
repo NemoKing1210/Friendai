@@ -177,7 +177,7 @@ class TradeBookTest {
         assertThrows(
                 IllegalArgumentException.class,
                 () -> trader(
-                        1,
+                        TradeFile.VERSION,
                         100,
                         TraderRecord.Status.VERIFIED,
                         java.util.Collections.nCopies(65, offer("minecraft:book", 2, 0, 0))));
@@ -195,7 +195,7 @@ class TradeBookTest {
                         List.of(new TradeCost("minecraft:book", "{}", 1)),
                         new TradeItem("minecraft:book", "{}", 1),
                         0,
-                        1,
+                        TradeFile.VERSION,
                         0,
                         ACTOR,
                         -1));
@@ -244,11 +244,14 @@ class TradeBookTest {
                         0,
                         java.util.Collections.nCopies(257, trader(1, 100, TraderRecord.Status.SEEN, List.of())),
                         List.of(),
-                        Set.of()));
+                        Set.of(),
+                        List.of()));
         var tooManyOffers = new ArrayList<TraderRecord>();
         for (int i = 1; i <= 32; i++) tooManyOffers.add(trader(i, 100, TraderRecord.Status.VERIFIED, offers));
         tooManyOffers.add(trader(33, 100, TraderRecord.Status.VERIFIED, List.of(offer("minecraft:apple", 2, 0, 0))));
-        assertThrows(IllegalArgumentException.class, () -> new TradeFile(1, 0, tooManyOffers, List.of(), Set.of()));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new TradeFile(TradeFile.VERSION, 0, tooManyOffers, List.of(), Set.of(), List.of()));
     }
 
     @Test
@@ -416,7 +419,8 @@ class TradeBookTest {
     @Test
     void revisionOverflowNeverPartiallyMutatesState() {
         var trader = trader(1, 100, TraderRecord.Status.VERIFIED, List.of(offer("minecraft:book", 2, 0, 0)));
-        var book = new TradeBook(new TradeFile(1, Long.MAX_VALUE, List.of(trader), List.of(), Set.of()));
+        var book = new TradeBook(
+                new TradeFile(TradeFile.VERSION, Long.MAX_VALUE, List.of(trader), List.of(), Set.of(), List.of()));
         var before = book.snapshot();
         assertThrows(
                 ArithmeticException.class, () -> book.observe(trader(2, 100, TraderRecord.Status.SEEN, List.of())));
@@ -432,7 +436,8 @@ class TradeBookTest {
         assertTrue(book.query(new TradeQuery(TradeQuery.Direction.BUY, "minecraft:book", "", 8), 100)
                 .getFirst()
                 .quoteStale());
-        var pinned = new TradeBook(new TradeFile(1, Long.MAX_VALUE, List.of(trader), List.of(), Set.of(trader.id())));
+        var pinned = new TradeBook(new TradeFile(
+                TradeFile.VERSION, Long.MAX_VALUE, List.of(trader), List.of(), Set.of(trader.id()), List.of()));
         var pinnedBefore = pinned.snapshot();
         assertThrows(ArithmeticException.class, () -> pinned.unpin(trader.id()));
         assertEquals(pinnedBefore, pinned.snapshot());

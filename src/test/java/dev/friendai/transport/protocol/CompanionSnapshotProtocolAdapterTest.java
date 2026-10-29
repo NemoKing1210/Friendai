@@ -26,8 +26,7 @@ final class CompanionSnapshotProtocolAdapterTest {
                 List.of(new LogEntry(1, 2, LogKind.ASSISTANT, "hello")),
                 "perception",
                 List.of("mine_blocks"),
-                new CompanionVitals(
-                        18, 20, 16, 3, 36, "guard", "owner", "steady", "follow", "nearby", "slow", 12, 0.5f),
+                new CompanionVitals(18, 20, 16, 3, 36, "owner", "steady", "follow", "nearby", "slow", 12, 0.5f),
                 List.of(new QueueRow(4, 2, "goal", "running", "mine", "{}", "ready", "note", List.of(3L), 1, 3, 5)),
                 true,
                 true,

@@ -12,12 +12,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Loads and saves a JSON config file: defaults on first run, backup on corruption, and optional migrations. */
+/** Loads and saves a versioned JSON config file: defaults on first run and backup on corruption. */
 public final class ConfigStore<T> {
     private static final Logger LOGGER = LoggerFactory.getLogger("friendai/config");
     private static final Gson GSON =
@@ -27,21 +26,14 @@ public final class ConfigStore<T> {
     private final Class<T> type;
     private final Supplier<T> defaults;
     private final int currentVersion;
-    private final BiFunction<JsonObject, Integer, JsonObject> migrator;
     private boolean recoveredOnLastLoad;
     private boolean unsupported;
 
-    public ConfigStore(
-            Path file,
-            Class<T> type,
-            Supplier<T> defaults,
-            int currentVersion,
-            BiFunction<JsonObject, Integer, JsonObject> migrator) {
+    public ConfigStore(Path file, Class<T> type, Supplier<T> defaults, int currentVersion) {
         this.file = file;
         this.type = type;
         this.defaults = defaults;
         this.currentVersion = currentVersion;
-        this.migrator = migrator;
     }
 
     public Path file() {
@@ -74,24 +66,13 @@ public final class ConfigStore<T> {
             }
             JsonObject json = parsed.getAsJsonObject();
             int version = json.has("version") ? json.get("version").getAsInt() : 0;
-            if (version > currentVersion) {
+            if (version != currentVersion) {
+                unsupported = true;
                 throw new UnsupportedStoreVersionException();
-            }
-            boolean migrated = version < currentVersion;
-            if (migrated) {
-                if (migrator == null) {
-                    unsupported = true;
-                    throw new UnsupportedStoreVersionException();
-                }
-                json = migrator.apply(json, version);
-                json.addProperty("version", currentVersion);
             }
             T value = GSON.fromJson(json, type);
             if (value == null) {
                 throw new IllegalStateException("empty config");
-            }
-            if (migrated) {
-                save(value);
             }
             return value;
         } catch (UnsupportedStoreVersionException e) {
@@ -149,21 +130,9 @@ public final class ConfigStore<T> {
             // load() owns corrupt-file recovery and backup creation.
             return;
         }
-        if (version > currentVersion) {
+        if (version != currentVersion) {
             unsupported = true;
             throw new UnsupportedStoreVersionException();
-        }
-        if (version < currentVersion) {
-            if (migrator == null) {
-                unsupported = true;
-                throw new UnsupportedStoreVersionException();
-            }
-            try {
-                migrator.apply(json, version);
-            } catch (RuntimeException e) {
-                unsupported = true;
-                throw new UnsupportedStoreVersionException();
-            }
         }
     }
 }

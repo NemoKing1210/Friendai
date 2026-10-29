@@ -10,8 +10,8 @@ import dev.friendai.execution.queue.GuardAction;
 import dev.friendai.execution.queue.QueuedStep;
 import dev.friendai.features.creative.minecraft.task.CreateItemsTask;
 import dev.friendai.features.navigation.minecraft.task.StayTask;
+import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.server.net.Operators;
-import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
 import java.util.List;
 import java.util.Optional;
@@ -90,7 +90,7 @@ public class CreativeModeTests {
 
         companion.executionCoordinator().setPaused(true);
         int[] callbacks = {0};
-        companion.executionCoordinator().setListener(new TaskListener() {
+        companion.executionCoordinator().setEventSink(new TaskEventSink() {
             @Override
             public void onFinished(int id, String toolName, TaskStatus status, String summary) {
                 callbacks[0]++;

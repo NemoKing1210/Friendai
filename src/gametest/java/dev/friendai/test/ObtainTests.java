@@ -19,8 +19,8 @@ import dev.friendai.features.inventory.minecraft.task.CheckContainerTask;
 import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
 import dev.friendai.foundation.item.Tier;
 import dev.friendai.server.execution.ExecutionCoordinator;
+import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.server.execution.tools.MinecraftObtainSubtaskFactory;
-import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
 import java.util.List;
 import java.util.Optional;
@@ -111,7 +111,7 @@ public class ObtainTests {
         });
     }
 
-    private static final class Result implements TaskListener {
+    private static final class Result implements TaskEventSink {
         TaskStatus status;
         String summary;
 
@@ -185,14 +185,14 @@ public class ObtainTests {
 
     private static ExecutionCoordinator obtain(CompanionEntity c, Result result, ObtainTask task) {
         ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 2400, () -> false);
-        runner.setListener(result);
+        runner.setEventSink(result);
         runner.start(task, "obtain_item");
         return runner;
     }
 
     private static ExecutionCoordinator explore(CompanionEntity c, Result result, ExploreTask task) {
         ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 600, () -> false);
-        runner.setListener(result);
+        runner.setEventSink(result);
         runner.start(task, "explore");
         return runner;
     }
@@ -579,7 +579,7 @@ public class ObtainTests {
                 "chest should be directly visible");
         Result result = new Result();
         ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 2400, () -> false);
-        runner.setListener(result);
+        runner.setEventSink(result);
         runner.start(new CheckContainerTask(h.absolutePos(new BlockPos(4, 2, 2))), "check_container");
         boolean[] startedObtain = {false};
         h.succeedWhen(() -> {

@@ -82,6 +82,6 @@ public final class SkinStore {
     }
 
     private ConfigStore<Meta> metaStore(UUID owner) {
-        return new ConfigStore<>(meta(owner), Meta.class, Meta::new, 1, (json, from) -> json);
+        return new ConfigStore<>(meta(owner), Meta.class, Meta::new, 1);
     }
 }

@@ -71,7 +71,7 @@ public final class PromptBuilder {
         return system(p, perception, caller, memoryBlock, turn, goal, budget, toolHints, places, "", "");
     }
 
-    /** Compatibility overload for an owner-private trading context without a planner note. */
+    /** Builds a prompt with an owner-private trading context and no planner note. */
     public static String system(
             Persona p,
             String perception,

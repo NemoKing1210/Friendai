@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.friendai.foundation.persistence.UnsupportedStoreVersionException;
-import dev.friendai.infrastructure.config.ConfigStore;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -45,8 +44,7 @@ class ClientConfigTest {
                 dir.resolve("friendai-client.json"),
                 ClientConfig.class,
                 ClientConfig::defaults,
-                ClientConfig.CURRENT_VERSION,
-                null);
+                ClientConfig.CURRENT_VERSION);
         ClientConfig c = store.load();
         c.voice.stt.local.model = "small";
         c.voice.stt.inputDevice = "Mic 1";
@@ -108,8 +106,8 @@ class ClientConfigTest {
         Files.writeString(file, """
             {"version":4,"voice":{"stt":{"provider":"local","local":{"model":"base"}},
              "tts":{"provider":"local","local":{}}}}""");
-        ConfigStore<ClientConfig> store = new ConfigStore<>(
-                file, ClientConfig.class, ClientConfig::defaults, ClientConfig.CURRENT_VERSION, null);
+        ConfigStore<ClientConfig> store =
+                new ConfigStore<>(file, ClientConfig.class, ClientConfig::defaults, ClientConfig.CURRENT_VERSION);
 
         ClientConfig c = store.load();
         c.validate();
@@ -134,8 +132,7 @@ class ClientConfigTest {
                 dir.resolve("friendai-client.json"),
                 ClientConfig.class,
                 ClientConfig::defaults,
-                ClientConfig.CURRENT_VERSION,
-                null);
+                ClientConfig.CURRENT_VERSION);
         ClientConfig c = store.load();
         c.voice.tts.volume = 0.0;
         c.validate();
@@ -191,8 +188,8 @@ class ClientConfigTest {
         Path file = dir.resolve("friendai-client.json");
         String original = "{\"version\":3,\"voice\":{\"enabled\":false}}";
         Files.writeString(file, original);
-        ConfigStore<ClientConfig> store = new ConfigStore<>(
-                file, ClientConfig.class, ClientConfig::defaults, ClientConfig.CURRENT_VERSION, null);
+        ConfigStore<ClientConfig> store =
+                new ConfigStore<>(file, ClientConfig.class, ClientConfig::defaults, ClientConfig.CURRENT_VERSION);
 
         assertThrows(UnsupportedStoreVersionException.class, store::load);
         assertThrows(UnsupportedStoreVersionException.class, () -> store.save(ClientConfig.defaults()));
@@ -204,8 +201,8 @@ class ClientConfigTest {
         Path file = dir.resolve("friendai-client.json");
         String original = "{\"version\":999,\"voice\":{\"tts\":{\"enabled\":true}}}";
         Files.writeString(file, original);
-        ConfigStore<ClientConfig> store = new ConfigStore<>(
-                file, ClientConfig.class, ClientConfig::defaults, ClientConfig.CURRENT_VERSION, null);
+        ConfigStore<ClientConfig> store =
+                new ConfigStore<>(file, ClientConfig.class, ClientConfig::defaults, ClientConfig.CURRENT_VERSION);
 
         assertThrows(UnsupportedStoreVersionException.class, store::load);
         assertThrows(UnsupportedStoreVersionException.class, () -> store.save(ClientConfig.defaults()));
@@ -217,8 +214,8 @@ class ClientConfigTest {
         Path file = dir.resolve("friendai-client.json");
         Files.writeString(file, """
             {"version":4,"voice":{"stt":{"provider":"local"},"tts":{"provider":"local"}}}""");
-        ConfigStore<ClientConfig> store = new ConfigStore<>(
-                file, ClientConfig.class, ClientConfig::defaults, ClientConfig.CURRENT_VERSION, null);
+        ConfigStore<ClientConfig> store =
+                new ConfigStore<>(file, ClientConfig.class, ClientConfig::defaults, ClientConfig.CURRENT_VERSION);
         assertTrue(store.load().voice.tts.spatial);
     }
 }

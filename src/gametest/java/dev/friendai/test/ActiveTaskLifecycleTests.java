@@ -4,9 +4,9 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.features.navigation.minecraft.task.StayTask;
 import dev.friendai.server.execution.ExecutionCoordinator;
+import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
 import java.util.ArrayList;
 import java.util.List;
@@ -14,7 +14,7 @@ import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 
 public class ActiveTaskLifecycleTests {
-    private static final class Events implements TaskListener {
+    private static final class Events implements TaskEventSink {
         final List<String> log = new ArrayList<>();
         Runnable onCancel = () -> {};
 
@@ -68,7 +68,7 @@ public class ActiveTaskLifecycleTests {
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Events events = new Events();
         ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 300, () -> false);
-        runner.setListener(events);
+        runner.setEventSink(events);
         ReplacingTask task = new ReplacingTask();
         runner.start(task, "replace_during_tick");
 
@@ -89,7 +89,7 @@ public class ActiveTaskLifecycleTests {
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Events events = new Events();
         ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 300, () -> false);
-        runner.setListener(events);
+        runner.setEventSink(events);
         runner.start(new StayTask(), "original");
         boolean[] startedFromListener = {false};
         events.onCancel = () -> {

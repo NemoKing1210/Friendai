@@ -164,14 +164,14 @@ public final class QueueTools implements FeatureToolContributor {
             gp.add(n, p);
         }
         guard.add("properties", gp);
-        JsonObject legacyWhen = new JsonObject();
-        legacyWhen.addProperty("type", "array");
-        legacyWhen.add("items", guard);
+        JsonObject actionGuards = new JsonObject();
+        actionGuards.addProperty("type", "array");
+        actionGuards.add("items", guard);
         JsonObject conditionalWhen = new JsonObject();
         conditionalWhen.addProperty("type", "object");
         JsonObject when = new JsonObject();
         JsonArray whenShapes = new JsonArray();
-        whenShapes.add(legacyWhen);
+        whenShapes.add(actionGuards);
         whenShapes.add(conditionalWhen);
         when.add("oneOf", whenShapes);
         props.add("when", when);
@@ -346,7 +346,7 @@ public final class QueueTools implements FeatureToolContributor {
                 + "A repeat is {\"repeat\": {\"steps\": [nodes], \"until\": condition, \"max_iterations\": 1..64}}. "
                 + "Conditions support all_of/any_of (1..8 conditions), not, and the existing guards plus block_in_front, biome, fluid_ahead, distance_travelled, and time_elapsed. "
                 + "Condition and plan nesting is limited to 8; worst-case actions must fit the queue limit (currently 32), each args object is at most 8192 characters, and normalized plan JSON is at most 49152 characters. "
-                + "Action when arrays retain legacy guard behavior. Use plan_validate to check a tree without queue changes.";
+                + "An action when array waits until every listed guard is satisfied. Use plan_validate to check a tree without queue changes.";
     }
 
     private static PlanDefinition bindPlan(
@@ -562,7 +562,7 @@ public final class QueueTools implements FeatureToolContributor {
                     Map<String, TaskToolDefinition> allowed = allowed(caller, all);
                     Map<String, JsonObject> schemas = new LinkedHashMap<>();
                     allowed.forEach((n, d) -> schemas.put(n, d.schema()));
-                    var parsed = QueueParser.parse(
+                    var parsed = QueueParser.parseFlatActions(
                             args.getAsJsonArray("steps"),
                             schemas,
                             all.keySet(),

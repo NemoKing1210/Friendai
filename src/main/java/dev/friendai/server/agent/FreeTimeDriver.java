@@ -66,7 +66,6 @@ public final class FreeTimeDriver {
             "forbid_food",
             "reset_food_rule",
             "set_combat_settings",
-            "set_combat_mode",
             "set_goal",
             "update_goal",
             "finish_goal",

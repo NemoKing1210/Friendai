@@ -28,7 +28,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
-/** Immutable version-1 persistence data. Runtime actor identity and active references are excluded. */
+/** Immutable version-2 persistence data. Runtime actor identity and active references are excluded. */
 public record TradeFile(
         int version,
         long revision,
@@ -36,7 +36,7 @@ public record TradeFile(
         List<TradeProgress> history,
         Set<UUID> pinned,
         List<BarterProgress> barterHistory) {
-    public static final int VERSION = 1;
+    public static final int VERSION = 2;
     public static final int MAX_TRADERS = 256;
     public static final int MAX_OFFERS_PER_TRADER = 64;
     public static final int MAX_TOTAL_OFFERS = 2048;
@@ -54,10 +54,10 @@ public record TradeFile(
                 || history == null
                 || history.size() > MAX_HISTORY
                 || pinned == null
-                || pinned.size() > MAX_TRADERS) {
+                || pinned.size() > MAX_TRADERS
+                || barterHistory == null) {
             throw new IllegalArgumentException("invalid or oversized trade file");
         }
-        if (barterHistory == null) barterHistory = List.of(); // Format-1 files predating barter history remain valid.
         if (barterHistory.size() > MAX_HISTORY) throw new IllegalArgumentException("barter history limit exceeded");
         // Validate all aggregate counts before copying the caller's collections.
         int offerCount = 0;
@@ -77,11 +77,6 @@ public record TradeFile(
         history = List.copyOf(history);
         pinned = Set.copyOf(pinned);
         barterHistory = List.copyOf(barterHistory);
-    }
-
-    public TradeFile(
-            int version, long revision, List<TraderRecord> traders, List<TradeProgress> history, Set<UUID> pinned) {
-        this(version, revision, traders, history, pinned, List.of());
     }
 
     /** Serializes directly to a bounded UTF-8 buffer, without first allocating an unbounded String. */
@@ -272,11 +267,13 @@ public record TradeFile(
     }
 
     private static TradeFile fromRoot(JsonObject root) {
-
-        if (!root.has("traders")) throw new IllegalArgumentException("trade file has no trader records");
-        if (!root.has("history")) root.add("history", new JsonArray());
-        if (!root.has("pinned")) root.add("pinned", new JsonArray());
-        if (!root.has("barterHistory")) root.add("barterHistory", new JsonArray());
+        for (String required : List.of("revision", "traders", "history", "pinned", "barterHistory")) {
+            if (!root.has(required)) throw new IllegalArgumentException("trade file has no " + required);
+        }
+        JsonElement revision = root.get("revision");
+        if (!revision.isJsonPrimitive() || !revision.getAsJsonPrimitive().isNumber()) {
+            throw new IllegalArgumentException("trade file has no numeric revision");
+        }
         TradeFile file = GSON.fromJson(root, TradeFile.class);
         if (file == null) throw new IllegalArgumentException("empty trade file");
         return file;

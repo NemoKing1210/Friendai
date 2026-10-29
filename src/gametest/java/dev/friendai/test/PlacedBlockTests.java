@@ -12,7 +12,7 @@ import dev.friendai.features.placements.PlacedBlock;
 import dev.friendai.features.placements.PlacedBook;
 import dev.friendai.features.placements.minecraft.PlacedService;
 import dev.friendai.server.execution.ExecutionCoordinator;
-import dev.friendai.task.TaskListener;
+import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.interact.ContainerAccess;
 import java.util.List;
@@ -31,7 +31,7 @@ public class PlacedBlockTests {
         return GameTestSupport.runtime(companion.level().getServer()).placedService();
     }
 
-    private static final class Result implements TaskListener {
+    private static final class Result implements TaskEventSink {
         TaskStatus status;
         String summary;
 
@@ -47,7 +47,7 @@ public class PlacedBlockTests {
 
     private static ExecutionCoordinator runner(CompanionEntity c, Result result) {
         ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 300, () -> false);
-        runner.setListener(result);
+        runner.setEventSink(result);
         return runner;
     }
 

@@ -2,7 +2,6 @@ package dev.friendai.entity;
 
 import com.mojang.serialization.Codec;
 import dev.friendai.execution.tool.InventoryAccess;
-import dev.friendai.features.combat.CombatMode;
 import dev.friendai.features.combat.CombatSettings;
 import dev.friendai.features.combat.minecraft.CombatController;
 import dev.friendai.features.construction.blueprint.Blueprint;
@@ -584,7 +583,7 @@ public class CompanionEntity extends PathfinderMob {
             setGuaranteedDrop(slot);
         }
     }
-    /** The armor, hands and combat mode, as one LLM-facing line. */
+    /** The armor, hands and combat settings, as one LLM-facing line. */
     public String equipmentText() {
         StringBuilder text = new StringBuilder("Wearing: ");
         boolean anyArmor = false;
@@ -657,17 +656,6 @@ public class CompanionEntity extends PathfinderMob {
 
     public void setCombatSettings(CombatSettings settings) {
         this.combatSettings = settings == null ? CombatSettings.defaults() : settings;
-    }
-
-    /** The closest legacy preset, kept for old clients, save data and status text. */
-    public CombatMode combatMode() {
-        return CombatMode.fromSettings(combatSettings);
-    }
-
-    /** Compatibility adapter: the old preset changes protection and style only, preserving other settings. */
-    public void setCombatMode(CombatMode mode) {
-        CombatSettings mapped = (mode == null ? CombatMode.DEFENSIVE : mode).toSettings();
-        this.combatSettings = combatSettings.withProtection(mapped.protection()).withStyle(mapped.style());
     }
 
     public PaceMode paceMode() {

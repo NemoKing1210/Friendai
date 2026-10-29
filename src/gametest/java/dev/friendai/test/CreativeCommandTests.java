@@ -8,8 +8,8 @@ import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.features.creative.CreativeActionContext;
 import dev.friendai.features.interaction.minecraft.task.ExecuteCommandTask;
+import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
 import io.netty.channel.embedded.EmbeddedChannel;
 import java.util.Optional;
@@ -27,7 +27,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
 
 public final class CreativeCommandTests {
-    private static final class Result implements TaskListener {
+    private static final class Result implements TaskEventSink {
         TaskStatus status;
         String summary;
         BlockPos position;
@@ -85,7 +85,7 @@ public final class CreativeCommandTests {
 
     private static void start(
             GameTestHelper h, CompanionEntity companion, ServerPlayer owner, String command, Result result) {
-        companion.executionCoordinator().setListener(result);
+        companion.executionCoordinator().setEventSink(result);
         companion.executionCoordinator().start(new ExecuteCommandTask(command), "execute_command", caller(owner), true);
     }
 

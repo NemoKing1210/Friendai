@@ -9,7 +9,7 @@ import dev.friendai.features.knowledge.ResourceObservation;
 import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
 import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.server.execution.ExecutionCoordinator;
-import dev.friendai.task.TaskListener;
+import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskStatus;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
@@ -17,7 +17,7 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.level.block.Blocks;
 
 public final class ExploreTests {
-    private static final class Result implements TaskListener {
+    private static final class Result implements TaskEventSink {
         TaskStatus status;
         String summary;
 
@@ -63,7 +63,7 @@ public final class ExploreTests {
 
         Result result = new Result();
         ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 200, () -> false);
-        runner.setListener(result);
+        runner.setEventSink(result);
         runner.start(
                 new ExploreTask(BlockMatcher.parse("#minecraft:logs").orElseThrow(), false, 0, 16, 128, 600),
                 "explore");

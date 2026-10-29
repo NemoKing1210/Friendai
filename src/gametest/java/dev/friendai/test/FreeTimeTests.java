@@ -18,7 +18,7 @@ import dev.friendai.features.places.PlaceKind;
 import dev.friendai.features.places.PlaceSource;
 import dev.friendai.features.places.PlaceValues;
 import dev.friendai.server.execution.ExecutionCoordinator;
-import dev.friendai.task.TaskListener;
+import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.inventory.ItemMatcher;
@@ -49,7 +49,7 @@ import net.minecraft.world.level.block.Blocks;
 public class FreeTimeTests {
     private record MockOwner(net.minecraft.server.level.ServerPlayer player, EmbeddedChannel channel) {}
 
-    private static final class Result implements TaskListener {
+    private static final class Result implements TaskEventSink {
         TaskStatus status;
         String summary;
 
@@ -65,7 +65,7 @@ public class FreeTimeTests {
 
     private static ExecutionCoordinator runner(CompanionEntity c, Result result) {
         ExecutionCoordinator r = new ExecutionCoordinator(c, () -> 300, () -> false);
-        r.setListener(result);
+        r.setEventSink(result);
         return r;
     }
 

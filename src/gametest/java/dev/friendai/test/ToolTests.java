@@ -368,7 +368,6 @@ public class ToolTests {
                 "grindstone_item",
                 "attack",
                 "attack_player",
-                "set_combat_mode",
                 "get_combat_settings",
                 "set_combat_settings",
                 "equip_item",
@@ -722,11 +721,14 @@ public class ToolTests {
     }
 
     @GameTest
-    public void setCombatModeTool(GameTestHelper h) {
+    public void setCombatSettingsTool(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
-        ToolResult r = run(tools(c), "set_combat_mode", "{\"mode\":\"guard\"}");
-        h.assertTrue(!r.error() && r.content().equals("combat mode is now guard"), "result was " + r.content());
-        h.assertTrue(c.combatMode() == dev.friendai.features.combat.CombatMode.GUARD, "mode was " + c.combatMode());
+        ToolResult r = run(tools(c), "set_combat_settings", "{\"protection\":\"guard\"}");
+        h.assertTrue(!r.error() && r.content().contains("protection guard"), "result was " + r.content());
+        h.assertValueEqual(
+                c.combatSettings().protection(),
+                dev.friendai.features.combat.ProtectionPolicy.GUARD,
+                "protection policy");
         h.succeed();
     }
 
@@ -738,7 +740,6 @@ public class ToolTests {
                 .map(spec -> spec.name())
                 .toList();
         h.assertFalse(trustedSpecs.contains("set_combat_settings"), "TRUSTED sees set_combat_settings");
-        h.assertFalse(trustedSpecs.contains("set_combat_mode"), "TRUSTED sees set_combat_mode");
         h.assertTrue(
                 tools.specs(AccessLevel.OWNER).stream()
                         .anyMatch(spec -> spec.name().equals("set_combat_settings")),
@@ -749,8 +750,6 @@ public class ToolTests {
         for (Caller caller : List.of(trusted, guest)) {
             ToolResult set = runAs(tools, "set_combat_settings", "{\"protection\":\"self_only\"}", caller);
             h.assertTrue(set.error(), caller.access() + " changed settings: " + set.content());
-            ToolResult legacy = runAs(tools, "set_combat_mode", "{\"mode\":\"guard\"}", caller);
-            h.assertTrue(legacy.error(), caller.access() + " changed the legacy mode: " + legacy.content());
         }
         h.assertValueEqual(
                 c.combatSettings(),
@@ -781,30 +780,29 @@ public class ToolTests {
     }
 
     @GameTest
-    public void setCombatModePreservesIndependentSettings(GameTestHelper h) {
+    public void setCombatSettingsPreservesUnspecifiedFields(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         ToolExecutor tools = tools(c);
         Caller owner = new Caller(null, "", AccessLevel.OWNER);
         ToolResult set = runAs(
                 tools,
                 "set_combat_settings",
-                "{\"splash_potions\":true,\"pursuit_limit\":40,\"retreat\":\"conservative\"}",
+                "{\"style\":\"ranged\",\"splash_potions\":true,\"pursuit_limit\":40,\"retreat\":\"conservative\"}",
                 owner);
         h.assertFalse(set.error(), "valid settings failed: " + set.content());
-        ToolResult legacy = runAs(tools, "set_combat_mode", "{\"mode\":\"passive\"}", owner);
-        h.assertFalse(legacy.error(), "legacy mode failed: " + legacy.content());
+        ToolResult update = runAs(tools, "set_combat_settings", "{\"protection\":\"avoid_combat\"}", owner);
+        h.assertFalse(update.error(), "partial settings update failed: " + update.content());
         h.assertValueEqual(
                 c.combatSettings().protection(),
                 dev.friendai.features.combat.ProtectionPolicy.AVOID_COMBAT,
-                "legacy protection");
-        h.assertValueEqual(
-                c.combatSettings().style(), dev.friendai.features.combat.FightingStyle.BALANCED, "legacy style");
-        h.assertTrue(c.combatSettings().allowSplashPotions(), "legacy mode reset potion allowance");
-        h.assertValueEqual(c.combatSettings().pursuitLimitBlocks(), 40, "legacy mode reset pursuit limit");
+                "protection");
+        h.assertValueEqual(c.combatSettings().style(), dev.friendai.features.combat.FightingStyle.RANGED, "style");
+        h.assertTrue(c.combatSettings().allowSplashPotions(), "partial update reset potion allowance");
+        h.assertValueEqual(c.combatSettings().pursuitLimitBlocks(), 40, "partial update reset pursuit limit");
         h.assertValueEqual(
                 c.combatSettings().retreatPreference(),
                 dev.friendai.features.combat.RetreatPreference.CONSERVATIVE,
-                "legacy mode reset retreat preference");
+                "partial update reset retreat preference");
         h.succeed();
     }
 

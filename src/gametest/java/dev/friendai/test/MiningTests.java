@@ -13,8 +13,8 @@ import dev.friendai.features.navigation.pathing.Node;
 import dev.friendai.features.navigation.pathing.PathStep;
 import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.server.execution.ExecutionCoordinator;
+import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
 import java.util.List;
 import java.util.Set;
@@ -28,7 +28,7 @@ import net.minecraft.world.level.block.VineBlock;
 
 public class MiningTests {
 
-    private static final class Outcome implements TaskListener {
+    private static final class Outcome implements TaskEventSink {
         TaskStatus status;
         String summary;
 
@@ -147,7 +147,7 @@ public class MiningTests {
         companion.inventory().addItem(Items.IRON_PICKAXE.getDefaultInstance());
         Outcome outcome = new Outcome();
         ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 300, () -> false);
-        runner.setListener(outcome);
+        runner.setEventSink(outcome);
         runner.start(
                 new MineBlocksTask(BlockMatcher.parse("minecraft:diamond_ore").orElseThrow(), 1, 8), "mine_blocks");
 
@@ -183,7 +183,7 @@ public class MiningTests {
         }
         Outcome outcome = new Outcome();
         ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 300, () -> false);
-        runner.setListener(outcome);
+        runner.setEventSink(outcome);
         runner.start(
                 new MineBlocksTask(BlockMatcher.parse("minecraft:diamond_ore").orElseThrow(), 1, 8), "mine_blocks");
 
@@ -208,7 +208,7 @@ public class MiningTests {
                 "the stone should be directly visible");
         Outcome outcome = new Outcome();
         ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 300, () -> false);
-        runner.setListener(outcome);
+        runner.setEventSink(outcome);
         runner.start(new MineBlocksTask(BlockMatcher.parse("minecraft:stone").orElseThrow(), 1, 8), "mine_blocks");
         h.succeedWhen(() -> {
             runner.tick();
@@ -238,7 +238,7 @@ public class MiningTests {
                 "the initial exposed stone should be visible");
         Outcome outcome = new Outcome();
         ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 300, () -> false);
-        runner.setListener(outcome);
+        runner.setEventSink(outcome);
         runner.start(new MineBlocksTask(BlockMatcher.parse("minecraft:stone").orElseThrow(), 20, 16), "mine_blocks");
         h.succeedWhen(() -> {
             runner.tick();
@@ -266,7 +266,7 @@ public class MiningTests {
                 "the iron ore high on the hill face should be directly visible");
         Outcome outcome = new Outcome();
         ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 300, () -> false);
-        runner.setListener(outcome);
+        runner.setEventSink(outcome);
         runner.start(new MineBlocksTask(BlockMatcher.parse("minecraft:iron_ore").orElseThrow(), 1, 16), "mine_blocks");
         h.succeedWhen(() -> {
             runner.tick();
@@ -305,7 +305,7 @@ public class MiningTests {
                                 h.getLevel().getServer().overworld().getGameTime()));
         Outcome outcome = new Outcome();
         ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 300, () -> false);
-        runner.setListener(outcome);
+        runner.setEventSink(outcome);
         runner.start(new MineBlocksTask(BlockMatcher.parse("minecraft:iron_ore").orElseThrow(), 1, 16), "mine_blocks");
         h.succeedWhen(() -> {
             runner.tick();

@@ -11,7 +11,7 @@ import dev.friendai.features.knowledge.search.SearchSession;
 import dev.friendai.features.memory.minecraft.tool.MemoryAccess;
 import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.perception.resource.CaveEntranceObservation;
-import dev.friendai.task.TaskListener;
+import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskStatus;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
@@ -34,7 +34,7 @@ public final class ResourceSearchTests {
         companion.setOwner(owner.getUUID());
         companion.inventory().setItem(0, Items.WOODEN_PICKAXE.getDefaultInstance());
         Result result = new Result();
-        companion.executionCoordinator().setListener(result);
+        companion.executionCoordinator().setEventSink(result);
         var started = GameTestToolRegistry.create(companion, () -> 16, MemoryAccess.DISABLED)
                 .bind(companion)
                 .execute(
@@ -405,7 +405,7 @@ public final class ResourceSearchTests {
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         companion.setOwner(owner.getUUID());
         Result result = new Result();
-        companion.executionCoordinator().setListener(result);
+        companion.executionCoordinator().setEventSink(result);
 
         var started = GameTestToolRegistry.create(companion, () -> 16, MemoryAccess.DISABLED)
                 .bind(companion)
@@ -443,7 +443,7 @@ public final class ResourceSearchTests {
                                 new Pos(start.getX(), start.getY(), start.getZ()),
                                 level.getServer().overworld().getGameTime()));
         Result result = new Result();
-        companion.executionCoordinator().setListener(result);
+        companion.executionCoordinator().setEventSink(result);
 
         var started = GameTestToolRegistry.create(companion, () -> 16, MemoryAccess.DISABLED)
                 .bind(companion)
@@ -465,7 +465,7 @@ public final class ResourceSearchTests {
         });
     }
 
-    private static final class Result implements TaskListener {
+    private static final class Result implements TaskEventSink {
         TaskStatus status;
         String summary;
 

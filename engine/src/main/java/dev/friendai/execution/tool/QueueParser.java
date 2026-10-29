@@ -44,8 +44,8 @@ public final class QueueParser {
 
     private QueueParser() {}
 
-    /** Compatibility entry point for callers that still require a flat action list. */
-    public static Result parse(
+    /** Parses the flat action list used to replace one queued job. Conditional plans are not accepted here. */
+    public static Result parseFlatActions(
             JsonArray input,
             Map<String, JsonObject> schemas,
             Set<String> allTools,
@@ -199,7 +199,7 @@ public final class QueueParser {
         List<Guard> guards = new ArrayList<>();
         if (obj.has("when")) {
             JsonElement when = obj.get("when");
-            if (!when.isJsonArray()) errors.add(path(path, "action when must be a legacy guard array"));
+            if (!when.isJsonArray()) errors.add(path(path, "action when must be an array of guard conditions"));
             else {
                 JsonArray rows = when.getAsJsonArray();
                 if (rows.size() > MAX_GUARDS) errors.add(path(path, "at most " + MAX_GUARDS + " guards"));

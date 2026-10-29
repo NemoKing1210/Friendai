@@ -32,7 +32,7 @@ import net.minecraft.world.level.block.Blocks;
 
 public class CookingTests {
     /** Records the notices and task outcomes a companion's runner reports. */
-    private static final class Result implements dev.friendai.task.TaskListener {
+    private static final class Result implements dev.friendai.server.execution.TaskEventSink {
         final List<String> notices = new java.util.ArrayList<>();
         dev.friendai.task.TaskStatus status;
         String summary;
@@ -157,7 +157,7 @@ public class CookingTests {
         furnace.setItem(1, new ItemStack(Items.COAL));
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 4);
         Result result = new Result();
-        c.executionCoordinator().setListener(result);
+        c.executionCoordinator().setEventSink(result);
         c.furnaceJobs()
                 .add(new FurnaceJob(pos, Station.FURNACE, "minecraft:raw_gold", "minecraft:gold_ingot", 1, false));
         String expected =
@@ -173,7 +173,7 @@ public class CookingTests {
         furnace.setItem(1, new ItemStack(Items.OAK_PLANKS));
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 4);
         Result result = new Result();
-        c.executionCoordinator().setListener(result);
+        c.executionCoordinator().setEventSink(result);
         c.furnaceJobs().add(new FurnaceJob(pos, Station.FURNACE, "minecraft:kelp", "minecraft:dried_kelp", 2, false));
         String expected = "the furnace at " + coords(pos) + " stopped: out of fuel, 1 minecraft:kelp left";
         h.succeedWhen(() -> h.assertTrue(result.notices.contains(expected), "notices: " + result.notices));
@@ -185,7 +185,7 @@ public class CookingTests {
         BlockPos pos = pos(h, 2, 2, 2);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 4);
         Result result = new Result();
-        c.executionCoordinator().setListener(result);
+        c.executionCoordinator().setEventSink(result);
         c.furnaceJobs()
                 .add(new FurnaceJob(pos, Station.FURNACE, "minecraft:raw_gold", "minecraft:gold_ingot", 1, false));
         h.setBlock(2, 2, 2, Blocks.AIR);
@@ -205,7 +205,7 @@ public class CookingTests {
 
     private static ExecutionCoordinator collect(CompanionEntity c, Result result, BlockPos target) {
         ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 300, () -> false);
-        runner.setListener(result);
+        runner.setEventSink(result);
         runner.start(new CollectSmeltedTask(target), "collect_smelted");
         return runner;
     }
@@ -402,7 +402,7 @@ public class CookingTests {
         c.inventory().addItem(new ItemStack(Items.COAL, 1));
         Result result = new Result();
         ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 300, () -> false);
-        runner.setListener(result);
+        runner.setEventSink(result);
         runner.start(new CookFoodTask(256, false, StationPolicy.AUTO, 60 * 20), "cook_food");
         h.succeedWhen(() -> {
             runner.tick();
@@ -417,7 +417,7 @@ public class CookingTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Result result = new Result();
         ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 300, () -> false);
-        runner.setListener(result);
+        runner.setEventSink(result);
         runner.start(new CookFoodTask(256, false, StationPolicy.AUTO, 60 * 20), "cook_food");
         runner.tick();
         h.assertTrue(result.status == TaskStatus.FAILED, "not failed: " + result.status + " " + result.summary);
@@ -616,7 +616,7 @@ public class CookingTests {
             int waitLimitTicks,
             CraftingTaskFactory craftingTaskFactory) {
         ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 300, () -> false);
-        runner.setListener(result);
+        runner.setEventSink(result);
         ItemMatcher input = ItemMatcher.parse(item).orElseThrow();
         ItemMatcher fuelMatcher = fuel == null ? null : ItemMatcher.parse(fuel).orElseThrow();
         runner.start(

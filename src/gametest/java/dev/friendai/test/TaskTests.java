@@ -13,9 +13,9 @@ import dev.friendai.features.mining.minecraft.task.MineBlockAtTask;
 import dev.friendai.features.navigation.minecraft.task.GoToTask;
 import dev.friendai.features.navigation.minecraft.task.StayTask;
 import dev.friendai.server.execution.ExecutionCoordinator;
+import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.plan.PlanEntry;
 import dev.friendai.task.plan.SequenceTask;
@@ -34,7 +34,7 @@ import net.minecraft.world.phys.Vec3;
 
 public class TaskTests {
     /** Records everything a runner tells its listener. */
-    private static final class Events implements TaskListener {
+    private static final class Events implements TaskEventSink {
         final List<String> log = new ArrayList<>();
         TaskStatus finalStatus;
         String finalSummary;
@@ -55,7 +55,7 @@ public class TaskTests {
     private static ExecutionCoordinator runner(
             CompanionEntity c, Events events, int timeoutSec, boolean defaultFollow) {
         ExecutionCoordinator r = new ExecutionCoordinator(c, () -> timeoutSec, () -> defaultFollow);
-        r.setListener(events);
+        r.setEventSink(events);
         return r;
     }
 

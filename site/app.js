@@ -49,7 +49,7 @@ const CATS = [
   { id: "combat", domain: "hands", name: "Combat", icon: "⚔️", color: COLORS.redstone,
     desc: "Reflex combat ticked before everything else, with a single arbiter for movement, shields, bow, potions and retreat.",
     items: [
-      "attack|Attack a chosen mob.", "attack_player|Attack a player (owner approval).", "set_combat_mode|Self only, bodyguard, guard or avoid combat.",
+      "attack|Attack a chosen mob.", "attack_player|Attack a player (owner approval).",
       "get_combat_settings|Read the current style.", "set_combat_settings|Fighting style and retreat preference.",
       "~Shield timing|Raises on a draw or arrow, lowers to swing.", "~Bow aim with lead|Bounded predictive aim.", "~Potion use|Drinks the right potion at the right time.",
       "~Weapon choice|Scores weapons by DPS and durability.", "~Group pressure|Sidesteps away from a second attacker.", "~Hostiles target it|Mobs treat it like a player." ] },

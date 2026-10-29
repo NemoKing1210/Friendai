@@ -7,7 +7,7 @@ import dev.friendai.features.fire.FireTarget;
 import dev.friendai.features.fire.minecraft.task.ExtinguishFireTask;
 import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.server.execution.ExecutionCoordinator;
-import dev.friendai.task.TaskListener;
+import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskStatus;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
@@ -21,7 +21,7 @@ import net.minecraft.world.level.material.Fluids;
 /** Fires: dousing a block, the bucket coming back, the portal frame, the companion's own fire and its campfire. */
 public class FireTests {
 
-    private static final class Result implements TaskListener {
+    private static final class Result implements TaskEventSink {
         TaskStatus status;
         String summary;
 
@@ -37,7 +37,7 @@ public class FireTests {
 
     private static ExecutionCoordinator run(CompanionEntity c, Result result, ExtinguishFireTask task) {
         ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> ExtinguishFireTask.TIMEOUT_TICKS, () -> false);
-        runner.setListener(result);
+        runner.setEventSink(result);
         runner.start(task, "extinguish_fire");
         return runner;
     }

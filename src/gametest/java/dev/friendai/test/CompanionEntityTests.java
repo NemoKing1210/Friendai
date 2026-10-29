@@ -167,32 +167,6 @@ public class CompanionEntityTests {
     private static void unused(EntityType<?> t, Entity e) {}
 
     @GameTest
-    public void combatModeSurvivesSave(GameTestHelper h) {
-        CompanionEntity a = h.spawn(FriendaiEntities.COMPANION, 1, 2, 1);
-        a.setCombatMode(dev.friendai.features.combat.CombatMode.GUARD);
-        TagValueOutput out = TagValueOutput.createWithContext(
-                ProblemReporter.DISCARDING, h.getLevel().registryAccess());
-        a.saveWithoutId(out);
-
-        CompanionEntity b = h.spawn(FriendaiEntities.COMPANION, 3, 2, 3);
-        b.load(TagValueInput.create(ProblemReporter.DISCARDING, h.getLevel().registryAccess(), out.buildResult()));
-        h.assertTrue(
-                b.combatMode() == dev.friendai.features.combat.CombatMode.GUARD, "combat mode was " + b.combatMode());
-
-        CompanionEntity fresh = h.spawn(FriendaiEntities.COMPANION, 4, 2, 4);
-        TagValueOutput plain = TagValueOutput.createWithContext(
-                ProblemReporter.DISCARDING, h.getLevel().registryAccess());
-        fresh.saveWithoutId(plain);
-        CompanionEntity loaded = h.spawn(FriendaiEntities.COMPANION, 5, 2, 5);
-        loaded.load(
-                TagValueInput.create(ProblemReporter.DISCARDING, h.getLevel().registryAccess(), plain.buildResult()));
-        h.assertTrue(
-                loaded.combatMode() == dev.friendai.features.combat.CombatMode.DEFENSIVE,
-                "missing mode should default to defensive, was " + loaded.combatMode());
-        h.succeed();
-    }
-
-    @GameTest
     public void combatSettingsRoundTrip(GameTestHelper h) {
         CompanionEntity a = h.spawn(FriendaiEntities.COMPANION, 1, 2, 1);
         dev.friendai.features.combat.CombatSettings settings = new dev.friendai.features.combat.CombatSettings(
@@ -213,27 +187,11 @@ public class CompanionEntityTests {
     }
 
     @GameTest
-    public void legacyCombatModeKeyIsIgnored(GameTestHelper h) {
-        TagValueOutput out = TagValueOutput.createWithContext(
-                ProblemReporter.DISCARDING, h.getLevel().registryAccess());
-        out.putString("CombatMode", "guard");
-        CompanionEntity loaded = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
-        loaded.load(
-                TagValueInput.create(ProblemReporter.DISCARDING, h.getLevel().registryAccess(), out.buildResult()));
-        h.assertValueEqual(
-                loaded.combatSettings(),
-                dev.friendai.features.combat.CombatSettings.defaults(),
-                "the target format ignores the retired legacy key");
-        h.succeed();
-    }
-
-    @GameTest
     public void malformedCombatSettingsUseSafeDefaults(GameTestHelper h) {
         TagValueOutput out = TagValueOutput.createWithContext(
                 ProblemReporter.DISCARDING, h.getLevel().registryAccess());
         out.putString(
                 "CombatSettings", "protection=guard;style=balanced;splashPotions=false;pursuit=99;retreat=standard");
-        out.putString("CombatMode", "guard");
         CompanionEntity loaded = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         loaded.load(
                 TagValueInput.create(ProblemReporter.DISCARDING, h.getLevel().registryAccess(), out.buildResult()));

@@ -12,9 +12,9 @@ import dev.friendai.execution.tool.ToolExecutor;
 import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.features.inventory.minecraft.task.DropItemsTask;
 import dev.friendai.server.execution.ExecutionCoordinator;
+import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskState;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.inventory.ItemMatcher;
@@ -34,7 +34,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 
 public class PlanTests {
-    private static final class Result implements TaskListener {
+    private static final class Result implements TaskEventSink {
         TaskStatus status;
         String summary;
         int cancelled;
@@ -59,7 +59,7 @@ public class PlanTests {
 
     private static ExecutionCoordinator runner(CompanionEntity c, Result result) {
         ExecutionCoordinator r = new ExecutionCoordinator(c, () -> 300, () -> false);
-        r.setListener(result);
+        r.setEventSink(result);
         return r;
     }
 
@@ -288,7 +288,7 @@ public class PlanTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.inventory().addItem(new ItemStack(Items.MUD_BRICKS, 2));
         Result result = new Result();
-        c.executionCoordinator().setListener(result);
+        c.executionCoordinator().setEventSink(result);
         ToolExecutor tools = ownerTools(c);
         String json =
                 "{\"goal\":\"drop and look\",\"steps\":[{\"tool\":\"drop_items\",\"args\":\"{\\\"item\\\":\\\"minecraft:mud_bricks\\\",\\\"count\\\":2}\"},"
@@ -312,7 +312,7 @@ public class PlanTests {
         c.setOwner(owner);
         c.inventory().addItem(new ItemStack(Items.MUD_BRICKS, 2));
         Result result = new Result();
-        c.executionCoordinator().setListener(result);
+        c.executionCoordinator().setEventSink(result);
         ToolExecutor tools = GameTestToolRegistry.create(c, () -> 32).bind(c);
         String json = "{\"goal\":\"drop twice\",\"steps\":["
                 + "{\"tool\":\"drop_items\",\"args\":\"{\\\"item\\\":\\\"minecraft:mud_bricks\\\",\\\"count\\\":1}\"},"
@@ -400,7 +400,7 @@ public class PlanTests {
         c.inventory().addItem(new ItemStack(Items.RAW_IRON));
         c.inventory().addItem(new ItemStack(Items.COAL));
         Result result = new Result();
-        c.executionCoordinator().setListener(result);
+        c.executionCoordinator().setEventSink(result);
         ToolExecutor tools = ownerTools(c);
         String json = "{\"goal\":\"smelt and craft\",\"steps\":["
                 + "{\"tool\":\"smelt_items\",\"args\":\"{\\\"item\\\":\\\"minecraft:raw_iron\\\","
@@ -427,7 +427,7 @@ public class PlanTests {
         chest.setItem(0, new ItemStack(Items.CRAFTING_TABLE, 1));
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Result result = new Result();
-        c.executionCoordinator().setListener(result);
+        c.executionCoordinator().setEventSink(result);
         ToolExecutor tools = ownerTools(c);
         BlockPos chestPos = h.absolutePos(new BlockPos(8, 2, 2));
 
@@ -482,7 +482,7 @@ public class PlanTests {
         chest.setItem(0, new ItemStack(Items.OAK_LOG, 2));
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Result result = new Result();
-        c.executionCoordinator().setListener(result);
+        c.executionCoordinator().setEventSink(result);
         ToolExecutor tools = ownerTools(c);
         BlockPos chestPos = h.absolutePos(new BlockPos(11, 2, 11));
 
@@ -528,7 +528,7 @@ public class PlanTests {
         c.inventory().addItem(new ItemStack(Items.SHEARS));
         Container chest = (Container) h.getLevel().getBlockEntity(h.absolutePos(new BlockPos(10, 2, 10)));
         Result result = new Result();
-        c.executionCoordinator().setListener(result);
+        c.executionCoordinator().setEventSink(result);
         ToolExecutor tools = ownerTools(c);
         BlockPos chestPos = h.absolutePos(new BlockPos(10, 2, 10));
 

@@ -14,10 +14,10 @@ import dev.friendai.features.farming.minecraft.task.BonemealTask;
 import dev.friendai.features.farming.minecraft.task.FarmTask;
 import dev.friendai.features.farming.minecraft.task.TendFarmTask;
 import dev.friendai.server.execution.ExecutionCoordinator;
+import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.server.execution.persistence.TaskRestoreRegistry;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskState;
 import dev.friendai.task.TaskStatus;
 import java.util.ArrayList;
@@ -37,7 +37,7 @@ import net.minecraft.world.level.block.CropBlock;
 import net.minecraft.world.level.block.state.BlockState;
 
 public class FarmingTests {
-    private static final class Result implements TaskListener {
+    private static final class Result implements TaskEventSink {
         TaskStatus status;
         String summary;
         int cancelled;
@@ -62,7 +62,7 @@ public class FarmingTests {
 
     private static ExecutionCoordinator runner(CompanionEntity c, Result result) {
         ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 300, () -> false);
-        runner.setListener(result);
+        runner.setEventSink(result);
         return runner;
     }
 
@@ -453,7 +453,7 @@ public class FarmingTests {
                 GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(10, 2, 10))),
                 "full harvest chest should be directly visible");
         Result result = new Result();
-        c.executionCoordinator().setListener(result);
+        c.executionCoordinator().setEventSink(result);
         c.executionCoordinator().start(new TendFarmTask(h.absolutePos(new BlockPos(5, 2, 5)), 8, 100), "tend_farm");
         int[] ticks = {0};
         h.succeedWhen(() -> {

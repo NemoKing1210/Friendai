@@ -12,8 +12,8 @@ import dev.friendai.features.mining.minecraft.task.MineBlocksTask;
 import dev.friendai.features.navigation.movement.PaceMode;
 import dev.friendai.features.survival.minecraft.Food;
 import dev.friendai.features.survival.minecraft.task.EatTask;
+import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -48,7 +48,7 @@ import net.minecraft.world.level.block.Blocks;
 
 /** Survival and combat behaviour. Every test spawns its own mobs in its own area. */
 public class CombatTests {
-    private static final class Notices implements TaskListener {
+    private static final class Notices implements TaskEventSink {
         final List<String> texts = Collections.synchronizedList(new ArrayList<>());
         final List<ItemStack> heldAtStart = Collections.synchronizedList(new ArrayList<>());
 
@@ -84,7 +84,7 @@ public class CombatTests {
 
     private static Notices listen(CompanionEntity c) {
         Notices notices = new Notices();
-        c.executionCoordinator().setListener(new TaskListener() {
+        c.executionCoordinator().setEventSink(new TaskEventSink() {
             @Override
             public void onFinished(int id, String toolName, TaskStatus status, String summary) {
                 notices.finalStatus = status;
@@ -210,7 +210,7 @@ public class CombatTests {
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 3, 2, 2);
         c.setOwner(owner.getUUID());
-        c.setCombatMode(dev.friendai.features.combat.CombatMode.GUARD);
+        c.setCombatSettings(c.combatSettings().withProtection(dev.friendai.features.combat.ProtectionPolicy.GUARD));
         c.inventory().addItem(new ItemStack(Items.STONE_SWORD));
         ZombieVillager zombieVillager = h.spawnWithNoFreeWill(EntityTypes.ZOMBIE_VILLAGER, 8, 2, 2);
         roof(h, 8, 2);
@@ -240,7 +240,7 @@ public class CombatTests {
                             + ", companion health " + c.getHealth()
                             + ", drowned target " + unprovoked.getTarget()
                             + ", notices " + notices.texts
-                            + ", mode " + c.combatMode());
+                            + ", protection " + c.combatSettings().protection());
             h.assertTrue(
                     c.combatController().state() == CombatController.State.IDLE,
                     "state was " + c.combatController().state());
@@ -255,7 +255,7 @@ public class CombatTests {
         ServerPlayer other = GameTestSupport.mockPlayerAt(h, 14, 2, 14);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 3, 2, 2);
         c.setOwner(owner.getUUID());
-        c.setCombatMode(dev.friendai.features.combat.CombatMode.GUARD);
+        c.setCombatSettings(c.combatSettings().withProtection(dev.friendai.features.combat.ProtectionPolicy.GUARD));
         Wolf wolf = h.spawn(EntityTypes.WOLF, 6, 2, 2);
         wolf.tame(other);
         Villager villager = h.spawn(EntityTypes.VILLAGER, 7, 2, 3);
@@ -338,7 +338,8 @@ public class CombatTests {
     public void passiveRunsAway(GameTestHelper h) {
         GameTestSupport.platform(h, 15);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 7, 2, 7);
-        c.setCombatMode(dev.friendai.features.combat.CombatMode.PASSIVE);
+        c.setCombatSettings(
+                c.combatSettings().withProtection(dev.friendai.features.combat.ProtectionPolicy.AVOID_COMBAT));
         Zombie zombie = h.spawnWithNoFreeWill(EntityTypes.ZOMBIE, 10, 2, 7);
         zombie.setCustomName(Component.literal("test-passive-zombie"));
         roof(h, 10, 7);

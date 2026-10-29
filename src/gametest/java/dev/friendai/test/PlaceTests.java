@@ -19,7 +19,7 @@ import dev.friendai.features.places.PlaceKind;
 import dev.friendai.features.places.PlaceSource;
 import dev.friendai.features.places.PlaceValues;
 import dev.friendai.features.places.minecraft.PlaceService;
-import dev.friendai.task.TaskListener;
+import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskStatus;
 import java.util.ArrayList;
 import java.util.List;
@@ -40,7 +40,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.CropBlock;
 
 public class PlaceTests {
-    private static final class Result implements TaskListener {
+    private static final class Result implements TaskEventSink {
         TaskStatus status;
         String summary;
         /** Set to mirror the brain's hook: what a successful task noticed lands in the owner's book. */
@@ -420,7 +420,7 @@ public class PlaceTests {
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 12, 2, 2);
         companion.setOwner(owner.getUUID());
         Result result = new Result();
-        companion.executionCoordinator().setListener(result);
+        companion.executionCoordinator().setEventSink(result);
         ToolExecutor tools = tools(companion);
         Caller caller = new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.TRUSTED);
 
@@ -484,7 +484,7 @@ public class PlaceTests {
         companion.inventory().addItem(new ItemStack(Items.WHEAT_SEEDS, 8));
         Result result = new Result();
         result.companion = companion;
-        companion.executionCoordinator().setListener(result);
+        companion.executionCoordinator().setEventSink(result);
         BlockPos plot = h.absolutePos(new BlockPos(5, 2, 5));
         companion.executionCoordinator().start(new FarmTask(plot, 4, Items.WHEAT_SEEDS, false), "farm");
 

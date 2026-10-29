@@ -100,8 +100,7 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
                 FabricLoader.getInstance().getConfigDir().resolve("friendai-server.json"),
                 ServerConfig.class,
                 ServerConfig::defaults,
-                ServerConfig.VERSION,
-                ServerConfig::migrate);
+                ServerConfig.VERSION);
         this.config = store.load();
         this.configuration = new ServerConfiguration(
                 entry -> FriendaiMod.LOGGER.warn("Unknown pathing break blacklist entry: {}", entry));

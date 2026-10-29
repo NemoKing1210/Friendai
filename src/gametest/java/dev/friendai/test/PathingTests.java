@@ -26,8 +26,8 @@ import dev.friendai.features.navigation.pathing.PathingConfig;
 import dev.friendai.foundation.diagnostics.LogEntry;
 import dev.friendai.foundation.diagnostics.LogKind;
 import dev.friendai.server.agent.CompanionSessions;
+import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
 import java.util.ArrayList;
 import java.util.List;
@@ -46,7 +46,7 @@ import net.minecraft.world.phys.Vec3;
 public class PathingTests {
 
     /** What a finished task reported, so a test can wait for the outcome instead of a position. */
-    private static final class Outcome implements TaskListener {
+    private static final class Outcome implements TaskEventSink {
         TaskStatus status;
         String summary = "";
         /** The last few pathing decisions, so a timed-out test says why it could not walk. */
@@ -96,7 +96,7 @@ public class PathingTests {
     }
 
     private static void walkTo(CompanionEntity c, GameTestHelper h, Outcome out, double x, double y, double z) {
-        c.executionCoordinator().setListener(out);
+        c.executionCoordinator().setEventSink(out);
         c.executionCoordinator().start(new GoToTask(h.absoluteVec(new Vec3(x, y, z))), "go_to");
     }
 
@@ -339,7 +339,7 @@ public class PathingTests {
         MineBlocksTask task = new MineBlocksTask(
                 BlockMatcher.parse("minecraft:polished_andesite").orElseThrow(), 1, 32);
         Outcome out = new Outcome();
-        c.executionCoordinator().setListener(out);
+        c.executionCoordinator().setEventSink(out);
         c.executionCoordinator().start(task, "mine_blocks");
         h.succeedWhen(() -> {
             h.assertTrue(out.status == TaskStatus.SUCCESS, "mine_blocks did not finish: " + out.why());
@@ -368,7 +368,7 @@ public class PathingTests {
         MineBlocksTask task =
                 new MineBlocksTask(BlockMatcher.parse("minecraft:cherry_log").orElseThrow(), 8, 32);
         Outcome out = new Outcome();
-        c.executionCoordinator().setListener(out);
+        c.executionCoordinator().setEventSink(out);
         c.executionCoordinator().start(task, "mine_blocks");
         h.succeedWhen(() -> {
             h.assertTrue(out.status == TaskStatus.SUCCESS, "mine_blocks did not finish: " + out.why());

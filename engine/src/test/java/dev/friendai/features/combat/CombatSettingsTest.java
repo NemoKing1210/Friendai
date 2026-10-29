@@ -10,21 +10,6 @@ import org.junit.jupiter.api.Test;
 class CombatSettingsTest {
 
     @Test
-    void legacyModesMapToDocumentedSettings() {
-        CombatSettings defensive = CombatMode.DEFENSIVE.toSettings();
-        assertEquals(ProtectionPolicy.BODYGUARD, defensive.protection());
-        assertEquals(FightingStyle.BALANCED, defensive.style());
-        assertFalse(defensive.allowSplashPotions());
-        assertEquals(24, defensive.pursuitLimitBlocks());
-        assertEquals(RetreatPreference.STANDARD, defensive.retreatPreference());
-
-        assertEquals(ProtectionPolicy.GUARD, CombatMode.GUARD.toSettings().protection());
-        assertEquals(
-                ProtectionPolicy.AVOID_COMBAT, CombatMode.PASSIVE.toSettings().protection());
-        assertEquals(FightingStyle.BALANCED, CombatMode.GUARD.toSettings().style());
-    }
-
-    @Test
     void defaultsDisablePotionsAndUseTwentyFourBlockPursuit() {
         CombatSettings defaults = CombatSettings.defaults();
         assertEquals(ProtectionPolicy.BODYGUARD, defaults.protection());

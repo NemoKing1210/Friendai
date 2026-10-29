@@ -110,7 +110,7 @@ public final class MovementDebugProtocolAdapter {
             case 10 -> Move.DIG_DESCEND;
             case 11 -> Move.PILLAR;
             case 12 -> Move.BRIDGE;
-            default -> throw new IllegalArgumentException("unknown legacy movement action");
+            default -> throw new IllegalArgumentException("unknown movement action");
         };
     }
 

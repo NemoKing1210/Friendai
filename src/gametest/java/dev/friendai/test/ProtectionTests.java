@@ -17,8 +17,8 @@ import dev.friendai.features.places.PlaceKind;
 import dev.friendai.features.places.PlaceSource;
 import dev.friendai.features.places.PlaceValues;
 import dev.friendai.server.execution.ExecutionCoordinator;
+import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.Task;
-import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
 import java.util.List;
 import java.util.Set;
@@ -34,7 +34,7 @@ import net.minecraft.world.level.block.Blocks;
  * does not cost it the stone it was asked for.
  */
 public class ProtectionTests {
-    private static final class Result implements TaskListener {
+    private static final class Result implements TaskEventSink {
         TaskStatus status;
         String summary;
 
@@ -60,7 +60,7 @@ public class ProtectionTests {
 
     private static Run owner(ExecutionCoordinator runner) {
         Result result = new Result();
-        runner.setListener(result);
+        runner.setEventSink(result);
         return new Run(runner, result);
     }
 
@@ -68,7 +68,7 @@ public class ProtectionTests {
     private static Run autonomous(CompanionEntity companion, Task task) {
         Result result = new Result();
         ExecutionCoordinator runner = companion.executionCoordinator();
-        runner.setListener(result);
+        runner.setEventSink(result);
         QueuedStep step = new QueuedStep(
                 task.type(), new JsonObject(), null, List.of(), GuardAction.WAIT, FailurePolicy.ASK, 1, List.of());
         long plan = runner.enqueuePlan(

@@ -113,7 +113,6 @@ public final class SnapshotBuilder {
                 c.hunger().food(),
                 used,
                 c.inventory().getContainerSize(),
-                c.combatMode().name().toLowerCase(java.util.Locale.ROOT),
                 c.combatSettings().protection().label(),
                 c.combatSettings().style().label(),
                 c.combatController().activeAction(),

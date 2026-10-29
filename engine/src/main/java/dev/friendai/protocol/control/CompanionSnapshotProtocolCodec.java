@@ -137,7 +137,6 @@ public final class CompanionSnapshotProtocolCodec {
         text(snapshot.perception(), MAX_STRING_BYTES);
         for (String name : snapshot.toolNames()) text(name, 512);
         CompanionSnapshotView.Vitals vitals = snapshot.vitals();
-        text(vitals.combatMode(), 128);
         text(vitals.protection(), 128);
         text(vitals.style(), 128);
         text(vitals.action(), 128);

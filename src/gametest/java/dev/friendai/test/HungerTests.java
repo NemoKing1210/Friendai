@@ -11,8 +11,8 @@ import dev.friendai.features.survival.HungerModel;
 import dev.friendai.features.survival.minecraft.HungerWatcher;
 import dev.friendai.features.survival.minecraft.task.GetFoodTask;
 import dev.friendai.server.agent.perception.PerceptionBuilder;
+import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.interact.ContainerAccess;
 import java.util.ArrayList;
@@ -45,7 +45,7 @@ public class HungerTests {
         c.hunger().load(3, 0.0f, 0.0f);
         c.hungerWatcher().setAutoDelayTicks(0);
         boolean[] foodInterrupted = {false};
-        c.executionCoordinator().setListener(new TaskListener() {
+        c.executionCoordinator().setEventSink(new TaskEventSink() {
             @Override
             public void onFinished(int id, String tool, TaskStatus status, String summary) {
                 if (tool.equals(HungerWatcher.GET_FOOD_TOOL)) foodInterrupted[0] = true;
@@ -348,7 +348,7 @@ public class HungerTests {
     // Getting food: on request (GetFoodTask) and by the hunger watcher when starving.
 
     /** Records the notices and the outcomes of the get_food runs for the food tests. */
-    private static final class FoodListener implements TaskListener {
+    private static final class FoodListener implements TaskEventSink {
         private final CompanionEntity companion;
         final List<String> notices = java.util.Collections.synchronizedList(new ArrayList<>());
         final List<String> events = java.util.Collections.synchronizedList(new ArrayList<>());
@@ -419,7 +419,7 @@ public class HungerTests {
         c.inventory().addItem(new ItemStack(Items.BEEF, 1));
         c.inventory().addItem(new ItemStack(Items.COAL, 1));
         FoodListener n = new FoodListener(c);
-        c.executionCoordinator().setListener(n);
+        c.executionCoordinator().setEventSink(n);
         c.executionCoordinator().start(new GetFoodTask(1), "get_food");
         h.succeedWhen(() -> {
             h.assertTrue(
@@ -441,7 +441,7 @@ public class HungerTests {
                 GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(8, 152, 8))),
                 "bread chest should be directly visible");
         FoodListener n = new FoodListener(c);
-        c.executionCoordinator().setListener(n);
+        c.executionCoordinator().setEventSink(n);
         c.executionCoordinator().start(new GetFoodTask(2), "get_food");
         h.succeedWhen(() -> {
             h.assertTrue(
@@ -461,7 +461,7 @@ public class HungerTests {
                 "crafting table should be directly visible");
         c.inventory().addItem(new ItemStack(Items.WHEAT, 3));
         FoodListener n = new FoodListener(c);
-        c.executionCoordinator().setListener(n);
+        c.executionCoordinator().setEventSink(n);
         c.executionCoordinator().start(new GetFoodTask(1), "get_food");
         h.succeedWhen(() -> {
             h.assertTrue(
@@ -484,7 +484,7 @@ public class HungerTests {
         h.spawn(EntityTypes.COW, 6, 81, 6);
         c.inventory().addItem(new ItemStack(Items.COAL, 1));
         FoodListener n = new FoodListener(c);
-        c.executionCoordinator().setListener(n);
+        c.executionCoordinator().setEventSink(n);
         c.executionCoordinator().start(new GetFoodTask(1), "get_food");
         h.succeedWhen(() -> {
             h.assertTrue(
@@ -498,7 +498,7 @@ public class HungerTests {
         GameTestSupport.platformAt(h, 26, 16);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 27, 2);
         FoodListener n = new FoodListener(c);
-        c.executionCoordinator().setListener(n);
+        c.executionCoordinator().setEventSink(n);
         c.executionCoordinator().start(new GetFoodTask(1), "get_food");
         h.succeedWhen(() -> {
             h.assertTrue(n.status == TaskStatus.FAILED, "not failed: " + n.status + " " + n.summary);
@@ -517,7 +517,7 @@ public class HungerTests {
         c.setOwner(owner.getUUID());
         c.hunger().load(6, 0.0f, 0.0f);
         FoodListener n = new FoodListener(c);
-        c.executionCoordinator().setListener(n);
+        c.executionCoordinator().setEventSink(n);
         c.hungerWatcher().setAutoDelayTicks(40);
         h.runAfterDelay(100, () -> {
             long near = n.notices.stream()
@@ -543,7 +543,7 @@ public class HungerTests {
                 "bread chest should be directly visible");
         c.hunger().load(3, 0.0f, 0.0f);
         FoodListener n = new FoodListener(c);
-        c.executionCoordinator().setListener(n);
+        c.executionCoordinator().setEventSink(n);
         c.hungerWatcher().setAutoDelayTicks(40);
         h.succeedWhen(() -> {
             h.assertTrue(n.notices.contains("starving: going to get food myself"), "notices " + n.notices);
@@ -563,7 +563,7 @@ public class HungerTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 45, 2);
         c.hunger().load(3, 0.0f, 0.0f);
         FoodListener n = new FoodListener(c);
-        c.executionCoordinator().setListener(n);
+        c.executionCoordinator().setEventSink(n);
         c.hungerWatcher().setAutoDelayTicks(40);
         c.hungerWatcher().setCoolDownTicks(400);
         int[] failedAt = {-1};
@@ -594,7 +594,7 @@ public class HungerTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 231, 2);
         c.hunger().load(3, 0.0f, 0.0f);
         FoodListener n = new FoodListener(c);
-        c.executionCoordinator().setListener(n);
+        c.executionCoordinator().setEventSink(n);
         c.hungerWatcher().setAutoDelayTicks(40);
         int[] fedAt = {-1};
         h.succeedWhen(() -> {

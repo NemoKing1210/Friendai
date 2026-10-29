@@ -1,13 +1,11 @@
 package dev.friendai.infrastructure.config;
 
-import com.google.gson.JsonObject;
 import dev.friendai.agent.autonomy.AutonomySettings;
 import dev.friendai.agent.llm.provider.LlmProfile;
 import dev.friendai.agent.llm.provider.RoutingRule;
 import dev.friendai.features.memory.MemoryLimits;
 import dev.friendai.features.navigation.pathing.PathingConfig;
 import dev.friendai.foundation.diagnostics.ConfigException;
-import dev.friendai.foundation.persistence.UnsupportedStoreVersionException;
 import dev.friendai.foundation.text.UserMessage;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -245,11 +243,6 @@ public class ServerConfig {
         ServerConfig c = new ServerConfig();
         c.profiles.put("main", new ProfileConfig());
         return c;
-    }
-
-    /** Old server config schemas are no longer upgraded; ConfigStore preserves them as .bak and loads defaults. */
-    public static JsonObject migrate(JsonObject json, int from) {
-        throw new UnsupportedStoreVersionException();
     }
 
     /** Fills missing sections and clamps ranges. Returns English descriptions of what was fixed, for the log. */

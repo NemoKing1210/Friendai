@@ -107,7 +107,7 @@ public final class CreativeMaterialTests {
         BuildTask task = new BuildTask(blueprint, origin, Rotation.NONE, true, false);
         final TaskStatus[] status = {null};
         final String[] summary = {""};
-        companion.executionCoordinator().setListener(new dev.friendai.task.TaskListener() {
+        companion.executionCoordinator().setEventSink(new dev.friendai.server.execution.TaskEventSink() {
             @Override
             public void onFinished(int id, String toolName, TaskStatus taskStatus, String result) {
                 status[0] = taskStatus;
@@ -167,7 +167,7 @@ public final class CreativeMaterialTests {
         BuildTask task = new BuildTask(blueprint, target, Rotation.NONE, true, false);
         final TaskStatus[] status = {null};
         final String[] summary = {""};
-        companion.executionCoordinator().setListener(new dev.friendai.task.TaskListener() {
+        companion.executionCoordinator().setEventSink(new dev.friendai.server.execution.TaskEventSink() {
             @Override
             public void onFinished(int id, String toolName, TaskStatus taskStatus, String result) {
                 status[0] = taskStatus;
@@ -219,7 +219,7 @@ public final class CreativeMaterialTests {
         BuildTask task = new BuildTask(blueprint, origin, Rotation.NONE, true, false);
         final TaskStatus[] status = {null};
         final String[] summary = {""};
-        companion.executionCoordinator().setListener(new dev.friendai.task.TaskListener() {
+        companion.executionCoordinator().setEventSink(new dev.friendai.server.execution.TaskEventSink() {
             @Override
             public void onFinished(int id, String toolName, TaskStatus taskStatus, String result) {
                 status[0] = taskStatus;

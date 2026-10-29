@@ -52,10 +52,10 @@ import dev.friendai.server.agent.tools.FriendaiTools;
 import dev.friendai.server.agent.tools.GoalToolAccess;
 import dev.friendai.server.agent.tools.ToolDependencies;
 import dev.friendai.server.configuration.ServerSettings;
+import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.server.execution.persistence.TaskRestoreRegistry;
 import dev.friendai.server.execution.tools.QueueToolAccess;
 import dev.friendai.server.execution.tools.TaskToolDefinition;
-import dev.friendai.task.TaskListener;
 import dev.friendai.task.TaskStatus;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -882,7 +882,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
             return board.view(plan, facts);
         });
         AgentEvents agent = new AgentEvents(owner, companion);
-        companion.executionCoordinator().setListener(new TaskListener() {
+        companion.executionCoordinator().setEventSink(new TaskEventSink() {
             @Override
             public void onFinished(int id, String toolName, TaskStatus status, String summary) {
                 if (!isCurrent(session, companion)) return;

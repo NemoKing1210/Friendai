@@ -69,10 +69,10 @@ message rules in `ProtocolSupport`. Test routing and serialization with the prov
 
 ### Add a config option
 
-Add the default and validation to `engine/.../infrastructure/config/ServerConfig` or `ClientConfig`. Bump a persisted
-schema version and add a `ConfigStore` migration when older supported files must be upgraded; preserve behavior for
-unsupported versions. Add editable UI in `src/client/.../config/` when appropriate, keeping YACL and Mod Menu optional.
-Add matching language keys and focused validation/migration tests.
+Add the default and validation to `engine/.../infrastructure/config/ServerConfig` or `ClientConfig`. Bump the persisted
+schema version when its shape changes; older and future versions are unsupported and remain untouched. This project
+does not migrate config files. Add editable UI in `src/client/.../config/` when appropriate, keeping YACL and Mod Menu
+optional. Add matching language keys and focused validation and unsupported-version tests.
 
 ### Add a network payload
 
@@ -84,9 +84,10 @@ and handle world/client state on the correct thread. Authorization and sensitive
 ### Change persistence
 
 Use the existing per-owner repositories and `OwnerFileStore`/`StoreCodec` boundaries. Keep owner records separate,
-bounded and versioned; add a migration only for formats the product explicitly supports. Corrupt, oversized and
-unsupported data must not be overwritten accidentally. Preserve atomic replacement and backup recovery, add codec and
-repository round-trip/failure tests, and update the persistence inventory in `ARCHITECTURE.md`.
+bounded and versioned. Older and future formats are unsupported and remain untouched; this project does not migrate
+saved records or retain old-format readers. Corrupt and oversized data must not be overwritten accidentally. Preserve
+atomic replacement and backup recovery, add codec and repository round-trip/failure tests, and update the persistence
+inventory in `ARCHITECTURE.md`.
 
 ### Add player-facing text
 
