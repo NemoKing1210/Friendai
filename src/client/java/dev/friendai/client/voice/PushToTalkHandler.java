@@ -9,6 +9,7 @@ import dev.friendai.features.speech.PcmConverter;
 import dev.friendai.features.speech.VoiceErrors;
 import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.infrastructure.config.ClientConfig;
+import dev.friendai.presentation.companion.ClientSessionId;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -22,6 +23,7 @@ public final class PushToTalkHandler {
 
     private final MicCapture mic = VoiceRuntime.mic();
     private final Supplier<SpeechToText> stt;
+    private final Supplier<ClientSessionId> session;
     private final Consumer<String> onTranscript;
     private KeyMapping key;
     private boolean held;
@@ -29,8 +31,13 @@ public final class PushToTalkHandler {
     /** The capture generation this handler last started; a completion from an older one is dropped. */
     private int recording;
 
-    public PushToTalkHandler(Supplier<SpeechToText> stt, Consumer<String> onTranscript) {
+    private ClientSessionId recordingSession;
+    private SpeechToText recordingRecognizer;
+
+    public PushToTalkHandler(
+            Supplier<SpeechToText> stt, Supplier<ClientSessionId> session, Consumer<String> onTranscript) {
         this.stt = stt;
+        this.session = session;
         this.onTranscript = onTranscript;
     }
 
@@ -56,7 +63,8 @@ public final class PushToTalkHandler {
         SpeechRuntime.stop();
         ClientConfig.SttSection voice = FriendaiClient.clientConfig().voice.stt;
         pressIgnored = true;
-        if (mc.gui.screen() != null || mc.player == null || !voice.enabled) {
+        ClientSessionId sessionId = session.get();
+        if (sessionId == null || mc.gui.screen() != null || mc.player == null || !voice.enabled) {
             return;
         }
         VoiceRuntime.SttStatus status = VoiceRuntime.sttStatus();
@@ -64,10 +72,24 @@ public final class PushToTalkHandler {
             VoiceState.set(VoiceState.Kind.ERROR, status.problem());
             return;
         }
+        SpeechToText recognizer;
+        try {
+            recognizer = stt.get();
+        } catch (RuntimeException e) {
+            FriendaiMod.LOGGER.warn("Could not initialize speech recognition", e);
+            VoiceState.set(VoiceState.Kind.ERROR, UserMessage.of("friendai.voice.error.no_model"));
+            return;
+        }
+        if (!recognizer.isReady()) {
+            VoiceState.set(VoiceState.Kind.ERROR, UserMessage.of("friendai.voice.error.no_model"));
+            return;
+        }
         try {
             mic.start(voice.inputDevice, voice.maxRecordSec);
             // Only a real recording supersedes an in-flight transcript; an ignored press keeps it.
             recording = VoiceRuntime.nextCaptureGeneration();
+            recordingSession = sessionId;
+            recordingRecognizer = recognizer;
             pressIgnored = false;
             VoiceState.set(VoiceState.Kind.RECORDING, null);
         } catch (Exception e) {
@@ -77,7 +99,15 @@ public final class PushToTalkHandler {
     }
 
     private void onReleased(Minecraft mc) {
-        if (pressIgnored || !mic.hasPendingRecording()) {
+        ClientSessionId sessionId = recordingSession;
+        SpeechToText recognizer = recordingRecognizer;
+        recordingSession = null;
+        recordingRecognizer = null;
+        if (pressIgnored
+                || sessionId == null
+                || !VoiceRuntime.isCurrentSession(sessionId)
+                || !mic.hasPendingRecording()) {
+            mic.stop();
             return;
         }
         byte[] pcm = mic.stop();
@@ -88,10 +118,10 @@ public final class PushToTalkHandler {
         VoiceState.set(VoiceState.Kind.TRANSCRIBING, null);
         final int generation = recording;
         String language = FriendaiClient.clientConfig().voice.stt.language;
-        stt.get()
+        recognizer
                 .transcribe(PcmConverter.toFloat(pcm), language)
                 .whenComplete((text, error) -> mc.execute(() -> {
-                    if (generation != VoiceRuntime.captureGeneration()) {
+                    if (!VoiceRuntime.isCurrentSession(sessionId) || generation != VoiceRuntime.captureGeneration()) {
                         // A newer press owns the HUD state; if only a config change bumped the generation,
                         // nobody else will clear the "transcribing" indicator.
                         if (recording == generation) {
@@ -109,5 +139,17 @@ public final class PushToTalkHandler {
                         }
                     }
                 }));
+    }
+
+    /** Resets key and recording state when the owning connection closes. */
+    public void onDisconnect(ClientSessionId sessionId) {
+        if (sessionId.equals(recordingSession) || recordingSession == null) {
+            held = false;
+            pressIgnored = true;
+            recordingSession = null;
+            recordingRecognizer = null;
+            mic.stop();
+            VoiceState.set(VoiceState.Kind.IDLE, null);
+        }
     }
 }

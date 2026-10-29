@@ -12,7 +12,7 @@ import javax.sound.sampled.Mixer;
 import javax.sound.sampled.TargetDataLine;
 
 /** Records 16 kHz, 16-bit, mono, little-endian PCM from a microphone. */
-public final class MicCapture {
+public final class MicCapture implements AutoCloseable {
     private static final AudioFormat FORMAT = new AudioFormat(16000f, 16, 1, true, false);
     private static final int BYTES_PER_SECOND = 32000;
 
@@ -65,17 +65,22 @@ public final class MicCapture {
         reader = new Thread(
                 () -> {
                     byte[] chunk = new byte[1024];
-                    while (recording && sink.size() < limit) {
-                        int n = source.read(chunk, 0, chunk.length);
-                        if (n <= 0) {
-                            break;
+                    try {
+                        while (recording && sink.size() < limit) {
+                            int n = source.read(chunk, 0, chunk.length);
+                            if (n <= 0) {
+                                break;
+                            }
+                            level = AudioLevel.of(chunk, n);
+                            synchronized (sink) {
+                                sink.write(chunk, 0, n);
+                            }
                         }
-                        level = AudioLevel.of(chunk, n);
-                        synchronized (sink) {
-                            sink.write(chunk, 0, n);
-                        }
+                    } catch (RuntimeException ignored) {
+                        // Closing a line during disconnect can interrupt a blocking read.
+                    } finally {
+                        recording = false;
                     }
-                    recording = false;
                 },
                 "friendai-mic");
         reader.setDaemon(true);
@@ -85,25 +90,41 @@ public final class MicCapture {
     /** Stops recording and returns what was captured (empty if nothing was recording). */
     public synchronized byte[] stop() {
         recording = false;
-        if (line == null) {
-            return new byte[0];
-        }
-        line.stop();
-        line.close();
-        try {
-            reader.join(500);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-        byte[] out;
-        synchronized (buffer) {
-            out = buffer.toByteArray();
-        }
+        TargetDataLine closingLine = line;
+        Thread closingReader = reader;
+        ByteArrayOutputStream closingBuffer = buffer;
         line = null;
         reader = null;
         buffer = null;
         level = 0f;
+        if (closingLine == null) {
+            return new byte[0];
+        }
+        try {
+            closingLine.stop();
+        } catch (RuntimeException ignored) {
+            // The audio provider may have stopped the line while disconnecting.
+        }
+        try {
+            closingLine.close();
+        } catch (RuntimeException ignored) {
+            // Continue joining the reader even when the device reports an already-closed line.
+        }
+        try {
+            if (closingReader != null) closingReader.join(500);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        byte[] out;
+        synchronized (closingBuffer) {
+            out = closingBuffer.toByteArray();
+        }
         return out;
+    }
+
+    @Override
+    public void close() {
+        stop();
     }
 
     public boolean isRecording() {

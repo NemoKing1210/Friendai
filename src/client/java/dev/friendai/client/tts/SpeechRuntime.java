@@ -25,6 +25,7 @@ import dev.friendai.infrastructure.speech.CloudTtsEngine;
 import dev.friendai.infrastructure.speech.TtsClient;
 import dev.friendai.infrastructure.speech.VoiceHttp;
 import dev.friendai.net.CompanionSpeechS2CPayload;
+import dev.friendai.presentation.companion.ClientSessionId;
 import java.net.http.HttpClient;
 import java.time.Duration;
 import java.util.List;
@@ -33,6 +34,7 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
@@ -78,6 +80,8 @@ public final class SpeechRuntime {
     private static String lastToastKey;
     private static volatile Plan playingPlan;
     private static volatile SpatialAudio.Mix mix = SpatialAudio.CENTER;
+    private static ClientSessionId sessionId;
+    private static boolean closed;
 
     private SpeechRuntime() {}
 
@@ -86,7 +90,7 @@ public final class SpeechRuntime {
             ResolvedTts settings, double volume, String device, boolean spatial, UUID companionId, int range) {}
 
     /** One queued utterance; the plan travels with it so a newer reply cannot repoint older chunks. */
-    private record Chunk(String text, Plan plan) {}
+    private record Chunk(String text, Plan plan, ClientSessionId sessionId) {}
 
     /** Where local voices are downloaded to and loaded from. */
     public static VoiceModelManager models() {
@@ -103,7 +107,7 @@ public final class SpeechRuntime {
         if (chunks.isEmpty()) {
             return;
         }
-        enqueue(chunks, resolve(cfg, false, null, 0));
+        enqueue(chunks, resolve(cfg, false, null, 0), currentSession());
     }
 
     /** Speaks the localized sample sentence, whether or not speech is enabled, and reports the outcome. */
@@ -116,23 +120,37 @@ public final class SpeechRuntime {
         Plan plan = resolve(cfg, false, null, 0);
         String sample = Component.translatable("friendai.voice.tts.sample").getString();
         int gen;
+        ClientSessionId expectedSession;
         synchronized (LOCK) {
             gen = generation;
+            expectedSession = sessionId;
         }
         WORKER.execute(() -> {
             try {
-                playOne(sample, plan, gen);
-                Minecraft.getInstance()
-                        .execute(() ->
-                                ClientToasts.show(Component.translatable("friendai.config.voice.tts.test_result")));
+                playOne(sample, plan, gen, expectedSession);
+                if (isCurrent(gen, expectedSession)) {
+                    Minecraft.getInstance().execute(() -> {
+                        if (isCurrent(gen, expectedSession)) {
+                            ClientToasts.show(Component.translatable("friendai.config.voice.tts.test_result"));
+                        }
+                    });
+                }
             } catch (UserFacingException e) {
                 UserMessage message = e.userMessage();
-                Minecraft.getInstance().execute(() -> ClientToasts.show(Components.of(message)));
+                if (isCurrent(gen, expectedSession)) {
+                    Minecraft.getInstance().execute(() -> {
+                        if (isCurrent(gen, expectedSession)) ClientToasts.show(Components.of(message));
+                    });
+                }
             } catch (RuntimeException e) {
                 LOGGER.warn("Speech test failed: {}", e.toString());
-                Minecraft.getInstance()
-                        .execute(() ->
-                                ClientToasts.show(Components.of(UserMessage.of("friendai.voice.tts.error.failed"))));
+                if (isCurrent(gen, expectedSession)) {
+                    Minecraft.getInstance().execute(() -> {
+                        if (isCurrent(gen, expectedSession)) {
+                            ClientToasts.show(Components.of(UserMessage.of("friendai.voice.tts.error.failed")));
+                        }
+                    });
+                }
             }
         });
     }
@@ -163,14 +181,44 @@ public final class SpeechRuntime {
         }
     }
 
-    /** Called on disconnect. */
-    public static void shutdown() {
-        invalidate();
-        PLAYBACK.close();
+    public static void onConnect(ClientSessionId connectedSession) {
+        synchronized (LOCK) {
+            if (closed) return;
+            sessionId = connectedSession;
+            generation++;
+            QUEUE.clear();
+        }
+        PLAYBACK.stop();
     }
 
-    /** A speech packet from the server, on the client thread. */
-    public static void onCompanionSpeech(CompanionSpeechS2CPayload payload) {
+    public static void onDisconnect(ClientSessionId disconnectedSession) {
+        synchronized (LOCK) {
+            if (!disconnectedSession.equals(sessionId)) return;
+            sessionId = null;
+        }
+        invalidate();
+    }
+
+    /** Releases application-wide playback and worker resources at client shutdown. */
+    public static void close() {
+        synchronized (LOCK) {
+            if (closed) return;
+            closed = true;
+            sessionId = null;
+        }
+        invalidate();
+        PLAYBACK.close();
+        WORKER.shutdown();
+        try {
+            WORKER.awaitTermination(2, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    /** A speech packet from the server, on the client thread, tied to its originating connection. */
+    public static void onCompanionSpeech(ClientSessionId expectedSession, CompanionSpeechS2CPayload payload) {
+        if (!isCurrentSession(expectedSession)) return;
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.level == null || minecraft.player == null) {
             return;
@@ -205,7 +253,7 @@ public final class SpeechRuntime {
         } else {
             mix = SpatialAudio.CENTER;
         }
-        enqueue(chunks, resolve(cfg, source != null, payload.companionId(), range));
+        enqueue(chunks, resolve(cfg, source != null, payload.companionId(), range), expectedSession);
     }
 
     /**
@@ -232,10 +280,11 @@ public final class SpeechRuntime {
         }
     }
 
-    private static void enqueue(List<String> chunks, Plan plan) {
+    private static void enqueue(List<String> chunks, Plan plan, ClientSessionId expectedSession) {
         synchronized (LOCK) {
+            if (closed || expectedSession == null || !expectedSession.equals(sessionId)) return;
             for (String chunk : chunks) {
-                QUEUE.add(new Chunk(chunk, plan));
+                QUEUE.add(new Chunk(chunk, plan, expectedSession));
             }
             if (draining) {
                 return;
@@ -255,16 +304,19 @@ public final class SpeechRuntime {
                     if (chunk == null) {
                         return;
                     }
+                    if (closed || !chunk.sessionId().equals(sessionId)) continue;
                     gen = generation;
                 }
                 try {
-                    playOne(chunk.text(), chunk.plan(), gen);
+                    playOne(chunk.text(), chunk.plan(), gen, chunk.sessionId());
                 } catch (UserFacingException e) {
+                    if (!isCurrent(gen, chunk.sessionId())) continue;
                     synchronized (LOCK) {
                         QUEUE.clear();
                     }
                     toastOnce(e.userMessage());
                 } catch (RuntimeException e) {
+                    if (!isCurrent(gen, chunk.sessionId())) continue;
                     LOGGER.warn("Speech failed: {}", e.toString());
                     synchronized (LOCK) {
                         QUEUE.clear();
@@ -288,7 +340,7 @@ public final class SpeechRuntime {
         }
     }
 
-    private static void playOne(String text, Plan plan, int gen) {
+    private static void playOne(String text, Plan plan, int gen, ClientSessionId expectedSession) {
         if (plan == null) {
             throw new UserFacingException(UserMessage.of("friendai.voice.tts.error.failed"));
         }
@@ -317,7 +369,7 @@ public final class SpeechRuntime {
             throw new UserFacingException(UserMessage.of("friendai.voice.tts.error.failed"));
         }
         synchronized (LOCK) {
-            if (gen != generation) {
+            if (!isCurrentLocked(gen, expectedSession)) {
                 return;
             }
         }
@@ -384,6 +436,28 @@ public final class SpeechRuntime {
             lastToastAt = now;
         }
         Minecraft.getInstance().execute(() -> ClientToasts.show(Components.of(message)));
+    }
+
+    private static ClientSessionId currentSession() {
+        synchronized (LOCK) {
+            return sessionId;
+        }
+    }
+
+    private static boolean isCurrentSession(ClientSessionId expectedSession) {
+        synchronized (LOCK) {
+            return expectedSession != null && expectedSession.equals(sessionId) && !closed;
+        }
+    }
+
+    private static boolean isCurrent(int expectedGeneration, ClientSessionId expectedSession) {
+        synchronized (LOCK) {
+            return isCurrentLocked(expectedGeneration, expectedSession);
+        }
+    }
+
+    private static boolean isCurrentLocked(int expectedGeneration, ClientSessionId expectedSession) {
+        return expectedGeneration == generation && !closed && java.util.Objects.equals(expectedSession, sessionId);
     }
 
     private static ClientConfig.TtsSection section() {

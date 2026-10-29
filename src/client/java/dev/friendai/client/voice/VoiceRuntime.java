@@ -1,6 +1,7 @@
 package dev.friendai.client.voice;
 
 import dev.friendai.client.FriendaiClient;
+import dev.friendai.client.audio.NativeAudioGuard;
 import dev.friendai.client.audio.WhisperModel;
 import dev.friendai.client.audio.WhisperModelManager;
 import dev.friendai.features.speech.ResolvedStt;
@@ -9,6 +10,7 @@ import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.infrastructure.config.VoiceConfig;
 import dev.friendai.infrastructure.speech.SttClient;
 import dev.friendai.infrastructure.speech.VoiceHttp;
+import dev.friendai.presentation.companion.ClientSessionId;
 import java.net.http.HttpClient;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
@@ -50,6 +52,7 @@ public final class VoiceRuntime {
     private static CloudStt currentCloud;
     private static String currentCloudKey;
     private static int captureGeneration;
+    private static ClientSessionId sessionId;
 
     private VoiceRuntime() {}
 
@@ -82,8 +85,10 @@ public final class VoiceRuntime {
         if (!MANAGER.isInstalled(wanted.spec())) {
             return NOT_READY;
         }
+        NativeAudioGuard.requireClientEnvironment();
         WhisperLocalStt stt = new WhisperLocalStt(MANAGER.path(wanted.spec()));
         if (!stt.isReady()) {
+            stt.close();
             return NOT_READY;
         }
         current = stt;
@@ -101,12 +106,48 @@ public final class VoiceRuntime {
         if (problem != null) {
             return new SttStatus(false, problem);
         }
-        // Readiness is the single authority for cloud providers; only the local engine can fail
-        // to load after its model was verified on disk.
-        if (resolved.local() && !stt().isReady()) {
-            return new SttStatus(false, UserMessage.of("friendai.voice.error.no_model"));
-        }
+        // This is used while building the settings screen: do not initialize a native engine merely
+        // to display configured availability. The explicit recording action performs the load check.
         return new SttStatus(true, null);
+    }
+
+    public static synchronized void onConnect(ClientSessionId connectedSession) {
+        sessionId = connectedSession;
+        captureGeneration++;
+    }
+
+    public static void onDisconnect(ClientSessionId disconnectedSession) {
+        synchronized (VoiceRuntime.class) {
+            if (!disconnectedSession.equals(sessionId)) return;
+            sessionId = null;
+            captureGeneration++;
+            MIC.stop();
+            closeRecognizer();
+            currentCloud = null;
+            currentCloudKey = null;
+        }
+        VoiceState.set(VoiceState.Kind.IDLE, null);
+    }
+
+    public static synchronized boolean isCurrentSession(ClientSessionId expected) {
+        return expected != null && expected.equals(sessionId);
+    }
+
+    public static synchronized boolean isCurrentOperation(ClientSessionId expectedSession, int expectedGeneration) {
+        return java.util.Objects.equals(expectedSession, sessionId) && expectedGeneration == captureGeneration;
+    }
+
+    /** Releases client-process audio resources; model downloads remain owned by their global managers. */
+    public static void close() {
+        synchronized (VoiceRuntime.class) {
+            sessionId = null;
+            captureGeneration++;
+            MIC.close();
+            closeRecognizer();
+            currentCloud = null;
+            currentCloudKey = null;
+        }
+        VoiceState.set(VoiceState.Kind.IDLE, null);
     }
 
     /**
@@ -124,13 +165,19 @@ public final class VoiceRuntime {
     /** Drops the loaded recognizer so the next use picks up a changed provider, key or model. */
     public static synchronized void invalidate() {
         captureGeneration++;
+        MIC.stop();
+        closeRecognizer();
+        currentCloud = null;
+        currentCloudKey = null;
+        VoiceState.set(VoiceState.Kind.IDLE, null);
+    }
+
+    private static void closeRecognizer() {
         if (current != null) {
             current.close();
             current = null;
             currentModel = null;
         }
-        currentCloud = null;
-        currentCloudKey = null;
     }
 
     private static SpeechToText cloudStt(ResolvedStt resolved) {

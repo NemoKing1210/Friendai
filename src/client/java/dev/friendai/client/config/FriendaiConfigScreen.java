@@ -15,7 +15,6 @@ import dev.friendai.client.voice.MicCapture;
 import dev.friendai.client.voice.SpeechToText;
 import dev.friendai.client.voice.VoiceRuntime;
 import dev.friendai.core.Components;
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.features.speech.CloudField;
 import dev.friendai.features.speech.PcmConverter;
 import dev.friendai.features.speech.VoiceErrors;
@@ -26,12 +25,12 @@ import dev.friendai.features.speech.tts.VoiceModel;
 import dev.friendai.features.speech.tts.VoiceModels;
 import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.infrastructure.config.ClientConfig;
-import dev.friendai.infrastructure.config.ConfigStore;
 import dev.friendai.infrastructure.config.SecretResolver;
 import dev.friendai.infrastructure.config.ServerConfig;
 import dev.friendai.infrastructure.config.VoiceDraft;
 import dev.friendai.llm.LlmClient;
 import dev.friendai.llm.http.HttpTransport;
+import dev.friendai.presentation.companion.ClientSessionId;
 import dev.isxander.yacl3.api.ButtonOption;
 import dev.isxander.yacl3.api.ConfigCategory;
 import dev.isxander.yacl3.api.LabelOption;
@@ -53,7 +52,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.ConfirmLinkScreen;
 import net.minecraft.client.gui.screens.Screen;
@@ -111,17 +109,10 @@ public final class FriendaiConfigScreen {
     private static Screen create(Screen parent, ProviderDraft draft, VoiceDraft voiceDraft) {
         Minecraft mc = Minecraft.getInstance();
         boolean serverEditable = mc.getSingleplayerServer() != null || mc.level == null;
-
-        ConfigStore<ServerConfig> serverStore = new ConfigStore<>(
-                FabricLoader.getInstance().getConfigDir().resolve("friendai-server.json"),
-                ServerConfig.class,
-                ServerConfig::defaults,
-                ServerConfig.VERSION,
-                ServerConfig::migrate);
+        ClientConfigurationCoordinator configuration = FriendaiClient.runtime().configuration();
         ServerConfig server = null;
         if (serverEditable) {
-            server = serverStore.load();
-            server.validate();
+            server = configuration.loadServer();
         }
         ClientConfig client = FriendaiClient.clientConfig();
         client.validate();
@@ -149,20 +140,13 @@ public final class FriendaiConfigScreen {
         ServerConfig savedServer = server;
         builder.save(() -> {
             if (savedServer != null) {
-                serverStore.save(savedServer);
-                var integrated = mc.getSingleplayerServer();
-                if (integrated != null) {
-                    integrated.execute(() -> FriendaiServerState.get(integrated).applyConfig(savedServer));
-                }
+                configuration.saveServer(savedServer);
             }
             // YACL has already applied every changed option; writing the draft keeps the provider
             // entries consistent with the widgets even when nothing looked changed.
             VoiceDraft.from(client).applyTo(client);
             client.validate();
-            FriendaiClient.clientConfigStore().save(client);
-            FriendaiClient.setClientConfig(client);
-            SpeechRuntime.invalidate();
-            VoiceRuntime.invalidate();
+            configuration.save(client);
         });
         return builder.build().generateScreen(parent);
     }
@@ -1029,24 +1013,36 @@ public final class FriendaiConfigScreen {
         }
         ClientConfig.SttSection stt = client.voice.stt;
         SpeechToText recognizer = VoiceRuntime.stt();
+        if (!recognizer.isReady()) {
+            toast(Component.translatable("friendai.voice.error.no_model"));
+            return;
+        }
+        ClientSessionId sessionId = FriendaiClient.runtime().sessionId();
+        int generation = VoiceRuntime.nextCaptureGeneration();
+        MicCapture mic = VoiceRuntime.mic();
         CompletableFuture.runAsync(() -> {
-            MicCapture mic = new MicCapture();
             try {
                 mic.start(stt.inputDevice, 5);
                 Thread.sleep(3_000);
-            } catch (Exception e) {
-                Minecraft.getInstance()
-                        .execute(() -> toast(Components.of(UserMessage.of("friendai.voice.error.no_mic"))));
-                return;
-            }
-            byte[] pcm = mic.stop();
-            recognizer
-                    .transcribe(PcmConverter.toFloat(pcm), stt.language)
-                    .whenComplete((text, error) -> Minecraft.getInstance()
-                            .execute(() -> toast(
+                byte[] pcm = mic.stop();
+                if (!VoiceRuntime.isCurrentOperation(sessionId, generation)) return;
+                recognizer
+                        .transcribe(PcmConverter.toFloat(pcm), stt.language)
+                        .whenComplete((text, error) -> Minecraft.getInstance().execute(() -> {
+                            if (!VoiceRuntime.isCurrentOperation(sessionId, generation)) return;
+                            toast(
                                     error != null
                                             ? Components.of(VoiceErrors.userMessage(error))
-                                            : Component.translatable("friendai.config.voice.test_result", text))));
+                                            : Component.translatable("friendai.config.voice.test_result", text));
+                        }));
+            } catch (Exception e) {
+                mic.stop();
+                Minecraft.getInstance().execute(() -> {
+                    if (VoiceRuntime.isCurrentOperation(sessionId, generation)) {
+                        toast(Components.of(UserMessage.of("friendai.voice.error.no_mic")));
+                    }
+                });
+            }
         });
     }
 

@@ -65,7 +65,7 @@ final class TogglesTab extends StatefulMenuTab {
         boolean on = !MovementDebugState.enabled();
         MovementDebugState.setEnabled(on);
         FriendaiClient.clientConfig().debug.movementOverlay = on;
-        FriendaiClient.clientConfigStore().save(FriendaiClient.clientConfig());
+        FriendaiClient.runtime().configuration().save(FriendaiClient.clientConfig());
         CompanionRequests.send(on ? RequestType.MOVE_DEBUG_ON : RequestType.MOVE_DEBUG_OFF);
     }
 

@@ -67,7 +67,7 @@ public final class LocalTtsEngine implements SpeechEngine {
             }
             try {
                 if (tts == null) {
-                    tts = new OfflineTts(config());
+                    tts = NativeAudioGuard.createClientNative(() -> new OfflineTts(config()));
                 }
                 GeneratedAudio audio = tts.generate(text, 0, (float) speed);
                 return new TtsClip(PcmConverter.fromFloat(audio.getSamples()), audio.getSampleRate());

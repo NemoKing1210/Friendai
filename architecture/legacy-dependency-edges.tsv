@@ -1,7 +1,6 @@
 # ruleId	sourceClass	targetClass	taskId
 legacy-server-state-lookup	dev.friendai.chat.ChatRouter	dev.friendai.core.FriendaiServerState	5
 legacy-server-state-lookup	dev.friendai.chat.CompanionRouting	dev.friendai.core.FriendaiServerState	5
-legacy-server-state-lookup	dev.friendai.client.config.FriendaiConfigScreen	dev.friendai.core.FriendaiServerState	14
 legacy-server-state-lookup	dev.friendai.command.FriendaiCommands	dev.friendai.core.FriendaiServerState	17
 legacy-server-state-lookup	dev.friendai.command.PlaceCommand	dev.friendai.core.FriendaiServerState	17
 legacy-server-state-lookup	dev.friendai.command.SkillCommands	dev.friendai.core.FriendaiServerState	17

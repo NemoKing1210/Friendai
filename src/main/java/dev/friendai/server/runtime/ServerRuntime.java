@@ -3,6 +3,7 @@ package dev.friendai.server.runtime;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
+import dev.friendai.infrastructure.config.ServerConfig;
 import dev.friendai.net.DebugStream;
 import dev.friendai.net.MemoryViewStream;
 import dev.friendai.net.MovementDebugStream;
@@ -95,6 +96,11 @@ public final class ServerRuntime implements AutoCloseable {
     /** Runs the unchanged server tick pipeline until shutdown starts. */
     public void tick() {
         if (acceptingWork) tickWork.run();
+    }
+
+    /** Applies a validated integrated-server config through the server-owned runtime boundary. */
+    public void applyConfig(ServerConfig config) {
+        if (acceptingWork) state.applyConfig(config);
     }
 
     /** Rejects future runtime work and cancels server-owned activity before stores are closed. */
