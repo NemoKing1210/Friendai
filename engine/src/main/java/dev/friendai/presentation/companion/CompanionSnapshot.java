@@ -1,4 +1,4 @@
-package dev.friendai.debug;
+package dev.friendai.presentation.companion;
 
 import dev.friendai.execution.history.TaskRecord;
 import dev.friendai.foundation.diagnostics.LogEntry;

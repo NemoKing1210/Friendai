@@ -1,14 +1,14 @@
 package dev.friendai.net;
 
 import dev.friendai.core.FriendaiServerState;
-import dev.friendai.debug.CompanionSnapshot;
-import dev.friendai.debug.CompanionVitals;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.execution.history.TaskRecord;
 import dev.friendai.foundation.diagnostics.LogEntry;
 import dev.friendai.perception.PerceptionBuilder;
 import dev.friendai.perception.PerceptionContext;
+import dev.friendai.presentation.companion.CompanionSnapshot;
+import dev.friendai.presentation.companion.CompanionVitals;
 import dev.friendai.server.agent.CompanionSessions;
 import java.util.List;
 import java.util.Optional;

@@ -1,4 +1,4 @@
-package dev.friendai.debug;
+package dev.friendai.presentation.companion;
 
 import dev.friendai.execution.queue.GuardFacts;
 import dev.friendai.execution.queue.Job;

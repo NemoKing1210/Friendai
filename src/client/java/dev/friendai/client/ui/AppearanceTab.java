@@ -1,7 +1,7 @@
 package dev.friendai.client.ui;
 
 import dev.friendai.client.skin.SkinSources;
-import dev.friendai.debug.CompanionSnapshot;
+import dev.friendai.presentation.companion.CompanionSnapshot;
 import java.net.URI;
 import java.util.function.Consumer;
 import net.minecraft.client.Minecraft;
@@ -12,7 +12,7 @@ import net.minecraft.client.gui.screens.ConfirmLinkScreen;
 import net.minecraft.network.chat.Component;
 
 /** The companion's name and skin: rename it, or pick a skin from a file, a Minecraft username or a URL. */
-final class AppearanceTab implements MenuTab {
+final class AppearanceTab extends StatefulMenuTab {
     private static final int FIELD = 20;
     private static final int GAP = 6;
     private static final int HEADING = 12;
@@ -157,8 +157,8 @@ final class AppearanceTab implements MenuTab {
         ConfirmLinkScreen.confirmLinkNow(minecraft.gui.screen(), URI.create(SKIN_SITE));
     }
 
-    private static String currentName() {
-        return CompanionClientState.snapshot()
+    private String currentName() {
+        return state.snapshot()
                 .filter(CompanionSnapshot::present)
                 .map(CompanionSnapshot::companionName)
                 .orElse("");
@@ -203,9 +203,8 @@ final class AppearanceTab implements MenuTab {
 
     @Override
     public void tick() {
-        boolean present =
-                CompanionClientState.snapshot().map(CompanionSnapshot::present).orElse(false);
-        boolean connected = CompanionRequests.serverSupported() && !CompanionClientState.isStale() && present;
+        boolean present = state.snapshot().map(CompanionSnapshot::present).orElse(false);
+        boolean connected = CompanionRequests.serverSupported() && !state.isStale() && present;
         boolean skins = connected && CompanionRequests.skinsSupported();
         rename.active = connected;
         for (FlatButton button : new FlatButton[] {file, userApply, urlApply, wide, slimButton, reset}) {

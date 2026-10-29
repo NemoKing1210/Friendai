@@ -263,11 +263,11 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
                 || (activeTask() != null && !activeTask().defaultActivity());
     }
 
-    public java.util.List<dev.friendai.debug.QueueRow> queueRows() {
+    public java.util.List<dev.friendai.presentation.companion.QueueRow> queueRows() {
         return queueDriver.queue().jobCount() == 0
                         && queueDriver.queue().plans().stream().noneMatch(p -> p.cursor() != null)
                 ? java.util.List.of()
-                : dev.friendai.debug.QueueRows.build(
+                : dev.friendai.presentation.companion.QueueRows.build(
                         queueDriver.queue(),
                         facts(),
                         activeTask() == null ? null : activeTask().task().describe());

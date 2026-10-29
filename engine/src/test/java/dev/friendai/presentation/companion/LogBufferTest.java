@@ -1,4 +1,4 @@
-package dev.friendai.debug;
+package dev.friendai.presentation.companion;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 

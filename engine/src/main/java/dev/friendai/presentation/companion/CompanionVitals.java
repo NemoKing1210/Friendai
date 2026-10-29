@@ -1,4 +1,4 @@
-package dev.friendai.debug;
+package dev.friendai.presentation.companion;
 
 /**
  * The companion's body as the menu draws it. Labels are lower-case setting/action labels;

@@ -1,11 +1,11 @@
 package dev.friendai.client.ui;
 
 import dev.friendai.core.Components;
-import dev.friendai.debug.PlacesTabModel;
 import dev.friendai.debug.RequestType;
 import dev.friendai.features.memory.MenuStatus;
 import dev.friendai.features.places.PlaceLimits;
 import dev.friendai.features.places.PlaceView;
+import dev.friendai.presentation.companion.PlacesTabModel;
 import java.util.List;
 import java.util.Optional;
 import net.minecraft.client.Minecraft;
@@ -15,14 +15,14 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.network.chat.Component;
 
 /** The places tab: every place the companion remembers, with renaming and a guarded delete. */
-final class PlacesTab implements MenuTab {
+final class PlacesTab extends StatefulMenuTab {
     private static final int ROW = 20;
     private static final int GAP = 4;
     private static final int LINE = 10;
     private static final int PAD = 8;
     private static final int PLACE_ROW = 30;
 
-    private final PlacesTabModel model = new PlacesTabModel();
+    private PlacesTabModel model;
     private final ScrollView placesView = new ScrollView(false);
     private PlaceView lastView;
 
@@ -39,6 +39,7 @@ final class PlacesTab implements MenuTab {
 
     @Override
     public void init(Host host, int left, int top, int width, int height) {
+        model = state.placesTabModel();
         headLeft = left;
         headWidth = width;
 
@@ -88,7 +89,7 @@ final class PlacesTab implements MenuTab {
     @Override
     public void tick() {
         long now = System.currentTimeMillis();
-        CompanionClientState.placeView().ifPresent(view -> {
+        state.placeView().ifPresent(view -> {
             if (view != lastView) {
                 lastView = view;
                 model.onView(view);

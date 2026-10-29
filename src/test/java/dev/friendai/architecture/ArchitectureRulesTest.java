@@ -76,7 +76,43 @@ class ArchitectureRulesTest {
                 edge("dev.friendai.client.config.SettingsScreen", "dev.isxander.yacl3.api.YetAnotherConfigLib"),
                 edge(
                         "dev.friendai.presentation.companion.CompanionModel",
-                        "dev.friendai.features.companion.view.CompanionView"));
+                        "dev.friendai.features.companion.view.CompanionView"),
+                edge(
+                        "dev.friendai.presentation.companion.CompanionViewState",
+                        "dev.friendai.features.instructions.SkillView"),
+                edge(
+                        "dev.friendai.presentation.companion.CompanionViewState",
+                        "dev.friendai.features.instructions.InstructionSkill"),
+                edge(
+                        "dev.friendai.presentation.companion.CompanionViewState",
+                        "dev.friendai.features.memory.CompanionDescription"),
+                edge(
+                        "dev.friendai.presentation.companion.CompanionViewState",
+                        "dev.friendai.features.memory.OwnerProfile"),
+                edge(
+                        "dev.friendai.presentation.companion.CompanionViewState",
+                        "dev.friendai.features.memory.MemoryView"),
+                edge(
+                        "dev.friendai.presentation.companion.CompanionViewState",
+                        "dev.friendai.features.places.PlaceView"),
+                edge(
+                        "dev.friendai.presentation.companion.CompanionViewState",
+                        "dev.friendai.features.trading.TradeView"),
+                edge("dev.friendai.presentation.companion.MemoryTabModel", "dev.friendai.features.memory.Category"),
+                edge("dev.friendai.presentation.companion.MemoryTabModel", "dev.friendai.features.memory.MenuStatus"),
+                edge(
+                        "dev.friendai.presentation.companion.MemoryTabModel",
+                        "dev.friendai.features.memory.MemoryView$FactRow"),
+                edge(
+                        "dev.friendai.presentation.companion.MemoryTabModel",
+                        "dev.friendai.features.memory.MemoryView$Group"),
+                edge("dev.friendai.presentation.companion.PlacesTabModel", "dev.friendai.features.memory.MenuStatus"),
+                edge(
+                        "dev.friendai.presentation.companion.PlacesTabModel",
+                        "dev.friendai.features.places.PlaceView$Row"),
+                edge(
+                        "dev.friendai.presentation.companion.CompanionViewState",
+                        "dev.friendai.features.memory.MemoryPolicy"));
 
         assertEquals(
                 List.of(
@@ -112,6 +148,10 @@ class ArchitectureRulesTest {
                                 "presentation-feature-view",
                                 "dev.friendai.presentation.companion.CompanionModel",
                                 "dev.friendai.features.companion.CompanionBrain"),
+                        violation(
+                                "presentation-feature-view",
+                                "dev.friendai.presentation.companion.CompanionViewState",
+                                "dev.friendai.features.memory.MemoryPolicy"),
                         violation(
                                 "presentation-to-adapter",
                                 "dev.friendai.presentation.companion.CompanionModel",

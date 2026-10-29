@@ -2,8 +2,8 @@ package dev.friendai.client.ui;
 
 import dev.friendai.client.FriendaiClient;
 import dev.friendai.client.debug.MovementDebugState;
-import dev.friendai.debug.CompanionSnapshot;
 import dev.friendai.debug.RequestType;
+import dev.friendai.presentation.companion.CompanionSnapshot;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Tooltip;
@@ -13,7 +13,7 @@ import net.minecraft.network.chat.Component;
  * Per-companion switches: creative mode, auto respawn, free time and the movement overlay.
  * The mod's own settings are a separate screen; nothing here is called "settings".
  */
-final class TogglesTab implements MenuTab {
+final class TogglesTab extends StatefulMenuTab {
     private static final int GAP = 6;
     private static final int BUTTON_HEIGHT = 20;
     private static final int PAD = 8;
@@ -32,11 +32,11 @@ final class TogglesTab implements MenuTab {
         this.left = left;
         this.top = top;
         int y = top + HEADER_HEIGHT;
-        creativeMode = host.add(new FlatButton(
-                left, y, width, BUTTON_HEIGHT, Component.empty(), Ui.PURPLE, TogglesTab::toggleCreativeMode));
+        creativeMode = host.add(
+                new FlatButton(left, y, width, BUTTON_HEIGHT, Component.empty(), Ui.PURPLE, this::toggleCreativeMode));
         y += BUTTON_HEIGHT + GAP;
-        autoRespawn = host.add(new FlatButton(
-                left, y, width, BUTTON_HEIGHT, Component.empty(), Ui.ACCENT, TogglesTab::toggleAutoRespawn));
+        autoRespawn = host.add(
+                new FlatButton(left, y, width, BUTTON_HEIGHT, Component.empty(), Ui.ACCENT, this::toggleAutoRespawn));
         y += BUTTON_HEIGHT + GAP;
         freeTime = host.add(new FlatButton(
                 left,
@@ -47,16 +47,16 @@ final class TogglesTab implements MenuTab {
                 Ui.GOOD,
                 () -> CompanionRequests.send(RequestType.FREE_TIME_TOGGLE)));
         y += BUTTON_HEIGHT + GAP;
-        followMode = host.add(new FlatButton(
-                left, y, width, BUTTON_HEIGHT, Component.empty(), Ui.ACCENT, TogglesTab::toggleFollowMode));
+        followMode = host.add(
+                new FlatButton(left, y, width, BUTTON_HEIGHT, Component.empty(), Ui.ACCENT, this::toggleFollowMode));
         y += BUTTON_HEIGHT + GAP;
         movementDebug = host.add(new FlatButton(
                 left, y, width, BUTTON_HEIGHT, Component.empty(), Ui.PURPLE, TogglesTab::toggleMovementDebug));
         tick();
     }
 
-    private static void toggleFollowMode() {
-        CompanionClientState.snapshot()
+    private void toggleFollowMode() {
+        state.snapshot()
                 .ifPresent(snapshot -> CompanionRequests.send(
                         RequestType.SET_FOLLOW_MODE, Boolean.toString(!snapshot.followMode()), ""));
     }
@@ -69,23 +69,23 @@ final class TogglesTab implements MenuTab {
         CompanionRequests.send(on ? RequestType.MOVE_DEBUG_ON : RequestType.MOVE_DEBUG_OFF);
     }
 
-    private static void toggleAutoRespawn() {
-        CompanionClientState.snapshot()
+    private void toggleAutoRespawn() {
+        state.snapshot()
                 .ifPresent(snapshot -> CompanionRequests.send(
                         RequestType.SET_AUTO_RESPAWN, Boolean.toString(!snapshot.autoRespawn()), ""));
     }
 
-    private static void toggleCreativeMode() {
-        CompanionClientState.snapshot()
+    private void toggleCreativeMode() {
+        state.snapshot()
                 .ifPresent(snapshot -> CompanionRequests.send(
                         RequestType.SET_CREATIVE_MODE, Boolean.toString(!snapshot.creativeMode()), ""));
     }
 
     @Override
     public void tick() {
-        var snapshot = CompanionClientState.snapshot();
+        var snapshot = state.snapshot();
         boolean present = snapshot.map(CompanionSnapshot::present).orElse(false);
-        boolean connected = CompanionRequests.serverSupported() && !CompanionClientState.isStale();
+        boolean connected = CompanionRequests.serverSupported() && !state.isStale();
 
         boolean operator = snapshot.map(CompanionSnapshot::operator).orElse(false);
         if (connected && operator && MovementDebugState.preferenceRestorePending()) {

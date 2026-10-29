@@ -1,4 +1,4 @@
-package dev.friendai.client.ui;
+package dev.friendai.presentation.layout;
 
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;

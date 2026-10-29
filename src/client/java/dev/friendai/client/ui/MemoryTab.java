@@ -2,13 +2,13 @@ package dev.friendai.client.ui;
 
 import com.google.gson.JsonObject;
 import dev.friendai.core.Components;
-import dev.friendai.debug.MemoryTabModel;
 import dev.friendai.debug.RequestType;
 import dev.friendai.features.memory.Category;
 import dev.friendai.features.memory.MemoryView;
 import dev.friendai.features.memory.MenuStatus;
 import dev.friendai.features.memory.PersonaPresets;
 import dev.friendai.features.memory.PersonaText;
+import dev.friendai.presentation.companion.MemoryTabModel;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -21,7 +21,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
 
 /** The memory tab: who the companion remembers on the left, their facts as cards on the right, with editing. */
-final class MemoryTab implements MenuTab {
+final class MemoryTab extends StatefulMenuTab {
     private static final int ROW = 20;
     private static final int GAP = 4;
     private static final int LINE = 10;
@@ -29,7 +29,7 @@ final class MemoryTab implements MenuTab {
     private static final int PAD = 8;
     private static final int PERSONA_PRESETS_Y = 4;
 
-    private final MemoryTabModel model = new MemoryTabModel();
+    private MemoryTabModel model;
     private final ScrollView groupsView = new ScrollView(false);
     private final ScrollView factsView = new ScrollView(false);
     private MemoryView lastView;
@@ -69,6 +69,7 @@ final class MemoryTab implements MenuTab {
 
     @Override
     public void init(Host host, int left, int top, int width, int height) {
+        model = state.memoryTabModel();
         sideWidth = Math.max(70, Math.min(118, width / 4));
         sideLeft = left;
         sideTop = top;
@@ -159,10 +160,11 @@ final class MemoryTab implements MenuTab {
                 cancelX, formY, cancelWidth, ROW, Component.translatable("friendai.menu.memory.cancel"), Ui.DIM, () -> {
                     if (model.personaSelected()) {
                         net.minecraft.client.Minecraft.getInstance()
-                                .setScreenAndShow(
-                                        SkillEditorScreen.description(net.minecraft.client.Minecraft.getInstance()
+                                .setScreenAndShow(SkillEditorScreen.description(
+                                        net.minecraft.client.Minecraft.getInstance()
                                                 .gui
-                                                .screen()));
+                                                .screen(),
+                                        state));
                         return;
                     }
                     model.cancelEdit();
@@ -215,7 +217,7 @@ final class MemoryTab implements MenuTab {
 
     @Override
     public void tick() {
-        CompanionClientState.memoryView().ifPresent(view -> {
+        state.memoryView().ifPresent(view -> {
             if (view != lastView) {
                 lastView = view;
                 model.onView(view);

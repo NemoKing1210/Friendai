@@ -1,7 +1,7 @@
 package dev.friendai.client.ui;
 
-import dev.friendai.debug.CompanionSnapshot;
 import dev.friendai.debug.RequestType;
+import dev.friendai.presentation.companion.CompanionSnapshot;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.client.gui.Font;
@@ -11,7 +11,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
 
 /** What the companion sees, its prompt, and manual message and tool runs. */
-final class DebugTab implements MenuTab {
+final class DebugTab extends StatefulMenuTab {
     private static final int FIELD = 20;
     private static final int HEADING = 12;
     private static final int GAP = 4;
@@ -66,9 +66,7 @@ final class DebugTab implements MenuTab {
 
         int toolWidth = Math.min(140, width / 3);
         int runWidth = 60;
-        toolNames = CompanionClientState.snapshot()
-                .map(CompanionSnapshot::toolNames)
-                .orElse(List.of());
+        toolNames = state.snapshot().map(CompanionSnapshot::toolNames).orElse(List.of());
         if (!toolNames.contains(selectedTool)) {
             selectedTool = toolNames.isEmpty() ? "" : toolNames.get(0);
         }
@@ -148,9 +146,9 @@ final class DebugTab implements MenuTab {
         int bodyTop = top + 16 + GAP;
         int bodyHeight = bottom - bodyBottomOffset - bodyTop;
         Ui.well(g, left, bodyTop, width, bodyHeight);
-        var snapshot = CompanionClientState.snapshot();
-        String body = showPrompt && !CompanionClientState.prompt().isEmpty()
-                ? CompanionClientState.prompt()
+        var snapshot = state.snapshot();
+        String body = showPrompt && !state.prompt().isEmpty()
+                ? state.prompt()
                 : snapshot.map(CompanionSnapshot::perception).orElse("");
         if (!showPrompt && snapshot.filter(CompanionSnapshot::operator).isPresent()) {
             String planner = snapshot.get().freeTimePlannerModel();

@@ -1,8 +1,9 @@
 package dev.friendai.client.ui;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.menu.CompanionInventoryLayout;
 import dev.friendai.menu.CompanionInventoryMenu;
+import dev.friendai.presentation.layout.CompanionInventoryLayout;
+import dev.friendai.presentation.layout.MenuTheme;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;

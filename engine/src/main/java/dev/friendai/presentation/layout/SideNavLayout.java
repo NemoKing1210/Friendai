@@ -1,4 +1,4 @@
-package dev.friendai.client.ui;
+package dev.friendai.presentation.layout;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -13,58 +13,58 @@ import java.util.List;
  * height cannot hold them at full size and the rail scrolls when even that is not enough, so an entry is never
  * silently dropped.
  */
-final class SideNavLayout {
-    static final int MARGIN_X = 14;
+public final class SideNavLayout {
+    public static final int MARGIN_X = 14;
     /** The title sits above the window, on the dimmed world. */
-    static final int WINDOW_TOP = 24;
+    public static final int WINDOW_TOP = 24;
     /** Space below the window for the Done button: 8 above it, 20 high, 8 to the screen edge. */
-    static final int BOTTOM_RESERVE = 36;
+    public static final int BOTTOM_RESERVE = 36;
 
-    static final int PAD = 8;
+    public static final int PAD = 8;
 
-    static final int RAIL_WIDTH = 124;
-    static final int COMPACT_RAIL_WIDTH = 68;
-    static final int GAP = 8;
+    public static final int RAIL_WIDTH = 124;
+    public static final int COMPACT_RAIL_WIDTH = 68;
+    public static final int GAP = 8;
     /** Below this the content column stops being usable, so the rail gives up width instead. */
-    static final int MIN_CONTENT_WIDTH = 300;
+    public static final int MIN_CONTENT_WIDTH = 300;
     /** 560 content + 124 rail + 8 gap + 2 x 8 pad: the widest the window ever gets. */
-    static final int MAX_WINDOW_WIDTH = 708;
+    public static final int MAX_WINDOW_WIDTH = 708;
 
-    static final int ENTRY_HEIGHT = 20;
-    static final int ENTRY_GAP = 2;
-    static final int COMPACT_ENTRY_HEIGHT = 16;
-    static final int COMPACT_ENTRY_GAP = 1;
+    public static final int ENTRY_HEIGHT = 20;
+    public static final int ENTRY_GAP = 2;
+    public static final int COMPACT_ENTRY_HEIGHT = 16;
+    public static final int COMPACT_ENTRY_GAP = 1;
     /** The last compression step before the rail scrolls: ten entries and their separator fit the smallest window. */
-    static final int MIN_ENTRY_HEIGHT = 14;
+    public static final int MIN_ENTRY_HEIGHT = 14;
 
-    static final int MIN_ENTRY_GAP = 1;
-    static final int SEPARATOR = 6;
-    static final int COMPACT_SEPARATOR = 4;
-    static final int MIN_SEPARATOR = 3;
+    public static final int MIN_ENTRY_GAP = 1;
+    public static final int SEPARATOR = 6;
+    public static final int COMPACT_SEPARATOR = 4;
+    public static final int MIN_SEPARATOR = 3;
 
     private SideNavLayout() {}
 
-    record Rect(int x, int y, int width, int height) {
-        int right() {
+    public record Rect(int x, int y, int width, int height) {
+        public int right() {
             return x + width;
         }
 
-        int bottom() {
+        public int bottom() {
             return y + height;
         }
     }
 
     /** One rail entry's rectangle. */
-    record Slot(int x, int y, int width, int height) {}
+    public record Slot(int x, int y, int width, int height) {}
 
     /**
      * The rail column. {@code slots} are the entries at the top scroll position; a screen showing another
      * position moves them up by that many pixels. {@code separatorY} is -1 when every entry is the owner's.
      */
-    record Rail(Rect box, int contentHeight, int maxScroll, int entryHeight, List<Slot> slots, int separatorY) {}
+    public record Rail(Rect box, int contentHeight, int maxScroll, int entryHeight, List<Slot> slots, int separatorY) {}
 
     /** The whole layout: the window, its rail and the content rectangle the selected tab draws in. */
-    record Layout(Rect window, Rail rail, Rect content, boolean compact) {}
+    public record Layout(Rect window, Rail rail, Rect content, boolean compact) {}
 
     /**
      * Lays the menu out in a {@code screenWidth} x {@code screenHeight} GUI rectangle.
@@ -72,7 +72,7 @@ final class SideNavLayout {
      * @param entryCount how many tabs are shown (owner tabs, then the operator ones)
      * @param operatorStart the index of the first operator tab, or -1 when there is none
      */
-    static Layout arrange(int screenWidth, int screenHeight, int entryCount, int operatorStart) {
+    public static Layout arrange(int screenWidth, int screenHeight, int entryCount, int operatorStart) {
         int windowWidth = Math.max(1, Math.min(screenWidth - 2 * MARGIN_X, MAX_WINDOW_WIDTH));
         int windowHeight = Math.max(1, screenHeight - WINDOW_TOP - BOTTOM_RESERVE);
         int windowX = (screenWidth - windowWidth) / 2;

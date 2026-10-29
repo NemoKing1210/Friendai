@@ -1,8 +1,8 @@
 package dev.friendai.net;
 
 import dev.friendai.FriendaiMod;
-import dev.friendai.debug.CompanionSnapshot;
 import dev.friendai.debug.SnapshotCodec;
+import dev.friendai.presentation.companion.CompanionSnapshot;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;

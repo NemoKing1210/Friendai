@@ -70,7 +70,7 @@ class QueueTextTest {
         assertTrue(shown.contains("tree: [if("), shown);
         assertTrue(shown.contains("repeat("), shown);
         assertTrue(shown.contains("go_to"), shown);
-        var rows = dev.friendai.debug.QueueRows.build(queue, FACTS, null);
+        var rows = dev.friendai.presentation.companion.QueueRows.build(queue, FACTS, null);
         assertTrue(
                 rows.stream().anyMatch(row -> row.planId() == plan && row.note().contains("3/10")));
     }

@@ -10,7 +10,7 @@ import net.minecraft.client.gui.components.*;
 import net.minecraft.network.chat.Component;
 
 /** A paged owner catalogue, with pending approval and source visible before editing. */
-final class SkillsTab implements MenuTab {
+final class SkillsTab extends StatefulMenuTab {
     private final SkillEditorModel model = new SkillEditorModel();
     private final List<Button> rows = new ArrayList<>();
     private final List<Button> actions = new ArrayList<>();
@@ -71,11 +71,7 @@ final class SkillsTab implements MenuTab {
                         selected = list.get(index).id();
                         deleteArmed = "";
                         model.select(selected);
-                        query(
-                                CompanionClientState.skillsView()
-                                        .map(SkillView::page)
-                                        .orElse(0),
-                                selected);
+                        query(state.skillsView().map(SkillView::page).orElse(0), selected);
                     })
                     .bounds(left, top + 27 + i * 23, listWidth, 20)
                     .build()));
@@ -89,14 +85,14 @@ final class SkillsTab implements MenuTab {
                         Component.translatable("friendai.menu.skills.create"),
                         b -> Minecraft.getInstance()
                                 .setScreenAndShow(SkillEditorScreen.create(
-                                        Minecraft.getInstance().gui.screen())))
+                                        Minecraft.getInstance().gui.screen(), state)))
                 .bounds(left, bottom - 47, listWidth, 20)
                 .build());
         host.add(Button.builder(
                         Component.translatable("friendai.menu.skills.import"),
                         b -> Minecraft.getInstance()
                                 .setScreenAndShow(SkillEditorScreen.transfer(
-                                        Minecraft.getInstance().gui.screen(), "")))
+                                        Minecraft.getInstance().gui.screen(), "", state)))
                 .bounds(right, bottom - 47, rw, 20)
                 .build());
         host.add(Button.builder(Component.translatable("friendai.menu.skills.previous"), b -> {
@@ -143,7 +139,7 @@ final class SkillsTab implements MenuTab {
         if (operation.equals("edit")) {
             Minecraft.getInstance()
                     .setScreenAndShow(
-                            SkillEditorScreen.edit(Minecraft.getInstance().gui.screen(), detail));
+                            SkillEditorScreen.edit(Minecraft.getInstance().gui.screen(), detail, state));
             return;
         }
         if (operation.equals("delete") || operation.equals("reject")) {
@@ -161,7 +157,7 @@ final class SkillsTab implements MenuTab {
 
     @Override
     public void tick() {
-        CompanionClientState.skillsView().ifPresent(model::onView);
+        state.skillsView().ifPresent(model::onView);
         sourceButton.setMessage(Component.translatable(
                 "friendai.menu.skills.filter_source_value",
                 SkillLabels.value(
@@ -211,7 +207,7 @@ final class SkillsTab implements MenuTab {
                     lastExport = v.exportText();
                     Minecraft.getInstance()
                             .setScreenAndShow(SkillEditorScreen.transfer(
-                                    Minecraft.getInstance().gui.screen(), lastExport));
+                                    Minecraft.getInstance().gui.screen(), lastExport, state));
                 });
     }
 

@@ -10,7 +10,7 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.network.chat.Component;
 
 /** Owner's bounded market notebook and explicit partner inspection controls. */
-final class TradersTab implements MenuTab {
+final class TradersTab extends StatefulMenuTab {
     private String queryId = UUID.randomUUID().toString();
     private UUID selectedTrader;
     private int page;
@@ -154,7 +154,7 @@ final class TradersTab implements MenuTab {
     }
 
     private void turnPage(int delta) {
-        var view = CompanionClientState.tradeView().orElse(null);
+        var view = state.tradeView().orElse(null);
         if (view == null || !view.queryId().toString().equals(queryId)) return;
         page = Math.max(0, Math.min(view.totalPages() - 1, page + delta));
         query();
@@ -178,7 +178,7 @@ final class TradersTab implements MenuTab {
     }
 
     private void selectRow(int relativeY) {
-        var view = CompanionClientState.tradeView().orElse(null);
+        var view = state.tradeView().orElse(null);
         if (view == null || !view.queryId().toString().equals(queryId)) return;
         int y = 0;
         for (TraderRecord trader : view.traders()) {
@@ -193,7 +193,7 @@ final class TradersTab implements MenuTab {
     @Override
     public void render(
             GuiGraphicsExtractor g, Font font, int left, int top, int width, int height, int mouseX, int mouseY) {
-        var view = CompanionClientState.tradeView().orElse(null);
+        var view = state.tradeView().orElse(null);
         int y = top + 68;
         if (view == null || !view.queryId().toString().equals(queryId)) {
             Ui.text(g, font, Component.translatable("friendai.menu.traders.loading"), left + 10, y, Ui.DIM);

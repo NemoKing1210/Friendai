@@ -91,6 +91,21 @@ final class PackageDependencyRules {
             "dev.friendai.server.execution.tools.TaskToolDefinition$Factory",
             "dev.friendai.server.execution.tools.TaskToolDefinition$CallerFactory",
             "dev.friendai.server.execution.tools.TaskToolDefinition$QueueTraits");
+    /** Immutable records carried by menu views; feature policies and repositories remain outside presentation. */
+    private static final Set<String> PRESENTATION_FEATURE_VIEW_TYPES = Set.of(
+            "dev.friendai.features.instructions.InstructionSkill",
+            "dev.friendai.features.instructions.SkillView",
+            "dev.friendai.features.memory.Category",
+            "dev.friendai.features.memory.CompanionDescription",
+            "dev.friendai.features.memory.MemoryView",
+            "dev.friendai.features.memory.MemoryView$FactRow",
+            "dev.friendai.features.memory.MemoryView$Group",
+            "dev.friendai.features.memory.MenuStatus",
+            "dev.friendai.features.memory.OwnerProfile",
+            "dev.friendai.features.places.PlaceView",
+            "dev.friendai.features.places.PlaceView$Row",
+            "dev.friendai.features.trading.TradeView");
+
     private static final List<String> PURE_PACKAGES = List.of(
             "dev.friendai.agent",
             "dev.friendai.infrastructure.config",
@@ -314,6 +329,9 @@ final class PackageDependencyRules {
     private static boolean isFeatureView(String className) {
         if (!isUnder(className, "dev.friendai.features")) {
             return false;
+        }
+        if (PRESENTATION_FEATURE_VIEW_TYPES.contains(className)) {
+            return true;
         }
         String[] segments =
                 className.substring("dev.friendai.features.".length()).split("\\.");

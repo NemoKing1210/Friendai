@@ -3,6 +3,8 @@ package dev.friendai.debug;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import dev.friendai.presentation.companion.CompanionSnapshot;
+import dev.friendai.presentation.companion.CompanionVitals;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 

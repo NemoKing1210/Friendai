@@ -1,10 +1,10 @@
 package dev.friendai.net;
 
 import dev.friendai.core.FriendaiServerState;
-import dev.friendai.debug.CompanionSnapshot;
 import dev.friendai.debug.DebugService;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.foundation.diagnostics.LogEntry;
+import dev.friendai.presentation.companion.CompanionSnapshot;
 import java.util.List;
 import java.util.UUID;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;

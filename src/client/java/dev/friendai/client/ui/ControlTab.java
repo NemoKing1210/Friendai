@@ -1,8 +1,8 @@
 package dev.friendai.client.ui;
 
-import dev.friendai.debug.CompanionSnapshot;
-import dev.friendai.debug.CompanionVitals;
 import dev.friendai.debug.RequestType;
+import dev.friendai.presentation.companion.CompanionSnapshot;
+import dev.friendai.presentation.companion.CompanionVitals;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;
@@ -11,7 +11,7 @@ import net.minecraft.network.chat.Component;
  * The companion at a glance (identity, state, vitals, current work) and its four actions.
  * Per-companion switches live on {@link TogglesTab}.
  */
-final class ControlTab implements MenuTab {
+final class ControlTab extends StatefulMenuTab {
     private static final int GAP = 6;
     private static final int BUTTON_HEIGHT = 20;
     private static final int HEADER_HEIGHT = 62;
@@ -61,9 +61,9 @@ final class ControlTab implements MenuTab {
 
     @Override
     public void tick() {
-        var snapshot = CompanionClientState.snapshot();
+        var snapshot = state.snapshot();
         boolean present = snapshot.map(CompanionSnapshot::present).orElse(false);
-        boolean connected = CompanionRequests.serverSupported() && !CompanionClientState.isStale();
+        boolean connected = CompanionRequests.serverSupported() && !state.isStale();
         summon.active = connected && !present;
         teleport.active = connected && present;
         dismiss.active = connected && present;
@@ -73,7 +73,7 @@ final class ControlTab implements MenuTab {
     @Override
     public void render(
             GuiGraphicsExtractor g, Font font, int left, int top, int width, int height, int mouseX, int mouseY) {
-        var snapshot = CompanionClientState.snapshot();
+        var snapshot = state.snapshot();
         if (snapshot.isEmpty()) {
             return;
         }

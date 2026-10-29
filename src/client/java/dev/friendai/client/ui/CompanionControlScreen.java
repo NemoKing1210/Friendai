@@ -1,9 +1,14 @@
 package dev.friendai.client.ui;
 
-import dev.friendai.debug.CompanionSnapshot;
+import dev.friendai.client.companion.session.CompanionClientSession;
 import dev.friendai.debug.RequestType;
+import dev.friendai.presentation.companion.CompanionSnapshot;
+import dev.friendai.presentation.companion.CompanionViewState;
+import dev.friendai.presentation.layout.MenuTheme;
+import dev.friendai.presentation.layout.SideNavLayout;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Renderable;
 import net.minecraft.client.gui.components.Tooltip;
@@ -27,6 +32,8 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
     private record Entry(String titleKey, MenuTab tab) {}
 
     private final Screen parent;
+    private final CompanionClientSession session;
+    private final CompanionViewState viewState;
     private final Entry overview = new Entry("friendai.menu.tab.overview", new ControlTab());
     private final Entry toggles = new Entry("friendai.menu.tab.toggles", new TogglesTab());
     private final Entry tasks = new Entry("friendai.menu.tab.tasks", new TasksTab());
@@ -49,14 +56,18 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
     private List<Entry> shownTabs = List.of();
     private int railScroll;
 
-    public CompanionControlScreen(Screen parent) {
+    public CompanionControlScreen(Screen parent, CompanionClientSession session) {
         super(Component.translatable("friendai.menu.title"));
         this.parent = parent;
+        this.session = Objects.requireNonNull(session, "session");
+        this.viewState = session.viewState();
+        for (Entry entry : ownerTabs) ((StatefulMenuTab) entry.tab()).bind(viewState);
+        for (Entry entry : operatorTabs) ((StatefulMenuTab) entry.tab()).bind(viewState);
     }
 
     @Override
     public void added() {
-        CompanionClientState.reset();
+        viewState.reset();
         CompanionRequests.send(RequestType.SUBSCRIBE);
         if (selected == memory) CompanionRequests.send(RequestType.MEMORY_OPEN);
         if (selected == skills || selected == memory) SkillsTab.open();
@@ -68,7 +79,8 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
         CompanionRequests.skills("close", "{}");
         CompanionRequests.trade(
                 dev.friendai.net.TradeRequestC2SPayload.Action.CLOSE,
-                CompanionClientState.tradeView()
+                viewState
+                        .tradeView()
                         .map(view -> view.queryId().toString())
                         .orElse("00000000-0000-0000-0000-000000000000"),
                 "",
@@ -110,15 +122,13 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
     }
 
     private boolean operator() {
-        return CompanionClientState.snapshot().map(CompanionSnapshot::operator).orElse(false);
+        return viewState.snapshot().map(CompanionSnapshot::operator).orElse(false);
     }
 
     /** What the built widgets depend on; a change means the layout has to be rebuilt. */
     private String layoutKey() {
         return operator() + "|"
-                + CompanionClientState.snapshot()
-                        .map(s -> String.valueOf(s.toolNames()))
-                        .orElse("");
+                + viewState.snapshot().map(s -> String.valueOf(s.toolNames())).orElse("");
     }
 
     private List<Entry> visibleTabs() {
@@ -147,7 +157,8 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
         if (selected == traders)
             CompanionRequests.trade(
                     dev.friendai.net.TradeRequestC2SPayload.Action.CLOSE,
-                    CompanionClientState.tradeView()
+                    viewState
+                            .tradeView()
                             .map(view -> view.queryId().toString())
                             .orElse("00000000-0000-0000-0000-000000000000"),
                     "",
@@ -328,7 +339,7 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
     }
 
     private void drawConnection(GuiGraphicsExtractor g, SideNavLayout.Rect window) {
-        boolean connected = CompanionRequests.serverSupported() && !CompanionClientState.isStale();
+        boolean connected = CompanionRequests.serverSupported() && !session.isClosed() && !viewState.isStale();
         Component label = Component.translatable(connected ? "friendai.menu.connected" : "friendai.menu.no_data");
         int color = connected ? Ui.GOOD : Ui.BAD;
         int x = window.right() - Ui.badgeWidth(font, label.getString());

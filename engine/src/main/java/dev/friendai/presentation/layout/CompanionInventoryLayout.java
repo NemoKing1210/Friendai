@@ -1,4 +1,4 @@
-package dev.friendai.menu;
+package dev.friendai.presentation.layout;
 
 /**
  * Where the companion inventory window puts each block: the slot origins, the model box, the vitals, the experience

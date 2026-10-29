@@ -1,4 +1,4 @@
-package dev.friendai.debug;
+package dev.friendai.presentation.companion;
 
 import dev.friendai.foundation.diagnostics.LogEntry;
 import dev.friendai.foundation.diagnostics.LogKind;

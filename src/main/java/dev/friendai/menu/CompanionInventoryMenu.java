@@ -2,6 +2,7 @@ package dev.friendai.menu;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.tool.InventoryAccess;
+import dev.friendai.presentation.layout.CompanionInventoryLayout;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.Container;
 import net.minecraft.world.SimpleContainer;

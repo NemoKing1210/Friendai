@@ -1,12 +1,12 @@
-package dev.friendai.client.ui;
+package dev.friendai.presentation.layout;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import dev.friendai.client.ui.SideNavLayout.Layout;
-import dev.friendai.client.ui.SideNavLayout.Rail;
-import dev.friendai.client.ui.SideNavLayout.Slot;
+import dev.friendai.presentation.layout.SideNavLayout.Layout;
+import dev.friendai.presentation.layout.SideNavLayout.Rail;
+import dev.friendai.presentation.layout.SideNavLayout.Slot;
 import org.junit.jupiter.api.Test;
 
 /**

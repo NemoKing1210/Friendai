@@ -20,7 +20,7 @@ import net.minecraft.network.chat.Style;
  * The brain log: filter chips per entry kind above colour-coded, timestamped rows. The text can be selected with the
  * mouse (drag, or double-click for a whole entry) and copied with Ctrl+C or the Copy button.
  */
-final class LogTab implements MenuTab {
+final class LogTab extends StatefulMenuTab {
     private static final DateTimeFormatter TIME =
             DateTimeFormatter.ofPattern("HH:mm:ss").withZone(ZoneId.systemDefault());
     private static final int CHIP_HEIGHT = 14;
@@ -223,7 +223,7 @@ final class LogTab implements MenuTab {
     }
 
     private List<LogEntry> visibleEntries() {
-        return CompanionClientState.log().view(enabled);
+        return state.log().view(enabled);
     }
 
     /** Copies the selection, or the whole visible log when nothing is selected. */

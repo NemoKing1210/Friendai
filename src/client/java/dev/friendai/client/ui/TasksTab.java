@@ -1,9 +1,9 @@
 package dev.friendai.client.ui;
 
-import dev.friendai.debug.CompanionSnapshot;
-import dev.friendai.debug.QueueRow;
-import dev.friendai.debug.QueueRows;
 import dev.friendai.execution.history.TaskRecord;
+import dev.friendai.presentation.companion.CompanionSnapshot;
+import dev.friendai.presentation.companion.QueueRow;
+import dev.friendai.presentation.companion.QueueRows;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.client.gui.Font;
@@ -15,7 +15,7 @@ import net.minecraft.util.FormattedCharSequence;
  * Every queued job drawn as a chain: plans and single tasks as groups, each job a node on a vertical line with its
  * tool, arguments, why it waits and what it depends on; the history of finished tasks follows underneath.
  */
-final class TasksTab implements MenuTab {
+final class TasksTab extends StatefulMenuTab {
     private static final int PAD = 8;
     private static final int GAP = 3;
     private static final int RAIL = 14;
@@ -38,7 +38,7 @@ final class TasksTab implements MenuTab {
     @Override
     public void render(
             GuiGraphicsExtractor g, Font font, int left, int top, int width, int height, int mouseX, int mouseY) {
-        var snapshot = CompanionClientState.snapshot();
+        var snapshot = state.snapshot();
         if (snapshot.isEmpty()) {
             return;
         }

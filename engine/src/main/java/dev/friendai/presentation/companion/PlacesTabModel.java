@@ -1,4 +1,4 @@
-package dev.friendai.debug;
+package dev.friendai.presentation.companion;
 
 import dev.friendai.features.memory.MenuStatus;
 import dev.friendai.features.places.PlaceView;
@@ -117,6 +117,17 @@ public final class PlacesTabModel {
     /** The last action's result, kept across the periodic refreshes that carry no status. */
     public Optional<MenuStatus> status() {
         return Optional.ofNullable(lastStatus);
+    }
+
+    /** Returns this model to its unbound state when the owning connection closes or resets. */
+    public void reset() {
+        view = null;
+        selectedId = null;
+        selectedName = "";
+        renameDraft = "";
+        deleteArmedId = 0;
+        deleteArmedAt = -1;
+        lastStatus = null;
     }
 
     private boolean deleteArmed(long nowMs) {

@@ -1,8 +1,9 @@
 package dev.friendai.client.ui;
 
 import dev.friendai.FriendaiMod;
-import dev.friendai.debug.PauseRowPlacement;
-import dev.friendai.debug.Rect;
+import dev.friendai.client.FriendaiClient;
+import dev.friendai.presentation.layout.PauseRowPlacement;
+import dev.friendai.presentation.layout.Rect;
 import java.util.ArrayList;
 import java.util.List;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
@@ -50,7 +51,7 @@ public final class PauseMenuButton {
         SpriteIconButton button = SpriteIconButton.builder(
                         label,
                         b -> net.minecraft.client.Minecraft.getInstance()
-                                .setScreenAndShow(new CompanionControlScreen(pause)),
+                                .setScreenAndShow(new CompanionControlScreen(pause, FriendaiClient.companionSession())),
                         true)
                 .width(spot.width())
                 .sprite(FriendaiMod.id("companion"), SPRITE_SIZE, SPRITE_SIZE)

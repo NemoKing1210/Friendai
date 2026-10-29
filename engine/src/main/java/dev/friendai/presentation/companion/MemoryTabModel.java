@@ -1,4 +1,4 @@
-package dev.friendai.debug;
+package dev.friendai.presentation.companion;
 
 import dev.friendai.features.memory.Category;
 import dev.friendai.features.memory.MemoryView;
@@ -205,6 +205,20 @@ public final class MemoryTabModel {
      * The status to render, or empty while the status line is hidden. The last status is kept across the
      * periodic refreshes that carry no status, so a message stays readable for its full lifetime.
      */
+    /** Returns this model to its unbound state when the owning connection closes or resets. */
+    public void reset() {
+        view = null;
+        groupKey = null;
+        selectedId = null;
+        editingId = null;
+        draftCategory = Category.PROFILE;
+        draftText = "";
+        statusVisible = false;
+        lastStatus = null;
+        clearArmedAt = -1;
+        personaSelected = false;
+    }
+
     public Optional<MenuStatus> status() {
         return statusVisible ? Optional.ofNullable(lastStatus) : Optional.empty();
     }

@@ -1,5 +1,6 @@
 package dev.friendai.client.ui;
 
+import dev.friendai.presentation.layout.MenuTheme;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;

@@ -3,6 +3,7 @@ package dev.friendai.client.ui;
 import com.google.gson.*;
 import dev.friendai.debug.RequestType;
 import dev.friendai.features.instructions.*;
+import dev.friendai.presentation.companion.CompanionViewState;
 import java.util.*;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.*;
@@ -18,6 +19,7 @@ final class SkillEditorScreen extends Screen {
     }
 
     private final Screen parent;
+    private final CompanionViewState viewState;
     private final Mode mode;
     private InstructionSkill current;
     private final String transfer;
@@ -29,31 +31,33 @@ final class SkillEditorScreen extends Screen {
     private String awaitingAction = "";
     private int left, w, bodyY;
 
-    private SkillEditorScreen(Screen parent, Mode mode, InstructionSkill current, String transfer) {
+    private SkillEditorScreen(
+            Screen parent, Mode mode, InstructionSkill current, String transfer, CompanionViewState viewState) {
         super(Component.translatable(
                 mode == Mode.DESCRIPTION
                         ? "friendai.menu.description.title"
                         : mode == Mode.TRANSFER ? "friendai.menu.skills.transfer" : "friendai.menu.skills.edit"));
         this.parent = parent;
+        this.viewState = viewState;
         this.mode = mode;
         this.current = current;
         this.transfer = transfer;
     }
 
-    static SkillEditorScreen create(Screen parent) {
-        return new SkillEditorScreen(parent, Mode.SKILL, null, "");
+    static SkillEditorScreen create(Screen parent, CompanionViewState viewState) {
+        return new SkillEditorScreen(parent, Mode.SKILL, null, "", viewState);
     }
 
-    static SkillEditorScreen edit(Screen parent, InstructionSkill skill) {
-        return new SkillEditorScreen(parent, Mode.SKILL, skill, "");
+    static SkillEditorScreen edit(Screen parent, InstructionSkill skill, CompanionViewState viewState) {
+        return new SkillEditorScreen(parent, Mode.SKILL, skill, "", viewState);
     }
 
-    static SkillEditorScreen description(Screen parent) {
-        return new SkillEditorScreen(parent, Mode.DESCRIPTION, null, "");
+    static SkillEditorScreen description(Screen parent, CompanionViewState viewState) {
+        return new SkillEditorScreen(parent, Mode.DESCRIPTION, null, "", viewState);
     }
 
-    static SkillEditorScreen transfer(Screen parent, String text) {
-        return new SkillEditorScreen(parent, Mode.TRANSFER, null, text);
+    static SkillEditorScreen transfer(Screen parent, String text, CompanionViewState viewState) {
+        return new SkillEditorScreen(parent, Mode.TRANSFER, null, text, viewState);
     }
 
     @Override
@@ -196,7 +200,7 @@ final class SkillEditorScreen extends Screen {
                 }
             }
         } else if (mode == Mode.DESCRIPTION) {
-            var v = CompanionClientState.skillsView();
+            var v = viewState.skillsView();
             String summary = v.map(s -> s.description().summary()).orElse("");
             name = field("friendai.menu.description.summary", left, 34, w, 300, summary);
             language = field(
@@ -335,7 +339,7 @@ final class SkillEditorScreen extends Screen {
 
     @Override
     public void tick() {
-        CompanionClientState.skillsView().ifPresent(v -> {
+        viewState.skillsView().ifPresent(v -> {
             model.onView(v);
             if (mode == Mode.DESCRIPTION && !loaded) {
                 loaded = true;
@@ -345,7 +349,7 @@ final class SkillEditorScreen extends Screen {
                 address.setValue(v.ownerProfile().address());
             }
         });
-        CompanionClientState.skillsResponse().filter(model::acceptResponse).ifPresent(v -> {
+        viewState.skillsResponse().filter(model::acceptResponse).ifPresent(v -> {
             statusKey = v.statusKey();
             if (!v.ok()) {
                 awaitingSave = false;
@@ -359,7 +363,7 @@ final class SkillEditorScreen extends Screen {
             }
             if (awaitingAction.equals("export")) {
                 awaitingAction = "";
-                minecraft.setScreenAndShow(transfer(parent, v.exportText()));
+                minecraft.setScreenAndShow(transfer(parent, v.exportText(), viewState));
                 return;
             }
             if (mode == Mode.SKILL && v.detail() != null && (awaitingSave || !awaitingAction.isEmpty())) {
