@@ -21,6 +21,8 @@ import dev.friendai.features.interaction.minecraft.tool.InteractionTools;
 import dev.friendai.features.inventory.minecraft.tool.InventoryTools;
 import dev.friendai.features.inventory.minecraft.tool.StorageTools;
 import dev.friendai.features.knowledge.minecraft.tool.ResourceTools;
+import dev.friendai.features.memory.CompanionProfile;
+import dev.friendai.features.memory.CompanionProfileRepository;
 import dev.friendai.features.memory.minecraft.tool.MemoryAccess;
 import dev.friendai.features.memory.minecraft.tool.MemoryTools;
 import dev.friendai.features.memory.minecraft.tool.TrustAccess;
@@ -45,10 +47,12 @@ import dev.friendai.server.execution.tools.QueueToolAccess;
 import dev.friendai.server.execution.tools.QueueTools;
 import dev.friendai.server.execution.tools.TaskToolDefinition;
 import dev.friendai.server.execution.tools.TaskToolRuntime;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.BooleanSupplier;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
@@ -132,7 +136,7 @@ public final class FriendaiTools {
                 new PlacedTools(dependencies.placed()),
                 new MemoryTools(dependencies.memory()),
                 new TrustTools(dependencies.trust()),
-                new ControlTools(),
+                new ControlTools(dependencies.profiles()),
                 new TradingTools(dependencies.trading()),
                 new FireTools(),
                 new CreativeTools(),
@@ -259,8 +263,28 @@ public final class FriendaiTools {
                 return dev.friendai.execution.tool.ToolResult.error("Skill access is unavailable.");
             }
         };
+        Map<UUID, CompanionProfile> profileValues = new HashMap<>();
+        Map<UUID, Long> profileRevisions = new HashMap<>();
+        CompanionProfileRepository profiles = new CompanionProfileRepository() {
+            @Override
+            public CompanionProfile profile(UUID owner) {
+                return profileValues.getOrDefault(owner, CompanionProfile.EMPTY);
+            }
+
+            @Override
+            public void save(UUID owner, CompanionProfile profile) {
+                profileValues.put(owner, profile);
+                profileRevisions.merge(owner, 1L, Long::sum);
+            }
+
+            @Override
+            public long revision(UUID owner) {
+                return profileRevisions.getOrDefault(owner, 0L);
+            }
+        };
         return new ToolDependencies(
                 memory,
+                profiles,
                 companion -> perceptionContext == null ? null : perceptionContext.get(),
                 companion -> resources,
                 trading == null ? TradingToolAccess.UNAVAILABLE : trading,

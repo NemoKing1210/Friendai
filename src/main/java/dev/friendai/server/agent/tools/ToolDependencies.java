@@ -2,6 +2,7 @@ package dev.friendai.server.agent.tools;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.instructions.minecraft.tool.SkillToolAccess;
+import dev.friendai.features.memory.CompanionProfileRepository;
 import dev.friendai.features.memory.minecraft.tool.MemoryAccess;
 import dev.friendai.features.memory.minecraft.tool.TrustAccess;
 import dev.friendai.features.placements.minecraft.PlacedService;
@@ -17,6 +18,7 @@ import java.util.function.Function;
 /** Server-owned capabilities and live data suppliers needed by the built-in feature contributors. */
 public record ToolDependencies(
         MemoryAccess memory,
+        CompanionProfileRepository profiles,
         Function<CompanionEntity, PerceptionContext> perceptionContext,
         Function<CompanionEntity, ResourceCandidates> resourceCandidates,
         TradingToolAccess trading,
@@ -30,6 +32,7 @@ public record ToolDependencies(
         PlacedService placed) {
     public ToolDependencies(
             MemoryAccess memory,
+            CompanionProfileRepository profiles,
             Function<CompanionEntity, PerceptionContext> perceptionContext,
             Function<CompanionEntity, ResourceCandidates> resourceCandidates,
             TradingToolAccess trading,
@@ -41,6 +44,7 @@ public record ToolDependencies(
             Function<CompanionEntity, String> searchHintLine) {
         this(
                 memory,
+                profiles,
                 perceptionContext,
                 resourceCandidates,
                 trading,
@@ -56,6 +60,7 @@ public record ToolDependencies(
 
     public ToolDependencies {
         Objects.requireNonNull(memory);
+        Objects.requireNonNull(profiles);
         Objects.requireNonNull(perceptionContext);
         Objects.requireNonNull(resourceCandidates);
         Objects.requireNonNull(trading);

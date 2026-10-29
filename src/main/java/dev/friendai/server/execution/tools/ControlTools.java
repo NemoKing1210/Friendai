@@ -14,15 +14,22 @@ import dev.friendai.execution.tool.Tool;
 import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.features.combat.minecraft.CombatController;
 import dev.friendai.features.memory.CompanionName;
+import dev.friendai.features.memory.CompanionProfileRepository;
 import dev.friendai.menu.FriendaiMenus;
 import dev.friendai.task.Task;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import net.minecraft.server.level.ServerPlayer;
 
 /** Owner controls and task cancellation for the companion. */
 public final class ControlTools implements FeatureToolContributor {
     private static final String STOP_REASON = "stopped by the LLM";
+    private final CompanionProfileRepository profiles;
+
+    public ControlTools(CompanionProfileRepository profiles) {
+        this.profiles = Objects.requireNonNull(profiles, "profiles");
+    }
 
     @Override
     public void register(FeatureToolRegistry registry) {
@@ -43,7 +50,8 @@ public final class ControlTools implements FeatureToolContributor {
                         .required("name")
                         .build(),
                 AccessLevel.OWNER,
-                (companion, args) -> setName(companion, args.get("name").getAsString()));
+                (companion, args) ->
+                        setName(profiles, companion, args.get("name").getAsString()));
         registerInstant(
                 registry,
                 "set_follow_mode",
@@ -170,8 +178,8 @@ public final class ControlTools implements FeatureToolContributor {
         };
     }
 
-    private static ToolResult setName(CompanionEntity companion, String raw) {
-        CompanionRenamer.Result result = CompanionRenamer.rename(companion, raw);
+    private static ToolResult setName(CompanionProfileRepository profiles, CompanionEntity companion, String raw) {
+        CompanionRenamer.Result result = CompanionRenamer.rename(profiles, companion, raw);
         return switch (result.outcome()) {
             case INVALID_NAME -> ToolResult.error("Invalid name. " + CompanionName.PROBLEM);
             case NO_OWNER -> ToolResult.error("I don't have an owner.");

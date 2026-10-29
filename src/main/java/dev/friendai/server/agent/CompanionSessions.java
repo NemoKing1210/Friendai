@@ -160,6 +160,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                 () -> settings.get().tasks().treeSearchRadius(),
                 new ToolDependencies(
                         memoryAccess,
+                        profiles,
                         companion -> perceptionContext.get(),
                         companion -> resources,
                         tradingToolAccess,

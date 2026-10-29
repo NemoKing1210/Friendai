@@ -31,6 +31,7 @@ final class GameTestToolRegistry {
         CompanionSessions sessions = state.sessions();
         ToolDependencies dependencies = new ToolDependencies(
                 memory,
+                state.profiles(),
                 ignored -> new PerceptionContext(state.resources(), state.settings(), state.freeTime()),
                 ignored -> state.resources(),
                 state,

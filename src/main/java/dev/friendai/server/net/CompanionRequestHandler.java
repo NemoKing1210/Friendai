@@ -98,7 +98,8 @@ public final class CompanionRequestHandler {
                     .find(owner)
                     .ifPresentOrElse(
                             c -> {
-                                if (CompanionRenamer.rename(c, rename.name()).outcome()
+                                if (CompanionRenamer.rename(runtime.profiles(), c, rename.name())
+                                                .outcome()
                                         != CompanionRenamer.Outcome.RENAMED) {
                                     player.sendSystemMessage(Component.translatable("friendai.menu.rename.invalid"));
                                 }

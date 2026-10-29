@@ -1,8 +1,8 @@
 package dev.friendai.entity;
 
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.features.memory.CompanionName;
 import dev.friendai.features.memory.CompanionProfile;
+import dev.friendai.features.memory.CompanionProfileRepository;
 import java.util.Optional;
 
 /** The one place a companion is renamed, shared by the {@code set_name} tool and the companion menu. */
@@ -19,7 +19,7 @@ public final class CompanionRenamer {
     private CompanionRenamer() {}
 
     /** Stores the name in the owner's book, so it survives a dismiss, and shows it on the name tag. */
-    public static Result rename(CompanionEntity companion, String raw) {
+    public static Result rename(CompanionProfileRepository profiles, CompanionEntity companion, String raw) {
         Optional<String> parsed = CompanionName.parse(raw);
         if (parsed.isEmpty()) {
             return new Result(Outcome.INVALID_NAME, null);
@@ -28,7 +28,6 @@ public final class CompanionRenamer {
             return new Result(Outcome.NO_OWNER, null);
         }
         String name = parsed.get();
-        var profiles = FriendaiServerState.get(companion.level().getServer()).profiles();
         var profile = profiles.profile(companion.ownerUuid());
         profiles.save(companion.ownerUuid(), new CompanionProfile(name, profile.description(), profile.ownerProfile()));
         companion.applyName(name);
