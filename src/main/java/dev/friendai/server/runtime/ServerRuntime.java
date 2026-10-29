@@ -6,6 +6,7 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionLifeData;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.features.memory.CompanionProfileRepository;
+import dev.friendai.features.memory.MemoryViewers;
 import dev.friendai.features.placements.minecraft.PlacedService;
 import dev.friendai.features.places.minecraft.PlaceService;
 import dev.friendai.features.trading.minecraft.tool.TradingToolAccess;
@@ -39,6 +40,8 @@ public final class ServerRuntime implements AutoCloseable {
     private final RuntimeResources resources;
     private final ServerProtocolConnections protocolConnections;
     private final CompanionManager companions;
+    private final MemoryViewStream memoryViewStream;
+    private final PlaceViewStream placeViewStream;
     private boolean acceptingWork = true;
     private boolean closed;
 
@@ -67,6 +70,8 @@ public final class ServerRuntime implements AutoCloseable {
         this.resources = resources;
         this.protocolConnections = server == null ? null : new ServerProtocolConnections(server);
         this.companions = server == null ? null : CompanionManager.get(server);
+        this.memoryViewStream = new MemoryViewStream();
+        this.placeViewStream = new PlaceViewStream();
     }
 
     /** Starts runtime-only chunk restoration after the server has finished starting. */
@@ -107,9 +112,9 @@ public final class ServerRuntime implements AutoCloseable {
         if (protocolConnections != null) protocolConnections.leave(player);
         DebugStream.onDisconnect(player);
         MovementDebugStream.onDisconnect(player);
-        MemoryViewStream.onDisconnect(player);
+        memoryViewStream.onDisconnect(this, player);
         SkillsViewStream.onDisconnect(player);
-        PlaceViewStream.onDisconnect(player);
+        placeViewStream.onDisconnect(this, player);
         if (acceptingWork) state.sessions().onOwnerLeft(player.getUUID());
     }
 
@@ -148,6 +153,22 @@ public final class ServerRuntime implements AutoCloseable {
 
     public MemoryStore memory() {
         return state.memory();
+    }
+
+    public MemoryViewers memoryViewers() {
+        return state.memoryViewers();
+    }
+
+    public MemoryViewers placeViewers() {
+        return state.placeViewers();
+    }
+
+    public MemoryViewStream memoryViewStream() {
+        return memoryViewStream;
+    }
+
+    public PlaceViewStream placeViewStream() {
+        return placeViewStream;
     }
 
     public CompanionProfileRepository profiles() {

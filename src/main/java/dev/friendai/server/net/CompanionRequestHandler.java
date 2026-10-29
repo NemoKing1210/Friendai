@@ -60,19 +60,19 @@ public final class CompanionRequestHandler {
             return;
         }
         if (request instanceof MemoryRequest.Open) {
-            MemoryViewStream.open(player, requestId);
+            runtime.memoryViewStream().open(runtime, player, requestId);
             return;
         }
         if (request instanceof MemoryRequest.Close) {
-            MemoryViewStream.close(player);
+            runtime.memoryViewStream().close(runtime, player);
             return;
         }
         if (request instanceof PlaceRequest.Open) {
-            PlaceViewStream.open(player, requestId);
+            runtime.placeViewStream().open(runtime, player, requestId);
             return;
         }
         if (request instanceof PlaceRequest.Close) {
-            PlaceViewStream.close(player);
+            runtime.placeViewStream().close(runtime, player);
             return;
         }
         if (!runtime.protocolConnections().controlLimiter().tryAcquire(owner)) return;
@@ -163,8 +163,12 @@ public final class CompanionRequestHandler {
             placeStatus = forgetPlace(runtime.placeService(), runtime.places().book(owner), forget.name());
         }
 
-        if (memoryStatus != null) MemoryViewStream.sendNow(player, Optional.of(memoryStatus), requestId);
-        if (placeStatus != null) PlaceViewStream.sendNow(player, Optional.of(placeStatus), requestId);
+        if (memoryStatus != null) {
+            runtime.memoryViewStream().sendNow(runtime, player, Optional.of(memoryStatus), requestId);
+        }
+        if (placeStatus != null) {
+            runtime.placeViewStream().sendNow(runtime, player, Optional.of(placeStatus), requestId);
+        }
         DebugStream.sendNow(player, requestId);
     }
 

@@ -3,9 +3,7 @@ package dev.friendai.server.runtime;
 import dev.friendai.core.FriendaiServerState;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.server.net.DebugStream;
-import dev.friendai.server.net.MemoryViewStream;
 import dev.friendai.server.net.MovementDebugStream;
-import dev.friendai.server.net.PlaceViewStream;
 import dev.friendai.server.net.SkillsViewStream;
 import dev.friendai.server.trading.TraderRefreshService;
 import net.minecraft.server.MinecraftServer;
@@ -41,9 +39,9 @@ public final class ServerTickPipeline {
         state.trading().flushIfDue();
         ownerRecordFlush.tick();
         DebugStream.tick(server);
-        MemoryViewStream.tick(server);
+        runtime.memoryViewStream().tick(runtime);
         SkillsViewStream.tick(runtime);
-        PlaceViewStream.tick(server);
+        runtime.placeViewStream().tick(runtime);
         MovementDebugStream.tick(server);
     }
 }

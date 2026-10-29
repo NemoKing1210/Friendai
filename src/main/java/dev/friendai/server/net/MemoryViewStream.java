@@ -1,15 +1,13 @@
 package dev.friendai.server.net;
 
-import dev.friendai.core.FriendaiServerState;
 import dev.friendai.features.memory.MemoryBook;
 import dev.friendai.features.memory.MemoryView;
 import dev.friendai.features.memory.MemoryViewBuilder;
-import dev.friendai.features.memory.MemoryViewers;
 import dev.friendai.features.memory.MenuStatus;
 import dev.friendai.features.memory.PlayerRef;
 import dev.friendai.protocol.ProtocolFamily;
 import dev.friendai.protocol.memory.MemoryProtocolViewCodec;
-import dev.friendai.server.runtime.ServerRuntimeRegistry;
+import dev.friendai.server.runtime.ServerRuntime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -21,55 +19,54 @@ import net.minecraft.server.level.ServerPlayer;
 /** Pushes the memory view to players who have the tab open: on demand with a status, and on changes. */
 public final class MemoryViewStream {
     private static final int INTERVAL_TICKS = 10;
-    private static int counter;
-    private static int viewEpoch;
-    private static List<UUID> lastOnline = List.of();
-    private static int lastConfig;
+    private int counter;
+    private int viewEpoch;
+    private List<UUID> lastOnline = List.of();
+    private int lastConfig;
 
-    private MemoryViewStream() {}
+    public MemoryViewStream() {}
 
     /** Registers the viewer and sends the current view immediately. */
-    public static void open(ServerPlayer player) {
-        open(player, 0);
+    public void open(ServerRuntime runtime, ServerPlayer player) {
+        open(runtime, player, 0);
     }
 
-    public static void open(ServerPlayer player, long requestId) {
-        FriendaiServerState.get(player.level().getServer()).memoryViewers().open(player.getUUID());
-        sendNow(player, Optional.empty(), requestId);
+    public void open(ServerRuntime runtime, ServerPlayer player, long requestId) {
+        runtime.memoryViewers().open(player.getUUID());
+        sendNow(runtime, player, Optional.empty(), requestId);
     }
 
-    public static void close(ServerPlayer player) {
-        FriendaiServerState.get(player.level().getServer()).memoryViewers().close(player.getUUID());
+    public void close(ServerRuntime runtime, ServerPlayer player) {
+        runtime.memoryViewers().close(player.getUUID());
     }
 
     /** Sends a fresh view carrying the result of a request, if the player has the tab open. */
-    public static void sendNow(ServerPlayer player, Optional<MenuStatus> status) {
-        sendNow(player, status, 0);
+    public void sendNow(ServerRuntime runtime, ServerPlayer player, Optional<MenuStatus> status) {
+        sendNow(runtime, player, status, 0);
     }
 
-    public static void sendNow(ServerPlayer player, Optional<MenuStatus> status, long requestId) {
-        FriendaiServerState state = FriendaiServerState.get(player.level().getServer());
-        if (state.memoryViewers().isOpen(player.getUUID())) {
-            send(state, player, status, requestId);
+    public void sendNow(ServerRuntime runtime, ServerPlayer player, Optional<MenuStatus> status, long requestId) {
+        if (runtime.memoryViewers().isOpen(player.getUUID())) {
+            send(runtime, player, status, requestId);
         }
     }
 
     /** Every {@link #INTERVAL_TICKS} ticks, sends a status-free view to viewers whose book changed. */
-    public static void tick(MinecraftServer server) {
+    public void tick(ServerRuntime runtime) {
+        MinecraftServer server = runtime.server();
         if (++counter % INTERVAL_TICKS != 0) {
             return;
         }
-        FriendaiServerState state = FriendaiServerState.get(server);
-        MemoryViewers viewers = state.memoryViewers();
-        int epoch = currentEpoch(state, server);
+        var viewers = runtime.memoryViewers();
+        int epoch = currentEpoch(runtime, server);
         for (UUID uuid : viewers.viewers()) {
             ServerPlayer player = server.getPlayerList().getPlayer(uuid);
             if (player == null) {
                 viewers.close(uuid);
                 continue;
             }
-            if (viewers.needsUpdate(uuid, state.memory().book(uuid).revision(), epoch)) {
-                send(state, player, Optional.empty(), 0);
+            if (viewers.needsUpdate(uuid, runtime.memory().book(uuid).revision(), epoch)) {
+                send(runtime, player, Optional.empty(), 0);
             }
         }
     }
@@ -78,17 +75,17 @@ public final class MemoryViewStream {
      * Bumps the view epoch when something the view shows but the book does not record changed: who is
      * online (names and the online flag, and guests that stop being listed) or the memory config.
      */
-    private static int currentEpoch(FriendaiServerState state, MinecraftServer server) {
+    private int currentEpoch(ServerRuntime runtime, MinecraftServer server) {
         List<UUID> online = new ArrayList<>();
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             online.add(player.getUUID());
         }
         online.sort(null);
         int config = Objects.hash(
-                state.config().memory.enabled,
-                state.config().memory.limits().maxFactChars(),
-                state.config().memory.limits().maxFactsPerPlayer(),
-                state.config().memory.limits().maxWorldFacts());
+                runtime.config().memory.enabled,
+                runtime.config().memory.limits().maxFactChars(),
+                runtime.config().memory.limits().maxFactsPerPlayer(),
+                runtime.config().memory.limits().maxWorldFacts());
         if (!online.equals(lastOnline) || config != lastConfig) {
             lastOnline = List.copyOf(online);
             lastConfig = config;
@@ -97,14 +94,13 @@ public final class MemoryViewStream {
         return viewEpoch;
     }
 
-    public static void onDisconnect(ServerPlayer player) {
-        FriendaiServerState.get(player.level().getServer()).memoryViewers().close(player.getUUID());
+    public void onDisconnect(ServerRuntime runtime, ServerPlayer player) {
+        runtime.memoryViewers().close(player.getUUID());
     }
 
-    private static void send(
-            FriendaiServerState state, ServerPlayer player, Optional<MenuStatus> status, long requestId) {
+    private void send(ServerRuntime runtime, ServerPlayer player, Optional<MenuStatus> status, long requestId) {
         UUID uuid = player.getUUID();
-        MemoryBook book = state.memory().book(uuid);
+        MemoryBook book = runtime.memory().book(uuid);
         List<PlayerRef> online = new ArrayList<>();
         for (ServerPlayer other : player.level().getServer().getPlayerList().getPlayers()) {
             online.add(new PlayerRef(other.getUUID(), other.getName().getString()));
@@ -114,14 +110,14 @@ public final class MemoryViewStream {
                 uuid,
                 player.getName().getString(),
                 online,
-                state.config().memory.enabled,
-                state.config().memory.limits(),
+                runtime.config().memory.enabled,
+                runtime.config().memory.limits(),
                 status,
-                state.profiles().profile(uuid),
-                state.config().companion.description);
-        ServerRuntimeRegistry.getOrCreate(player.level().getServer())
-                .protocolConnections()
+                runtime.profiles().profile(uuid),
+                runtime.config().companion.description);
+        runtime.protocolConnections()
                 .sendView(player, ProtocolFamily.MEMORY, MemoryProtocolViewCodec.encodeFitting(view, requestId));
-        state.memoryViewers().markSent(uuid, book.revision() + state.profiles().revision(uuid), viewEpoch);
+        runtime.memoryViewers()
+                .markSent(uuid, book.revision() + runtime.profiles().revision(uuid), viewEpoch);
     }
 }
