@@ -63,6 +63,12 @@ public final class GoToTask implements Task {
     }
 
     @Override
+    public void onTerminal(TaskContext c) {
+        mover.stop(c);
+        sneak.exit(c);
+    }
+
+    @Override
     public String describe() {
         return "walking to " + coords();
     }

@@ -246,6 +246,139 @@ public class SessionLifecycleTests {
         });
     }
 
+    @GameTest(maxTicks = 240)
+    public void completedSneakingStepReleasesItsSneakScope(GameTestHelper h) {
+        int floor = 300;
+        GameTestSupport.platformAt(h, floor, 16);
+        CompanionEntity c = h.spawn(dev.friendai.entity.FriendaiEntities.COMPANION, 2, floor + 1, 2);
+        var target = c.position().add(5.0, 0.0, 0.0);
+        var plan = new dev.friendai.task.plan.SequenceTask(
+                "plan",
+                List.of(
+                        new dev.friendai.task.plan.PlanEntry(
+                                "go_to",
+                                context -> new dev.friendai.features.navigation.minecraft.task.GoToTask(target, true)),
+                        new dev.friendai.task.plan.PlanEntry(
+                                "wait", context -> new dev.friendai.features.interaction.minecraft.task.WaitTask(200))),
+                () -> 100);
+        c.executionCoordinator().start(plan, "run_plan");
+        boolean[] secondStep = {false};
+        h.succeedWhen(() -> {
+            if (plan.describe().contains("step 2/2")) secondStep[0] = true;
+            h.assertTrue(secondStep[0], "the plan should reach its second step");
+            h.assertFalse(c.body().sneaking(), "a finished sneaking step must release its sneak");
+        });
+    }
+
+    @GameTest(maxTicks = 120)
+    public void terminalCleanupCannotStopTheReplacementItStarts(GameTestHelper h) {
+        int floor = 320;
+        GameTestSupport.platformAt(h, floor, 8);
+        CompanionEntity c = h.spawn(dev.friendai.entity.FriendaiEntities.COMPANION, 2, floor + 1, 2);
+        var replacement = new dev.friendai.features.interaction.minecraft.task.WaitTask(200);
+        var task = new TerminalTestTask(context -> c.executionCoordinator().start(replacement, "wait_replacement"));
+        c.executionCoordinator().start(task, "terminal_test");
+        h.succeedWhen(() -> {
+            h.assertFalse(task.stopped, "terminal cleanup must not stop the completed task again");
+            h.assertTrue(
+                    c.executionCoordinator()
+                            .current()
+                            .map(current -> current.type().equals("wait"))
+                            .orElse(false),
+                    "the replacement started by cleanup must keep running");
+        });
+    }
+
+    @GameTest(maxTicks = 40)
+    public void failedStartStillRunsTerminalCleanup(GameTestHelper h) {
+        int floor = 340;
+        GameTestSupport.platformAt(h, floor, 8);
+        CompanionEntity c = h.spawn(dev.friendai.entity.FriendaiEntities.COMPANION, 2, floor + 1, 2);
+        var task = new ThrowingStartTestTask();
+        c.executionCoordinator().start(task, "throw_start");
+        h.assertTrue(task.released, "a failed start must release the state acquired before the throw");
+        h.succeed();
+    }
+
+    private static final class TerminalTestTask implements dev.friendai.task.Task {
+        private final java.util.function.Consumer<dev.friendai.task.TaskContext> cleanup;
+        private boolean stopped;
+
+        private TerminalTestTask(java.util.function.Consumer<dev.friendai.task.TaskContext> cleanup) {
+            this.cleanup = cleanup;
+        }
+
+        @Override
+        public String type() {
+            return "terminal_test";
+        }
+
+        @Override
+        public void start(dev.friendai.task.TaskContext context) {}
+
+        @Override
+        public dev.friendai.task.TaskStatus tick(dev.friendai.task.TaskContext context) {
+            return dev.friendai.task.TaskStatus.SUCCESS;
+        }
+
+        @Override
+        public void stop(dev.friendai.task.TaskContext context) {
+            stopped = true;
+        }
+
+        @Override
+        public void onTerminal(dev.friendai.task.TaskContext context) {
+            cleanup.accept(context);
+        }
+
+        @Override
+        public String describe() {
+            return "terminal test";
+        }
+
+        @Override
+        public String resultSummary() {
+            return "done";
+        }
+    }
+
+    private static final class ThrowingStartTestTask implements dev.friendai.task.Task {
+        private boolean released;
+
+        @Override
+        public String type() {
+            return "throw_start";
+        }
+
+        @Override
+        public void start(dev.friendai.task.TaskContext context) {
+            throw new IllegalStateException("start failed");
+        }
+
+        @Override
+        public dev.friendai.task.TaskStatus tick(dev.friendai.task.TaskContext context) {
+            return dev.friendai.task.TaskStatus.RUNNING;
+        }
+
+        @Override
+        public void stop(dev.friendai.task.TaskContext context) {}
+
+        @Override
+        public void onTerminal(dev.friendai.task.TaskContext context) {
+            released = true;
+        }
+
+        @Override
+        public String describe() {
+            return "throwing start";
+        }
+
+        @Override
+        public String resultSummary() {
+            return "failed";
+        }
+    }
+
     private static void awaitPlanner(GameTestHelper h, DeferredPlanner planner, int remaining, Runnable action) {
         if (planner.requested) {
             action.run();

@@ -8,10 +8,12 @@ import dev.friendai.features.interaction.minecraft.task.TurnTask;
 import dev.friendai.features.interaction.minecraft.task.WaitTask;
 import dev.friendai.features.inventory.minecraft.task.ThrowItemTask;
 import dev.friendai.features.mining.minecraft.mining.BreakAction;
+import dev.friendai.features.navigation.minecraft.task.GoToTask;
 import dev.friendai.features.navigation.minecraft.task.RelativeMoveTask;
 import dev.friendai.features.navigation.movement.Emotes;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.inventory.ItemMatcher;
+import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -98,6 +100,47 @@ public class BodyLanguageTests {
             double moved = c.position().x - start.x;
             h.assertTrue(moved > 4.0, "only moved " + moved + " blocks east");
         });
+    }
+
+    @GameTest(maxTicks = 200)
+    public void sneakingMoveReleasesSneakOnArrival(GameTestHelper h) {
+        int floor = 200;
+        GameTestSupport.platformAt(h, floor, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, floor + 1, 2);
+        Vec3 target = new Vec3(c.getX() + 6.0, c.getY(), c.getZ());
+        c.executionCoordinator().start(new GoToTask(target, true), "go_to");
+        h.assertTrue(c.body().sneaking(), "the sneaking move must crouch while it walks");
+        h.succeedWhen(() -> {
+            h.assertFalse(isCurrent(c, "go_to"), "the sneaking move should have finished");
+            h.assertFalse(c.body().sneaking(), "sneak must be released when the move ends");
+        });
+    }
+
+    @GameTest(maxTicks = 200)
+    public void timedOutSneakingStepReleasesSneak(GameTestHelper h) {
+        int floor = 220;
+        GameTestSupport.platformAt(h, floor, 12);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, floor + 1, 2);
+        Vec3 target = new Vec3(c.getX() + 8.0, c.getY(), c.getZ());
+        var plan = new dev.friendai.task.plan.SequenceTask(
+                "plan",
+                List.of(new dev.friendai.task.plan.PlanEntry("go_to", context -> new GoToTask(target, true))),
+                () -> 20);
+        c.executionCoordinator().start(plan, "run_plan");
+        boolean[] crouched = {false};
+        h.succeedWhen(() -> {
+            if (c.body().sneaking()) crouched[0] = true;
+            h.assertFalse(isCurrent(c, "run_plan"), "the timed-out sneaking step must end the plan");
+            h.assertTrue(crouched[0], "the sneaking step must crouch while it walks");
+            h.assertFalse(c.body().sneaking(), "sneak must be released when the step times out");
+        });
+    }
+
+    private static boolean isCurrent(CompanionEntity c, String type) {
+        return c.executionCoordinator()
+                .current()
+                .map(task -> type.equals(task.type()))
+                .orElse(false);
     }
 
     @GameTest(maxTicks = 100)

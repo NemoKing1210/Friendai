@@ -71,6 +71,7 @@ public final class ActiveTaskController {
             task.start(context(start.taskContext(), active));
         } catch (RuntimeException e) {
             if (current == active) current = null;
+            release(task, context(start.taskContext(), active), "failed to start");
             throw e;
         }
         return active.id();
@@ -100,6 +101,7 @@ public final class ActiveTaskController {
         }
         if (status == TaskStatus.RUNNING) return Optional.empty();
         current = null;
+        release(active.task(), activeContext, "terminal");
         return Optional.of(new Completion(active, status, summary));
     }
 
@@ -191,6 +193,14 @@ public final class ActiveTaskController {
             task.stop(taskContext);
         } catch (RuntimeException e) {
             LOGGER.warn("Task {} failed to stop ({})", task.type(), reason, e);
+        }
+    }
+
+    private void release(Task task, TaskContext taskContext, String when) {
+        try {
+            task.onTerminal(taskContext);
+        } catch (RuntimeException e) {
+            LOGGER.warn("Task {} failed terminal cleanup ({})", task.type(), when, e);
         }
     }
 }

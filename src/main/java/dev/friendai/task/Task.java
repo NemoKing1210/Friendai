@@ -15,6 +15,13 @@ public interface Task {
 
     void stop(TaskContext c);
 
+    /**
+     * Releases task-owned state when the task reaches a terminal status: success, failure, a timeout, a crash or a
+     * failed start. The runner calls it exactly once per activation and an implementation must be idempotent.
+     * Cancellation uses {@link #stop} instead, so effects that only make sense for a cancel stay there.
+     */
+    default void onTerminal(TaskContext c) {}
+
     String describe();
 
     String resultSummary();

@@ -72,9 +72,11 @@ public final class SequenceTask implements Task {
                 active.start(c);
                 stepStart = elapsed;
             } catch (IllegalArgumentException e) {
+                safeTerminate(active, c);
                 return fail(entry.tool(), e.getMessage());
             } catch (RuntimeException e) {
                 LOGGER.warn("Plan step {}/{} ({}) crashed while starting", index + 1, entries.size(), entry.tool(), e);
+                safeTerminate(active, c);
                 return fail(entry.tool(), "task crashed: " + e.getClass().getSimpleName());
             }
         }
@@ -89,24 +91,33 @@ public final class SequenceTask implements Task {
                     entries.size(),
                     entries.get(index).tool(),
                     e);
-            safeStop(active, c);
+            safeTerminate(active, c);
             return fail(
                     entries.get(index).tool(), "task crashed: " + e.getClass().getSimpleName());
         }
         if (status == TaskStatus.RUNNING && active.hasTimeout() && elapsed - stepStart > stepTimeoutTicks.getAsInt()) {
-            safeStop(active, c);
+            safeTerminate(active, c);
             return fail(entries.get(index).tool(), "timed out");
         }
         if (status == TaskStatus.SUCCESS) {
             done.add(active.resultSummary());
+            release(active, c);
             active = null;
             index++;
             return TaskStatus.RUNNING;
         }
         if (status == TaskStatus.FAILED) {
+            release(active, c);
             return fail(entries.get(index).tool(), active.resultSummary());
         }
         return TaskStatus.RUNNING;
+    }
+
+    /** A terminal outer task must still release the step it was running. */
+    @Override
+    public void onTerminal(TaskContext c) {
+        safeTerminate(active, c);
+        active = null;
     }
 
     /** A cancelled plan hands the runner its current step's cleanup, such as a build's scaffold. */
@@ -189,6 +200,26 @@ public final class SequenceTask implements Task {
         return TaskStatus.FAILED;
     }
 
+    private void safeTerminate(Task task, TaskContext c) {
+        if (task == null) return;
+        safeStop(task, c);
+        release(task, c);
+    }
+
+    /** Terminal cleanup for a child that ended on its own; cancellation uses {@link Task#stop}. */
+    private void release(Task task, TaskContext c) {
+        try {
+            task.onTerminal(c);
+        } catch (RuntimeException e) {
+            LOGGER.warn(
+                    "Plan step {}/{} ({}) failed terminal cleanup",
+                    index + 1,
+                    Math.max(entries.size(), index + 1),
+                    task.type(),
+                    e);
+        }
+    }
+
     private void safeStop(Task task, TaskContext c) {
         try {
             task.stop(c);
@@ -197,7 +228,7 @@ public final class SequenceTask implements Task {
                     "Plan step {}/{} ({}) failed to stop",
                     index + 1,
                     entries.size(),
-                    entries.get(index).tool(),
+                    entries.get(Math.min(index, entries.size() - 1)).tool(),
                     e);
         }
     }
