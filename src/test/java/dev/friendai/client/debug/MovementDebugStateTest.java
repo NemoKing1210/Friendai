@@ -54,14 +54,12 @@ class MovementDebugStateTest {
     }
 
     @Test
-    void preferenceCanBeRestoredAgainOnlyAfterConnectionStateResets() {
-        assertTrue(MovementDebugState.preferenceRestorePending());
+    void overlayStartsOffAndResetSwitchesItOff() {
         MovementDebugState.reset();
-        assertTrue(MovementDebugState.preferenceRestorePending());
-        MovementDebugState.restorePreference(true);
+        assertFalse(MovementDebugState.enabled());
+        MovementDebugState.setEnabled(true);
         assertTrue(MovementDebugState.enabled());
-        assertFalse(MovementDebugState.preferenceRestorePending());
         MovementDebugState.reset();
-        assertTrue(MovementDebugState.preferenceRestorePending());
+        assertFalse(MovementDebugState.enabled());
     }
 }
