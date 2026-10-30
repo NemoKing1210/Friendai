@@ -125,7 +125,7 @@ jobs:
             echo "- dry run: \`$DRY_RUN\`"
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload the verified jar
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-${{ needs.preflight.outputs.version }}
           path: |
@@ -137,7 +137,7 @@ jobs:
           retention-days: 30
       - name: Upload diagnostics on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-failure-${{ needs.preflight.outputs.version }}
           path: |
