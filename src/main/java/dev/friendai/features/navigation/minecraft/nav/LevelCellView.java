@@ -6,6 +6,7 @@ import dev.friendai.features.navigation.pathing.BreakProgress;
 import dev.friendai.features.navigation.pathing.Cell;
 import dev.friendai.features.navigation.pathing.CellView;
 import dev.friendai.features.navigation.pathing.CostModel;
+import dev.friendai.features.navigation.pathing.LongMap;
 import dev.friendai.features.navigation.pathing.PathingConfig;
 import dev.friendai.features.navigation.pathing.Pos;
 import java.util.HashMap;
@@ -70,7 +71,7 @@ public final class LevelCellView implements CellView {
     private final PathingConfig config;
     private final CostModel costs;
     private final BlockList breakList;
-    private final Map<Long, Cell> cache = new HashMap<>();
+    private final LongMap<Cell> cache = new LongMap<>(1024);
     /** What breaking a block costs, per block state: independent of where the state stands. */
     private final Map<BlockState, BreakInfo> breakInfo = new HashMap<>();
 

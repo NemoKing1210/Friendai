@@ -8,6 +8,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.89.1] - 2026-10-30
+
+### Changed
+
+- Route planning is lighter: the path search and the terrain cache it reads no longer box every block position, so long routes cost less per tick, and the companion sorts out what you ask of it a little faster.
+
 ## [0.89.0] - 2026-10-30
 
 ### Added

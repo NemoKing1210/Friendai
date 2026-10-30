@@ -3,9 +3,7 @@ package dev.friendai.features.navigation.pathing;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.function.LongSupplier;
 
@@ -57,7 +55,7 @@ public final class PathSearch {
     private final MoveGenerator moves;
 
     private final PriorityQueue<Entry> open = new PriorityQueue<>(ORDER);
-    private final Map<Long, List<Record>> recordsByPos = new HashMap<>();
+    private final LongMap<List<Record>> recordsByPos = new LongMap<>(256);
     private final double startHeuristic;
 
     private long sequence;

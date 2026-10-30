@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * Decides, without a model call, what a turn is for. The rules are deliberately blunt: anything unclear is an
@@ -94,9 +95,11 @@ public final class TurnRouter {
         return EnumSet.allOf(ToolGroup.class);
     }
 
+    private static final Pattern NON_WORD = Pattern.compile("[^\\p{L}\\p{N}]+");
+
     private static List<String> tokens(String lower) {
         List<String> tokens = new ArrayList<>();
-        for (String token : lower.split("[^\\p{L}\\p{N}]+")) {
+        for (String token : NON_WORD.split(lower)) {
             if (!token.isEmpty()) {
                 tokens.add(token);
             }
