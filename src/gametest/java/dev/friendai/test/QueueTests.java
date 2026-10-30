@@ -4,6 +4,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.friendai.agent.llm.model.ToolCall;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.execution.queue.FailurePolicy;
 import dev.friendai.execution.queue.GuardAction;
@@ -195,11 +196,19 @@ public final class QueueTests {
                         == dev.friendai.execution.queue.JobState.RUNNING,
                 "active job state did not restore");
         h.assertTrue(
+                restored.executionCoordinator().suspended(),
+                "restored owner work waits while the owner is offline");
+        h.assertTrue(
+                restored.executionCoordinator().current().isEmpty(),
+                "restored owner work must not start before the owner logs in");
+        CompanionManager.get(h.getLevel().getServer()).register(restored);
+        GameTestSupport.runtime(h.getLevel().getServer()).sessions().onOwnerJoined(owner);
+        h.assertTrue(
                 restored.executionCoordinator()
                         .current()
                         .map(task -> task.type().equals("stay"))
                         .orElse(false),
-                "active task did not restore");
+                "the restored task starts when the owner joins");
         h.succeed();
     }
 
