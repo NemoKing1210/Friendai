@@ -37,11 +37,23 @@ public final class Stations {
 
     private Stations() {}
 
+    /**
+     * Extra candidates fetched before the live-state check: observations record a block id, so a campfire that was lit
+     * when it was seen and has since gone out still matches the id and would otherwise hide a usable one behind it.
+     */
+    private static final int STATE_CHECK_SLACK = 8;
+
     /** Evidence-backed station candidates for companion decisions. */
     public static List<BlockPos> nearbyAll(CompanionEntity companion, Station station, int limit) {
         if (!(companion.level() instanceof ServerLevel level) || block(station) == null) return List.of();
         ResourceCandidates candidates = new TaskContext(companion, level).resources();
-        return candidates.knownOrVisible(companion, matcher(station), SEARCH_RADIUS, limit);
+        BlockMatcher matcher = matcher(station);
+        // An observation keeps the block id, not its state, so the live block decides whether a station is usable: a
+        // remembered campfire is not a station once it has gone out.
+        return candidates.knownOrVisible(companion, matcher, SEARCH_RADIUS, limit + STATE_CHECK_SLACK).stream()
+                .filter(pos -> !level.hasChunkAt(pos) || matcher.test(level.getBlockState(pos)))
+                .limit(limit)
+                .toList();
     }
 
     public static Optional<BlockPos> nearby(CompanionEntity companion, Station station) {

@@ -8,6 +8,13 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.95.1] - 2026-10-31
+
+### Fixed
+
+- A tall tree is felled completely and every log is picked up: the companion finishes its climb standing on the scaffold, not in mid-jump, so the top logs are no longer left behind, and it walks the last step onto a drop its route stopped just short of.
+- A campfire that has gone out no longer counts as a cooking station: the companion checks the live block instead of the memory of it.
+
 ## [0.95.0] - 2026-10-30
 
 ### Changed

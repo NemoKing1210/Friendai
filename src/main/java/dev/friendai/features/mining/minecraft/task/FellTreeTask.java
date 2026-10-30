@@ -68,6 +68,12 @@ public final class FellTreeTask implements Task {
     private static final int MAX_LANDING_SCAN = 32;
     /** How long the end of the cut waits for the last drops to settle and be rescued, in ticks. */
     private static final int RESCUE_SETTLE_TICKS = 40;
+    /**
+     * How many collection rounds one felling may run. A round has a fixed tick budget; when the server is busy the
+     * companion may not reach every drop in time, and a second round from the same foot finishes the job instead of
+     * reporting a tree as done with its logs still on the ground.
+     */
+    private static final int MAX_SWEEP_ROUNDS = 4;
 
     private enum Phase {
         WALK,
@@ -113,6 +119,7 @@ public final class FellTreeTask implements Task {
     private final Set<UUID> rescuedDrops = new HashSet<>();
     private final Map<UUID, Integer> rescueAttempts = new HashMap<>();
     private int rescueCount;
+    private int sweepRounds;
     private long nextRescueScan;
     private int settleTicks;
     private TaskStatus pendingStatus;
@@ -321,7 +328,10 @@ public final class FellTreeTask implements Task {
     private TaskStatus climb(TaskContext c) {
         BlockPos feet = c.companion().blockPosition();
         int target = climb.climbFeetY();
-        if (feet.getY() >= target) {
+        // A jump puts the feet at the target while the companion is still airborne with no block under it; it falls
+        // back
+        // one block and then cuts from a stance that no longer reaches the top logs. The climb ends on the ground.
+        if (feet.getY() >= target && c.companion().onGround()) {
             phase = Phase.CUT;
             return TaskStatus.RUNNING;
         }
@@ -350,7 +360,8 @@ public final class FellTreeTask implements Task {
                 return TaskStatus.RUNNING;
             }
             case READY -> {
-                if (c.companion().blockPosition().getY() >= target) {
+                if (c.companion().blockPosition().getY() >= target
+                        && c.companion().onGround()) {
                     phase = Phase.CUT;
                 }
                 return TaskStatus.RUNNING;
@@ -552,7 +563,12 @@ public final class FellTreeTask implements Task {
 
     private TaskStatus sweep(TaskContext c) {
         if (sweep.tick(c) == DropCollector.State.DONE) {
+            boolean leftBehind = !sweep.leftovers().isEmpty() && sweepRounds + 1 < MAX_SWEEP_ROUNDS;
             sweep = null;
+            if (leftBehind) {
+                sweepRounds++;
+                return startSweep(c);
+            }
             phase = Phase.DONE;
             return pendingStatus;
         }
