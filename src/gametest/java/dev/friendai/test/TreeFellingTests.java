@@ -394,6 +394,103 @@ public class TreeFellingTests {
         h.succeed();
     }
 
+    /** Two oak trees: one by the owner, one by the companion, both in sight. */
+    private static CompanionEntity twoTreeArena(GameTestHelper h, double ownerX, double ownerY, double ownerZ) {
+        var owner = GameTestSupport.mockPlayerAt(h, ownerX, ownerY, ownerZ);
+        return twoTreeArena(h, owner.getUUID());
+    }
+
+    private static CompanionEntity twoTreeArena(GameTestHelper h, java.util.UUID owner) {
+        GameTestSupport.platform(h, 16);
+        for (int y = 2; y <= 5; y++) {
+            h.setBlock(new BlockPos(3, y, 3), Blocks.OAK_LOG);
+            h.setBlock(new BlockPos(12, y, 12), Blocks.OAK_LOG);
+        }
+        leaf(h, 2, 5, 3);
+        leaf(h, 4, 5, 3);
+        leaf(h, 3, 5, 2);
+        leaf(h, 3, 5, 4);
+        leaf(h, 11, 5, 12);
+        leaf(h, 13, 5, 12);
+        leaf(h, 12, 5, 11);
+        leaf(h, 12, 5, 13);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 14, 2, 12);
+        c.setOwner(owner);
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(3, 2, 3))),
+                "the owner's tree should be directly visible");
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(12, 2, 12))),
+                "the companion's tree should be directly visible");
+        return c;
+    }
+
+    private static String what(BlockPos pos) {
+        return pos.getX() + " " + pos.getY() + " " + pos.getZ();
+    }
+
+    /** The search origin is the companion: no {@code near} must never mean the owner's position. */
+    @GameTest(maxTicks = 400)
+    public void defaultsToTheTreeNearTheCompanion(GameTestHelper h) {
+        CompanionEntity c = twoTreeArena(h, 1.5, 2, 1.5);
+        var owner = new Caller(c.ownerUuid(), "owner", AccessLevel.OWNER);
+        BlockPos nearOwner = h.absolutePos(new BlockPos(3, 2, 3));
+        BlockPos nearCompanion = h.absolutePos(new BlockPos(12, 2, 12));
+        String where = "companion " + what(c.blockPosition()) + ", trees " + what(nearOwner) + " (owner side) and "
+                + what(nearCompanion) + " (companion side)";
+        ToolResult listed = run(tools(c), owner, "find_trees", "{}");
+        h.assertTrue(!listed.error(), where + "; find_trees: " + listed.content());
+        h.assertTrue(
+                listed.content().indexOf(what(nearCompanion)) >= 0
+                        && (listed.content().indexOf(what(nearOwner)) < 0
+                                || listed.content().indexOf(what(nearCompanion))
+                                        < listed.content().indexOf(what(nearOwner))),
+                where + "; find_trees listed: " + listed.content());
+        ToolResult started = run(tools(c), owner, "fell_tree", "{}");
+        h.assertTrue(!started.error(), where + "; fell_tree: " + started.content());
+        String task = c.executionCoordinator().current().orElseThrow().describe();
+        h.assertTrue(task.contains(what(nearCompanion)), where + "; chose " + task);
+        h.assertTrue(!task.contains(what(nearOwner)), where + "; chose " + task);
+        h.succeed();
+    }
+
+    /** An owner more than 64 blocks away is not an origin: the job starts around the companion. */
+    @GameTest(maxTicks = 400)
+    public void startsWhenTheOwnerIsFarAway(GameTestHelper h) {
+        CompanionEntity c = twoTreeArena(h, 100.5, 2, 100.5);
+        var owner = new Caller(c.ownerUuid(), "owner", AccessLevel.OWNER);
+        BlockPos nearCompanion = h.absolutePos(new BlockPos(12, 2, 12));
+        ToolResult started = run(tools(c), owner, "fell_tree", "{}");
+        h.assertTrue(!started.error(), "owner 100 blocks away: " + started.content());
+        String task = c.executionCoordinator().current().orElseThrow().describe();
+        h.assertTrue(task.contains(what(nearCompanion)), "chose " + task);
+        h.succeed();
+    }
+
+    /** An owner who is offline cannot be the origin either: a reflex plan has no speaker at all. */
+    @GameTest(maxTicks = 400)
+    public void startsWhenTheOwnerIsOffline(GameTestHelper h) {
+        CompanionEntity c = twoTreeArena(h, java.util.UUID.randomUUID());
+        var anonymous = new Caller(null, "", AccessLevel.TRUSTED);
+        BlockPos nearCompanion = h.absolutePos(new BlockPos(12, 2, 12));
+        ToolResult started = run(tools(c), anonymous, "fell_tree", "{}");
+        h.assertTrue(!started.error(), "the owner is offline: " + started.content());
+        String task = c.executionCoordinator().current().orElseThrow().describe();
+        h.assertTrue(task.contains(what(nearCompanion)), "chose " + task);
+        h.succeed();
+    }
+
+    /** "near me" still needs a speaker; without one the model is told how to proceed, not sent to the owner. */
+    @GameTest(maxTicks = 400)
+    public void nearMeWithoutASpeakerIsRefused(GameTestHelper h) {
+        CompanionEntity c = twoTreeArena(h, 1.5, 2, 1.5);
+        var anonymous = new Caller(null, "", AccessLevel.TRUSTED);
+        ToolResult result = run(tools(c), anonymous, "fell_tree", "{\"near\":\"me\"}");
+        h.assertTrue(result.error(), "near me without a speaker must be refused: " + result.content());
+        h.assertTrue(result.content().contains("near \"self\""), result.content());
+        h.succeed();
+    }
+
     @GameTest(maxTicks = 1600)
     public void mineBlocksNearTheSpeaker(GameTestHelper h) {
         GameTestSupport.platform(h, 16);

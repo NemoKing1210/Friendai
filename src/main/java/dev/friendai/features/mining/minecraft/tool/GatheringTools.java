@@ -7,7 +7,6 @@ import dev.friendai.agent.tools.ToolMeta;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
-import dev.friendai.execution.tool.NearTarget;
 import dev.friendai.execution.tool.SchemaBuilder;
 import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
 import dev.friendai.features.mining.minecraft.mining.TreeFinder;
@@ -15,7 +14,6 @@ import dev.friendai.features.mining.minecraft.task.FellTreeSearchTask;
 import dev.friendai.features.mining.minecraft.task.FellTreeTask;
 import dev.friendai.features.mining.minecraft.task.MineBlockAtTask;
 import dev.friendai.features.mining.minecraft.task.MineBlocksTask;
-import dev.friendai.features.places.PlaceNames;
 import dev.friendai.features.places.minecraft.NearResolver;
 import dev.friendai.features.places.minecraft.PlaceService;
 import dev.friendai.perception.resource.ResourceCandidates;
@@ -101,7 +99,7 @@ public final class GatheringTools implements FeatureToolContributor {
                                 + "Naming one block id also allows felling a log structure of that wood")
                 .string(
                         "near",
-                        "Fell a tree near the speaker (me, default), yourself (self), or a remembered "
+                        "Fell a tree around yourself (default), the speaker (me), or a remembered "
                                 + "place (place:<name>)")
                 .integer("x", "Block x coordinate to search around instead of near", -30000000, 30000000)
                 .integer("y", "Block y coordinate to search around instead of near", -64, 320)
@@ -117,7 +115,7 @@ public final class GatheringTools implements FeatureToolContributor {
                 .build();
         String fellDescription = "Fell one whole tree: climb beside the trunk once and cut from the crown down, so "
                 + "the logs and drops fall to the foot where they are collected. Picks the nearest real tree "
-                + "(leaves, or the leftovers of one) around the speaker or yourself; if no tree is in view it looks "
+                + "(leaves, or the leftovers of one) around yourself; if no tree is in view it looks "
                 + "around for a bounded time and starts when one is seen. A log structure such as a cabin is never "
                 + "felled unless its block id is named. Use find_trees when the choice matters.";
         registry.registerTask(task(
@@ -190,24 +188,26 @@ public final class GatheringTools implements FeatureToolContributor {
 
     private MineBlocksTask createMineTask(CompanionEntity c, Caller caller, JsonObject a) {
         BlockMatcher matcher = parseBlockMatcher(a.get("block").getAsString());
-        // Unlike the tree tools, mining searches around the companion unless the speaker or a place is named.
-        String near =
-                a.has("near") && !a.get("near").isJsonNull() ? a.get("near").getAsString() : null;
-        boolean named = NearResolver.coordinates(a).isPresent()
-                || PlaceNames.fromNear(near).isPresent()
-                || (near != null && !near.isBlank() && NearTarget.parse(near) == NearTarget.ME);
-        BlockPos origin = named ? NearResolver.resolve(places, c, caller, a) : null;
+        // An unnamed origin is the companion: null makes the task search around it with the mining radius, while a
+        // named one (coordinates, a place or "me") is searched around that point instead.
+        NearResolver.Origin origin = NearResolver.resolve(places, c, caller, a);
         boolean collect = a.has("collect") && !a.get("collect").isJsonNull()
                 ? a.get("collect").getAsBoolean()
                 : mineCollectDrops.getAsBoolean();
         boolean placed = a.has("placed")
                 && !a.get("placed").isJsonNull()
                 && a.get("placed").getAsBoolean();
-        return new MineBlocksTask(matcher, a.get("count").getAsInt(), mineRadius.getAsInt(), origin, collect, placed);
+        return new MineBlocksTask(
+                matcher,
+                a.get("count").getAsInt(),
+                mineRadius.getAsInt(),
+                origin.explicit() ? origin.pos() : null,
+                collect,
+                placed);
     }
 
     private Task createFellTask(CompanionEntity c, Caller caller, JsonObject a) {
-        BlockPos origin = NearResolver.resolve(places, c, caller, a);
+        BlockPos origin = NearResolver.resolve(places, c, caller, a).pos();
         int radius = a.has("radius") ? a.get("radius").getAsInt() : treeRadius.getAsInt();
         BlockMatcher matcher = a.has("type") && !a.get("type").isJsonNull()
                 ? parseBlockMatcher(a.get("type").getAsString())
@@ -294,7 +294,7 @@ public final class GatheringTools implements FeatureToolContributor {
         String hint = switch (name) {
             case "fell_tree" ->
                 "- To chop a tree, call find_trees when the kind or the exact tree is unclear, then fell_tree. It climbs the trunk once and cuts the tree from the crown down, so the logs fall to the foot. limit takes the top N logs and leaves the trunk standing; it is a cap, not a shortcut. Pass collect:false only when speed matters more than the drops.\n"
-                        + "- When the player says 'near me', near: \"me\" is the default for the tree tools and means their position; near: \"self\" means yours.";
+                        + "- Chopping, mining and a tree search start around you: near is not needed when nobody is named. near \"me\" is only the player's own position. When the player points at a tree or a block, pass the coordinates they mean, not a moved search origin.";
             case "mine_blocks" ->
                 "- Use mine_blocks for a kind of block (ore, stone, a named log type); use fell_tree when the player asks for a tree.\n"
                         + "- After placing blocks, mine_blocks with placed:true takes back only those blocks; it never touches an unplaced neighbour.";

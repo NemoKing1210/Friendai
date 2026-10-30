@@ -31,7 +31,7 @@ class ToolHintsSectionTest {
     void treeRulesAppearWhenTreeToolsAreVisible() {
         String s = prompt(EnumSet.of(ToolGroup.GATHERING), 0);
         assertTrue(s.contains("Tool notes:"), s);
-        assertTrue(s.contains("find_trees") && s.contains("fell_tree") && s.contains("near: \"me\""), s);
+        assertTrue(s.contains("find_trees") && s.contains("fell_tree") && s.contains("start around you"), s);
         assertTrue(s.contains("Use mine_blocks for a kind of block"), s);
     }
 
@@ -50,7 +50,7 @@ class ToolHintsSectionTest {
         for (String rule : List.of(
                 "To get an item you don't have, prefer obtain_item",
                 "To chop a tree, call find_trees",
-                "near: \"me\" is the default for the tree tools",
+                "near \"me\" is only the player's own position",
                 "Use mine_blocks for a kind of block",
                 "preview_structure before build_structure",
                 "call set_pace",

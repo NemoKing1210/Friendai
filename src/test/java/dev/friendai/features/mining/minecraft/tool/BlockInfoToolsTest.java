@@ -32,7 +32,7 @@ class BlockInfoToolsTest {
                                   "type":"object",
                                   "properties":{
                                     "type":{"type":"string","description":"Log block id like minecraft:oak_log, or a tag like #minecraft:logs"},
-                                    "near":{"type":"string","description":"Search around the speaker (me, default), yourself (self), or a remembered place (place:<name>)"},
+                                    "near":{"type":"string","description":"Search around yourself (default), the speaker (me), or a remembered place (place:<name>)"},
                                     "x":{"type":"integer","description":"Block x coordinate to search around instead of near","minimum":-30000000,"maximum":30000000},
                                     "y":{"type":"integer","description":"Block y coordinate to search around instead of near","minimum":-64,"maximum":320},
                                     "z":{"type":"integer","description":"Block z coordinate to search around instead of near","minimum":-30000000,"maximum":30000000},

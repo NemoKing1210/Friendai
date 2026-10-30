@@ -8,6 +8,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.90.1] - 2026-10-30
+
+### Fixed
+
+- A tree, block or place search starts around the companion itself. Asking for wood no longer sends it to the tree nearest to you, and the job still starts while you are far away or offline.
+
 ## [0.90.0] - 2026-10-30
 
 ### Changed

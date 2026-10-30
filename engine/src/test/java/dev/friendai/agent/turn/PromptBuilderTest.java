@@ -30,7 +30,7 @@ class PromptBuilderTest {
         assertTrue(s.contains("To chop a tree"), s);
         assertTrue(s.contains("find_trees"), s);
         assertTrue(s.contains("fell_tree"), s);
-        assertTrue(s.contains("near: \"me\""), s);
+        assertTrue(s.contains("start around you"), s);
         assertTrue(s.contains("limit"), s);
     }
 

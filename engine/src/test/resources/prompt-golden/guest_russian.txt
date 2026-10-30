@@ -40,7 +40,7 @@ Tool notes:
 - To change how fast you travel, call set_pace: run when asked to hurry or run, walk when asked to slow down, auto to go back to the default.
 - "Don't follow me" means set_follow_mode with mode=off: it stops your idle walk and your work keeps running. Use stay only to wait in one place for a few minutes, and end_free_time only when the owner stops your free time.
 - To chop a tree, call find_trees when the kind or the exact tree is unclear, then fell_tree. It climbs the trunk once and cuts the tree from the crown down, so the logs fall to the foot. limit takes the top N logs and leaves the trunk standing; it is a cap, not a shortcut. Pass collect:false only when speed matters more than the drops.
-- When the player says 'near me', near: "me" is the default for the tree tools and means their position; near: "self" means yours.
+- Chopping, mining and a tree search start around you: near is not needed when nobody is named. near "me" is only the player's own position. When the player points at a tree or a block, pass the coordinates they mean, not a moved search origin.
 - Use mine_blocks for a kind of block (ore, stone, a named log type); use fell_tree when the player asks for a tree.
 - After placing blocks, mine_blocks with placed:true takes back only those blocks; it never touches an unplaced neighbour.
 - To pick up what fell around a block you placed, pass placed:true; the round is centred on that block, not on you.

@@ -80,7 +80,7 @@ public final class BlockInfoTools implements FeatureToolContributor {
                                 .string("type", "Log block id like minecraft:oak_log, or a tag like #minecraft:logs")
                                 .string(
                                         "near",
-                                        "Search around the speaker (me, default), yourself (self), or a "
+                                        "Search around yourself (default), the speaker (me), or a "
                                                 + "remembered place (place:<name>)")
                                 .integer(
                                         "x", "Block x coordinate to search around instead of near", -30000000, 30000000)
@@ -124,7 +124,7 @@ public final class BlockInfoTools implements FeatureToolContributor {
 
     private ToolResult findTrees(CompanionEntity companion, Caller caller, JsonObject args) {
         ResourceCandidates resources = resourceCandidates == null ? null : resourceCandidates.apply(companion);
-        BlockPos origin = NearResolver.resolve(places, companion, caller, args);
+        BlockPos origin = NearResolver.resolve(places, companion, caller, args).pos();
         BlockMatcher matcher = args.has("type") && !args.get("type").isJsonNull()
                 ? parseBlockMatcher(args.get("type").getAsString())
                 : null;
@@ -173,7 +173,8 @@ public final class BlockInfoTools implements FeatureToolContributor {
         List<BlockPos> found =
                 resources == null ? List.of() : resources.knownOrVisible(companion, matcher, radius, limit);
         if (found.isEmpty()) {
-            return ToolResult.ok("no " + matcher.label() + " within " + radius + " blocks");
+            return ToolResult.ok("no " + matcher.label() + " observed or remembered within " + radius
+                    + " blocks; use look_around or survey_area to look around");
         }
         StringBuilder text =
                 new StringBuilder(found.size() + " observed/remembered " + matcher.label() + " nearest first: ");
