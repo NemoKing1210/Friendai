@@ -8,6 +8,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.95.0] - 2026-10-30
+
+### Changed
+
+- The Tasks tab shows each task's arguments as readable chips instead of raw JSON: the block or item with its icon and name, the coordinates as X Y Z, and the count. Item ids in task results and history are shown by their game names, and tool names read as plain words.
+
 ## [0.94.0] - 2026-10-30
 
 ### Added

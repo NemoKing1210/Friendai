@@ -4,6 +4,7 @@ import dev.friendai.execution.history.TaskRecord;
 import dev.friendai.presentation.companion.CompanionSnapshot;
 import dev.friendai.presentation.companion.QueueRow;
 import dev.friendai.presentation.companion.QueueRows;
+import dev.friendai.presentation.companion.TaskArgs;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.client.gui.Font;
@@ -151,10 +152,11 @@ final class TasksTab extends StatefulMenuTab {
         int textWidth = width - cardX - 2 * PAD;
         List<FormattedCharSequence> note = row.note().isBlank()
                 ? List.of()
-                : limit(font.split(Component.literal(row.note()), textWidth), MAX_NOTE_LINES);
+                : limit(font.split(Component.literal(TaskChips.humanize(row.note())), textWidth), MAX_NOTE_LINES);
         String meta = meta(row);
-        boolean hasArgs = !row.args().isBlank() && !row.args().equals("{}");
-        int height = 18 + (hasArgs ? 10 : 0) + note.size() * (font.lineHeight + 1) + (meta.isEmpty() ? 0 : 10) + 4;
+        TaskChips chips = TaskChips.of(font, row.args(), textWidth);
+        int chipsHeight = chips.height() == 0 ? 0 : chips.height() + 3;
+        int height = 18 + chipsHeight + note.size() * (font.lineHeight + 1) + (meta.isEmpty() ? 0 : 10) + 4;
         int color = stateColor(row.state());
         return new Block(height, (g, x, y, w) -> {
             int railX = x + RAIL / 2;
@@ -171,14 +173,14 @@ final class TasksTab extends StatefulMenuTab {
             Ui.text(
                     g,
                     font,
-                    Ui.clip(font, row.tool(), w - cardX - PAD - idWidth - badgeWidth - 14),
+                    Ui.clip(font, TaskArgs.title(row.tool()), w - cardX - PAD - idWidth - badgeWidth - 14),
                     tx + idWidth,
                     y + 5,
                     Ui.TEXT);
             int lineY = y + 18;
-            if (hasArgs) {
-                Ui.text(g, font, Ui.clip(font, row.args(), textWidth), tx, lineY, Ui.DIM);
-                lineY += 10;
+            if (chipsHeight > 0) {
+                chips.paint(g, font, tx, lineY);
+                lineY += chipsHeight;
             }
             for (FormattedCharSequence line : note) {
                 Ui.text(g, font, line, tx, lineY, noteColor(row.state()));
@@ -221,8 +223,9 @@ final class TasksTab extends StatefulMenuTab {
             return;
         }
         for (TaskRecord record : records) {
-            List<FormattedCharSequence> lines =
-                    limit(font.split(Component.literal(record.summary()), width - 2 * PAD - 4), MAX_SUMMARY_LINES);
+            List<FormattedCharSequence> lines = limit(
+                    font.split(Component.literal(TaskChips.humanize(record.summary())), width - 2 * PAD - 4),
+                    MAX_SUMMARY_LINES);
             int height = 18 + lines.size() * (font.lineHeight + 1) + 3;
             blocks.add(new Block(height, (g, x, y, w) -> drawRecord(g, font, record, lines, x, y, w, height)));
         }
@@ -249,7 +252,7 @@ final class TasksTab extends StatefulMenuTab {
         Ui.text(
                 g,
                 font,
-                Ui.clip(font, r.toolName(), w - idWidth - badgeWidth - 2 * PAD - 8),
+                Ui.clip(font, TaskArgs.title(r.toolName()), w - idWidth - badgeWidth - 2 * PAD - 8),
                 textX + idWidth,
                 y + 5,
                 Ui.TEXT);
