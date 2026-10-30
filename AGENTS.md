@@ -52,6 +52,7 @@ JAVA_HOME="/path/to/jdk-25" ./gradlew build
 | `./gradlew runClientGameTest` | Opens an isolated Minecraft client and checks the YACL settings fields, transitions, save/cancel/reset and local HTTP previews in English and Russian. Requires a display; does not call paid providers. |
 | `./gradlew runGameTest` | In-game tests only. Boots a Minecraft server and runs the whole suite (several minutes). |
 | `./gradlew runGameTest -Dfabric-api.gametest.filter='friendai-gametest:<class>_tests_*'` | One GameTest class (or one test by its full id) in under a minute. The filter is a single glob with `*` wildcards; it cannot exclude tests or list several patterns. |
+| `./gradlew updatePromptGolden` | Rewrites `engine/src/test/resources/prompt-golden/` from the current `PromptBuilder` output. Run it after a deliberate system-prompt change, review the diff as a prompt diff, and commit the goldens with the change; `PromptGoldenTest` fails with the case name and the first differing lines otherwise. |
 | `./gradlew check` | Unit tests + GameTests + `spotlessCheck`, without packaging. |
 | `./gradlew spotlessApply` | Rewrites Java sources in the root and engine with the project formatter (Palantir: 4-space indent, 120 columns) and sorts the imports. `-PspotlessFiles=<root-relative paths>` limits it to those files; prefix engine paths with `engine/`. Run it at the end of a task; CI runs `spotlessCheck`. |
 | `./gradlew assemble verifyModArtifact` | Compile and package, verify nested engine classes/resources and fixture exclusion; `exportTestJar` refreshes `test-builds/friendai-<version>.jar`. Does not run tests. |
@@ -152,6 +153,8 @@ A full run is about 9 minutes of GameTests plus the unit suite, so an agent does
   - Always run `LangFilesTest` when you touched a language file.
 - **Do not** run `./gradlew build`, `check` or a bare `runGameTest` to "be safe" before a commit or a task report.
 - **At merge to `main`** the full gate runs: CI (`.github/workflows/ci.yml`) runs all unit tests and all GameTests on every pull request, merge-queue entry and push to `main`, and `CI gate` is the required check. A local full run is the maintainer's call (before tagging a release), not an agent's default.
+  - The GameTests run as a matrix of shards, and `scripts/run-gametest-shard.sh` boots **one class per server** inside its shard, so a red run names the failing class and a class that only passes beside a particular neighbour cannot hide. The shard map is `.github/gametest-shards.json`; `./gradlew verifyGametestShards` fails when a registered class is missing, listed twice or unknown, and `CI gate` runs it before any shard starts.
+  - `.github/workflows/nightly.yml` runs the whole suite in one server every night, which is the only place cross-shard state and batch timing can show up. A shard-only red is a signal about that shard, not a reason to widen your own test scope.
 - In the task report, state which group you ran and its real result, and say plainly that the full suite was left to CI. A failure in an unrelated test on the full run is CI's finding to triage, not a reason to widen your own scope.
 - **A world change is exercised once before the commit.** Unit tests prove logic, not that a task runs: a change to a `Task`, `ExecutionCoordinator`, the entity, a builder or a menu is run once — a filtered GameTest class, or a real `runClient`/`runServer` session — and the report says what was run. Compiling is not running.
 
@@ -348,6 +351,16 @@ Bump it as part of any change that alters the shipped mod, by the size of the ch
 - Changing a persisted schema: bump its format version and the mod version. Configuration upgrades require an explicit tested `ConfigStores` transition and a backup; unsupported config versions and older owner/world record formats remain untouched.
 - Do not create tags or releases yourself; tagging `vX.Y.Z` is the maintainer's call. Tell them when the version is ready to release.
 - When unsure between two sizes, pick the larger one and say why in the final message.
+
+**Release checklist (maintainer).** `main` is green, `mod_version` is the version to ship and its `CHANGELOG.md` section is
+written. Run `./gradlew assemble` and then `scripts/check-release.sh vX.Y.Z`: it checks the version format, the tag, the
+jar name, the `fabric.mod.json` inside the jar and any sidecar checksum, and prints the SHA-256. Then tag the commit
+(`git tag vX.Y.Z && git push origin vX.Y.Z`); the tag pushes `.github/workflows/release.yml`, which refuses a tag that
+does not match `mod_version`, a commit that is not on `origin/main`, or a commit without a green CI run, builds with
+`./gradlew clean build`, verifies the artifact and publishes one jar plus `friendai-X.Y.Z.jar.sha256`. To exercise the
+pipeline without publishing, dispatch the workflow manually with a tag and `dry_run: true`: it builds, verifies and
+uploads the jar as an artifact only. The workflow never creates a tag and never edits `gradle.properties`; a version bump
+is a normal commit on `main`.
 
 ## Changelog
 

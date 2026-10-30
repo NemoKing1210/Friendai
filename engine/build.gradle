@@ -87,6 +87,23 @@ test {
 	}
 }
 
+// One command that rewrites every prompt golden from the current PromptBuilder output. The test writes into
+// src/test/resources/prompt-golden, so the working directory must stay this project. A prompt change and its golden
+// update land in the same commit; a golden-only diff is reviewed as a diff of the system prompt.
+tasks.register('updatePromptGolden', Test) {
+	group = 'verification'
+	description = 'Rewrites src/test/resources/prompt-golden from the current system prompt; review the diff.'
+	dependsOn testClasses
+	testClassesDirs = sourceSets.test.output.classesDirs
+	classpath = sourceSets.test.runtimeClasspath
+	useJUnitPlatform()
+	filter {
+		includeTestsMatching 'dev.friendai.agent.turn.PromptGoldenTest'
+	}
+	systemProperty 'friendai.golden.write', 'true'
+	outputs.upToDateWhen { false }
+}
+
 spotless {
 	java {
 		def selected = providers.gradleProperty('spotlessFiles')

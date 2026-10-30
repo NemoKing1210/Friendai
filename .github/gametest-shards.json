@@ -1,0 +1,130 @@
+{
+	"comment": "CI GameTest shards. Every class registered in src/gametest/resources/fabric.mod.json must appear in exactly one shard; ./gradlew verifyGametestShards enforces it and writes the matrix. scripts/run-gametest-shard.sh boots one class of the shard per server, so a class that only passes beside a particular neighbour cannot hide. Class names are the Java simple names of the fabric-gametest entrypoints.",
+	"shards": [
+		{
+			"name": "plan-task",
+			"classes": [
+				"FriendaiGameTests",
+				"ProtocolAccessTests",
+				"ActiveTaskLifecycleTests",
+				"TaskTests",
+				"ItemTaskTests",
+				"ToolTests",
+				"ToolCatalogTests",
+				"ToolChoiceTests",
+				"PlanTests",
+				"PlannerTests",
+				"QueueTests",
+				"ConditionalPlansTests",
+				"PaceTests",
+				"SessionLifecycleTests"
+			]
+		},
+		{
+			"name": "build-mining",
+			"classes": [
+				"BuildTests",
+				"MineBlocksTests",
+				"MiningTests",
+				"TreeFellingTests",
+				"PlaceBlockTests",
+				"PlacedBlockTests",
+				"PlaceTests",
+				"ClearTests",
+				"StorageTests",
+				"CraftingTests",
+				"CookingTests",
+				"StructureTests",
+				"DropPickupTests",
+				"LightAreaTests",
+				"InteractTests",
+				"UseBlockTests"
+			]
+		},
+		{
+			"name": "search-trading",
+			"classes": [
+				"ExploreTests",
+				"ObtainTests",
+				"TargetSearchTests",
+				"ResourceObservationTests",
+				"ResourceToolsTests",
+				"ResourceSearchTests",
+				"ResourceJourneyTests",
+				"TradingMenuTests",
+				"TradingAuthorityTests",
+				"TradingTransactionTests",
+				"TradingTaskTests",
+				"TradingToolsTests",
+				"TradingRefreshTests",
+				"TradingBarterAttributionTests",
+				"TradingBarterTaskTests",
+				"EnchantSkillTests",
+				"AnvilSkillTests",
+				"GrindstoneSkillTests",
+				"InventoryWindowTests"
+			]
+		},
+		{
+			"name": "combat",
+			"classes": [
+				"CombatTests",
+				"CombatMechanicsTests",
+				"CombatTacticsTests",
+				"CombatDefenseTests",
+				"CombatRangedTests",
+				"CombatPotionTests",
+				"CombatCoordinationTests",
+				"ProtectionTests",
+				"HungerTests",
+				"FireTests",
+				"SelfCareTests",
+				"RecoveryTests"
+			]
+		},
+		{
+			"name": "autonomy-goal",
+			"classes": [
+				"GoalTests",
+				"GoalTickTests",
+				"FreeTimeTests",
+				"ExperienceTests",
+				"BodyLanguageTests",
+				"MemoryTests",
+				"MemoryMenuTests",
+				"SelfKnowledgeTests",
+				"SkillsTests",
+				"BrainServiceTests",
+				"PerceptionTests",
+				"OwnerViewTests",
+				"GuestTests",
+				"TrustTests",
+				"SpeechTests",
+				"VoiceTests"
+			]
+		},
+		{
+			"name": "misc",
+			"classes": [
+				"PathingTests",
+				"MovementDebugTests",
+				"CompanionEntityTests",
+				"CompanionDeathTests",
+				"CompanionChunkLoadingTests",
+				"CompanionControlTests",
+				"ConfigurationApplyTests",
+				"CreativeModeTests",
+				"CreativeSurvivalTests",
+				"CreativeToolsTests",
+				"CreativeMaterialTests",
+				"CreativeFlightTests",
+				"CreativeCommandTests",
+				"CreativeQueueTests",
+				"AnimalTests",
+				"FarmingTests",
+				"MenuHandsTests",
+				"SkinRenameTests"
+			]
+		}
+	]
+}

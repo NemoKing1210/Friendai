@@ -19,6 +19,19 @@ env:
   GRADLE_OPTS: -Dorg.gradle.daemon=false
 
 jobs:
+  workflows:
+    name: Workflow lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: actionlint
+        uses: docker://rhysd/actionlint:1.7.7
+        with:
+          args: -color
+      - name: shellcheck
+        run: shellcheck scripts/*.sh
+
   format:
     name: Formatting
     runs-on: ubuntu-latest
@@ -32,7 +45,34 @@ jobs:
           java-version: '25'
       - uses: gradle/actions/setup-gradle@v4
       - name: Check Java formatting
-        run: ./gradlew spotlessCheck --console=plain
+        run: ./gradlew spotlessCheck --console=plain --stacktrace
+
+  plan:
+    name: Plan GameTest shards
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.shards.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: gradle/actions/wrapper-validation@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Check the shard map covers every class once
+        run: ./gradlew verifyGametestShards --console=plain --stacktrace
+      - name: Read the matrix
+        id: shards
+        run: |
+          matrix="$(cat build/gametest-shard-matrix.json)"
+          echo "matrix=${matrix}" >> "$GITHUB_OUTPUT"
+          {
+            echo '```json'
+            echo "${matrix}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
   unit-tests:
     name: Unit tests
@@ -47,7 +87,39 @@ jobs:
           java-version: '25'
       - uses: gradle/actions/setup-gradle@v4
       - name: Run unit and architecture tests
-        run: ./gradlew :engine:test test --console=plain
+        run: ./gradlew :engine:test test --console=plain --stacktrace
+      - name: Summarize unit tests
+        if: always()
+        run: |
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import glob, xml.etree.ElementTree as ET
+          rows = []
+          for module, path in (("root", "build/test-results/test"), ("engine", "engine/build/test-results/test")):
+              tests = failures = errors = skipped = 0
+              failed = []
+              for file in glob.glob(f"{path}/*.xml"):
+                  root = ET.parse(file).getroot()
+                  tests += int(root.get("tests", 0))
+                  failures += int(root.get("failures", 0))
+                  errors += int(root.get("errors", 0))
+                  skipped += int(root.get("skipped", 0))
+                  for case in root.iter("testcase"):
+                      if case.find("failure") is not None or case.find("error") is not None:
+                          failed.append(f"{case.get('classname')}.{case.get('name')}")
+              rows.append((module, tests, failures, errors, skipped, failed))
+          print("### Unit tests")
+          print()
+          print("| Module | Tests | Failed | Errors | Skipped |")
+          print("|---|---|---|---|---|")
+          for module, tests, failures, errors, skipped, _ in rows:
+              print(f"| {module} | {tests} | {failures} | {errors} | {skipped} |")
+          failed = [name for row in rows for name in row[5]]
+          if failed:
+              print()
+              print("Failed tests:")
+              for name in failed:
+                  print(f"- `{name}`")
+          PY
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -61,24 +133,43 @@ jobs:
           retention-days: 14
 
   game-tests:
-    name: Game tests
+    name: Game tests (${{ matrix.name }})
+    needs: plan
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
+      - uses: gradle/actions/wrapper-validation@v4
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '25'
       - uses: gradle/actions/setup-gradle@v4
-      - name: Run Fabric GameTests
-        run: ./gradlew runGameTest --console=plain
+      - name: Run the shard, one class per server
+        run: |
+          set -o pipefail
+          scripts/run-gametest-shard.sh "${{ matrix.name }}" 2>&1 | tee "gametest-${{ matrix.name }}.log"
+      - name: Summarize GameTests
+        if: always()
+        run: |
+          {
+            echo "### Game tests: ${{ matrix.name }}"
+            echo
+            echo '```'
+            grep -E 'passed$|failed$|^shard |^classes that ' "gametest-${{ matrix.name }}.log" || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload GameTest logs
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: gametest-logs
+          name: gametest-logs-${{ matrix.name }}
           path: |
+            gametest-${{ matrix.name }}.log
+            build/gametest-shards/
             build/run/
             run/logs/
           if-no-files-found: ignore
@@ -90,13 +181,14 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - uses: gradle/actions/wrapper-validation@v4
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '25'
       - uses: gradle/actions/setup-gradle@v4
       - name: Assemble
-        run: ./gradlew assemble verifyModArtifact --console=plain
+        run: ./gradlew assemble verifyModArtifact --console=plain --stacktrace
       - name: Upload mod jar
         uses: actions/upload-artifact@v4
         with:
@@ -112,7 +204,7 @@ jobs:
   ci-gate:
     name: CI gate
     if: always()
-    needs: [format, unit-tests, game-tests, build]
+    needs: [workflows, format, plan, unit-tests, game-tests, build]
     runs-on: ubuntu-latest
     steps:
       - name: Verify all jobs succeeded

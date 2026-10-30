@@ -3,39 +3,192 @@ name: Release
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to publish, for example v0.95.0. The tag is never created here.'
+        required: true
+        type: string
+      dry_run:
+        description: 'Build and verify only; upload the jar as an artifact and skip the GitHub release.'
+        required: false
+        default: true
+        type: boolean
+
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
 
 permissions:
   contents: write
+  checks: read
+  actions: read
+
+env:
+  GRADLE_OPTS: -Dorg.gradle.daemon=false
+  TAG: ${{ github.event.inputs.tag || github.ref_name }}
+  DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true' }}
 
 jobs:
-  release:
-    name: Build and publish
+  preflight:
+    name: Preflight
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.checks.outputs.version }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          fetch-depth: 0
+      - uses: gradle/actions/wrapper-validation@v4
+      - name: Check the tag, the version and the branch
+        id: checks
+        run: |
+          version=$(sed -n 's/^mod_version=//p' gradle.properties)
+          case "$TAG" in
+            v[0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "Tag '$TAG' is not vMAJOR.MINOR.PATCH"; exit 1 ;;
+          esac
+          if [ "v$version" != "$TAG" ]; then
+            echo "Tag $TAG does not match mod_version=$version in gradle.properties"
+            exit 1
+          fi
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$TAG^{commit}" origin/main; then
+            echo "Tagged commit $(git rev-parse "$TAG^{commit}") is not on origin/main"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Require a green CI run for this commit
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run != 'true')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          sha=$(git rev-parse "$TAG^{commit}")
+          conclusion=$(gh run list --workflow=CI --commit "$sha" --limit 20 \
+            --json headSha,conclusion,status \
+            --jq "[.[] | select(.headSha == \"$sha\" and .status == \"completed\")] | first | .conclusion // \"missing\"")
+          echo "CI for $sha: $conclusion"
+          if [ "$conclusion" != "success" ]; then
+            echo "Refusing to publish $TAG: CI for $sha is $conclusion"
+            exit 1
+          fi
+
+  verify:
+    name: Build and verify
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          fetch-depth: 0
+      - uses: gradle/actions/wrapper-validation@v4
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '25'
       - uses: gradle/actions/setup-gradle@v4
-      - name: Check the tag matches mod_version
+      - name: Build and run the full gate
+        run: ./gradlew clean build --console=plain --stacktrace
+      - name: Verify the jar, the version and the checksum
+        id: verify
         run: |
-          version="$(grep '^mod_version=' gradle.properties | cut -d= -f2)"
-          if [ "v${version}" != "${GITHUB_REF_NAME}" ]; then
-            echo "Tag ${GITHUB_REF_NAME} does not match mod_version=${version} in gradle.properties"
-            exit 1
+          set -o pipefail
+          scripts/check-release.sh "$TAG" "build/libs/friendai-${{ needs.preflight.outputs.version }}.jar" | tee check-release.txt
+          checksum=$(sed -n 's/^sha256=//p' check-release.txt)
+          echo "$checksum  friendai-${{ needs.preflight.outputs.version }}.jar" > "build/libs/friendai-${{ needs.preflight.outputs.version }}.jar.sha256"
+          echo "checksum=$checksum" >> "$GITHUB_OUTPUT"
+      - name: Write release notes from the changelog
+        run: |
+          awk -v ver="${{ needs.preflight.outputs.version }}" '
+            $0 ~ "^## \\[" ver "\\]" { capture = 1; next }
+            capture && /^## \[/ { exit }
+            capture { print }
+          ' CHANGELOG.md > release-notes.md
+          if [ -s release-notes.md ]; then
+            echo "Release notes come from CHANGELOG.md, section ${{ needs.preflight.outputs.version }}"
+          else
+            echo "CHANGELOG.md has no section for ${{ needs.preflight.outputs.version }}; --generate-notes will be used"
+            rm release-notes.md
           fi
-      - name: Build, test and run GameTests
-        run: ./gradlew build --console=plain
-      - name: Create GitHub release
+      - name: Summarize
+        run: |
+          {
+            echo "### Release $TAG"
+            echo
+            echo "- version: \`${{ needs.preflight.outputs.version }}\`"
+            echo "- jar: \`build/libs/friendai-${{ needs.preflight.outputs.version }}.jar\`"
+            echo "- sha256: \`${{ steps.verify.outputs.checksum }}\`"
+            echo "- dry run: \`$DRY_RUN\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload the verified jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ needs.preflight.outputs.version }}
+          path: |
+            build/libs/friendai-*.jar
+            build/libs/friendai-*.jar.sha256
+            release-notes.md
+            check-release.txt
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-failure-${{ needs.preflight.outputs.version }}
+          path: |
+            build/libs/
+            build/test-results/
+            build/reports/
+            run/logs/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  publish:
+    name: Publish
+    needs: [preflight, verify]
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run != 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-${{ needs.preflight.outputs.version }}
+          path: release-assets
+      - name: Create or update the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.preflight.outputs.version }}
         run: |
+          cd release-assets
+          jar="friendai-${VERSION}.jar"
+          sum="${jar}.sha256"
           prerelease=""
-          case "${GITHUB_REF_NAME}" in *-*) prerelease="--prerelease" ;; esac
-          gh release create "${GITHUB_REF_NAME}" \
-            "build/libs/friendai-${GITHUB_REF_NAME#v}.jar" \
-            --title "${GITHUB_REF_NAME}" \
-            --generate-notes \
-            ${prerelease}
+          case "$TAG" in *-*) prerelease="--prerelease" ;; esac
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG exists; replacing its assets"
+            gh release upload "$TAG" "$jar" "$sum" --clobber
+            if [ -f release-notes.md ]; then
+              gh release edit "$TAG" --notes-file release-notes.md
+            fi
+          elif [ -f release-notes.md ]; then
+            # shellcheck disable=SC2086
+            gh release create "$TAG" "$jar" "$sum" --title "$TAG" --notes-file release-notes.md $prerelease
+          else
+            # shellcheck disable=SC2086
+            gh release create "$TAG" "$jar" "$sum" --title "$TAG" --generate-notes $prerelease
+          fi
+      - name: Summarize the release
+        run: |
+          {
+            echo "### Published $TAG"
+            echo
+            echo "https://github.com/${{ github.repository }}/releases/tag/$TAG"
+          } >> "$GITHUB_STEP_SUMMARY"

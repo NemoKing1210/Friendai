@@ -25,6 +25,7 @@ Java 25 is required. If needed, set `JAVA_HOME` to a JDK 25 before invoking Grad
 ./gradlew compileGametestJava                              # compile GameTests; does not boot Minecraft
 ./gradlew runGameTest -Dfabric-api.gametest.filter='friendai-gametest:<class>_tests_*'
 ./gradlew assemble verifyModArtifact                       # package and inspect the mod jar; exports the test jar
+./gradlew updatePromptGolden                               # rewrite the system-prompt goldens after a prompt change
 ```
 
 While working, run only the tests covering the change. A filtered `runGameTest` boots a Minecraft server; use the
@@ -43,6 +44,11 @@ Run the project formatter on only your Java files before committing:
 
 Use root-relative paths and prefix engine paths with `engine/`. Do not run a bare `spotlessApply` in a shared checkout;
 it can rewrite another session's files. CI runs `spotlessCheck`.
+
+`PromptBuilder` output is pinned per role and turn kind in `engine/src/test/resources/prompt-golden/`. When a prompt
+change is deliberate, run `./gradlew updatePromptGolden`, review the changed files as a diff of the system prompt, and
+commit them with the change that caused them; never rewrite a golden just to make the test pass. Without an update the
+test names the case, quotes the first differing lines and repeats the command.
 
 ## Common changes
 
@@ -112,5 +118,27 @@ registration checks. The `CI gate` job is required; the `Commit lint gate` check
 manual checks complete unless they were performed; record remaining platform/provider/microphone checks in
 `MANUAL_CHECKLIST.md`.
 
+The GameTests run as a matrix of shards, and `scripts/run-gametest-shard.sh` boots one class per server inside its
+shard, so a red run names the failing class and a class cannot pass only because of the neighbour it ran beside. The
+shard map is `.github/gametest-shards.json`: every class registered in `src/gametest/resources/fabric.mod.json` must be
+in exactly one shard, which `./gradlew verifyGametestShards` enforces before any shard starts. The nightly workflow
+runs the whole suite in one server to catch what only shows up across classes.
+
 Set `mod_version` in `gradle.properties` according to the sizing rules in `AGENTS.md`. Release tags are the
 maintainer's call; do not create tags or publish a release unless asked.
+
+## Releases
+
+A release is one tag, one jar and one checksum. The maintainer does the tagging; the workflow verifies and publishes.
+
+1. `main` is green and the `CHANGELOG.md` section for the version is written.
+2. `./gradlew assemble`, then `scripts/check-release.sh vX.Y.Z` — it checks the version format, the tag, the jar name,
+   the `fabric.mod.json` version inside the jar and any sidecar checksum, and prints the SHA-256.
+3. `git tag vX.Y.Z && git push origin vX.Y.Z` runs `.github/workflows/release.yml`: it refuses a tag that does not match
+   `mod_version`, a commit that is not an ancestor of `origin/main`, or a commit without a green CI run, builds with
+   `./gradlew clean build`, verifies the artifact with the same script, and publishes (or idempotently replaces) the
+   release with `friendai-X.Y.Z.jar` and `friendai-X.Y.Z.jar.sha256`. Release notes are the changelog section, or the
+   generated notes when there is none.
+4. To exercise the pipeline without publishing, dispatch the workflow manually with a tag and `dry_run: true`: it builds,
+   verifies and uploads the jar as an artifact only. The workflow never creates a tag and never edits
+   `gradle.properties`; a version bump is a normal commit on `main`.
