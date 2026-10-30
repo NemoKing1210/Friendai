@@ -7,6 +7,7 @@ import dev.friendai.features.navigation.movement.PathSteering;
 import dev.friendai.features.navigation.pathing.BlockList;
 import dev.friendai.features.navigation.pathing.CellView;
 import dev.friendai.features.navigation.pathing.CostModel;
+import dev.friendai.features.navigation.pathing.LeapPhysics;
 import dev.friendai.features.navigation.pathing.Move;
 import dev.friendai.features.navigation.pathing.MoveGenerator;
 import dev.friendai.features.navigation.pathing.Node;
@@ -62,19 +63,7 @@ public final class PathExecutor {
      * How far into the source cell a gap jump waits before it leaves the ground, in blocks from the cell centre. The
      * leap is shortest from the cell's own edge, so jumping there costs the least flight.
      */
-    private static final double GAP_RUN_UP = 0.3;
-
-    /**
-     * Horizontal blocks a vanilla jump carries per unit of take-off speed: about ten airborne ticks with 0.91 air
-     * drag. The leap sets its take-off speed from this, so the crossing lands where the route planned it.
-     */
-    private static final double LEAP_REACH = 7.5;
-
-    /**
-     * The fastest take-off a gap jump may set. The widest leap (three empty cells, landing four away) needs about
-     * 0.5; the cap keeps a leap from inside the cell from overshooting the far cell, which no jump should clear.
-     */
-    private static final double LEAP_SPEED_MAX = 0.6;
+    private static final double GAP_RUN_UP = LeapPhysics.TAKE_OFF_OFFSET;
 
     /** How many blocks before a leap the sprint starts, so the run-up looks like one without running a whole leg. */
     private static final double RUN_UP_DISTANCE = 3.0;
@@ -120,6 +109,14 @@ public final class PathExecutor {
     /** Ticks left in which a drop from a dug cell is picked up. Armed only by a break, so walking collects nothing. */
     private int pickupTicks;
 
+    /** Horizontal velocity the airborne body is held to during a leap, or zero outside one. */
+    private double leapVx;
+
+    private double leapVz;
+    /** Ticks the current leap has been under way; the body counts as landed only after the first. */
+    private int leapTicks;
+
+    private boolean leaping;
     private double stepStartY;
     private int lowestY;
     private double progressX;
@@ -267,6 +264,7 @@ public final class PathExecutor {
         places.addAll(step.places());
         action = null;
         jumped = false;
+        leaping = false;
         doorOpened = false;
         stepTicks = 0;
         placeTicks = 0;
@@ -398,8 +396,8 @@ public final class PathExecutor {
         if (!MoveGenerator.standable(liveView, step.to())) {
             return fail(c);
         }
-        if (step.move() == Move.JUMP_GAP && !companion.canSprint()) {
-            // A one-block gap is crossed by a running jump, and a companion without the food to sprint cannot take
+        if (step.move() == Move.JUMP_GAP && !companion.canSprint() && needsSprint(step)) {
+            // A wide crossing is cleared by a running jump, and a companion without the food to sprint cannot take
             // one: give the step up so the route is planned around the gap instead of walked off the edge.
             return fail(c);
         }
@@ -438,7 +436,9 @@ public final class PathExecutor {
                 .getMoveControl()
                 .setWantedPosition(
                         companion.getX() - Math.sin(radians),
-                        target.y(),
+                        // The leap is the only thing that lifts the body for a gap: a wanted point above its feet
+                        // would make the mob's own step-up logic hop early, short of the take-off point.
+                        step.move() == Move.JUMP_GAP ? companion.getY() : target.y(),
                         companion.getZ() + Math.cos(radians),
                         MOVE_SPEED);
         boolean up = step.to().y() > step.from().y();
@@ -487,7 +487,9 @@ public final class PathExecutor {
                 companion.getJumpControl().jump();
             }
         }
-        if (step.move() == Move.JUMP_GAP && companion.onGround() && gapRunUpSpent(companion, step)) {
+        if (leaping) {
+            holdLeap(companion);
+        } else if (step.move() == Move.JUMP_GAP && companion.onGround() && gapRunUpSpent(companion, step)) {
             leap(companion, step);
         }
         if (climbing && !companion.onClimbable() && companion.getY() < target.y() - target.tolerance()) {
@@ -543,6 +545,24 @@ public final class PathExecutor {
         return gapAlong(companion, step) >= GAP_RUN_UP && gapAcross(companion, step) <= 0.6;
     }
 
+    /** How many blocks higher (negative: lower) the leap lands than it starts. */
+    private static int rise(PathStep step) {
+        return step.to().y() - step.from().y();
+    }
+
+    /** Horizontal empty cells the leap flies over. */
+    private static int gapWidth(PathStep step) {
+        return Math.max(
+                        Math.abs(step.to().x() - step.from().x()),
+                        Math.abs(step.to().z() - step.from().z()))
+                - 1;
+    }
+
+    /** Whether the crossing is beyond a walking jump, so only a sprinting body clears it. */
+    private static boolean needsSprint(PathStep step) {
+        return LeapPhysics.needsSprint(gapWidth(step), rise(step));
+    }
+
     /** How far past the source cell's centre the companion is, along the direction of the leap. */
     private static double gapAlong(CompanionEntity companion, PathStep step) {
         int sx = Integer.signum(step.to().x() - step.from().x());
@@ -566,7 +586,7 @@ public final class PathExecutor {
      * leap, and this take-off is what makes it land, so the leap is a running jump the companion could not take
      * without the food for the sprint.
      */
-    private static void leap(CompanionEntity companion, PathStep step) {
+    private void leap(CompanionEntity companion, PathStep step) {
         double dx = step.to().x() + 0.5 - companion.getX();
         double dz = step.to().z() + 0.5 - companion.getZ();
         double distance = Math.hypot(dx, dz);
@@ -574,8 +594,28 @@ public final class PathExecutor {
         if (distance < 1.0e-4) {
             return;
         }
-        double speed = Math.min(LEAP_SPEED_MAX, distance / LEAP_REACH);
-        companion.setDeltaMovement(dx / distance * speed, companion.getDeltaMovement().y, dz / distance * speed);
+        double speed = LeapPhysics.takeoffSpeed(distance, rise(step), companion.canSprint());
+        leapVx = dx / distance * speed;
+        leapVz = dz / distance * speed;
+        leapTicks = 0;
+        leaping = true;
+        companion.setDeltaMovement(leapVx, companion.getDeltaMovement().y, leapVz);
+    }
+
+    /**
+     * Keeps the airborne body on the speed the planner's flight model assumes. A mob in the air sheds horizontal speed
+     * faster than a player does, so left alone it falls short of a wide gap or a ledge; holding the decay to the
+     * vanilla air drag makes the crossing the planner priced the crossing that happens.
+     */
+    private void holdLeap(CompanionEntity companion) {
+        if (leapTicks > 0 && companion.onGround()) {
+            leaping = false;
+            return;
+        }
+        leapVx *= LeapPhysics.AIR_DRAG;
+        leapVz *= LeapPhysics.AIR_DRAG;
+        leapTicks++;
+        companion.setDeltaMovement(leapVx, companion.getDeltaMovement().y, leapVz);
     }
 
     /**

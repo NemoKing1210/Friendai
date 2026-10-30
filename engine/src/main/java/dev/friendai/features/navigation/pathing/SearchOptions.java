@@ -6,8 +6,8 @@ package dev.friendai.features.navigation.pathing;
  *
  * @param placeable how many blocks may be placed; 0 disables placing, {@link Integer#MAX_VALUE} is the material probe
  * @param placePrice the material price of the cheapest block the companion carries (1 when probing)
- * @param runningJumps whether the route may leap a one-block gap, which only a companion with the food to sprint can
- *     clear; false makes the search walk around a gap instead
+ * @param runningJumps whether the body can sprint into a jump. Without it only the narrow gaps a walking jump clears
+ *     are leapt, and the search walks around wider ones
  */
 public record SearchOptions(int maxNodes, int maxRange, int placeable, double placePrice, boolean runningJumps) {
 

@@ -20,6 +20,12 @@ class MoveGeneratorWalkTest {
         return steps;
     }
 
+    private static List<PathStep> stepsWithoutSprint(GridCellView view, Node from) {
+        List<PathStep> steps = new ArrayList<>();
+        new MoveGenerator(view, COSTS, new GoalPoint(99, 99, 99, 0, 0), 1, false).neighbours(from, 0, 0, 0, steps::add);
+        return steps;
+    }
+
     private static PathStep stepTo(List<PathStep> steps, int x, int y, int z) {
         for (PathStep step : steps) {
             Node to = step.to();
@@ -126,17 +132,60 @@ class MoveGeneratorWalkTest {
     }
 
     @Test
-    void noGapJumpWithoutTheFoodToRun() {
-        // Clearing a one-block gap needs a running start; a companion too hungry to sprint has to walk around it.
-        GridCellView view = new GridCellView("#.#", "...", "...", "...");
-        List<PathStep> steps = new ArrayList<>();
-        new MoveGenerator(view, COSTS, new GoalPoint(99, 99, 99, 0, 0), 1, false)
-                .neighbours(new Node(0, 1, 0), 0, 0, 0, steps::add);
-        assertNull(stepTo(steps, 2, 1, 0));
-        // The same world with a running start offered still has the gap jump, so the flag is what makes the difference.
+    void walksOverANarrowGapButNotAWideOneWithoutTheFoodToRun() {
+        // A walking jump clears one empty cell; two need a running start, so a companion too hungry to sprint must
+        // walk around them.
+        GridCellView one = new GridCellView("#.#", "...", "...", "...");
         assertEquals(
                 Move.JUMP_GAP,
-                stepTo(stepsFrom(view, new Node(0, 1, 0)), 2, 1, 0).move());
+                stepTo(stepsWithoutSprint(one, new Node(0, 1, 0)), 2, 1, 0).move());
+
+        GridCellView two = new GridCellView("#..#", "....", "....", "....");
+        assertNull(stepTo(stepsWithoutSprint(two, new Node(0, 1, 0)), 3, 1, 0));
+        // The same world with a running start offered still has the jump, so the flag is what makes the difference.
+        assertEquals(
+                Move.JUMP_GAP,
+                stepTo(stepsFrom(two, new Node(0, 1, 0)), 3, 1, 0).move());
+    }
+
+    @Test
+    void jumpsUpOneBlockAcrossAGap() {
+        GridCellView view = new GridCellView("#..##", "...#.", ".....", ".....", ".....", ".....");
+        PathStep step = stepTo(stepsFrom(view, new Node(0, 1, 0)), 3, 2, 0);
+        assertEquals(Move.JUMP_GAP, step.move());
+    }
+
+    @Test
+    void noJumpUpUnderALowRoof() {
+        // Rising over the gap needs the room of the whole arc, one cell more than a flat leap.
+        GridCellView view = new GridCellView("#..##", "...#.", ".....", ".....", "###..");
+        assertNull(stepTo(stepsFrom(view, new Node(0, 1, 0)), 3, 2, 0));
+    }
+
+    @Test
+    void jumpsDownAcrossAWiderGapThanOnTheFlat() {
+        // Falling gives the leap more flight than a landing on the same level.
+        GridCellView view =
+                new GridCellView("######", "#.....", "#.....", "#.....", "......", "......", "......", "......");
+        PathStep step = stepTo(stepsFrom(view, new Node(0, 4, 0)), 5, 1, 0);
+        assertEquals(Move.JUMP_GAP, step.move());
+        assertEquals(COSTS.walk() * 5 + COSTS.jump() + COSTS.fall() * 3, step.cost(), 1e-9);
+    }
+
+    @Test
+    void leapPhysicsFollowsTheBodysAbilities() {
+        assertTrue(LeapPhysics.reachable(3, 0, true));
+        assertFalse(LeapPhysics.reachable(4, 0, true));
+        assertTrue(LeapPhysics.reachable(1, 0, false));
+        assertFalse(LeapPhysics.reachable(2, 0, false));
+        assertTrue(LeapPhysics.needsSprint(2, 0));
+        assertFalse(LeapPhysics.needsSprint(1, 0));
+        // Landing higher shortens the reach, landing lower stretches it.
+        assertFalse(LeapPhysics.reachable(3, 1, true));
+        assertTrue(LeapPhysics.reachable(2, 1, true));
+        assertFalse(LeapPhysics.reachable(4, -1, true));
+        assertTrue(LeapPhysics.reachable(4, -3, true));
+        assertFalse(LeapPhysics.reachable(5, -3, true));
     }
 
     @Test

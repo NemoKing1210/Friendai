@@ -8,6 +8,17 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.90.0] - 2026-10-30
+
+### Changed
+
+- The companion jumps like a player: it leaps up onto a ledge one block higher across a gap of up to two blocks, and down onto lower ground across a gap of up to four blocks, a longer crossing the further it falls.
+- A companion too hungry to sprint now hops a one-block gap with a walking jump instead of walking around it; wider gaps still need a running start.
+
+### Fixed
+
+- The companion holds its speed through a leap, so it no longer drops short of a wide gap or the edge of a ledge.
+
 ## [0.89.2] - 2026-10-30
 
 ### Fixed

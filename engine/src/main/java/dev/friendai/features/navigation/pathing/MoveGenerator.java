@@ -23,13 +23,6 @@ public final class MoveGenerator {
     /** Price multiplier of a swim step that ends with the head under water. */
     public static final double SUBMERGED_FACTOR = 1.3;
 
-    /**
-     * The widest gap a running jump clears: three empty cells, so the landing is the fourth cell from the take-off.
-     * A vanilla jump carries about 7.5 blocks per unit of take-off speed, which a body can only get to about 0.5; four
-     * empty cells would need speed a jump cannot reach without flying.
-     */
-    public static final int MAX_JUMP_GAP = 3;
-
     private final CellView view;
     private final CostModel costs;
     private final PathGoal goal;
@@ -45,8 +38,8 @@ public final class MoveGenerator {
     }
 
     /**
-     * @param runningJumps whether a one-block gap may be leapt. Only a companion that can sprint clears it; one without
-     *     the food for a run-up must be routed around the gap, so the move is not offered at all.
+     * @param runningJumps whether the body can sprint into its jumps. One without the food for a run-up still clears
+     *     a narrow gap with a walking jump, but wider crossings are not offered to it and it is routed around them.
      */
     public MoveGenerator(CellView view, CostModel costs, PathGoal goal, double placePrice, boolean runningJumps) {
         this.view = view;
@@ -108,7 +101,7 @@ public final class MoveGenerator {
                 }
             }
 
-            if (runningJumps && !swimming) {
+            if (!swimming) {
                 leaps(from, d, out);
             }
         }
@@ -131,42 +124,70 @@ public final class MoveGenerator {
     }
 
     /**
-     * Emits a running jump over every gap a leap can clear: one, two or three empty cells, so the landing is two to
-     * four cells away. A leap is only offered where the body flies through a real gap and lands on dry footing; over
-     * walkable cells the steps of a walk are faster, and water counts as a gap because swimming through it costs more
-     * than the jump.
+     * Emits a jump over every gap a body can clear, landing from one block higher to three lower, as {@link
+     * LeapPhysics} works out for its take-off ability. A leap is only offered where the body flies through a real gap
+     * and lands on dry footing; over walkable cells the steps of a walk are faster, and water counts as a gap because
+     * swimming through it costs more than the jump.
      */
     private void leaps(Node from, int[] d, Consumer<PathStep> out) {
-        for (int width = 1; width <= MAX_JUMP_GAP; width++) {
-            Node landing = new Node(from.x() + (width + 1) * d[0], from.y(), from.z() + (width + 1) * d[1]);
-            if (!standable(view, landing) || view.at(landing.pos()).kind() == Cell.Kind.WATER) {
-                continue;
+        int openBelow = LeapPhysics.MAX_DROP;
+        boolean roofClear = true;
+        for (int width = 1; width <= LeapPhysics.MAX_WIDTH; width++) {
+            int x = from.x() + width * d[0];
+            int z = from.z() + width * d[1];
+            if (!gapColumn(x, from.y(), z)) {
+                return;
             }
-            if (realGap(from, d, width)) {
-                emit(from, landing, Move.JUMP_GAP, jumpCost(width), 0, out);
+            openBelow = Math.min(openBelow, openBelow(x, from.y(), z, openBelow));
+            roofClear &= enterable(view.at(x, from.y() + 3, z));
+            for (int dy = LeapPhysics.MAX_RISE; dy >= -openBelow; dy--) {
+                if (!LeapPhysics.reachable(width, dy, runningJumps) || (dy > 0 && !roofClear)) {
+                    continue;
+                }
+                Node landing = new Node(x + d[0], from.y() + dy, z + d[1]);
+                if (!standable(view, landing)
+                        || view.at(landing.pos()).kind() == Cell.Kind.WATER
+                        || !openAbove(landing, from.y() + 2)) {
+                    continue;
+                }
+                emit(from, landing, Move.JUMP_GAP, jumpCost(width, dy), 0, out);
             }
         }
     }
 
-    /** Whether every cell the leap skips is air or water the body fits through, including the room its rise needs. */
-    private boolean realGap(Node from, int[] d, int width) {
-        for (int i = 1; i <= width; i++) {
-            Pos cell = new Pos(from.x() + i * d[0], from.y(), from.z() + i * d[1]);
-            boolean walkable = standable(view, new Node(cell.x(), cell.y(), cell.z()))
-                    && view.at(cell).kind() != Cell.Kind.WATER;
-            if (walkable
-                    || !enterable(view.at(cell))
-                    || !enterable(view.at(cell.offset(0, 1, 0)))
-                    || !enterable(view.at(cell.offset(0, 2, 0)))) {
+    /** Whether the body flies through this column: nothing to stand on at the take-off level and room to rise. */
+    private boolean gapColumn(int x, int y, int z) {
+        Node cell = new Node(x, y, z);
+        boolean walkable = standable(view, cell) && view.at(cell.pos()).kind() != Cell.Kind.WATER;
+        return !walkable
+                && enterable(view.at(x, y, z))
+                && enterable(view.at(x, y + 1, z))
+                && enterable(view.at(x, y + 2, z));
+    }
+
+    /** How many cells right below the take-off level the column leaves open, at most {@code limit}. */
+    private int openBelow(int x, int y, int z, int limit) {
+        int open = 0;
+        while (open < limit && enterable(view.at(x, y - 1 - open, z))) {
+            open++;
+        }
+        return open;
+    }
+
+    /** Whether the cells over a landing lower than the take-off are open up to the height the body flew in at. */
+    private boolean openAbove(Node landing, int top) {
+        for (int y = landing.y() + 2; y <= top; y++) {
+            if (!enterable(view.at(landing.x(), y, landing.z()))) {
                 return false;
             }
         }
         return true;
     }
 
-    /** A leap covers {@code width + 1} cells, so it is priced as that much walking plus the jump itself. */
-    private double jumpCost(int width) {
-        return costs.walk() * (width + 1) + costs.jump();
+    /** A leap covers {@code width + 1} cells, so it is priced as that much walking plus the jump and any fall. */
+    private double jumpCost(int width, int dy) {
+        double cost = costs.walk() * (width + 1) + costs.jump();
+        return dy < 0 ? cost + costs.fall() * -dy : cost;
     }
 
     private void ascend(Node from, Consumer<PathStep> out) {

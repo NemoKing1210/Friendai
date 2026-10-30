@@ -275,6 +275,9 @@ public class PathingTests {
         for (int x = 6; x <= 10; x++) {
             for (int z = 0; z < 16; z++) {
                 h.setBlock(x, 1, z, Blocks.LAVA);
+                // The framework caps the arena with barriers, which would be a walkable shelf over the pit.
+                h.setBlock(x, 8, z, Blocks.AIR);
+                h.setBlock(x, 9, z, Blocks.AIR);
             }
         }
         for (int x = 2; x <= 4; x++) {
@@ -1080,6 +1083,57 @@ public class PathingTests {
         });
     }
 
+    @GameTest(maxTicks = 400)
+    public void hungryCompanionWalkJumpsAOneBlockGap(GameTestHelper h) {
+        int base = 150;
+        GameTestSupport.platformAt(h, base, 16);
+        trench(h, base, 8, 1);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, base + 1, 8);
+        c.hunger().load(3, 0.0f, 0.0f);
+        Outcome out = new Outcome();
+        walkTo(c, h, out, 12.5, base + 1, 8.5);
+        h.succeedWhen(() -> h.assertTrue(
+                out.status == TaskStatus.SUCCESS, "did not hop the gap: " + out.why() + " at " + c.position()));
+    }
+
+    @GameTest(maxTicks = 400)
+    public void goToLeapsUpOntoAHigherLedge(GameTestHelper h) {
+        int base = 160;
+        GameTestSupport.platformAt(h, base, 16);
+        trench(h, base, 8, 2);
+        // The far side stands one block higher than the near one.
+        for (int x = 10; x < 16; x++) {
+            for (int z = 0; z < 16; z++) {
+                h.setBlock(new BlockPos(x, base + 1, z), Blocks.STONE);
+            }
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, base + 1, 8);
+        Outcome out = new Outcome();
+        walkTo(c, h, out, 13.5, base + 2, 8.5);
+        h.succeedWhen(() -> h.assertTrue(
+                out.status == TaskStatus.SUCCESS, "did not leap up: " + out.why() + " at " + c.position()));
+    }
+
+    @GameTest(maxTicks = 400)
+    public void goToLeapsDownOverAWideGap(GameTestHelper h) {
+        int base = 170;
+        GameTestSupport.platformAt(h, base, 16);
+        trench(h, base, 8, 4);
+        // The near side stands three blocks higher than the far one, and the long fall stretches the leap across.
+        for (int x = 0; x < 8; x++) {
+            for (int z = 0; z < 16; z++) {
+                for (int y = base + 1; y <= base + 3; y++) {
+                    h.setBlock(new BlockPos(x, y, z), Blocks.STONE);
+                }
+            }
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, base + 4, 8);
+        Outcome out = new Outcome();
+        walkTo(c, h, out, 14.5, base + 1, 8.5);
+        h.succeedWhen(() -> h.assertTrue(
+                out.status == TaskStatus.SUCCESS, "did not leap down: " + out.why() + " at " + c.position()));
+    }
+
     /** Cuts a trench {@code width} cells wide across the whole platform, five deep: only a leap crosses it. */
     private static void trench(GameTestHelper h, int base, int x, int width) {
         for (int z = 0; z < 16; z++) {
@@ -1095,11 +1149,13 @@ public class PathingTests {
     public void goToWalksAroundAGapWhenItCannotRun(GameTestHelper h) {
         int base = 272;
         GameTestSupport.platformAt(h, base, 16);
-        // The same trench stops short of the platform edge, so a walkable detour exists: a companion too hungry to
-        // sprint must take it instead of leaping a gap it cannot clear.
+        // A two-block trench stops short of the platform edge, so a walkable detour exists: a companion too hungry
+        // to sprint must take it instead of leaping a gap only a running jump clears.
         for (int z = 0; z <= 12; z++) {
-            for (int y = base - 4; y <= base; y++) {
-                h.setBlock(new BlockPos(8, y, z), Blocks.AIR);
+            for (int x = 8; x <= 9; x++) {
+                for (int y = base - 4; y <= base; y++) {
+                    h.setBlock(new BlockPos(x, y, z), Blocks.AIR);
+                }
             }
         }
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, base + 1, 8);
@@ -1107,7 +1163,7 @@ public class PathingTests {
         double[] lowest = {c.getY()};
         h.onEachTick(() -> lowest[0] = Math.min(lowest[0], c.getY()));
         Outcome out = new Outcome();
-        walkTo(c, h, out, 12.5, base + 1, 8.5);
+        walkTo(c, h, out, 13.5, base + 1, 8.5);
         h.succeedWhen(() -> {
             h.assertTrue(
                     out.status == TaskStatus.SUCCESS,
