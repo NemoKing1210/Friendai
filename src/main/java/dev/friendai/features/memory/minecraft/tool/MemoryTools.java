@@ -63,13 +63,24 @@ public final class MemoryTools implements FeatureToolContributor {
         registry.registerTool(
                 callerTool(
                         "recall",
-                        "List what you remember about a player who is not shown in your memory block.",
+                        "List what you remember about a player who is not shown in your memory block. Narrow it with a "
+                                + "text fragment or a category when the list is long.",
                         SchemaBuilder.object()
                                 .string("player", "Player name, or 'me'")
+                                .string("query", "Only facts containing this text (case-insensitive)")
+                                .enumeration(
+                                        "category",
+                                        "Only facts of this category",
+                                        "PROFILE",
+                                        "PREFERENCE",
+                                        "PLACE",
+                                        "PROMISE",
+                                        "NOTE")
                                 .required("player")
                                 .build(),
                         memory,
-                        (actions, args) -> actions.recall(args.get("player").getAsString())),
+                        (actions, args) -> actions.recall(
+                                args.get("player").getAsString(), optional(args, "query"), optional(args, "category"))),
                 metadata("recall"));
     }
 
@@ -119,6 +130,10 @@ public final class MemoryTools implements FeatureToolContributor {
                 }
             }
         };
+    }
+
+    private static String optional(JsonObject args, String name) {
+        return args.has(name) && !args.get(name).isJsonNull() ? args.get(name).getAsString() : "";
     }
 
     private static ToolMeta metadata(String name) {

@@ -4,6 +4,7 @@ import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -19,18 +20,31 @@ public final class MemoryActions {
     private final MemoryLimits limits;
     private final long now;
     private final PlayerDirectory online;
+    private final java.util.function.UnaryOperator<String> redactor;
 
     /** A resolved subject plus the name to record for it, when it is a player the book does not know yet. */
     private record Resolved(Subject subject, String name, UUID ensureUuid, String ensureName) {}
 
     public MemoryActions(
             MemoryBook book, UUID owner, Caller caller, MemoryLimits limits, long now, PlayerDirectory online) {
+        this(book, owner, caller, limits, now, online, text -> text);
+    }
+
+    public MemoryActions(
+            MemoryBook book,
+            UUID owner,
+            Caller caller,
+            MemoryLimits limits,
+            long now,
+            PlayerDirectory online,
+            java.util.function.UnaryOperator<String> redactor) {
         this.book = book;
         this.owner = owner;
         this.caller = caller;
         this.limits = limits;
         this.now = now;
         this.online = online;
+        this.redactor = redactor == null ? text -> text : redactor;
     }
 
     public String remember(String subjectName, String categoryName, String text) {
@@ -48,7 +62,8 @@ public final class MemoryActions {
         }
         UUID authorUuid = caller.access() == AccessLevel.OWNER ? owner : caller.uuid();
         String authorName = caller.access() == AccessLevel.OWNER ? ownerName() : caller.name();
-        Fact fact = book.addFact(resolved.subject(), category, text, authorUuid, authorName, now, limits);
+        Fact fact =
+                book.addFact(resolved.subject(), category, redactor.apply(text), authorUuid, authorName, now, limits);
         return "Remembered [" + fact.id() + "] about " + label(fact.subject()) + ": "
                 + fact.category().name() + ": " + fact.text();
     }
@@ -64,24 +79,50 @@ public final class MemoryActions {
     }
 
     public String recall(String playerName) {
+        return recall(playerName, "", "");
+    }
+
+    /**
+     * Lists facts about one player, optionally filtered by a text fragment and a category. An empty result says what
+     * was searched, so the model widens its query instead of concluding that nothing is remembered.
+     */
+    public String recall(String playerName, String query, String categoryName) {
         Resolved resolved = resolve(playerName, false);
         UUID player = ((Subject.Player) resolved.subject()).uuid();
         if (!MemoryPolicy.canRecall(owner, caller, player)) {
             throw new IllegalArgumentException("You can only recall facts about the current speaker.");
         }
-        List<Fact> facts = book.facts(resolved.subject());
+        Category category = null;
+        if (categoryName != null && !categoryName.isBlank()) {
+            category = Category.parse(categoryName)
+                    .orElseThrow(() -> new IllegalArgumentException("Unknown category " + categoryName
+                            + ". Use one of: PROFILE, PREFERENCE, PLACE, PROMISE, NOTE."));
+        }
+        String needle = query == null ? "" : query.strip().toLowerCase(Locale.ROOT);
+        List<Fact> facts = new ArrayList<>();
+        for (Fact fact : book.facts(resolved.subject())) {
+            if (category != null && fact.category() != category) {
+                continue;
+            }
+            if (!needle.isEmpty() && !fact.text().toLowerCase(Locale.ROOT).contains(needle)) {
+                continue;
+            }
+            facts.add(fact);
+        }
+        String filter = (category == null ? "" : " (" + category.name() + ")")
+                + (needle.isEmpty() ? "" : " matching \"" + query.strip() + "\"");
         if (facts.isEmpty()) {
-            return "I remember nothing about " + resolved.name() + ".";
+            return "I remember nothing about " + resolved.name() + filter + ".";
         }
         List<String> lines = new ArrayList<>();
-        lines.add("About " + resolved.name() + ":");
+        lines.add("About " + resolved.name() + filter + ":");
         for (Fact fact : facts) {
             StringBuilder line = new StringBuilder(" [")
                     .append(fact.id())
                     .append("] ")
                     .append(fact.category().name())
                     .append(": ")
-                    .append(fact.text());
+                    .append(redactor.apply(fact.text()));
             if (!Objects.equals(fact.authorUuid(), owner)
                     && fact.authorName() != null
                     && !fact.authorName().isBlank()) {

@@ -19,29 +19,49 @@ public final class MemoryPromptRenderer {
     private MemoryPromptRenderer() {}
 
     public static String render(MemoryBook book, UUID owner, Caller caller) {
+        return render(book, owner, caller, MemoryLimits.DEFAULTS, 100, text -> text);
+    }
+
+    /**
+     * Renders the memory block with a fullness line, so the model sees a full book before an exception tells it.
+     * Facts are redacted on read: an old fact may predate redaction on write.
+     */
+    public static String render(
+            MemoryBook book,
+            UUID owner,
+            Caller caller,
+            MemoryLimits limits,
+            int compactAtPercent,
+            java.util.function.UnaryOperator<String> redactor) {
         String ownerLabel = ownerName(book, owner);
         List<String> parts = new ArrayList<>();
         switch (caller.access()) {
             case OWNER -> {
-                addPlayerSection(parts, book, owner, owner, ownerLabel);
-                addWorldSection(parts, book, owner);
+                addPlayerSection(parts, book, owner, owner, ownerLabel, redactor);
+                addWorldSection(parts, book, owner, redactor);
                 addIndex(parts, book, owner);
             }
             case TRUSTED -> {
-                addPlayerSection(parts, book, owner, owner, ownerLabel);
-                addWorldSection(parts, book, owner);
-                addPlayerSection(parts, book, owner, caller.uuid(), ownerLabel);
+                addPlayerSection(parts, book, owner, owner, ownerLabel, redactor);
+                addWorldSection(parts, book, owner, redactor);
+                addPlayerSection(parts, book, owner, caller.uuid(), ownerLabel, redactor);
             }
-            case GUEST -> addPlayerSection(parts, book, owner, caller.uuid(), ownerLabel);
+            case GUEST -> addPlayerSection(parts, book, owner, caller.uuid(), ownerLabel, redactor);
         }
         if (parts.isEmpty()) {
             return "Memory: nothing remembered yet.";
         }
-        return HEADER + "\n" + String.join("\n", parts);
+        String counts = MemoryAudit.counts(book, owner, caller, limits, compactAtPercent);
+        return HEADER + "\n" + counts + "\n" + String.join("\n", parts);
     }
 
     private static void addPlayerSection(
-            List<String> parts, MemoryBook book, UUID owner, UUID player, String ownerLabel) {
+            List<String> parts,
+            MemoryBook book,
+            UUID owner,
+            UUID player,
+            String ownerLabel,
+            java.util.function.UnaryOperator<String> redactor) {
         if (player == null) {
             return;
         }
@@ -50,15 +70,16 @@ public final class MemoryPromptRenderer {
             return;
         }
         String label = player.equals(owner) ? ownerLabel : playerName(book, player);
-        parts.add("About " + label + " (" + role(book, owner, player) + "):\n" + renderFacts(facts, owner));
+        parts.add("About " + label + " (" + role(book, owner, player) + "):\n" + renderFacts(facts, owner, redactor));
     }
 
-    private static void addWorldSection(List<String> parts, MemoryBook book, UUID owner) {
+    private static void addWorldSection(
+            List<String> parts, MemoryBook book, UUID owner, java.util.function.UnaryOperator<String> redactor) {
         List<Fact> facts = book.facts(Subject.WORLD);
         if (facts.isEmpty()) {
             return;
         }
-        parts.add("World:\n" + renderFacts(facts, owner));
+        parts.add("World:\n" + renderFacts(facts, owner, redactor));
     }
 
     private static void addIndex(List<String> parts, MemoryBook book, UUID owner) {
@@ -82,7 +103,7 @@ public final class MemoryPromptRenderer {
         parts.add("Also known: " + String.join(", ", entries) + "; use recall.");
     }
 
-    private static String renderFacts(List<Fact> facts, UUID owner) {
+    private static String renderFacts(List<Fact> facts, UUID owner, java.util.function.UnaryOperator<String> redactor) {
         StringBuilder text = new StringBuilder();
         for (int i = 0; i < facts.size(); i++) {
             Fact fact = facts.get(i);
@@ -94,7 +115,7 @@ public final class MemoryPromptRenderer {
                     .append("] ")
                     .append(fact.category().name())
                     .append(": ")
-                    .append(fact.text());
+                    .append(redactor.apply(fact.text()));
             if (!Objects.equals(fact.authorUuid(), owner)
                     && fact.authorName() != null
                     && !fact.authorName().isBlank()) {

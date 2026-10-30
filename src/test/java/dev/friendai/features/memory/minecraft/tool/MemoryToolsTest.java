@@ -58,7 +58,7 @@ class MemoryToolsTest {
                 schema(tools, "forget"));
         assertEquals(
                 JsonParser.parseString(
-                        "{\"type\":\"object\",\"properties\":{\"player\":{\"type\":\"string\",\"description\":\"Player name, or 'me'\"}},\"required\":[\"player\"]}"),
+                        "{\"type\":\"object\",\"properties\":{\"player\":{\"type\":\"string\",\"description\":\"Player name, or 'me'\"},\"query\":{\"type\":\"string\",\"description\":\"Only facts containing this text (case-insensitive)\"},\"category\":{\"type\":\"string\",\"description\":\"Only facts of this category\",\"enum\":[\"PROFILE\",\"PREFERENCE\",\"PLACE\",\"PROMISE\",\"NOTE\"]}},\"required\":[\"player\"]}"),
                 schema(tools, "recall"));
 
         ToolCatalog catalog = ToolCatalog.defaults();

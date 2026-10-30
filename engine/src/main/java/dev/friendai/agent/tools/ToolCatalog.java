@@ -123,7 +123,9 @@ public final class ToolCatalog {
                 "skill_help",
                 "manage_skill",
                 "read_log",
-                "recent_chat");
+                "recent_chat",
+                "memory_overview",
+                "compress_memory");
         group(
                 metas,
                 ToolGroup.MOVEMENT,

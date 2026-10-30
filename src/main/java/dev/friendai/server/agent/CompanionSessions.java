@@ -153,7 +153,12 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                 UUID owner = companion.ownerUuid();
                 MemoryLimits limits = config == null ? MemoryLimits.DEFAULTS : config.memory.limits();
                 return new MemoryActions(
-                        memory.book(owner), owner, caller, limits, System.currentTimeMillis(), name -> {
+                        memory.book(owner),
+                        owner,
+                        caller,
+                        limits,
+                        System.currentTimeMillis(),
+                        name -> {
                             if (!(companion.level() instanceof ServerLevel level) || level.getServer() == null)
                                 return Optional.empty();
                             for (var player : level.getServer().getPlayerList().getPlayers()) {
@@ -162,7 +167,8 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                                     return Optional.of(new PlayerRef(player.getUUID(), playerName));
                             }
                             return Optional.empty();
-                        });
+                        },
+                        gateways.redactor());
             }
         };
         SelfAccess selfAccess = new SelfAccess() {
@@ -899,7 +905,15 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                 effective,
                 scheduler,
                 AccessResolver.of(owner, p -> memory.book(owner).isTrusted(p)),
-                caller -> config.memory.enabled ? MemoryPromptRenderer.render(memory.book(owner), owner, caller) : "",
+                caller -> config.memory.enabled
+                        ? MemoryPromptRenderer.render(
+                                memory.book(owner),
+                                owner,
+                                caller,
+                                config.memory.limits(),
+                                config.memory.compactAtPercent,
+                                gateways.redactor())
+                        : "",
                 toolCatalog);
         brain.setTradingTurnPort(session.tradingAuthority());
         brain.setTradingPromptSource((caller, request) -> {

@@ -85,4 +85,19 @@ class MemoryPromptRendererTest {
     void emptyBook() {
         assertEquals("Memory: nothing remembered yet.", MemoryPromptRenderer.render(new MemoryBook(), O, ownerCaller));
     }
+
+    @Test
+    void countsLineNamesTheBooksAndMarksAFullOne() {
+        String block = MemoryPromptRenderer.render(book, O, ownerCaller, new MemoryLimits(160, 1, 1), 90, text -> text);
+        assertTrue(block.contains("you 1/1 (full)"), block);
+        assertTrue(block.contains("world 1/1 (full)"), block);
+    }
+
+    @Test
+    void redactionAppliesToThePromptBlock() {
+        book.addFact(Subject.player(O), Category.NOTE, "key SECRET", O, "Steve", 5, L);
+        String block = MemoryPromptRenderer.render(book, O, ownerCaller, L, 90, text -> text.replace("SECRET", "***"));
+        assertTrue(block.contains("key ***"), block);
+        assertFalse(block.contains("SECRET"), block);
+    }
 }

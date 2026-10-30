@@ -161,4 +161,30 @@ class MemoryActionsTest {
     void recallSelfWhenNothingIsKnown() {
         assertEquals("I remember nothing about Gus.", actions(guest).recall("me"));
     }
+
+    @Test
+    void recallFiltersByTextAndCategory() {
+        actions(ownerCaller).remember("me", "PREFERENCE", "Likes redstone");
+        actions(ownerCaller).remember("me", "PREFERENCE", "Likes cats");
+        actions(ownerCaller).remember("me", "PLACE", "Base at 1 2 3");
+
+        assertEquals(
+                "About Steve matching \"red\":\n [1] PREFERENCE: Likes redstone",
+                actions(ownerCaller).recall("me", "red", ""));
+        assertEquals(
+                "About Steve (PLACE):\n [3] PLACE: Base at 1 2 3",
+                actions(ownerCaller).recall("me", "", "PLACE"));
+        assertEquals(
+                "I remember nothing about Steve matching \"dogs\".",
+                actions(ownerCaller).recall("me", "dogs", ""));
+    }
+
+    @Test
+    void redactionAppliesOnWriteAndOnRead() {
+        MemoryActions redacting =
+                new MemoryActions(book, O, ownerCaller, L, 0, directory, text -> text.replace("SECRET", "***"));
+        redacting.remember("me", "NOTE", "key SECRET");
+        assertEquals("key ***", book.allFacts().get(0).text());
+        assertEquals("About Steve:\n [1] NOTE: key ***", redacting.recall("me"));
+    }
 }
