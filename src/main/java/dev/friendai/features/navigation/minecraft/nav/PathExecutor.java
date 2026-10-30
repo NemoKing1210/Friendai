@@ -451,11 +451,9 @@ public final class PathExecutor {
             double horizontal = distance < 1.0e-4 ? 0.0 : Math.min(SWIM_SPEED, distance) / distance;
             companion.setDeltaMovement(dx * horizontal, swimVertical(c, step, target, velocity.y, up), dz * horizontal);
         }
+        // A swim step is steered by swimVertical alone: forcing a rise on it overshoots the cell it is climbing to.
         if (up
-                && (step.move() == Move.CLIMB
-                        || step.move() == Move.SWIM
-                        || step.move() == Move.ASCEND
-                        || step.move() == Move.DIG_ASCEND)
+                && (step.move() == Move.CLIMB || step.move() == Move.ASCEND || step.move() == Move.DIG_ASCEND)
                 && (climbing || companion.onClimbable() || companion.isInWater())) {
             var velocity = companion.getDeltaMovement();
             // At the top of a scaffold vanilla switches from climbing to a normal jump.  The climb impulse alone

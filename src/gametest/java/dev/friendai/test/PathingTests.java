@@ -736,6 +736,52 @@ public class PathingTests {
         });
     }
 
+    /**
+     * A companion trailing a swimmer used to sink between two routes, then be thrown up by the next route's forced
+     * rise and dive again, losing speed each time. Once settled it must hold the surface the whole way and at rest.
+     */
+    @GameTest(maxTicks = 400)
+    public void followingASwimmerHoldsTheSurface(GameTestHelper h) {
+        int floor = 220;
+        GameTestSupport.platformAt(h, floor, 40);
+        for (int x = 0; x <= 38; x++) {
+            for (int z = 0; z <= 8; z++) {
+                boolean pool = x >= 4 && x <= 34;
+                for (int y = floor + 1; y <= floor + 4; y++) {
+                    h.setBlock(new BlockPos(x, y, z), pool ? Blocks.WATER : Blocks.STONE);
+                }
+            }
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, floor + 5, 3);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 6.5, floor + 4, 3.5);
+        c.setOwner(owner.getUUID());
+        int[] ticks = {0};
+        double[] range = {Double.MAX_VALUE, -Double.MAX_VALUE};
+        boolean[] swam = {false};
+        h.onEachTick(() -> {
+            ticks[0]++;
+            var at = h.absoluteVec(
+                    new net.minecraft.world.phys.Vec3(6.5 + Math.min(ticks[0], 160) * 0.15, floor + 4, 3.5));
+            owner.teleportTo(at.x, at.y, at.z);
+            // The mock player is not ticked, so its water state would otherwise stay dry and the companion would
+            // follow the ground under it.
+            owner.baseTick();
+            if (ticks[0] > 40 && c.isInWater()) {
+                double y = c.getY() - h.absolutePos(BlockPos.ZERO).getY();
+                range[0] = Math.min(range[0], y);
+                range[1] = Math.max(range[1], y);
+                swam[0] |= c.getPose() == Pose.SWIMMING;
+            }
+        });
+        h.runAfterDelay(300, () -> {
+            h.assertTrue(swam[0], "never took the swimming pose while following");
+            h.assertTrue(
+                    range[0] > floor + 4 - 0.15 && range[1] < floor + 4 + 0.25,
+                    "left the surface while following: y from " + range[0] + " to " + range[1]);
+            h.succeed();
+        });
+    }
+
     /** With no water float goal an idle companion would sink and drown: it treads water instead. */
     @GameTest(maxTicks = 300)
     public void idleInDeepWaterFloatsBackToTheSurface(GameTestHelper h) {
@@ -1143,6 +1189,88 @@ public class PathingTests {
                 }
             }
         }
+    }
+
+    /** A three-block wall the companion may not break: only a stair of two rises gets over it. */
+    private static void plankWall(GameTestHelper h, int base) {
+        for (int x = 5; x < 16; x++) {
+            for (int z = 0; z < 16; z++) {
+                for (int y = base + 1; y <= base + 3; y++) {
+                    h.setBlock(new BlockPos(x, y, z), Blocks.OAK_PLANKS);
+                }
+            }
+        }
+    }
+
+    /** How many of the debug lines reported a plan with at least this many placements. */
+    private static int plannedPlaces(Outcome out) {
+        int most = 0;
+        for (String line : out.debug) {
+            if (!line.startsWith("path ")) {
+                continue;
+            }
+            int at = line.indexOf(", places ");
+            if (at < 0) {
+                continue;
+            }
+            int end = at + ", places ".length();
+            int value = 0;
+            while (end < line.length() && Character.isDigit(line.charAt(end))) {
+                value = value * 10 + (line.charAt(end) - '0');
+                end++;
+            }
+            most = Math.max(most, value);
+        }
+        return most;
+    }
+
+    private static int countInArena(GameTestHelper h, int base, net.minecraft.world.level.block.Block block) {
+        int found = 0;
+        for (int x = -1; x <= 17; x++) {
+            for (int z = -1; z <= 17; z++) {
+                for (int y = base; y <= base + 12; y++) {
+                    if (h.getLevel().getBlockState(h.absolutePos(new BlockPos(x, y, z))).is(block)) {
+                        found++;
+                    }
+                }
+            }
+        }
+        return found;
+    }
+
+    @GameTest(maxTicks = 800)
+    public void goToDoesNotSpendItsOnlyBlockOnAHalfStair(GameTestHelper h) {
+        int base = 300;
+        GameTestSupport.platformAt(h, base, 16);
+        plankWall(h, base);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, base + 1, 8);
+        c.inventory().addItem(new ItemStack(Items.DIRT, 1));
+        Outcome out = new Outcome();
+        walkTo(c, h, out, 8.5, base + 4, 8.5);
+        h.succeedWhen(() -> {
+            h.assertTrue(out.status != null, "go_to did not finish: " + out.why());
+            h.assertTrue(out.status != TaskStatus.SUCCESS, "the wall must not be scaled on one block: " + out.why());
+            int dirt = countInArena(h, base, Blocks.DIRT);
+            h.assertTrue(dirt == 0, dirt + " dirt placed on a stair it cannot finish; " + out.why());
+        });
+    }
+
+    @GameTest(maxTicks = 800)
+    public void goToClimbsTheWholeStairInOnePlan(GameTestHelper h) {
+        int base = 320;
+        GameTestSupport.platformAt(h, base, 16);
+        plankWall(h, base);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, base + 1, 8);
+        c.inventory().addItem(new ItemStack(Items.DIRT, 8));
+        Outcome out = new Outcome();
+        walkTo(c, h, out, 8.5, base + 4, 8.5);
+        h.succeedWhen(() -> {
+            h.assertTrue(out.status == TaskStatus.SUCCESS, "did not climb the stair: " + out.why());
+            h.assertTrue(c.getY() >= base + 3.9, "stopped below the top at " + c.position());
+            h.assertTrue(
+                    plannedPlaces(out) >= 2,
+                    "the passage was not planned as one stair of two rises: " + out.why());
+        });
     }
 
     @GameTest(maxTicks = 600)
