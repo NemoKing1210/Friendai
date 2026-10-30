@@ -7,7 +7,7 @@ description: "Use when asked to pick or implement a work item from TODO.md in th
 
 ## Overview
 
-An item in `TODO.md` is a contract with an evidence trail: its anchors (`File.java:line`) drift, and the work may already be half-shipped. Prove the item is still open and that the change cannot silently undo something else **before** the first code line. `AGENTS.md` states the rules; this skill is the order of operations that satisfies them for one numbered item.
+An item in `TODO.md` is a contract with an evidence trail: its anchors (`File.java:line`) drift, and the work may already be half-shipped. Prove the item is still open and that the change cannot silently undo something else **before** the first code line — and put the item back to the maintainer instead of building it when the evidence says it would regress, outgrow its scope, or rest on a stale premise. `AGENTS.md` states the rules; this skill is the order of operations that satisfies them for one numbered item.
 
 ## One item per run — then stop
 
@@ -48,6 +48,29 @@ List in the plan:
 
 No answer to "what could this break?" means the plan is not finished.
 
+## Gate 3 — raise it for discussion instead of building it
+
+A Gate 1 or Gate 2 finding is not a licence to proceed with a caveat in the report. When the work you can see ahead would regress something, contradict the item, or turn out to be a different job than the item claims, **stop before the first code edit and put it to the maintainer**, with the evidence and a recommendation.
+
+Ask when any of these is true:
+
+- the item's premise is wrong or stale: the code already does what the item asks, the bug has another cause, or the cited anchor shows a different design than the item assumes;
+- the only way to satisfy the item breaks a behavior, contract or test that Gate 2 lists — server-thread rule, pure-layer imports, persistence or wire format, an access level, a translation key, another open item's seam;
+- the change is materially larger or more invasive than the item states (a save/config schema break, a new sub-item, a rewritten interface, a dependency or Minecraft version move);
+- two items collide on the same seam and doing this one half-way would block the other;
+- the item depends on an unshipped or claimed item;
+- the change needs a player-visible behavior decision (default value, refusal path, wording of a rule) that the item does not settle;
+- the risk or cost is out of proportion to the value, and a narrower item would deliver the point.
+
+How to ask — the question is part of the record, not a delay:
+
+- Never ask about anything the repository, the docs or a running scenario can answer: read it first, and only the genuine trade-off goes to the maintainer. A question is not permission to stop investigating.
+- Ask once, batched, with options that differ materially: proceed as specified / narrow to what is safe / do the alternative you propose / abandon the item. Say which one you recommend and why, in one or two sentences of facts.
+- Carry the proof: `path:line` of the conflict, the test that would break, the schema version, the cost. "This may regress" without a name is not a question.
+- Leave the `[~]` marker in place while the answer is out: the item is still yours and still claimed. Restore `[ ]` only when the item is abandoned.
+- Write the ruling into the plan or spec next to the slice it changes, then execute the chosen option. Do not re-argue it after the answer, and do not "fix" the other option on the side.
+- No answer yet, and other reachable work exists inside the same item? Do that work while waiting; do not touch the disputed slice.
+
 ## Plan before code
 
 Follow `AGENTS.md`, "Working from TODO.md": spec to `docs/superpowers/specs/`, plan to `docs/superpowers/plans/`, both git-ignored, both naming the item. Skip them only when the whole change fits two sentences and the direction is settled.
@@ -77,7 +100,7 @@ In the commit that carries the change:
 - `ARCHITECTURE.md` / `AGENTS.md` when a package, tool, config or recipe changed; both language files for player-facing text (`LangFilesTest`); `site/app.js` plus `site/i18n.ru.js` when the capability map shows the thing; `MANUAL_CHECKLIST.md` for what automation cannot cover;
 - stage only your paths (`git add <path>…`), never `-A`, and name foreign dirty files in the final message instead of committing them.
 
-Final message: item and sub-items with what each became, the Gate 1 verdict, the regression checks that ran, the tests you actually ran with results, the version and jar path, what you could not verify, and the foreign changes you noticed.
+Final message: item and sub-items with what each became, the Gate 1 verdict, any Gate 3 question and the ruling it received (or that it is still waiting), the regression checks that ran, the tests you actually ran with results, the version and jar path, what you could not verify, and the foreign changes you noticed.
 
 Then stop. The run is over with this one item; the next item needs a new invocation.
 
@@ -93,6 +116,10 @@ Then stop. The run is over with this one item; the next item needs a new invocat
 | "The marker/version/docs can land later" | They land in the same commit, or the item is not closed. |
 | "That dirty file is probably mine" | Unknown dirt is someone else's; leave it and say so. |
 | "The old test is in the way, I'll re-pin it" | A test that guards untouched behavior is a Gate 2 finding, not an obstacle. |
+| "I'll build it and mention the risk in the final message" | Too late: the maintainer decided nothing and the regression is committed. Gate 3 asks before code. |
+| "It probably regresses, but I can't name what" | Unnamed risk = unfinished Gate 2. Find the caller or the contract, then ask with the proof. |
+| "Asking is stalling; I'll just pick the safer option" | A behavior, schema or scope choice is the maintainer's. Decide only the documented default, and say so. |
+| "The item says X, so X is what ships" | A stale premise is a Gate 1/3 finding. Report it and ask, do not implement the stale version. |
 | "The request lists three tasks, so I do three" | One item per run. Do the first, report the rest untouched, stop. |
 | "I'm warm now, I'll just continue with the next one" | The run ends at the close-out. The next item needs a new invocation. |
 | "The second one is a one-line fix in the same file" | Still a separate item, a separate claim and a separate run. |
