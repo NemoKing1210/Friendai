@@ -128,7 +128,7 @@ class ClientConfigurationCoordinatorTest {
     @Test
     void unsupportedServerConfigFallsBackWithoutChangingTheFileOrAllowingWrites() throws IOException {
         Path serverFile = configDirectory.resolve("friendai-server.json");
-        String original = "{\"version\":17,\"activeProfile\":\"custom\"}";
+        String original = "{\"version\":" + (ServerConfig.VERSION + 1) + ",\"activeProfile\":\"custom\"}";
         Files.writeString(serverFile, original);
         ClientConfigurationCoordinator coordinator =
                 new ClientConfigurationCoordinator(configDirectory, ignored -> {}, ignored -> {});

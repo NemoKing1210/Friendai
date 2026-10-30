@@ -178,7 +178,6 @@ public class ServerConfig {
         }
     }
 
-    /** How the companion finds its way: what it may dig, place and gather on the way. */
     /** Whether a valuable drop is protected before its block is broken, and what that may cost. */
     public static class MiningSection {
         public boolean protectDrops = true;
@@ -186,6 +185,7 @@ public class ServerConfig {
         public int catchBlocks = MiningRuntimeSettings.DEFAULT_CATCH_BLOCKS;
     }
 
+    /** How the companion finds its way: what it may dig, place and gather on the way. */
     public static class PathingSection {
         public boolean allowBreak = true;
         public boolean allowPlace = true;

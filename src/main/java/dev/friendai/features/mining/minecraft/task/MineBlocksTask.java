@@ -7,6 +7,7 @@ import dev.friendai.debug.WorkCell;
 import dev.friendai.debug.WorkKind;
 import dev.friendai.debug.WorkSet;
 import dev.friendai.debug.WorkStatus;
+import dev.friendai.features.construction.minecraft.build.ScaffoldCleanupTask;
 import dev.friendai.features.mining.MiningBounds;
 import dev.friendai.features.mining.minecraft.mining.BlockBreaker;
 import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
@@ -612,6 +613,12 @@ public final class MineBlocksTask implements Task {
             miningSession.stop(c);
             miningSessionActive = false;
         }
+    }
+
+    /** A cancelled job takes its catch blocks and route pillars down like a cancelled build takes its scaffold. */
+    @Override
+    public Task cleanupAfterCancel(TaskContext c) {
+        return placements.isEmpty() ? null : new ScaffoldCleanupTask(placements.positions());
     }
 
     @Override

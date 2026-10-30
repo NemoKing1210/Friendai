@@ -105,6 +105,8 @@ class ConfigStoresTest {
             assertEquals(2, config.agent.plannerRetries);
             assertEquals(120, config.tasks.freeTimeWatchdogSec);
             assertEquals(4, config.tasks.placeIntervalTicks);
+            assertTrue(config.mining.protectDrops);
+            assertEquals(9, config.mining.catchBlocks);
             assertFalse(store.hasUnsupportedVersion());
             assertFalse(store.hasProtectedRecovery());
             store.save(config);
@@ -124,6 +126,25 @@ class ConfigStoresTest {
                 assertEquals(original, Files.readString(backups.getFirst()));
             }
         }
+    }
+
+    @Test
+    void explicitMiningSettingsOfAnOldFileSurviveAndGarbageIsRepaired() throws IOException {
+        Path path = dir.resolve("mining.json");
+        Files.writeString(path, """
+                {"version":17,"mining":{"protectDrops":false,"valuableBlocks":["minecraft:diamond_ore"],
+                "catchBlocks":0,"extension":3}}
+                """);
+        ServerConfig config = ConfigStores.server(path).load();
+        assertFalse(config.mining.protectDrops);
+        assertEquals(List.of("minecraft:diamond_ore"), config.mining.valuableBlocks);
+        assertEquals(0, config.mining.catchBlocks);
+
+        Path garbage = dir.resolve("mining-garbage.json");
+        Files.writeString(garbage, "{\"version\":17,\"mining\":{\"valuableBlocks\":null,\"catchBlocks\":99}}");
+        ServerConfig repaired = ConfigStores.server(garbage).load();
+        assertFalse(repaired.mining.valuableBlocks.isEmpty());
+        assertEquals(27, repaired.mining.catchBlocks);
     }
 
     @Test

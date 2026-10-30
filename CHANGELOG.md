@@ -20,6 +20,10 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 - An ore whose drop has nowhere safe to land and no catch block can be built there is left in place with an answer that names where the drop would go and what is missing, instead of being mined and lost.
 - The debug overlay marks the catch cells before the block is broken, and the mining summary says how many catch blocks were placed and removed.
 
+### Fixed
+
+- Stopping a mining job no longer leaves its catch blocks or route pillars standing in the world; they are taken down like a cancelled build's scaffold.
+
 ## [0.92.0] - 2026-10-30
 
 ### Added

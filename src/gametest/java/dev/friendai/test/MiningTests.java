@@ -514,6 +514,36 @@ public class MiningTests {
     }
 
     @GameTest(maxTicks = 1200)
+    public void cancellingAMineTakesItsCatchBlockDown(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 20, 8);
+        for (int y = 20; y >= 13; y--) {
+            h.setBlock(new BlockPos(4, y, 2), Blocks.AIR);
+        }
+        h.setBlock(new BlockPos(4, 21, 2), Blocks.DIAMOND_ORE);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 21, 2);
+        companion.inventory().addItem(Items.IRON_PICKAXE.getDefaultInstance());
+        companion.inventory().addItem(new ItemStack(Items.DIRT, 8));
+        BlockPos below = h.absolutePos(new BlockPos(4, 20, 2));
+        BlockPos ore = h.absolutePos(new BlockPos(4, 21, 2));
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 400, () -> false);
+        runner.start(new MineBlockAtTask(ore), "mine_block_at");
+        boolean[] cancelled = {false};
+
+        h.succeedWhen(() -> {
+            runner.tick();
+            if (!cancelled[0]) {
+                h.assertTrue(h.getLevel().getBlockState(below).is(Blocks.DIRT), "waiting for the catch block");
+                runner.stop("test cancel");
+                cancelled[0] = true;
+            }
+            h.assertTrue(
+                    !h.getLevel().getBlockState(below).is(Blocks.DIRT),
+                    "the cancelled job left its catch block in the world");
+            h.assertTrue(h.getLevel().getBlockState(ore).is(Blocks.DIAMOND_ORE), "the ore must stay in place");
+        });
+    }
+
+    @GameTest(maxTicks = 1200)
     public void valuableOreWithoutBuildingMaterialIsLeftUntouched(GameTestHelper h) {
         GameTestSupport.platformAt(h, 20, 8);
         for (int y = 20; y >= 13; y--) {

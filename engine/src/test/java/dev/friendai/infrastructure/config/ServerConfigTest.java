@@ -31,6 +31,26 @@ class ServerConfigTest {
     }
 
     @Test
+    void miningSectionIsRepairedFromAHandEditedConfig() {
+        ServerConfig c = ServerConfig.defaults();
+        c.mining = null;
+        assertTrue(c.validate().stream().anyMatch(problem -> problem.contains("mining")));
+        assertTrue(c.mining.protectDrops);
+        assertEquals(9, c.mining.catchBlocks);
+
+        c.mining.valuableBlocks = null;
+        c.mining.catchBlocks = -4;
+        List<String> problems = c.validate();
+        assertFalse(c.mining.valuableBlocks.isEmpty());
+        assertEquals(0, c.mining.catchBlocks);
+        assertTrue(problems.stream().anyMatch(problem -> problem.contains("mining.catchBlocks")));
+
+        c.mining.catchBlocks = 500;
+        c.validate();
+        assertEquals(27, c.mining.catchBlocks);
+    }
+
+    @Test
     void nullPathingListsFallBackToDefaults() {
         // A hand-edited file with "breakBlacklist": null must not crash the server state later on.
         ServerConfig c = ServerConfig.defaults();

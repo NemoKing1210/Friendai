@@ -3,6 +3,7 @@ package dev.friendai.features.mining.minecraft.task;
 import dev.friendai.common.Components;
 import dev.friendai.debug.DebugAction;
 import dev.friendai.debug.DebugTarget;
+import dev.friendai.features.construction.minecraft.build.ScaffoldCleanupTask;
 import dev.friendai.features.mining.ClusterFill;
 import dev.friendai.features.mining.MineReport;
 import dev.friendai.features.mining.minecraft.mining.BlockBreaker;
@@ -368,6 +369,12 @@ public final class MineBlockAtTask implements Task {
             breaker.stop(c);
         }
         vein.clear();
+    }
+
+    /** A cancelled job takes its catch blocks down like a cancelled build takes its scaffold. */
+    @Override
+    public Task cleanupAfterCancel(TaskContext c) {
+        return placements.isEmpty() ? null : new ScaffoldCleanupTask(placements.positions());
     }
 
     @Override
