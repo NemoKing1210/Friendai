@@ -32,6 +32,7 @@ public final class DefaultSections {
                 protocol(),
                 rules(),
                 toolHints(),
+                records(),
                 trading(),
                 role(),
                 memory(),
@@ -142,6 +143,23 @@ public final class DefaultSections {
                 "tool_hints",
                 40,
                 ctx -> ctx.toolHints().isEmpty() ? "" : "Tool notes:\n" + String.join("\n", ctx.toolHints()));
+    }
+
+    /** Your own records are readable: the model must look instead of guessing after a failure or a memory limit. */
+    static PromptSection records() {
+        return of("records", 45, ctx -> switch (ctx.caller().access()) {
+            case OWNER ->
+                "Your own records:\n"
+                        + "- read_log shows what you did: messages, replies, tool calls and results, errors and task events. Use it after a failure or when the owner asks what happened.\n"
+                        + "- recent_chat shows the last messages with a player, your replies included. Use it when the owner asks what you talked about or what was agreed.\n"
+                        + "- memory_overview lists every fact with its id and how full each book is. Use it before forgetting or compressing.\n"
+                        + "- compress_memory proposes safe merges; dry run first, apply only when the owner agrees or a book is full. Promises are never merged.";
+            case TRUSTED ->
+                "Your own records:\n"
+                        + "- recent_chat shows your conversation with a player, your replies included.\n"
+                        + "- memory_overview lists the facts you may read and how full they are. Use it instead of guessing.";
+            case GUEST -> "";
+        });
     }
 
     /** Observed market context is private to the owner and always labeled as historical evidence. */

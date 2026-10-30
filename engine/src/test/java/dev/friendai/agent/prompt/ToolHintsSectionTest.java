@@ -66,4 +66,36 @@ class ToolHintsSectionTest {
         assertFalse(tight.contains("Tool notes:"), "the hints are the first thing cut");
         assertTrue(tight.contains("Rules:") && tight.contains("Current state:") && tight.contains("Speech:"));
     }
+
+    @Test
+    void recordsGuidanceIsOwnerAndTrustedOnly() {
+        String owner = prompt(EnumSet.noneOf(ToolGroup.class), 0);
+        assertTrue(owner.contains("Your own records:"), owner);
+        assertTrue(owner.contains("read_log") && owner.contains("compress_memory"), owner);
+
+        String trusted = PromptBuilder.system(
+                PERSONA,
+                "Position: 1 2 3",
+                new Caller(UUID.randomUUID(), "Tia", AccessLevel.TRUSTED),
+                "",
+                TurnKind.PLAYER);
+        assertTrue(trusted.contains("recent_chat") && trusted.contains("memory_overview"), trusted);
+        assertFalse(trusted.contains("read_log shows what you did"), trusted);
+
+        String guest = PromptBuilder.system(
+                PERSONA,
+                "Position: 1 2 3",
+                new Caller(UUID.randomUUID(), "Gus", AccessLevel.GUEST),
+                "",
+                TurnKind.PLAYER);
+        assertFalse(guest.contains("Your own records:"), guest);
+    }
+
+    @Test
+    void recordsGuidanceOutlivesTheToolHintsUnderATightBudget() {
+        String full = prompt(EnumSet.allOf(ToolGroup.class), 0);
+        String tight = prompt(EnumSet.allOf(ToolGroup.class), full.length() - 20);
+        assertFalse(tight.contains("Tool notes:"), tight);
+        assertTrue(tight.contains("Your own records:"), tight);
+    }
 }
