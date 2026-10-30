@@ -95,6 +95,34 @@ class MoveGeneratorWalkTest {
         GridCellView view = new GridCellView("#.#", "...", "...", "...");
         PathStep step = stepTo(stepsFrom(view, new Node(0, 1, 0)), 2, 1, 0);
         assertEquals(Move.JUMP_GAP, step.move());
+        assertEquals(COSTS.walk() * 2 + COSTS.jump(), step.cost(), 1e-9);
+    }
+
+    @Test
+    void jumpsTwoAndThreeBlockGaps() {
+        GridCellView two = new GridCellView("#..#", "....", "....", "....");
+        PathStep step = stepTo(stepsFrom(two, new Node(0, 1, 0)), 3, 1, 0);
+        assertEquals(Move.JUMP_GAP, step.move());
+        assertEquals(COSTS.walk() * 3 + COSTS.jump(), step.cost(), 1e-9);
+
+        GridCellView three = new GridCellView("#...#", ".....", ".....", ".....");
+        PathStep leap = stepTo(stepsFrom(three, new Node(0, 1, 0)), 4, 1, 0);
+        assertEquals(Move.JUMP_GAP, leap.move());
+        assertEquals(COSTS.walk() * 4 + COSTS.jump(), leap.cost(), 1e-9);
+    }
+
+    @Test
+    void noJumpOverAFourBlockGap() {
+        // Four empty cells need a take-off speed a body cannot reach without flying, so no leap is offered.
+        GridCellView view = new GridCellView("#....#", "......", "......", "......");
+        assertNull(stepTo(stepsFrom(view, new Node(0, 1, 0)), 5, 1, 0));
+    }
+
+    @Test
+    void noLeapPastAWallOverTheGap() {
+        // A block over the second skipped cell stops the body mid-flight, whatever the gap's width.
+        GridCellView view = new GridCellView("#..#", "....", "..#.", "....");
+        assertNull(stepTo(stepsFrom(view, new Node(0, 1, 0)), 3, 1, 0));
     }
 
     @Test
@@ -116,12 +144,6 @@ class MoveGeneratorWalkTest {
         // A running jump is for a gap. Over a walkable cell it is slower than two steps, so no such move is offered.
         GridCellView view = new GridCellView("###", "...", "...", "...");
         assertNull(stepTo(stepsFrom(view, new Node(0, 1, 0)), 2, 1, 0));
-    }
-
-    @Test
-    void noJumpOverATwoBlockGap() {
-        GridCellView view = new GridCellView("#..#", "....", "....", "....");
-        assertTrue(stepTo(stepsFrom(view, new Node(0, 1, 0)), 3, 1, 0) == null);
     }
 
     @Test

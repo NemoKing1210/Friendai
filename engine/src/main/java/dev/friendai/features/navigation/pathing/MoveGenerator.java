@@ -23,6 +23,13 @@ public final class MoveGenerator {
     /** Price multiplier of a swim step that ends with the head under water. */
     public static final double SUBMERGED_FACTOR = 1.3;
 
+    /**
+     * The widest gap a running jump clears: three empty cells, so the landing is the fourth cell from the take-off.
+     * A vanilla jump carries about 7.5 blocks per unit of take-off speed, which a body can only get to about 0.5; four
+     * empty cells would need speed a jump cannot reach without flying.
+     */
+    public static final int MAX_JUMP_GAP = 3;
+
     private final CellView view;
     private final CostModel costs;
     private final PathGoal goal;
@@ -101,23 +108,8 @@ public final class MoveGenerator {
                 }
             }
 
-            Node landing = new Node(from.x() + 2 * d[0], from.y(), from.z() + 2 * d[1]);
-            if (!standable(view, landing) || view.at(landing.pos()).kind() == Cell.Kind.WATER) {
-                continue;
-            }
-            Pos gap = new Pos(from.x() + d[0], from.y(), from.z() + d[1]);
-            // Only over a real gap: over walkable ground two steps are faster than a running jump. Water still counts
-            // as a gap, because swimming through it costs more than the jump.
-            boolean walkableGap = standable(view, new Node(gap.x(), gap.y(), gap.z()))
-                    && view.at(gap).kind() != Cell.Kind.WATER;
-            // A swimming companion has no footing for a running jump: it swims out instead of leaping onto a bank.
-            if (runningJumps
-                    && !swimming
-                    && !walkableGap
-                    && enterable(view.at(gap))
-                    && enterable(view.at(gap.offset(0, 1, 0)))
-                    && enterable(view.at(gap.offset(0, 2, 0)))) {
-                emit(from, landing, Move.JUMP_GAP, costs.walk() + costs.jump(), 0, out);
+            if (runningJumps && !swimming) {
+                leaps(from, d, out);
             }
         }
         for (int[] d : DIAGONALS) {
@@ -136,6 +128,45 @@ public final class MoveGenerator {
 
     private boolean cornerClear(Pos corner) {
         return enterable(view.at(corner)) && enterable(view.at(corner.offset(0, 1, 0)));
+    }
+
+    /**
+     * Emits a running jump over every gap a leap can clear: one, two or three empty cells, so the landing is two to
+     * four cells away. A leap is only offered where the body flies through a real gap and lands on dry footing; over
+     * walkable cells the steps of a walk are faster, and water counts as a gap because swimming through it costs more
+     * than the jump.
+     */
+    private void leaps(Node from, int[] d, Consumer<PathStep> out) {
+        for (int width = 1; width <= MAX_JUMP_GAP; width++) {
+            Node landing = new Node(from.x() + (width + 1) * d[0], from.y(), from.z() + (width + 1) * d[1]);
+            if (!standable(view, landing) || view.at(landing.pos()).kind() == Cell.Kind.WATER) {
+                continue;
+            }
+            if (realGap(from, d, width)) {
+                emit(from, landing, Move.JUMP_GAP, jumpCost(width), 0, out);
+            }
+        }
+    }
+
+    /** Whether every cell the leap skips is air or water the body fits through, including the room its rise needs. */
+    private boolean realGap(Node from, int[] d, int width) {
+        for (int i = 1; i <= width; i++) {
+            Pos cell = new Pos(from.x() + i * d[0], from.y(), from.z() + i * d[1]);
+            boolean walkable = standable(view, new Node(cell.x(), cell.y(), cell.z()))
+                    && view.at(cell).kind() != Cell.Kind.WATER;
+            if (walkable
+                    || !enterable(view.at(cell))
+                    || !enterable(view.at(cell.offset(0, 1, 0)))
+                    || !enterable(view.at(cell.offset(0, 2, 0)))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** A leap covers {@code width + 1} cells, so it is priced as that much walking plus the jump itself. */
+    private double jumpCost(int width) {
+        return costs.walk() * (width + 1) + costs.jump();
     }
 
     private void ascend(Node from, Consumer<PathStep> out) {

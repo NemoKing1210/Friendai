@@ -10,7 +10,7 @@ public enum Move {
     ASCEND,
     /** One to three blocks down, or any height into water. */
     DESCEND,
-    /** Over a one-block gap to the cell two away. */
+    /** Over a gap of one to three empty cells, landing two to four cells away. */
     JUMP_GAP,
     /** Through water. */
     SWIM,

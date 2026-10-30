@@ -69,8 +69,11 @@ public final class PathExecutor {
      */
     private static final double LEAP_REACH = 7.5;
 
-    /** The fastest take-off a gap jump may set, so a leap from well inside the cell cannot overshoot the far cell. */
-    private static final double LEAP_SPEED_MAX = 0.35;
+    /**
+     * The fastest take-off a gap jump may set. The widest leap (three empty cells, landing four away) needs about
+     * 0.5; the cap keeps a leap from inside the cell from overshooting the far cell, which no jump should clear.
+     */
+    private static final double LEAP_SPEED_MAX = 0.6;
 
     /** How many blocks before a leap the sprint starts, so the run-up looks like one without running a whole leg. */
     private static final double RUN_UP_DISTANCE = 3.0;

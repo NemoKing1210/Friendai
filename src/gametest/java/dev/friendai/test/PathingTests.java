@@ -235,7 +235,7 @@ public class PathingTests {
         for (int x = 0; x < 16; x++) {
             for (int z = 0; z < 16; z++) {
                 for (int y = 2; y <= 5; y++) {
-                    boolean pit = x >= 6 && x <= 8;
+                    boolean pit = x >= 6 && x <= 9;
                     h.setBlock(x, y, z, pit ? Blocks.AIR : Blocks.STONE);
                 }
             }
@@ -247,7 +247,7 @@ public class PathingTests {
         h.succeedWhen(() -> {
             h.assertTrue(out.status == TaskStatus.SUCCESS, "go_to did not finish: " + out.why());
             int bridged = 0;
-            for (int x = 6; x <= 8; x++) {
+            for (int x = 6; x <= 9; x++) {
                 for (int z = 7; z <= 9; z++) {
                     BlockState state = h.getLevel().getBlockState(h.absolutePos(new BlockPos(x, 5, z)));
                     if (state.is(Blocks.DIRT)) {
@@ -255,8 +255,8 @@ public class PathingTests {
                     }
                 }
             }
-            // A running jump over the last two cells can save one placement, so two dirt blocks already mean a bridge.
-            h.assertTrue(bridged >= 2, "bridged " + bridged + " cells of the pit row with dirt");
+            // Four empty cells are one more than a leap clears, so it has to bridge at least one and leaps the rest.
+            h.assertTrue(bridged >= 1, "bridged " + bridged + " cells of the pit row with dirt");
         });
     }
 
@@ -1010,6 +1010,51 @@ public class PathingTests {
                     c.hunger().exhaustion() > 0.15f,
                     "the leap cost no sprint: " + c.hunger().exhaustion());
         });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void goToRunsOverATwoBlockGap(GameTestHelper h) {
+        int base = 284;
+        GameTestSupport.platformAt(h, base, 16);
+        trench(h, base, 8, 2);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, base + 1, 8);
+        Outcome out = new Outcome();
+        walkTo(c, h, out, 13.5, base + 1, 8.5);
+        h.succeedWhen(() -> {
+            h.assertTrue(
+                    out.status == TaskStatus.SUCCESS, "did not leap the gap: " + out.why() + " at " + c.position());
+            h.assertTrue(
+                    c.hunger().exhaustion() > 0.15f,
+                    "the leap cost no sprint: " + c.hunger().exhaustion());
+        });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void goToRunsOverAThreeBlockGap(GameTestHelper h) {
+        int base = 296;
+        GameTestSupport.platformAt(h, base, 16);
+        trench(h, base, 8, 3);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, base + 1, 8);
+        Outcome out = new Outcome();
+        walkTo(c, h, out, 14.5, base + 1, 8.5);
+        h.succeedWhen(() -> {
+            h.assertTrue(
+                    out.status == TaskStatus.SUCCESS, "did not leap the gap: " + out.why() + " at " + c.position());
+            h.assertTrue(
+                    c.hunger().exhaustion() > 0.15f,
+                    "the leap cost no sprint: " + c.hunger().exhaustion());
+        });
+    }
+
+    /** Cuts a trench {@code width} cells wide across the whole platform, five deep: only a leap crosses it. */
+    private static void trench(GameTestHelper h, int base, int x, int width) {
+        for (int z = 0; z < 16; z++) {
+            for (int cell = 0; cell < width; cell++) {
+                for (int y = base - 4; y <= base; y++) {
+                    h.setBlock(new BlockPos(x + cell, y, z), Blocks.AIR);
+                }
+            }
+        }
     }
 
     @GameTest(maxTicks = 600)
