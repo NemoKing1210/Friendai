@@ -165,11 +165,19 @@ public final class FriendaiConfigScreen {
         builder.category(voiceCategory(parent, client, voice));
 
         builder.save(() -> current.publish(configuration::save, configuration::saveServer));
-        Screen screen = builder.build().generateScreen(parent);
-        ScreenEvents.remove(screen).register(removed -> {
-            if (!replacing && session == current) current.close();
+        // The removal listener can only be attached once the screen is initialised: Fabric creates a screen's
+        // event objects at the head of init(), and generateScreen() only constructs the YACLScreen. screenInit
+        // runs inside init(), so hooking there avoids "has not been correctly initialised". init() runs again on
+        // every resize, hence the one-shot flag.
+        boolean[] hooked = {false};
+        builder.screenInit(screen -> {
+            if (hooked[0]) return;
+            hooked[0] = true;
+            ScreenEvents.remove(screen).register(removed -> {
+                if (!replacing && session == current) current.close();
+            });
         });
-        return screen;
+        return builder.build().generateScreen(parent);
     }
 
     /** Replaces the screen as a rebuild, so the outgoing screen's removal keeps the session open. */
