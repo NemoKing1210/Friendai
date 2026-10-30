@@ -11,8 +11,7 @@ import dev.friendai.features.mining.minecraft.mining.BlockBreaker;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
-import java.util.ArrayDeque;
-import java.util.Deque;
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.List;
@@ -33,6 +32,10 @@ import net.minecraft.world.level.block.state.BlockState;
 public final class ClearAreaTask implements Task {
     /** One task is bounded so an area asked too large cannot run for an hour. */
     public static final int MAX_CELLS = 256;
+    /** How long one cell may keep the companion walking and breaking before it is given up as unreachable. */
+    static final int CELL_TICKS = 300;
+    /** How many cells in a row may be out of reach before the rest of the area is given up as unreachable. */
+    static final int MAX_UNREACHABLE_STREAK = 3;
 
     private final BlockPos center;
     private final int radius;
@@ -41,7 +44,9 @@ public final class ClearAreaTask implements Task {
     private final Set<ClearKind> wanted;
     private final EnumMap<ClearKind, Integer> cleared = new EnumMap<>(ClearKind.class);
     private final EnumMap<ClearScan.SkipReason, Integer> skipped = new EnumMap<>(ClearScan.SkipReason.class);
-    private final Deque<ClearCell> queue = new ArrayDeque<>();
+    private final List<ClearCell> queue = new ArrayList<>();
+    private int cellTicks;
+    private int unreachableStreak;
     private int planned;
     private int left;
     private int solidsLeft;
@@ -86,10 +91,13 @@ public final class ClearAreaTask implements Task {
             return TaskStatus.RUNNING;
         }
         if (current == null) {
-            current = queue.poll();
-            if (current == null) {
+            var companion = c.companion();
+            int next = ClearPlan.nextIndex(queue, companion.getX(), companion.getEyeY(), companion.getZ());
+            if (next < 0) {
                 return finish();
             }
+            current = queue.remove(next);
+            cellTicks = 0;
             if (current.kind() == ClearKind.WATER) {
                 scoop(c);
                 return TaskStatus.RUNNING;
@@ -106,6 +114,11 @@ public final class ClearAreaTask implements Task {
             return TaskStatus.RUNNING;
         }
         BlockBreaker.State result = breaker.tick(c);
+        if (result == BlockBreaker.State.WORKING && ++cellTicks > CELL_TICKS) {
+            // A cell the route cannot bring the companion to (the top of a tree) is left for the rest of the area.
+            breaker.stop(c);
+            result = BlockBreaker.State.UNREACHABLE;
+        }
         switch (result) {
             case WORKING -> {
                 return TaskStatus.RUNNING;
@@ -115,6 +128,12 @@ public final class ClearAreaTask implements Task {
             case PROTECTED -> skip(ClearScan.SkipReason.PROTECTED);
             case UNREACHABLE -> skip(ClearScan.SkipReason.UNREACHABLE);
             case OUT_OF_SIGHT -> skip(ClearScan.SkipReason.OUT_OF_SIGHT);
+        }
+        unreachableStreak = result == BlockBreaker.State.BROKEN ? 0 : unreachableStreak;
+        if (result == BlockBreaker.State.UNREACHABLE && ++unreachableStreak >= MAX_UNREACHABLE_STREAK) {
+            // The nearest cells of this kind are all out of reach, so the rest (higher, farther) are no easier.
+            skipped.merge(ClearScan.SkipReason.UNREACHABLE, queue.size(), Integer::sum);
+            queue.clear();
         }
         breaker = null;
         current = null;

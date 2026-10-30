@@ -14,6 +14,7 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.LeavesBlock;
 
 public class ClearTests {
     private static final class Result implements TaskEventSink {
@@ -165,6 +166,33 @@ public class ClearTests {
                     h.getBlockState(new BlockPos(3, 2, 2)).isAir(),
                     "the stray block at 3,2,2: " + h.getBlockState(new BlockPos(3, 2, 2)));
             h.assertTrue(result.summary.contains("1 block"), result.summary);
+        });
+    }
+
+    /**
+     * Working from the outside in opens the inside of a dense canopy; starting at the top left the buried cells
+     * "out of sight" and the task ran on with the cells it could not reach.
+     */
+    @GameTest(maxTicks = 2400)
+    public void aDenseCanopyIsClearedWithoutStalling(GameTestHelper h) {
+        GameTestSupport.platform(h, 64);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        var leaves = Blocks.BIRCH_LEAVES.defaultBlockState().setValue(LeavesBlock.PERSISTENT, true);
+        for (int y = 2; y <= 9; y++) {
+            for (int x = 5; x <= 9; x++) {
+                for (int z = 5; z <= 9; z++) {
+                    h.setBlock(x, y, z, leaves);
+                }
+            }
+        }
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(companion, result);
+        runner.start(new ClearAreaTask(h.absolutePos(new BlockPos(7, 2, 7)), 4, 0, 8, false, false), "clear_area");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status != null, "still running");
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
+            h.assertTrue(!result.summary.contains("out of sight"), result.summary);
         });
     }
 }

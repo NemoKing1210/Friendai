@@ -44,6 +44,35 @@ public record ClearPlan(List<ClearCell> cells, int skipped) {
         return new ClearPlan(selected, skipped);
     }
 
+    /**
+     * The index of the cell to work on next: the one nearest to the point among those of the first cell's kind, or -1
+     * for an empty list. The plan lists the highest cell first, which sends a companion on the ground to the top of a
+     * tree it cannot reach; the kind order stays, so snow and stray blocks still follow the vegetation.
+     */
+    public static int nextIndex(List<ClearCell> remaining, double x, double y, double z) {
+        if (remaining.isEmpty()) {
+            return -1;
+        }
+        ClearKind kind = remaining.get(0).kind();
+        int best = -1;
+        double bestDistance = Double.POSITIVE_INFINITY;
+        for (int i = 0; i < remaining.size(); i++) {
+            ClearCell cell = remaining.get(i);
+            if (cell.kind() != kind) {
+                continue;
+            }
+            double dx = cell.x() + 0.5 - x;
+            double dy = cell.y() + 0.5 - y;
+            double dz = cell.z() + 0.5 - z;
+            double distance = dx * dx + dy * dy + dz * dz;
+            if (distance < bestDistance) {
+                best = i;
+                bestDistance = distance;
+            }
+        }
+        return best;
+    }
+
     private static int rank(ClearKind kind) {
         return switch (kind) {
             case VEGETATION -> 0;
