@@ -1,7 +1,7 @@
 package dev.friendai.client.voice;
 
 import dev.friendai.FriendaiMod;
-import dev.friendai.core.Components;
+import dev.friendai.common.Components;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;

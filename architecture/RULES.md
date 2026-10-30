@@ -43,5 +43,9 @@ Fabric and GameTest metadata entries must be unique and resolve to their current
 test checks that every GameTest class declaring `@GameTest` or `@GameTestGenerator` is registered; do not maintain a
 manual entrypoint count here.
 
+The legacy `dev/friendai/core` package is removed: server-facing feature adapters live under `server/<feature>/`,
+server outcome facts in `server/agent/`, and the shared Minecraft text adapter is `common/Components`. A feature's
+Minecraft packages keep depending only on the platform and the task-registration API.
+
 CI's unit-test job runs the root test task, which includes `ArchitectureRulesTest`; the same task also retains the
 existing language-key and typed-failure scans.

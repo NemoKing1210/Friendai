@@ -136,6 +136,20 @@ class ArchitectureRulesTest {
     }
 
     @Test
+    void legacyCoreAdaptersHaveNamedOwners() {
+        Path root = PROJECT_ROOT.resolve("src/main/java/dev/friendai");
+        assertFalse(Files.exists(root.resolve("core")), "the legacy core package must not return");
+        for (String owned : List.of(
+                "server/creative/CreativeModeService.java",
+                "server/instructions/SkillService.java",
+                "server/memory/TrustConfirmations.java",
+                "server/agent/OutcomeFacts.java",
+                "common/Components.java")) {
+            assertTrue(Files.isRegularFile(root.resolve(owned)), "adapter should have a named owner: " + owned);
+        }
+    }
+
+    @Test
     void placementServiceLivesWithItsFeature() {
         assertTrue(Files.exists(
                 PROJECT_ROOT.resolve("src/main/java/dev/friendai/features/placements/minecraft/PlacedService.java")));

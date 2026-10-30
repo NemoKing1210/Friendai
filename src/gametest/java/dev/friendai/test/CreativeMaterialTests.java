@@ -1,6 +1,5 @@
 package dev.friendai.test;
 
-import dev.friendai.core.CreativeModeService;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.execution.tool.AccessLevel;
@@ -8,6 +7,7 @@ import dev.friendai.execution.tool.Caller;
 import dev.friendai.features.acquisition.minecraft.task.ObtainTask;
 import dev.friendai.features.construction.minecraft.task.BuildTask;
 import dev.friendai.features.construction.minecraft.task.PlaceBlockTask;
+import dev.friendai.server.creative.CreativeModeService;
 import dev.friendai.task.TaskStatus;
 import java.util.Optional;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;

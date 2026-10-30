@@ -2,7 +2,6 @@ package dev.friendai.server.runtime;
 
 import dev.friendai.agent.autonomy.FreeTimeService;
 import dev.friendai.agent.goal.GoalService;
-import dev.friendai.core.TrustConfirmations;
 import dev.friendai.entity.CompanionChunkLoader;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionLifeData;
@@ -33,6 +32,7 @@ import dev.friendai.perception.resource.ResourceCandidates;
 import dev.friendai.server.agent.CompanionSessions;
 import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.server.execution.persistence.TaskPersistenceCoordinator;
+import dev.friendai.server.memory.TrustConfirmations;
 import dev.friendai.server.net.DebugStream;
 import dev.friendai.server.net.MemoryViewStream;
 import dev.friendai.server.net.MovementDebugStream;
@@ -250,7 +250,7 @@ public final class ServerRuntime implements AutoCloseable {
         return services.profiles();
     }
 
-    public dev.friendai.core.SkillService skills() {
+    public dev.friendai.server.instructions.SkillService skills() {
         return services.skills();
     }
 

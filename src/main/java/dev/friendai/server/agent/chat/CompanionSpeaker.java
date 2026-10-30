@@ -1,7 +1,7 @@
 package dev.friendai.server.agent.chat;
 
 import dev.friendai.agent.turn.Speaker;
-import dev.friendai.core.Components;
+import dev.friendai.common.Components;
 import dev.friendai.features.conversation.*;
 import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.protocol.ProtocolFamily;

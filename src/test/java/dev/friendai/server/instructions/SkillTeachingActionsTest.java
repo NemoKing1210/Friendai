@@ -1,4 +1,4 @@
-package dev.friendai.core;
+package dev.friendai.server.instructions;
 
 import static org.junit.jupiter.api.Assertions.*;
 

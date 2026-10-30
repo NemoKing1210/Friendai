@@ -1,9 +1,6 @@
-package dev.friendai.presentation.config;
+package dev.friendai.infrastructure.config;
 
 import com.google.gson.Gson;
-import dev.friendai.infrastructure.config.ClientConfig;
-import dev.friendai.infrastructure.config.ServerConfig;
-import dev.friendai.infrastructure.config.VoiceDraft;
 import java.util.Objects;
 import java.util.function.Consumer;
 

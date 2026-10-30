@@ -1,6 +1,6 @@
 package dev.friendai.client.ui;
 
-import dev.friendai.core.Components;
+import dev.friendai.common.Components;
 import dev.friendai.features.memory.Category;
 import dev.friendai.features.memory.MemoryView;
 import dev.friendai.features.memory.MenuStatus;

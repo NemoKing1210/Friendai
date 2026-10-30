@@ -26,7 +26,7 @@ class ClientConfigurationCoordinatorTest {
         AtomicInteger applied = new AtomicInteger();
         ClientConfigurationCoordinator coordinator = new ClientConfigurationCoordinator(
                 configDirectory, ignored -> applied.incrementAndGet(), ignored -> {});
-        var session = dev.friendai.presentation.config.SettingsSession.open(
+        var session = dev.friendai.infrastructure.config.SettingsSession.open(
                 1, coordinator.load(), coordinator.loadServer(), false);
         session.serverDraft().companion.name = "Session name";
         session.clientDraft().voice.stt.maxRecordSec = 999;

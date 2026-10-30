@@ -4,7 +4,7 @@ import com.google.gson.*;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
-import dev.friendai.core.*;
+import dev.friendai.common.Components;
 import dev.friendai.features.instructions.*;
 import dev.friendai.server.net.*;
 import dev.friendai.server.runtime.ServerRuntimeRegistry;

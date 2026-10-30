@@ -1,6 +1,5 @@
 package dev.friendai.test;
 
-import dev.friendai.core.CreativeModeService;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.execution.tool.AccessLevel;
@@ -12,6 +11,7 @@ import dev.friendai.features.navigation.minecraft.task.FlyToTask;
 import dev.friendai.features.navigation.minecraft.task.FollowTask;
 import dev.friendai.features.navigation.minecraft.task.StayTask;
 import dev.friendai.features.navigation.movement.Facing;
+import dev.friendai.server.creative.CreativeModeService;
 import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;

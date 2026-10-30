@@ -1,7 +1,6 @@
 package dev.friendai.server.execution.tools;
 
 import com.google.gson.JsonObject;
-import dev.friendai.core.CreativeModeService;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.queue.FailurePolicy;
 import dev.friendai.execution.queue.GuardAction;
@@ -11,6 +10,7 @@ import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.Tool;
 import dev.friendai.execution.tool.ToolResult;
+import dev.friendai.server.creative.CreativeModeService;
 import dev.friendai.task.Task;
 import java.util.List;
 import java.util.Objects;

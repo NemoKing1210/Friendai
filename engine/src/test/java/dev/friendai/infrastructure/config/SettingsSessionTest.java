@@ -1,10 +1,7 @@
-package dev.friendai.presentation.config;
+package dev.friendai.infrastructure.config;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import dev.friendai.infrastructure.config.ClientConfig;
-import dev.friendai.infrastructure.config.ServerConfig;
-import dev.friendai.infrastructure.config.VoiceDraft;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;

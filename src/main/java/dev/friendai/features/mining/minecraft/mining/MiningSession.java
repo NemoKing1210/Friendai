@@ -1,6 +1,6 @@
 package dev.friendai.features.mining.minecraft.mining;
 
-import dev.friendai.core.Components;
+import dev.friendai.common.Components;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.mining.ExplorationPlanner;
 import dev.friendai.features.mining.MiningBounds;

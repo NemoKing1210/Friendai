@@ -1,4 +1,4 @@
-package dev.friendai.core;
+package dev.friendai.server.creative;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionLifeData;

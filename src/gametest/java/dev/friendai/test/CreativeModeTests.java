@@ -1,7 +1,6 @@
 package dev.friendai.test;
 
 import com.google.gson.JsonObject;
-import dev.friendai.core.CreativeModeService;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionLifeData;
 import dev.friendai.entity.CompanionManager;
@@ -10,6 +9,7 @@ import dev.friendai.execution.queue.GuardAction;
 import dev.friendai.execution.queue.QueuedStep;
 import dev.friendai.features.creative.minecraft.task.CreateItemsTask;
 import dev.friendai.features.navigation.minecraft.task.StayTask;
+import dev.friendai.server.creative.CreativeModeService;
 import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.server.net.Operators;
 import dev.friendai.task.TaskStatus;

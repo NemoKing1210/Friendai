@@ -5,7 +5,7 @@ import dev.friendai.client.audio.LocalTtsEngine;
 import dev.friendai.client.audio.VoiceModelManager;
 import dev.friendai.client.ui.ClientToasts;
 import dev.friendai.client.voice.VoiceRuntime;
-import dev.friendai.core.Components;
+import dev.friendai.common.Components;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.speech.ResolvedTts;
 import dev.friendai.features.speech.SpatialAudio;

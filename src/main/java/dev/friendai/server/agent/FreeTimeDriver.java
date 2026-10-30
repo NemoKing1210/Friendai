@@ -25,7 +25,7 @@ import dev.friendai.agent.autonomy.ShiftInputs;
 import dev.friendai.agent.autonomy.ShiftOutcome;
 import dev.friendai.agent.autonomy.ShiftPolicy;
 import dev.friendai.agent.turn.AgentSettings.Autonomy;
-import dev.friendai.core.Components;
+import dev.friendai.common.Components;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.execution.queue.JobQueue;

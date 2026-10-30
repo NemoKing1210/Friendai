@@ -1,6 +1,6 @@
 package dev.friendai.features.fire.minecraft;
 
-import dev.friendai.core.Components;
+import dev.friendai.common.Components;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.fire.FireTarget;
 import dev.friendai.features.fire.minecraft.task.ExtinguishFireTask;

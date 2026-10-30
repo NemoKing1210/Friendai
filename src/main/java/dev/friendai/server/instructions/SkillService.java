@@ -1,4 +1,4 @@
-package dev.friendai.core;
+package dev.friendai.server.instructions;
 
 import dev.friendai.agent.turn.*;
 import dev.friendai.execution.tool.*;

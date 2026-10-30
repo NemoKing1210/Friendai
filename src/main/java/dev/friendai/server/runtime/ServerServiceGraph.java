@@ -2,8 +2,6 @@ package dev.friendai.server.runtime;
 
 import dev.friendai.FriendaiMod;
 import dev.friendai.agent.goal.GoalService;
-import dev.friendai.core.SkillService;
-import dev.friendai.core.TrustConfirmations;
 import dev.friendai.entity.CompanionChunkLoader;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionLifeData;
@@ -48,6 +46,8 @@ import dev.friendai.server.agent.CompanionSessions;
 import dev.friendai.server.configuration.ServerConfiguration;
 import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.server.execution.persistence.TaskPersistenceCoordinator;
+import dev.friendai.server.instructions.SkillService;
+import dev.friendai.server.memory.TrustConfirmations;
 import java.util.List;
 import java.util.UUID;
 import net.fabricmc.loader.api.FabricLoader;

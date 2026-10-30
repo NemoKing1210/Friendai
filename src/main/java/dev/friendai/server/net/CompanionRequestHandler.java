@@ -1,7 +1,6 @@
 package dev.friendai.server.net;
 
 import com.google.gson.JsonObject;
-import dev.friendai.core.CreativeModeService;
 import dev.friendai.debug.DebugAccess;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.CompanionRenamer;
@@ -20,6 +19,7 @@ import dev.friendai.protocol.debug.PromptProtocolViewCodec;
 import dev.friendai.protocol.memory.MemoryRequest;
 import dev.friendai.protocol.places.PlaceRequest;
 import dev.friendai.server.agent.CompanionSessions;
+import dev.friendai.server.creative.CreativeModeService;
 import dev.friendai.server.runtime.ServerRuntime;
 import java.util.ArrayList;
 import java.util.List;

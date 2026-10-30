@@ -1,4 +1,4 @@
-package dev.friendai.core;
+package dev.friendai.common;
 
 import dev.friendai.foundation.text.UserMessage;
 import net.minecraft.network.chat.Component;

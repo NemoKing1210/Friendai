@@ -1,4 +1,4 @@
-package dev.friendai.core;
+package dev.friendai.server.agent;
 
 import dev.friendai.agent.verify.WorldSnapshot;
 import dev.friendai.entity.CompanionEntity;

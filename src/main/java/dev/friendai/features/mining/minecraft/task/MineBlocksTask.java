@@ -1,6 +1,6 @@
 package dev.friendai.features.mining.minecraft.task;
 
-import dev.friendai.core.Components;
+import dev.friendai.common.Components;
 import dev.friendai.debug.DebugAction;
 import dev.friendai.debug.DebugTarget;
 import dev.friendai.debug.WorkCell;

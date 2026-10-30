@@ -1,4 +1,4 @@
-package dev.friendai.core;
+package dev.friendai.server.memory;
 
 import dev.friendai.agent.turn.BrainEvent;
 import dev.friendai.entity.CompanionManager;
