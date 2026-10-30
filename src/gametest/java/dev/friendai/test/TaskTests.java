@@ -381,7 +381,8 @@ public class TaskTests {
 
     @GameTest
     public void stayTaskRestoredAfterReload(GameTestHelper h) {
-        UUID owner = UUID.randomUUID();
+        UUID owner =
+                GameTestSupport.onlinePlayer(h, "task-owner", 2, 2, 2, true).id();
         CompanionEntity a = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         a.setOwner(owner);
         a.executionCoordinator().start(new StayTask(), "stay");

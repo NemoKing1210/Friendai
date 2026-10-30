@@ -60,6 +60,9 @@ final class TestMenuRequests {
 
     static void handle(ServerPlayer player, ClientRequest request, long requestId) {
         var runtime = runtime(player);
+        // A test sends several requests inside one tick, which the production throttle would drop after the first;
+        // each request here stands for a separate click, so the sender's history starts empty every time.
+        runtime.protocolConnections().controlLimiter().forget(player.getUUID());
         var context = new AuthenticatedRequestContext(player, UUID.randomUUID(), requestId, runtime);
         ServerRequestDispatcher.handle(context, request);
     }

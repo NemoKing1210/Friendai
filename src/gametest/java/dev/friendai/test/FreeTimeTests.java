@@ -1,6 +1,5 @@
 package dev.friendai.test;
 
-import com.mojang.authlib.GameProfile;
 import dev.friendai.agent.autonomy.AutonomySettings;
 import dev.friendai.agent.llm.model.LlmResponse;
 import dev.friendai.agent.llm.model.Message;
@@ -34,12 +33,9 @@ import java.util.concurrent.CompletableFuture;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
-import net.minecraft.network.Connection;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
-import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.network.protocol.game.ClientboundSystemChatPacket;
-import net.minecraft.server.network.CommonListenerCookie;
 import net.minecraft.world.Container;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -261,20 +257,9 @@ public class FreeTimeTests {
         return c;
     }
 
-    @SuppressWarnings("removal")
     private static MockOwner mockOwner(GameTestHelper h) {
-        var server = h.getLevel().getServer();
-        GameProfile profile = new GameProfile(
-                UUID.randomUUID(), "free-time-" + UUID.randomUUID().toString().substring(0, 8));
-        CommonListenerCookie cookie = CommonListenerCookie.createInitial(profile, false);
-        var player =
-                new net.minecraft.server.level.ServerPlayer(server, h.getLevel(), profile, cookie.clientInformation());
-        Connection connection = new Connection(PacketFlow.SERVERBOUND);
-        EmbeddedChannel channel = new EmbeddedChannel(connection);
-        server.getPlayerList().placeNewPlayer(connection, player, cookie);
-        var pos = h.absoluteVec(new net.minecraft.world.phys.Vec3(3, 2, 3));
-        player.teleportTo(pos.x, pos.y, pos.z);
-        return new MockOwner(player, channel);
+        var online = GameTestSupport.onlinePlayer(h, "free-time", 3, 2, 3, true);
+        return new MockOwner(online.player(), online.channel());
     }
 
     private static List<Component> drainSystemMessages(EmbeddedChannel channel) {
@@ -356,7 +341,7 @@ public class FreeTimeTests {
     @GameTest(maxTicks = 400)
     public void ownerOrderPauses(GameTestHelper h) {
         GameTestSupport.platform(h, 8);
-        UUID owner = UUID.randomUUID();
+        UUID owner = mockOwner(h).player().getUUID();
         CompanionEntity c = registered(h, owner);
         driver(h).start(c, dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, "");
         long plan = shiftPlan(h, c, "[{\"tool\":\"stay\"}]");
@@ -433,7 +418,7 @@ public class FreeTimeTests {
     @GameTest(maxTicks = 600)
     public void stayDuringAShiftHoldsThenResumes(GameTestHelper h) {
         GameTestSupport.platform(h, 8);
-        UUID owner = UUID.randomUUID();
+        UUID owner = mockOwner(h).player().getUUID();
         CompanionEntity c = registered(h, owner);
         driver(h).start(c, dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, "");
         long plan = shiftPlan(h, c, "[{\"tool\":\"jump\",\"args\":\"{}\"}]");

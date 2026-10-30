@@ -3,7 +3,6 @@ package dev.friendai.test;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import com.mojang.authlib.GameProfile;
 import dev.friendai.agent.llm.model.ToolCall;
 import dev.friendai.agent.llm.model.ToolSpec;
 import dev.friendai.entity.CompanionEntity;
@@ -20,7 +19,6 @@ import dev.friendai.features.navigation.minecraft.task.StayTask;
 import dev.friendai.features.survival.minecraft.Food;
 import dev.friendai.server.agent.tools.FriendaiTools;
 import dev.friendai.server.runtime.ServerRuntime;
-import io.netty.channel.embedded.EmbeddedChannel;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -29,10 +27,7 @@ import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTestHelper;
-import net.minecraft.network.Connection;
-import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.server.network.CommonListenerCookie;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
@@ -53,18 +48,8 @@ public class ToolTests {
         return tools.execute(new ToolCall("1", name, args, json, null), caller);
     }
     /** A mock player with a unique name, because the stock helper names every player "test-mock-player". */
-    @SuppressWarnings("removal")
     private static ServerPlayer mockPlayerNamed(GameTestHelper h, String name, double x, double y, double z) {
-        var server = h.getLevel().getServer();
-        GameProfile profile = new GameProfile(UUID.randomUUID(), name);
-        CommonListenerCookie cookie = CommonListenerCookie.createInitial(profile, false);
-        ServerPlayer player = new ServerPlayer(server, h.getLevel(), profile, cookie.clientInformation());
-        Connection connection = new Connection(PacketFlow.SERVERBOUND);
-        new EmbeddedChannel(connection);
-        server.getPlayerList().placeNewPlayer(connection, player, cookie);
-        var pos = h.absoluteVec(new net.minecraft.world.phys.Vec3(x, y, z));
-        player.teleportTo(pos.x, pos.y, pos.z);
-        return player;
+        return GameTestSupport.onlinePlayer(h, name, x, y, z).player();
     }
 
     @GameTest

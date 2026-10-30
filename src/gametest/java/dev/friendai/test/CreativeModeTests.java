@@ -234,7 +234,8 @@ public class CreativeModeTests {
 
     @GameTest
     public void creativeMenuRequestIsExplicitOwnerScopedAndRejectsUnauthorizedEnable(GameTestHelper h) {
-        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        ServerPlayer owner =
+                GameTestSupport.onlinePlayer(h, "creative-owner", 2, 2, 2, true).player();
         ServerPlayer guest = GameTestSupport.mockPlayerAt(h, 3, 2, 2);
         CompanionEntity companion =
                 CompanionManager.get(h.getLevel().getServer()).summon(owner);

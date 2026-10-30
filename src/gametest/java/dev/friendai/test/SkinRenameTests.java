@@ -33,11 +33,13 @@ public class SkinRenameTests {
         return GameTestSupport.mockPlayerAt(h, 2, FLOOR + 1, 2);
     }
 
+    /** The stored companion name; an owner who never named a companion has none, which reads as empty. */
     private static String storedName(GameTestHelper h, ServerPlayer owner) {
-        return GameTestSupport.runtime(h.getLevel().getServer())
+        String name = GameTestSupport.runtime(h.getLevel().getServer())
                 .profiles()
                 .profile(owner.getUUID())
                 .name();
+        return name == null ? "" : name;
     }
 
     private static void rename(ServerPlayer owner, String name) {

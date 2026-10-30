@@ -138,7 +138,8 @@ public class GuestTests {
                     lastUser(first.messages()).text().contains("(guest)]: "),
                     "user line was " + lastUser(first.messages()).text());
             h.assertTrue(
-                    Set.copyOf(first.tools()).equals(Set.of("look_around", "remember", "forget", "recall")),
+                    Set.copyOf(first.tools())
+                            .equals(Set.of("look_around", "remember", "forget", "recall", "memory_overview")),
                     "tools were " + first.tools());
         });
     }

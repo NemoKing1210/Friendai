@@ -52,7 +52,8 @@ public final class TradingAuthorityTests {
 
     @GameTest
     public void restartCancelsSpendingAndKeepsOwnerWork(GameTestHelper h) {
-        UUID owner = UUID.randomUUID();
+        UUID owner =
+                GameTestSupport.onlinePlayer(h, "trading-owner", 2, 2, 2, true).id();
         CompanionEntity original = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         original.setOwner(owner);
         ExecutionCoordinator before = original.executionCoordinator();
