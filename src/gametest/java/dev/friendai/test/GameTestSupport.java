@@ -11,6 +11,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
 
@@ -36,6 +37,18 @@ final class GameTestSupport {
         var pos = h.absoluteVec(new net.minecraft.world.phys.Vec3(x, y, z));
         player.teleportTo(pos.x, pos.y, pos.z);
         return player;
+    }
+
+    /**
+     * A live player that is not logged in: what an item thrower must be.
+     *
+     * <p>{@link GameTestHelper#makeMockServerPlayerInLevel()} disconnects its fake connection at once in 26.3, so
+     * that player is already removed and {@code ItemEntity.getOwner()} resolves it through the entity lookup, which
+     * never returns players. A thrower made this way stays a direct reference, so the owner comparison works.
+     */
+    @SuppressWarnings("removal")
+    static net.minecraft.server.level.ServerPlayer liveMockPlayer(GameTestHelper h) {
+        return (net.minecraft.server.level.ServerPlayer) h.makeMockServerPlayer(GameType.CREATIVE);
     }
 
     /**

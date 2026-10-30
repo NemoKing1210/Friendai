@@ -294,7 +294,7 @@ public class HungerTests {
     @GameTest(maxTicks = 100)
     public void ownerThrownAppleCollected(GameTestHelper h) {
         GameTestSupport.platform(h, 10);
-        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 6, 2, 2);
+        ServerPlayer owner = GameTestSupport.liveMockPlayer(h);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.setOwner(owner.getUUID());
         ItemEntity apple = dropOwned(h, owner, 4.5, 2, 2.5, new ItemStack(Items.APPLE, 2));
@@ -311,8 +311,8 @@ public class HungerTests {
     @GameTest(maxTicks = 100)
     public void strangerThrownItemIgnored(GameTestHelper h) {
         GameTestSupport.platform(h, 10);
-        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 6, 2, 2);
-        ServerPlayer stranger = GameTestSupport.mockPlayerAt(h, 8, 2, 6);
+        ServerPlayer owner = GameTestSupport.liveMockPlayer(h);
+        ServerPlayer stranger = GameTestSupport.liveMockPlayer(h);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.setOwner(owner.getUUID());
         ItemEntity apple = dropOwned(h, stranger, 4.5, 2, 2.5, new ItemStack(Items.APPLE, 2));
@@ -326,7 +326,7 @@ public class HungerTests {
     @GameTest(maxTicks = 120)
     public void ownerThrowIntoFullInventory(GameTestHelper h) {
         GameTestSupport.platform(h, 10);
-        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 6, 2, 2);
+        ServerPlayer owner = GameTestSupport.liveMockPlayer(h);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.setOwner(owner.getUUID());
         for (int i = 0; i < c.inventory().getContainerSize(); i++) {
