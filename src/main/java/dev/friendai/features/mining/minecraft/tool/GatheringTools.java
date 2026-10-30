@@ -247,7 +247,7 @@ public final class GatheringTools implements FeatureToolContributor {
         boolean collect = a.has("collect") && !a.get("collect").isJsonNull()
                 ? a.get("collect").getAsBoolean()
                 : fellCollectDrops.getAsBoolean();
-        List<TreeFinder.TreeInfo> all = TreeFinder.findObserved(level, origin, observed, leaves, 1 + 8);
+        List<TreeFinder.TreeInfo> all = TreeFinder.findObserved(level, origin, observed, leaves, 1 + 8, true);
         List<TreeFinder.TreeInfo> found = all.stream()
                 .filter(tree -> !treesOnly || tree.kind() != TreeFinder.Kind.LOG_STRUCTURE)
                 .toList();

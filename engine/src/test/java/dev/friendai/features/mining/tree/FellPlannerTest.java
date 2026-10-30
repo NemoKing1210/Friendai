@@ -179,4 +179,21 @@ class FellPlannerTest {
         assertEquals(18, plan.cutOrder().size(), "cut: " + plan.cutOrder());
         assertEquals(0, plan.unreachableLogs());
     }
+
+    /** The stance is kept until the next log is out of reach: a 24-layer trunk is a handful of stages, not 96. */
+    @Test
+    void oneStanceCoversManyLogs() {
+        List<TreeCell> logs = square(0, 0, 2, 24);
+        FellPlan.Climb climb = best(logs, STAND, 0);
+        assertEquals(96, climb.logs().size(), "every log is cut exactly once");
+        assertTrue(
+                climb.stages().size() >= 1 && climb.stages().size() < logs.size() / 2,
+                "a stance per log would be the regression this guards: "
+                        + climb.stages().size());
+        List<TreeCell> flattened = new ArrayList<>();
+        for (FellPlan.Stage stage : climb.stages()) {
+            flattened.addAll(stage.logs());
+        }
+        assertEquals(climb.logs(), flattened, "the stages are the cut order");
+    }
 }

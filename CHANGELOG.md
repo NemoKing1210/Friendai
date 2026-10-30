@@ -8,6 +8,8 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.89.0] - 2026-10-30
+
 ### Added
 
 - The companion spends its own survival items: it pours a water bucket to break a fall and takes the source back, drinks milk to clear a poison or a slow that costs the job, eats a golden apple or drinks a healing potion when it is critical outside a fight, drinks fire resistance in lava and water breathing under water, and throws a splash potion at a wounded owner standing next to it.
@@ -15,12 +17,18 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 ### Fixed
 
 - Clearing an area no longer stands still on leaves the companion cannot reach: it works from the nearest cells outward, which opens up the inside of a thick canopy, and it stops with a report after three unreachable cells in a row instead of searching for a route to each of them.
+- A tree felled from a log high on the trunk now loses every log down to its foot: the companion follows the trunk from what it saw instead of stopping at the part it could see.
+- A log cut above the leaves is no longer lost: the companion breaks the leaf the drop rests on so it falls where it can be picked up.
 
-## [0.87.1] - 2026-10-30
+## [0.88.0] - 2026-10-30
+
+### Added
+
+- The companion leaps a whole ravine: a running jump now clears a gap of one, two or three empty blocks instead of a single missing block.
 
 ### Fixed
 
-- The companion runs up to a one-block gap and leaps it instead of walking off the edge and falling in; without the food to sprint it walks around the gap or bridges it.
+- The companion runs up to a gap and leaps it instead of walking off the edge and falling in; without the food to sprint it walks around the gap or bridges it.
 
 ## [0.87.0] - 2026-10-30
 

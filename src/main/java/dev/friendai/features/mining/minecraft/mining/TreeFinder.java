@@ -1,6 +1,8 @@
 package dev.friendai.features.mining.minecraft.mining;
 
+import dev.friendai.features.mining.tree.TreeCell;
 import dev.friendai.features.mining.tree.TreeSummary;
+import dev.friendai.features.mining.tree.TrunkExpansion;
 import dev.friendai.features.navigation.RelativeDirection;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -122,6 +124,20 @@ public final class TreeFinder {
             Map<BlockPos, String> observedLogs,
             Set<BlockPos> observedLeaves,
             int limit) {
+        return findObserved(level, origin, observedLogs, observedLeaves, limit, false);
+    }
+
+    /**
+     * @param expand follow the connected logs through the world, so a seed taken at the crown still covers the foot;
+     *     the cheap callers (perception, {@code find_trees}) must leave it false and see exactly what was observed
+     */
+    public static List<TreeInfo> findObserved(
+            ServerLevel level,
+            BlockPos origin,
+            Map<BlockPos, String> observedLogs,
+            Set<BlockPos> observedLeaves,
+            int limit,
+            boolean expand) {
         Set<BlockPos> scanned = new LinkedHashSet<>();
         for (Map.Entry<BlockPos, String> entry : observedLogs.entrySet()) {
             if (scanned.size() >= MAX_SCANNED_LOGS) break;
@@ -140,11 +156,47 @@ public final class TreeFinder {
         for (BlockPos start : scanned) {
             if (seen.contains(start)) continue;
             Set<BlockPos> cluster = cluster(level, start, scanned, seen, state -> false, false);
-            TreeInfo info = describeObserved(origin, cluster, observedLogs, leaves);
+            TreeInfo info;
+            if (expand) {
+                cluster = expand(level, cluster);
+                seen.addAll(cluster);
+                info = describe(level, origin, cluster);
+            } else {
+                info = describeObserved(origin, cluster, observedLogs, leaves);
+            }
             trees.add(info);
         }
         orderAndLimit(trees, limit);
         return List.copyOf(trees);
+    }
+
+    /**
+     * Follows the connected trunk through the world, loaded chunks only and never past a log that cannot be destroyed.
+     * The single expansion rule the felling paths share: the seed is what the companion saw, the result is the tree.
+     */
+    private static Set<BlockPos> expand(ServerLevel level, Set<BlockPos> seed) {
+        List<TreeCell> cells = new ArrayList<>(seed.size());
+        for (BlockPos pos : seed) {
+            cells.add(new TreeCell(pos.getX(), pos.getY(), pos.getZ()));
+        }
+        TrunkExpansion.Cells world = new TrunkExpansion.Cells() {
+            @Override
+            public boolean isLog(int x, int y, int z) {
+                BlockPos pos = new BlockPos(x, y, z);
+                BlockState state = level.getBlockState(pos);
+                return state.is(BlockTags.LOGS) && state.getDestroySpeed(level, pos) >= 0;
+            }
+
+            @Override
+            public boolean isLoaded(int x, int y, int z) {
+                return level.hasChunkAt(x, z);
+            }
+        };
+        Set<BlockPos> grown = new LinkedHashSet<>();
+        for (TreeCell cell : TrunkExpansion.expand(cells, world, MAX_SCANNED_LOGS)) {
+            grown.add(new BlockPos(cell.x(), cell.y(), cell.z()));
+        }
+        return grown;
     }
 
     private static TreeInfo describeObserved(

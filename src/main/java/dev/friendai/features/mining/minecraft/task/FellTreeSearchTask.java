@@ -82,7 +82,8 @@ public final class FellTreeSearchTask implements Task {
                         .collect(java.util.stream.Collectors.toUnmodifiableSet());
         int searchLimit = limit > 0 ? Math.min(256, limit + 8) : 16;
         List<TreeFinder.TreeInfo> found =
-                TreeFinder.findObserved((ServerLevel) c.level(), origin, observed, observedLeaves, searchLimit).stream()
+                TreeFinder.findObserved((ServerLevel) c.level(), origin, observed, observedLeaves, searchLimit, true)
+                        .stream()
                         .filter(tree -> !treesOnly || tree.kind() != TreeFinder.Kind.LOG_STRUCTURE)
                         .toList();
         if (found.isEmpty()) {

@@ -741,4 +741,229 @@ public class TreeFellingTests {
             h.assertValueEqual(dirtLeft(h), 0, "a cancelled felling left its column in the world");
         });
     }
+
+    /**
+     * The owner pointed at the crown: the sight cache holds the top logs only, and the expansion must still reach the
+     * foot, or the companion would cut the crown and leave a 22-block stump.
+     */
+    @GameTest(maxTicks = 12000)
+    public void crownSeedStillFellsTheWholeTrunk(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        List<BlockPos> logs = new java.util.ArrayList<>();
+        for (int y = 2; y <= 25; y++) {
+            for (int x = 8; x <= 9; x++) {
+                for (int z = 8; z <= 9; z++) {
+                    BlockPos p = new BlockPos(x, y, z);
+                    h.setBlock(p, Blocks.DARK_OAK_LOG);
+                    logs.add(p);
+                }
+            }
+        }
+        for (int x = 6; x <= 11; x++) {
+            for (int z = 6; z <= 11; z++) {
+                BlockPos p = new BlockPos(x, 26, z);
+                if (h.getBlockState(p).isAir()) {
+                    h.setBlock(p, Blocks.DARK_OAK_LEAVES.defaultBlockState().setValue(LeavesBlock.PERSISTENT, true));
+                }
+            }
+        }
+        java.util.Map<BlockPos, String> observed = new java.util.LinkedHashMap<>();
+        String id = net.minecraft.core.registries.BuiltInRegistries.BLOCK
+                .getKey(Blocks.DARK_OAK_LOG)
+                .toString();
+        for (BlockPos p : logs) {
+            if (p.getY() >= 24) {
+                observed.put(h.absolutePos(p), id);
+            }
+        }
+        java.util.Set<BlockPos> observedLeaves = java.util.Set.of(h.absolutePos(new BlockPos(8, 26, 8)));
+        List<TreeFinder.TreeInfo> found = TreeFinder.findObserved(
+                h.getLevel(), h.absolutePos(new BlockPos(8, 2, 8)), observed, observedLeaves, 4, true);
+        h.assertValueEqual(found.size(), 1, "one tree from the crown seed: " + found);
+        TreeFinder.TreeInfo tree = found.get(0);
+        h.assertValueEqual(tree.logs().size(), 96, "the expansion reached the unseen foot");
+        h.assertTrue(
+                tree.base().equals(h.absolutePos(new BlockPos(8, 2, 8))),
+                "the base is the foot of the trunk: " + tree.base());
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.DIRT, 64));
+        c.inventory().addItem(new ItemStack(Items.IRON_AXE));
+        Result result = new Result();
+        ExecutionCoordinator runner = start(
+                c,
+                result,
+                new FellTreeTask(
+                        tree, BlockMatcher.parse("minecraft:dark_oak_log").orElseThrow(), 0, true),
+                400);
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
+            for (BlockPos p : logs) {
+                h.assertTrue(h.getBlockState(p).isAir(), "log left at " + p + "; " + result.summary);
+            }
+            h.assertTrue(result.summary.contains("96 of 96"), "summary " + result.summary);
+        });
+    }
+
+    /**
+     * A log on a canopy leaf is out of every walkable reach; the felling must break the leaf it rests on so the item
+     * falls where the sweep can take it. The leaf sits beside a small tree, inside the felling's reach from the ground.
+     */
+    @GameTest(maxTicks = 1200)
+    public void theLeafUnderAStrandedDropIsBroken(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        List<BlockPos> cells = strandedTree(h);
+        h.spawnItem(Items.OAK_LOG, 6.5f, 6.0f, 8.5f);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        Result result = new Result();
+        FellTreeTask task = new FellTreeTask(info(h, cells, "oak_log", 4), oak(), 0, true);
+        ExecutionCoordinator runner = start(c, result, task);
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
+            for (BlockPos p : cells) {
+                h.assertTrue(h.getBlockState(p).isAir(), "log left at " + p + "; " + result.summary);
+            }
+            h.assertTrue(
+                    task.rescued() >= 1,
+                    "the leaf under the stranded drop was never broken; " + result.summary + "; " + items(h, 2)
+                            + "; companion " + c.blockPosition());
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(6, 5, 8)).isAir(), "the support leaf must be gone: " + result.summary);
+        });
+    }
+
+    /** A small oak and the canopy leaf beside it that holds the stranded drop. */
+    private static List<BlockPos> strandedTree(GameTestHelper h) {
+        List<BlockPos> cells = new java.util.ArrayList<>();
+        for (int y = 2; y <= 5; y++) {
+            h.setBlock(new BlockPos(8, y, 8), Blocks.OAK_LOG);
+            cells.add(new BlockPos(8, y, 8));
+        }
+        leaf(h, 7, 6, 8);
+        leaf(h, 6, 5, 8);
+        return cells;
+    }
+
+    /** A protected leaf must stop the rescue: no break, no retry, and the drop stays where it is. */
+    @GameTest(maxTicks = 1200)
+    public void aProtectedLeafStopsTheRescue(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        List<BlockPos> cells = strandedTree(h);
+        h.spawnItem(Items.OAK_LOG, 6.5f, 6.0f, 8.5f);
+        BlockPos protectedLeaf = h.absolutePos(new BlockPos(6, 5, 8));
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.hands().overrideProtection(p -> p.equals(protectedLeaf));
+        Result result = new Result();
+        FellTreeTask task = new FellTreeTask(info(h, cells, "oak_log", 4), oak(), 0, true);
+        ExecutionCoordinator runner = start(c, result, task);
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
+            h.assertValueEqual(task.rescued(), 0, "a protected leaf must not be broken: " + result.summary);
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(6, 5, 8)).is(Blocks.OAK_LEAVES),
+                    "a protected leaf must stay: " + result.summary);
+        });
+    }
+
+    /**
+     * The stance comes from the plan, one per layer: two logs of the same layer are cut without moving, and every
+     * break happens from an interaction reach.
+     */
+    @GameTest(maxTicks = 4000)
+    public void aLayerIsCutFromOneStance(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        List<BlockPos> logs = new java.util.ArrayList<>();
+        for (int y = 2; y <= 7; y++) {
+            for (int x = 8; x <= 9; x++) {
+                for (int z = 8; z <= 9; z++) {
+                    BlockPos p = new BlockPos(x, y, z);
+                    h.setBlock(p, Blocks.CRIMSON_STEM);
+                    logs.add(p);
+                }
+            }
+        }
+        for (int x = 6; x <= 11; x++) {
+            for (int z = 6; z <= 11; z++) {
+                BlockPos p = new BlockPos(x, 8, z);
+                if (h.getBlockState(p).isAir()) {
+                    h.setBlock(p, Blocks.SPRUCE_LEAVES.defaultBlockState().setValue(LeavesBlock.PERSISTENT, true));
+                }
+            }
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.DIRT, 16));
+        c.inventory().addItem(new ItemStack(Items.IRON_AXE));
+        Result result = new Result();
+        ExecutionCoordinator runner = start(
+                c,
+                result,
+                new FellTreeTask(
+                        info(h, logs, "crimson_stem", 6),
+                        BlockMatcher.parse("minecraft:crimson_stem").orElseThrow(),
+                        0,
+                        false),
+                300);
+        BlockPos[] lastStance = {null};
+        int[] lastLayer = {Integer.MIN_VALUE};
+        java.util.Set<BlockPos> gone = new java.util.HashSet<>();
+        // Measurements of the three reports: the order, the stance per break and the distance moved between breaks.
+        StringBuilder trace = new StringBuilder();
+        h.succeedWhen(() -> {
+            BlockPos before = c.blockPosition();
+            runner.tick();
+            for (BlockPos p : logs) {
+                if (!gone.contains(p) && h.getBlockState(p).isAir()) {
+                    gone.add(p);
+                    double eyeDistance =
+                            c.getEyePosition().distanceTo(net.minecraft.world.phys.Vec3.atCenterOf(h.absolutePos(p)));
+                    trace.append(" log ")
+                            .append(p)
+                            .append(" from ")
+                            .append(before)
+                            .append(" eye ")
+                            .append(String.format(java.util.Locale.ROOT, "%.2f", eyeDistance))
+                            .append(';');
+                    h.assertTrue(
+                            eyeDistance <= dev.friendai.features.navigation.minecraft.nav.Approach.REACH,
+                            "break out of reach: " + p + " eye " + eyeDistance);
+                    if (lastStance[0] != null && lastLayer[0] == p.getY()) {
+                        double moved = Math.sqrt(net.minecraft.world.phys.Vec3.atCenterOf(lastStance[0])
+                                .distanceToSqr(net.minecraft.world.phys.Vec3.atCenterOf(before)));
+                        h.assertTrue(moved < 1.0, "stepped " + moved + " between two logs of one layer:" + trace);
+                    }
+                    lastStance[0] = before;
+                    lastLayer[0] = p.getY();
+                }
+            }
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
+            h.assertTrue(trace.length() > 0, "no break observed");
+        });
+    }
+
+    /** Every item entity near one arena, for a failure message: what is lying where, and whether it settled. */
+    private static String items(GameTestHelper h, int baseY) {
+        BlockPos centre = h.absolutePos(new BlockPos(8, baseY, 8));
+        StringBuilder out = new StringBuilder("items[");
+        for (var drop : h.getLevel()
+                .getEntitiesOfClass(
+                        net.minecraft.world.entity.item.ItemEntity.class,
+                        new net.minecraft.world.phys.AABB(centre).inflate(10))) {
+            out.append(drop.getItem().getItem())
+                    .append(' ')
+                    .append(String.format(
+                            java.util.Locale.ROOT, "%.2f %.2f %.2f", drop.getX(), drop.getY(), drop.getZ()))
+                    .append(" ground=")
+                    .append(drop.onGround())
+                    .append(" age=")
+                    .append(drop.getAge())
+                    .append(" below=")
+                    .append(h.getLevel()
+                            .getBlockState(drop.blockPosition().below())
+                            .getBlock())
+                    .append("; ");
+        }
+        return out.append(']').toString();
+    }
 }

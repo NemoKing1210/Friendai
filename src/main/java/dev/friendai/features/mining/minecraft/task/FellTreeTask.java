@@ -10,10 +10,14 @@ import dev.friendai.features.construction.minecraft.build.ScaffoldCleanupTask;
 import dev.friendai.features.mining.minecraft.mining.BlockBreaker;
 import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
 import dev.friendai.features.mining.minecraft.mining.TreeFinder;
+import dev.friendai.features.mining.tree.CanopyRescue;
 import dev.friendai.features.mining.tree.FellPlan;
 import dev.friendai.features.mining.tree.FellPlanner;
 import dev.friendai.features.mining.tree.TreeCell;
+import dev.friendai.features.navigation.minecraft.nav.Approach;
+import dev.friendai.features.navigation.minecraft.nav.LevelCellView;
 import dev.friendai.features.navigation.minecraft.nav.MoveHelper;
+import dev.friendai.features.navigation.minecraft.nav.Sight;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
@@ -21,17 +25,21 @@ import dev.friendai.task.autonomy.PlaceGuard;
 import dev.friendai.task.inventory.DropCollector;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 /**
@@ -50,6 +58,16 @@ public final class FellTreeTask implements Task {
     static final int MAX_CLIMB = 32;
     /** How many times the companion tries to stand at the chosen column before another side is tried. */
     private static final int MAX_WALK_ATTEMPTS = 2;
+    /** How many stranded drops one felling may rescue, and how many leaves it may break under one drop. */
+    private static final int MAX_RESCUES = 8;
+
+    private static final int MAX_LEAVES_PER_DROP = 3;
+    /** How often the cut looks for a stranded drop, in ticks. */
+    private static final int RESCUE_SCAN_TICKS = 10;
+    /** How far below a leaf the rescue looks for the cell the item will land on. */
+    private static final int MAX_LANDING_SCAN = 32;
+    /** How long the end of the cut waits for the last drops to settle and be rescued, in ticks. */
+    private static final int RESCUE_SETTLE_TICKS = 40;
 
     private enum Phase {
         WALK,
@@ -88,6 +106,15 @@ public final class FellTreeTask implements Task {
     private Scaffold scaffold;
     private BlockBreaker breaker;
     private DropCollector sweep;
+    /** The leaf being broken for a stranded drop, the drop it is for, and the drops given up on. */
+    private BlockBreaker rescue;
+
+    private UUID rescuing;
+    private final Set<UUID> rescuedDrops = new HashSet<>();
+    private final Map<UUID, Integer> rescueAttempts = new HashMap<>();
+    private int rescueCount;
+    private long nextRescueScan;
+    private int settleTicks;
     private TaskStatus pendingStatus;
     private BlockPos lastBroken;
     private long startTick;
@@ -359,6 +386,9 @@ public final class FellTreeTask implements Task {
 
     /** Cuts the stages crown first, descending one layer at a time. */
     private TaskStatus cut(TaskContext c) {
+        if (rescue(c)) {
+            return TaskStatus.RUNNING;
+        }
         while (stageIndex < stages.size()) {
             FellPlan.Stage stage = stages.get(stageIndex);
             if (logIndex >= stage.logs().size()) {
@@ -426,6 +456,9 @@ public final class FellTreeTask implements Task {
 
     /** Cuts what the plan did not cover, such as a log the first scan missed, from where the companion stands. */
     private TaskStatus extras(TaskContext c) {
+        if (rescue(c)) {
+            return TaskStatus.RUNNING;
+        }
         List<BlockPos> left = new ArrayList<>();
         for (BlockPos pos : remaining) {
             if (!blacklist.containsKey(pos)) {
@@ -477,6 +510,13 @@ public final class FellTreeTask implements Task {
                     c,
                     blacklist.isEmpty() ? TaskStatus.SUCCESS : TaskStatus.FAILED,
                     "felled " + cutCount + " of " + total + " " + label + " logs (limit)");
+        }
+        if (settleTicks < RESCUE_SETTLE_TICKS) {
+            settleTicks++;
+            // The last logs drop after the cut: give the items time to land on the canopy and rescue what it holds.
+            if (rescue(c) || dropsFalling(c)) {
+                return TaskStatus.RUNNING;
+            }
         }
         for (BlockPos pos : remaining) {
             blacklist.putIfAbsent(pos, "no stance reaches it");
@@ -561,6 +601,137 @@ public final class FellTreeTask implements Task {
         return text.toString();
     }
 
+    /**
+     * Rescues a drop the canopy holds: when an item rests on a leaf instead of the ground, the leaf directly under it
+     * is broken through the same breaker everything else uses, so the item falls where the sweep can take it. Leaves
+     * only, one at a time, capped per tree and per drop, and a drop that refused is never tried again.
+     *
+     * @return true while the rescue wants the task to keep running
+     */
+    private boolean rescue(TaskContext c) {
+        if (!collect || cutCount == 0 || rescueCount >= MAX_RESCUES) {
+            return false;
+        }
+        if (rescue != null) {
+            switch (rescue.tick(c)) {
+                case WORKING -> {
+                    return true;
+                }
+                case BROKEN, GONE -> {
+                    rescue = null;
+                    rescuing = null;
+                    rescueCount++;
+                }
+                default -> {
+                    rescue = null;
+                    if (rescuing != null) {
+                        rescuedDrops.add(rescuing);
+                    }
+                    rescuing = null;
+                }
+            }
+            return true;
+        }
+        if (c.level().getGameTime() < nextRescueScan) {
+            return false;
+        }
+        nextRescueScan = c.level().getGameTime() + RESCUE_SCAN_TICKS;
+        ItemEntity drop = stranded(c);
+        if (drop == null) {
+            return false;
+        }
+        BlockPos leaf = supportOf(drop);
+        int attempts = rescueAttempts.getOrDefault(drop.getUUID(), 0);
+        if (attempts >= MAX_LEAVES_PER_DROP
+                || !c.companion().hands().canInteract(leaf)
+                || PlaceGuard.protects(c, leaf)
+                || !landsSafely(c.level(), leaf)
+                || c.companion().getEyePosition().distanceTo(Vec3.atCenterOf(leaf)) > Approach.REACH
+                || !Sight.canSee(c.level(), c.companion(), leaf)) {
+            rescuedDrops.add(drop.getUUID());
+            return true;
+        }
+        rescueAttempts.put(drop.getUUID(), attempts + 1);
+        rescuing = drop.getUUID();
+        rescue = new BlockBreaker(List.of(leaf), state -> state.is(BlockTags.LEAVES), true, false, false);
+        return true;
+    }
+
+    /** The box the sweep works in: the tree's base, wide enough for the crown, tall enough for the trunk. */
+    private AABB sweepBox() {
+        Vec3 centre = Vec3.atCenterOf(tree.base());
+        return new AABB(centre, centre).inflate(SWEEP_RADIUS, tree.height() + 4, SWEEP_RADIUS);
+    }
+
+    /** Whether an item inside the sweep is still on its way down, so the rescue has nothing to decide yet. */
+    private boolean dropsFalling(TaskContext c) {
+        return !c.level()
+                .getEntitiesOfClass(
+                        ItemEntity.class, sweepBox(), e -> !e.isRemoved() && !e.onGround() && e.getAge() < 40)
+                .isEmpty();
+    }
+
+    /** The nearest settled drop inside the sweep that rests on a leaf and is not given up on yet. */
+    private ItemEntity stranded(TaskContext c) {
+        List<ItemEntity> candidates = c
+                .level()
+                .getEntitiesOfClass(
+                        ItemEntity.class,
+                        sweepBox(),
+                        e -> !e.isRemoved()
+                                && e.onGround()
+                                && !rescuedDrops.contains(e.getUUID())
+                                && c.companion().canCollect(e))
+                .stream()
+                .sorted(Comparator.comparingDouble(e -> e.distanceToSqr(c.companion())))
+                .toList();
+        if (candidates.isEmpty()) {
+            return null;
+        }
+        List<TreeCell> supports = new ArrayList<>(candidates.size());
+        for (ItemEntity drop : candidates) {
+            BlockPos support = supportOf(drop);
+            supports.add(new TreeCell(support.getX(), support.getY(), support.getZ()));
+        }
+        List<TreeCell> leaves = CanopyRescue.targets(
+                supports,
+                (x, y, z) -> c.level().getBlockState(new BlockPos(x, y, z)).is(BlockTags.LEAVES),
+                1);
+        if (leaves.isEmpty()) {
+            return null;
+        }
+        TreeCell support = leaves.get(0);
+        for (ItemEntity drop : candidates) {
+            BlockPos at = supportOf(drop);
+            if (at.getX() == support.x() && at.getY() == support.y() && at.getZ() == support.z()) {
+                return drop;
+            }
+        }
+        return null;
+    }
+
+    /** The block an item rests on: an item standing on a boundary otherwise names the cell above its support. */
+    private static BlockPos supportOf(ItemEntity drop) {
+        return BlockPos.containing(drop.getX(), drop.getY() - 0.05, drop.getZ());
+    }
+
+    /** Whether the column under a leaf ends on ground an item survives on within the bounded scan. */
+    private static boolean landsSafely(ServerLevel level, BlockPos leaf) {
+        BlockPos pos = leaf.below();
+        for (int i = 0; i < MAX_LANDING_SCAN && level.hasChunkAt(pos) && pos.getY() >= level.getMinY(); i++) {
+            BlockState state = level.getBlockState(pos);
+            if (LevelCellView.destroysItems(state)) {
+                return false;
+            }
+            if (!state.getCollisionShape(level, pos).isEmpty()
+                    || !state.getFluidState().isEmpty()) {
+                return true;
+            }
+            pos = pos.below();
+        }
+        return false;
+    }
+
     private TaskStatus startSweep(TaskContext c) {
         if (!collect || cutCount == 0) {
             phase = Phase.DONE;
@@ -630,6 +801,11 @@ public final class FellTreeTask implements Task {
             sweep.stop(c);
             sweep = null;
         }
+        if (rescue != null) {
+            rescue.stop(c);
+            rescue = null;
+            rescuing = null;
+        }
         if (scaffold != null) {
             scaffold.stop();
         }
@@ -696,6 +872,11 @@ public final class FellTreeTask implements Task {
                         skippedCount,
                         false,
                         cells));
+    }
+
+    /** How many leaves the rescue broke for stranded drops; the felling tests read it. */
+    public int rescued() {
+        return rescueCount;
     }
 
     @Override
