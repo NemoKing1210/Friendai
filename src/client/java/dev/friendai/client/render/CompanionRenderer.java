@@ -1,6 +1,7 @@
 package dev.friendai.client.render;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.math.Axis;
 import dev.friendai.FriendaiMod;
 import dev.friendai.client.skin.SkinCache;
 import dev.friendai.entity.CompanionEntity;
@@ -14,6 +15,7 @@ import net.minecraft.client.renderer.entity.layers.HumanoidArmorLayer;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.ItemUseAnimation;
@@ -102,5 +104,23 @@ public class CompanionRenderer
     @Override
     public Identifier getTextureLocation(CompanionRenderState state) {
         return state.skin != null ? state.skin : TEXTURE;
+    }
+
+    /**
+     * A player lies flat while swimming, but {@link HumanoidMobRenderer} keeps a mob upright, which is what makes a
+     * swimming companion look like it crawls over the water. The avatar's own rule is reused here.
+     */
+    @Override
+    protected void setupRotations(CompanionRenderState state, PoseStack poseStack, float bodyRot, float entityScale) {
+        super.setupRotations(state, poseStack, bodyRot, entityScale);
+        float swimAmount = state.swimAmount;
+        if (swimAmount <= 0.0F) {
+            return;
+        }
+        float targetPitch = state.isInWater ? -90.0F - state.xRot : -90.0F;
+        poseStack.rotateDegrees(Axis.XP, Mth.lerp(swimAmount, 0.0F, targetPitch));
+        if (state.isVisuallySwimming) {
+            poseStack.translate(0.0F, -1.0F, 0.3F);
+        }
     }
 }

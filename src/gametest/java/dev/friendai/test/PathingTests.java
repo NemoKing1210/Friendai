@@ -36,6 +36,8 @@ import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.tags.FluidTags;
+import net.minecraft.world.entity.Pose;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
@@ -700,6 +702,59 @@ public class PathingTests {
             h.assertTrue(state[0] == Navigator.State.ARRIVED, "did not swim up: " + state[0] + " at " + c.position());
             h.assertTrue(c.getY() >= target.y - 0.5, "did not reach the upper water cell: " + c.position());
         });
+    }
+
+    @GameTest(maxTicks = 500)
+    public void swimUsesTheSwimmingPose(GameTestHelper h) {
+        int floor = 205;
+        GameTestSupport.platformAt(h, floor, 14);
+        for (int x = 5; x <= 9; x++) {
+            for (int z = 1; z <= 5; z++) {
+                h.setBlock(new BlockPos(x, floor + 1, z), Blocks.WATER);
+                h.setBlock(new BlockPos(x, floor + 2, z), Blocks.WATER);
+            }
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, floor + 1, 3);
+        Outcome out = new Outcome();
+        walkTo(c, h, out, 11.5, floor + 1, 3.5);
+        boolean[] swam = {false};
+        float[] swimAmount = {0.0f};
+        h.onEachTick(() -> {
+            if (c.isInWater() && c.getPose() == net.minecraft.world.entity.Pose.SWIMMING) {
+                swam[0] = true;
+            }
+            swimAmount[0] = Math.max(swimAmount[0], c.getSwimAmount(1.0f));
+        });
+        h.succeedWhen(() -> {
+            h.assertTrue(out.status == TaskStatus.SUCCESS, "did not swim across: " + out.why());
+            h.assertTrue(swam[0], "the companion never took the swimming pose in water");
+            h.assertTrue(swimAmount[0] > 0.5f, "the swim animation never played: amount " + swimAmount[0]);
+            h.assertTrue(c.getPose() == Pose.STANDING, "pose after the crossing was " + c.getPose());
+        });
+    }
+
+    /** With no water float goal an idle companion would sink and drown: it treads water instead. */
+    @GameTest(maxTicks = 300)
+    public void idleInDeepWaterFloatsBackToTheSurface(GameTestHelper h) {
+        int floor = 210;
+        GameTestSupport.platformAt(h, floor, 10);
+        for (int x = 3; x <= 7; x++) {
+            for (int z = 3; z <= 7; z++) {
+                for (int y = floor + 1; y <= floor + 4; y++) {
+                    h.setBlock(new BlockPos(x, y, z), Blocks.WATER);
+                }
+            }
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 5, floor + 1, 5);
+        h.assertTrue(eyeInWater(h, c), "the test did not start the companion under water");
+        h.succeedWhen(() -> h.assertFalse(eyeInWater(h, c), "still under water at " + c.position()));
+    }
+
+    /** The world's fluid at the eye, not the entity's own per-tick tracker, which is empty before the first tick. */
+    private static boolean eyeInWater(GameTestHelper h, CompanionEntity companion) {
+        return h.getLevel()
+                .getFluidState(BlockPos.containing(companion.getEyePosition()))
+                .is(FluidTags.WATER);
     }
 
     @GameTest

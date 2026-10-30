@@ -53,6 +53,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.tags.DamageTypeTags;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.util.ProblemReporter;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -183,6 +184,7 @@ public class CompanionEntity extends PathfinderMob {
     private PaceMode paceMode = PaceMode.AUTO;
     private final Pace pace = new Pace(this);
     private final CompanionBody body = new CompanionBody(this);
+    private final CompanionSwim swim = new CompanionSwim(this);
     private final CompanionFacing facing = new CompanionFacing(this);
 
     public CompanionEntity(EntityType<? extends CompanionEntity> type, Level level) {
@@ -434,6 +436,7 @@ public class CompanionEntity extends PathfinderMob {
             CompanionExecution.tick(this);
             tickAutomaticBedRest((ServerLevel) level());
             body.tick();
+            swim.tick();
             facing.tick();
             if (isSprinting() && !pathing() && (getNavigation().isDone() || !canSprint())) {
                 setSprinting(false);
@@ -520,10 +523,14 @@ public class CompanionEntity extends PathfinderMob {
             return;
         }
         double dx = getX() - xo;
+        double dy = getY() - yo;
         double dz = getZ() - zo;
         double horizontal = Math.sqrt(dx * dx + dz * dz);
         if (isInWater()) {
-            hunger.addExhaustion(EXHAUSTION_SWIM_PER_METER * (float) horizontal);
+            // Vanilla: a swimming or head-under companion pays per metre travelled in all three axes, one paddling on
+            // the surface per horizontal metre.
+            double distance = isEyeInFluid(FluidTags.WATER) ? Math.sqrt(dx * dx + dy * dy + dz * dz) : horizontal;
+            hunger.addExhaustion(EXHAUSTION_SWIM_PER_METER * (float) distance);
         } else if (isSprinting() && onGround() && !isPassenger()) {
             // Vanilla charges sprinting on land ten times the swimming rate; walking and crouching are free.
             hunger.addExhaustion(EXHAUSTION_SPRINT_PER_METER * (float) horizontal);
@@ -640,7 +647,9 @@ public class CompanionEntity extends PathfinderMob {
 
     @Override
     protected void registerGoals() {
-        this.goalSelector.addGoal(0, new FloatGoal(this));
+        // Water is swum by CompanionSwim; only lava keeps the mob's float, which is what gets a fallen companion out
+        // of a hazard the pathfinder never enters on purpose.
+        this.goalSelector.addGoal(0, new FloatGoal(this, FluidTags.LAVA));
         // Not the vanilla player-look goal: it runs before the tasks do and would keep turning the companion away
         // from whatever it is working on toward a player standing nearby.
         this.goalSelector.addGoal(8, new LookAtOwnerGoal(this));

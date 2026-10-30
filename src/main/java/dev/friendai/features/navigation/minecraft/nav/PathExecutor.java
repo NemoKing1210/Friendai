@@ -465,15 +465,17 @@ public final class PathExecutor {
     }
 
     /**
-     * The vertical speed while in water. A step that ends with its head under water holds the depth of its cell:
-     * nothing else makes a mob dive, and the float goal pushes it back up every tick. A step on the surface is left to
-     * the float goal, which keeps the body at the right height by itself.
+     * The vertical speed while in water. A swim step holds the depth of its own cell: a mob's own buoyancy is gone
+     * (the float goal no longer runs in water), so nothing else would keep the companion at the level the route chose.
+     * A step that ends with its head under water gets the tight correction; a surface one follows it too, which keeps
+     * it from bobbing between the two.
      */
     private static double swimVertical(TaskContext c, PathStep step, FeetTarget target, double current, boolean up) {
         if (step.move() == Move.SWIM || step.move() == Move.DESCEND) {
             BlockPos head =
                     new BlockPos(step.to().x(), step.to().y() + 1, step.to().z());
-            if (c.level().getFluidState(head).is(FluidTags.WATER)) {
+            boolean submerged = c.level().getFluidState(head).is(FluidTags.WATER);
+            if (submerged || step.move() == Move.SWIM) {
                 double error = target.y() - c.companion().getY();
                 return Math.max(-DIVE_SPEED, Math.min(RISE_SPEED, error * 0.5));
             }

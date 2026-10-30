@@ -690,6 +690,30 @@ public class HungerTests {
         });
     }
 
+    /** Swimming costs vanilla 0.01 a metre, a tenth of the sprinting rate: water travel must not be free. */
+    @GameTest(maxTicks = 500)
+    public void swimmingSpendsHunger(GameTestHelper h) {
+        int floor = 270;
+        GameTestSupport.platformAt(h, floor, 14);
+        for (int x = 5; x <= 10; x++) {
+            for (int z = 1; z <= 5; z++) {
+                h.setBlock(new BlockPos(x, floor + 1, z), Blocks.WATER);
+                h.setBlock(new BlockPos(x, floor + 2, z), Blocks.WATER);
+            }
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 3, floor + 1, 3);
+        c.setPaceMode(PaceMode.WALK);
+        c.hunger().load(20, 5.0f, 0.0f);
+        Vec3 target = h.absoluteVec(new Vec3(11.5, floor + 1, 3.5));
+        c.executionCoordinator().start(new GoToTask(target), "go_to");
+        h.succeedWhen(() -> {
+            h.assertTrue(c.position().distanceTo(target) < 1.5, "did not cross the pool: " + c.position());
+            float spent = c.hunger().exhaustion();
+            h.assertTrue(spent > 0.02f, "swimming spent only " + spent + " of exhaustion");
+            h.assertTrue(spent < 0.2f, "swimming cost like sprinting: " + spent);
+        });
+    }
+
     /** A sprinting jump costs vanilla 0.2 exhaustion, a standing jump 0.05. */
     @GameTest
     public void sprintJumpCostsMoreHunger(GameTestHelper h) {
