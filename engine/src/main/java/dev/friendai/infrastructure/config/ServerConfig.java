@@ -34,7 +34,7 @@ public class ServerConfig {
 
     public static class SkillsSection {
         public boolean enabled = true;
-        public int promptBudget = 2400;
+        public int promptBudget = 4096;
         public boolean requireApproval = true;
         public int modelWritesPerHour = 6;
         public int writesPerOutcome = 2;
@@ -50,7 +50,7 @@ public class ServerConfig {
         public String baseUrl = null;
         public List<RoutingRule> routing = null;
         public Double temperature = 0.7;
-        public int maxTokens = 1024;
+        public int maxTokens = 8192;
     }
 
     public static class CompanionSection {
@@ -98,7 +98,7 @@ public class ServerConfig {
         public boolean listenAll = false;
         public int maxReplyChars = 256;
         public boolean guestsEnabled = true;
-        public int hearingRadius = 32;
+        public int hearingRadius = 64;
         public int guestCooldownMs = 5000;
     }
 
@@ -164,9 +164,9 @@ public class ServerConfig {
 
     public static class MemorySection {
         public boolean enabled = true;
-        public int maxFactChars = 160;
-        public int maxFactsPerPlayer = 20;
-        public int maxWorldFacts = 30;
+        public int maxFactChars = 512;
+        public int maxFactsPerPlayer = 128;
+        public int maxWorldFacts = 128;
 
         public MemoryLimits limits() {
             return new MemoryLimits(maxFactChars, maxFactsPerPlayer, maxWorldFacts);
@@ -438,8 +438,8 @@ public class ServerConfig {
         tasks.freeTimeWatchdogSec = clamp(problems, "tasks.freeTimeWatchdogSec", tasks.freeTimeWatchdogSec, 1, 600);
         tasks.treeSearchRadius = clamp(problems, "tasks.treeSearchRadius", tasks.treeSearchRadius, 4, 64);
         tasks.treePerceptionRadius = clamp(problems, "tasks.treePerceptionRadius", tasks.treePerceptionRadius, 4, 24);
-        memory.maxFactChars = clamp(problems, "memory.maxFactChars", memory.maxFactChars, 40, 500);
-        memory.maxFactsPerPlayer = clamp(problems, "memory.maxFactsPerPlayer", memory.maxFactsPerPlayer, 1, 100);
+        memory.maxFactChars = clamp(problems, "memory.maxFactChars", memory.maxFactChars, 40, 512);
+        memory.maxFactsPerPlayer = clamp(problems, "memory.maxFactsPerPlayer", memory.maxFactsPerPlayer, 1, 128);
         memory.maxWorldFacts = clamp(problems, "memory.maxWorldFacts", memory.maxWorldFacts, 1, 200);
         return problems;
     }

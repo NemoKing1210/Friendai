@@ -111,7 +111,7 @@ class ServerConfigTest {
     void guestDefaults() {
         var c = ServerConfig.defaults();
         assertTrue(c.chat.guestsEnabled);
-        assertEquals(32, c.chat.hearingRadius);
+        assertEquals(64, c.chat.hearingRadius);
         assertEquals(5000, c.chat.guestCooldownMs);
         assertEquals(ServerConfig.VERSION, c.version);
     }
@@ -120,11 +120,11 @@ class ServerConfigTest {
     void memoryDefaults() {
         var c = ServerConfig.defaults();
         assertTrue(c.memory.enabled);
-        assertEquals(160, c.memory.maxFactChars);
-        assertEquals(20, c.memory.maxFactsPerPlayer);
-        assertEquals(30, c.memory.maxWorldFacts);
+        assertEquals(512, c.memory.maxFactChars);
+        assertEquals(128, c.memory.maxFactsPerPlayer);
+        assertEquals(128, c.memory.maxWorldFacts);
         assertEquals(ServerConfig.VERSION, c.version);
-        assertEquals(160, c.memory.limits().maxFactChars());
+        assertEquals(512, c.memory.limits().maxFactChars());
     }
 
     @Test
