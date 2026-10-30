@@ -37,7 +37,7 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
     private final CompanionClientSession session;
     private final CompanionViewState viewState;
     private final Entry overview = new Entry("friendai.menu.tab.overview", new ControlTab());
-    private final Entry toggles = new Entry("friendai.menu.tab.toggles", new TogglesTab());
+    private final Entry settings = new Entry("friendai.menu.tab.settings", new SettingsTab());
     private final Entry tasks = new Entry("friendai.menu.tab.tasks", new TasksTab());
     private final Entry memory = new Entry("friendai.menu.tab.memory", new MemoryTab());
     private final Entry skills = new Entry("friendai.menu.tab.skills", new SkillsTab());
@@ -47,9 +47,9 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
     private final Entry log = new Entry("friendai.menu.tab.log", new LogTab());
     private final Entry debug = new Entry("friendai.menu.tab.debug", new DebugTab());
 
-    private final List<Entry> ownerTabs =
-            List.of(overview, toggles, tasks, memory, skills, places, appearance, traders);
+    private final List<Entry> ownerTabs = List.of(overview, tasks, memory, skills, places, appearance, traders);
     private final List<Entry> operatorTabs = List.of(log, debug);
+    private final List<Entry> lastTabs = List.of(settings);
     private final List<FlatButton> railButtons = new ArrayList<>();
 
     private Entry selected = overview;
@@ -65,6 +65,7 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
         this.viewState = session.viewState();
         for (Entry entry : ownerTabs) ((StatefulMenuTab) entry.tab()).bind(viewState);
         for (Entry entry : operatorTabs) ((StatefulMenuTab) entry.tab()).bind(viewState);
+        for (Entry entry : lastTabs) ((StatefulMenuTab) entry.tab()).bind(viewState);
     }
 
     @Override
@@ -138,6 +139,7 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
         if (operator()) {
             tabs.addAll(operatorTabs);
         }
+        tabs.addAll(lastTabs);
         return tabs;
     }
 
@@ -196,7 +198,7 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
         railButtons.clear();
         for (int i = 0; i < shownTabs.size(); i++) {
             Entry entry = shownTabs.get(i);
-            boolean operatorEntry = operatorStart >= 0 && i >= operatorStart;
+            boolean operatorEntry = operatorStart >= 0 && i >= operatorStart && operatorTabs.contains(entry);
             Component label = Component.translatable(entry.titleKey());
             FlatButton button = new FlatButton(
                             0,

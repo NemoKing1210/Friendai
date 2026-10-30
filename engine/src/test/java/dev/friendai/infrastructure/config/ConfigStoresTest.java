@@ -235,7 +235,6 @@ class ConfigStoresTest {
         assertEquals("Mic", config.voice.stt.inputDevice);
         assertEquals(45, config.voice.stt.maxRecordSec);
         assertFalse(config.voice.tts.enabled);
-        assertFalse(config.debug.movementOverlay);
         assertEquals(4, config.version);
         assertFalse(json(path).getAsJsonObject("voice").has("whisperModel"));
         store.save(config);

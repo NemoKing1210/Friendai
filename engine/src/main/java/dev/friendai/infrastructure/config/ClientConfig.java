@@ -16,11 +16,6 @@ public class ClientConfig {
     private static final Logger LOGGER = LoggerFactory.getLogger("friendai/config");
     public int version = CURRENT_VERSION;
     public VoiceSection voice = new VoiceSection();
-    public DebugSection debug = new DebugSection();
-
-    public static class DebugSection {
-        public boolean movementOverlay = false;
-    }
 
     public static class VoiceSection {
         public SttSection stt = new SttSection();
@@ -82,7 +77,6 @@ public class ClientConfig {
 
     /** Fills missing or invalid sections and clamps ranges. */
     public void validate() {
-        if (debug == null) debug = new DebugSection();
         if (voice == null) {
             voice = new VoiceSection();
         }
