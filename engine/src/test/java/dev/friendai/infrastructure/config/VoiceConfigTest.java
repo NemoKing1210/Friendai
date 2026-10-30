@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import dev.friendai.infrastructure.config.ClientConfig;
 import dev.friendai.features.speech.ResolvedStt;
 import dev.friendai.features.speech.ResolvedTts;
 import dev.friendai.features.speech.tts.VoiceModels;

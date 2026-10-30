@@ -6,11 +6,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import dev.friendai.foundation.text.UserFacingException;
 import dev.friendai.features.speech.PcmAudio;
 import dev.friendai.features.speech.PreparedRequest;
 import dev.friendai.features.speech.ResolvedTts;
 import dev.friendai.features.speech.WavCodec;
+import dev.friendai.foundation.text.UserFacingException;
 import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;
 

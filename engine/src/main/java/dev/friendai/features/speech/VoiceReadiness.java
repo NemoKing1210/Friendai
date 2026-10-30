@@ -1,8 +1,8 @@
 package dev.friendai.features.speech;
 
-import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.features.speech.stt.SttPresets;
 import dev.friendai.features.speech.tts.TtsPresets;
+import dev.friendai.foundation.text.UserMessage;
 
 /** Tells the player why a resolved speech configuration cannot run, or null when it can. */
 public final class VoiceReadiness {

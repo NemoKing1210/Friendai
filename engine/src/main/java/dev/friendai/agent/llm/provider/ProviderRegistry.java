@@ -1,6 +1,5 @@
 package dev.friendai.agent.llm.provider;
 
-import dev.friendai.foundation.diagnostics.ConfigException;
 import dev.friendai.agent.llm.JsonHttpTransport;
 import dev.friendai.agent.llm.protocol.AnthropicMessagesProtocol;
 import dev.friendai.agent.llm.protocol.GeminiProtocol;
@@ -8,6 +7,7 @@ import dev.friendai.agent.llm.protocol.LlmProtocol;
 import dev.friendai.agent.llm.protocol.OllamaProtocol;
 import dev.friendai.agent.llm.protocol.OpenAiChatProtocol;
 import dev.friendai.agent.llm.protocol.OpenAiResponsesProtocol;
+import dev.friendai.foundation.diagnostics.ConfigException;
 import dev.friendai.foundation.text.UserMessage;
 import java.util.LinkedHashMap;
 import java.util.List;

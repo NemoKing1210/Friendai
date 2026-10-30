@@ -1,9 +1,9 @@
 package dev.friendai.agent.plan;
 
-import dev.friendai.agent.turn.LlmGateway;
 import dev.friendai.agent.llm.model.LlmResponse;
 import dev.friendai.agent.llm.model.Message;
 import dev.friendai.agent.llm.model.StopReason;
+import dev.friendai.agent.turn.LlmGateway;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;

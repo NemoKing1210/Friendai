@@ -5,13 +5,13 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import dev.friendai.llm.http.HttpTransport;
 import dev.friendai.agent.llm.model.LlmRequest;
 import dev.friendai.agent.llm.model.LlmResponse;
 import dev.friendai.agent.llm.model.Message;
 import dev.friendai.agent.llm.model.StopReason;
 import dev.friendai.agent.llm.model.ToolCall;
 import dev.friendai.agent.llm.model.ToolSpec;
+import dev.friendai.llm.http.HttpTransport;
 import java.net.http.HttpClient;
 import java.time.Duration;
 import java.util.List;

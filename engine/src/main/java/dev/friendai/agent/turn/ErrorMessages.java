@@ -1,8 +1,8 @@
 package dev.friendai.agent.turn;
 
-import dev.friendai.foundation.diagnostics.ConfigException;
 import dev.friendai.agent.llm.model.LlmErrorKind;
 import dev.friendai.agent.llm.model.LlmException;
+import dev.friendai.foundation.diagnostics.ConfigException;
 import dev.friendai.foundation.text.UserFacingException;
 import dev.friendai.foundation.text.UserMessage;
 import java.util.concurrent.CompletionException;

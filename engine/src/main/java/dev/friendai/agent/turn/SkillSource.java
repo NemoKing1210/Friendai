@@ -1,6 +1,5 @@
 package dev.friendai.agent.turn;
 
-
 import dev.friendai.execution.tool.Caller;
 
 @FunctionalInterface

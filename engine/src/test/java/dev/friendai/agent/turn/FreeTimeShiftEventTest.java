@@ -6,11 +6,11 @@ import static dev.friendai.testutil.FakeGateway.text;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.testutil.FakeGateway;
 import dev.friendai.testutil.FakeToolExecutor;
 import dev.friendai.testutil.ManualScheduler;
 import dev.friendai.testutil.RecordingSpeaker;
-import dev.friendai.execution.tool.AccessLevel;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;

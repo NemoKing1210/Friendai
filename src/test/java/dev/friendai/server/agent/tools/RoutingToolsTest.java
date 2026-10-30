@@ -31,7 +31,8 @@ class RoutingToolsTest {
         assertEquals(
                 Set.of("request_tools"),
                 tools.specs().stream().map(spec -> spec.name()).collect(Collectors.toSet()));
-        assertFalse(tools.specs(AccessLevel.GUEST).stream().anyMatch(spec -> spec.name().equals("request_tools")));
+        assertFalse(tools.specs(AccessLevel.GUEST).stream()
+                .anyMatch(spec -> spec.name().equals("request_tools")));
         assertEquals(
                 Arrays.stream(ToolGroup.values())
                         .filter(group -> group != ToolGroup.CORE)

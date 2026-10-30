@@ -7,9 +7,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.JsonParser;
-import dev.friendai.foundation.text.UserFacingException;
 import dev.friendai.features.speech.PreparedRequest;
 import dev.friendai.features.speech.ResolvedStt;
+import dev.friendai.foundation.text.UserFacingException;
 import org.junit.jupiter.api.Test;
 
 class OpenAiSttProtocolTest {

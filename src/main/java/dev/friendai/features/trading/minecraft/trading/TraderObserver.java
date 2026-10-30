@@ -2,8 +2,8 @@ package dev.friendai.features.trading.minecraft.trading;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.trading.TradeBook;
-import dev.friendai.features.trading.TraderRecord;
 import dev.friendai.features.trading.TradeBookRepository;
+import dev.friendai.features.trading.TraderRecord;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;

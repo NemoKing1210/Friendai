@@ -23,8 +23,10 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 class CompanionViewStateTest {
-    private static final ClientSessionId FIRST = new ClientSessionId(UUID.fromString("00000000-0000-0000-0000-000000000001"));
-    private static final ClientSessionId SECOND = new ClientSessionId(UUID.fromString("00000000-0000-0000-0000-000000000002"));
+    private static final ClientSessionId FIRST =
+            new ClientSessionId(UUID.fromString("00000000-0000-0000-0000-000000000001"));
+    private static final ClientSessionId SECOND =
+            new ClientSessionId(UUID.fromString("00000000-0000-0000-0000-000000000002"));
 
     @Test
     void lateListResponseCannotReplaceNewerSkillDetail() {
@@ -38,7 +40,9 @@ class CompanionViewStateTest {
 
         SkillView current = state.skillsView().orElseThrow();
         assertEquals("owner:mine", current.detail().id());
-        assertEquals(List.of("owner:mine"), current.rows().stream().map(SkillView.Row::id).toList());
+        assertEquals(
+                List.of("owner:mine"),
+                current.rows().stream().map(SkillView.Row::id).toList());
         assertEquals(12, state.skillsResponse().orElseThrow().responseId());
     }
 
@@ -50,7 +54,8 @@ class CompanionViewStateTest {
         state.onSkillsView(FIRST, skillView(8, 0, List.of(skillRow("owner:old", "Old")), null, true, 21));
 
         assertEquals(9, state.skillsView().orElseThrow().revision());
-        assertEquals("owner:mine", state.skillsView().orElseThrow().rows().getFirst().id());
+        assertEquals(
+                "owner:mine", state.skillsView().orElseThrow().rows().getFirst().id());
         assertEquals(21, state.skillsResponse().orElseThrow().responseId());
     }
 
