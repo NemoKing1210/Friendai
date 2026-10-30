@@ -116,7 +116,9 @@ public class CompanionEntity extends PathfinderMob {
     public static final float EXHAUSTION_ATTACK = 0.1f;
     private static final float EXHAUSTION_DAMAGE = 0.1f;
     private static final float EXHAUSTION_JUMP = 0.05f;
+    private static final float EXHAUSTION_JUMP_SPRINTING = 0.2f;
     private static final float EXHAUSTION_SWIM_PER_METER = 0.01f;
+    private static final float EXHAUSTION_SPRINT_PER_METER = 0.1f;
     /** How often, and how far, the companion takes items the owner threw: "here, take this". */
     private static final int OWNER_PICKUP_INTERVAL = 10;
 
@@ -517,10 +519,14 @@ public class CompanionEntity extends PathfinderMob {
             entityData.set(DATA_FOOD, hunger.food());
             return;
         }
+        double dx = getX() - xo;
+        double dz = getZ() - zo;
+        double horizontal = Math.sqrt(dx * dx + dz * dz);
         if (isInWater()) {
-            double dx = getX() - xo;
-            double dz = getZ() - zo;
-            hunger.addExhaustion(EXHAUSTION_SWIM_PER_METER * (float) Math.sqrt(dx * dx + dz * dz));
+            hunger.addExhaustion(EXHAUSTION_SWIM_PER_METER * (float) horizontal);
+        } else if (isSprinting() && onGround() && !isPassenger()) {
+            // Vanilla charges sprinting on land ten times the swimming rate; walking and crouching are free.
+            hunger.addExhaustion(EXHAUSTION_SPRINT_PER_METER * (float) horizontal);
         }
         HungerModel.TickResult result = hunger.tick(
                 survivalDifficulty(level.getDifficulty()),
@@ -555,9 +561,10 @@ public class CompanionEntity extends PathfinderMob {
 
     @Override
     public void jumpFromGround() {
+        boolean sprinting = isSprinting();
         super.jumpFromGround();
         if (!level().isClientSide() && !creativeMode()) {
-            hunger.addExhaustion(EXHAUSTION_JUMP);
+            hunger.addExhaustion(sprinting ? EXHAUSTION_JUMP_SPRINTING : EXHAUSTION_JUMP);
         }
     }
 
@@ -687,9 +694,9 @@ public class CompanionEntity extends PathfinderMob {
         return !isInWater() && !getInBlockState().is(Blocks.BUBBLE_COLUMN) && !isPassenger() && sprintFoodOk();
     }
 
-    /** Whether the companion has the stamina to run; always true until hunger exists, then the food check goes here. */
+    /** Vanilla's sprint gate: more than six food points, or creative mode, which never pays for running. */
     protected boolean sprintFoodOk() {
-        return true;
+        return creativeMode() || hunger.hasEnoughFood();
     }
 
     public void setOwner(UUID owner) {

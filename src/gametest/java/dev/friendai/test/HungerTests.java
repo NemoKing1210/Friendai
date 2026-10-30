@@ -6,7 +6,9 @@ import dev.friendai.execution.queue.FailurePolicy;
 import dev.friendai.execution.queue.GuardAction;
 import dev.friendai.execution.queue.QueuedStep;
 import dev.friendai.features.mining.minecraft.mining.BlockBreaker;
+import dev.friendai.features.navigation.minecraft.task.GoToTask;
 import dev.friendai.features.navigation.minecraft.task.StayTask;
+import dev.friendai.features.navigation.movement.PaceMode;
 import dev.friendai.features.survival.HungerModel;
 import dev.friendai.features.survival.minecraft.HungerWatcher;
 import dev.friendai.features.survival.minecraft.task.GetFoodTask;
@@ -621,5 +623,90 @@ public class HungerTests {
                     !n.notices.contains("starving: going to get food myself"),
                     "the auto quest notice came at food 5: " + n.notices);
         });
+    }
+
+    /** Walking over flat ground is free while sprinting pays vanilla 0.1 exhaustion per block. */
+    @GameTest(maxTicks = 300)
+    public void sprintingDrainsHungerAndWalkingDoesNot(GameTestHelper h) {
+        int floor = 160;
+        GameTestSupport.platformAt(h, floor, 20);
+        CompanionEntity walker = h.spawn(FriendaiEntities.COMPANION, 2, floor + 1, 2);
+        CompanionEntity runner = h.spawn(FriendaiEntities.COMPANION, 2, floor + 1, 5);
+        walker.hunger().load(20, 0.0f, 0.0f);
+        runner.hunger().load(20, 0.0f, 0.0f);
+        walker.setPaceMode(PaceMode.WALK);
+        runner.setPaceMode(PaceMode.RUN);
+        double walkerStart = walker.getX();
+        double runnerStart = runner.getX();
+        walker.executionCoordinator().start(new GoToTask(h.absoluteVec(new Vec3(16.5, floor + 1, 2.5))), "go_to");
+        runner.executionCoordinator().start(new GoToTask(h.absoluteVec(new Vec3(16.5, floor + 1, 5.5))), "go_to");
+        h.succeedWhen(() -> {
+            h.assertTrue(
+                    walker.getX() - walkerStart >= 11.0, "the walker has not travelled far enough to prove the cost");
+            h.assertTrue(
+                    runner.getX() - runnerStart >= 11.0, "the runner has not travelled far enough to prove the cost");
+            h.assertTrue(
+                    walker.hunger().exhaustion() == 0.0f,
+                    "walking cost " + walker.hunger().exhaustion() + " exhaustion");
+            h.assertTrue(
+                    runner.hunger().exhaustion() >= 1.0f,
+                    "sprinting cost only " + runner.hunger().exhaustion() + " exhaustion");
+            h.assertValueEqual(runner.hunger().food(), 20, "running this far must not eat a food point yet");
+        });
+    }
+
+    /** Below seven food points the companion walks; once fed it runs again. */
+    @GameTest(maxTicks = 300)
+    public void lowFoodBlocksSprinting(GameTestHelper h) {
+        int floor = 170;
+        GameTestSupport.platformAt(h, floor, 20);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, floor + 1, 2);
+        c.hunger().load(6, 0.0f, 0.0f);
+        c.setPaceMode(PaceMode.RUN);
+        h.assertFalse(c.canSprint(), "food 6 must not allow sprinting");
+        double start = c.getX();
+        c.executionCoordinator().start(new GoToTask(h.absoluteVec(new Vec3(18.5, floor + 1, 2.5))), "go_to");
+        boolean[] sprintedHungry = {false};
+        boolean[] sprintedFed = {false};
+        h.onEachTick(() -> {
+            if (!c.isSprinting()) {
+                return;
+            }
+            if (c.hunger().food() <= 6) {
+                sprintedHungry[0] = true;
+            } else {
+                sprintedFed[0] = true;
+            }
+        });
+        h.runAfterDelay(30, () -> {
+            h.assertFalse(sprintedHungry[0], "sprinted at food 6");
+            h.assertTrue(c.getX() - start > 2.0, "the companion barely moved while hungry");
+            c.hunger().load(7, 0.0f, 0.0f);
+            h.assertTrue(c.canSprint(), "food 7 must allow sprinting");
+        });
+        h.succeedWhen(() -> {
+            h.assertFalse(sprintedHungry[0], "sprinted at food 6");
+            h.assertTrue(sprintedFed[0], "never sprinted after reaching food 7");
+        });
+    }
+
+    /** A sprinting jump costs vanilla 0.2 exhaustion, a standing jump 0.05. */
+    @GameTest
+    public void sprintJumpCostsMoreHunger(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 210, 8);
+        CompanionEntity jockey = h.spawn(FriendaiEntities.COMPANION, 2, 211, 2);
+        CompanionEntity stander = h.spawn(FriendaiEntities.COMPANION, 4, 211, 4);
+        jockey.hunger().load(20, 0.0f, 0.0f);
+        stander.hunger().load(20, 0.0f, 0.0f);
+        jockey.setSprinting(true);
+        jockey.jumpFromGround();
+        stander.jumpFromGround();
+        h.assertTrue(
+                Math.abs(jockey.hunger().exhaustion() - 0.2f) < 1e-4f,
+                "a sprinting jump cost " + jockey.hunger().exhaustion());
+        h.assertTrue(
+                Math.abs(stander.hunger().exhaustion() - 0.05f) < 1e-4f,
+                "a standing jump cost " + stander.hunger().exhaustion());
+        h.succeed();
     }
 }

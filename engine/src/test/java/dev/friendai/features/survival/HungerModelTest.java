@@ -1,6 +1,8 @@
 package dev.friendai.features.survival;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
@@ -223,6 +225,13 @@ class HungerModelTest {
         model.addExhaustion(10.0f);
 
         assertEquals(40.0f, model.exhaustion(), EPS);
+    }
+
+    @Test
+    void sprintNeedsFoodAboveSix() {
+        assertFalse(model(6, 0.0f, 0.0f).hasEnoughFood());
+        assertTrue(model(7, 0.0f, 0.0f).hasEnoughFood());
+        assertTrue(model(HungerModel.MAX_FOOD, 0.0f, 0.0f).hasEnoughFood());
     }
 
     @Test

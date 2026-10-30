@@ -10,6 +10,9 @@ package dev.friendai.features.survival;
 public final class HungerModel {
     public static final int MAX_FOOD = 20;
 
+    /** Vanilla {@code FoodData.hasEnoughFood}: sprinting needs more than six food points. */
+    private static final int SPRINT_FOOD_LEVEL = 6;
+
     private static final float MAX_EXHAUSTION = 40.0f;
     private static final float STARTING_SATURATION = 5.0f;
     private static final int SATURATION_REGEN_INTERVAL = 10;
@@ -40,6 +43,11 @@ public final class HungerModel {
 
     public float exhaustion() {
         return exhaustion;
+    }
+
+    /** Vanilla {@code FoodData.hasEnoughFood()}: running needs food above six points. */
+    public boolean hasEnoughFood() {
+        return food > SPRINT_FOOD_LEVEL;
     }
 
     /** Adds exhaustion, capped at 40 like vanilla. */
