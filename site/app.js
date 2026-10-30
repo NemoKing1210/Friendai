@@ -187,7 +187,7 @@ const MEM_CARDS = [
   { title: "Settings & caches", sub: "config/ and the game directory",
     hub: { label: "Settings", icon: "⚙️", color: COLORS.iron, desc: "API keys may be written as env:NAME so they never sit in a file." },
     color: COLORS.iron, items: [
-      "~Server config v16|Tasks, agent, places, autonomy, chunk loading.", "~Client config v4|Voice recognition and synthesis, UI.",
+      "~Server config v17|Tasks, agent, places, autonomy, chunk loading, build pace.", "~Client config v4|Voice recognition and synthesis, UI.",
       "~Automatic config upgrades|Validated upgrades with unique backups; unknown and future formats stay read-only.", "~Whisper models|tiny, base, small.",
       "~Piper voices|Five catalogued voices.", "~Skins|Fetched and cached by hash.", "~Atomic save|Temp file then move." ] },
   { title: "The memory book", sub: "What it remembers and who may see it",
