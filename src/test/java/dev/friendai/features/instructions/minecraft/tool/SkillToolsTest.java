@@ -30,12 +30,14 @@ class SkillToolsTest {
         FeatureToolRegistry contributions = new FeatureToolRegistry(tools, SkillToolsTest::taskTool);
         new SkillTools(new FakeAccess()).register(contributions);
 
-        assertEquals(Set.of("use_skill", "manage_skill"), names(tools.specs()));
-        assertEquals(Set.of("use_skill", "manage_skill"), names(tools.specs(AccessLevel.OWNER)));
+        assertEquals(Set.of("use_skill", "list_skills", "skill_help", "manage_skill"), names(tools.specs()));
+        assertEquals(
+                Set.of("use_skill", "list_skills", "skill_help", "manage_skill"),
+                names(tools.specs(AccessLevel.OWNER)));
         assertEquals(Set.of(), names(tools.specs(AccessLevel.TRUSTED)));
         assertEquals(Set.of(), names(tools.specs(AccessLevel.GUEST)));
         assertEquals(
-                Set.of("use_skill", "manage_skill"),
+                Set.of("use_skill", "list_skills", "skill_help", "manage_skill"),
                 contributions.catalogMetadata().stream()
                         .map(meta -> meta.name())
                         .collect(Collectors.toSet()));
@@ -56,6 +58,24 @@ class SkillToolsTest {
                 useSkill.parametersSchema().getAsJsonArray("required").asList().stream()
                         .map(value -> value.getAsString())
                         .toList());
+
+        ToolSpec listSkills = tools.specs().stream()
+                .filter(spec -> spec.name().equals("list_skills"))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(
+                Set.of("page"),
+                listSkills.parametersSchema().getAsJsonObject("properties").keySet());
+        JsonObject page =
+                listSkills.parametersSchema().getAsJsonObject("properties").getAsJsonObject("page");
+        assertEquals(0, page.get("minimum").getAsInt());
+        assertEquals(64, page.get("maximum").getAsInt());
+
+        ToolSpec skillHelp = tools.specs().stream()
+                .filter(spec -> spec.name().equals("skill_help"))
+                .findFirst()
+                .orElseThrow();
+        assertTrue(skillHelp.parametersSchema().getAsJsonObject("properties").isEmpty());
 
         ToolSpec manageSkill = tools.specs().stream()
                 .filter(spec -> spec.name().equals("manage_skill"))
@@ -118,6 +138,19 @@ class SkillToolsTest {
                 .error());
         assertEquals(1, access.requestCalls);
         assertEquals(1, access.teachCalls);
+
+        ToolResult listed = tools.listSkills(true, OWNER, OWNER_CALLER, 2);
+        assertEquals("listed:2", listed.content());
+        assertEquals(OWNER, access.listOwner);
+        assertEquals(2, access.listPage);
+        assertEquals("help", tools.helpSkills(true, OWNER, OWNER_CALLER).content());
+        assertEquals(1, access.helpCalls);
+
+        assertTrue(tools.listSkills(false, OWNER, OWNER_CALLER, 0).error());
+        assertTrue(tools.listSkills(true, OWNER, new Caller(OWNER, "Owner", AccessLevel.TRUSTED), 0)
+                .error());
+        assertTrue(tools.helpSkills(true, UUID.randomUUID(), OWNER_CALLER).error());
+        assertEquals(1, access.listCalls);
     }
 
     private static Set<String> names(List<ToolSpec> specs) {
@@ -168,6 +201,25 @@ class SkillToolsTest {
             requestOwner = owner;
             requestedId = id;
             return ToolResult.ok("requested");
+        }
+
+        private UUID listOwner;
+        private int listPage;
+        private int listCalls;
+        private int helpCalls;
+
+        @Override
+        public ToolResult list(UUID owner, int page) {
+            listCalls++;
+            listOwner = owner;
+            listPage = page;
+            return ToolResult.ok("listed:" + page);
+        }
+
+        @Override
+        public ToolResult help() {
+            helpCalls++;
+            return ToolResult.ok("help");
         }
 
         @Override

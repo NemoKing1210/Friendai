@@ -22,7 +22,7 @@ const CATS = [
       "jump|Jump once.", "set_pace|Walk, sprint or sneak pace.", "set_follow_mode|Choose whether it follows when idle.",
       "step|Move by a relative offset.", "back_away|Retreat from a target.", "approach|Walk up to a player, mob or block.",
       "circle|Circle around a point.", "set_follow_distance|How close it stays to the owner.",
-      "~A* pathfinder|Incremental, resumable search that spreads work over ticks.", "~Dig, pillar, bridge|Breaks and places blocks when the way is blocked.",
+      "~A* pathfinder|Incremental, resumable search that spreads work over ticks.", "~Dig, pillar, bridge|Breaks and places blocks when the way is blocked, and walks only a complete stair or bridge: it never stops half way up.",
       "~Stuck recovery|Re-plans when the world disagrees with the path." ] },
   { id: "mining", domain: "hands", name: "Mining & Gathering", icon: "⛏️", color: COLORS.iron,
     desc: "Collects raw materials: trees, ores, drops. Tool choice comes from item data components, never hard-coded tiers.",
@@ -110,7 +110,7 @@ const CATS = [
     desc: "Per-owner memory with strict visibility: guests only see facts about themselves, and trust changes need the owner's confirmation.",
     items: [
       "remember|Store a fact.", "recall|Read facts back.", "forget|Delete a fact.", "trust_player|Raise a player to trusted (needs confirmation).",
-      "untrust_player|Lower trust.", "set_name|Rename the companion.", "use_skill|Load an instruction skill once.", "manage_skill|Propose a skill after a finished goal.",
+      "untrust_player|Lower trust.", "set_name|Rename the companion.", "use_skill|Load an instruction skill once.", "list_skills|List the owner's skills with ids, versions and on/off state.", "skill_help|Read the skill-authoring checklist and its limits.", "manage_skill|Propose a skill after a finished goal.",
       "~Access levels|GUEST < TRUSTED < OWNER on every tool.", "~Language learning|Learns your language after a few samples.", "~Skills advise only|They never change permissions." ] },
   { id: "places", domain: "mind", name: "Places", icon: "📍", color: COLORS.diamond,
     desc: "A book of named places. Autonomous work never breaks inside a known place and takes only from containers in one.",
@@ -179,7 +179,7 @@ const MEM_CARDS = [
     hub: { label: "Owner data", icon: "🗂️", color: COLORS.amethyst, desc: "Memory, profile, goals and free-time stores share one bounded runtime writer; it flushes latest-revision snapshots on a 5 s server-tick cadence. Unsupported versions are never overwritten." },
     color: COLORS.amethyst, items: [
       "~Memory|Facts about players, trust, learned language, food rules.", "~Companion profile|Name, description, language and address.", "~Goals|One primary and three background goals, lessons, replan budget.",
-      "~Free time|Shifts, history, cooldowns, away summaries.", "~Instruction skills|Builtin, global and owner records.", "~Places|Named places with aliases, dimension and visits.",
+      "~Free time|Shifts, history, cooldowns, away summaries.", "~Instruction skills|19 builtins, global and owner records; list_skills and skill_help read, manage_skill writes.", "~Places|Named places with aliases, dimension and visits.",
       "~Placed blocks|Ledger of blocks it placed (cap 512).", "~Knowledge|Observed resources.", "~Trades|Known villager trades.", "~Blueprints|Saved layouts as JSON." ] },
   { title: "In the world save", sub: "Companion entity + SavedData",
     hub: { label: "Companion entity", icon: "🧍", color: COLORS.grass, desc: "Saved with the world; versioned by Mojang's entity data." },

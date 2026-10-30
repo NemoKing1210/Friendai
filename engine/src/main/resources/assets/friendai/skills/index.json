@@ -103,5 +103,169 @@
     "triggers": [],
     "alwaysOn": false,
     "includeProfile": true
+  },
+  {
+    "id": "skill-authoring",
+    "name": "Writing skills",
+    "description": "Turn a finished goal or a failed shift into one reusable procedure.",
+    "turnKinds": [
+      "planning"
+    ],
+    "triggers": [
+      "skill",
+      "lesson",
+      "procedure",
+      "manage_skill",
+      "authoring"
+    ],
+    "alwaysOn": false,
+    "includeProfile": false
+  },
+  {
+    "id": "planning-recovery",
+    "name": "Planning after failure",
+    "description": "Diagnose a failed step and replan only the remainder.",
+    "turnKinds": [],
+    "triggers": [
+      "failed",
+      "failure",
+      "stuck",
+      "retry",
+      "replan",
+      "blocked",
+      "error",
+      "did not"
+    ],
+    "alwaysOn": false,
+    "includeProfile": false
+  },
+  {
+    "id": "navigation-and-terrain",
+    "name": "Routes and terrain",
+    "description": "Let the navigator route, dig and bridge; do not micro-step.",
+    "turnKinds": [],
+    "triggers": [
+      "route",
+      "path",
+      "bridge",
+      "climb",
+      "travel",
+      "get there",
+      "wander"
+    ],
+    "alwaysOn": false,
+    "includeProfile": false
+  },
+  {
+    "id": "mining-and-drops",
+    "name": "Mining and drops",
+    "description": "Run one mining job, take the drop and report what happened.",
+    "turnKinds": [],
+    "triggers": [
+      "mine_block",
+      "ore",
+      "vein",
+      "drop",
+      "coal",
+      "diamond",
+      "mining"
+    ],
+    "alwaysOn": false,
+    "includeProfile": false
+  },
+  {
+    "id": "self-care",
+    "name": "Self-care",
+    "description": "React to hunger, fire, drowning and poison with the offered tools.",
+    "turnKinds": [],
+    "triggers": [
+      "hungry",
+      "food",
+      "on fire",
+      "drowning",
+      "poison",
+      "hurt"
+    ],
+    "alwaysOn": false,
+    "includeProfile": false
+  },
+  {
+    "id": "exploration",
+    "name": "Exploration",
+    "description": "Search from here, remember the spot and come back.",
+    "turnKinds": [],
+    "triggers": [
+      "explore",
+      "search",
+      "scout",
+      "landmark",
+      "survey",
+      "look for"
+    ],
+    "alwaysOn": false,
+    "includeProfile": false
+  },
+  {
+    "id": "combat-tactics",
+    "name": "Combat tactics",
+    "description": "The controller fights; decide, report and resume.",
+    "turnKinds": [
+      "combat"
+    ],
+    "triggers": [
+      "fight",
+      "danger",
+      "mob"
+    ],
+    "alwaysOn": false,
+    "includeProfile": false
+  },
+  {
+    "id": "storage-and-crafting",
+    "name": "Storage and crafting",
+    "description": "Check before crafting, deposit, and keep the tools you need.",
+    "turnKinds": [],
+    "triggers": [
+      "chest",
+      "craft",
+      "smelt",
+      "deposit",
+      "recipe",
+      "furnace",
+      "container"
+    ],
+    "alwaysOn": false,
+    "includeProfile": false
+  },
+  {
+    "id": "social-and-privacy",
+    "name": "Trust and privacy",
+    "description": "Owner, trusted and guest: never leak one player to another.",
+    "turnKinds": [
+      "chat"
+    ],
+    "triggers": [
+      "privacy",
+      "secret",
+      "guest",
+      "trusted"
+    ],
+    "alwaysOn": false,
+    "includeProfile": false
+  },
+  {
+    "id": "mistake-repair",
+    "name": "Repairing mistakes",
+    "description": "Say what went wrong, repair it and verify the fix.",
+    "turnKinds": [],
+    "triggers": [
+      "mistake",
+      "wrong",
+      "incorrect",
+      "my fault",
+      "apolog"
+    ],
+    "alwaysOn": false,
+    "includeProfile": false
   }
 ]

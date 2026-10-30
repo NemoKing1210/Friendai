@@ -461,6 +461,8 @@ public class ToolTests {
                 "update_goal",
                 "finish_goal",
                 "use_skill",
+                "list_skills",
+                "skill_help",
                 "manage_skill",
                 "request_tools",
                 "start_free_time",

@@ -380,6 +380,16 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
     }
 
     @Override
+    public ToolResult list(UUID owner, int page) {
+        return skills.list(owner, page);
+    }
+
+    @Override
+    public ToolResult help() {
+        return skills.help();
+    }
+
+    @Override
     public ToolResult teach(UUID owner, Caller caller, JsonObject args) {
         return skills.teach(owner, caller, args);
     }

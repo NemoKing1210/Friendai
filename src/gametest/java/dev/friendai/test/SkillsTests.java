@@ -150,6 +150,26 @@ public class SkillsTests {
         });
     }
 
+    /** The model's read side: the owner's catalogue and the checklist that survives an unselected turn. */
+    @GameTest(maxTicks = 80)
+    public void readSideListsTheCatalogueAndTheChecklist(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        var player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        var owner = player.getUUID();
+        var state = GameTestSupport.runtime(h.getLevel().getServer());
+        var listed = state.sessions().list(owner, 0);
+        h.assertFalse(listed.error(), "owner catalogue read must succeed: " + listed.content());
+        h.assertTrue(listed.content().contains("builtin:skill-authoring"), "meta-skill is listed");
+        h.assertTrue(listed.content().contains("| on |"), "enabled state is reported");
+        h.assertTrue(!listed.content().contains("After a goal or a shift ends"), "bodies stay out of the catalogue");
+        var help = state.sessions().help();
+        h.assertFalse(help.error(), "authoring checklist must be available");
+        h.assertTrue(
+                help.content().contains("After a goal or a shift ends"), "checklist returns the shipped procedure");
+        h.assertTrue(help.content().contains(String.valueOf(SkillLimits.BODY)), "checklist names the real limit");
+        h.succeed();
+    }
+
     // Typed dispatch: the handler must map the wire request itself, not a legacy JSON envelope.
     @GameTest(maxTicks = 80)
     public void typedCreateEditDeleteReachTheOwnerBook(GameTestHelper h) {

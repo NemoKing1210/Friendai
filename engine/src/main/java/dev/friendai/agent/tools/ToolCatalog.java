@@ -112,7 +112,16 @@ public final class ToolCatalog {
                 "finish_goal",
                 "request_tools",
                 "find_place");
-        core(metas, ToolGroup.MEMORY, "remember", "recall", "forget", "use_skill", "manage_skill");
+        core(
+                metas,
+                ToolGroup.MEMORY,
+                "remember",
+                "recall",
+                "forget",
+                "use_skill",
+                "list_skills",
+                "skill_help",
+                "manage_skill");
         group(
                 metas,
                 ToolGroup.MOVEMENT,

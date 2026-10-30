@@ -8,6 +8,16 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.92.0] - 2026-10-30
+
+### Added
+
+- The companion can read its own instruction catalogue: `list_skills` shows the id, title, source, version, on/off state and a one-line description of every skill it knows, one page at a time.
+- `skill_help` returns the skill-authoring checklist with the real limits, so the rules are available even on a turn where the Writing skills procedure was not selected.
+- A new built-in skill, Writing skills, teaches the companion to turn a finished goal or a failed shift into one reusable procedure instead of losing the lesson.
+- Nine more built-in skills now advise on planning after a failure, routes and terrain, mining and the drops, self-care, exploration, combat, storage and crafting, trust and privacy, and repairing mistakes. Trust and privacy is public, so a guest also receives it.
+- Built-in skill titles follow one naming rule, so adding a catalogue entry is a data file plus two titles.
+
 ## [0.91.1] - 2026-10-30
 
 ### Fixed

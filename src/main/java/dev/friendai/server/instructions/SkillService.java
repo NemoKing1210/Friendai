@@ -21,6 +21,7 @@ public final class SkillService implements AutoCloseable {
     private final SkillStore store;
     private final UnaryOperator<String> redact;
     private final SkillActions actions;
+    private final List<InstructionSkill> builtins;
 
     public SkillService(
             Path dir, Supplier<ServerConfig> config, CompanionProfileRepository profiles, OwnerStoreWriter writer) {
@@ -29,7 +30,7 @@ public final class SkillService implements AutoCloseable {
         redact = SecretRedactor.of(() -> config.get().profiles.values().stream()
                 .map(p -> SecretResolver.resolve(p.apiKey, System::getenv))
                 .toList());
-        var builtins = BuiltinSkills.load(SkillService.class.getClassLoader());
+        builtins = BuiltinSkills.load(SkillService.class.getClassLoader());
         store = writer == null
                 ? new SkillStore(dir, SkillLimits.defaults(), redact)
                 : new SkillStore(dir, SkillLimits.defaults(), redact, writer);
@@ -55,6 +56,27 @@ public final class SkillService implements AutoCloseable {
 
     public List<InstructionSkill> listed(UUID owner) {
         return safe(actions.listed(owner));
+    }
+
+    public ToolResult list(UUID owner, int page) {
+        if (!config.get().skills.enabled) return ToolResult.error("Instruction skills are disabled.");
+        try {
+            return ToolResult.ok(SkillCatalogue.render(safe(actions.listed(owner)), actions.disabled(owner), page));
+        } catch (RuntimeException e) {
+            return ToolResult.error("The instruction catalogue is unavailable.");
+        }
+    }
+
+    public ToolResult help() {
+        var cfg = config.get().skills;
+        if (!cfg.enabled) return ToolResult.error("Instruction skills are disabled.");
+        String body = builtins.stream()
+                .filter(s -> s.id().equals("builtin:skill-authoring"))
+                .map(InstructionSkill::body)
+                .findFirst()
+                .orElse("");
+        if (body.isBlank()) return ToolResult.error("The authoring checklist is unavailable.");
+        return ToolResult.ok(SkillHelp.render(body, cfg.modelWritesPerHour, cfg.writesPerOutcome, cfg.requireApproval));
     }
 
     private List<InstructionSkill> safe(List<InstructionSkill> skills) {

@@ -78,6 +78,8 @@ const RU = {
   "Incremental, resumable search that spreads work over ticks.": "Пошаговый поиск с возобновлением, распределяет работу по тикам.",
   "Dig, pillar, bridge": "Копать, столбить, мостить",
   "Breaks and places blocks when the way is blocked.": "Ломает и ставит блоки, если путь перекрыт.",
+  "Breaks and places blocks when the way is blocked, and walks only a complete stair or bridge: it never stops half way up.":
+    "Ломает и ставит блоки, когда путь перекрыт, и проходит только целиком построенную лестницу или мост: на полпути оно не останавливается.",
   "Stuck recovery": "Выход из застревания",
   "Re-plans when the world disagrees with the path.": "Перепланирует, если мир не совпал с маршрутом.",
 
@@ -308,6 +310,10 @@ const RU = {
   "Memory & Trust": "Память и доверие",
   "Per-owner memory with strict visibility: guests only see facts about themselves, and trust changes need the owner's confirmation.": "Память по владельцам со строгой видимостью: гости видят только факты о себе, а смена доверия требует подтверждения владельца.",
   "Store a fact.": "Запомнить факт.",
+  "List the owner's skills with ids, versions and on/off state.":
+    "Показать навыки владельца: идентификаторы, версии и включённость.",
+  "Read the skill-authoring checklist and its limits.":
+    "Прочитать памятку по написанию навыков и её ограничения.",
   "Read facts back.": "Вспомнить факты.",
   "Delete a fact.": "Удалить факт.",
   "Raise a player to trusted (needs confirmation).": "Сделать игрока доверенным (нужно подтверждение).",
@@ -535,7 +541,8 @@ const RU = {
   "Free time": "Свободное время",
   "Shifts, history, cooldowns, away summaries.": "Смены, история, перезарядки, сводки об отсутствии.",
   "Instruction skills": "Инструктивные навыки",
-  "Builtin, global and owner records.": "Встроенные, глобальные и личные записи.",
+  "19 builtins, global and owner records; list_skills and skill_help read, manage_skill writes.":
+    "19 встроенных, общие и владельческие записи; list_skills и skill_help читают, manage_skill записывает.",
   "Named places with aliases, dimension and visits.": "Именованные места с псевдонимами, измерением и посещениями.",
   "Placed blocks": "Поставленные блоки",
   "Ledger of blocks it placed (cap 512).": "Журнал поставленных им блоков (лимит 512).",

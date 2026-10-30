@@ -100,6 +100,21 @@ class LangFilesTest {
     }
 
     @Test
+    void everyBuiltinSkillHasATitleInBothLanguages() throws IOException {
+        JsonObject en = language("en_us");
+        JsonObject ru = language("ru_ru");
+        List<String> missing = new ArrayList<>();
+        for (var skill :
+                dev.friendai.features.instructions.BuiltinSkills.load(getClass().getClassLoader())) {
+            String key = dev.friendai.features.instructions.BuiltinSkills.titleKey(skill.id())
+                    .orElseThrow();
+            if (!en.has(key)) missing.add("en_us: " + key);
+            if (!ru.has(key)) missing.add("ru_ru: " + key);
+        }
+        assertTrue(missing.isEmpty(), "Missing builtin skill titles: " + missing);
+    }
+
+    @Test
     void everyKeyUsedInCodeExists() throws IOException {
         JsonObject en = language("en_us");
         Pattern keyPattern = Pattern.compile(

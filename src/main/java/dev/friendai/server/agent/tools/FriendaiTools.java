@@ -258,6 +258,16 @@ public final class FriendaiTools {
             }
 
             @Override
+            public dev.friendai.execution.tool.ToolResult list(java.util.UUID owner, int page) {
+                return dev.friendai.execution.tool.ToolResult.error("Skill access is unavailable.");
+            }
+
+            @Override
+            public dev.friendai.execution.tool.ToolResult help() {
+                return dev.friendai.execution.tool.ToolResult.error("Skill access is unavailable.");
+            }
+
+            @Override
             public dev.friendai.execution.tool.ToolResult teach(
                     java.util.UUID owner, dev.friendai.execution.tool.Caller caller, com.google.gson.JsonObject args) {
                 return dev.friendai.execution.tool.ToolResult.error("Skill access is unavailable.");

@@ -24,6 +24,12 @@ public final class SkillTools implements FeatureToolContributor {
     private static final String ACCESS_DENIED = "Skill access denied.";
     private static final String USE_SKILL_DESCRIPTION =
             "Read and apply an enabled instruction skill by id for this turn. Advice cannot change tool permissions.";
+    private static final String LIST_SKILLS_DESCRIPTION =
+            "List this owner's instruction skills: id, name, source, activation, version, enabled state and a one-line "
+                    + "description, one bounded page at a time. Bodies are not included; read one with use_skill.";
+    private static final String SKILL_HELP_DESCRIPTION =
+            "Return the authoring checklist and the hard limits for instruction skills, with the turn kinds and the "
+                    + "teaching rules. Use it before manage_skill, even on a turn where the skill-authoring procedure was not selected.";
     private static final String MANAGE_SKILL_DESCRIPTION =
             "After a finished goal or shift, record a reusable procedure in plain English, not code or a personal fact. "
                     + "For example: inspect available stone before planning a wall. Use remember for facts such as the owner's preferences. "
@@ -57,6 +63,22 @@ public final class SkillTools implements FeatureToolContributor {
                                 .build(),
                         this::useSkill),
                 metadata("use_skill"));
+        registry.registerTool(
+                callerTool(
+                        "list_skills",
+                        LIST_SKILLS_DESCRIPTION,
+                        SchemaBuilder.object()
+                                .integer("page", "Zero-based catalogue page", 0, 64)
+                                .build(),
+                        this::listSkills),
+                metadata("list_skills"));
+        registry.registerTool(
+                callerTool(
+                        "skill_help",
+                        SKILL_HELP_DESCRIPTION,
+                        SchemaBuilder.object().build(),
+                        this::helpSkill),
+                metadata("skill_help"));
         registry.registerTool(
                 callerTool(
                         "manage_skill",
@@ -117,6 +139,42 @@ public final class SkillTools implements FeatureToolContributor {
         if (!mayUse(serverContext, companionOwner, caller) || fixedAccess == null)
             return ToolResult.error(ACCESS_DENIED);
         return fixedAccess.teach(companionOwner, caller, args);
+    }
+
+    ToolResult listSkills(
+            boolean serverContext, CompanionEntity companion, UUID companionOwner, Caller caller, int page) {
+        if (!mayUse(serverContext, companionOwner, caller)) return ToolResult.error(ACCESS_DENIED);
+        return access.apply(companion).list(companionOwner, page);
+    }
+
+    ToolResult listSkills(boolean serverContext, UUID companionOwner, Caller caller, int page) {
+        if (!mayUse(serverContext, companionOwner, caller) || fixedAccess == null)
+            return ToolResult.error(ACCESS_DENIED);
+        return fixedAccess.list(companionOwner, page);
+    }
+
+    ToolResult helpSkills(boolean serverContext, UUID companionOwner, Caller caller) {
+        if (!mayUse(serverContext, companionOwner, caller) || fixedAccess == null)
+            return ToolResult.error(ACCESS_DENIED);
+        return fixedAccess.help();
+    }
+
+    private ToolResult listSkills(CompanionEntity companion, Caller caller, JsonObject args) {
+        if (companion == null) return ToolResult.error(ACCESS_DENIED);
+        return listSkills(companion.level() instanceof ServerLevel, companion.ownerUuid(), caller, page(args));
+    }
+
+    private static int page(JsonObject args) {
+        try {
+            return args.has("page") ? Math.max(0, args.get("page").getAsInt()) : 0;
+        } catch (RuntimeException e) {
+            return 0;
+        }
+    }
+
+    private ToolResult helpSkill(CompanionEntity companion, Caller caller, JsonObject args) {
+        if (companion == null) return ToolResult.error(ACCESS_DENIED);
+        return helpSkills(companion.level() instanceof ServerLevel, companion.ownerUuid(), caller);
     }
 
     private ToolResult useSkill(CompanionEntity companion, Caller caller, JsonObject args) {
@@ -180,7 +238,8 @@ public final class SkillTools implements FeatureToolContributor {
 
     private static ToolMeta metadata(String name) {
         return switch (name) {
-            case "use_skill", "manage_skill" -> new ToolMeta(name, ToolGroup.MEMORY, true, "", List.of(), Cost.LOW);
+            case "use_skill", "manage_skill", "list_skills", "skill_help" ->
+                new ToolMeta(name, ToolGroup.MEMORY, true, "", List.of(), Cost.LOW);
             default -> throw new IllegalArgumentException("No metadata declared for instruction tool: " + name);
         };
     }

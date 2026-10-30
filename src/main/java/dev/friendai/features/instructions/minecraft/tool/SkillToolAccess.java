@@ -9,5 +9,9 @@ import java.util.UUID;
 public interface SkillToolAccess {
     ToolResult request(UUID owner, String id);
 
+    ToolResult list(UUID owner, int page);
+
+    ToolResult help();
+
     ToolResult teach(UUID owner, Caller caller, JsonObject args);
 }

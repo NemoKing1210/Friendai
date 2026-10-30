@@ -170,4 +170,139 @@ class SkillSelectorTest {
         assertTrue(over.mandatoryOverrun());
         assertEquals("M".repeat(300), over.text());
     }
+
+    SkillContext context(AccessLevel access, String message, Set<InstructionSkill.Kind> kinds) {
+        return new SkillContext(
+                new Caller(owner, "Owner", access),
+                message,
+                "",
+                kinds,
+                false,
+                CompanionDescription.EMPTY,
+                OwnerProfile.EMPTY);
+    }
+
+    @Test
+    void eachCataloguedProcedureIsSelectedByItsOwnTrigger() {
+        var all = BuiltinSkills.load(getClass().getClassLoader());
+        Map<String, String> triggers = Map.ofEntries(
+                Map.entry("builtin:planning-recovery", "that failed again"),
+                Map.entry("builtin:navigation-and-terrain", "find a route to the hill"),
+                Map.entry("builtin:mining-and-drops", "mine_block on that ore"),
+                Map.entry("builtin:self-care", "I am hungry"),
+                Map.entry("builtin:exploration", "go explore the valley"),
+                Map.entry("builtin:combat-tactics", "a mob is near"),
+                Map.entry("builtin:storage-and-crafting", "put it in the chest"),
+                Map.entry("builtin:social-and-privacy", "keep this privacy"),
+                Map.entry("builtin:mistake-repair", "that was a mistake"));
+        for (var entry : triggers.entrySet()) {
+            var selected = SkillSelector.select(
+                    all, context(AccessLevel.OWNER, entry.getValue(), Set.of()), Set.of(), 24000, 4096);
+            assertTrue(
+                    selected.skills().stream().anyMatch(s -> s.id().equals(entry.getKey())),
+                    entry.getKey() + " was not selected by its trigger in " + ids(selected));
+            var unrelated =
+                    SkillSelector.select(all, context(AccessLevel.OWNER, "hello", Set.of()), Set.of(), 24000, 4096);
+            assertTrue(
+                    unrelated.skills().stream().noneMatch(s -> s.id().equals(entry.getKey())),
+                    entry.getKey() + " reached an unrelated turn: " + ids(unrelated));
+        }
+    }
+
+    @Test
+    void aGuestSeesOnlyThePublicProcedures() {
+        var all = BuiltinSkills.load(getClass().getClassLoader());
+        var selected = SkillSelector.select(
+                all,
+                context(AccessLevel.GUEST, "keep my privacy", Set.of(InstructionSkill.Kind.CHAT)),
+                Set.of(),
+                24000,
+                4096);
+        assertEquals(
+                Set.of("builtin:verification", "builtin:social-and-privacy"),
+                new HashSet<>(ids(selected)),
+                "a guest gets the public set only");
+    }
+
+    @Test
+    void theWholeCatalogueFitsEveryTurnKindInsideTheShippedSlice() {
+        var all = BuiltinSkills.load(getClass().getClassLoader());
+        record Case(String name, Set<InstructionSkill.Kind> kinds, String message, Set<String> expected) {}
+        var cases = List.of(
+                new Case("planning", Set.of(InstructionSkill.Kind.PLANNING), "", Set.of("builtin:smart-planning")),
+                new Case(
+                        "free time",
+                        Set.of(InstructionSkill.Kind.FREE_TIME, InstructionSkill.Kind.PLANNING),
+                        "",
+                        Set.of("builtin:autonomy")),
+                new Case("chat", Set.of(InstructionSkill.Kind.CHAT), "", Set.of("builtin:memory-discipline")),
+                new Case(
+                        "combat",
+                        Set.of(InstructionSkill.Kind.COMBAT),
+                        "",
+                        Set.of("builtin:survival", "builtin:combat-tactics")),
+                new Case(
+                        "outcome",
+                        Set.of(InstructionSkill.Kind.EVENT),
+                        "completed work outcome: SHIFT_FAILURE: no plan. If a reusable procedure was learned,"
+                                + " manage_skill may save it.",
+                        Set.of("builtin:skill-authoring", "builtin:memory-discipline")));
+        for (var turn : cases) {
+            var selected = SkillSelector.select(
+                    all, context(AccessLevel.OWNER, turn.message(), turn.kinds()), Set.of(), 24000, 4096);
+            var selectedIds = ids(selected);
+            assertTrue(
+                    selectedIds.contains("builtin:verification"), turn.name() + " lost verification: " + selectedIds);
+            assertTrue(
+                    selectedIds.containsAll(turn.expected()),
+                    turn.name() + " misses " + turn.expected() + " in " + selectedIds);
+            assertTrue(selected.renderedChars() <= 4096, turn.name() + " chars " + selected.renderedChars());
+            var tight = SkillSelector.select(
+                    all, context(AccessLevel.OWNER, turn.message(), turn.kinds()), Set.of(), 24000, 2400);
+            assertTrue(tight.renderedChars() <= 2400, turn.name() + " tight chars " + tight.renderedChars());
+            assertTrue(
+                    tight.skills().stream().anyMatch(s -> s.id().equals("builtin:verification")),
+                    turn.name() + " cut verification under the smaller slice");
+        }
+        var explicit = SkillSelector.select(
+                all, context(AccessLevel.OWNER, "", Set.of()), Set.of("builtin:exploration"), 24000, 4096);
+        assertTrue(explicit.skills().stream().anyMatch(s -> s.id().equals("builtin:exploration")));
+    }
+
+    @Test
+    void anOwnerProcedureOutranksABuiltinInTheSameTier() {
+        var snapshot = new ArrayList<>(BuiltinSkills.load(getClass().getClassLoader()));
+        snapshot.add(new InstructionSkill(
+                "owner:mine",
+                "Mine",
+                "",
+                "OWNER_SENTINEL",
+                true,
+                InstructionSkill.Scope.COMPANION,
+                InstructionSkill.Source.OWNER,
+                owner,
+                1,
+                1,
+                1,
+                InstructionSkill.Activation.ACTIVE,
+                false,
+                Set.of(InstructionSkill.Kind.CHAT),
+                List.of(),
+                List.of(),
+                false));
+        var selected = SkillSelector.select(
+                snapshot,
+                context(AccessLevel.OWNER, "hello", Set.of(InstructionSkill.Kind.CHAT)),
+                Set.of(),
+                24000,
+                2400);
+        assertTrue(
+                ids(selected).contains("owner:mine"),
+                "a grown catalogue must not starve an owner procedure: " + ids(selected));
+        assertTrue(selected.renderedChars() <= 2400);
+    }
+
+    private static List<String> ids(SkillSelection selection) {
+        return selection.skills().stream().map(InstructionSkill::id).toList();
+    }
 }

@@ -44,6 +44,11 @@ public final class SkillActions {
         return effective(owner).stream().anyMatch(s -> s.id().equals(id) && s.enabled());
     }
 
+    /** Ids the owner disabled locally; they stay visible in the catalogue but never reach a prompt. */
+    public java.util.Set<String> disabled(UUID owner) {
+        return store.book(owner).disabledIds();
+    }
+
     public List<InstructionSkill> listed(UUID owner) {
         List<InstructionSkill> all = new ArrayList<>(builtins);
         all.addAll(store.global().snapshot());

@@ -6,7 +6,8 @@ import java.util.*;
 
 /** Deterministic literal matching; whole entries fit within a bounded slice of the prompt. */
 public final class SkillSelector {
-    private static final Set<String> PUBLIC = Set.of("builtin:verification", "builtin:trade-etiquette");
+    private static final Set<String> PUBLIC =
+            Set.of("builtin:verification", "builtin:trade-etiquette", "builtin:social-and-privacy");
 
     private SkillSelector() {}
 
@@ -37,6 +38,7 @@ public final class SkillSelector {
         List<InstructionSkill> candidates = snapshot.stream()
                 .filter(s -> eligible(s, c) && rank(s, c, explicit) < 4)
                 .sorted(Comparator.comparingInt((InstructionSkill s) -> rank(s, c, explicit))
+                        .thenComparingInt(s -> s.source() == InstructionSkill.Source.BUILTIN ? 1 : 0)
                         .thenComparing(InstructionSkill::id))
                 .toList();
         int limit = budget(agentBudget, cap), used = 0;

@@ -254,8 +254,8 @@ tasks.register('verifyModArtifact') {
 		if (!(skillIndex instanceof List)) {
 			throw new GradleException("Engine skill index must be a JSON array: ${engineSkillIndex}")
 		}
-		if (skillIndex.size() != 9) {
-			throw new GradleException("Engine skill index must contain 9 entries: ${engineSkillIndex}")
+		if (skillIndex.isEmpty() || skillIndex.size() > 64) {
+			throw new GradleException("Engine skill index must contain 1 to 64 entries: ${engineSkillIndex}")
 		}
 		def skillIds = [] as Set
 		skillIndex.each { skill ->
