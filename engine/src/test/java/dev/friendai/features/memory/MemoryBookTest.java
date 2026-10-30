@@ -117,11 +117,12 @@ class MemoryBookTest {
                                 IllegalArgumentException.class,
                                 () -> b.addFact(Subject.WORLD, Category.NOTE, " \n ", A, "S", 0, L))
                         .getMessage());
+        int max = MemoryLimits.DEFAULTS.maxFactChars();
         assertEquals(
-                "Fact is too long (161 chars, max 160). Shorten it.",
+                "Fact is too long (" + (max + 1) + " chars, max " + max + "). Shorten it.",
                 assertThrows(
                                 IllegalArgumentException.class,
-                                () -> b.addFact(Subject.WORLD, Category.NOTE, "x".repeat(161), A, "S", 0, L))
+                                () -> b.addFact(Subject.WORLD, Category.NOTE, "x".repeat(max + 1), A, "S", 0, L))
                         .getMessage());
     }
 
@@ -218,12 +219,13 @@ class MemoryBookTest {
     @Test
     void limitErrorsAreTypedAndKeepTheModelText() {
         var b = new MemoryBook();
+        int max = MemoryLimits.DEFAULTS.maxFactChars();
         var e = assertThrows(
                 MemoryLimitException.class,
-                () -> b.addFact(Subject.WORLD, Category.NOTE, "x".repeat(161), A, "S", 0, L));
+                () -> b.addFact(Subject.WORLD, Category.NOTE, "x".repeat(max + 1), A, "S", 0, L));
         assertEquals(MemoryLimitException.Kind.TOO_LONG, e.kind());
-        assertEquals(List.of(161, 160), e.values());
-        assertEquals("Fact is too long (161 chars, max 160). Shorten it.", e.getMessage());
+        assertEquals(List.of(max + 1, max), e.values());
+        assertEquals("Fact is too long (" + (max + 1) + " chars, max " + max + "). Shorten it.", e.getMessage());
     }
 
     @Test
