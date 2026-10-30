@@ -338,7 +338,9 @@ Completed work moved out of [TODO.md](TODO.md). **Numbers are stable across both
     of, with up to four sweep rounds per felling; `Stations` judges a station by the live block, so a campfire that has
     gone out stops counting. Quarantined with issue #9 and a 2026-11-14 deadline:
     `BuildTests.foundationSpendingKeepsScaffoldSurplus`, because the builder has no descent step when it stands above
-    the cell it must place (it still runs and reports). Tests that needed a present owner now use
+    the cell it must place (it still runs and reports). Three more were quarantined the same way after the first CI run:
+the chunk-loading anchor, the buried-stone obtain and the sealed-path trade deadline (issues #11-#13, same deadline).
+Tests that needed a present owner now use
     `GameTestSupport.onlinePlayer` (restored work, free time, trading and creative authority, guest tools, skin names),
     and the hill search observes the stone face instead of racing the shared sight budget. 46.2: `./gradlew
     updatePromptGolden`, a failure that names the case and quotes the first differing lines, and `PromptGoldenDiffTest`.
