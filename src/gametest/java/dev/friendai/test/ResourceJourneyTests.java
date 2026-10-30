@@ -114,7 +114,11 @@ public final class ResourceJourneyTests {
         });
     }
 
-    @GameTest(maxTicks = 2400)
+    /**
+     * Closes and rebuilds the server runtime to simulate a restart, so it must not share a batch with any other test:
+     * every test in its batch would lose the runtime it already holds. Its own test environment gives it its own batch.
+     */
+    @GameTest(maxTicks = 2400, environment = "friendai-gametest:restart_resource_journey")
     public void passCoalRestartAskThenReturnAndCollect(GameTestHelper h) {
         GameTestSupport.platformAt(h, 300, 64);
         var owner = GameTestSupport.mockPlayerAt(h, 2, 301, 2);

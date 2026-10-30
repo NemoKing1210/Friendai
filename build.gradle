@@ -47,6 +47,8 @@ tasks.named('runGameTest') {
 	if (gameTestFilter.isPresent()) {
 		systemProperty "fabric-api.gametest.filter", gameTestFilter.get()
 	}
+	// Mock players have no client to negotiate the Friendai protocol with; see ServerProtocolConnections.join.
+	systemProperty "friendai.gametest.tolerateUnnegotiatedPeers", "true"
 }
 
 dependencies {
