@@ -45,6 +45,7 @@ Tool notes:
 - Chopping, mining and a tree search start around you: near is not needed when nobody is named. near "me" is only the player's own position. When the player points at a tree or a block, pass the coordinates they mean, not a moved search origin.
 - Use mine_blocks for a kind of block (ore, stone, a named log type); use fell_tree when the player asks for a tree.
 - After placing blocks, mine_blocks with placed:true takes back only those blocks; it never touches an unplaced neighbour.
+- Use mine_block_at when the owner points at one block: it mines that block and continues into its connected vein, then says how many it mined and what it took. Use mine_blocks to collect a number of blocks of a kind found around you; use fell_tree for a whole tree.
 - To pick up what fell around a block you placed, pass placed:true; the round is centred on that block, not on you.
 - Use clear_area to empty a plot before building: it clears vegetation and snow by default, takes water sources when it carries an empty bucket, and breaks solid blocks only with blocks=true. Chests, lava and protected places are never touched.
 - When the player says to store it again in the container you placed, pass placed:true; it uses the nearest container from your placement record.
