@@ -7,6 +7,7 @@ import dev.friendai.client.audio.WhisperModelManager;
 import dev.friendai.features.speech.ResolvedStt;
 import dev.friendai.features.speech.VoiceReadiness;
 import dev.friendai.foundation.text.UserMessage;
+import dev.friendai.infrastructure.config.ClientConfig;
 import dev.friendai.infrastructure.config.VoiceConfig;
 import dev.friendai.infrastructure.speech.SttClient;
 import dev.friendai.infrastructure.speech.VoiceHttp;
@@ -67,11 +68,16 @@ public final class VoiceRuntime {
 
     /** The recognizer for the configured provider, or one that reports "not ready" when it is unavailable. */
     public static synchronized SpeechToText stt() {
-        ResolvedStt resolved = resolveStt();
+        return stt(FriendaiClient.clientConfig().voice.stt);
+    }
+
+    /** Explicit settings let the settings screen test its detached draft without saving it. */
+    public static synchronized SpeechToText stt(ClientConfig.SttSection settings) {
+        ResolvedStt resolved = resolveStt(settings);
         if (!resolved.local()) {
             return cloudStt(resolved);
         }
-        WhisperModel wanted = WhisperModel.byId(FriendaiClient.clientConfig().voice.stt.local.model);
+        WhisperModel wanted = WhisperModel.byId(settings.local.model);
         if (current != null && wanted.id().equals(currentModel)) {
             return current;
         }
@@ -98,10 +104,13 @@ public final class VoiceRuntime {
 
     /** Whether recognition can run right now, and what to tell the player when it cannot. */
     public static synchronized SttStatus sttStatus() {
-        ResolvedStt resolved = resolveStt();
+        return sttStatus(FriendaiClient.clientConfig().voice.stt);
+    }
+
+    public static synchronized SttStatus sttStatus(ClientConfig.SttSection settings) {
+        ResolvedStt resolved = resolveStt(settings);
         boolean installed = resolved.local()
-                && MANAGER.isInstalled(WhisperModel.byId(FriendaiClient.clientConfig().voice.stt.local.model)
-                        .spec());
+                && MANAGER.isInstalled(WhisperModel.byId(settings.local.model).spec());
         UserMessage problem = VoiceReadiness.stt(resolved, installed);
         if (problem != null) {
             return new SttStatus(false, problem);
@@ -203,10 +212,8 @@ public final class VoiceRuntime {
                 + resolved.language() + "|" + resolved.folderId();
     }
 
-    private static ResolvedStt resolveStt() {
+    private static ResolvedStt resolveStt(ClientConfig.SttSection settings) {
         return VoiceConfig.resolveStt(
-                FriendaiClient.clientConfig().voice.stt,
-                Minecraft.getInstance().getLanguageManager().getSelected(),
-                System::getenv);
+                settings, Minecraft.getInstance().getLanguageManager().getSelected(), System::getenv);
     }
 }

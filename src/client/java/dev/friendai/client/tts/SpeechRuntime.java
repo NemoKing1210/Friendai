@@ -117,6 +117,11 @@ public final class SpeechRuntime {
         if (cfg == null) {
             return;
         }
+        test(cfg);
+    }
+
+    /** Tests unsaved settings without publishing them to the running client. */
+    public static void test(ClientConfig.TtsSection cfg) {
         stop();
         Plan plan = resolve(cfg, false, null, 0);
         String sample = Component.translatable("friendai.voice.tts.sample").getString();

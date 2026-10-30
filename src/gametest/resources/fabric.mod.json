@@ -5,6 +5,7 @@
 	"name": "Friendai GameTests",
 	"environment": "*",
 	"entrypoints": {
+		"fabric-client-gametest": ["dev.friendai.test.client.SettingsScreenTests"],
 		"fabric-gametest": [
 			"dev.friendai.test.FriendaiGameTests",
 			"dev.friendai.test.ProtocolAccessTests",

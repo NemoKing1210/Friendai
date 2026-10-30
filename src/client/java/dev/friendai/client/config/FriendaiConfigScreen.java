@@ -1,6 +1,5 @@
 package dev.friendai.client.config;
 
-import dev.friendai.agent.llm.provider.AuthStyle;
 import dev.friendai.agent.llm.provider.LlmProfile;
 import dev.friendai.agent.llm.provider.ProviderPreset;
 import dev.friendai.agent.llm.provider.ProviderRegistry;
@@ -46,6 +45,7 @@ import dev.isxander.yacl3.api.controller.DoubleSliderControllerBuilder;
 import dev.isxander.yacl3.api.controller.DropdownStringControllerBuilder;
 import dev.isxander.yacl3.api.controller.IntegerFieldControllerBuilder;
 import dev.isxander.yacl3.api.controller.StringControllerBuilder;
+import dev.isxander.yacl3.gui.YACLScreen;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.time.Duration;
@@ -72,43 +72,17 @@ public final class FriendaiConfigScreen {
     private static SettingsSession session;
 
     private static long nextGeneration;
+    private static long screenRevision;
+    private static List<? extends Option<?>> pendingOptions = List.of();
+    private static boolean draftChanged;
+    private static boolean providerKeyRevealed;
+    private static YACLScreen settingsScreen;
+    private static Runnable pendingRebuild;
 
     private FriendaiConfigScreen() {}
 
     private static Component tr(String key) {
         return Component.translatable(key);
-    }
-
-    /**
-     * Unsaved provider settings carried over when the screen is rebuilt (to refresh the model list or toggle
-     * the key field), so the rebuild does not fall back to what is on disk.
-     *
-     * @param revealKey whether the API key field shows the real key instead of a placeholder
-     */
-    private record ProviderDraft(
-            String provider,
-            String baseUrl,
-            String apiKey,
-            String model,
-            Double temperature,
-            int maxTokens,
-            boolean revealKey) {
-        ProviderDraft withProvider(String newProvider) {
-            return new ProviderDraft(newProvider, baseUrl, apiKey, model, temperature, maxTokens, revealKey);
-        }
-
-        ProviderDraft withReveal(boolean reveal) {
-            return new ProviderDraft(provider, baseUrl, apiKey, model, temperature, maxTokens, reveal);
-        }
-
-        /** Never prints the key (rule 7). */
-        @Override
-        public String toString() {
-            return "ProviderDraft[provider=" + provider + ", baseUrl=" + baseUrl
-                    + ", apiKey=" + (apiKey == null || apiKey.isBlank() ? "" : "***")
-                    + ", model=" + model + ", temperature=" + temperature
-                    + ", maxTokens=" + maxTokens + ", revealKey=" + revealKey + "]";
-        }
     }
 
     public static Screen create(Screen parent) {
@@ -123,20 +97,29 @@ public final class FriendaiConfigScreen {
             if (serverConfigReadOnly) server = null;
         }
         if (session != null) session.close();
+        pendingOptions = List.of();
+        draftChanged = false;
+        providerKeyRevealed = false;
         session = SettingsSession.open(++nextGeneration, FriendaiClient.clientConfig(), server, serverConfigReadOnly);
         lifecycle = new SettingsScreenLifecycle(session);
-        return create(parent, null, session.voiceDraft());
+        return create(parent, false, session.voiceDraft());
     }
 
     /**
      * Builds the screen from the open session. Rebuilds carry widget drafts into the same session; nothing is
      * written to the live or persisted configuration until Save.
      */
-    private static Screen create(Screen parent, ProviderDraft draft, VoiceDraft voiceDraft) {
+    private static Screen create(Screen parent, boolean revealKey, VoiceDraft voiceDraft) {
         SettingsSession current = session;
         if (current == null || !current.isOpen()) return parent;
+        applyPending();
+        screenRevision++;
+        pendingRebuild = null;
+        providerKeyRevealed = revealKey;
         SettingsScreenLifecycle currentLifecycle = lifecycle;
-        current.voiceDraft(voiceDraft);
+        current.voiceDraft(VoiceDraft.from(current.clientDraft())
+                .withSttReveal(voiceDraft.sttReveal())
+                .withTtsReveal(voiceDraft.ttsReveal()));
         ClientConfigurationCoordinator configuration = FriendaiClient.runtime().configuration();
         ServerConfig server = current.serverDraft();
         boolean serverConfigReadOnly = current.serverReadOnly();
@@ -148,7 +131,7 @@ public final class FriendaiConfigScreen {
         YetAnotherConfigLib.Builder builder =
                 YetAnotherConfigLib.createBuilder().title(tr("friendai.config.title"));
         if (server != null) {
-            builder.category(providerCategory(parent, server, draft, voice));
+            builder.category(providerCategory(parent, server, revealKey, voice));
             builder.category(companionCategory(server));
             builder.category(chatCategory(server));
             builder.category(memoryCategory(server));
@@ -165,27 +148,93 @@ public final class FriendaiConfigScreen {
         }
         builder.category(voiceCategory(parent, client, voice));
 
-        builder.save(() -> current.publish(configuration::save, configuration::saveServer));
+        builder.save(() -> {
+            current.voiceDraft(VoiceDraft.from(client));
+            current.publish(configuration::save, configuration::saveServer);
+            // YACL's Save button leaves the editor open. A fresh session permits another edit/save,
+            // and makes subsequent Cancel/Undo return to the newly saved configuration.
+            show(create(parent));
+        });
         // The removal listener can only be attached once the screen is initialised: Fabric creates a screen's
-        // event objects at the head of init(), and generateScreen() only constructs the YACLScreen. screenInit
-        // runs inside init(), so hooking there avoids "has not been correctly initialised". init() runs again on
-        // every resize, hence the one-shot flag.
-        boolean[] hooked = {false};
+        // event objects at the head of init(), including on return from a confirmation and on resize.
+        // Compare event identity so every new event gets hooks without duplicating hooks on the same event.
+        Object[] hooked = {null};
         builder.screenInit(screen -> {
-            if (hooked[0]) return;
-            hooked[0] = true;
-            ScreenEvents.remove(screen).register(removed -> {
+            var removeEvent = ScreenEvents.remove(screen);
+            if (hooked[0] == removeEvent) return;
+            hooked[0] = removeEvent;
+            removeEvent.register(removed -> {
                 // YACL replaces this screen with PopupControllerScreen while a dropdown is open.
                 // Its popup flag is already set when removal fires; this is not an editing-session exit.
                 if (session == current) currentLifecycle.removed(screen.popupControllerVisible);
             });
+            ScreenEvents.afterTick(screen).register(ticked -> {
+                if (session == current && Minecraft.getInstance().gui.screen() == screen && pendingRebuild != null) {
+                    Runnable refresh = pendingRebuild;
+                    pendingRebuild = null;
+                    deferRebuild(refresh);
+                }
+            });
         });
-        return builder.build().generateScreen(parent);
+        YetAnotherConfigLib config = builder.build();
+        pendingOptions = config.categories().stream()
+                .flatMap(category -> category.groups().stream())
+                .flatMap(group -> group.options().stream())
+                .toList();
+        settingsScreen = new YACLScreen(config, parent) {
+            @Override
+            public boolean pendingChanges() {
+                return super.pendingChanges() || session == current && draftChanged;
+            }
+
+            @Override
+            public void finishOrSave() {
+                if (pendingChanges()) {
+                    applyPending();
+                    config.saveFunction().run();
+                } else {
+                    onClose();
+                }
+            }
+
+            @Override
+            public void undo() {
+                show(create(parent));
+            }
+        };
+        return settingsScreen;
     }
 
     /** Replaces the screen as a rebuild, so the outgoing screen's removal keeps the session open. */
     private static void show(Screen next) {
+        Screen previous = Minecraft.getInstance().gui.screen();
+        Component tab = previous instanceof YACLScreen screen && screen.tabManager.getCurrentTab() != null
+                ? screen.tabManager.getCurrentTab().getTabTitle()
+                : null;
         lifecycle.replace(() -> Minecraft.getInstance().setScreenAndShow(next));
+        if (tab != null && next instanceof YACLScreen screen) {
+            screen.tabNavigationBar.getTabs().stream()
+                    .filter(candidate -> candidate.getTabTitle().equals(tab))
+                    .findFirst()
+                    .ifPresent(candidate -> screen.tabManager.setCurrentTab(candidate, false));
+        }
+    }
+
+    /** Queue after YACL has finished closing a dropdown; execute() can run inline on the client thread. */
+    private static void deferRebuild(Runnable rebuild) {
+        if (applying) return;
+        SettingsSession expected = session;
+        long revision = screenRevision;
+        YACLScreen expectedScreen = settingsScreen;
+        Minecraft.getInstance().schedule(() -> {
+            if (session != expected || !expected.isOpen() || screenRevision != revision) return;
+            if (Minecraft.getInstance().gui.screen() == expectedScreen) {
+                rebuild.run();
+            } else {
+                // A documentation confirmation or controller popup owns the UI until it returns.
+                pendingRebuild = rebuild;
+            }
+        });
     }
 
     private static Option<String> stringOption(
@@ -201,18 +250,9 @@ public final class FriendaiConfigScreen {
     }
 
     private static ConfigCategory providerCategory(
-            Screen parent, ServerConfig server, ProviderDraft draft, VoiceDraft voiceDraft) {
+            Screen parent, ServerConfig server, boolean revealKey, VoiceDraft voiceDraft) {
         ServerConfig.ProfileConfig p =
                 server.profiles.computeIfAbsent(server.activeProfile, k -> new ServerConfig.ProfileConfig());
-        boolean revealKey = draft != null && draft.revealKey();
-        if (draft != null) {
-            p.provider = draft.provider();
-            p.baseUrl = draft.baseUrl();
-            p.apiKey = draft.apiKey();
-            p.model = draft.model();
-            p.temperature = draft.temperature();
-            p.maxTokens = draft.maxTokens();
-        }
         ProviderRegistry registry = ProviderRegistry.withBuiltins(
                 new HttpTransport(HttpClient.newHttpClient(), Duration.ofSeconds(30), 1, Duration.ofMillis(300)));
         List<String> providerIds =
@@ -220,14 +260,17 @@ public final class FriendaiConfigScreen {
 
         Option<String> profileOpt = Option.<String>createBuilder()
                 .name(tr("friendai.config.profile"))
-                .binding(server.activeProfile, () -> server.activeProfile, v -> server.activeProfile = v)
+                .binding(
+                        server.profiles.containsKey("main") ? "main" : server.activeProfile,
+                        () -> server.activeProfile,
+                        v -> server.activeProfile = v)
                 .controller(o -> DropdownStringControllerBuilder.create(o)
                         .values(new ArrayList<>(server.profiles.keySet()))
                         .allowAnyValue(false))
                 .build();
         Option<String> providerOpt = Option.<String>createBuilder()
                 .name(tr("friendai.config.provider"))
-                .binding(p.provider, () -> p.provider, v -> p.provider = v)
+                .binding(new ServerConfig.ProfileConfig().provider, () -> p.provider, v -> p.provider = v)
                 .controller(o -> DropdownStringControllerBuilder.create(o)
                         .values(providerIds)
                         .allowAnyValue(false))
@@ -250,7 +293,7 @@ public final class FriendaiConfigScreen {
                 .build();
         Option<String> modelOpt = Option.<String>createBuilder()
                 .name(tr("friendai.config.model"))
-                .binding(p.model, () -> p.model, v -> p.model = v)
+                .binding(new ServerConfig.ProfileConfig().model, () -> p.model, v -> p.model = v)
                 .controller(o -> DropdownStringControllerBuilder.create(o)
                         .values(ModelCache.get(p.provider))
                         .allowAnyValue(true)
@@ -285,61 +328,38 @@ public final class FriendaiConfigScreen {
             return new LlmClient(registry, profile);
         };
 
-        java.util.function.Supplier<ProviderDraft> currentDraft = () -> {
-            String base = baseUrlOpt.pendingValue();
-            return new ProviderDraft(
-                    providerOpt.pendingValue(),
-                    base.isBlank() ? null : base.strip(),
-                    pendingKeyValue.get(),
-                    modelOpt.pendingValue(),
-                    temperatureOpt.pendingValue(),
-                    maxTokensOpt.pendingValue(),
-                    revealKey);
-        };
-
         // Fetches the model list for the pending settings, then rebuilds the screen keeping them.
         long generation = session == null ? -1 : session.generation();
-        java.util.function.BiConsumer<ProviderDraft, Boolean> loadModelsThenReopen = (draftNow, reportSuccess) -> {
+        long revision = screenRevision;
+        Runnable loadModelsThenReopen = () -> {
+            String requestedProvider = providerOpt.pendingValue();
             pendingClient
                     .get()
                     .listModels()
                     .whenComplete((models, error) -> Minecraft.getInstance().execute(() -> {
-                        if (session == null || !session.current(generation)) return;
+                        if (session == null || !session.current(generation) || screenRevision != revision) return;
                         if (error != null) {
                             toast(Components.of(ErrorMessages.forUser(error)));
                             return;
                         }
-                        ModelCache.put(draftNow.provider(), models);
-                        if (reportSuccess) {
-                            toast(Component.translatable("friendai.config.models_loaded", models.size()));
-                        }
-                        show(create(parent, draftNow, voiceDraft));
+                        ModelCache.put(requestedProvider, models);
+                        toast(Component.translatable("friendai.config.models_loaded", models.size()));
+                        deferRebuild(() -> show(create(parent, revealKey, voiceDraft)));
                     }));
         };
 
-        // Changing the provider reloads its models, so the dropdown never shows another provider's list.
-        providerOpt.addListener((opt, newProvider) -> {
-            ProviderDraft draftNow = currentDraft.get().withProvider(newProvider);
-            boolean needsKey = registry.preset(newProvider)
-                    .map(x -> x.authStyle() != AuthStyle.NONE)
-                    .orElse(false);
-            boolean hasKey =
-                    !SecretResolver.resolve(draftNow.apiKey(), System::getenv).isBlank();
-            if (needsKey && !hasKey) {
-                Minecraft.getInstance().execute(() -> show(create(parent, draftNow, voiceDraft)));
-            } else {
-                loadModelsThenReopen.accept(draftNow, false);
-            }
-        });
+        // Switch immediately to this provider's cached list, even when it has no key or is offline.
+        // Fetching fresh models remains an explicit button action using the pending credentials.
+        providerOpt.addListener((opt, newProvider) -> deferRebuild(() -> show(create(parent, revealKey, voiceDraft))));
+        profileOpt.addListener((opt, newProfile) -> deferRebuild(() -> show(create(parent, false, voiceDraft))));
 
         ButtonOption loadModels = ButtonOption.createBuilder()
                 .name(tr("friendai.config.load_models"))
-                .action((screen, button) -> loadModelsThenReopen.accept(currentDraft.get(), true))
+                .action((screen, button) -> loadModelsThenReopen.run())
                 .build();
         ButtonOption toggleKey = ButtonOption.createBuilder()
                 .name(tr(revealKey ? "friendai.config.api_key.hide" : "friendai.config.api_key.show"))
-                .action((screen, button) ->
-                        show(create(parent, currentDraft.get().withReveal(!revealKey), voiceDraft)))
+                .action((screen, button) -> deferRebuild(() -> show(create(parent, !revealKey, voiceDraft))))
                 .build();
         ButtonOption testConnection = ButtonOption.createBuilder()
                 .name(tr("friendai.config.test_connection"))
@@ -347,7 +367,7 @@ public final class FriendaiConfigScreen {
                         .get()
                         .testConnection()
                         .whenComplete((result, error) -> Minecraft.getInstance().execute(() -> {
-                            if (session == null || !session.current(generation)) return;
+                            if (session == null || !session.current(generation) || screenRevision != revision) return;
                             toast(error != null ? Components.of(ErrorMessages.forUser(error)) : Components.of(result));
                         })))
                 .build();
@@ -382,7 +402,7 @@ public final class FriendaiConfigScreen {
                 .option(stringOption(
                         "friendai.config.companion.description",
                         () -> c.description,
-                        c.description,
+                        new ServerConfig.CompanionSection().description,
                         v -> c.description = v))
                 .option(Option.<String>createBuilder()
                         .name(tr("friendai.config.companion.language"))
@@ -496,7 +516,7 @@ public final class FriendaiConfigScreen {
                 booleanOption("friendai.config.voice.enabled", true, () -> stt.enabled, value -> stt.enabled = value);
         Option<String> sttProvider = providerOption(
                 "friendai.config.voice.stt.provider",
-                sttPreset.id(),
+                SttPresets.LOCAL,
                 SttPresets.ids(),
                 () -> stt.provider,
                 value -> stt.provider = value,
@@ -505,21 +525,17 @@ public final class FriendaiConfigScreen {
         recognition.add(sttProvider);
         sttProvider.addListener((option, value) -> {
             if (!applying) {
-                reopen(parent, client, sttReveal, ttsReveal, recognition, synthesis);
+                reopen(parent, client, sttReveal, ttsReveal);
             }
         });
 
         if (sttPreset.local()) {
-            recognition.addAll(
-                    localRecognitionOptions(parent, client, stt, recognition, synthesis, sttReveal, ttsReveal));
+            recognition.addAll(localRecognitionOptions(parent, client, stt, sttReveal, ttsReveal));
         } else {
             ClientConfig.CloudSettings sttCloud = cloud(stt.cloud, sttPreset);
-            recognition.addAll(cloudOptions(
-                    sttPreset,
-                    sttCloud,
-                    sttReveal,
-                    () -> reopen(parent, client, !sttReveal, ttsReveal, recognition, synthesis)));
-            recognition.add(statusLabel(VoiceRuntime.sttStatus()));
+            recognition.addAll(
+                    cloudOptions(sttPreset, sttCloud, sttReveal, () -> reopen(parent, client, !sttReveal, ttsReveal)));
+            recognition.add(statusLabel(VoiceRuntime.sttStatus(stt)));
         }
 
         Option<String> sttLanguage = Option.<String>createBuilder()
@@ -534,7 +550,7 @@ public final class FriendaiConfigScreen {
                 .build();
         ButtonOption sttTest = ButtonOption.createBuilder()
                 .name(tr("friendai.config.voice.test"))
-                .action((screen, button) -> testRecording(client, recognition, synthesis))
+                .action((screen, button) -> testRecording(client))
                 .build();
         recognition.add(sttLanguage);
         recognition.add(inputDeviceOption(stt));
@@ -545,7 +561,7 @@ public final class FriendaiConfigScreen {
                 "friendai.config.voice.tts.enabled", false, () -> tts.enabled, value -> tts.enabled = value);
         Option<String> ttsProvider = providerOption(
                 "friendai.config.voice.tts.provider",
-                ttsPreset.id(),
+                TtsPresets.LOCAL,
                 TtsPresets.ids(),
                 () -> tts.provider,
                 value -> tts.provider = value,
@@ -554,19 +570,16 @@ public final class FriendaiConfigScreen {
         synthesis.add(ttsProvider);
         ttsProvider.addListener((option, value) -> {
             if (!applying) {
-                reopen(parent, client, sttReveal, ttsReveal, recognition, synthesis);
+                reopen(parent, client, sttReveal, ttsReveal);
             }
         });
 
         if (ttsPreset.local()) {
-            synthesis.addAll(localSynthesisOptions(parent, client, tts, recognition, synthesis, sttReveal, ttsReveal));
+            synthesis.addAll(localSynthesisOptions(parent, client, tts, sttReveal, ttsReveal));
         } else {
             ClientConfig.CloudSettings ttsCloud = cloud(tts.cloud, ttsPreset);
-            synthesis.addAll(cloudOptions(
-                    ttsPreset,
-                    ttsCloud,
-                    ttsReveal,
-                    () -> reopen(parent, client, sttReveal, !ttsReveal, recognition, synthesis)));
+            synthesis.addAll(
+                    cloudOptions(ttsPreset, ttsCloud, ttsReveal, () -> reopen(parent, client, sttReveal, !ttsReveal)));
             synthesis.add(cloudSpeedOption(ttsCloud, ttsPreset.id()));
             if (ttsPreset.paid()) {
                 synthesis.add(LabelOption.create(tr("friendai.config.voice.tts.paid_notice")));
@@ -595,8 +608,8 @@ public final class FriendaiConfigScreen {
         ButtonOption testVoice = ButtonOption.createBuilder()
                 .name(tr("friendai.config.voice.tts.test"))
                 .action((screen, button) -> {
-                    applyOptions(recognition, synthesis);
-                    SpeechRuntime.test();
+                    applyPending();
+                    SpeechRuntime.test(tts);
                 })
                 .build();
         Option<Boolean> spatial = Option.<Boolean>createBuilder()
@@ -626,13 +639,7 @@ public final class FriendaiConfigScreen {
     }
 
     private static List<Option<?>> localRecognitionOptions(
-            Screen parent,
-            ClientConfig client,
-            ClientConfig.SttSection stt,
-            List<Option<?>> recognition,
-            List<Option<?>> synthesis,
-            boolean sttReveal,
-            boolean ttsReveal) {
+            Screen parent, ClientConfig client, ClientConfig.SttSection stt, boolean sttReveal, boolean ttsReveal) {
         Option<String> model = Option.<String>createBuilder()
                 .name(tr("friendai.config.voice.model"))
                 .binding("base", () -> stt.local.model, value -> stt.local.model = value)
@@ -669,7 +676,7 @@ public final class FriendaiConfigScreen {
                                         } else {
                                             VoiceRuntime.invalidate();
                                             toast(tr("friendai.config.voice.status.installed"));
-                                            reopen(parent, client, sttReveal, ttsReveal, recognition, synthesis);
+                                            reopen(parent, client, sttReveal, ttsReveal);
                                         }
                                     }));
                 })
@@ -677,20 +684,14 @@ public final class FriendaiConfigScreen {
         // The installed label and the download target follow the selection.
         model.addListener((option, value) -> {
             if (!applying) {
-                reopen(parent, client, sttReveal, ttsReveal, recognition, synthesis);
+                reopen(parent, client, sttReveal, ttsReveal);
             }
         });
         return List.of(model, status, download);
     }
 
     private static List<Option<?>> localSynthesisOptions(
-            Screen parent,
-            ClientConfig client,
-            ClientConfig.TtsSection tts,
-            List<Option<?>> recognition,
-            List<Option<?>> synthesis,
-            boolean sttReveal,
-            boolean ttsReveal) {
+            Screen parent, ClientConfig client, ClientConfig.TtsSection tts, boolean sttReveal, boolean ttsReveal) {
         List<String> ids = new ArrayList<>();
         ids.add("");
         for (VoiceModel model : VoiceModels.all()) {
@@ -741,7 +742,7 @@ public final class FriendaiConfigScreen {
                                         } else {
                                             SpeechRuntime.invalidate();
                                             toast(tr("friendai.config.voice.tts.local.status.installed"));
-                                            reopen(parent, client, sttReveal, ttsReveal, recognition, synthesis);
+                                            reopen(parent, client, sttReveal, ttsReveal);
                                         }
                                     }));
                 })
@@ -755,7 +756,7 @@ public final class FriendaiConfigScreen {
         // The license and the installed label describe one voice, so they follow the choice.
         voice.addListener((option, value) -> {
             if (!applying) {
-                reopen(parent, client, sttReveal, ttsReveal, recognition, synthesis);
+                reopen(parent, client, sttReveal, ttsReveal);
             }
         });
         return List.of(voice, status, license, download, speed);
@@ -845,10 +846,10 @@ public final class FriendaiConfigScreen {
         ButtonOption copy = ButtonOption.createBuilder()
                 .name(tr("friendai.config.voice.field.key.copy"))
                 .action((screen, button) -> {
-                    key.applyValue();
-                    Minecraft.getInstance()
-                            .keyboardHandler
-                            .setClipboard(settings.apiKey == null ? "" : settings.apiKey);
+                    String pending = key.pendingValue();
+                    String copied =
+                            pending.equals(SecretResolver.display(settings.apiKey, reveal)) ? settings.apiKey : pending;
+                    Minecraft.getInstance().keyboardHandler.setClipboard(copied == null ? "" : copied);
                     toast(tr("friendai.config.voice.field.key.copied"));
                 })
                 .build();
@@ -951,7 +952,8 @@ public final class FriendaiConfigScreen {
     private static ButtonOption docsButton(VoicePreset preset) {
         return ButtonOption.createBuilder()
                 .name(tr("friendai.config.voice.tts.docs"))
-                .action((screen, button) -> ConfirmLinkScreen.confirmLinkNow(screen, URI.create(preset.docsUrl())))
+                .action((screen, button) ->
+                        lifecycle.replace(() -> ConfirmLinkScreen.confirmLinkNow(screen, URI.create(preset.docsUrl()))))
                 .build();
     }
 
@@ -966,14 +968,12 @@ public final class FriendaiConfigScreen {
     }
 
     /** Writes every widget's pending value into the config, so a rebuild can read it back. */
-    private static void applyOptions(List<Option<?>> first, List<Option<?>> second) {
+    private static void applyPending() {
         boolean previous = applying;
         applying = true;
         try {
-            for (Option<?> option : first) {
-                option.applyValue();
-            }
-            for (Option<?> option : second) {
+            for (Option<?> option : pendingOptions) {
+                if (option.changed()) draftChanged = true;
                 option.applyValue();
             }
         } finally {
@@ -985,19 +985,12 @@ public final class FriendaiConfigScreen {
      * Applies pending edits, then rebuilds with the provider whose entry is now selected. The new
      * provider's own stored values are shown, so a switch never moves the old provider's key or model.
      */
-    private static void reopen(
-            Screen parent,
-            ClientConfig client,
-            boolean sttReveal,
-            boolean ttsReveal,
-            List<Option<?>> recognition,
-            List<Option<?>> synthesis) {
-        applyOptions(recognition, synthesis);
-        VoiceDraft next = VoiceDraft.from(client, client.voice.stt.provider, client.voice.tts.provider)
-                .withSttReveal(sttReveal)
-                .withTtsReveal(ttsReveal);
-        next.applyTo(client);
-        show(create(parent, null, next));
+    private static void reopen(Screen parent, ClientConfig client, boolean sttReveal, boolean ttsReveal) {
+        deferRebuild(() -> {
+            applyPending();
+            VoiceDraft next = VoiceDraft.from(client).withSttReveal(sttReveal).withTtsReveal(ttsReveal);
+            show(create(parent, providerKeyRevealed, next));
+        });
     }
 
     private static VoiceModel effectiveVoice(ClientConfig.TtsSection tts) {
@@ -1044,9 +1037,9 @@ public final class FriendaiConfigScreen {
     }
 
     /** Records three seconds from the microphone and shows what was recognized. */
-    private static void testRecording(ClientConfig client, List<Option<?>> recognition, List<Option<?>> synthesis) {
-        applyOptions(recognition, synthesis);
-        VoiceRuntime.SttStatus status = VoiceRuntime.sttStatus();
+    private static void testRecording(ClientConfig client) {
+        applyPending();
+        VoiceRuntime.SttStatus status = VoiceRuntime.sttStatus(client.voice.stt);
         if (!status.ready()) {
             // The readiness message names the real reason: no key, no folder, unsupported language
             // or only a missing local model.
@@ -1054,7 +1047,7 @@ public final class FriendaiConfigScreen {
             return;
         }
         ClientConfig.SttSection stt = client.voice.stt;
-        SpeechToText recognizer = VoiceRuntime.stt();
+        SpeechToText recognizer = VoiceRuntime.stt(stt);
         if (!recognizer.isReady()) {
             toast(Component.translatable("friendai.voice.error.no_model"));
             return;

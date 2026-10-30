@@ -49,6 +49,7 @@ JAVA_HOME="/path/to/jdk-25" ./gradlew build
 | `./gradlew :engine:test --tests 'dev.friendai.<package>.*'` | Tests only the selected pure engine package. |
 | `./gradlew test --tests '*SomeTest'` | One unit test class; root `test` also aggregates `:engine:test`. |
 | `./gradlew compileGametestJava` | Compiles GameTest sources without booting Minecraft. |
+| `./gradlew runClientGameTest` | Opens an isolated Minecraft client and checks the YACL settings fields, transitions, save/cancel/reset and local HTTP previews in English and Russian. Requires a display; does not call paid providers. |
 | `./gradlew runGameTest` | In-game tests only. Boots a Minecraft server and runs the whole suite (several minutes). |
 | `./gradlew runGameTest -Dfabric-api.gametest.filter='friendai-gametest:<class>_tests_*'` | One GameTest class (or one test by its full id) in under a minute. The filter is a single glob with `*` wildcards; it cannot exclude tests or list several patterns. |
 | `./gradlew check` | Unit tests + GameTests + `spotlessCheck`, without packaging. |
