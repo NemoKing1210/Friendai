@@ -13,7 +13,7 @@ class ServerConfigRuntimeSettingsTest {
         config.tasks.freeTimeWatchdogSec = 0;
         config.validate();
         assertEquals(1, config.tasks.freeTimeWatchdogSec);
-        assertEquals(18, ServerConfig.VERSION);
+        assertEquals(19, ServerConfig.VERSION);
     }
 
     @Test

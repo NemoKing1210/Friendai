@@ -7,11 +7,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.friendai.agent.llm.model.ToolCall;
+import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.testutil.FakeGateway;
 import dev.friendai.testutil.FakeToolExecutor;
 import dev.friendai.testutil.ManualScheduler;
 import dev.friendai.testutil.RecordingSpeaker;
-import dev.friendai.execution.tool.ToolResult;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Test;
 class CompanionBrainObserverTest {
     private static final class Recorder implements BrainObserver {
         final List<String> calls = new ArrayList<>();
+        final List<String> replies = new ArrayList<>();
 
         @Override
         public void onEvent(BrainEvent e) {
@@ -35,6 +36,11 @@ class CompanionBrainObserverTest {
         @Override
         public void onAssistantText(String text) {
             calls.add("text:" + text);
+        }
+
+        @Override
+        public void onReply(dev.friendai.execution.tool.Caller caller, String text) {
+            replies.add(caller.name() + ":" + text);
         }
 
         @Override
@@ -107,6 +113,22 @@ class CompanionBrainObserverTest {
         assertEquals(
                 List.of("event:[Steve]: stay", "text:thinking", "call:stay", "result:stay:ok stay", "text:done"),
                 recorder.calls);
+    }
+
+    @Test
+    void reportsOnlyTheTextThePlayerActuallyHeard() {
+        gateway.enqueue(calls("thinking", call("c1", "stay")));
+        gateway.enqueue(text("done"));
+        brain.post(said("stay"));
+        assertEquals(List.of("Steve:thinking", "Steve:done"), recorder.replies);
+    }
+
+    @Test
+    void doesNotReportAReplyWhenNothingWasSaid() {
+        gateway.enqueue(calls("", call("c1", "stay")));
+        gateway.enqueue(text(""));
+        brain.post(said("stay"));
+        assertTrue(recorder.replies.isEmpty());
     }
 
     @Test

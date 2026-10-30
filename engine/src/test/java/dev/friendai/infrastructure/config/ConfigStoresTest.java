@@ -74,8 +74,37 @@ class ConfigStoresTest {
     }
 
     @Test
+    void schema18KeepsItsMemoryValuesAndGainsTheTranscriptDefaults() throws IOException {
+        Path path = dir.resolve("server-18-memory.json");
+        Files.writeString(path, "{\"version\":18,\"memory\":{\"enabled\":false,\"maxFactsPerPlayer\":12}}");
+        ServerConfig config = ConfigStores.server(path).load();
+        assertEquals(ServerConfig.VERSION, config.version);
+        assertFalse(config.memory.enabled);
+        assertEquals(12, config.memory.maxFactsPerPlayer);
+        assertEquals(200, config.memory.transcriptMaxEntries);
+        assertEquals(400, config.memory.transcriptMaxTextChars);
+        assertEquals(7, config.memory.transcriptRetentionDays);
+        assertEquals(90, config.memory.compactAtPercent);
+        assertTrue(config.memory.compactionEnabled);
+    }
+
+    @Test
+    void transcriptAndCompactionSettingsAreClamped() {
+        ServerConfig config = ServerConfig.defaults();
+        config.memory.transcriptMaxEntries = 1;
+        config.memory.transcriptMaxTextChars = 99_999;
+        config.memory.transcriptRetentionDays = 0;
+        config.memory.compactAtPercent = 10;
+        config.validate();
+        assertEquals(20, config.memory.transcriptMaxEntries);
+        assertEquals(2_000, config.memory.transcriptMaxTextChars);
+        assertEquals(1, config.memory.transcriptRetentionDays);
+        assertEquals(50, config.memory.compactAtPercent);
+    }
+
+    @Test
     void eachSupportedServerVersionPreservesProfilesAndExplicitChoices() throws IOException {
-        for (int version = 3; version < 18; version++) {
+        for (int version = 3; version < 19; version++) {
             Path path = dir.resolve("server-" + version + ".json");
             String original = """
                     {"version":%d,"activeProfile":"custom","profiles":{"custom":{
@@ -107,6 +136,9 @@ class ConfigStoresTest {
             assertEquals(4, config.tasks.placeIntervalTicks);
             assertTrue(config.mining.protectDrops);
             assertEquals(9, config.mining.catchBlocks);
+            assertEquals(200, config.memory.transcriptMaxEntries);
+            assertEquals(90, config.memory.compactAtPercent);
+            assertTrue(config.memory.compactionEnabled);
             assertFalse(store.hasUnsupportedVersion());
             assertFalse(store.hasProtectedRecovery());
             store.save(config);

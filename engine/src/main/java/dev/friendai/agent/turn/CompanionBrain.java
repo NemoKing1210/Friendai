@@ -606,6 +606,8 @@ public final class CompanionBrain {
                 spoken = guarded.get();
                 speaker.say(spoken, turnCaller.uuid());
                 rememberSpoken(spoken);
+                String heard = spoken;
+                observe(o -> o.onReply(turnCaller, heard));
             }
         }
         List<ToolCall> calls = response.toolCalls();

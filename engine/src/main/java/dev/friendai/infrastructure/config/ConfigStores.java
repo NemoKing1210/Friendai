@@ -27,7 +27,8 @@ public final class ConfigStores {
                     ADDITIVE, // 14 -> 15: planner attempts
                     ADDITIVE, // 15 -> 16: free-time watchdog
                     ADDITIVE, // 16 -> 17: build pace
-                    ADDITIVE)); // 17 -> 18: mining drop protection
+                    ADDITIVE, // 17 -> 18: mining drop protection
+                    ADDITIVE)); // 18 -> 19: transcript retention and memory compaction
     private static final ConfigMigration CLIENT = new ConfigMigration(
             1,
             List.of(

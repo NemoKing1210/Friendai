@@ -9,6 +9,7 @@ import dev.friendai.agent.llm.model.ToolCall;
 import dev.friendai.agent.llm.model.ToolSpec;
 import dev.friendai.agent.turn.AccessResolver;
 import dev.friendai.agent.turn.BrainEvent;
+import dev.friendai.agent.turn.BrainObservers;
 import dev.friendai.agent.turn.BrainSettings;
 import dev.friendai.agent.turn.CompanionBrain;
 import dev.friendai.agent.turn.DebugLogObserver;
@@ -28,9 +29,11 @@ import dev.friendai.features.memory.CompanionProfileRepository;
 import dev.friendai.features.memory.MemoryActions;
 import dev.friendai.features.memory.MemoryLimits;
 import dev.friendai.features.memory.MemoryPromptRenderer;
+import dev.friendai.features.memory.PlayerRecord;
 import dev.friendai.features.memory.PlayerRef;
 import dev.friendai.features.memory.minecraft.tool.MemoryAccess;
 import dev.friendai.features.memory.minecraft.tool.TrustAccess;
+import dev.friendai.features.memory.transcript.TranscriptObserver;
 import dev.friendai.features.placements.minecraft.PlacedService;
 import dev.friendai.features.places.PlaceCandidate;
 import dev.friendai.features.places.PlaceText;
@@ -43,6 +46,7 @@ import dev.friendai.infrastructure.config.ServerConfig;
 import dev.friendai.infrastructure.persistence.memory.MemoryStore;
 import dev.friendai.infrastructure.persistence.places.PlaceStore;
 import dev.friendai.infrastructure.persistence.trading.TradeStore;
+import dev.friendai.infrastructure.persistence.transcript.TranscriptStore;
 import dev.friendai.perception.resource.ResourceCandidates;
 import dev.friendai.server.agent.chat.CompanionSpeaker;
 import dev.friendai.server.agent.perception.PerceptionContext;
@@ -73,6 +77,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
     private final MinecraftServer server;
     private final ServerBrainScheduler scheduler;
     private final MemoryStore memory;
+    private final TranscriptStore transcripts;
     private final CompanionProfileRepository profiles;
     private final Supplier<ServerSettings> settings;
     private final SkillService skills;
@@ -103,6 +108,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
             MinecraftServer server,
             ServerConfig initial,
             MemoryStore memory,
+            TranscriptStore transcripts,
             CompanionProfileRepository profiles,
             Supplier<ServerSettings> settings,
             SkillService skills,
@@ -119,6 +125,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
         this.server = server;
         this.scheduler = new ServerBrainScheduler(server);
         this.memory = memory;
+        this.transcripts = transcripts;
         this.profiles = profiles;
         this.settings = settings;
         this.skills = skills;
@@ -858,7 +865,17 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                 false,
                 companion.combatController().state()
                         != dev.friendai.features.combat.minecraft.CombatController.State.IDLE));
-        brain.setObserver(new DebugLogObserver(debug.logOf(owner)));
+        brain.setObserver(BrainObservers.of(
+                new DebugLogObserver(debug.logOf(owner)),
+                new TranscriptObserver(
+                        transcripts.book(owner),
+                        owner,
+                        System::currentTimeMillis,
+                        gateways.redactor(),
+                        uuid -> memory.book(owner)
+                                .player(uuid)
+                                .map(PlayerRecord::lastName)
+                                .orElse(""))));
         brain.setPlannerPort(new GamePlannerPort(owner, companion, session.replacedPlans()));
         brain.setAgentSettings(() -> new dev.friendai.agent.turn.AgentSettings(
                 config.agent.toolRouting,

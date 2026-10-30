@@ -14,6 +14,9 @@ public interface BrainObserver {
 
     default void onAssistantText(String text) {}
 
+    /** The text a player actually heard, after the reply guard; silent and empty lines are not reported. */
+    default void onReply(dev.friendai.execution.tool.Caller caller, String text) {}
+
     default void onToolCall(ToolCall call) {}
 
     default void onToolResult(ToolCall call, ToolResult result) {}

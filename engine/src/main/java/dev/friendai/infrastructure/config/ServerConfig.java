@@ -16,7 +16,7 @@ import java.util.function.Function;
 
 /** friendai-server.json. */
 public class ServerConfig {
-    public static final int VERSION = 18;
+    public static final int VERSION = 19;
 
     public int version = VERSION;
     public String activeProfile = "main";
@@ -172,9 +172,23 @@ public class ServerConfig {
         public int maxFactChars = 512;
         public int maxFactsPerPlayer = 128;
         public int maxWorldFacts = 128;
+        /** The most conversation lines kept per owner, both sides together. */
+        public int transcriptMaxEntries = 200;
+
+        public int transcriptMaxTextChars = 400;
+        public int transcriptRetentionDays = 7;
+        /** Fill share of a facts book at which the model is told it is full. */
+        public int compactAtPercent = 90;
+        /** Whether the model may apply a memory compaction (a dry run is always allowed). */
+        public boolean compactionEnabled = true;
 
         public MemoryLimits limits() {
             return new MemoryLimits(maxFactChars, maxFactsPerPlayer, maxWorldFacts);
+        }
+
+        public dev.friendai.features.memory.transcript.TranscriptLimits transcriptLimits() {
+            return dev.friendai.features.memory.transcript.TranscriptLimits.fromConfig(
+                    transcriptMaxEntries, transcriptMaxTextChars, transcriptRetentionDays);
         }
     }
 
@@ -463,6 +477,13 @@ public class ServerConfig {
         memory.maxFactChars = clamp(problems, "memory.maxFactChars", memory.maxFactChars, 40, 512);
         memory.maxFactsPerPlayer = clamp(problems, "memory.maxFactsPerPlayer", memory.maxFactsPerPlayer, 1, 128);
         memory.maxWorldFacts = clamp(problems, "memory.maxWorldFacts", memory.maxWorldFacts, 1, 200);
+        memory.transcriptMaxEntries =
+                clamp(problems, "memory.transcriptMaxEntries", memory.transcriptMaxEntries, 20, 2_000);
+        memory.transcriptMaxTextChars =
+                clamp(problems, "memory.transcriptMaxTextChars", memory.transcriptMaxTextChars, 100, 2_000);
+        memory.transcriptRetentionDays =
+                clamp(problems, "memory.transcriptRetentionDays", memory.transcriptRetentionDays, 1, 90);
+        memory.compactAtPercent = clamp(problems, "memory.compactAtPercent", memory.compactAtPercent, 50, 100);
         return problems;
     }
 

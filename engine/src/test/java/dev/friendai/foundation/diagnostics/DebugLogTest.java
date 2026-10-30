@@ -65,4 +65,53 @@ class DebugLogTest {
         assertEquals(LogKind.TASK, e.kind());
         assertEquals(1000L, e.timeMillis());
     }
+
+    @Test
+    void queryFiltersKindAndIdWindow() {
+        DebugLog log = log(10, 100, UnaryOperator.identity());
+        log.add(LogKind.USER, "u");
+        log.add(LogKind.ASSISTANT, "a");
+        log.add(LogKind.USER, "u2");
+        log.add(LogKind.TOOL_CALL, "t");
+
+        assertEquals(
+                List.of(2L),
+                log.query(new DebugLog.Query(java.util.Set.of(LogKind.ASSISTANT), 0, 0, 10, false)).stream()
+                        .map(LogEntry::id)
+                        .toList());
+        assertEquals(
+                List.of(3L),
+                log.query(new DebugLog.Query(java.util.Set.of(), 2, 4, 10, false)).stream()
+                        .map(LogEntry::id)
+                        .toList());
+    }
+
+    @Test
+    void queryReturnsTheRequestedEndAndReversesNewestFirst() {
+        DebugLog log = log(10, 100, UnaryOperator.identity());
+        for (int i = 1; i <= 5; i++) {
+            log.add(LogKind.USER, "m" + i);
+        }
+        assertEquals(
+                List.of(1L, 2L),
+                log.query(new DebugLog.Query(java.util.Set.of(), 0, 0, 2, false)).stream()
+                        .map(LogEntry::id)
+                        .toList());
+        assertEquals(
+                List.of(5L, 4L),
+                log.query(new DebugLog.Query(java.util.Set.of(), 0, 0, 2, true)).stream()
+                        .map(LogEntry::id)
+                        .toList());
+    }
+
+    @Test
+    void firstIdTracksTheBuffer() {
+        DebugLog log = log(2, 100, UnaryOperator.identity());
+        assertEquals(1L, log.firstId());
+        log.add(LogKind.USER, "a");
+        log.add(LogKind.USER, "b");
+        log.add(LogKind.USER, "c");
+        assertEquals(2L, log.firstId());
+        assertEquals(2L, log.size());
+    }
 }

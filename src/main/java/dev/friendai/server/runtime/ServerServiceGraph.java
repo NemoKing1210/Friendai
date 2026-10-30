@@ -41,6 +41,7 @@ import dev.friendai.infrastructure.persistence.memory.MemoryStore;
 import dev.friendai.infrastructure.persistence.placements.PlacedStore;
 import dev.friendai.infrastructure.persistence.places.PlaceStore;
 import dev.friendai.infrastructure.persistence.trading.TradeStore;
+import dev.friendai.infrastructure.persistence.transcript.TranscriptStore;
 import dev.friendai.perception.resource.ObservationScheduler;
 import dev.friendai.perception.resource.ResourceCandidates;
 import dev.friendai.server.agent.CompanionSessions;
@@ -64,6 +65,7 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
     private final TaskPersistenceCoordinator taskPersistence;
     private final CompanionChunkLoader chunkLoader;
     private final MemoryStore memory;
+    private final TranscriptStore transcripts;
     private final CompanionProfileStore profiles;
     private final GoalStore goalStore;
     private final FreeTimeStore freeTimeStore;
@@ -105,6 +107,10 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
         logProblems(configuration.apply(config));
         this.memory = resources.own(new MemoryStore(
                 server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("memory"), writer));
+        this.transcripts = resources.own(new TranscriptStore(
+                server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("transcript"),
+                () -> this.config.memory.transcriptLimits(),
+                writer));
         this.profiles = resources.own(new CompanionProfileStore(
                 server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("profiles"), writer));
         this.skills = resources.own(new SkillService(
@@ -152,6 +158,7 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
                 server,
                 config,
                 memory,
+                transcripts,
                 profiles,
                 this::settings,
                 skills,
@@ -238,6 +245,11 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
     /** Per-owner memory books: facts, trust and player records, learned language, and food rules. */
     public MemoryStore memory() {
         return memory;
+    }
+
+    /** Per-owner conversation transcripts, kept beside the memory books. */
+    public TranscriptStore transcripts() {
+        return transcripts;
     }
 
     /** Owner-authored companion identity and communication settings. */
