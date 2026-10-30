@@ -8,6 +8,13 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.93.1] - 2026-10-30
+
+### Fixed
+
+- A companion no longer spends its last building block on a single rise it cannot climb: when a stair or bridge needs more blocks than it carries, it gathers them first or gives the job up instead of leaving a stump in the way.
+- A companion boxed in with no way out now reports that the target is unreachable instead of crashing the walk while it looks for building material.
+
 ## [0.93.0] - 2026-10-30
 
 ### Added

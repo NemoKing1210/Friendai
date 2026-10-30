@@ -879,6 +879,32 @@ public class PathingTests {
         });
     }
 
+    @GameTest(maxTicks = 400)
+    public void companionEnclosedInBedrockReportsUnreachableWithoutBuilding(GameTestHelper h) {
+        GameTestSupport.platform(h, 14);
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                h.setBlock(new BlockPos(2 + dx, 1, 2 + dz), Blocks.BEDROCK);
+                h.setBlock(new BlockPos(2 + dx, 4, 2 + dz), Blocks.BEDROCK);
+                if (dx != 0 || dz != 0) {
+                    h.setBlock(new BlockPos(2 + dx, 2, 2 + dz), Blocks.BEDROCK);
+                    h.setBlock(new BlockPos(2 + dx, 3, 2 + dz), Blocks.BEDROCK);
+                }
+            }
+        }
+        CompanionEntity c = walker(h, 2.5f, 2, 2.5f);
+        c.inventory().addItem(new ItemStack(Items.DIRT, 16));
+        Outcome out = new Outcome();
+        walkTo(c, h, out, 10.5, 2, 10.5);
+
+        h.succeedWhen(() -> {
+            h.assertTrue(out.status == TaskStatus.FAILED, "a walled-in companion must give up: " + out.why());
+            h.assertTrue(!out.summary.contains("crashed"), "giving up must not be a crash: " + out.why());
+            h.assertTrue(
+                    c.inventory().countItem(Items.DIRT) == 16, "it must not spend blocks on a way that is not there");
+        });
+    }
+
     /** A walled corridor along z=11: high ground, a one-block drop at x=6, a three-block drop at x=12. */
     private static void descentCorridor(GameTestHelper h, int base) {
         GameTestSupport.platformAt(h, base, 24);

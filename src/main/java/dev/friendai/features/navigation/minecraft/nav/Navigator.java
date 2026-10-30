@@ -367,13 +367,18 @@ public final class Navigator {
             return;
         }
         if (probed) {
+            if (path == null || path.steps().isEmpty()) {
+                // A probe that finds no route at all cannot be a missing material: the companion is walled in.
+                state = State.UNREACHABLE;
+                return;
+            }
             if (result.status() == SearchResult.Status.FOUND) {
                 startGathering(c, path);
                 return;
             }
             // A probe that could not finish is limited by range or the node budget, not by material. Walk what it
             // planned before its first placement; a half-built stair is never walked.
-            Path prefix = path == null ? null : path.passagePrefix().orElse(null);
+            Path prefix = path.passagePrefix().orElse(null);
             if (prefix != null) {
                 beginExecution(c, prefix);
                 return;
