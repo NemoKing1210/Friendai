@@ -37,11 +37,19 @@ import net.minecraft.server.level.ServerLevel;
 public final class TaskRestoreRegistry {
     /** Checkpoint decoders composed from the current contribution set, keyed by the persisted task type. */
     private static final Map<String, CheckpointRestorer> BUILTIN_CHECKPOINTS = Map.of(
-            "follow", NavigationCheckpoints::follow,
-            "stay", NavigationCheckpoints::stay,
-            "go_to", NavigationCheckpoints::goTo,
-            "tend_farm", FarmCheckpoints::tendFarm,
-            "build_structure", BuildCheckpoints::build);
+            "follow",
+            NavigationCheckpoints::follow,
+            "stay",
+            NavigationCheckpoints::stay,
+            "go_to",
+            NavigationCheckpoints::goTo,
+            "tend_farm",
+            FarmCheckpoints::tendFarm,
+            "build_structure",
+            (state, context) -> BuildCheckpoints.build(
+                    state,
+                    context,
+                    dev.friendai.features.construction.minecraft.task.BuildTask.ObtainFactory.UNAVAILABLE));
 
     private final Map<String, TaskToolDefinition> taskTools;
     private final Map<String, TaskToolDefinition> planTools;

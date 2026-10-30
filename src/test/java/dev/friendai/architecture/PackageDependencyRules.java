@@ -86,7 +86,8 @@ final class PackageDependencyRules {
             "dev.friendai.server.execution.tools.TaskToolDefinition",
             "dev.friendai.server.execution.tools.TaskToolDefinition$Factory",
             "dev.friendai.server.execution.tools.TaskToolDefinition$CallerFactory",
-            "dev.friendai.server.execution.tools.TaskToolDefinition$QueueTraits");
+            "dev.friendai.server.execution.tools.TaskToolDefinition$QueueTraits",
+            "dev.friendai.server.execution.tools.CheckpointRestorer");
     /** Immutable records carried by menu views; feature policies and repositories remain outside presentation. */
     private static final Set<String> PRESENTATION_FEATURE_VIEW_TYPES = Set.of(
             "dev.friendai.features.instructions.InstructionSkill",

@@ -18,7 +18,7 @@ import net.minecraft.world.level.block.Rotation;
 public final class BuildCheckpoints {
     private BuildCheckpoints() {}
 
-    public static Optional<Task> build(TaskState state, TaskContext context) {
+    public static Optional<Task> build(TaskState state, TaskContext context, BuildTask.ObtainFactory obtainFactory) {
         if (context == null || context.level() == null) return Optional.empty();
         try {
             String[] p = state.data().split(",");
@@ -48,7 +48,6 @@ public final class BuildCheckpoints {
                     .orElse(null);
             if (inProgress == null || inProgress.rotation() != rotation) return Optional.empty();
             Blueprint blueprint = inProgress.blueprint();
-            var obtainFactory = new dev.friendai.server.execution.tools.MinecraftObtainSubtaskFactory();
             return Optional.of(BuildTask.resume(
                     blueprint,
                     origin,
@@ -58,7 +57,7 @@ public final class BuildCheckpoints {
                     inProgress.scaffold(),
                     p[0],
                     Set.copyOf(parts),
-                    obtainFactory::createForBuild));
+                    obtainFactory));
         } catch (RuntimeException invalid) {
             return Optional.empty();
         }

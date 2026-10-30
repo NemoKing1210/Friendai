@@ -134,7 +134,8 @@ final class BuildTools {
                 },
                 true,
                 "build_structure",
-                dev.friendai.features.construction.minecraft.task.BuildCheckpoints::build);
+                (state, context) -> dev.friendai.features.construction.minecraft.task.BuildCheckpoints.build(
+                        state, context, obtainFactory));
         ConstructionToolSupport.registerTool(
                 registry,
                 ToolGroup.BLUEPRINT,
