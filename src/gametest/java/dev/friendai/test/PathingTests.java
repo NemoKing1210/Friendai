@@ -1242,12 +1242,23 @@ public class PathingTests {
         }
     }
 
-    /** A three-block wall the companion may not break: only a stair of two rises gets over it. */
-    private static void plankWall(GameTestHelper h, int base) {
-        for (int x = 5; x < 16; x++) {
-            for (int z = 0; z < 16; z++) {
+    /** A companion whose pathing may not leave the platform that starts at {@code base}. */
+    private static CompanionEntity platformWalker(GameTestHelper h, int base, int x, int z) {
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, x, base + 1, z);
+        c.setPathBounds(
+                new AABB(h.absoluteVec(new Vec3(-1, base - 1, -1)), h.absoluteVec(new Vec3(17, base + 12, 17))));
+        return c;
+    }
+
+    /** Unbreakable planks around a one-block shaft three blocks deep: only a stair of two rises gets out. */
+    private static void plankShaft(GameTestHelper h, int base) {
+        for (int x = 5; x <= 11; x++) {
+            for (int z = 5; z <= 11; z++) {
                 for (int y = base + 1; y <= base + 3; y++) {
-                    h.setBlock(new BlockPos(x, y, z), Blocks.OAK_PLANKS);
+                    boolean shaft = x == 8 && z == 8;
+                    if (!shaft) {
+                        h.setBlock(new BlockPos(x, y, z), Blocks.OAK_PLANKS);
+                    }
                 }
             }
         }
@@ -1292,34 +1303,41 @@ public class PathingTests {
     }
 
     @GameTest(maxTicks = 800)
-    public void goToDoesNotSpendItsOnlyBlockOnAHalfStair(GameTestHelper h) {
-        int base = 300;
+    public void goToDoesNotSpendItsOnlyBlockOnAStair(GameTestHelper h) {
+        int base = 100;
         GameTestSupport.platformAt(h, base, 16);
-        plankWall(h, base);
-        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, base + 1, 8);
+        plankShaft(h, base);
+        CompanionEntity c = platformWalker(h, base, 8, 8);
         c.inventory().addItem(new ItemStack(Items.DIRT, 1));
         Outcome out = new Outcome();
-        walkTo(c, h, out, 8.5, base + 4, 8.5);
+        walkTo(c, h, out, 5.5, base + 4, 8.5);
         h.succeedWhen(() -> {
             h.assertTrue(out.status != null, "go_to did not finish: " + out.why());
-            h.assertTrue(out.status != TaskStatus.SUCCESS, "the wall must not be scaled on one block: " + out.why());
-            int dirt = countInArena(h, base, Blocks.DIRT);
-            h.assertTrue(dirt == 0, dirt + " dirt placed on a stair it cannot finish; " + out.why());
+            h.assertTrue(out.status != TaskStatus.SUCCESS, "the shaft must not be left on one block: " + out.why());
+            int placed = countInArena(h, base, Blocks.DIRT);
+            int held = c.inventory().countItem(Items.DIRT);
+            h.assertTrue(
+                    placed == 0 && held == 1,
+                    "the only block was spent on a stair it cannot finish: placed " + placed + ", still held " + held
+                            + ", at " + c.blockPosition() + "; " + out.why());
         });
     }
 
     @GameTest(maxTicks = 800)
-    public void goToClimbsTheWholeStairInOnePlan(GameTestHelper h) {
-        int base = 320;
+    public void goToClimbsOutOfAShaftInOnePlan(GameTestHelper h) {
+        int base = 140;
         GameTestSupport.platformAt(h, base, 16);
-        plankWall(h, base);
-        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, base + 1, 8);
+        plankShaft(h, base);
+        CompanionEntity c = platformWalker(h, base, 8, 8);
         c.inventory().addItem(new ItemStack(Items.DIRT, 8));
         Outcome out = new Outcome();
-        walkTo(c, h, out, 8.5, base + 4, 8.5);
+        walkTo(c, h, out, 5.5, base + 4, 5.5);
         h.succeedWhen(() -> {
-            h.assertTrue(out.status == TaskStatus.SUCCESS, "did not climb the stair: " + out.why());
-            h.assertTrue(c.getY() >= base + 3.9, "stopped below the top at " + c.position());
+            h.assertTrue(
+                    out.status == TaskStatus.SUCCESS,
+                    "did not climb out: " + out.why() + " at " + c.blockPosition() + ", dirt placed "
+                            + countInArena(h, base, Blocks.DIRT));
+            h.assertTrue(c.getY() >= base + 3.9, "stopped below the rim at " + c.position());
             h.assertTrue(
                     plannedPlaces(out) >= 2, "the passage was not planned as one stair of two rises: " + out.why());
         });

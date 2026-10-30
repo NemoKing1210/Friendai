@@ -367,14 +367,13 @@ public final class Navigator {
             return;
         }
         if (probed) {
-            if (result.status() != SearchResult.Status.PARTIAL) {
+            if (result.status() == SearchResult.Status.FOUND) {
                 startGathering(c, path);
                 return;
             }
-            // A range-limited probe may contain more construction than the inventory can afford.  Walk its
-            // affordable prefix first: it gets the companion closer without committing to gather an unknown
-            // amount.  If construction is the very first move, gather only enough for that first step.
-            Path prefix = affordablePrefix(path, availableAtProbe);
+            // A probe that could not finish is limited by range or the node budget, not by material. Walk what it
+            // planned before its first placement; a half-built stair is never walked.
+            Path prefix = path == null ? null : path.passagePrefix().orElse(null);
             if (prefix != null) {
                 beginExecution(c, prefix);
                 return;
@@ -393,7 +392,19 @@ public final class Navigator {
             beginProbe();
             return;
         }
-        beginExecution(c, path);
+        Path passage = path.passagePrefix().orElse(null);
+        if (passage == null) {
+            // The search stopped at the first rise of a stair or bridge it cannot finish with what the companion
+            // carries: walking it would spend the block and strand the companion. Learn the price of the whole
+            // passage (or the rest of it) and gather that instead.
+            if (!mayPlace || !config().allowPlace() || gatherRounds >= GATHER_ROUNDS) {
+                state = State.UNREACHABLE;
+                return;
+            }
+            beginProbe();
+            return;
+        }
+        beginExecution(c, passage);
     }
 
     private void beginExecution(TaskContext c, Path path) {
@@ -404,25 +415,6 @@ public final class Navigator {
         plan = PathSmoother.simplify(trimmed, new LevelCellView(companion, config(), CostModel.DEFAULTS, breakList));
         executor = new PathExecutor(plan, materials(config()), config(), PathExecutionGuard.DEFAULT, ledger, breakList);
         state = State.MOVING;
-    }
-
-    /** Returns the longest prefix whose placements the probe-start inventory can pay for. */
-    private static @Nullable Path affordablePrefix(Path path, int available) {
-        int places = 0;
-        int breaks = 0;
-        double cost = 0.0;
-        List<PathStep> steps = new ArrayList<>();
-        for (PathStep step : path.steps()) {
-            int nextPlaces = places + step.places().size();
-            if (nextPlaces > available) {
-                break;
-            }
-            steps.add(step);
-            places = nextPlaces;
-            breaks += step.breaks().size();
-            cost += step.cost();
-        }
-        return steps.isEmpty() ? null : new Path(steps, cost, breaks, places, true);
     }
 
     /** Retains just enough of a probe path to determine the first unavailable construction cost. */

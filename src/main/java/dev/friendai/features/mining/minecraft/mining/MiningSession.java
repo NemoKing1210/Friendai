@@ -115,6 +115,7 @@ public final class MiningSession {
         this.mustRelocateFromSupport =
                 this.targets.stream().anyMatch(pos -> pos.equals(blockPos(initialNode.support())));
         this.closeApproach = false;
+        this.remainingSteps = List.of();
         rememberCurrentSupport();
     }
 
@@ -135,6 +136,7 @@ public final class MiningSession {
         this.search = null;
         this.goal = null;
         this.exploration = null;
+        this.remainingSteps = List.of();
         rememberCurrentSupport();
     }
 
@@ -191,6 +193,21 @@ public final class MiningSession {
         return completedExplorationSteps;
     }
 
+    /**
+     * Every cell the planned passage still has to break, the running chain first, for the debug overlay: the owner
+     * sees the corridor of the whole plan instead of only the step under execution.
+     */
+    public List<Pos> plannedBreaks() {
+        List<Pos> cells = new ArrayList<>();
+        for (PathStep step : activeSteps) {
+            cells.addAll(step.breaks());
+        }
+        for (PathStep step : remainingSteps) {
+            cells.addAll(step.breaks());
+        }
+        return cells;
+    }
+
     public void stop(TaskContext context) {
         if (executor != null) {
             executor.stop(context);
@@ -202,11 +219,17 @@ public final class MiningSession {
         }
         search = null;
         exploration = null;
+        activeSteps = List.of();
+        remainingSteps = List.of();
     }
 
     private State tickTargets(TaskContext context) {
         if (targets.isEmpty()) {
             return fail("friendai.mining.unreachable");
+        }
+        State resumed = continueRemaining(context);
+        if (resumed != null) {
+            return resumed;
         }
         if (search == null) {
             createTargetSearch(context);
@@ -225,8 +248,14 @@ public final class MiningSession {
             }
             return retryPlan("friendai.mining.unreachable");
         }
+        Path passage = path.passagePrefix().orElse(null);
+        if (passage == null) {
+            // A partial route that places a block is a stair cut short; the route that would reach is planned from
+            // the material the companion carries, so search again rather than spend the block on half a rise.
+            return retryPlan("friendai.mining.unreachable");
+        }
         Node current = node();
-        if (path.steps().isEmpty()) {
+        if (passage.steps().isEmpty()) {
             var visibleTarget = goal.targetAt(current, guard(context).planningView(context, context.pathingConfig()));
             if (visibleTarget.isEmpty()) {
                 excludedStances.add(current);
@@ -249,8 +278,23 @@ public final class MiningSession {
             extraction = new BreakAction(target);
             return State.WORKING;
         }
-        return executeSteps(
-                context, path.steps().subList(0, Math.min(path.steps().size(), MAX_CHAIN)));
+        return executeSteps(context, passage.steps());
+    }
+
+    /**
+     * Walks the rest of the passage already planned instead of searching for it again. Only when its first step still
+     * starts where the companion stands; the executor checks every step against the live world and a stale step
+     * fails the run, which drops the rest.
+     */
+    private State continueRemaining(TaskContext context) {
+        if (remainingSteps.isEmpty()) {
+            return null;
+        }
+        if (!remainingSteps.get(0).from().equals(node())) {
+            remainingSteps = List.of();
+            return null;
+        }
+        return executeSteps(context, remainingSteps);
     }
 
     private State tickExplore(TaskContext context) {
@@ -292,6 +336,7 @@ public final class MiningSession {
             executor.stop(context);
             executor = null;
             activeSteps = List.of();
+            remainingSteps = List.of();
             search = null;
             exploration = null;
             return retryPlan("friendai.mining.unsafe_passage");
@@ -388,22 +433,27 @@ public final class MiningSession {
 
     /**
      * Walks a run of consecutive steps without planning in between. The executor still checks every step against the
-     * live world, so a stale step fails and the next plan starts from where the companion stands.
+     * live world, so a stale step fails and the next plan starts from where the companion stands. The steps beyond the
+     * chain stay planned: the next tick continues the same passage instead of searching for the same route again.
      */
     private State executeSteps(TaskContext context, List<PathStep> steps) {
         long remaining = maxBlocks - brokenBlocks;
         List<PathStep> chain = new ArrayList<>();
         long breaks = 0;
         double cost = 0;
+        int consumed = 0;
         for (PathStep step : steps) {
-            if (breaks + step.breaks().size() > remaining) {
+            if (chain.size() >= MAX_CHAIN || breaks + step.breaks().size() > remaining) {
                 break;
             }
             breaks += step.breaks().size();
             cost += step.cost();
             chain.add(step);
+            consumed++;
         }
+        remainingSteps = List.copyOf(steps.subList(consumed, steps.size()));
         if (chain.isEmpty()) {
+            remainingSteps = List.of();
             return exhaust(context);
         }
         Path route = new Path(chain, cost, (int) breaks, 0, false);
@@ -490,6 +540,7 @@ public final class MiningSession {
         }
         search = null;
         exploration = null;
+        remainingSteps = List.of();
         if (noProgressPlans >= 3) {
             return fail(reason);
         }
@@ -549,6 +600,9 @@ public final class MiningSession {
 
     /** The steps of the route the running executor walks; empty while none runs. */
     private List<PathStep> activeSteps = List.of();
+
+    /** The planned steps after the running chain: the rest of the same passage, walked before planning again. */
+    private List<PathStep> remainingSteps = List.of();
 
     private static String phaseFor(Move move) {
         return switch (move) {

@@ -1,5 +1,6 @@
 package dev.friendai.test;
 
+import dev.friendai.debug.DebugTarget;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.features.mining.MiningBounds;
@@ -313,6 +314,52 @@ public class MiningTests {
                     outcome.status == TaskStatus.SUCCESS,
                     "iron was not mined: " + outcome.status + " " + outcome.summary + ", at "
                             + companion.blockPosition().toShortString());
+        });
+    }
+
+    @GameTest(maxTicks = 2400)
+    public void miningDrawsTheWholePlannedPassage(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 130, 10);
+        for (int x = 3; x <= 5; x++) {
+            for (int z = 3; z <= 7; z++) {
+                for (int y = 131; y <= 132; y++) h.setBlock(x, y, z, Blocks.STONE);
+            }
+        }
+        BlockPos ore = new BlockPos(6, 131, 5);
+        h.setBlock(ore, Blocks.IRON_ORE);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 1, 131, 5);
+        companion.inventory().addItem(Items.IRON_PICKAXE.getDefaultInstance());
+        companion.setOwner(java.util.UUID.randomUUID());
+        BlockPos absOre = h.absolutePos(ore);
+        BlockPos at = companion.blockPosition();
+        GameTestSupport.runtime(h.getLevel().getServer())
+                .resourceCandidates()
+                .observe(
+                        companion,
+                        new dev.friendai.features.knowledge.ResourceObservation(
+                                "minecraft:iron_ore",
+                                new dev.friendai.features.knowledge.ResourceObservation.Location(
+                                        h.getLevel().dimension().identifier().toString(),
+                                        new Pos(absOre.getX(), absOre.getY(), absOre.getZ())),
+                                new Pos(at.getX(), at.getY(), at.getZ()),
+                                h.getLevel().getServer().overworld().getGameTime()));
+        Outcome outcome = new Outcome();
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 300, () -> false);
+        runner.setEventSink(outcome);
+        runner.start(new MineBlocksTask(BlockMatcher.parse("minecraft:iron_ore").orElseThrow(), 1, 10), "mine_blocks");
+        boolean[] passageShown = {false};
+        h.succeedWhen(() -> {
+            runner.tick();
+            runner.current().ifPresent(task -> {
+                for (DebugTarget target : task.debugTargets()) {
+                    passageShown[0] |= target.detail().equals("Path obstacle");
+                }
+            });
+            h.assertTrue(outcome.status != null, "mining did not finish at " + companion.blockPosition());
+            h.assertTrue(
+                    outcome.status == TaskStatus.SUCCESS,
+                    "iron was not mined: " + outcome.status + " " + outcome.summary);
+            h.assertTrue(passageShown[0], "the overlay never showed the cells of the planned passage");
         });
     }
 

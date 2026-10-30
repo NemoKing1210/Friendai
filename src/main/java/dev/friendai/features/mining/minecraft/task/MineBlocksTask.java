@@ -47,6 +47,8 @@ public final class MineBlocksTask implements Task {
     private static final double FEET_RADIUS = 1.5;
     /** Allow the shared sight scheduler to inspect newly exposed faces before declaring the vein exhausted. */
     private static final int OBSERVATION_WAIT_TICKS = 400;
+    /** How many cells of the planned passage the overlay draws around a mining session. */
+    private static final int PASSAGE_DEBUG_CELLS = 64;
 
     private BlockBreaker breaker;
     private MiningSession miningSession;
@@ -106,8 +108,22 @@ public final class MineBlocksTask implements Task {
     @Override
     public List<DebugTarget> debugTargets() {
         if (miningSessionActive) {
+            List<DebugTarget> cells = new ArrayList<>();
             BlockPos target = miningSession == null ? null : miningSession.target();
-            return target == null ? List.of() : List.of(target(target));
+            if (target != null) {
+                cells.add(target(target));
+            }
+            if (miningSession != null) {
+                // The corridor of the whole planned passage, not only the step under execution: a half stair or a
+                // dead end is visible to the owner before the companion walks into it.
+                for (Pos pos : miningSession.plannedBreaks()) {
+                    if (cells.size() >= PASSAGE_DEBUG_CELLS) {
+                        break;
+                    }
+                    cells.add(new DebugTarget(pos.x(), pos.y(), pos.z(), DebugAction.BREAK, "Path obstacle"));
+                }
+            }
+            return cells;
         }
         if (breaker == null) {
             return List.of();
