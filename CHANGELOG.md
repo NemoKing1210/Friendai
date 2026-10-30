@@ -13,6 +13,7 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 ### Changed
 
 - The Tasks tab shows each task's arguments as readable chips instead of raw JSON: the block or item with its icon and name, the coordinates as X Y Z, and the count. Item ids in task results and history are shown by their game names, and tool names read as plain words.
+- The Overview tab's Activity card is laid out as labelled rows (free time, next step, budget, last result, planner model) with item icons and game names instead of one block of text.
 
 ## [0.94.0] - 2026-10-30
 

@@ -3,6 +3,8 @@ package dev.friendai.client.ui;
 import dev.friendai.presentation.companion.CompanionSnapshot;
 import dev.friendai.presentation.companion.CompanionVitals;
 import dev.friendai.protocol.control.ControlRequest;
+import java.util.ArrayList;
+import java.util.List;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;
@@ -247,56 +249,68 @@ final class ControlTab extends StatefulMenuTab {
         Ui.card(g, left, top, width, height);
         Ui.heading(g, font, Component.translatable("friendai.menu.activity"), left + PAD, top + 6, width - 2 * PAD);
         g.enableScissor(left + 1, top + 18, left + width - 1, top + height - 1);
-        String text = s.present() ? s.currentTask() : "";
-        if (s.freeTimeOn()) {
-            String free = freeTimeLines(s);
-            if (!free.isEmpty()) {
-                text = free + (text.isEmpty() ? "" : "\n" + text);
-            }
-        }
+        int innerWidth = width - 2 * PAD;
+        List<Row> rows = new ArrayList<>();
         CompanionVitals v = s.vitals();
         if (s.present() && v.action() != null && !v.action().isEmpty() && !"none".equals(v.action())) {
-            String active = Component.translatable(
-                            "friendai.menu.combat.active", actionName(v.action()), reasonName(v.reason()))
-                    .getString();
-            text = active + (text.isEmpty() ? "" : "\n" + text);
+            rows.add(new Row(
+                    "friendai.menu.activity.doing",
+                    Ui.BAD,
+                    Component.translatable(
+                                    "friendai.menu.combat.active", actionName(v.action()), reasonName(v.reason()))
+                            .getString()));
         }
-        QueuePanel.draw(g, font, text, left + PAD, top + 20, width - 2 * PAD);
+        if (s.freeTimeOn()) {
+            addFreeTime(rows, s);
+        }
+        int labelWidth = 54;
+        for (Row row : rows) {
+            labelWidth = Math.max(labelWidth, font.width(Component.translatable(row.key())) + 8);
+        }
+        int y = top + 20;
+        for (Row row : rows) {
+            y += QueuePanel.row(
+                    g,
+                    font,
+                    Component.translatable(row.key()),
+                    row.color(),
+                    labelWidth,
+                    row.text(),
+                    left + PAD,
+                    y,
+                    innerWidth);
+        }
+        if (!rows.isEmpty()) {
+            g.fill(left + PAD, y, left + width - PAD, y + 1, Ui.BORDER);
+            y += 5;
+        }
+        QueuePanel.draw(g, font, s.present() ? s.currentTask() : "", left + PAD, y, innerWidth);
         g.disableScissor();
     }
 
-    /** The free-time lines the activity card shows before the current task. */
-    static String freeTimeLines(CompanionSnapshot s) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(
-                s.freeTimeActivity().isBlank()
-                        ? Component.translatable(
-                                        s.freeTimeWaiting()
-                                                ? "friendai.menu.free_time.waiting"
-                                                : "friendai.menu.free_time.on")
-                                .getString()
-                        : Component.translatable("friendai.menu.free_time.activity", s.freeTimeActivity())
-                                .getString());
+    private record Row(String key, int color, String text) {}
+
+    private static void addFreeTime(List<Row> rows, CompanionSnapshot s) {
+        String status = s.freeTimeActivity().isBlank()
+                ? Component.translatable(
+                                s.freeTimeWaiting()
+                                        ? "friendai.menu.activity.free_waiting"
+                                        : "friendai.menu.activity.free_on")
+                        .getString()
+                : s.freeTimeActivity();
+        rows.add(new Row("friendai.menu.activity.free_time", Ui.PURPLE, status));
         if (!s.freeTimeNext().isBlank()) {
-            sb.append('\n')
-                    .append(Component.translatable("friendai.menu.free_time.next", s.freeTimeNext(), s.freeTimeBudget())
-                            .getString());
-        } else if (!s.freeTimeBudget().isBlank()) {
-            sb.append('\n')
-                    .append(Component.translatable("friendai.menu.free_time.budget", s.freeTimeBudget())
-                            .getString());
+            rows.add(new Row("friendai.menu.activity.next", Ui.ACCENT, s.freeTimeNext()));
+        }
+        if (!s.freeTimeBudget().isBlank()) {
+            rows.add(new Row("friendai.menu.activity.budget", Ui.DIM, s.freeTimeBudget()));
         }
         if (!s.freeTimeLast().isBlank()) {
-            sb.append('\n')
-                    .append(Component.translatable("friendai.menu.free_time.last", s.freeTimeLast())
-                            .getString());
+            rows.add(new Row("friendai.menu.activity.last", Ui.GOOD, s.freeTimeLast()));
         }
         if (!s.freeTimePlannerModel().isBlank()) {
-            sb.append('\n')
-                    .append(Component.translatable("friendai.menu.free_time.planner_model", s.freeTimePlannerModel())
-                            .getString());
+            rows.add(new Row("friendai.menu.activity.model", Ui.DIM, s.freeTimePlannerModel()));
         }
-        return sb.toString();
     }
 
     static Component combatName(String protection, String style) {

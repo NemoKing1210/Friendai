@@ -94,6 +94,18 @@ final class TaskChips {
         }
     }
 
+    /** The icon of the first item or block id mentioned in {@code text}, or an empty stack. */
+    static ItemStack firstStack(String text) {
+        Matcher m = ID.matcher(text);
+        while (m.find()) {
+            ItemStack stack = stackOf(m.group());
+            if (!stack.isEmpty()) {
+                return stack;
+            }
+        }
+        return ItemStack.EMPTY;
+    }
+
     /** The text with every {@code namespace:id} replaced by the game's name for that item or block. */
     static String humanize(String text) {
         Matcher m = ID.matcher(text);
