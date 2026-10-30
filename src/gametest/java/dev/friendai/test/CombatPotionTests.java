@@ -44,7 +44,11 @@ public class CombatPotionTests {
         h.succeed();
     }
 
-    @GameTest
+    /**
+     * Quarantined: the splash effect and the health read are one tick apart, so CI once saw the zombie at full health.
+     * Issue #18, deadline 2026-11-14; the test still runs and reports, it just does not fail the required gate.
+     */
+    @GameTest(required = false)
     public void undeadEffectSemanticsMatchVanilla(GameTestHelper h) {
         GameTestSupport.platform(h, 15);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
