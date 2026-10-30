@@ -6,11 +6,11 @@ import dev.friendai.features.memory.MemoryBook;
 import dev.friendai.features.memory.MemoryRecord;
 import dev.friendai.features.memory.MemoryRepository;
 import dev.friendai.foundation.persistence.StoreCodec;
+import dev.friendai.foundation.persistence.StoreReadOnlyReason;
 import dev.friendai.foundation.persistence.StoreWriteStatus;
 import dev.friendai.foundation.persistence.UnsupportedStoreVersionException;
 import dev.friendai.infrastructure.persistence.OwnerFileStore;
 import dev.friendai.infrastructure.persistence.OwnerStoreWriter;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Set;
@@ -26,6 +26,8 @@ public final class MemoryStore implements MemoryRepository, AutoCloseable {
     private final LongSupplier clock;
     private final OwnerFileStore<MemoryBook> store;
     private final Set<UUID> corruptionNotices = new HashSet<>();
+    /** Owners whose first load already decided whether a corruption notice is due. */
+    private final Set<UUID> loaded = new HashSet<>();
 
     /** Standalone store for tests; it owns its writer. */
     public MemoryStore(Path dir, LongSupplier clock) {
@@ -43,12 +45,10 @@ public final class MemoryStore implements MemoryRepository, AutoCloseable {
 
     @Override
     public synchronized MemoryBook book(UUID owner) {
-        Path file = dir.resolve(owner + ".json");
-        Path backup = file.resolveSibling(file.getFileName() + ".bak");
-        boolean hadFile = Files.exists(file);
-        boolean hadBackup = Files.exists(backup);
         MemoryBook book = store.book(owner);
-        if (hadFile && !hadBackup && Files.exists(backup)) corruptionNotices.add(owner);
+        // Corrupt recovery is decided once, by the load itself; repeated calls are cache hits with no file I/O.
+        if (loaded.add(owner) && store.status(owner).readOnlyReason() == StoreReadOnlyReason.CORRUPT)
+            corruptionNotices.add(owner);
         return book;
     }
 

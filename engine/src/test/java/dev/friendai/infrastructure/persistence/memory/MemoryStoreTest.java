@@ -3,6 +3,7 @@ package dev.friendai.infrastructure.persistence.memory;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -68,6 +69,24 @@ class MemoryStoreTest {
         assertTrue(Files.exists(dir.resolve(A + ".json.bak")));
         assertTrue(store.takeCorruptionNotice(A));
         assertFalse(store.takeCorruptionNotice(A));
+        store.close();
+    }
+
+    @Test
+    void cachedBookReadsKeepIdentityRevisionAndOneNotice() throws IOException {
+        Files.writeString(dir.resolve(A + ".json"), "{broken");
+        MemoryStore store = new MemoryStore(dir, () -> 0);
+
+        MemoryBook first = store.book(A);
+        long revision = first.revision();
+        MemoryBook second = store.book(A);
+
+        assertSame(first, second, "a cached book must stay the same instance");
+        assertEquals(revision, second.revision(), "a cache hit must not change the revision");
+        assertTrue(store.takeCorruptionNotice(A), "the first load reports the corrupt file");
+        assertFalse(store.takeCorruptionNotice(A), "the notice is one-shot");
+        store.book(A);
+        assertFalse(store.takeCorruptionNotice(A), "a later cache hit must not raise another notice");
         store.close();
     }
 
