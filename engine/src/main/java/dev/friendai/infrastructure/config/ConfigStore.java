@@ -87,6 +87,7 @@ public final class ConfigStore<T> {
             if (value == null) {
                 throw new IllegalStateException("empty config");
             }
+            protectedRecovery = false;
             return value;
         } catch (UnsupportedStoreVersionException e) {
             unsupported = true;

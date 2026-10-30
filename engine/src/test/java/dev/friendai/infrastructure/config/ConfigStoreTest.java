@@ -91,6 +91,32 @@ class ConfigStoreTest {
     }
 
     @Test
+    void anExternallyRepairedFileClearsTheProtection() throws IOException {
+        Path file = dir.resolve("friendai-server.json");
+        Path backup = dir.resolve("friendai-server.json.bak");
+        Files.writeString(file, "{oops");
+        Files.createDirectory(backup);
+        ConfigStore<Sample> store = store();
+        store.load();
+        assertTrue(store.hasProtectedRecovery());
+
+        Files.delete(backup);
+        Files.writeString(file, "{\"version\":1,\"name\":\"repaired\"}");
+        assertEquals("repaired", store.load().name);
+
+        assertFalse(store.hasProtectedRecovery(), "a healthy load clears the protection");
+        Sample edited = new Sample();
+        edited.name = "editable";
+        store.save(edited);
+        assertEquals(
+                "editable",
+                JsonParser.parseString(Files.readString(file))
+                        .getAsJsonObject()
+                        .get("name")
+                        .getAsString());
+    }
+
+    @Test
     void saveIsAtomicAndRoundTrips() throws IOException {
         ConfigStore<Sample> store = store();
         Sample s = new Sample();

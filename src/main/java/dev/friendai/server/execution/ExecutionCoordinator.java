@@ -1001,29 +1001,37 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     }
 
     public long persistenceActiveJobId() {
+        // A task waiting for its owner to log in is still the active work of its job: a save must keep the
+        // document consistent (one RUNNING job with its active id) or the whole queue would be discarded.
+        if (pendingRestoredTask != null && pendingRestoredJobId > 0) return pendingRestoredJobId;
         return activeTask() != null && activeTask().jobId() > 0
                 ? activeTask().jobId()
                 : frozenTask() == null ? 0 : frozenTask().jobId();
     }
 
     public Optional<TaskState> persistenceTaskState() {
+        if (pendingRestoredTask != null) return persistenceState(pendingRestoredTask, "pending restored task");
         ActiveTask active = activeTask() != null && activeTask().jobId() > 0
                 ? activeTask()
                 : frozenTask() != null ? frozenTask() : activeTask();
         if (active == null || active.defaultActivity() || active.task().type().equals("follow"))
             return Optional.empty();
+        return persistenceState(active.task(), "task " + active.toolName());
+    }
+
+    private Optional<TaskState> persistenceState(Task task, String label) {
         String data;
         try {
-            data = active.task().saveData();
+            data = task.saveData();
         } catch (RuntimeException error) {
-            LOGGER.warn("Task {} failed to save its checkpoint", active.toolName(), error);
+            LOGGER.warn("{} failed to save its checkpoint", label, error);
             return Optional.empty();
         }
         if (data == null) return Optional.empty();
         try {
-            return Optional.of(new TaskState(active.task().type(), data));
+            return Optional.of(new TaskState(task.type(), data));
         } catch (IllegalArgumentException oversized) {
-            LOGGER.warn("Task {} checkpoint exceeds the save limit", active.toolName());
+            LOGGER.warn("{} checkpoint exceeds the save limit", label);
             return Optional.empty();
         }
     }

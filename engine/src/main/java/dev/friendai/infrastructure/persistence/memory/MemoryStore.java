@@ -22,7 +22,6 @@ public final class MemoryStore implements MemoryRepository, AutoCloseable {
     public static final long FLUSH_INTERVAL_MS = OwnerFileStore.FLUSH_INTERVAL_MS;
     private static final Gson GSON =
             new GsonBuilder().setPrettyPrinting().serializeNulls().create();
-    private final Path dir;
     private final LongSupplier clock;
     private final OwnerFileStore<MemoryBook> store;
     private final Set<UUID> corruptionNotices = new HashSet<>();
@@ -31,14 +30,12 @@ public final class MemoryStore implements MemoryRepository, AutoCloseable {
 
     /** Standalone store for tests; it owns its writer. */
     public MemoryStore(Path dir, LongSupplier clock) {
-        this.dir = dir;
         this.clock = clock;
         this.store = OwnerFileStore.withWriterThread(dir, new Codec());
     }
 
     /** Production store borrows the single server-runtime writer. */
     public MemoryStore(Path dir, OwnerStoreWriter writer) {
-        this.dir = dir;
         this.clock = System::currentTimeMillis;
         this.store = OwnerFileStore.Factory.borrowing(writer).create(dir, new Codec());
     }

@@ -63,16 +63,6 @@ public final class FeatureToolRegistry {
         return List.copyOf(catalogMetadata.values());
     }
 
-    /** Checkpoint decoders contributed with their task definitions, keyed by the stable persisted task type. */
-    public Map<String, CheckpointRestorer> checkpointRestorers() {
-        Map<String, CheckpointRestorer> restorers = new LinkedHashMap<>();
-        taskDefinitions.forEach((name, definition) -> {
-            if (definition.checkpointRestorer() != null)
-                restorers.put(definition.checkpointType(), definition.checkpointRestorer());
-        });
-        return Map.copyOf(restorers);
-    }
-
     public Set<String> restorableTaskNames() {
         Set<String> names = new LinkedHashSet<>();
         taskDefinitions.forEach((name, definition) -> {

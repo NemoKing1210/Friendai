@@ -57,9 +57,9 @@ class FeatureToolRegistryTest {
                         .collect(java.util.stream.Collectors.toSet()),
                 registry.taskDefinitions().keySet());
         assertEquals(registry.taskDefinitions().keySet(), registry.restorableTaskNames());
-        assertEquals(
-                Set.of("follow", "stay", "go_to"),
-                registry.checkpointRestorers().keySet());
+        assertEquals("follow", registry.taskDefinitions().get("follow_player").checkpointType());
+        assertEquals("stay", registry.taskDefinitions().get("stay").checkpointType());
+        assertEquals("go_to", registry.taskDefinitions().get("go_to").checkpointType());
         assertEquals(
                 Set.of("go_to", "jump", "step", "back_away", "approach", "circle"),
                 registry.taskDefinitions().values().stream()
@@ -255,7 +255,7 @@ class FeatureToolRegistryTest {
 
         registry.registerTask(custom);
 
-        assertEquals(Set.of("custom_checkpoint"), registry.checkpointRestorers().keySet());
+        assertEquals("custom_checkpoint", custom.checkpointType());
         TaskToolDefinition duplicate = new TaskToolDefinition(
                         "other_restorable",
                         "Another test-only restorable task.",

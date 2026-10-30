@@ -196,15 +196,35 @@ public final class QueueTests {
                         == dev.friendai.execution.queue.JobState.RUNNING,
                 "active job state did not restore");
         h.assertTrue(
-                restored.executionCoordinator().suspended(),
-                "restored owner work waits while the owner is offline");
+                restored.executionCoordinator().suspended(), "restored owner work waits while the owner is offline");
         h.assertTrue(
                 restored.executionCoordinator().current().isEmpty(),
                 "restored owner work must not start before the owner logs in");
-        CompanionManager.get(h.getLevel().getServer()).register(restored);
+        long jobId = restored.executionCoordinator().queue().jobs().getFirst().id();
+        h.assertTrue(
+                restored.executionCoordinator().persistenceActiveJobId() == jobId,
+                "the deferred task is still the active work of its job for persistence");
+        h.assertTrue(
+                restored.executionCoordinator().persistenceTaskState().isPresent(),
+                "the deferred checkpoint must survive a save");
+        TagValueOutput secondOutput = TagValueOutput.createWithContext(
+                ProblemReporter.DISCARDING, h.getLevel().registryAccess());
+        restored.saveWithoutId(secondOutput);
+        CompanionEntity again = h.spawn(FriendaiEntities.COMPANION, 6, 2, 6);
+        again.load(TagValueInput.create(
+                ProblemReporter.DISCARDING, h.getLevel().registryAccess(), secondOutput.buildResult()));
+        h.assertTrue(
+                again.executionCoordinator().queue().jobCount() == 1,
+                "a save while the owner is away must keep the restored queue");
+        h.assertTrue(
+                again.executionCoordinator().queue().jobs().getFirst().state()
+                        == dev.friendai.execution.queue.JobState.RUNNING,
+                "the deferred job stays running across the save");
+        h.assertTrue(again.executionCoordinator().suspended(), "the second restore also waits for the owner");
+        CompanionManager.get(h.getLevel().getServer()).register(again);
         GameTestSupport.runtime(h.getLevel().getServer()).sessions().onOwnerJoined(owner);
         h.assertTrue(
-                restored.executionCoordinator()
+                again.executionCoordinator()
                         .current()
                         .map(task -> task.type().equals("stay"))
                         .orElse(false),
