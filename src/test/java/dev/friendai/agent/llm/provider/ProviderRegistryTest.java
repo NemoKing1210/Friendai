@@ -5,8 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.friendai.foundation.diagnostics.ConfigException;
-import dev.friendai.llm.http.HttpTransport;
 import dev.friendai.foundation.text.UserMessage;
+import dev.friendai.llm.http.HttpTransport;
 import java.net.http.HttpClient;
 import java.time.Duration;
 import java.util.List;

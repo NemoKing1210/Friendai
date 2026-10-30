@@ -146,22 +146,24 @@ public final class FreeTimeTools implements FeatureToolContributor {
 
     private static ToolMeta metadata(String name) {
         return switch (name) {
-            case START_FREE_TIME -> new ToolMeta(
-                    name,
-                    ToolGroup.AUTONOMY,
-                    false,
-                    "- When the owner releases you (\"do your own thing\", \"do whatever you want\"), call start_free_time with their hint as wish; call end_free_time when they call you back.",
-                    List.of(),
-                    Cost.LOW);
-            case END_FREE_TIME, CHOOSE_ACTIVITY -> new ToolMeta(
-                    name,
-                    ToolGroup.AUTONOMY,
-                    false,
-                    name.equals(CHOOSE_ACTIVITY)
-                            ? "- In a free-time event, pick the single most useful activity from the agenda and call choose_activity once; the planner writes the steps."
-                            : "",
-                    List.of(),
-                    Cost.LOW);
+            case START_FREE_TIME ->
+                new ToolMeta(
+                        name,
+                        ToolGroup.AUTONOMY,
+                        false,
+                        "- When the owner releases you (\"do your own thing\", \"do whatever you want\"), call start_free_time with their hint as wish; call end_free_time when they call you back.",
+                        List.of(),
+                        Cost.LOW);
+            case END_FREE_TIME, CHOOSE_ACTIVITY ->
+                new ToolMeta(
+                        name,
+                        ToolGroup.AUTONOMY,
+                        false,
+                        name.equals(CHOOSE_ACTIVITY)
+                                ? "- In a free-time event, pick the single most useful activity from the agenda and call choose_activity once; the planner writes the steps."
+                                : "",
+                        List.of(),
+                        Cost.LOW);
             default -> throw new IllegalArgumentException("No metadata declared for free-time tool: " + name);
         };
     }

@@ -4,8 +4,8 @@ import dev.friendai.features.instructions.SkillView;
 import dev.friendai.features.memory.MemoryView;
 import dev.friendai.features.places.PlaceView;
 import dev.friendai.features.trading.TradeView;
-import java.util.Optional;
 import java.util.Objects;
+import java.util.Optional;
 
 /** Immutable server views accumulated for one connection, with presentation selections owned alongside them. */
 public final class CompanionViewState {
@@ -79,15 +79,11 @@ public final class CompanionViewState {
         }
         if (!view.ok()) return true;
         if (skillsView != null) {
-            if (view.responseId() > 0
-                    && skillsView.responseId() > 0
-                    && view.responseId() < skillsView.responseId()) return true;
+            if (view.responseId() > 0 && skillsView.responseId() > 0 && view.responseId() < skillsView.responseId())
+                return true;
             if (view.revision() < skillsView.revision()) return true;
         }
-        if (skillsView != null
-                && view.detail() != null
-                && view.rows().isEmpty()
-                && view.page() == skillsView.page()) {
+        if (skillsView != null && view.detail() != null && view.rows().isEmpty() && view.page() == skillsView.page()) {
             view = new SkillView(
                     view.enabled(),
                     view.revision(),

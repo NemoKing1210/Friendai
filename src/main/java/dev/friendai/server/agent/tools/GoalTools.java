@@ -207,7 +207,8 @@ public final class GoalTools implements FeatureToolContributor {
 
     private static ToolMeta metadata(String name) {
         return switch (name) {
-            case SET_GOAL, UPDATE_GOAL, FINISH_GOAL -> new ToolMeta(name, ToolGroup.CORE, true, "", List.of(), Cost.LOW);
+            case SET_GOAL, UPDATE_GOAL, FINISH_GOAL ->
+                new ToolMeta(name, ToolGroup.CORE, true, "", List.of(), Cost.LOW);
             default -> throw new IllegalArgumentException("No metadata declared for goal tool: " + name);
         };
     }
