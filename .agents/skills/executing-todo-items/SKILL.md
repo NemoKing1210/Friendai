@@ -9,10 +9,20 @@ description: "Use when asked to pick or implement a work item from TODO.md in th
 
 An item in `TODO.md` is a contract with an evidence trail: its anchors (`File.java:line`) drift, and the work may already be half-shipped. Prove the item is still open and that the change cannot silently undo something else **before** the first code line. `AGENTS.md` states the rules; this skill is the order of operations that satisfies them for one numbered item.
 
+## One item per run — then stop
+
+One invocation of this skill executes **exactly one numbered item**, its sub-items included, and then the run ends.
+
+- When the item is ticked, archived and committed — or restored to `[ ]` with a stated reason — report and **stop**. Do not start the next item in the same run, even when the request named several: the maintainer invokes the skill again for that one.
+- A request that lists several items is a queue. Take the first, say in the report which ones are still untouched, and let the maintainer choose the next run.
+- Never claim two items, never plan or execute two in parallel, never dispatch a subagent per item, and never fold in "a quick one" because it sits in the same file.
+- A bug or idea you notice outside the item goes into the report (or `TODO.md`, when asked), never into this run's code.
+- If the item depends on another open item that is claimed or unshipped, stop and name the dependency instead of doing both.
+
 ## Gate 0 — claim and observe (the first edit)
 
 1. `grep -nE '^\s*- \[~\]' TODO.md`, `git status`, `git log --oneline -5`. A foreign `[~]` means stop: the item is taken. Dirty files may belong to a live session.
-2. Flip `- [ ]` to `- [~]` on the item you take (the parent for a whole item; a single line only when the maintainer named that sub-item). No session name, timestamp or `**In progress**` line, and never a separate claim commit.
+2. Flip `- [ ]` to `- [~]` on the one item this run takes (the parent for a whole item; a single line only when the maintainer named that sub-item). No session name, timestamp or `**In progress**` line, and never a separate claim commit.
 3. Write down which dirty or untracked files are not yours. They are never staged, formatted or reverted.
 
 ## Gate 1 — prove it is not already implemented
@@ -69,6 +79,8 @@ In the commit that carries the change:
 
 Final message: item and sub-items with what each became, the Gate 1 verdict, the regression checks that ran, the tests you actually ran with results, the version and jar path, what you could not verify, and the foreign changes you noticed.
 
+Then stop. The run is over with this one item; the next item needs a new invocation.
+
 ## Red flags — STOP
 
 | Thought | Reality |
@@ -81,3 +93,7 @@ Final message: item and sub-items with what each became, the Gate 1 verdict, the
 | "The marker/version/docs can land later" | They land in the same commit, or the item is not closed. |
 | "That dirty file is probably mine" | Unknown dirt is someone else's; leave it and say so. |
 | "The old test is in the way, I'll re-pin it" | A test that guards untouched behavior is a Gate 2 finding, not an obstacle. |
+| "The request lists three tasks, so I do three" | One item per run. Do the first, report the rest untouched, stop. |
+| "I'm warm now, I'll just continue with the next one" | The run ends at the close-out. The next item needs a new invocation. |
+| "The second one is a one-line fix in the same file" | Still a separate item, a separate claim and a separate run. |
+| "I can run both items' tests in parallel" | Two claims break the `[~]` lock and the record. One Gradle run at a time. |
