@@ -222,6 +222,10 @@ public final class ServerRuntime implements AutoCloseable {
         return services.memory();
     }
 
+    public dev.friendai.infrastructure.persistence.transcript.TranscriptStore transcripts() {
+        return services.transcripts();
+    }
+
     public MemoryViewers memoryViewers() {
         return services.memoryViewers();
     }

@@ -35,6 +35,19 @@ final class MemoryPlaceRequestCodecTest {
     }
 
     @Test
+    void transcriptClearIsABodylessMemoryOperation() {
+        byte[] encoded = ClientRequestCodec.encode(4, new MemoryRequest.TranscriptClear());
+        DecodeResult<DecodedClientRequest> decoded = ClientRequestCodec.decode(encoded);
+
+        assertInstanceOf(DecodeResult.Valid.class, decoded);
+        assertEquals(
+                new MemoryRequest.TranscriptClear(),
+                ((DecodeResult.Valid<DecodedClientRequest>) decoded).value().request());
+        assertEquals(9, new MemoryRequest.TranscriptClear().operationId());
+        assertEquals(true, ProtocolFamily.MEMORY.supports(ProtocolDirection.CLIENT_TO_SERVER, 9));
+    }
+
+    @Test
     void enforcesMemoryCategoryIdsAndMultibyteTextByteBounds() {
         MemoryRequest.FactAdd max = new MemoryRequest.FactAdd("g".repeat(36), 5, "é".repeat(1_000));
         DecodeResult<DecodedClientRequest> decoded = ClientRequestCodec.decode(ClientRequestCodec.encode(1, max));

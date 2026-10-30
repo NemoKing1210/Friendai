@@ -317,6 +317,11 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
         debug.logOf(owner).add(LogKind.PLANNER, text);
     }
 
+    /** Masks every configured secret; applied to text read back out of stored records. */
+    public UnaryOperator<String> redactor() {
+        return gateways.redactor();
+    }
+
     public String activeProvider() {
         return gateways.activeProvider();
     }

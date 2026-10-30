@@ -48,6 +48,7 @@ final class MemoryTab extends StatefulMenuTab {
     private List<Row> rows = List.of();
     private List<MemoryView.FactRow> builtFor = List.of();
     private int builtWidth = -1;
+    private int builtTranscriptWidth = -1;
     private int sideLeft;
     private int sideTop;
     private int sideWidth;
@@ -65,6 +66,11 @@ final class MemoryTab extends StatefulMenuTab {
     private final List<FlatButton> presetButtons = new ArrayList<>();
 
     private record Row(int factId, MemoryView.FactRow fact, List<FormattedCharSequence> lines, int height) {}
+
+    private record TranscriptLine(long id, String who, String age, List<FormattedCharSequence> lines, int height) {}
+
+    private List<TranscriptLine> transcriptRows = List.of();
+    private List<MemoryView.TranscriptRow> builtTranscriptFor = List.of();
 
     @Override
     public void init(Host host, int left, int top, int width, int height) {
@@ -252,6 +258,27 @@ final class MemoryTab extends StatefulMenuTab {
         if (wasPersona && !persona) {
             leavePersona();
         }
+        if (model.transcriptSelected()) {
+            for (FlatButton preset : presetButtons) {
+                preset.visible = false;
+            }
+            personaBox.visible = false;
+            trust.visible = false;
+            edit.visible = false;
+            forget.visible = false;
+            categoryButton.visible = false;
+            text.visible = false;
+            addOrSave.visible = false;
+            cancel.visible = false;
+            factsHit.active = false;
+            clear.visible = true;
+            clear.active = enabled;
+            clear.setMessage(Component.translatable(
+                    model.clearTranscriptArmed(System.currentTimeMillis())
+                            ? "friendai.menu.transcript.clear_confirm"
+                            : "friendai.menu.transcript.clear"));
+            return;
+        }
         Optional<MemoryView.Group> group = model.group();
         boolean nowEditing = model.editing().isPresent();
         if (wasEditing && !nowEditing && !persona) {
@@ -344,6 +371,13 @@ final class MemoryTab extends StatefulMenuTab {
     }
 
     private void clickClear() {
+        if (model.transcriptSelected()) {
+            if (model.clickClearTranscript(System.currentTimeMillis())) {
+                CompanionRequests.send(new MemoryRequest.TranscriptClear());
+            }
+            sync();
+            return;
+        }
         model.group().ifPresent(group -> {
             if (model.clickClear(System.currentTimeMillis())) {
                 CompanionRequests.send(new MemoryRequest.FactClear(group.key()));
@@ -423,6 +457,12 @@ final class MemoryTab extends StatefulMenuTab {
             drawStatus(g, font, top, height);
             return;
         }
+        if (model.transcriptSelected()) {
+            drawTranscriptHeader(g, font);
+            drawTranscript(g, font);
+            drawStatus(g, font, top, height);
+            return;
+        }
         model.group().ifPresent(group -> drawHeader(g, font, view.get(), group));
         if (!view.get().enabled()) {
             Ui.text(
@@ -442,7 +482,7 @@ final class MemoryTab extends StatefulMenuTab {
         Ui.card(g, sideLeft, sideTop, sideWidth, sideHeight, Ui.CARD, Ui.BORDER);
         List<MemoryView.Group> groups = view.groups();
         groupsView.begin(
-                g, sideLeft + 1, sideTop + 1, sideWidth - 2, sideHeight - 2, (groups.size() + 1) * GROUP_ROW + 2);
+                g, sideLeft + 1, sideTop + 1, sideWidth - 2, sideHeight - 2, (groups.size() + 2) * GROUP_ROW + 2);
         int y = groupsView.top() + 1;
         if (groupsView.visible(y, GROUP_ROW)) {
             boolean current = model.personaSelected();
@@ -465,6 +505,38 @@ final class MemoryTab extends StatefulMenuTab {
                     sideLeft + 16,
                     y + (GROUP_ROW - font.lineHeight) / 2 + 1,
                     current ? Ui.TEXT : Ui.DIM);
+        }
+        y += GROUP_ROW;
+        if (groupsView.visible(y, GROUP_ROW)) {
+            boolean current = model.transcriptSelected();
+            boolean hot = groupsView.contains(mouseX, mouseY) && mouseY >= y && mouseY < y + GROUP_ROW;
+            if (current) {
+                g.fill(sideLeft + 1, y, sideLeft + sideWidth - 1, y + GROUP_ROW, Ui.CARD_HOVER);
+                g.fill(sideLeft + 1, y, sideLeft + 3, y + GROUP_ROW, Ui.ACCENT);
+            } else if (hot) {
+                g.fill(sideLeft + 1, y, sideLeft + sideWidth - 1, y + GROUP_ROW, Ui.CARD_HOVER);
+            }
+            Ui.dot(g, sideLeft + 8, y + GROUP_ROW / 2 - 2, 4, Ui.ACCENT);
+            String count = String.valueOf(view.transcript().size());
+            int nameWidth = sideWidth - 16 - 8 - font.width(count) - 6;
+            Ui.text(
+                    g,
+                    font,
+                    Ui.clip(
+                            font,
+                            Component.translatable("friendai.menu.transcript.title")
+                                    .getString(),
+                            nameWidth),
+                    sideLeft + 16,
+                    y + (GROUP_ROW - font.lineHeight) / 2 + 1,
+                    current ? Ui.TEXT : Ui.DIM);
+            Ui.text(
+                    g,
+                    font,
+                    count,
+                    sideLeft + sideWidth - 8 - font.width(count),
+                    y + (GROUP_ROW - font.lineHeight) / 2 + 1,
+                    Ui.DIM);
         }
         y += GROUP_ROW;
         String selected = model.group().map(MemoryView.Group::key).orElse("");
@@ -544,6 +616,80 @@ final class MemoryTab extends StatefulMenuTab {
         String counter = personaBox.getValue().length() + "/" + PersonaText.MAX_LENGTH;
         int counterY = listTop + PERSONA_PRESETS_Y + 2 * (ROW + GAP) + 2;
         Ui.text(g, font, counter, headLeft + headWidth - font.width(counter), counterY, Ui.DIM);
+    }
+
+    private void drawTranscriptHeader(GuiGraphicsExtractor g, Font font) {
+        int y = sideTop + (ROW - font.lineHeight) / 2;
+        Ui.text(g, font, Component.translatable("friendai.menu.transcript.title"), headLeft, y, Ui.TEXT);
+        String count = String.valueOf(model.transcript().size());
+        int right = clearX - GAP;
+        Ui.text(g, font, count, Math.min(right, headLeft + headWidth) - font.width(count), y, Ui.DIM);
+    }
+
+    private void rebuildTranscript(Font font, List<MemoryView.TranscriptRow> source, int width) {
+        builtTranscriptFor = source;
+        List<TranscriptLine> built = new ArrayList<>();
+        long now = System.currentTimeMillis();
+        for (MemoryView.TranscriptRow row : source) {
+            List<FormattedCharSequence> lines =
+                    font.split(Component.literal(row.text()), Math.max(20, width - 2 * PAD - 8));
+            String who = row.companion()
+                    ? Component.translatable("friendai.menu.transcript.companion")
+                            .getString()
+                    : row.playerName();
+            built.add(new TranscriptLine(
+                    row.id(), who, age(now - row.atMillis()), lines, 18 + lines.size() * (font.lineHeight + 1) + 4));
+        }
+        transcriptRows = built;
+    }
+
+    private void drawTranscript(GuiGraphicsExtractor g, Font font) {
+        List<MemoryView.TranscriptRow> source = model.transcript();
+        if (!source.equals(builtTranscriptFor) || builtTranscriptWidth != listWidth) {
+            rebuildTranscript(font, source, listWidth);
+            builtTranscriptWidth = listWidth;
+        }
+        if (source.isEmpty()) {
+            Ui.text(
+                    g,
+                    font,
+                    Component.translatable("friendai.menu.transcript.empty"),
+                    listLeft + 2,
+                    listTop + 4,
+                    Ui.DIM);
+            return;
+        }
+        int total = 0;
+        for (TranscriptLine row : transcriptRows) {
+            total += row.height() + GAP;
+        }
+        factsView.begin(g, listLeft, listTop, listWidth, listHeight, total);
+        int y = factsView.top();
+        int cardWidth = listWidth - 6;
+        for (TranscriptLine row : transcriptRows) {
+            if (factsView.visible(y, row.height())) {
+                Ui.card(g, listLeft, y, cardWidth, row.height(), Ui.CARD, Ui.BORDER);
+                int x = listLeft + PAD;
+                x += Ui.badge(g, font, Ui.clip(font, row.who(), cardWidth / 2), x, y + 3, Ui.ACCENT) + 5;
+                Ui.text(g, font, "#" + row.id(), x, y + 5, Ui.DIM);
+                Ui.text(g, font, row.age(), listLeft + cardWidth - PAD - font.width(row.age()), y + 5, Ui.DIM);
+                int lineY = y + 18;
+                for (FormattedCharSequence line : row.lines()) {
+                    Ui.text(g, font, line, listLeft + PAD, lineY, Ui.TEXT);
+                    lineY += font.lineHeight + 1;
+                }
+            }
+            y += row.height() + GAP;
+        }
+        factsView.end(g);
+    }
+
+    private static String age(long millis) {
+        long minutes = Math.max(0, millis) / 60_000;
+        if (minutes < 60) return minutes + "m";
+        long hours = minutes / 60;
+        if (hours < 24) return hours + "h";
+        return (hours / 24) + "d";
     }
 
     private void rebuildRows(Font font, List<MemoryView.FactRow> facts, int width) {
@@ -629,9 +775,16 @@ final class MemoryTab extends StatefulMenuTab {
     }
 
     private void clickGroup(double x, double y) {
-        int index = groupsView.contentY(y) / GROUP_ROW - 1;
-        if (index == -1 && groupsView.contentY(y) >= 0) {
+        int content = groupsView.contentY(y);
+        int index = content / GROUP_ROW - 2;
+        if (index == -2 && content >= 0) {
             openPersona();
+            return;
+        }
+        if (index == -1 && content >= 0) {
+            model.selectTranscript();
+            factsView.scroll(1000);
+            sync();
             return;
         }
         model.view().ifPresent(view -> {

@@ -19,12 +19,14 @@ import java.util.Optional;
 public final class MemoryProtocolViewCodec {
     public static final int MAX_FACTS = 2_000;
     public static final int MAX_GROUPS = 500;
+    public static final int MAX_TRANSCRIPT_ROWS = 50;
     public static final int MAX_FRAME_BYTES = 1 << 20;
     private static final int MAX_GROUP_KEY_BYTES = 36;
     private static final int MAX_NAME_BYTES = 128;
     private static final int MAX_FACT_TEXT_BYTES = 2_000;
     private static final int MAX_AUTHOR_BYTES = 128;
     private static final int MAX_PERSONA_BYTES = 1_200;
+    private static final int MAX_TRANSCRIPT_TEXT_BYTES = 2_000;
 
     private MemoryProtocolViewCodec() {}
 
@@ -63,7 +65,9 @@ public final class MemoryProtocolViewCodec {
     }
 
     private static byte[] encodeBody(MemoryView view, int maxBytes) {
-        if (view.groups().size() > MAX_GROUPS || view.facts().size() > MAX_FACTS)
+        if (view.groups().size() > MAX_GROUPS
+                || view.facts().size() > MAX_FACTS
+                || view.transcript().size() > MAX_TRANSCRIPT_ROWS)
             throw new ProtocolDataException(DecodeResult.Reason.INVALID_FIELD);
         ProtocolBodyWriter out = new ProtocolBodyWriter(maxBytes);
         out.writeBoolean(view.enabled());
@@ -89,6 +93,15 @@ public final class MemoryProtocolViewCodec {
         ProtocolViewBodies.writeStatus(out, view.status());
         out.writeString(view.persona().text(), MAX_PERSONA_BYTES);
         out.writeBoolean(view.persona().custom());
+        ProtocolViewBodies.writeCount(out, view.transcript().size(), MAX_TRANSCRIPT_ROWS);
+        for (MemoryView.TranscriptRow row : view.transcript()) {
+            out.writeLong(row.id());
+            out.writeString(row.playerKey(), MAX_GROUP_KEY_BYTES);
+            out.writeString(row.playerName(), MAX_NAME_BYTES);
+            out.writeBoolean(row.companion());
+            out.writeString(row.text(), MAX_TRANSCRIPT_TEXT_BYTES);
+            out.writeLong(row.atMillis());
+        }
         return out.toByteArray();
     }
 
@@ -117,12 +130,29 @@ public final class MemoryProtocolViewCodec {
         }
         Optional<dev.friendai.features.memory.MenuStatus> status = ProtocolViewBodies.readStatus(in);
         MemoryView.PersonaView persona = new MemoryView.PersonaView(in.readString(MAX_PERSONA_BYTES), in.readBoolean());
-        return new MemoryView(enabled, limits, List.copyOf(groups), List.copyOf(facts), status, persona);
+        int rowCount = ProtocolViewBodies.readCount(in, MAX_TRANSCRIPT_ROWS);
+        List<MemoryView.TranscriptRow> transcript = new ArrayList<>(rowCount);
+        for (int i = 0; i < rowCount; i++) {
+            transcript.add(new MemoryView.TranscriptRow(
+                    in.readLong(),
+                    in.readString(MAX_GROUP_KEY_BYTES),
+                    in.readString(MAX_NAME_BYTES),
+                    in.readBoolean(),
+                    in.readString(MAX_TRANSCRIPT_TEXT_BYTES),
+                    in.readLong()));
+        }
+        return new MemoryView(enabled, limits, List.copyOf(groups), List.copyOf(facts), status, persona, transcript);
     }
 
     private static MemoryView withFacts(MemoryView view, List<MemoryView.FactRow> facts) {
         return new MemoryView(
-                view.enabled(), view.limits(), view.groups(), List.copyOf(facts), view.status(), view.persona());
+                view.enabled(),
+                view.limits(),
+                view.groups(),
+                List.copyOf(facts),
+                view.status(),
+                view.persona(),
+                view.transcript());
     }
 
     private static int roleId(MemoryView.Role role) {

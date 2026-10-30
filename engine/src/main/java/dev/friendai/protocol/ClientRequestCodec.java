@@ -78,7 +78,9 @@ public final class ClientRequestCodec {
             out.writeUuid(trust.target());
             out.writeBoolean(trust.trusted());
         } else if (request instanceof MemoryRequest.PersonaSet persona) out.writeString(persona.text(), 1_200);
-        else if (!(request instanceof MemoryRequest.Open || request instanceof MemoryRequest.Close))
+        else if (!(request instanceof MemoryRequest.Open
+                || request instanceof MemoryRequest.Close
+                || request instanceof MemoryRequest.TranscriptClear))
             throw new IllegalArgumentException("unsupported memory request");
         return out.toByteArray();
     }
@@ -94,6 +96,7 @@ public final class ClientRequestCodec {
             case 6 -> new MemoryRequest.FactClear(in.readString(36));
             case 7 -> new MemoryRequest.TrustSet(in.readUuid(), in.readBoolean());
             case 8 -> new MemoryRequest.PersonaSet(in.readString(1_200));
+            case 9 -> new MemoryRequest.TranscriptClear();
             default -> throw new ProtocolDataException(DecodeResult.Reason.UNKNOWN_OPERATION);
         };
         in.requireEnd();

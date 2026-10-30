@@ -48,7 +48,7 @@ final class MemoryProtocolViewCodecTest {
         assertInstanceOf(DecodeResult.Malformed.class, MemoryProtocolViewCodec.decode(trailing));
 
         byte[] badUtf8 = encoded.clone();
-        badUtf8[badUtf8.length - 2] = (byte) 0xff;
+        badUtf8[badUtf8.length - 4] = (byte) 0xff;
         assertInstanceOf(DecodeResult.Malformed.class, MemoryProtocolViewCodec.decode(badUtf8));
     }
 
@@ -77,5 +77,36 @@ final class MemoryProtocolViewCodecTest {
                 assertInstanceOf(DecodeResult.Valid.class, MemoryProtocolViewCodec.decode(encoded));
         assertEquals(22, decoded.value().requestId());
         assertEquals(1_000, decoded.value().value().facts().size());
+    }
+
+    @Test
+    void transcriptRowsRoundTripAndAreBounded() {
+        MemoryView.TranscriptRow row = new MemoryView.TranscriptRow(
+                9_000_000_001L, "00000000-0000-0000-0000-0000000000a1", "Алекс", true, "Привет 🌍", 1_700_000_000_000L);
+        MemoryView view = new MemoryView(
+                true,
+                new MemoryLimits(160, 20, 30),
+                List.of(),
+                List.of(),
+                Optional.empty(),
+                new MemoryView.PersonaView("p", false),
+                List.of(row, new MemoryView.TranscriptRow(2, "k", "n", false, "hi", 5)));
+
+        DecodeResult.Valid<ProtocolView<MemoryView>> decoded = assertInstanceOf(
+                DecodeResult.Valid.class, MemoryProtocolViewCodec.decode(MemoryProtocolViewCodec.encode(view, 3)));
+        assertEquals(view, decoded.value().value());
+
+        List<MemoryView.TranscriptRow> many =
+                java.util.Collections.nCopies(MemoryProtocolViewCodec.MAX_TRANSCRIPT_ROWS + 1, row);
+        MemoryView tooMany = new MemoryView(
+                true,
+                new MemoryLimits(160, 20, 30),
+                List.of(),
+                List.of(),
+                Optional.empty(),
+                new MemoryView.PersonaView("p", false),
+                many);
+        org.junit.jupiter.api.Assertions.assertThrows(
+                dev.friendai.protocol.ProtocolDataException.class, () -> MemoryProtocolViewCodec.encode(tooMany, 1));
     }
 }

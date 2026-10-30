@@ -5,6 +5,8 @@ import dev.friendai.features.memory.MemoryView;
 import dev.friendai.features.memory.MemoryViewBuilder;
 import dev.friendai.features.memory.MenuStatus;
 import dev.friendai.features.memory.PlayerRef;
+import dev.friendai.features.memory.transcript.Speaker;
+import dev.friendai.features.memory.transcript.TranscriptEntry;
 import dev.friendai.protocol.ProtocolFamily;
 import dev.friendai.protocol.memory.MemoryProtocolViewCodec;
 import dev.friendai.server.runtime.ServerRuntime;
@@ -13,12 +15,14 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.UnaryOperator;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 
 /** Pushes the memory view to players who have the tab open: on demand with a status, and on changes. */
 public final class MemoryViewStream {
     private static final int INTERVAL_TICKS = 10;
+    private static final int TRANSCRIPT_ROWS = 20;
     private int counter;
     private int viewEpoch;
     private List<UUID> lastOnline = List.of();
@@ -65,7 +69,7 @@ public final class MemoryViewStream {
                 viewers.close(uuid);
                 continue;
             }
-            if (viewers.needsUpdate(uuid, runtime.memory().book(uuid).revision(), epoch)) {
+            if (viewers.needsUpdate(uuid, revisionOf(runtime, uuid), epoch)) {
                 send(runtime, player, Optional.empty(), 0);
             }
         }
@@ -114,10 +118,33 @@ public final class MemoryViewStream {
                 runtime.config().memory.limits(),
                 status,
                 runtime.profiles().profile(uuid),
-                runtime.config().companion.description);
+                runtime.config().companion.description,
+                transcriptRows(runtime, uuid));
         runtime.protocolConnections()
                 .sendView(player, ProtocolFamily.MEMORY, MemoryProtocolViewCodec.encodeFitting(view, requestId));
-        runtime.memoryViewers()
-                .markSent(uuid, book.revision() + runtime.profiles().revision(uuid), viewEpoch);
+        runtime.memoryViewers().markSent(uuid, revisionOf(runtime, uuid), viewEpoch);
+    }
+
+    /** Everything the view shows that changes independently: facts, profile and the conversation transcript. */
+    private static long revisionOf(ServerRuntime runtime, UUID uuid) {
+        return runtime.memory().book(uuid).revision()
+                + runtime.profiles().revision(uuid)
+                + runtime.transcripts().book(uuid).revision();
+    }
+
+    /** The newest transcript lines of the viewer's own conversations; the codec caps them again on the wire. */
+    private static List<MemoryView.TranscriptRow> transcriptRows(ServerRuntime runtime, UUID owner) {
+        UnaryOperator<String> redact = runtime.sessions().redactor();
+        List<MemoryView.TranscriptRow> rows = new ArrayList<>();
+        for (TranscriptEntry entry : runtime.transcripts().book(owner).all(TRANSCRIPT_ROWS)) {
+            rows.add(new MemoryView.TranscriptRow(
+                    entry.id(),
+                    entry.playerUuid().toString(),
+                    entry.playerName(),
+                    entry.speaker() == Speaker.COMPANION,
+                    redact.apply(entry.text()),
+                    entry.atMillis()));
+        }
+        return rows;
     }
 }

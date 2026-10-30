@@ -10,7 +10,23 @@ public record MemoryView(
         List<Group> groups,
         List<FactRow> facts,
         Optional<MenuStatus> status,
-        PersonaView persona) {
+        PersonaView persona,
+        List<TranscriptRow> transcript) {
+    public MemoryView {
+        transcript = transcript == null ? List.of() : List.copyOf(transcript);
+    }
+
+    /** A view with no transcript, for callers that do not show it. */
+    public MemoryView(
+            boolean enabled,
+            MemoryLimits limits,
+            List<Group> groups,
+            List<FactRow> facts,
+            Optional<MenuStatus> status,
+            PersonaView persona) {
+        this(enabled, limits, groups, facts, status, persona, List.of());
+    }
+
     /** A view with no personality information, for callers that do not show it. */
     public MemoryView(
             boolean enabled,
@@ -18,7 +34,7 @@ public record MemoryView(
             List<Group> groups,
             List<FactRow> facts,
             Optional<MenuStatus> status) {
-        this(enabled, limits, groups, facts, status, new PersonaView("", false));
+        this(enabled, limits, groups, facts, status, new PersonaView("", false), List.of());
     }
 
     public enum Role {
@@ -33,6 +49,10 @@ public record MemoryView(
 
     /** One fact row. {@code authorName} is empty when the owner wrote it. */
     public record FactRow(int id, String groupKey, Category category, String text, String authorName) {}
+
+    /** One recent chat line shown in the memory tab; {@code playerKey} is the speaking player's UUID. */
+    public record TranscriptRow(
+            long id, String playerKey, String playerName, boolean companion, String text, long atMillis) {}
 
     /** The personality in effect: the owner's own when {@code custom}, otherwise the server default. */
     public record PersonaView(String text, boolean custom) {}

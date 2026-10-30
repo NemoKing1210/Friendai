@@ -6,7 +6,7 @@ import java.util.Set;
 
 public enum ProtocolFamily {
     CONTROL(1, 8_192, 1 << 20, Set.of(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13), Set.of(128)),
-    MEMORY(2, 4_096, 1 << 20, Set.of(1, 2, 3, 4, 5, 6, 7, 8), Set.of(128)),
+    MEMORY(2, 4_096, 1 << 20, Set.of(1, 2, 3, 4, 5, 6, 7, 8, 9), Set.of(128)),
     PLACES(3, 1_024, 1 << 20, Set.of(1, 2, 3, 4), Set.of(128)),
     INSTRUCTIONS(4, 65_536, 65_536, Set.of(1, 2, 3, 4, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26), Set.of(128)),
     TRADING(5, 16_384, 65_536, Set.of(1, 2, 3, 4, 5, 6, 7, 8, 9, 10), Set.of(128)),

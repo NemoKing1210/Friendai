@@ -47,6 +47,21 @@ public final class MemoryViewBuilder {
             Optional<MenuStatus> status,
             CompanionProfile profile,
             String serverPersona) {
+        return build(book, owner, ownerName, online, enabled, limits, status, profile, serverPersona, List.of());
+    }
+
+    /** As above, with the owner's recent chat lines for the memory tab. */
+    public static MemoryView build(
+            MemoryBook book,
+            UUID owner,
+            String ownerName,
+            List<PlayerRef> online,
+            boolean enabled,
+            MemoryLimits limits,
+            Optional<MenuStatus> status,
+            CompanionProfile profile,
+            String serverPersona,
+            List<MemoryView.TranscriptRow> transcript) {
         Map<UUID, String> onlineNames = new LinkedHashMap<>();
         for (PlayerRef ref : online) {
             onlineNames.put(ref.uuid(), ref.name());
@@ -111,7 +126,7 @@ public final class MemoryViewBuilder {
         MemoryView.PersonaView persona = new MemoryView.PersonaView(
                 customPersona ? profile.description().summary() : serverPersona == null ? "" : serverPersona,
                 customPersona);
-        return new MemoryView(enabled, limits, List.copyOf(groups), List.copyOf(facts), status, persona);
+        return new MemoryView(enabled, limits, List.copyOf(groups), List.copyOf(facts), status, persona, transcript);
     }
 
     private static String label(String name) {

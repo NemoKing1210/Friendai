@@ -7,6 +7,7 @@ import dev.friendai.entity.CompanionRenamer;
 import dev.friendai.features.memory.MemoryMenuActions;
 import dev.friendai.features.memory.MenuStatus;
 import dev.friendai.features.memory.PlayerRef;
+import dev.friendai.features.memory.transcript.TranscriptMenuActions;
 import dev.friendai.features.places.Place;
 import dev.friendai.features.places.PlaceLimits;
 import dev.friendai.features.places.PlaceNames;
@@ -221,6 +222,8 @@ public final class CompanionRequestHandler {
         if (request instanceof MemoryRequest.TrustSet trust)
             return actions.trust(trust.target().toString(), Boolean.toString(trust.trusted()));
         if (request instanceof MemoryRequest.PersonaSet persona) return actions.persona(persona.text());
+        if (request instanceof MemoryRequest.TranscriptClear)
+            return TranscriptMenuActions.clear(runtime.transcripts().book(owner));
         return null;
     }
 

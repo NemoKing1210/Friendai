@@ -98,6 +98,7 @@ final class PackageDependencyRules {
             "dev.friendai.features.memory.MemoryView",
             "dev.friendai.features.memory.MemoryView$FactRow",
             "dev.friendai.features.memory.MemoryView$Group",
+            "dev.friendai.features.memory.MemoryView$TranscriptRow",
             "dev.friendai.features.memory.MenuStatus",
             "dev.friendai.features.memory.OwnerProfile",
             "dev.friendai.features.places.PlaceView",

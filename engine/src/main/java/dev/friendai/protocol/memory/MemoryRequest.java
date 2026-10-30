@@ -12,7 +12,8 @@ public sealed interface MemoryRequest extends ClientRequest
                 MemoryRequest.FactForget,
                 MemoryRequest.FactClear,
                 MemoryRequest.TrustSet,
-                MemoryRequest.PersonaSet {
+                MemoryRequest.PersonaSet,
+                MemoryRequest.TranscriptClear {
     @Override
     default ProtocolFamily family() {
         return ProtocolFamily.MEMORY;
@@ -71,6 +72,14 @@ public sealed interface MemoryRequest extends ClientRequest
         @Override
         public int operationId() {
             return 8;
+        }
+    }
+
+    /** Empties the sender's own recent-chat transcript. */
+    record TranscriptClear() implements MemoryRequest {
+        @Override
+        public int operationId() {
+            return 9;
         }
     }
 }

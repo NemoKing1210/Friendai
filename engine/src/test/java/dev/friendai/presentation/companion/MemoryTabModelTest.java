@@ -260,4 +260,44 @@ class MemoryTabModelTest {
         model.selectGroup("nobody");
         assertEquals(B.toString(), model.group().orElseThrow().key());
     }
+
+    private static MemoryView.TranscriptRow line(long id) {
+        return new MemoryView.TranscriptRow(id, O.toString(), "Steve", false, "hi " + id, 1_000);
+    }
+
+    @Test
+    void selectingTheRecentChatPaneHidesGroupAndFactsAndExposesTheLines() {
+        MemoryTabModel model = new MemoryTabModel();
+        model.onView(new MemoryView(
+                true,
+                MemoryLimits.DEFAULTS,
+                List.of(owner(), world()),
+                List.of(fact(1, O.toString(), "Base")),
+                Optional.empty(),
+                new MemoryView.PersonaView("", false),
+                List.of(line(2), line(1))));
+        model.selectTranscript();
+        assertTrue(model.transcriptSelected());
+        assertTrue(model.group().isEmpty());
+        assertTrue(model.facts().isEmpty());
+        assertEquals(2, model.transcript().size());
+
+        model.selectGroup(O.toString());
+        assertFalse(model.transcriptSelected());
+        assertEquals(1, model.facts().size());
+    }
+
+    @Test
+    void clearingTheTranscriptNeedsASecondClickInsideTheWindow() {
+        MemoryTabModel model = new MemoryTabModel();
+        model.onView(view(List.of(owner()), List.of(), Optional.empty()));
+        assertFalse(model.clickClearTranscript(0), "nothing to clear while the pane is not shown");
+        model.selectTranscript();
+        assertFalse(model.clickClearTranscript(1_000));
+        assertTrue(model.clearTranscriptArmed(2_000));
+        assertTrue(model.clickClearTranscript(2_000));
+        assertFalse(model.clearTranscriptArmed(2_000));
+        assertFalse(model.clickClearTranscript(10_000));
+        assertFalse(model.clickClearTranscript(10_000 + MemoryTabModel.CLEAR_CONFIRM_MILLIS + 1));
+    }
 }
