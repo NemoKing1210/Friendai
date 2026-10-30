@@ -898,6 +898,40 @@ public class PathingTests {
         walkCorridorAndCheckYaw(h, base, 20.5, base + 1);
     }
 
+    /** Climbs two one-block steps in a row; momentum past the target cell must not turn the body back. */
+    @GameTest(maxTicks = 600)
+    public void climbsStepsWithoutSteppingBack(GameTestHelper h) {
+        int base = 250;
+        GameTestSupport.platformAt(h, base, 40);
+        for (int x = 8; x <= 30; x++) {
+            for (int z = 16; z <= 24; z++) {
+                h.setBlock(new BlockPos(x, base + 1, z), Blocks.STONE);
+            }
+        }
+        for (int x = 14; x <= 30; x++) {
+            for (int z = 16; z <= 24; z++) {
+                h.setBlock(new BlockPos(x, base + 2, z), Blocks.STONE);
+            }
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, base + 1, 20);
+        Vec3 target = h.absoluteVec(new Vec3(24.5, base + 3, 20.5));
+        TaskContext context = new TaskContext(c, h.getLevel());
+        Navigator navigator = new Navigator(context);
+        navigator.setGoal(new GoalPoint(target.x, target.y, target.z, 0.5, 0.5));
+        Navigator.State[] state = {Navigator.State.SEARCHING};
+        double[] furthest = {c.getX()};
+        double[] stepBack = {0};
+        h.onEachTick(() -> {
+            state[0] = navigator.tick(context);
+            furthest[0] = Math.max(furthest[0], c.getX());
+            stepBack[0] = Math.max(stepBack[0], furthest[0] - c.getX());
+        });
+        h.succeedWhen(() -> {
+            h.assertTrue(state[0] == Navigator.State.ARRIVED, "not arrived: " + state[0] + " at " + c.position());
+            h.assertTrue(stepBack[0] <= 0.3, "stepped back " + stepBack[0] + " blocks");
+        });
+    }
+
     @GameTest(maxTicks = 600)
     public void walksThirtyTwoBlocksInBudget(GameTestHelper h) {
         int base = 230;

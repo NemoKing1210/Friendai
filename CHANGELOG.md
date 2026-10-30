@@ -8,6 +8,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.89.2] - 2026-10-30
+
+### Fixed
+
+- A companion carried past the middle of a block by its own momentum on a climb or a diagonal step now counts the step as done instead of turning back to the middle, so it no longer steps back a block before going on.
+
 ## [0.89.1] - 2026-10-30
 
 ### Changed
