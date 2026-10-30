@@ -110,11 +110,6 @@ public final class CompanionManager {
             // Saves made before the name tag was shown carry a name but not the visible flag.
             entity.setCustomNameVisible(true);
         }
-        if (runtime().sessions().debug().subscribers().contains(owner)) {
-            // The menu is already open for this owner — summoned from the menu, respawned or just loaded — and the
-            // companion must not start working behind it.
-            entity.addMenuViewer();
-        }
         if (server.getPlayerList().getPlayer(owner) == null)
             entity.executionCoordinator().suspend();
         else entity.executionCoordinator().resume();

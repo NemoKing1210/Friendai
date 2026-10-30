@@ -524,58 +524,27 @@ public class CompanionControlTests {
                 CompanionManager.get(h.getLevel().getServer()).summon(player);
         TestMenuRequests.handle(player, TestMenuRequests.menuRequest(TestMenuRequests.Action.SUBSCRIBE));
         h.assertTrue(brains.debug().subscribers().contains(player.getUUID()), "subscribed");
-        h.assertTrue(companion.menuOpen() && companion.executionCoordinator().held(), "held while the menu is open");
         var runtime = runtime(player);
         runtime.debugStream().onDisconnect(runtime, player);
         h.assertTrue(!brains.debug().subscribers().contains(player.getUUID()), "unsubscribed after disconnect");
-        h.assertTrue(!companion.executionCoordinator().held(), "a disconnect must not leave the companion held");
         h.succeed();
     }
 
-    @GameTest(maxTicks = 120)
-    public void openMenuHoldsTheRunnerAndClosingResumesTheTask(GameTestHelper h) {
+    @GameTest(maxTicks = 60)
+    public void openMenuDoesNotPauseTheCompanion(GameTestHelper h) {
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         CompanionEntity companion =
                 CompanionManager.get(h.getLevel().getServer()).summon(player);
         CountingTask task = new CountingTask();
         companion.executionCoordinator().start(task, "test_counting");
         TestMenuRequests.handle(player, TestMenuRequests.menuRequest(TestMenuRequests.Action.SUBSCRIBE));
-        h.assertTrue(companion.executionCoordinator().held(), "held while the menu is open");
+        h.assertTrue(!companion.executionCoordinator().held(), "the menu must not hold the companion");
         int before = task.ticks;
         h.runAfterDelay(20, () -> {
-            h.assertValueEqual(task.ticks, before, "a held companion must not tick its task");
+            h.assertTrue(task.ticks > before, "the task keeps running while the menu is open");
             TestMenuRequests.handle(player, TestMenuRequests.menuRequest(TestMenuRequests.Action.UNSUBSCRIBE));
-            h.assertTrue(!companion.executionCoordinator().held(), "released when the menu closes");
-        });
-        h.runAfterDelay(40, () -> {
-            h.assertTrue(task.ticks > before, "the task resumes after the menu closes");
             h.succeed();
         });
-    }
-
-    @GameTest(maxTicks = 60)
-    public void aDuplicateSubscribeHoldsOnlyOnce(GameTestHelper h) {
-        ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
-        CompanionEntity companion =
-                CompanionManager.get(h.getLevel().getServer()).summon(player);
-        TestMenuRequests.handle(player, TestMenuRequests.menuRequest(TestMenuRequests.Action.SUBSCRIBE));
-        TestMenuRequests.handle(player, TestMenuRequests.menuRequest(TestMenuRequests.Action.SUBSCRIBE));
-        TestMenuRequests.handle(player, TestMenuRequests.menuRequest(TestMenuRequests.Action.UNSUBSCRIBE));
-        h.assertTrue(!companion.executionCoordinator().held(), "one close releases a duplicated subscribe");
-        h.succeed();
-    }
-
-    @GameTest(maxTicks = 60)
-    public void aCompanionSummonedWithTheMenuOpenStartsHeld(GameTestHelper h) {
-        ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
-        TestMenuRequests.handle(player, TestMenuRequests.menuRequest(TestMenuRequests.Action.SUBSCRIBE));
-        CompanionEntity companion =
-                CompanionManager.get(h.getLevel().getServer()).summon(player);
-        h.assertTrue(
-                companion.menuOpen() && companion.executionCoordinator().held(), "starts paused behind the open menu");
-        TestMenuRequests.handle(player, TestMenuRequests.menuRequest(TestMenuRequests.Action.UNSUBSCRIBE));
-        h.assertTrue(!companion.executionCoordinator().held(), "resumes when the menu closes");
-        h.succeed();
     }
 
     /** A task that only counts its ticks, so a test can tell whether the runner advanced it. */

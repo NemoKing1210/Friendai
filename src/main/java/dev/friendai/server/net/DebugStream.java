@@ -36,11 +36,10 @@ public final class DebugStream {
         }
     }
 
-    /** A client opened the companion menu: subscribe it, pause that player's companion and send the first snapshot. */
+    /** A client opened the companion menu: subscribe it and send the first snapshot. */
     public void openMenu(ServerRuntime runtime, ServerPlayer player, long requestId) {
         runtime.sessions().debug().subscribe(player.getUUID());
         try {
-            runtime.companions().find(player.getUUID()).ifPresent(companion -> companion.addMenuViewer());
             sendNow(runtime, player, requestId);
         } catch (RuntimeException | Error failure) {
             closeMenu(runtime, player.getUUID());
@@ -49,12 +48,11 @@ public final class DebugStream {
     }
 
     /**
-     * The menu closed — by the client, a disconnect or a lost player — so the companion resumes whatever it was
-     * doing. Safe to call for a viewer that was never subscribed.
+     * The menu closed — by the client, a disconnect or a lost player. Safe to call for a viewer that was never
+     * subscribed.
      */
     public void closeMenu(ServerRuntime runtime, UUID viewer) {
         runtime.sessions().debug().unsubscribe(viewer);
-        runtime.companions().find(viewer).ifPresent(companion -> companion.removeMenuViewer());
     }
 
     /** Sends a snapshot now, if the player has the menu open. */
