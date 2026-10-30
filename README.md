@@ -29,6 +29,14 @@ What it can do: follow you, stay, go to a point, pick up items, give you items, 
 
 The companion keeps the chunks around itself loaded, so it keeps working when you walk away, and it resumes at its last position after a server restart. `companion.chunkLoading.radius` sets how many chunks around it keep ticking (0–4); the default of 1 keeps a 3×3 area ticking inside a 5×5 loaded area, and the dimension itself stays active. Turn this off with `companion.chunkLoading.enabled` in `config/friendai-server.json`.
 
+## Configuration upgrades
+
+Supported older configuration files upgrade automatically: server schemas 3–15 to 16, and client schemas 1–3 to 4. Provider profiles, API keys, models, devices and explicit settings are retained; new fields receive validated defaults. Renamed settings are converted explicitly. Unknown extension fields survive upgrades and subsequent saves, including reordered routing rules. If several edited array entries carry extra fields and their identity becomes ambiguous, saving is refused rather than guessing which entry owns those fields; edit that file directly while the game/server is stopped.
+
+Before replacement, the mod validates the result and saves the exact original bytes beside the file as `<filename>.v<old-version>.<unique-id>.bak`. Backups are never overwritten by another upgrade. Writes use atomic replacement; configuration files are limited to 8 MiB. If an upgrade, backup or replacement fails, the original stays intact and read-only while defaults are used in memory. Correct the problem and reopen the server settings screen or restart the game/server to retry.
+
+Unknown, unversioned and future formats are never guessed or downgraded. Use the matching mod version, or keep a backup and deliberately replace the file. To restore an upgrade backup, stop the game/server first and use a mod version that understands that backup's schema. Backups contain the same credentials as the original; protect them as you protect the config. Owner records and world saves use their separate persistence rules.
+
 ## Creative mode
 
 Open the companion screen from the pause menu and turn on **Creative** in the Control tab. It is off by default. A dedicated-server owner must be an operator to enable it; in singleplayer, the world owner may enable it even when cheats are off. The owner can turn it off at any time, and the preference survives dismissal, resummoning and world reloads.

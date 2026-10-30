@@ -199,9 +199,9 @@ An agent slows itself down by running Gradle after every edit: a unit run costs 
 ### Add a config option
 
 1. Add the field and default to `engine/.../infrastructure/config/ServerConfig` or `ClientConfig`; enforce valid ranges in that config's validation path.
-2. For a persisted schema change, bump its version. Older and future versions are unsupported and stay untouched; this project does not migrate config files. Server startup uses in-memory defaults when its config version is unsupported and keeps the file read-only.
+2. For a persisted config schema change, bump its version and add an explicit adjacent transition in `ConfigStores`, with tests for existing user values and defaults for new fields. `ConfigMigration` requires a complete reviewed chain: server schemas 3–15 upgrade to 16, client schemas 1–3 to 4. Validate before writing, preserve unknown fields, create a unique byte-exact versioned backup and replace atomically. Failed upgrades/backups remain read-only and retry on reload. Unknown, missing and future versions stay untouched; server startup uses in-memory defaults for unsupported versions. These migrations apply only to configuration, not owner/world records.
 3. Expose editable settings in `src/client/java/dev/friendai/client/config/` when appropriate; keep YACL and Mod Menu optional.
-4. Add label/tooltip keys to both language files and focused validation and unsupported-version tests under `engine/src/test` or `src/test`.
+4. Add label/tooltip keys to both language files and focused validation, migration, unsupported-version and failed-write tests under `engine/src/test` or `src/test`.
 
 ### Add an LLM provider or protocol
 
@@ -343,7 +343,7 @@ Bump it as part of any change that alters the shipped mod, by the size of the ch
 
 - While the major version is `0` (pre-1.0), breaking changes bump MINOR instead of MAJOR. Moving to `1.0.0` is the maintainer's decision; never do it on your own.
 - One bump per task/PR, sized by the largest change in it, not one per commit. Put it in the same commit as the change, or in a final `chore: bump version to X.Y.Z` commit.
-- Changing a persisted schema: bump its format version and the mod version; unsupported older files remain untouched and are not migrated.
+- Changing a persisted schema: bump its format version and the mod version. Configuration upgrades require an explicit tested `ConfigStores` transition and a backup; unsupported config versions and older owner/world record formats remain untouched.
 - Do not create tags or releases yourself; tagging `vX.Y.Z` is the maintainer's call. Tell them when the version is ready to release.
 - When unsure between two sizes, pick the larger one and say why in the final message.
 

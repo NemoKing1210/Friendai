@@ -2,6 +2,7 @@ package dev.friendai.client.config;
 
 import dev.friendai.infrastructure.config.ClientConfig;
 import dev.friendai.infrastructure.config.ConfigStore;
+import dev.friendai.infrastructure.config.ConfigStores;
 import dev.friendai.infrastructure.config.ServerConfig;
 import java.nio.file.Path;
 import java.util.Objects;
@@ -20,16 +21,8 @@ public final class ClientConfigurationCoordinator {
             IntegratedServerConfiguration integratedServer,
             Consumer<ClientConfig> clientConfigChanged) {
         Objects.requireNonNull(configDirectory, "configDirectory");
-        this.clientStore = new ConfigStore<>(
-                configDirectory.resolve("friendai-client.json"),
-                ClientConfig.class,
-                ClientConfig::defaults,
-                ClientConfig.CURRENT_VERSION);
-        this.serverStore = new ConfigStore<>(
-                configDirectory.resolve("friendai-server.json"),
-                ServerConfig.class,
-                ServerConfig::defaults,
-                ServerConfig.VERSION);
+        this.clientStore = ConfigStores.client(configDirectory.resolve("friendai-client.json"));
+        this.serverStore = ConfigStores.server(configDirectory.resolve("friendai-server.json"));
         this.integratedServer = Objects.requireNonNull(integratedServer, "integratedServer");
         this.clientConfigChanged = Objects.requireNonNull(clientConfigChanged, "clientConfigChanged");
     }
@@ -50,12 +43,12 @@ public final class ClientConfigurationCoordinator {
         return config;
     }
 
-    /** True when on-disk server settings must remain read-only: unsupported version or unbacked corruption. */
+    /** True when server settings remain read-only after an unsupported version or failed recovery/upgrade. */
     public boolean serverConfigReadOnly() {
         return serverStore.hasUnsupportedVersion() || serverStore.hasProtectedRecovery();
     }
 
-    /** True when a damaged file could not be backed up; the screen must say so instead of blaming a version. */
+    /** True after a read, recovery or upgrade failure; the screen must not blame an unsupported version. */
     public boolean serverConfigProtected() {
         return serverStore.hasProtectedRecovery();
     }

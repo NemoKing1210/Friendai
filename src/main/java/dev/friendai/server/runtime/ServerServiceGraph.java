@@ -29,6 +29,7 @@ import dev.friendai.features.trading.minecraft.trading.PiglinBarterAdapter;
 import dev.friendai.features.trading.minecraft.trading.TradeSessionGuard;
 import dev.friendai.features.trading.minecraft.trading.TraderObserver;
 import dev.friendai.infrastructure.config.ConfigStore;
+import dev.friendai.infrastructure.config.ConfigStores;
 import dev.friendai.infrastructure.config.ServerConfig;
 import dev.friendai.infrastructure.persistence.OwnerStoreWriter;
 import dev.friendai.infrastructure.persistence.appearance.SkinStore;
@@ -96,11 +97,8 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
     ServerServiceGraph(MinecraftServer server, RuntimeResources resources) {
         this.server = server;
         OwnerStoreWriter writer = resources.own(new OwnerStoreWriter());
-        this.store = new ConfigStore<>(
-                FabricLoader.getInstance().getConfigDir().resolve("friendai-server.json"),
-                ServerConfig.class,
-                ServerConfig::defaults,
-                ServerConfig.VERSION);
+        this.store =
+                ConfigStores.server(FabricLoader.getInstance().getConfigDir().resolve("friendai-server.json"));
         this.config = store.loadWithDefaultsOnUnsupportedVersion();
         this.configuration = new ServerConfiguration(
                 entry -> FriendaiMod.LOGGER.warn("Unknown pathing break blacklist entry: {}", entry));

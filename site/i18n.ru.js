@@ -563,6 +563,8 @@ const RU = {
   "Settings": "Настройки",
   "API keys may be written as env:NAME so they never sit in a file.": "Ключи API можно писать как env:NAME, чтобы они не лежали в файле.",
   "Server config v16": "Серверный конфиг v16",
+  "Automatic config upgrades": "Автоматическое обновление конфигурации",
+  "Validated upgrades with unique backups; unknown and future formats stay read-only.": "Проверка перед обновлением и отдельные резервные копии; неизвестные и будущие форматы остаются только для чтения.",
   "Tasks, agent, places, autonomy, chunk loading.": "Задачи, агент, места, автономность, загрузка чанков.",
   "Client config v4": "Клиентский конфиг v4",
   "Voice recognition and synthesis, UI.": "Распознавание и синтез речи, интерфейс.",

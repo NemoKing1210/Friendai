@@ -1,6 +1,7 @@
 package dev.friendai.client.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -20,6 +21,28 @@ import org.junit.jupiter.api.io.TempDir;
 class ClientConfigurationCoordinatorTest {
     @TempDir
     Path configDirectory;
+
+    @Test
+    void olderServerSettingsAreUpgradedAndEditableWithoutLosingTheOwnersProfile() throws IOException {
+        Path file = configDirectory.resolve("friendai-server.json");
+        Files.writeString(file, """
+                {"version":14,"activeProfile":"custom","profiles":{"custom":{
+                "provider":"openai","model":"custom-model","apiKey":"test-secret"}},
+                "chat":{"listenAll":true},"tasks":{"defaultFollow":false}}
+                """);
+        ClientConfigurationCoordinator coordinator =
+                new ClientConfigurationCoordinator(configDirectory, ignored -> {}, ignored -> {});
+
+        ServerConfig loaded = coordinator.loadServer();
+
+        assertEquals("custom", loaded.activeProfile);
+        assertEquals("test-secret", loaded.profiles.get("custom").apiKey);
+        assertTrue(loaded.chat.listenAll);
+        assertFalse(loaded.tasks.defaultFollow);
+        assertFalse(coordinator.serverConfigReadOnly());
+        coordinator.saveServer(loaded);
+        assertEquals("custom", coordinator.loadServer().activeProfile);
+    }
 
     @Test
     void aSessionPublishesItsDetachedDraftsThroughTheCoordinatorOnce() {
@@ -105,7 +128,7 @@ class ClientConfigurationCoordinatorTest {
     @Test
     void unsupportedServerConfigFallsBackWithoutChangingTheFileOrAllowingWrites() throws IOException {
         Path serverFile = configDirectory.resolve("friendai-server.json");
-        String original = "{\"version\":15,\"activeProfile\":\"custom\"}";
+        String original = "{\"version\":17,\"activeProfile\":\"custom\"}";
         Files.writeString(serverFile, original);
         ClientConfigurationCoordinator coordinator =
                 new ClientConfigurationCoordinator(configDirectory, ignored -> {}, ignored -> {});
