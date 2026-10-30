@@ -3,6 +3,7 @@ package dev.friendai.features.navigation.minecraft.nav;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.navigation.pathing.BlockList;
 import dev.friendai.features.navigation.pathing.CostModel;
+import dev.friendai.features.navigation.pathing.GoalPickup;
 import dev.friendai.features.navigation.pathing.GoalPoint;
 import dev.friendai.features.navigation.pathing.GoalReach;
 import dev.friendai.features.navigation.pathing.Node;
@@ -172,6 +173,13 @@ public final class Navigator {
         }
         if (goal instanceof GoalReach reach) {
             return reach.targets().subList(0, Math.min(reach.targets().size(), 64));
+        }
+        if (goal instanceof GoalPickup pickup) {
+            List<Pos> cells = new ArrayList<>();
+            for (var drop : pickup.drops()) {
+                cells.add(new Pos((int) Math.floor(drop.x()), (int) Math.floor(drop.y()), (int) Math.floor(drop.z())));
+            }
+            return cells.subList(0, Math.min(cells.size(), 64));
         }
         return List.of();
     }
@@ -533,6 +541,9 @@ public final class Navigator {
         }
         if (goal instanceof GoalReach reach) {
             return reach.targets().size() == 1 ? "one cell" : reach.targets().size() + " cells";
+        }
+        if (goal instanceof GoalPickup pickup) {
+            return pickup.drops().size() == 1 ? "pickup" : pickup.drops().size() + " drops";
         }
         return "goal";
     }

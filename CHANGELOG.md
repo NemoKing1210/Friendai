@@ -8,6 +8,19 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.91.0] - 2026-10-30
+
+### Added
+
+- Pointing at an ore or a log now mines the whole connected vein (up to 32 blocks) instead of stopping at the one block. Every block is checked for tools and protection as before, and the answer says how many were mined.
+
+### Fixed
+
+- A pointed mine reports what it actually picked up. When the drop is still on the ground the answer gives its place and suggests picking it up, instead of claiming the block dropped nothing.
+- A drop that fell into the hole the mine just dug is picked up from the rim of the hole instead of being left behind as unreachable.
+- A pointed mine with a full inventory refuses before breaking the block, so the drop is not left lying on the ground.
+- Answers like "no coal nearby" now say that nothing was seen or remembered within the radius and name the tools that look around, instead of reading like a fact about the whole world.
+
 ## [0.90.1] - 2026-10-30
 
 ### Fixed

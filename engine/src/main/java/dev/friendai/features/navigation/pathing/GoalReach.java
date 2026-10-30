@@ -20,7 +20,7 @@ public record GoalReach(List<Pos> targets, double reach, double eyeHeight) imple
     }
 
     /** Each move's cost divided by its maximum geometric progress; default costs retain a bound of one. */
-    private static double perBlock(CostModel costs) {
+    static double perBlock(CostModel costs) {
         double walk = Math.min(costs.walk(), costs.diagonal()) / Math.sqrt(2.0);
         double jump = Math.min((costs.walk() + costs.jump()) / 2.0, costs.jump() + costs.place());
         // For any depth k >= 1, (walk + k * fall) / sqrt(k*k + 2) is bounded by these endpoints.

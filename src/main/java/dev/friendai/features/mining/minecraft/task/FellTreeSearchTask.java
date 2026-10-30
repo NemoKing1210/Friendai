@@ -60,7 +60,8 @@ public final class FellTreeSearchTask implements Task {
             return status;
         }
         if (waited++ > TREE_SEARCH_WAIT_TICKS) {
-            summary = "no " + logs.label() + " tree within " + radius + " blocks";
+            summary = "no " + logs.label() + " tree observed or remembered within " + radius
+                    + " blocks; use look_around or survey_area to look around";
             return TaskStatus.FAILED;
         }
         var resources = c.resources();

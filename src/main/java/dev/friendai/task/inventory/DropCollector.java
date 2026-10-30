@@ -4,13 +4,12 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.combat.minecraft.Threats;
 import dev.friendai.features.navigation.minecraft.nav.LevelCellView;
 import dev.friendai.features.navigation.minecraft.nav.Navigator;
-import dev.friendai.features.navigation.pathing.GoalReach;
-import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.features.navigation.pathing.DropPoint;
+import dev.friendai.features.navigation.pathing.GoalPickup;
 import dev.friendai.task.TaskContext;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -40,6 +39,13 @@ public final class DropCollector {
         DONE
     }
 
+    /** A drop the round meant to take and left on the ground, with where it was last seen. */
+    public record Leftover(BlockPos cell, ItemStack stack) {
+        public Leftover {
+            stack = stack.copy();
+        }
+    }
+
     /** How often a new scan for drops runs, in ticks. */
     private static final int SCAN_INTERVAL = 4;
     /** How close a drop must be to be taken without walking. */
@@ -52,8 +58,6 @@ public final class DropCollector {
     private static final int MAX_TICKS = 120;
     /** A hostile inside this radius pauses the walking. */
     private static final double THREAT_RADIUS = 8.0;
-    /** How close the eyes must come to a drop to act on it. */
-    private static final double REACH = 2.0;
 
     private final Vec3 origin;
     private final int radius;
@@ -66,7 +70,9 @@ public final class DropCollector {
     /** The drops a route may aim at: the ones lying still enough for their position to mean something. */
     private List<ItemEntity> aimed = List.of();
 
-    private Set<Pos> goalPositions = Set.of();
+    private List<DropPoint> goalPoints = List.of();
+    private List<Leftover> leftovers = List.of();
+    private boolean sawIntended;
     private @Nullable Navigator navigator;
     private int ticks;
     private int arrivedTicks;
@@ -110,17 +116,18 @@ public final class DropCollector {
             resetNavigation(c);
             return State.COLLECTING;
         }
-        Set<Pos> positions = positions();
-        if (positions.isEmpty()) {
+        List<DropPoint> points = dropPoints();
+        if (points.isEmpty()) {
             // Drops are there, but none is ready: still falling, or inside the vanilla pickup delay. Wait for one
             // rather than end the round without it or walk to a guess.
             resetNavigation(c);
             return State.COLLECTING;
         }
-        if (!positions.equals(goalPositions)) {
-            goalPositions = positions;
+        if (!points.equals(goalPoints)) {
+            goalPoints = points;
             arrivedTicks = 0;
-            navigator(c).setGoal(new GoalReach(new ArrayList<>(positions), REACH, companion.getEyeHeight()));
+            // The goal is the same volume the pickup uses, so a stance that can take the drop is where it stops.
+            navigator(c).setGoal(new GoalPickup(points, TOUCH_RADIUS));
         }
         tickNavigator(c);
         return State.COLLECTING;
@@ -136,13 +143,23 @@ public final class DropCollector {
         return receipts.stream().map(ItemStack::copy).toList();
     }
 
+    public List<Leftover> leftovers() {
+        return leftovers.stream().map(l -> new Leftover(l.cell(), l.stack())).toList();
+    }
+
+    /** Whether the round ever saw a drop it meant to take: false means the block dropped nothing in reach. */
+    public boolean sawIntended() {
+        return sawIntended;
+    }
+
     /** Stops the route and the walking. Drops already taken stay taken. */
     public void stop(TaskContext c) {
         if (navigator != null) {
             navigator.stop(c);
             navigator = null;
         }
-        goalPositions = Set.of();
+        goalPoints = List.of();
+        leftovers = scanLeftovers(c);
     }
 
     /**
@@ -192,11 +209,15 @@ public final class DropCollector {
     private void scan(TaskContext c) {
         CompanionEntity companion = c.companion();
         rescanNow = false;
-        drops = companion
+        List<ItemEntity> seen = companion
                 .level()
                 .getEntitiesOfClass(
-                        ItemEntity.class, new AABB(origin, origin).inflate(radius), e -> wanted(e, companion))
-                .stream()
+                        ItemEntity.class, new AABB(origin, origin).inflate(radius), e -> intended(e, companion));
+        if (!seen.isEmpty()) {
+            sawIntended = true;
+        }
+        drops = seen.stream()
+                .filter(e -> wanted(e, companion))
                 .sorted(Comparator.comparingDouble(e -> e.distanceToSqr(companion)))
                 .toList();
         aimed = drops.stream()
@@ -205,13 +226,18 @@ public final class DropCollector {
                 .toList();
     }
 
-    /** A drop this round means to take, whether or not it is ready to be taken yet. */
-    private boolean wanted(ItemEntity e, CompanionEntity companion) {
+    /** A drop this round would take if it could: of the right kind, hazard-free and one the companion may collect. */
+    private boolean intended(ItemEntity e, CompanionEntity companion) {
         return companion.canCollect(e)
                 && (entityFilter.isEmpty() || entityFilter.contains(e.getUUID()))
                 && (filter == null || filter.test(e.getItem()))
+                && safe(e);
+    }
+
+    /** A drop it can take right now: wanted, not given up on, and with room for it. */
+    private boolean wanted(ItemEntity e, CompanionEntity companion) {
+        return intended(e, companion)
                 && companion.inventory().canAddItem(e.getItem())
-                && safe(e)
                 && !blacklist.contains(e.getUUID());
     }
 
@@ -228,15 +254,29 @@ public final class DropCollector {
         return !LevelCellView.destroysItems(e.level().getBlockState(e.blockPosition()));
     }
 
-    private Set<Pos> positions() {
-        Set<Pos> positions = new LinkedHashSet<>();
+    private List<DropPoint> dropPoints() {
+        List<DropPoint> points = new ArrayList<>(Math.min(MAX_GOALS, aimed.size()));
         for (ItemEntity e : aimed) {
             if (!blacklist.contains(e.getUUID())) {
-                BlockPos pos = e.blockPosition();
-                positions.add(new Pos(pos.getX(), pos.getY(), pos.getZ()));
+                Vec3 at = e.position();
+                points.add(new DropPoint(at.x, at.y, at.z));
             }
         }
-        return positions;
+        return points;
+    }
+
+    /** The drops still on the ground that this round meant to take, with where they lie now. */
+    private List<Leftover> scanLeftovers(TaskContext c) {
+        CompanionEntity companion = c.companion();
+        List<Leftover> left = new ArrayList<>();
+        for (ItemEntity e : c.level()
+                .getEntitiesOfClass(
+                        ItemEntity.class,
+                        new AABB(origin, origin).inflate(radius),
+                        item -> intended(item, companion) && !item.hasPickUpDelay())) {
+            left.add(new Leftover(e.blockPosition(), e.getItem()));
+        }
+        return List.copyOf(left);
     }
 
     private boolean stale() {
@@ -278,15 +318,18 @@ public final class DropCollector {
     }
 
     /**
-     * The companion reached a drop but could not take it (behind a fence, in a hole too narrow to stand in). Only the
-     * drops at its eyes give up: the others on the route are still worth walking to.
+     * The companion stood at a drop and could not take it, so only the drops its body volume covers give up; the others
+     * on the route are still worth walking to. The test is the pickup's own box: a drop the body covers was retried for
+     * {@link #ARRIVE_TICKS} and is genuinely stuck (buried, or held by a pickup rule).
      */
     private void giveUpOnReached(TaskContext c) {
         CompanionEntity companion = c.companion();
-        Vec3 eyes = companion.position().add(0, companion.getEyeHeight(), 0);
+        Vec3 at = companion.position();
         int given = 0;
         for (ItemEntity e : aimed) {
-            if (e.isRemoved() || eyes.distanceTo(e.position()) <= REACH) {
+            Vec3 drop = e.position();
+            if (e.isRemoved()
+                    || GoalPickup.reaches(at.x, at.y, at.z, new DropPoint(drop.x, drop.y, drop.z), TOUCH_RADIUS)) {
                 blacklist.add(e.getUUID());
                 given++;
             }
@@ -304,7 +347,7 @@ public final class DropCollector {
             navigator.stop(c);
             navigator = null;
         }
-        goalPositions = Set.of();
+        goalPoints = List.of();
         rescanNow = true;
     }
 }

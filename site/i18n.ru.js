@@ -86,7 +86,8 @@ const RU = {
   "Collects raw materials: trees, ores, drops. Tool choice comes from item data components, never hard-coded tiers.": "Собирает сырьё: деревья, руды, выпавшие предметы. Инструмент выбирается по компонентам предмета, а не по зашитым уровням.",
   "Fell a whole tree top-down using scaffold.": "Срубить дерево целиком сверху вниз, используя леса.",
   "Mine a number of blocks of a type.": "Добыть нужное число блоков типа.",
-  "Break one specific block.": "Сломать один конкретный блок.",
+  "Mine the block you point at, follow its vein, and report what was taken.":
+    "Добыть указанный блок, пройти по его жиле и сообщить, что подобрано.",
   "Collect dropped items nearby.": "Подобрать выпавшие рядом предметы.",
   "Scan for trees.": "Найти деревья.",
   "Scan for blocks and ore veins.": "Найти блоки и рудные жилы.",

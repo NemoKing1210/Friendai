@@ -233,6 +233,10 @@ public final class ToolCatalog {
                         + "- After placing blocks, mine_blocks with placed:true takes back only those blocks; it never touches an unplaced neighbour.");
         hint(
                 metas,
+                "mine_block_at",
+                "- Use mine_block_at when the owner points at one block: it mines that block and continues into its connected vein, then says how many it mined and what it took. Use mine_blocks to collect a number of blocks of a kind found around you; use fell_tree for a whole tree.");
+        hint(
+                metas,
                 "pickup_items",
                 "- To pick up what fell around a block you placed, pass placed:true; the round is centred on that block, not on you.");
         hint(

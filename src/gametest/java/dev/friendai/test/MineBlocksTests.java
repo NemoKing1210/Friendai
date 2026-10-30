@@ -3,6 +3,7 @@ package dev.friendai.test;
 import dev.friendai.debug.DebugAction;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.features.inventory.minecraft.task.PickupItemsTask;
 import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
 import dev.friendai.features.mining.minecraft.task.MineBlockAtTask;
 import dev.friendai.features.mining.minecraft.task.MineBlocksTask;
@@ -12,7 +13,9 @@ import dev.friendai.task.TaskStatus;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.monster.zombie.Zombie;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
@@ -159,7 +162,10 @@ public class MineBlocksTests {
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.FAILED, "not finished");
-            h.assertTrue(result.summary.equals("no minecraft:spruce_log nearby"), "summary was " + result.summary);
+            h.assertTrue(
+                    result.summary.equals("no minecraft:spruce_log observed or remembered nearby; "
+                            + "use look_around or survey_area to look around"),
+                    "summary was " + result.summary);
         });
     }
 
@@ -176,7 +182,10 @@ public class MineBlocksTests {
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.FAILED, "not finished");
-            h.assertTrue(result.summary.equals("no minecraft:bedrock nearby"), "summary was " + result.summary);
+            h.assertTrue(
+                    result.summary.equals("no minecraft:bedrock observed or remembered nearby; "
+                            + "use look_around or survey_area to look around"),
+                    "summary was " + result.summary);
             h.assertTrue(countBlocks(h, Blocks.BEDROCK, bedrock) == 1, "bedrock must stay");
         });
     }
@@ -309,7 +318,8 @@ public class MineBlocksTests {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
             h.assertTrue(
-                    result.summary.equals("mined minecraft:emerald_block at " + coords(target)),
+                    result.summary.equals("mined minecraft:emerald_block at " + coords(target)
+                            + " and took 1 minecraft:emerald_block"),
                     "summary was " + result.summary);
             h.assertTrue(h.getBlockState(new BlockPos(6, 2, 4)).is(Blocks.EMERALD_BLOCK), "the other block must stay");
             h.assertTrue(
@@ -443,7 +453,10 @@ public class MineBlocksTests {
             h.assertTrue(
                     result.status == TaskStatus.FAILED,
                     "hidden granite must stay unknown: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.equals("no minecraft:granite nearby"), "summary was " + result.summary);
+            h.assertTrue(
+                    result.summary.equals("no minecraft:granite observed or remembered nearby; "
+                            + "use look_around or survey_area to look around"),
+                    "summary was " + result.summary);
             h.assertTrue(
                     countBlocks(h, Blocks.GRANITE, new BlockPos(7, 3, 7)) == 1,
                     "the hidden granite must stay in place");
@@ -521,7 +534,10 @@ public class MineBlocksTests {
             h.assertTrue(
                     result.status == TaskStatus.FAILED,
                     "hidden log must stay unknown: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.equals("no minecraft:oak_log nearby"), "summary was " + result.summary);
+            h.assertTrue(
+                    result.summary.equals("no minecraft:oak_log observed or remembered nearby; "
+                            + "use look_around or survey_area to look around"),
+                    "summary was " + result.summary);
             h.assertTrue(
                     countBlocks(h, Blocks.OAK_LOG, new BlockPos(6, 2, 2)) == 1, "the hidden log must stay in place");
         });
@@ -683,6 +699,170 @@ public class MineBlocksTests {
             h.assertTrue(result.status == TaskStatus.FAILED, "status " + result.status + " " + result.summary);
             h.assertTrue(h.getBlockState(log).is(Blocks.ACACIA_LOG), "the log must not be broken without room");
             h.assertTrue(result.summary.contains("inventory full"), result.summary);
+        });
+    }
+
+    /** The reported bug: the drop fell into the one-block pit the mine left, and the old eye reach never took it. */
+    @GameTest(maxTicks = 2400)
+    public void mineAtTakesTheDropFromTheHoleItDug(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        // A stone floor under the pit, so the drop rests one block below the walking surface.
+        for (int x = 5; x <= 7; x++) {
+            for (int z = 1; z <= 3; z++) {
+                h.setBlock(new BlockPos(x, 0, z), Blocks.STONE);
+            }
+        }
+        h.setBlock(new BlockPos(6, 1, 2), Blocks.COAL_ORE);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(Items.WOODEN_PICKAXE.getDefaultInstance());
+        BlockPos target = h.absolutePos(new BlockPos(6, 1, 2));
+        h.assertTrue(GameTestSupport.observeVisible(h, c, target), "the ore should be visible from the rim");
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(new MineBlockAtTask(target), "mine_block_at");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(c.inventory().countItem(Items.COAL) == 1, "coal taken from the hole: " + result.summary);
+            h.assertTrue(
+                    h.getLevel()
+                            .getEntitiesOfClass(ItemEntity.class, new AABB(target).inflate(6))
+                            .isEmpty(),
+                    "nothing left on the ground: " + result.summary);
+            h.assertTrue(result.summary.contains("and took 1 minecraft:coal"), result.summary);
+        });
+    }
+
+    @GameTest(maxTicks = 200)
+    public void mineAtRefusesAFullInventory(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        BlockPos ore = new BlockPos(6, 2, 2);
+        h.setBlock(ore, Blocks.COAL_ORE);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(Items.WOODEN_PICKAXE.getDefaultInstance());
+        for (int i = 0; i < 27; i++) {
+            c.inventory().addItem(new ItemStack(Items.DIRT, 64));
+        }
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(ore)), "ore should be visible");
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(new MineBlockAtTask(h.absolutePos(ore)), "mine_block_at");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.FAILED, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.contains("inventory is full"), result.summary);
+            h.assertTrue(h.getBlockState(ore).is(Blocks.COAL_ORE), "the ore must stay: " + result.summary);
+        });
+    }
+
+    @GameTest(maxTicks = 2400)
+    public void mineAtMinesTheWholeVein(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        BlockPos[] vein = {new BlockPos(6, 2, 2), new BlockPos(6, 3, 2), new BlockPos(6, 2, 3)};
+        for (BlockPos cell : vein) {
+            h.setBlock(cell, Blocks.COAL_ORE);
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(Items.IRON_PICKAXE.getDefaultInstance());
+        for (BlockPos cell : vein) {
+            h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(cell)), "ore should be visible: " + cell);
+        }
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(new MineBlockAtTask(h.absolutePos(vein[0])), "mine_block_at");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            for (BlockPos cell : vein) {
+                h.assertTrue(h.getBlockState(cell).is(Blocks.AIR), "vein cell left at " + cell + ": " + result.summary);
+            }
+            h.assertTrue(c.inventory().countItem(Items.COAL) == 3, "coal taken: " + result.summary);
+            h.assertTrue(
+                    h.getLevel()
+                            .getEntitiesOfClass(ItemEntity.class, new AABB(h.absolutePos(vein[0])).inflate(8))
+                            .isEmpty(),
+                    "nothing left on the ground: " + result.summary);
+            h.assertTrue(result.summary.startsWith("mined 3 minecraft:coal_ore at "), result.summary);
+            h.assertTrue(result.summary.contains("took 3 minecraft:coal"), result.summary);
+        });
+    }
+
+    @GameTest(maxTicks = 2400)
+    public void mineAtStopsAtAProtectedVeinNeighbour(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        BlockPos first = new BlockPos(6, 2, 2);
+        BlockPos guarded = new BlockPos(6, 2, 3);
+        h.setBlock(first, Blocks.COAL_ORE);
+        h.setBlock(guarded, Blocks.COAL_ORE);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(Items.IRON_PICKAXE.getDefaultInstance());
+        BlockPos protectedCell = h.absolutePos(guarded);
+        c.hands().overrideProtection(pos -> pos.equals(protectedCell));
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(first)), "first ore should be visible");
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(new MineBlockAtTask(h.absolutePos(first)), "mine_block_at");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(h.getBlockState(first).is(Blocks.AIR), "the pointed block should be mined: " + result.summary);
+            h.assertTrue(h.getBlockState(guarded).is(Blocks.COAL_ORE), "a protected neighbour must stay");
+            h.assertTrue(result.summary.contains("stopped at a neighbour"), result.summary);
+            h.assertTrue(result.summary.contains("protected"), result.summary);
+        });
+    }
+
+    /**
+     * A drop the sweep cannot reach is reported with its cell instead of a claim of success, and a later
+     * {@code pickup_items} round takes it.
+     */
+    @GameTest(maxTicks = 2400)
+    public void mineAtReportsALeftDropThenPickupTakesIt(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        BlockPos ore = new BlockPos(10, 2, 2);
+        h.setBlock(ore, Blocks.COAL_ORE);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(Items.IRON_PICKAXE.getDefaultInstance());
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(ore)), "ore should be visible");
+        Result mined = new Result();
+        ExecutionCoordinator runner = runner(c, mined);
+        runner.start(new MineBlockAtTask(h.absolutePos(ore)), "mine_block_at");
+        BlockPos parked = h.absolutePos(new BlockPos(13, 2, 5));
+        boolean[] ready = {false};
+        Result picked = new Result();
+        ExecutionCoordinator pickupRunner = runner(c, picked);
+        boolean[] pickupStarted = {false};
+        h.succeedWhen(() -> {
+            runner.tick();
+            if (!ready[0] && h.getBlockState(ore).isAir()) {
+                // The drop ends up away from the companion (a fall off a ledge) while a hostile pauses the sweep.
+                for (ItemEntity item :
+                        h.getLevel().getEntitiesOfClass(ItemEntity.class, new AABB(h.absolutePos(ore)).inflate(3))) {
+                    item.setPos(parked.getX() + 0.5, parked.getY(), parked.getZ() + 0.5);
+                    item.setDeltaMovement(Vec3.ZERO);
+                    Zombie zombie = h.spawnWithNoFreeWill(EntityTypes.ZOMBIE, 3, 2, 2);
+                    zombie.setNoAi(true);
+                    ready[0] = true;
+                    break;
+                }
+            }
+            h.assertTrue(ready[0], "waiting for the drop to fall: " + mined.summary);
+            h.assertTrue(mined.status == TaskStatus.SUCCESS, "not finished: " + mined.status + " " + mined.summary);
+            h.assertTrue(mined.summary.contains("is still at"), mined.summary);
+            h.assertTrue(mined.summary.contains("pickup_items"), mined.summary);
+            h.assertTrue(
+                    mined.summary.contains(parked.getX() + " " + parked.getY() + " " + parked.getZ()), mined.summary);
+            if (!pickupStarted[0]) {
+                h.getLevel()
+                        .getEntitiesOfClass(Zombie.class, c.getBoundingBox().inflate(16))
+                        .forEach(zombie -> zombie.kill(h.getLevel()));
+                pickupRunner.start(new PickupItemsTask(16), "pickup_items");
+                pickupStarted[0] = true;
+            }
+            pickupRunner.tick();
+            h.assertTrue(picked.status != null, "waiting for pickup_items: " + picked.summary);
+            h.assertTrue(picked.status == TaskStatus.SUCCESS, "pickup: " + picked.status + " " + picked.summary);
+            h.assertTrue(c.inventory().countItem(Items.COAL) == 1, "coal taken by pickup_items: " + picked.summary);
         });
     }
 }

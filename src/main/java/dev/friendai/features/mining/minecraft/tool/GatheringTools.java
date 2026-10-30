@@ -130,7 +130,8 @@ public final class GatheringTools implements FeatureToolContributor {
                 "Mine N blocks of the given block id or #tag near the companion and collect the drops. "
                         + "Stone and ores need a pickaxe of sufficient tier; without one the task refuses "
                         + "instead of destroying the block. near: me searches around the speaker; place:<name> "
-                        + "around a remembered place.",
+                        + "around a remembered place. For one block the owner pointed at, use mine_block_at: it mines "
+                        + "that block and continues into its connected vein.",
                 SchemaBuilder.object()
                         .string("block", "Block id like minecraft:oak_log, or a tag like #minecraft:logs")
                         .integer("count", "How many blocks to mine", 1, 64)
@@ -153,7 +154,10 @@ public final class GatheringTools implements FeatureToolContributor {
                 new TaskToolDefinition.QueueTraits(false, "count")));
         registry.registerTask(task(
                 "mine_block_at",
-                "Mine the block at the given coordinates and collect the drops.",
+                "Mine the block at the given coordinates and collect the drops. When the block is an ore or a log it "
+                        + "continues into the whole connected vein of the same block (up to 32 blocks) and reports how "
+                        + "many it mined and what it took. Use mine_blocks instead to collect a number of blocks of a "
+                        + "kind found around you.",
                 SchemaBuilder.object()
                         .integer("x", "Block X coordinate")
                         .integer("y", "Block Y coordinate")
@@ -298,7 +302,8 @@ public final class GatheringTools implements FeatureToolContributor {
             case "mine_blocks" ->
                 "- Use mine_blocks for a kind of block (ore, stone, a named log type); use fell_tree when the player asks for a tree.\n"
                         + "- After placing blocks, mine_blocks with placed:true takes back only those blocks; it never touches an unplaced neighbour.";
-            case "mine_block_at" -> "";
+            case "mine_block_at" ->
+                "- Use mine_block_at when the owner points at one block: it mines that block and continues into its connected vein, then says how many it mined and what it took. Use mine_blocks to collect a number of blocks of a kind found around you; use fell_tree for a whole tree.";
             default -> throw new IllegalArgumentException("unknown gathering tool: " + name);
         };
         return new ToolMeta(name, ToolGroup.GATHERING, false, hint, List.of(), Cost.HIGH);

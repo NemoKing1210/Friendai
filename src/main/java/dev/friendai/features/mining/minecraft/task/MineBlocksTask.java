@@ -10,6 +10,7 @@ import dev.friendai.debug.WorkStatus;
 import dev.friendai.features.mining.MiningBounds;
 import dev.friendai.features.mining.minecraft.mining.BlockBreaker;
 import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
+import dev.friendai.features.mining.minecraft.mining.DropRoom;
 import dev.friendai.features.mining.minecraft.mining.MiningRefusal;
 import dev.friendai.features.mining.minecraft.mining.MiningSession;
 import dev.friendai.features.mining.minecraft.mining.TemporaryBlockCleanup;
@@ -28,9 +29,6 @@ import java.util.List;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.tags.BlockTags;
-import net.minecraft.world.SimpleContainer;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
@@ -213,7 +211,7 @@ public final class MineBlocksTask implements Task {
         if (miningSessionActive) {
             if (miningSession.target() != null
                     && "extract".equals(miningSession.phase())
-                    && !hasRoomForDrops(c, miningSession.target())) {
+                    && !DropRoom.hasRoom(c, miningSession.target())) {
                 miningSession.stop(c);
                 miningSessionActive = false;
                 summary = "mined " + mined + " of " + count + ", inventory full before the next drop";
@@ -377,10 +375,13 @@ public final class MineBlocksTask implements Task {
                         ? "no " + matcher.label() + " you placed nearby"
                         : hidden
                                 ? "could not reach any " + matcher.label() + " nearby"
-                                : "no " + matcher.label() + " nearby";
+                                : "no " + matcher.label()
+                                        + " observed or remembered nearby; use look_around or survey_area to look around";
             } else {
                 summary = "mined " + mined + " of " + count + ", no more " + matcher.label()
-                        + (placedOnly ? " you placed nearby" : hidden ? " could be reached" : " nearby");
+                        + (placedOnly
+                                ? " you placed nearby"
+                                : hidden ? " could be reached" : " observed or remembered nearby");
             }
             if (lastRefusal != null) {
                 summary += "; " + lastRefusal.describe() + "; " + lastRefusal.remedy();
@@ -400,7 +401,7 @@ public final class MineBlocksTask implements Task {
             if (placedOnly) {
                 // A corridor planner may break blocks outside the ledger. A placed-only job uses the plain
                 // breaker instead: no unplaced block is ever broken to reach a recorded one.
-                if (!hasRoomForDrops(c, candidates.get(0))) {
+                if (!DropRoom.hasRoom(c, candidates.get(0))) {
                     summary = "mined " + mined + " of " + count + ", inventory full before the next drop";
                     c.owner()
                             .ifPresent(player -> player.sendSystemMessage(
@@ -425,7 +426,7 @@ public final class MineBlocksTask implements Task {
             return TaskStatus.RUNNING;
         }
         // Tree felling keeps its existing placement route and connected-log behavior.
-        if (!hasRoomForDrops(c, candidates.get(0))) {
+        if (!DropRoom.hasRoom(c, candidates.get(0))) {
             summary = "mined " + mined + " of " + count + ", inventory full before the next drop";
             c.owner()
                     .ifPresent(player -> player.sendSystemMessage(
@@ -454,30 +455,6 @@ public final class MineBlocksTask implements Task {
             case "friendai.mining.inventory_full" -> "the inventory is full";
             default -> failure.key();
         };
-    }
-
-    private static boolean hasRoomForDrops(TaskContext c, BlockPos pos) {
-        BlockState state = c.level().getBlockState(pos);
-        ItemStack tool = c.companion().getMainHandItem();
-        for (int i = 0; i < c.companion().inventory().getContainerSize(); i++) {
-            ItemStack candidate = c.companion().inventory().getItem(i);
-            if (!candidate.isEmpty() && candidate.getDestroySpeed(state) > tool.getDestroySpeed(state)) {
-                tool = candidate;
-            }
-        }
-        List<ItemStack> drops =
-                Block.getDrops(state, c.level(), pos, c.level().getBlockEntity(pos), c.companion(), tool);
-        SimpleContainer projected =
-                new SimpleContainer(c.companion().inventory().getContainerSize());
-        for (int i = 0; i < projected.getContainerSize(); i++) {
-            projected.setItem(i, c.companion().inventory().getItem(i).copy());
-        }
-        for (ItemStack drop : drops) {
-            if (!projected.addItem(drop.copy()).isEmpty()) {
-                return false;
-            }
-        }
-        return true;
     }
 
     /**

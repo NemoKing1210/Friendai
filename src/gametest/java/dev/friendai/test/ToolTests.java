@@ -600,7 +600,11 @@ public class ToolTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         ToolResult r = run(tools(c), "find_blocks", "{\"block\":\"minecraft:sponge\",\"radius\":8}");
         h.assertTrue(
-                !r.error() && r.content().equals("no minecraft:sponge within 8 blocks"), "content was " + r.content());
+                !r.error()
+                        && r.content()
+                                .equals("no minecraft:sponge observed or remembered within 8 blocks; "
+                                        + "use look_around or survey_area to look around"),
+                "content was " + r.content());
         h.succeed();
     }
 
