@@ -28,7 +28,15 @@ public final class ServerProtocolConnections implements AutoCloseable {
 
     private static final ProtocolCapabilities SUPPORTED = ProtocolCapabilities.friendai();
 
+    /**
+     * Test seam, set only by the GameTest run: a mock player has no client to negotiate with, so without it the join
+     * check below would disconnect every mock the moment it is placed and its messages would go nowhere. The player
+     * is still admitted to no feature request, because the gate stays unaccepted.
+     */
+    static final String TOLERATE_UNNEGOTIATED_PROPERTY = "friendai.gametest.tolerateUnnegotiatedPeers";
+
     private final MinecraftServer server;
+    private final boolean tolerateUnnegotiatedPeers = Boolean.getBoolean(TOLERATE_UNNEGOTIATED_PROPERTY);
     private final Map<UUID, Connection> connections = new HashMap<>();
     private final Map<UUID, Long> skillLastTick = new HashMap<>();
     private final Map<UUID, Long> tradeLastAction = new HashMap<>();
@@ -58,7 +66,9 @@ public final class ServerProtocolConnections implements AutoCloseable {
         Connection connection = new Connection(player, UUID.randomUUID(), gate);
         connections.put(owner, connection);
         if (gate.state() != dev.friendai.protocol.ProtocolServerSession.State.PENDING) {
-            disconnect(connection);
+            if (!tolerateUnnegotiatedPeers) {
+                disconnect(connection);
+            }
             return;
         }
 

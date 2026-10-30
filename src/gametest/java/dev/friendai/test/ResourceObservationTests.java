@@ -564,7 +564,11 @@ public class ResourceObservationTests {
         h.succeed();
     }
 
-    @GameTest(maxTicks = 20)
+    /**
+     * Closes and rebuilds the server runtime to simulate a restart, so it must not share a batch with any other test:
+     * every test in its batch would lose the runtime it already holds. Its own test environment gives it its own batch.
+     */
+    @GameTest(maxTicks = 20, environment = "friendai-gametest:restart_resource_observation")
     public void dismissAndReloadRetainsKnowledge(GameTestHelper h) {
         GameTestSupport.platform(h, 10);
         var owner = GameTestSupport.mockPlayerAt(h, 2, 2, 3);
