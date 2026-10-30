@@ -3,6 +3,7 @@ package dev.friendai.test.client;
 import com.google.gson.JsonParser;
 import dev.friendai.client.FriendaiClient;
 import dev.friendai.client.config.FriendaiConfigScreen;
+import dev.friendai.client.config.ModelCache;
 import dev.friendai.features.speech.stt.SttPresets;
 import dev.friendai.features.speech.tts.TtsPresets;
 import dev.friendai.infrastructure.config.ClientConfig;
@@ -25,6 +26,8 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.ConfirmLinkScreen;
 import net.minecraft.client.gui.screens.TitleScreen;
+import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.client.input.MouseButtonInfo;
 import net.minecraft.network.chat.contents.TranslatableContents;
 
 /** Real YACL screens in the isolated client-GameTest directory; never calls a paid service. */
@@ -48,6 +51,32 @@ public final class SettingsScreenTests implements FabricClientGameTest {
     }
 
     private void runCases(ClientGameTestContext context) {
+        check(context, "click a suggested model with custom input allowed", c -> {
+            c.runOnClient(mc -> {
+                ModelCache.put("anthropic", List.of("deepseek-v4-pro", "deepseek-v4-flash"));
+                mc.setScreenAndShow(FriendaiConfigScreen.create(new TitleScreen()));
+                var widget = (DropdownStringControllerElement) option("friendai.config.model")
+                        .controller()
+                        .provideWidget(screen(), Dimension.ofInt(20, 200, 300, 20));
+                set("friendai.config.model", "dee");
+                widget.createDropdownWidget();
+                var popup = widget.dropdownWidget();
+                int top = 0;
+                while (top < screenHeight(mc) && !popup.isMouseOver(100, top)) top++;
+                require(top < screenHeight(mc), "suggestions have no clickable area");
+                int index = widget.computeMatchingValues().indexOf("deepseek-v4-flash");
+                require(index >= 0, "expected suggestion is missing");
+                double y = top + index * popup.entryHeight() + popup.entryHeight() / 2.0;
+                mc.gui.screen().mouseMoved(100, y);
+                mc.gui.screen().mouseClicked(new MouseButtonEvent(100, y, new MouseButtonInfo(0, 0)), false);
+                require(
+                        option("friendai.config.model").pendingValue().equals("deepseek-v4-flash"),
+                        "click did not select the suggestion; actual="
+                                + option("friendai.config.model").pendingValue());
+                screen().finishOrSave();
+                require(server().profiles.get("main").model.equals("deepseek-v4-flash"), "clicked model did not save");
+            });
+        });
         check(context, "all ordinary fields persist", c -> {
             c.runOnClient(mc -> {
                 Map<String, Object> edits = Map.ofEntries(
@@ -666,5 +695,9 @@ public final class SettingsScreenTests implements FabricClientGameTest {
 
     private static void require(boolean condition, String message) {
         if (!condition) throw new AssertionError(message);
+    }
+
+    private static int screenHeight(Minecraft mc) {
+        return mc.getWindow().getGuiScaledHeight();
     }
 }

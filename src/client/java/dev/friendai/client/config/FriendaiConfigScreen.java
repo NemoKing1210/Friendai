@@ -294,10 +294,7 @@ public final class FriendaiConfigScreen {
         Option<String> modelOpt = Option.<String>createBuilder()
                 .name(tr("friendai.config.model"))
                 .binding(new ServerConfig.ProfileConfig().model, () -> p.model, v -> p.model = v)
-                .controller(o -> DropdownStringControllerBuilder.create(o)
-                        .values(ModelCache.get(p.provider))
-                        .allowAnyValue(true)
-                        .allowEmptyValue(false))
+                .customController(o -> new SuggestedStringController(o, ModelCache.get(p.provider)))
                 .build();
         Option<Double> temperatureOpt = Option.<Double>createBuilder()
                 .name(tr("friendai.config.temperature"))
