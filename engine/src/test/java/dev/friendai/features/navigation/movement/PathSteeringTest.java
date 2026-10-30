@@ -1,6 +1,7 @@
 package dev.friendai.features.navigation.movement;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.friendai.features.navigation.pathing.Move;
 import dev.friendai.features.navigation.pathing.Node;
@@ -72,6 +73,51 @@ class PathSteeringTest {
         // Node 1 is only 0.2 blocks away and behind the body: there is no direction to aim at, so it keeps east.
         float yaw = PathSteering.yaw(steps, 0, 1.7, 0.5, -90.0f, false);
         assertEquals(-90.0f, yaw, 1e-4);
+    }
+
+    private static List<PathStep> eastRunThenSouth() {
+        return List.of(
+                step(0, 2, 0, 6, 2, 0, Move.WALK),
+                step(6, 2, 0, 6, 2, 6, Move.WALK),
+                step(6, 2, 6, 6, 2, 12, Move.WALK));
+    }
+
+    @Test
+    void runsFullSpeedFarFromACorner() {
+        assertEquals(1.0, PathSteering.speed(eastRunThenSouth(), 0, 0.5, 0.5), 1e-9);
+    }
+
+    @Test
+    void slowsForARightAngleCornerAndMoreTheCloserItGets() {
+        List<PathStep> steps = eastRunThenSouth();
+        double far = PathSteering.speed(steps, 0, 3.5, 0.5);
+        double near = PathSteering.speed(steps, 0, 5.0, 0.5);
+        double at = PathSteering.speed(steps, 0, 6.3, 0.5);
+        assertTrue(far > near && near > at, far + " " + near + " " + at);
+        assertTrue(at <= 0.55, "the corner speed was " + at);
+        assertTrue(at >= PathSteering.MIN_SPEED);
+    }
+
+    @Test
+    void aGentlerCornerSlowsLessThanASharpOne() {
+        List<PathStep> diagonal =
+                List.of(step(0, 2, 0, 6, 2, 0, Move.WALK), step(6, 2, 0, 12, 2, 6, Move.WALK_DIAGONAL));
+        List<PathStep> square = eastRunThenSouth();
+        assertTrue(PathSteering.speed(diagonal, 0, 6.3, 0.5) > PathSteering.speed(square, 0, 6.3, 0.5));
+    }
+
+    @Test
+    void slowsForTheEndOfTheRoute() {
+        List<PathStep> steps = List.of(step(0, 2, 0, 8, 2, 0, Move.WALK));
+        assertEquals(1.0, PathSteering.speed(steps, 0, 0.5, 0.5), 1e-9);
+        assertTrue(PathSteering.speed(steps, 0, 8.0, 0.5) <= 0.55);
+    }
+
+    @Test
+    void keepsItsRunUpTowardAGapAlongTheSameLine() {
+        List<PathStep> steps = List.of(step(0, 2, 0, 4, 2, 0, Move.WALK), step(4, 2, 0, 6, 2, 0, Move.JUMP_GAP));
+        assertEquals(1.0, PathSteering.speed(steps, 0, 4.4, 0.5), 1e-9);
+        assertEquals(1.0, PathSteering.speed(steps, 1, 4.9, 0.5), 1e-9);
     }
 
     @Test

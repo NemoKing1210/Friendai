@@ -1130,6 +1130,57 @@ public class PathingTests {
     }
 
     @GameTest(maxTicks = 400)
+    public void runningCompanionDoesNotSwingWideAtCorners(GameTestHelper h) {
+        int base = 120;
+        GameTestSupport.platformAt(h, base, 24);
+        // A wall forces an east -> south -> east -> north-east route, with a corner at each end of the wall.
+        for (int z = 0; z <= 14; z++) {
+            for (int y = base + 1; y <= base + 4; y++) {
+                h.setBlock(10, y, z, Blocks.BEDROCK);
+            }
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, base + 1, 2);
+        c.setPaceMode(dev.friendai.features.navigation.movement.PaceMode.RUN);
+        Outcome out = new Outcome();
+        walkTo(c, h, out, 18.5, base + 1, 2.5);
+        double[] farthestSouth = {0.0};
+        double[] backtrack = {0.0};
+        double[] furthestEast = {0.0};
+        h.onEachTick(() -> {
+            Vec3 rel = h.relativeVec(c.position());
+            farthestSouth[0] = Math.max(farthestSouth[0], rel.z);
+            furthestEast[0] = Math.max(furthestEast[0], rel.x);
+            // Past the wall the route only goes east: a body that slid past a node and turned back loses ground here.
+            if (rel.x > 11.0) {
+                backtrack[0] = Math.max(backtrack[0], furthestEast[0] - rel.x);
+            }
+        });
+        h.succeedWhen(() -> {
+            h.assertTrue(out.status == TaskStatus.SUCCESS, "did not arrive: " + out.why() + " at " + c.position());
+            // The wall ends at z=14, so the route turns at z=15.5; a body carried by its speed ran out to 16.2.
+            h.assertTrue(farthestSouth[0] <= 15.95, "swung " + farthestSouth[0] + " around the wall end");
+            h.assertTrue(backtrack[0] <= 0.25, "slid past a node and came back " + backtrack[0] + " blocks");
+        });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void runningCompanionTurnsIntoAGapAndClearsIt(GameTestHelper h) {
+        int base = 110;
+        GameTestSupport.platformAt(h, base, 16);
+        trench(h, base, 8, 2);
+        // The start is off the gap's line, so the run turns before the take-off and must not leave the edge sideways.
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, base + 1, 2);
+        c.setPaceMode(dev.friendai.features.navigation.movement.PaceMode.RUN);
+        Outcome out = new Outcome();
+        walkTo(c, h, out, 12.5, base + 1, 12.5);
+        h.succeedWhen(() -> {
+            h.assertTrue(
+                    out.status == TaskStatus.SUCCESS, "did not leap the gap: " + out.why() + " at " + c.position());
+            h.assertTrue(h.relativeVec(c.position()).y >= base + 0.9, "fell: " + c.position());
+        });
+    }
+
+    @GameTest(maxTicks = 400)
     public void hungryCompanionWalkJumpsAOneBlockGap(GameTestHelper h) {
         int base = 150;
         GameTestSupport.platformAt(h, base, 16);
@@ -1229,7 +1280,9 @@ public class PathingTests {
         for (int x = -1; x <= 17; x++) {
             for (int z = -1; z <= 17; z++) {
                 for (int y = base; y <= base + 12; y++) {
-                    if (h.getLevel().getBlockState(h.absolutePos(new BlockPos(x, y, z))).is(block)) {
+                    if (h.getLevel()
+                            .getBlockState(h.absolutePos(new BlockPos(x, y, z)))
+                            .is(block)) {
                         found++;
                     }
                 }
@@ -1268,8 +1321,7 @@ public class PathingTests {
             h.assertTrue(out.status == TaskStatus.SUCCESS, "did not climb the stair: " + out.why());
             h.assertTrue(c.getY() >= base + 3.9, "stopped below the top at " + c.position());
             h.assertTrue(
-                    plannedPlaces(out) >= 2,
-                    "the passage was not planned as one stair of two rises: " + out.why());
+                    plannedPlaces(out) >= 2, "the passage was not planned as one stair of two rises: " + out.why());
         });
     }
 

@@ -8,6 +8,13 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.91.1] - 2026-10-30
+
+### Fixed
+
+- A running companion no longer skids past the planned route: it slows down before a corner and before the end of the route, so it stays on the path instead of swinging wide and doubling back.
+- A companion that arrives at the edge of a gap off the line of the jump keeps lining up first, so it no longer takes off sideways and falls into the pit.
+
 ## [0.91.0] - 2026-10-30
 
 ### Added

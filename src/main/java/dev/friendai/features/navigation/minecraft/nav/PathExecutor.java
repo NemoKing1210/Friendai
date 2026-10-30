@@ -64,6 +64,10 @@ public final class PathExecutor {
      * leap is shortest from the cell's own edge, so jumping there costs the least flight.
      */
     private static final double GAP_RUN_UP = LeapPhysics.TAKE_OFF_OFFSET;
+    /** How far off the leap's line the body may be and still take off. */
+    private static final double GAP_LINE_TOLERANCE = 0.3;
+    /** How far into the source cell the body is at the edge, where it must jump whatever its alignment. */
+    private static final double GAP_EDGE = 0.5;
 
     /** How many blocks before a leap the sprint starts, so the run-up looks like one without running a whole leg. */
     private static final double RUN_UP_DISTANCE = 3.0;
@@ -440,7 +444,10 @@ public final class PathExecutor {
                         // would make the mob's own step-up logic hop early, short of the take-off point.
                         step.move() == Move.JUMP_GAP ? companion.getY() : target.y(),
                         companion.getZ() + Math.cos(radians),
-                        MOVE_SPEED);
+                        // A running body slides on after it turns, so it arrives at a corner already slowed.
+                        companion.onGround()
+                                ? PathSteering.speed(path.steps(), index, companion.getX(), companion.getZ())
+                                : MOVE_SPEED);
         boolean up = step.to().y() > step.from().y();
         if (companion.isInWater()) {
             double dx = step.to().x() + 0.5 - companion.getX();
@@ -540,7 +547,10 @@ public final class PathExecutor {
      * waits instead of leaping from the cell centre, which needs a whole extra block of flight.
      */
     private static boolean gapRunUpSpent(CompanionEntity companion, PathStep step) {
-        return gapAlong(companion, step) >= GAP_RUN_UP && gapAcross(companion, step) <= 0.6;
+        double along = gapAlong(companion, step);
+        // A body that is still sliding sideways keeps steering onto the line rather than leaping off it; only at the
+        // very edge does it jump regardless, because walking on would be a fall.
+        return along >= GAP_RUN_UP && (gapAcross(companion, step) <= GAP_LINE_TOLERANCE || along >= GAP_EDGE);
     }
 
     /** How many blocks higher (negative: lower) the leap lands than it starts. */
