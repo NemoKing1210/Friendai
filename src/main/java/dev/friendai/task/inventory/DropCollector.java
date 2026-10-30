@@ -3,6 +3,7 @@ package dev.friendai.task.inventory;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.combat.minecraft.Threats;
 import dev.friendai.features.navigation.minecraft.nav.LevelCellView;
+import dev.friendai.features.navigation.minecraft.nav.MoveHelper;
 import dev.friendai.features.navigation.minecraft.nav.Navigator;
 import dev.friendai.features.navigation.pathing.DropPoint;
 import dev.friendai.features.navigation.pathing.GoalPickup;
@@ -74,6 +75,12 @@ public final class DropCollector {
     private List<Leftover> leftovers = List.of();
     private boolean sawIntended;
     private @Nullable Navigator navigator;
+    /**
+     * Walks the last metre once the path has ended: the path goal is a whole stance volume, so the companion can stop a
+     * body-length outside the pickup box and stand there until the round gives up on a drop it could take.
+     */
+    private @Nullable MoveHelper closer;
+
     private int ticks;
     private int arrivedTicks;
     private int collected;
@@ -154,6 +161,10 @@ public final class DropCollector {
 
     /** Stops the route and the walking. Drops already taken stay taken. */
     public void stop(TaskContext c) {
+        if (closer != null) {
+            closer.stop(c);
+            closer = null;
+        }
         if (navigator != null) {
             navigator.stop(c);
             navigator = null;
@@ -306,7 +317,20 @@ public final class DropCollector {
         }
         if (++arrivedTicks >= ARRIVE_TICKS) {
             giveUpOnReached(c);
+            return;
         }
+        walkOntoDrop(c);
+    }
+
+    /** Closes the gap between the path's goal volume and the pickup box, so a reached drop is actually taken. */
+    private void walkOntoDrop(TaskContext c) {
+        if (aimed.isEmpty()) {
+            return;
+        }
+        if (closer == null) {
+            closer = new MoveHelper(1.0, 0.3, false);
+        }
+        closer.tick(c, aimed.get(0).position());
     }
 
     /** No route to any of them: leave them all, and look again for drops that are easier to reach. */
@@ -318,9 +342,9 @@ public final class DropCollector {
     }
 
     /**
-     * The companion stood at a drop and could not take it, so only the drops its body volume covers give up; the others
-     * on the route are still worth walking to. The test is the pickup's own box: a drop the body covers was retried for
-     * {@link #ARRIVE_TICKS} and is genuinely stuck (buried, or held by a pickup rule).
+     * The companion stood at a drop and could not take it, so only the drops inside the volume the path accepted give
+     * up; the others on the route are still worth walking to. A drop the body could cover was retried for
+     * {@link #ARRIVE_TICKS} after walking onto it and is genuinely stuck (buried, or held by a pickup rule).
      */
     private void giveUpOnReached(TaskContext c) {
         CompanionEntity companion = c.companion();
@@ -343,6 +367,10 @@ public final class DropCollector {
     }
 
     private void resetNavigation(TaskContext c) {
+        if (closer != null) {
+            closer.stop(c);
+            closer = null;
+        }
         if (navigator != null) {
             navigator.stop(c);
             navigator = null;
