@@ -15,7 +15,7 @@ import java.util.function.Function;
 
 /** friendai-server.json. */
 public class ServerConfig {
-    public static final int VERSION = 16;
+    public static final int VERSION = 17;
 
     public int version = VERSION;
     public String activeProfile = "main";
@@ -113,6 +113,9 @@ public class ServerConfig {
         public boolean defaultFollow = true;
         public int mineSearchRadius = 32;
         public int taskTimeoutSec = 300;
+        /** Server ticks between two placed blocks in survival; creative always places one per tick. 1 is the old speed. */
+        public int placeIntervalTicks = 4;
+
         public int treeSearchRadius = 32;
         public boolean fellCollectDrops = true;
         public boolean mineCollectDrops = true;
@@ -430,6 +433,7 @@ public class ServerConfig {
         chat.guestCooldownMs = clamp(problems, "chat.guestCooldownMs", chat.guestCooldownMs, 0, 60_000);
         tasks.mineSearchRadius = clamp(problems, "tasks.mineSearchRadius", tasks.mineSearchRadius, 4, 64);
         tasks.taskTimeoutSec = clamp(problems, "tasks.taskTimeoutSec", tasks.taskTimeoutSec, 10, 3600);
+        tasks.placeIntervalTicks = clamp(problems, "tasks.placeIntervalTicks", tasks.placeIntervalTicks, 1, 40);
         tasks.queueMaxJobs = clamp(problems, "tasks.queueMaxJobs", tasks.queueMaxJobs, 1, 128);
         tasks.queueMaxPlans = clamp(problems, "tasks.queueMaxPlans", tasks.queueMaxPlans, 1, 16);
         tasks.queueBlockedNoticeSec =

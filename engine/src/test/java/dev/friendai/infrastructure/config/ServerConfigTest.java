@@ -151,7 +151,7 @@ class ServerConfigTest {
         assertThrows(UnsupportedStoreVersionException.class, () -> store.save(ServerConfig.defaults()));
         assertEquals(old, Files.readString(file));
 
-        Files.writeString(file, "{\"version\":17,\"activeProfile\":\"future\"}");
+        Files.writeString(file, "{\"version\":18,\"activeProfile\":\"future\"}");
         ConfigStore<ServerConfig> futureStore =
                 new ConfigStore<>(file, ServerConfig.class, ServerConfig::defaults, ServerConfig.VERSION);
         String future = Files.readString(file);

@@ -677,6 +677,8 @@
   "friendai.config.agent.planner.tooltip": "Profile used to draft plans. An empty choice uses the active profile. Choose a model that can return JSON.",
   "friendai.config.agent.planner_retries": "Planner attempts",
   "friendai.config.agent.planner_retries.tooltip": "Total attempts per plan, including the first (1–4, default 2). Extra attempts may use paid tokens. Connection failures are not retried.",
+  "friendai.config.tasks.place_interval": "Build pace (ticks per block)",
+  "friendai.config.tasks.place_interval.tooltip": "Server ticks between two blocks placed in survival; a player places one every four. 1 is the fastest the printer can go, 40 the slowest (1–40, default 4). Creative mode always places one block per tick.",
   "friendai.menu.free_time.planner_model": "Planner model: %s",
   "friendai.menu.log.kind.planner": "Planner",
   "friendai.freetime.no_plan.step": "step %s",

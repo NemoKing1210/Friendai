@@ -108,6 +108,13 @@ public class CompanionEntity extends PathfinderMob {
             SynchedEntityData.defineId(CompanionEntity.class, EntityDataSerializers.BOOLEAN);
     private static final EntityDataAccessor<Boolean> DATA_CREATIVE_MODE =
             SynchedEntityData.defineId(CompanionEntity.class, EntityDataSerializers.BOOLEAN);
+    /**
+     * The block currently visible in the companion's hand while it places: a display copy from the block item, never
+     * the real stack, because the placement itself goes through the hands' fake player.
+     */
+    private static final EntityDataAccessor<ItemStack> DATA_PLACE_ITEM =
+            SynchedEntityData.defineId(CompanionEntity.class, EntityDataSerializers.ITEM_STACK);
+
     private static final EquipmentSlot[] ARMOR_SLOTS = {
         EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET
     };
@@ -185,6 +192,7 @@ public class CompanionEntity extends PathfinderMob {
     private final Pace pace = new Pace(this);
     private final CompanionBody body = new CompanionBody(this);
     private final CompanionSwim swim = new CompanionSwim(this);
+    private final CompanionPlacement placement = new CompanionPlacement(this);
     private final CompanionFacing facing = new CompanionFacing(this);
 
     public CompanionEntity(EntityType<? extends CompanionEntity> type, Level level) {
@@ -201,6 +209,7 @@ public class CompanionEntity extends PathfinderMob {
         builder.define(DATA_SKIN, "");
         builder.define(DATA_SLIM, false);
         builder.define(DATA_CREATIVE_MODE, false);
+        builder.define(DATA_PLACE_ITEM, ItemStack.EMPTY);
     }
     /** The companion's experience; after changing it directly call {@link #syncExperience()}. */
     public ExperienceModel experience() {
@@ -433,6 +442,8 @@ public class CompanionEntity extends PathfinderMob {
                 tickHunger((ServerLevel) level());
             }
             collectExperienceOrbs();
+            // The cooldown advances before the tasks tick, so an interval of one still places on the very next tick.
+            placement.tick();
             CompanionExecution.tick(this);
             tickAutomaticBedRest((ServerLevel) level());
             body.tick();
@@ -724,6 +735,21 @@ public class CompanionEntity extends PathfinderMob {
     /** Runtime generation used to revoke queued work after a mode change or entity rebinding. */
     public long creativeModeRevision() {
         return creativeModeRevision;
+    }
+
+    /** How fast the companion places blocks, and what its client sees while it does; ticked by the entity. */
+    public CompanionPlacement placement() {
+        return placement;
+    }
+
+    /** The block shown in the hand, as the client last received it (the server's own copy while placing). */
+    public ItemStack syncedPlaceItem() {
+        return entityData.get(DATA_PLACE_ITEM);
+    }
+
+    /** Written only by {@link CompanionPlacement}; a display copy, never a stack that exists elsewhere. */
+    void setSyncedPlaceItem(ItemStack stack) {
+        entityData.set(DATA_PLACE_ITEM, stack);
     }
 
     /** Applies runtime mode only; the transition service owns the canonical saved preference. */

@@ -674,6 +674,8 @@
   "friendai.config.agent.planner.tooltip": "Профиль для составления планов. Пустой вариант использует активный профиль. Выберите модель, умеющую возвращать JSON.",
   "friendai.config.agent.planner_retries": "Попыток планирования",
   "friendai.config.agent.planner_retries.tooltip": "Всего попыток на план, включая первую (1–4, по умолчанию 2). Дополнительные попытки могут расходовать платные токены. Ошибки подключения не повторяются.",
+  "friendai.config.tasks.place_interval": "Темп строительства (тиков на блок)",
+  "friendai.config.tasks.place_interval.tooltip": "Тиков сервера между двумя блоками в режиме выживания; игрок ставит один блок за четыре тика. 1 — самая быстрая печать, 40 — самая медленная (1–40, по умолчанию 4). В творческом режиме блок ставится каждый тик, как и раньше.",
   "friendai.menu.free_time.planner_model": "Модель планировщика: %s",
   "friendai.menu.log.kind.planner": "Планировщик",
   "friendai.freetime.no_plan.step": "шаг %s",

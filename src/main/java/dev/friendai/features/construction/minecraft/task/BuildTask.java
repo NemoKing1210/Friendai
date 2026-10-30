@@ -747,6 +747,9 @@ public final class BuildTask implements Task {
                                 toPos(spec.pos()), describeState(spec.wanted()), "", attempt(spec.pos())),
                         false);
             }
+            if (!c.companion().placement().ready()) {
+                return TaskStatus.RUNNING;
+            }
             CreativeItemLease lease = takeOne(c, spec.wanted());
             if (lease == null) {
                 return fail(
@@ -957,6 +960,10 @@ public final class BuildTask implements Task {
                 deferCurrent(c);
                 continue;
             }
+            if (!c.companion().placement().ready()) {
+                // A player places one block every few ticks; the spot, the reach and the protection checks above stay.
+                return TaskStatus.RUNNING;
+            }
             CreativeItemLease lease = takeOne(c, wanted.wanted());
             if (lease == null) {
                 return fail(
@@ -1028,6 +1035,9 @@ public final class BuildTask implements Task {
         if (spot(c.level(), pos, spec.wanted()).isPresent()) {
             // The obstacle moved or the neighbouring block arrived while this cell waited.
             retryDeferredPass();
+            return TaskStatus.RUNNING;
+        }
+        if (!c.companion().placement().ready()) {
             return TaskStatus.RUNNING;
         }
         String refused = "";
@@ -1566,6 +1576,7 @@ public final class BuildTask implements Task {
     @Override
     public void stop(TaskContext c) {
         pillarTargetY = null;
+        c.companion().placement().clear();
         resetMovers(c);
         if (breaker != null) {
             breaker.stop(c);

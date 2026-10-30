@@ -128,6 +128,8 @@ public final class CompanionHands {
         BlockState after = level.getBlockState(pos);
         if (after.getBlock() == item.getBlock() && before.getBlock() != item.getBlock()) {
             placed.record(companion, pos, after, placementSource());
+            // The placement choke point: one pace for every task, and the block shows in the hand for one swing.
+            companion.placement().placed(item.getDefaultInstance());
         }
     }
 

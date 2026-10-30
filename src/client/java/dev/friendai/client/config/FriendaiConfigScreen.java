@@ -448,6 +448,16 @@ public final class FriendaiConfigScreen {
                         .controller(option ->
                                 IntegerFieldControllerBuilder.create(option).range(1, 4))
                         .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.tasks.place_interval"))
+                        .description(OptionDescription.of(tr("friendai.config.tasks.place_interval.tooltip")))
+                        .binding(
+                                4,
+                                () -> server.tasks.placeIntervalTicks,
+                                value -> server.tasks.placeIntervalTicks = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(1, 40))
+                        .build())
                 .build();
     }
 

@@ -18,6 +18,7 @@ public final class ServerSettingsResolver {
         ServerConfig.TasksSection taskConfig = config.tasks;
         TaskRuntimeSettings tasks = new TaskRuntimeSettings(
                 taskConfig.taskTimeoutSec,
+                taskConfig.placeIntervalTicks,
                 taskConfig.queueMaxJobs,
                 taskConfig.queueMaxPlans,
                 taskConfig.queueBlockedNoticeSec,

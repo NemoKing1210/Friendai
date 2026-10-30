@@ -3,8 +3,10 @@ package dev.friendai.test;
 import com.google.gson.JsonObject;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
+import dev.friendai.entity.CompanionPlacement;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.features.acquisition.minecraft.task.ObtainTask;
+import dev.friendai.features.construction.PlacementPace;
 import dev.friendai.features.construction.blueprint.BlockSpec;
 import dev.friendai.features.construction.blueprint.Blueprint;
 import dev.friendai.features.construction.blueprint.BlueprintParser;
@@ -1038,6 +1040,118 @@ public class BuildTests {
                 }
             }
             h.assertTrue(companion.inventory().countItem(Items.COBBLESTONE) == 0, "all cobblestone must be used");
+        });
+    }
+
+    /** The 3×3 cobblestone wall the pace tests build: cells x 4..6, y 2..4 at z 6. */
+    private static int wallBlocks(GameTestHelper h) {
+        int count = 0;
+        for (int x = 4; x <= 6; x++) {
+            for (int y = 2; y <= 4; y++) {
+                if (h.getBlockState(new BlockPos(x, y, 6)).is(Blocks.COBBLESTONE)) {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
+    /**
+     * A survival build must rise at a player's pace, not twenty blocks a second. Measured before the pace existed:
+     * one block per tick, so this wall went up in nine placement ticks with a one-tick gap between them.
+     */
+    @GameTest(maxTicks = 2000)
+    public void aSurvivalWallRisesAtAPlayersPace(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.inventory().addItem(new ItemStack(Items.COBBLESTONE, 9));
+        Blueprint wall = generator("{\"type\":\"wall\",\"length\":3,\"height\":3,\"block\":\"minecraft:cobblestone\"}");
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(companion, result);
+        runner.start(build(wall, h, 4, 2, 6, Direction.SOUTH), "build_structure");
+        int[] ticks = {0};
+        int[] seen = {0};
+        int[] lastPlacement = {Integer.MIN_VALUE};
+        int[] shortestGap = {Integer.MAX_VALUE};
+        int[] finishedAt = {-1};
+        h.succeedWhen(() -> {
+            if (result.status == null) {
+                runner.tick();
+                int now = wallBlocks(h);
+                if (now > seen[0]) {
+                    // The block that just went in must be visible in the hand on the very tick it was placed.
+                    check(
+                            companion.syncedPlaceItem().is(Items.COBBLESTONE),
+                            "the placed block is not in the hand: " + companion.syncedPlaceItem());
+                    if (lastPlacement[0] != Integer.MIN_VALUE) {
+                        shortestGap[0] = Math.min(shortestGap[0], ticks[0] - lastPlacement[0]);
+                    }
+                    lastPlacement[0] = ticks[0];
+                    seen[0] = now;
+                }
+            }
+            ticks[0]++;
+            if (result.status == null) {
+                return;
+            }
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
+            if (finishedAt[0] < 0) {
+                finishedAt[0] = ticks[0];
+            }
+            h.assertTrue(
+                    ticks[0] >= 9 * PlacementPace.DEFAULT_INTERVAL,
+                    "nine blocks at " + PlacementPace.DEFAULT_INTERVAL + " ticks each need at least 36 ticks, the wall"
+                            + " took " + ticks[0] + " (shortest gap " + shortestGap[0] + ")");
+            h.assertTrue(
+                    shortestGap[0] >= PlacementPace.DEFAULT_INTERVAL,
+                    "two blocks went in " + shortestGap[0] + " ticks apart");
+            h.assertTrue(
+                    ticks[0] > finishedAt[0] + CompanionPlacement.POSE_TICKS, "waiting for the placement pose to end");
+            h.assertTrue(
+                    companion.syncedPlaceItem().isEmpty(),
+                    "the block stayed in the hand after the build: " + companion.syncedPlaceItem());
+            h.assertTrue(companion.placement().ready(), "the pace must be clear once the job is done");
+        });
+    }
+
+    /** Creative is the printer players know: one block per tick, whatever the survival setting says. */
+    @GameTest(maxTicks = 2000)
+    public void aCreativeWallKeepsThePrinterSpeed(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.inventory().addItem(new ItemStack(Items.COBBLESTONE, 9));
+        companion.setCreativeMode(true);
+        Blueprint wall = generator("{\"type\":\"wall\",\"length\":3,\"height\":3,\"block\":\"minecraft:cobblestone\"}");
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(companion, result);
+        runner.start(build(wall, h, 4, 2, 6, Direction.SOUTH), "build_structure");
+        int[] ticks = {0};
+        int[] seen = {0};
+        int[] lastPlacement = {Integer.MIN_VALUE};
+        int[] shortestGap = {Integer.MAX_VALUE};
+        h.succeedWhen(() -> {
+            if (result.status == null) {
+                runner.tick();
+                int now = wallBlocks(h);
+                if (now > seen[0]) {
+                    if (lastPlacement[0] != Integer.MIN_VALUE) {
+                        shortestGap[0] = Math.min(shortestGap[0], ticks[0] - lastPlacement[0]);
+                    }
+                    lastPlacement[0] = ticks[0];
+                    seen[0] = now;
+                }
+            }
+            ticks[0]++;
+            if (result.status == null) {
+                return;
+            }
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
+            h.assertTrue(
+                    shortestGap[0] < PlacementPace.DEFAULT_INTERVAL,
+                    "creative must not be slowed down, the shortest gap was " + shortestGap[0] + " ticks");
+            h.assertTrue(
+                    ticks[0] < 9 * PlacementPace.DEFAULT_INTERVAL,
+                    "the creative wall took " + ticks[0] + " ticks, the pacing is not bypassed");
         });
     }
 

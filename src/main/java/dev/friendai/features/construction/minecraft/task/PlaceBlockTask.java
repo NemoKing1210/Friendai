@@ -155,6 +155,9 @@ public final class PlaceBlockTask implements Task {
             summary = coords(spot) + " is " + ProtectionText.describe(c, spot);
             return TaskStatus.FAILED;
         }
+        if (!companion.placement().ready()) {
+            return TaskStatus.RUNNING;
+        }
         ItemStack held = takeOne(c);
         CreativeItemLease lease;
         if (held.isEmpty()) {

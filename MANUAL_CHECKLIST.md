@@ -297,6 +297,7 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] A lantern hanging under a beam is placed after the beam; a door's upper half appears from the lower half and is never counted or placed twice.
 - [ ] Save and reload the world mid-build: the build resumes where it stopped and finishes.
 - [ ] Missing materials with "gather": the companion obtains them with obtain_item instead of failing, then builds.
+- [ ] A survival wall goes up at a player's pace (about five blocks a second) with the block visible in the companion's hand and the arm reaching forward; in creative the same wall still goes one block per tick, and the block stops showing in the hand a moment after the last one. Check the label and tooltip of "Build pace (ticks per block)" in English and Russian.
 
 ## Special structures
 

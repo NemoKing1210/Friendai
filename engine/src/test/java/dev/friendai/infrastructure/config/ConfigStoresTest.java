@@ -75,7 +75,7 @@ class ConfigStoresTest {
 
     @Test
     void eachSupportedServerVersionPreservesProfilesAndExplicitChoices() throws IOException {
-        for (int version = 3; version < 16; version++) {
+        for (int version = 3; version < 17; version++) {
             Path path = dir.resolve("server-" + version + ".json");
             String original = """
                     {"version":%d,"activeProfile":"custom","profiles":{"custom":{
@@ -88,7 +88,7 @@ class ConfigStoresTest {
             Files.writeString(path, original);
             var store = ConfigStores.server(path);
             ServerConfig config = store.load();
-            assertEquals(16, config.version);
+            assertEquals(17, config.version);
             assertEquals("custom", config.activeProfile);
             assertEquals("owner-model", config.profiles.get("custom").model);
             assertEquals("openai", config.profiles.get("custom").provider);
@@ -104,6 +104,7 @@ class ConfigStoresTest {
             assertEquals(0, config.agent.maxReplans);
             assertEquals(2, config.agent.plannerRetries);
             assertEquals(120, config.tasks.freeTimeWatchdogSec);
+            assertEquals(4, config.tasks.placeIntervalTicks);
             assertFalse(store.hasUnsupportedVersion());
             assertFalse(store.hasProtectedRecovery());
             store.save(config);
@@ -247,7 +248,7 @@ class ConfigStoresTest {
     @Test
     void unrecognizedServerAndClientVersionsAreNotGuessed() throws IOException {
         Path path = dir.resolve("unknown.json");
-        for (int version : List.of(1, 2, 17)) {
+        for (int version : List.of(1, 2, 18)) {
             String source = "{\"version\":" + version + "}";
             Files.writeString(path, source);
             assertThrows(UnsupportedStoreVersionException.class, ConfigStores.server(path)::load);

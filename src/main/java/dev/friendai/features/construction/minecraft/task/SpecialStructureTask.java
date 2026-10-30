@@ -273,6 +273,9 @@ public final class SpecialStructureTask implements Task {
             against = spot.get().against();
             face = spot.get().face();
         }
+        if (!companion.placement().ready()) {
+            return TaskStatus.RUNNING;
+        }
         ItemStack held = takeOne(companion, matcher);
         CreativeItemLease lease;
         if (held.isEmpty() && freeMaterials) {

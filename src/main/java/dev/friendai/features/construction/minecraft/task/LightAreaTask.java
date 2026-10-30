@@ -100,6 +100,9 @@ public final class LightAreaTask implements Task {
         if (!companion.hands().canInteract(spot)) {
             return skip();
         }
+        if (!companion.placement().ready()) {
+            return TaskStatus.RUNNING;
+        }
         List<ItemStack> taken = InventoryOps.remove(companion.inventory(), torch, 1);
         if (taken.isEmpty()) {
             approach = null;

@@ -17,6 +17,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.HumanoidArm;
+import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.ItemUseAnimation;
 import net.minecraft.world.phys.Vec3;
@@ -37,9 +38,9 @@ public class CompanionRenderer
     private static final double THOUGHT_HEIGHT = 0.6;
 
     public CompanionRenderer(EntityRendererProvider.Context context) {
-        super(context, new HumanoidModel<>(context.bakeLayer(ModelLayers.PLAYER)), 0.5F);
+        super(context, new CompanionModel(context.bakeLayer(ModelLayers.PLAYER)), 0.5F);
         this.wideModel = this.model;
-        this.slimModel = new HumanoidModel<>(context.bakeLayer(ModelLayers.PLAYER_SLIM));
+        this.slimModel = new CompanionModel(context.bakeLayer(ModelLayers.PLAYER_SLIM));
         this.addLayer(new HumanoidArmorLayer<>(
                 this,
                 ArmorModelSet.bake(ModelLayers.PLAYER_ARMOR, context.getModelSet(), HumanoidModel::new),
@@ -56,8 +57,31 @@ public class CompanionRenderer
         super.extractRenderState(companion, state, partialTick);
         state.thinking = companion.isThinking();
         state.skin = SkinCache.textureFor(companion.getSkinHash());
+        showPlacedBlock(companion, state);
         // The model is only read while this entity is drawn, so picking the arm shape here is safe.
         this.model = state.skin != null && companion.isSlimSkin() ? slimModel : wideModel;
+    }
+
+    /**
+     * Draws the block the companion is placing in its main hand. It is a display copy the server sends while the
+     * placement window is open; the real stack is in the companion's inventory and never moves for the animation.
+     */
+    private void showPlacedBlock(CompanionEntity companion, CompanionRenderState state) {
+        state.placeItem = companion.syncedPlaceItem();
+        if (state.placeItem.isEmpty()) {
+            return;
+        }
+        boolean right = companion.getMainArm() == HumanoidArm.RIGHT;
+        itemModelResolver.updateForLiving(
+                right ? state.rightHandItemState : state.leftHandItemState,
+                state.placeItem,
+                right ? ItemDisplayContext.THIRD_PERSON_RIGHT_HAND : ItemDisplayContext.THIRD_PERSON_LEFT_HAND,
+                companion);
+        if (right) {
+            state.rightHandItemStack = state.placeItem;
+        } else {
+            state.leftHandItemStack = state.placeItem;
+        }
     }
 
     /**
@@ -66,6 +90,10 @@ public class CompanionRenderer
      */
     @Override
     protected HumanoidModel.ArmPose getArmPose(CompanionEntity companion, HumanoidArm arm) {
+        if (!companion.syncedPlaceItem().isEmpty() && companion.getMainArm() == arm) {
+            // The block is held out front; CompanionModel turns the ITEM pose into a reach toward the clicked face.
+            return HumanoidModel.ArmPose.ITEM;
+        }
         if (isUsingFood(companion) && companion.getUsedItemHand().asArm(companion.getMainArm()) == arm) {
             return HumanoidModel.ArmPose.ITEM;
         }

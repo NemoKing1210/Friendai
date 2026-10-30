@@ -25,7 +25,8 @@ public final class ConfigStores {
                     ConfigStores::renamePersona, // 12 -> 13: description and instruction skills
                     ADDITIVE, // 13 -> 14: search escort
                     ADDITIVE, // 14 -> 15: planner attempts
-                    ADDITIVE)); // 15 -> 16: free-time watchdog
+                    ADDITIVE, // 15 -> 16: free-time watchdog
+                    ADDITIVE)); // 16 -> 17: build pace
     private static final ConfigMigration CLIENT = new ConfigMigration(
             1,
             List.of(

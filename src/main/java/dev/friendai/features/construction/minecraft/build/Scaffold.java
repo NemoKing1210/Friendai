@@ -237,6 +237,10 @@ public final class Scaffold {
             return State.CLIMBING;
         }
         if (pillarPhase == Pillar.PLACING) {
+            if (!companion.placement().ready()) {
+                // Stay in the placing phase: the countdown ends and the block goes in under the feet.
+                return State.CLIMBING;
+            }
             Optional<PlaceSpot.Spot> spot = PlaceSpot.spotAt(level, pillarFeet);
             if (spot.isEmpty()) {
                 failure = "can't place a scaffold block at " + coords(pillarFeet);
