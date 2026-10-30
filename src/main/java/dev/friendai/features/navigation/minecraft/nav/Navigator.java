@@ -278,7 +278,7 @@ public final class Navigator {
                 CostModel.DEFAULTS,
                 goal,
                 node(),
-                new SearchOptions(settings.maxNodes(), 64, Integer.MAX_VALUE, 1));
+                new SearchOptions(settings.maxNodes(), 64, Integer.MAX_VALUE, 1, companion.canSprint()));
         state = State.SEARCHING;
     }
 
@@ -495,7 +495,7 @@ public final class Navigator {
         int placeable = mayPlace ? materials.count(companion.inventory()) : 0;
         double price = mayPlace ? materials.cheapestPrice(companion.inventory()) : 0.0;
         LevelCellView view = new LevelCellView(companion, settings, CostModel.DEFAULTS, breakList);
-        SearchOptions options = new SearchOptions(settings.maxNodes(), 64, placeable, price);
+        SearchOptions options = new SearchOptions(settings.maxNodes(), 64, placeable, price, companion.canSprint());
         search = new PathSearch(view, CostModel.DEFAULTS, goal, node(), options);
     }
 

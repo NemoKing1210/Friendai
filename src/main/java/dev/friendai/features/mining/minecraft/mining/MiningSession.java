@@ -458,7 +458,7 @@ public final class MiningSession {
                 CostModel.DEFAULTS,
                 goal,
                 node(),
-                new SearchOptions(context.pathingConfig().maxNodes(), bounds.radius(), 0, 1),
+                new SearchOptions(context.pathingConfig().maxNodes(), bounds.radius(), 0, 1, companion.canSprint()),
                 policy);
     }
 

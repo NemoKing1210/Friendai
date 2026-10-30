@@ -8,6 +8,7 @@ import dev.friendai.features.navigation.pathing.CellView;
 import dev.friendai.features.navigation.pathing.CostModel;
 import dev.friendai.features.navigation.pathing.Move;
 import dev.friendai.features.navigation.pathing.MoveGenerator;
+import dev.friendai.features.navigation.pathing.Node;
 import dev.friendai.features.navigation.pathing.Path;
 import dev.friendai.features.navigation.pathing.PathStep;
 import dev.friendai.features.navigation.pathing.PathingConfig;
@@ -56,6 +57,24 @@ public final class PathExecutor {
     private static final double FEET_TOLERANCE = 0.4;
     private static final double LOOSE_TOLERANCE = 0.7;
 
+    /**
+     * How far into the source cell a gap jump waits before it leaves the ground, in blocks from the cell centre. The
+     * leap is shortest from the cell's own edge, so jumping there costs the least flight.
+     */
+    private static final double GAP_RUN_UP = 0.3;
+
+    /**
+     * Horizontal blocks a vanilla jump carries per unit of take-off speed: about ten airborne ticks with 0.91 air
+     * drag. The leap sets its take-off speed from this, so the crossing lands where the route planned it.
+     */
+    private static final double LEAP_REACH = 7.5;
+
+    /** The fastest take-off a gap jump may set, so a leap from well inside the cell cannot overshoot the far cell. */
+    private static final double LEAP_SPEED_MAX = 0.35;
+
+    /** How many blocks before a leap the sprint starts, so the run-up looks like one without running a whole leg. */
+    private static final double RUN_UP_DISTANCE = 3.0;
+
     private record FeetTarget(double y, double tolerance) {}
     /** How close a drop must be to be picked up at the feet after a dug cell; a bridge material block is one. */
     private static final double PICKUP_RADIUS = 1.5;
@@ -88,6 +107,9 @@ public final class PathExecutor {
     private BreakAction action;
     private boolean jumped;
     private boolean doorOpened;
+    /** Whether this route turned sprinting on for a run-up, so it can hand the pace back when the leap is over. */
+    private boolean runUpSprint;
+
     private int stepTicks;
     private int placeTicks;
     private int jumpTicks;
@@ -223,6 +245,7 @@ public final class PathExecutor {
             action.stop(c);
             action = null;
         }
+        releaseRunUp(c.companion());
         c.companion().getNavigation().stop();
         c.companion().setPathing(false);
     }
@@ -230,6 +253,10 @@ public final class PathExecutor {
     private void begin(TaskContext c, int next) {
         index = next;
         PathStep step = path.steps().get(next);
+        if (runUpSprint && !runsUpFrom(next)) {
+            // The leap is behind us; whoever owns the pace decides again from the next tick.
+            releaseRunUp(c.companion());
+        }
         breaks.clear();
         breaks.addAll(step.breaks());
         places.clear();
@@ -367,6 +394,16 @@ public final class PathExecutor {
         if (!MoveGenerator.standable(liveView, step.to())) {
             return fail(c);
         }
+        if (step.move() == Move.JUMP_GAP && !companion.canSprint()) {
+            // A one-block gap is crossed by a running jump, and a companion without the food to sprint cannot take
+            // one: give the step up so the route is planned around the gap instead of walked off the edge.
+            return fail(c);
+        }
+        if (runUpDue(companion) && companion.canSprint() && !companion.isSprinting()) {
+            // The sprint starts a few blocks early: the leap itself leaves the ground within a few ticks.
+            companion.setSprinting(true);
+            runUpSprint = true;
+        }
         if (step.move() == Move.DOOR && !doorOpened) {
             doorOpened = true;
             BlockPos foot = new BlockPos(step.to().x(), step.to().y(), step.to().z());
@@ -441,13 +478,13 @@ public final class PathExecutor {
             progressZ = companion.getZ();
             progressTicks = 0;
         }
-        if (step.move() == Move.ASCEND
-                || step.move() == Move.DIG_ASCEND
-                || step.move() == Move.JUMP_GAP
-                || (step.move() == Move.PILLAR && !jumped)) {
+        if (step.move() == Move.ASCEND || step.move() == Move.DIG_ASCEND || (step.move() == Move.PILLAR && !jumped)) {
             if (companion.onGround() && needsJump(companion, step, target)) {
                 companion.getJumpControl().jump();
             }
+        }
+        if (step.move() == Move.JUMP_GAP && companion.onGround() && gapRunUpSpent(companion, step)) {
+            leap(companion, step);
         }
         if (climbing && !companion.onClimbable() && companion.getY() < target.y() - target.tolerance()) {
             companion.getJumpControl().jump();
@@ -491,12 +528,89 @@ public final class PathExecutor {
         if (step.move() == Move.PILLAR) {
             return true;
         }
-        if (step.move() == Move.ASCEND || step.move() == Move.DIG_ASCEND) {
-            return companion.getY() < target.y() - 0.3;
-        }
+        return companion.getY() < target.y() - 0.3;
+    }
+
+    /**
+     * Whether the companion has walked far enough into the source cell to make a gap jump as short as it gets. It
+     * waits instead of leaping from the cell centre, which needs a whole extra block of flight.
+     */
+    private static boolean gapRunUpSpent(CompanionEntity companion, PathStep step) {
+        return gapAlong(companion, step) >= GAP_RUN_UP && gapAcross(companion, step) <= 0.6;
+    }
+
+    /** How far past the source cell's centre the companion is, along the direction of the leap. */
+    private static double gapAlong(CompanionEntity companion, PathStep step) {
+        int sx = Integer.signum(step.to().x() - step.from().x());
+        int sz = Integer.signum(step.to().z() - step.from().z());
         double dx = companion.getX() - (step.from().x() + 0.5);
         double dz = companion.getZ() - (step.from().z() + 0.5);
-        return dx * dx + dz * dz <= 1.0;
+        return dx * sx + dz * sz;
+    }
+
+    /** How far off the leap's line the companion is, in blocks. */
+    private static double gapAcross(CompanionEntity companion, PathStep step) {
+        int sx = Integer.signum(step.to().x() - step.from().x());
+        double dx = companion.getX() - (step.from().x() + 0.5);
+        double dz = companion.getZ() - (step.from().z() + 0.5);
+        return Math.abs(sx == 0 ? dx : dz);
+    }
+
+    /**
+     * Leaves the ground for a gap jump with the take-off speed the crossing needs. A mob's own jump only carries the
+     * speed it already had, which falls short of a one-block gap; the run-up's sprint is what makes it look like a
+     * leap, and this take-off is what makes it land, so the leap is a running jump the companion could not take
+     * without the food for the sprint.
+     */
+    private static void leap(CompanionEntity companion, PathStep step) {
+        double dx = step.to().x() + 0.5 - companion.getX();
+        double dz = step.to().z() + 0.5 - companion.getZ();
+        double distance = Math.hypot(dx, dz);
+        companion.jumpFromGround();
+        if (distance < 1.0e-4) {
+            return;
+        }
+        double speed = Math.min(LEAP_SPEED_MAX, distance / LEAP_REACH);
+        companion.setDeltaMovement(dx / distance * speed, companion.getDeltaMovement().y, dz / distance * speed);
+    }
+
+    /**
+     * Whether a step at this index needs a running start: a gap jump itself, or the step before one, during which the
+     * sprint builds up so the leap does not begin from a walking pace.
+     */
+    private boolean runsUpFrom(int at) {
+        if (at < 0 || at >= path.steps().size()) {
+            return false;
+        }
+        if (path.steps().get(at).move() == Move.JUMP_GAP) {
+            return true;
+        }
+        return at + 1 < path.steps().size() && path.steps().get(at + 1).move() == Move.JUMP_GAP;
+    }
+
+    /**
+     * Whether the sprint is due now: on the leap itself, or over the last few blocks before it. Sprinting a whole
+     * approach leg would charge the food for a run-up the leap does not need.
+     */
+    private boolean runUpDue(CompanionEntity companion) {
+        if (!runsUpFrom(index)) {
+            return false;
+        }
+        if (path.steps().get(index).move() == Move.JUMP_GAP) {
+            return true;
+        }
+        Node from = path.steps().get(index + 1).from();
+        double dx = from.x() + 0.5 - companion.getX();
+        double dz = from.z() + 0.5 - companion.getZ();
+        return Math.hypot(dx, dz) <= RUN_UP_DISTANCE;
+    }
+
+    /** Ends a run-up this route started, so the pace owner decides again rather than the sprint outliving the leap. */
+    private void releaseRunUp(CompanionEntity companion) {
+        if (runUpSprint) {
+            runUpSprint = false;
+            companion.setSprinting(false);
+        }
     }
 
     private FeetTarget feetTarget(TaskContext c, PathStep step) {

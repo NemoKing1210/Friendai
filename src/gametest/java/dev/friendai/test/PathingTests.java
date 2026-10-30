@@ -987,4 +987,53 @@ public class PathingTests {
             h.assertTrue(maxHeadError[0] <= 45.0F, "the head trailed the path by " + maxHeadError[0] + " degrees");
         });
     }
+
+    @GameTest(maxTicks = 400)
+    public void goToRunsOverAOneBlockGap(GameTestHelper h) {
+        int base = 260;
+        GameTestSupport.platformAt(h, base, 16);
+        // A one-block trench across the whole platform, five deep: the only way across is a running jump.
+        for (int z = 0; z < 16; z++) {
+            for (int y = base - 4; y <= base; y++) {
+                h.setBlock(new BlockPos(8, y, z), Blocks.AIR);
+            }
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, base + 1, 8);
+        Outcome out = new Outcome();
+        walkTo(c, h, out, 12.5, base + 1, 8.5);
+        h.succeedWhen(() -> {
+            h.assertTrue(
+                    out.status == TaskStatus.SUCCESS, "did not leap the gap: " + out.why() + " at " + c.position());
+            // Sprinting is what clears the gap and what pays for it: a walking jump costs 0.05 exhaustion, a running
+            // one 0.2 before the per-metre charge, so anything above 0.15 proves the run-up happened.
+            h.assertTrue(
+                    c.hunger().exhaustion() > 0.15f,
+                    "the leap cost no sprint: " + c.hunger().exhaustion());
+        });
+    }
+
+    @GameTest(maxTicks = 600)
+    public void goToWalksAroundAGapWhenItCannotRun(GameTestHelper h) {
+        int base = 272;
+        GameTestSupport.platformAt(h, base, 16);
+        // The same trench stops short of the platform edge, so a walkable detour exists: a companion too hungry to
+        // sprint must take it instead of leaping a gap it cannot clear.
+        for (int z = 0; z <= 12; z++) {
+            for (int y = base - 4; y <= base; y++) {
+                h.setBlock(new BlockPos(8, y, z), Blocks.AIR);
+            }
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, base + 1, 8);
+        c.hunger().load(3, 0.0f, 0.0f);
+        double[] lowest = {c.getY()};
+        h.onEachTick(() -> lowest[0] = Math.min(lowest[0], c.getY()));
+        Outcome out = new Outcome();
+        walkTo(c, h, out, 12.5, base + 1, 8.5);
+        h.succeedWhen(() -> {
+            h.assertTrue(
+                    out.status == TaskStatus.SUCCESS,
+                    "did not walk around the gap: " + out.why() + " at " + c.position());
+            h.assertTrue(lowest[0] >= base + 1, "fell into the trench, down to y=" + lowest[0]);
+        });
+    }
 }

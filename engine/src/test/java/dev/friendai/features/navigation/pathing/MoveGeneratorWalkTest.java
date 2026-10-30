@@ -98,6 +98,20 @@ class MoveGeneratorWalkTest {
     }
 
     @Test
+    void noGapJumpWithoutTheFoodToRun() {
+        // Clearing a one-block gap needs a running start; a companion too hungry to sprint has to walk around it.
+        GridCellView view = new GridCellView("#.#", "...", "...", "...");
+        List<PathStep> steps = new ArrayList<>();
+        new MoveGenerator(view, COSTS, new GoalPoint(99, 99, 99, 0, 0), 1, false)
+                .neighbours(new Node(0, 1, 0), 0, 0, 0, steps::add);
+        assertNull(stepTo(steps, 2, 1, 0));
+        // The same world with a running start offered still has the gap jump, so the flag is what makes the difference.
+        assertEquals(
+                Move.JUMP_GAP,
+                stepTo(stepsFrom(view, new Node(0, 1, 0)), 2, 1, 0).move());
+    }
+
+    @Test
     void doesNotJumpOverWalkableGround() {
         // A running jump is for a gap. Over a walkable cell it is slower than two steps, so no such move is offered.
         GridCellView view = new GridCellView("###", "...", "...", "...");

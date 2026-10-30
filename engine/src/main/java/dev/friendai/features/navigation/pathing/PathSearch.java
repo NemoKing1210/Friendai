@@ -78,7 +78,7 @@ public final class PathSearch {
         this.start = start;
         this.options = options;
         this.policy = policy;
-        this.moves = new MoveGenerator(view, costs, goal, options.placePrice());
+        this.moves = new MoveGenerator(view, costs, goal, options.placePrice(), options.runningJumps());
         this.startHeuristic = goal.heuristic(start, costs);
         this.bestHeuristic = startHeuristic;
         Record root = new Record(start, 0, 0, 0, null, null);

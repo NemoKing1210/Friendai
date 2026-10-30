@@ -8,6 +8,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.87.1] - 2026-10-30
+
+### Fixed
+
+- The companion runs up to a one-block gap and leaps it instead of walking off the edge and falling in; without the food to sprint it walks around the gap or bridges it.
+
 ## [0.87.0] - 2026-10-30
 
 ### Added

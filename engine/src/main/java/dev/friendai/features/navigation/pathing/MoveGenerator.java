@@ -27,16 +27,26 @@ public final class MoveGenerator {
     private final CostModel costs;
     private final PathGoal goal;
     private final double placePrice;
+    private final boolean runningJumps;
 
     public MoveGenerator(CellView view, CostModel costs, PathGoal goal) {
         this(view, costs, goal, 1);
     }
 
     public MoveGenerator(CellView view, CostModel costs, PathGoal goal, double placePrice) {
+        this(view, costs, goal, placePrice, true);
+    }
+
+    /**
+     * @param runningJumps whether a one-block gap may be leapt. Only a companion that can sprint clears it; one without
+     *     the food for a run-up must be routed around the gap, so the move is not offered at all.
+     */
+    public MoveGenerator(CellView view, CostModel costs, PathGoal goal, double placePrice, boolean runningJumps) {
         this.view = view;
         this.costs = costs;
         this.goal = goal;
         this.placePrice = placePrice;
+        this.runningJumps = runningJumps;
     }
 
     /**
@@ -101,7 +111,8 @@ public final class MoveGenerator {
             boolean walkableGap = standable(view, new Node(gap.x(), gap.y(), gap.z()))
                     && view.at(gap).kind() != Cell.Kind.WATER;
             // A swimming companion has no footing for a running jump: it swims out instead of leaping onto a bank.
-            if (!swimming
+            if (runningJumps
+                    && !swimming
                     && !walkableGap
                     && enterable(view.at(gap))
                     && enterable(view.at(gap.offset(0, 1, 0)))
