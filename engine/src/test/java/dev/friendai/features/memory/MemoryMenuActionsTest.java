@@ -126,7 +126,9 @@ class MemoryMenuActionsTest {
     @Test
     void oversizedTextIsTooLong() {
         var s = actions(true).add("world", body("NOTE", "y".repeat(2000)));
-        assertEquals(UserMessage.of("friendai.menu.memory.error.too_long", 2000, 160), s.message());
+        assertEquals(
+                UserMessage.of("friendai.menu.memory.error.too_long", 2000, MemoryLimits.DEFAULTS.maxFactChars()),
+                s.message());
         assertTrue(book.allFacts().isEmpty());
     }
 
