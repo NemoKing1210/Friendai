@@ -91,13 +91,13 @@ public final class ConditionalPlansTests {
                         return "done";
                     }
                 }));
-        ExecutionHold menuHold = runner.acquireHold(HoldReason.MENU);
+        ExecutionHold selfCareHold = runner.acquireHold(HoldReason.SELF_CARE);
         ExecutionHold inventoryHold = runner.acquireHold(HoldReason.INVENTORY);
         ExecutionHold combatHold = runner.acquireHold(HoldReason.COMBAT);
         runner.tick();
         h.assertTrue(
                 ticks[0] == 0 && runner.queue().plan(plan).isPresent(), "all scopes together must pause the action");
-        menuHold.close();
+        selfCareHold.close();
         inventoryHold.close();
         runner.tick();
         h.assertTrue(ticks[0] == 0, "remaining combat scope must still hold the action");

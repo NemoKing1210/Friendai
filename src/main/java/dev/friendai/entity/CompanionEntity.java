@@ -182,10 +182,6 @@ public class CompanionEntity extends PathfinderMob {
     private int inventoryViewers;
 
     private ExecutionHold inventoryHold;
-    /** Whether the companion menu is open for this companion: the world keeps running, the companion's work pauses. */
-    private boolean menuViewerOpen;
-
-    private ExecutionHold menuHold;
     /** Capture once: a second death path (external setHealth, a command) must not append another death. */
     private transient boolean deathCaptured;
 
@@ -933,34 +929,8 @@ public class CompanionEntity extends PathfinderMob {
         }
     }
 
-    /**
-     * The companion menu opened: hold the work where it is instead of pausing the game. Callers may repeat this;
-     * the hold is applied once, so a duplicate subscribe cannot leave the companion stuck after one close.
-     */
-    public void addMenuViewer() {
-        if (!menuViewerOpen) {
-            menuViewerOpen = true;
-            menuHold = executionCoordinator.acquireHold(HoldReason.MENU);
-            getNavigation().stop();
-        }
-    }
-
-    /** The companion menu closed for any reason, including a disconnect: the companion carries on where it stopped. */
-    public void removeMenuViewer() {
-        if (menuViewerOpen) {
-            menuViewerOpen = false;
-            closeHold(menuHold);
-            menuHold = null;
-        }
-    }
-
     private static void closeHold(ExecutionHold hold) {
         if (hold != null) hold.close();
-    }
-
-    /** True while a client has this companion's menu open. */
-    public boolean menuOpen() {
-        return menuViewerOpen;
     }
 
     /** Shift+right-click by the owner opens the inventory window; anyone else is told it is not theirs. */
@@ -1072,11 +1042,8 @@ public class CompanionEntity extends PathfinderMob {
             ServerRuntimeRegistry.find(serverLevel.getServer())
                     .ifPresent(runtime -> runtime.debugStream().closeMenu(runtime, ownerUuid));
         }
-        closeHold(menuHold);
-        menuHold = null;
         closeHold(inventoryHold);
         inventoryHold = null;
-        menuViewerOpen = false;
         inventoryViewers = 0;
         executionCoordinator.releaseAllHolds();
         if (reason.shouldDestroy()

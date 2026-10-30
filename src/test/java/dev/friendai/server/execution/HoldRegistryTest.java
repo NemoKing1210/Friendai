@@ -10,11 +10,11 @@ class HoldRegistryTest {
     @Test
     void independentHoldsRequireTheirOwnReleaseAndDuplicateCloseIsHarmless() {
         HoldRegistry registry = new HoldRegistry();
-        ExecutionHold menu = registry.acquire(HoldReason.MENU);
+        ExecutionHold selfCare = registry.acquire(HoldReason.SELF_CARE);
         ExecutionHold inventory = registry.acquire(HoldReason.INVENTORY);
 
-        menu.close();
-        menu.close();
+        selfCare.close();
+        selfCare.close();
 
         assertTrue(registry.held());
         assertEquals(1, registry.activeCount());
@@ -25,7 +25,7 @@ class HoldRegistryTest {
     @Test
     void releaseAllClosesOutstandingDisconnectHoldWithoutCancellingWork() {
         HoldRegistry registry = new HoldRegistry();
-        ExecutionHold disconnectHold = registry.acquire(HoldReason.MENU);
+        ExecutionHold disconnectHold = registry.acquire(HoldReason.SELF_CARE);
 
         registry.closeAll();
 
