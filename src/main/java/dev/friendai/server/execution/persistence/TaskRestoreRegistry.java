@@ -8,16 +8,11 @@ import dev.friendai.execution.queue.PlanRecord;
 import dev.friendai.execution.queue.QueueTradeScope;
 import dev.friendai.execution.queue.QueuedStep;
 import dev.friendai.execution.tool.Caller;
-import dev.friendai.features.construction.blueprint.Blueprint;
-import dev.friendai.features.construction.blueprint.PartKind;
-import dev.friendai.features.construction.minecraft.build.BlueprintStore;
-import dev.friendai.features.construction.minecraft.build.Placement;
-import dev.friendai.features.construction.minecraft.task.BuildTask;
-import dev.friendai.features.farming.minecraft.task.TendFarmTask;
-import dev.friendai.features.navigation.minecraft.task.FollowTask;
-import dev.friendai.features.navigation.minecraft.task.GoToTask;
-import dev.friendai.features.navigation.minecraft.task.StayTask;
+import dev.friendai.features.construction.minecraft.task.BuildCheckpoints;
+import dev.friendai.features.farming.minecraft.task.FarmCheckpoints;
+import dev.friendai.features.navigation.minecraft.task.NavigationCheckpoints;
 import dev.friendai.server.configuration.ServerSettings;
+import dev.friendai.server.execution.tools.CheckpointRestorer;
 import dev.friendai.server.execution.tools.TaskToolDefinition;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
@@ -29,7 +24,6 @@ import dev.friendai.task.plan.SequenceTask;
 import dev.friendai.task.plan.StepFactory;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -37,16 +31,21 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
-import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.level.block.Rotation;
-import net.minecraft.world.phys.Vec3;
 
 /** Resolves persisted tool/task keys against this server's current fixed contribution set. */
 public final class TaskRestoreRegistry {
+    /** Checkpoint decoders composed from the current contribution set, keyed by the persisted task type. */
+    private static final Map<String, CheckpointRestorer> BUILTIN_CHECKPOINTS = Map.of(
+            "follow", NavigationCheckpoints::follow,
+            "stay", NavigationCheckpoints::stay,
+            "go_to", NavigationCheckpoints::goTo,
+            "tend_farm", FarmCheckpoints::tendFarm,
+            "build_structure", BuildCheckpoints::build);
+
     private final Map<String, TaskToolDefinition> taskTools;
     private final Map<String, TaskToolDefinition> planTools;
+    private final Map<String, CheckpointRestorer> checkpoints;
     private final Supplier<ServerSettings> settings;
     private final BiFunction<UUID, UUID, Caller> callers;
 
@@ -66,6 +65,7 @@ public final class TaskRestoreRegistry {
             BiFunction<UUID, UUID, Caller> callers) {
         this.taskTools = restorable(taskTools, restorableTaskNames);
         this.planTools = restorable(planTools, restorableTaskNames);
+        this.checkpoints = checkpoints(this.taskTools);
         this.settings = settings;
         this.callers = callers;
     }
@@ -150,14 +150,27 @@ public final class TaskRestoreRegistry {
 
     public Optional<Task> restore(TaskState state, dev.friendai.entity.CompanionEntity companion) {
         if (state == null || !(companion.level() instanceof ServerLevel level)) return Optional.empty();
-        if (state.type().equals("run_plan")) return restorePlan(state.data(), companion, level);
-        return restoreCheckpoint(state, level);
+        return restore(state, new TaskContext(companion, level));
     }
 
-    /** Restores a checkpoint by its stable task key; a world is required only for world-backed tasks. */
+    /** Restores through the contributed decoders; caller and creative authority are checked before activation. */
+    public Optional<Task> restore(TaskState state, TaskContext context) {
+        if (state == null || context == null) return Optional.empty();
+        if (state.type().equals("run_plan"))
+            return restorePlan(state.data(), context.companion(), (ServerLevel) context.level());
+        CheckpointRestorer restorer = checkpoints.get(state.type());
+        return restorer == null ? Optional.empty() : restorer.restore(state, context);
+    }
+
+    /**
+     * Level-based restore for tests and diagnostics over the same contributor methods; production restore uses the
+     * decoders that task definitions contribute to this registry.
+     */
     public static Optional<Task> restoreCheckpoint(TaskState saved, ServerLevel level) {
         if (saved == null) return Optional.empty();
-        return restoreBuiltin(saved, level);
+        CheckpointRestorer restorer = BUILTIN_CHECKPOINTS.get(saved.type());
+        if (restorer == null) return Optional.empty();
+        return restorer.restore(saved, new TaskContext(null, level, null, null, null));
     }
 
     public boolean interruptedSearch(Job job) {
@@ -217,76 +230,15 @@ public final class TaskRestoreRegistry {
                 () -> settings.get().tasks().taskTimeoutSec() * 20));
     }
 
-    private static Optional<Task> restoreBuiltin(TaskState saved, ServerLevel level) {
-        try {
-            String data = saved.data();
-            return switch (saved.type()) {
-                case "follow" -> Optional.of(new FollowTask(true));
-                case "stay" -> Optional.of(new StayTask());
-                case "go_to" -> {
-                    String[] p = data.split(",");
-                    if (p.length != 3) yield Optional.empty();
-                    yield Optional.of(new GoToTask(
-                            new Vec3(Double.parseDouble(p[0]), Double.parseDouble(p[1]), Double.parseDouble(p[2]))));
-                }
-                case "tend_farm" -> {
-                    String[] p = data.split(",");
-                    if (p.length != 4) yield Optional.empty();
-                    yield Optional.of(new TendFarmTask(
-                            new BlockPos(Integer.parseInt(p[0]), Integer.parseInt(p[1]), Integer.parseInt(p[2])),
-                            Integer.parseInt(p[3])));
-                }
-                case "build_structure" -> restoreBuild(data, level);
-                default -> Optional.empty();
-            };
-        } catch (RuntimeException invalid) {
-            return Optional.empty();
+    private static Map<String, CheckpointRestorer> checkpoints(Map<String, TaskToolDefinition> tools) {
+        Map<String, CheckpointRestorer> result = new HashMap<>();
+        for (TaskToolDefinition definition : tools.values()) {
+            if (definition.checkpointRestorer() == null) continue;
+            CheckpointRestorer previous = result.put(definition.checkpointType(), definition.checkpointRestorer());
+            if (previous != null)
+                throw new IllegalArgumentException("duplicate checkpoint type: " + definition.checkpointType());
         }
-    }
-
-    private static Optional<Task> restoreBuild(String saved, ServerLevel level) {
-        try {
-            if (level == null) return Optional.empty();
-            String[] p = saved.split(",");
-            if (p.length != 7 && p.length != 8 || !BlueprintStore.validBuildId(p[0])) return Optional.empty();
-            BlockPos origin = new BlockPos(Integer.parseInt(p[1]), Integer.parseInt(p[2]), Integer.parseInt(p[3]));
-            Direction facing = switch (p[4]) {
-                case "north" -> Direction.NORTH;
-                case "south" -> Direction.SOUTH;
-                case "east" -> Direction.EAST;
-                case "west" -> Direction.WEST;
-                default -> null;
-            };
-            if (facing == null
-                    || !(p[5].equals("true") || p[5].equals("false"))
-                    || !(p[6].equals("true") || p[6].equals("false"))) return Optional.empty();
-            Set<PartKind> parts = new HashSet<>();
-            if (p.length == 8 && !p[7].isBlank()) {
-                for (String name : p[7].split("\\+")) {
-                    Optional<PartKind> kind = PartKind.parse(name);
-                    if (kind.isEmpty()) return Optional.empty();
-                    parts.add(kind.get());
-                }
-            }
-            Rotation rotation = Placement.rotationFor(facing);
-            BlueprintStore.InProgress inProgress =
-                    BlueprintStore.forLevel(level).loadInProgress(p[0]).orElse(null);
-            if (inProgress == null || inProgress.rotation() != rotation) return Optional.empty();
-            Blueprint blueprint = inProgress.blueprint();
-            var obtainFactory = new dev.friendai.server.execution.tools.MinecraftObtainSubtaskFactory();
-            return Optional.of(BuildTask.resume(
-                    blueprint,
-                    origin,
-                    rotation,
-                    Boolean.parseBoolean(p[5]),
-                    Boolean.parseBoolean(p[6]),
-                    inProgress.scaffold(),
-                    p[0],
-                    Set.copyOf(parts),
-                    obtainFactory::createForBuild));
-        } catch (RuntimeException invalid) {
-            return Optional.empty();
-        }
+        return Map.copyOf(result);
     }
 
     private void collectPlanTools(List<PlanNode> nodes, Map<String, TaskToolDefinition> result) {

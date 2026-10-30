@@ -192,7 +192,7 @@ An agent slows itself down by running Gradle after every edit: a unit run costs 
 
 1. Put a Minecraft task adapter in `src/main/java/dev/friendai/features/<area>/minecraft/task/`; keep reusable policies and models in `engine/src/main/java/dev/friendai/features/<area>/` without Minecraft imports.
 2. Add its tool to the area-owned `*Tools` contributor using `TaskToolDefinition` and `FeatureToolRegistry`. Validate arguments with `SchemaBuilder`, set access and queue traits deliberately, and add it to the catalog metadata. `FriendaiTools.build` composes the contributors; do not add a second central task factory.
-3. If the task should be restorable, mark the definition restorable and ensure its bounded checkpoint can be reconstructed through the current contribution set in `TaskRestoreRegistry`.
+3. If the task should be restorable, mark the definition restorable and contribute its bounded checkpoint decoder beside it with `.withCheckpoint(<stable task type>, <CheckpointRestorer>)` in the owning feature; `TaskRestoreRegistry` composes the contributed decoders and rejects a duplicate key, so adding a restorable task never edits orchestration.
 4. Add player-facing strings to both language files and a GameTest in `src/gametest`; register its class in `src/gametest/resources/fabric.mod.json`.
 5. Bump `mod_version` for a shipped behavior change. Run only the covering unit-test group and one filtered GameTest class while working; leave the full suite to CI. `assemble verifyModArtifact` refreshes `test-builds/friendai-<version>.jar` without running GameTests.
 

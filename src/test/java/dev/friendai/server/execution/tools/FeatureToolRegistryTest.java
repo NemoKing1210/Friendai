@@ -5,7 +5,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.JsonObject;
+import dev.friendai.agent.tools.Cost;
 import dev.friendai.agent.tools.ToolCatalog;
+import dev.friendai.agent.tools.ToolGroup;
+import dev.friendai.agent.tools.ToolMeta;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Tool;
@@ -16,6 +19,7 @@ import dev.friendai.features.construction.minecraft.tool.ConstructionTools;
 import dev.friendai.features.cooking.minecraft.tool.CookingTools;
 import dev.friendai.features.crafting.minecraft.tool.CraftingTools;
 import dev.friendai.features.farming.minecraft.tool.FarmingTools;
+import dev.friendai.features.interaction.minecraft.task.WaitTask;
 import dev.friendai.features.interaction.minecraft.tool.BodyTools;
 import dev.friendai.features.interaction.minecraft.tool.InteractionTools;
 import dev.friendai.features.inventory.minecraft.tool.InventoryTools;
@@ -25,6 +29,7 @@ import dev.friendai.features.mining.minecraft.tool.GatheringTools;
 import dev.friendai.features.navigation.minecraft.tool.MovementTools;
 import dev.friendai.features.navigation.minecraft.tool.RelativeMovementTools;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 
@@ -52,6 +57,9 @@ class FeatureToolRegistryTest {
                         .collect(java.util.stream.Collectors.toSet()),
                 registry.taskDefinitions().keySet());
         assertEquals(registry.taskDefinitions().keySet(), registry.restorableTaskNames());
+        assertEquals(
+                Set.of("follow", "stay", "go_to"),
+                registry.checkpointRestorers().keySet());
         assertEquals(
                 Set.of("go_to", "jump", "step", "back_away", "approach", "circle"),
                 registry.taskDefinitions().values().stream()
@@ -230,6 +238,33 @@ class FeatureToolRegistryTest {
         for (var metadata : registry.catalogMetadata()) {
             assertEquals(catalog.meta(metadata.name()).orElseThrow(), metadata);
         }
+    }
+
+    @Test
+    void aTaskContributesItsOwnCheckpointAndDuplicateTypesAreRejected() {
+        ToolRegistry<CompanionEntity> tools = new ToolRegistry<>();
+        FeatureToolRegistry registry = new FeatureToolRegistry(tools, FeatureToolRegistryTest::taskTool);
+        TaskToolDefinition custom = new TaskToolDefinition(
+                        "custom_restorable",
+                        "A test-only restorable task.",
+                        new JsonObject(),
+                        (companion, args) -> new WaitTask(5),
+                        false,
+                        new ToolMeta("custom_restorable", ToolGroup.CORE, false, "", List.of(), Cost.LOW))
+                .withCheckpoint("custom_checkpoint", (state, context) -> Optional.empty());
+
+        registry.registerTask(custom);
+
+        assertEquals(Set.of("custom_checkpoint"), registry.checkpointRestorers().keySet());
+        TaskToolDefinition duplicate = new TaskToolDefinition(
+                        "other_restorable",
+                        "Another test-only restorable task.",
+                        new JsonObject(),
+                        (companion, args) -> new WaitTask(5),
+                        false,
+                        new ToolMeta("other_restorable", ToolGroup.CORE, false, "", List.of(), Cost.LOW))
+                .withCheckpoint("custom_checkpoint", (state, context) -> Optional.empty());
+        assertThrows(IllegalArgumentException.class, () -> registry.registerTask(duplicate));
     }
 
     @Test

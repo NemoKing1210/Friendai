@@ -11,6 +11,7 @@ import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.features.navigation.minecraft.task.FollowTask;
 import dev.friendai.features.navigation.minecraft.task.GoToTask;
 import dev.friendai.features.navigation.minecraft.task.JumpTask;
+import dev.friendai.features.navigation.minecraft.task.NavigationCheckpoints;
 import dev.friendai.features.navigation.minecraft.task.StayTask;
 import dev.friendai.features.navigation.movement.PaceMode;
 import dev.friendai.server.execution.tools.FeatureToolContributor;
@@ -30,36 +31,39 @@ public final class MovementTools implements FeatureToolContributor {
     @Override
     public void register(FeatureToolRegistry registry) {
         registry.registerTask(task(
-                "follow_player",
-                "Follow the owner and stay close to them, and turn following back on for later. Use it when the owner asks you to follow or come along, not to answer a message.",
-                SchemaBuilder.object().build(),
-                (c, a) -> {
-                    c.setFollowMode(true);
-                    return new FollowTask(false);
-                },
-                false,
-                new TaskToolDefinition.QueueTraits(true, null)));
+                        "follow_player",
+                        "Follow the owner and stay close to them, and turn following back on for later. Use it when the owner asks you to follow or come along, not to answer a message.",
+                        SchemaBuilder.object().build(),
+                        (c, a) -> {
+                            c.setFollowMode(true);
+                            return new FollowTask(false);
+                        },
+                        false,
+                        new TaskToolDefinition.QueueTraits(true, null))
+                .withCheckpoint("follow", NavigationCheckpoints::follow));
         registry.registerTask(task(
-                "stay",
-                "Wait in this spot for a few minutes; queued work resumes when the wait ends. Not for 'don't follow me': "
-                        + "that is set_follow_mode with mode=off, which leaves your work running.",
-                SchemaBuilder.object().build(),
-                (c, a) -> new StayTask(),
-                false,
-                new TaskToolDefinition.QueueTraits(true, null)));
+                        "stay",
+                        "Wait in this spot for a few minutes; queued work resumes when the wait ends. Not for 'don't follow me': "
+                                + "that is set_follow_mode with mode=off, which leaves your work running.",
+                        SchemaBuilder.object().build(),
+                        (c, a) -> new StayTask(),
+                        false,
+                        new TaskToolDefinition.QueueTraits(true, null))
+                .withCheckpoint("stay", NavigationCheckpoints::stay));
         registry.registerTask(task(
-                "go_to",
-                "Walk to the given coordinates, or to the owner with target=owner.",
-                SchemaBuilder.object()
-                        .number("x", "Target X coordinate")
-                        .number("y", "Target Y coordinate")
-                        .number("z", "Target Z coordinate")
-                        .enumeration("target", "Use 'owner' to walk to the owner", "owner")
-                        .bool("sneak", "Crouch while walking, for quiet or careful movement")
-                        .build(),
-                MovementTools::goTo,
-                true,
-                new TaskToolDefinition.QueueTraits(true, null)));
+                        "go_to",
+                        "Walk to the given coordinates, or to the owner with target=owner.",
+                        SchemaBuilder.object()
+                                .number("x", "Target X coordinate")
+                                .number("y", "Target Y coordinate")
+                                .number("z", "Target Z coordinate")
+                                .enumeration("target", "Use 'owner' to walk to the owner", "owner")
+                                .bool("sneak", "Crouch while walking, for quiet or careful movement")
+                                .build(),
+                        MovementTools::goTo,
+                        true,
+                        new TaskToolDefinition.QueueTraits(true, null))
+                .withCheckpoint("go_to", NavigationCheckpoints::goTo));
         registry.registerTask(task(
                 "jump",
                 "Jump once from the ground. Use it when the player asks you to jump or hop; for several jumps in a row, put several jump steps in one plan.",

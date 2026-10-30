@@ -23,14 +23,28 @@ final class ConstructionToolSupport {
             JsonObject schema,
             TaskToolDefinition.Factory factory,
             boolean plannable) {
-        registry.registerTask(new TaskToolDefinition(
+        registerTask(registry, group, name, description, schema, factory, plannable, null, null);
+    }
+
+    static void registerTask(
+            FeatureToolRegistry registry,
+            ToolGroup group,
+            String name,
+            String description,
+            JsonObject schema,
+            TaskToolDefinition.Factory factory,
+            boolean plannable,
+            String checkpointType,
+            dev.friendai.server.execution.tools.CheckpointRestorer restorer) {
+        TaskToolDefinition definition = new TaskToolDefinition(
                 name,
                 description,
                 schema,
                 factory,
                 plannable,
                 TaskToolDefinition.QueueTraits.DEFAULT,
-                metadata(group, name)));
+                metadata(group, name));
+        registry.registerTask(restorer == null ? definition : definition.withCheckpoint(checkpointType, restorer));
     }
 
     static void registerTool(

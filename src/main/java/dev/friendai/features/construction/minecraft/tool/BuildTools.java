@@ -132,7 +132,9 @@ final class BuildTools {
                             obtainFactory,
                             parts(a));
                 },
-                true);
+                true,
+                "build_structure",
+                dev.friendai.features.construction.minecraft.task.BuildCheckpoints::build);
         ConstructionToolSupport.registerTool(
                 registry,
                 ToolGroup.BLUEPRINT,

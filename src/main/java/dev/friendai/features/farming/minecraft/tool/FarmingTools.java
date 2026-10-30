@@ -15,6 +15,7 @@ import dev.friendai.features.farming.minecraft.CropIndex;
 import dev.friendai.features.farming.minecraft.Crops;
 import dev.friendai.features.farming.minecraft.FarmSnapshotBuilder;
 import dev.friendai.features.farming.minecraft.task.BonemealTask;
+import dev.friendai.features.farming.minecraft.task.FarmCheckpoints;
 import dev.friendai.features.farming.minecraft.task.FarmTask;
 import dev.friendai.features.farming.minecraft.task.TendFarmTask;
 import dev.friendai.features.places.Place;
@@ -104,23 +105,24 @@ public final class FarmingTools implements FeatureToolContributor {
                 },
                 metadata("plan_farm"));
         registry.registerTask(new TaskToolDefinition(
-                "tend_farm",
-                "Stay at a farm, or at a remembered place, and keep it: harvest and replant every minute and put "
-                        + "the harvest into a nearby chest, until told otherwise.",
-                SchemaBuilder.object()
-                        .integer("radius", "Farm radius in blocks", 1, 16)
-                        .integer("x", "Farm X coordinate")
-                        .integer("y", "Farm Y coordinate")
-                        .integer("z", "Farm Z coordinate")
-                        .string("place", "Remembered place to tend; used only when x, y and z are absent")
-                        .build(),
-                (c, a) -> {
-                    Optional<Place> place = place(places, c, a);
-                    return new TendFarmTask(center(c, a, place), radius(a, place, 8));
-                },
-                false,
-                TaskToolDefinition.QueueTraits.DEFAULT,
-                metadata("tend_farm")));
+                        "tend_farm",
+                        "Stay at a farm, or at a remembered place, and keep it: harvest and replant every minute and put "
+                                + "the harvest into a nearby chest, until told otherwise.",
+                        SchemaBuilder.object()
+                                .integer("radius", "Farm radius in blocks", 1, 16)
+                                .integer("x", "Farm X coordinate")
+                                .integer("y", "Farm Y coordinate")
+                                .integer("z", "Farm Z coordinate")
+                                .string("place", "Remembered place to tend; used only when x, y and z are absent")
+                                .build(),
+                        (c, a) -> {
+                            Optional<Place> place = place(places, c, a);
+                            return new TendFarmTask(center(c, a, place), radius(a, place, 8));
+                        },
+                        false,
+                        TaskToolDefinition.QueueTraits.DEFAULT,
+                        metadata("tend_farm"))
+                .withCheckpoint("tend_farm", FarmCheckpoints::tendFarm));
         registry.registerTask(new TaskToolDefinition(
                 "use_bonemeal",
                 "Use bone meal from the inventory on growing crops at a point or around the companion.",

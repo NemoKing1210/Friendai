@@ -20,7 +20,9 @@ public record TaskToolDefinition(
         QueueTraits queueTraits,
         boolean restorable,
         boolean creativeSensitive,
-        ToolMeta catalogMeta) {
+        ToolMeta catalogMeta,
+        String checkpointType,
+        CheckpointRestorer checkpointRestorer) {
     public TaskToolDefinition(
             String name,
             String description,
@@ -40,7 +42,9 @@ public record TaskToolDefinition(
                 queueTraits,
                 true,
                 true,
-                catalogMeta);
+                catalogMeta,
+                null,
+                null);
     }
 
     public TaskToolDefinition(
@@ -65,6 +69,62 @@ public record TaskToolDefinition(
         Objects.requireNonNull(catalogMeta, "task tool catalog metadata");
         if (!name.equals(catalogMeta.name()))
             throw new IllegalArgumentException("task tool and catalog names must match: " + name);
+        if (checkpointRestorer == null) {
+            if (checkpointType != null && !checkpointType.isBlank())
+                throw new IllegalArgumentException("checkpoint type requires a restorer: " + name);
+            checkpointType = null;
+        } else if (checkpointType == null || checkpointType.isBlank()) {
+            throw new IllegalArgumentException("checkpoint restorer requires a stable type: " + name);
+        }
+        if (checkpointRestorer != null && !restorable)
+            throw new IllegalArgumentException("a checkpoint restorer requires a restorable task: " + name);
+    }
+
+    /** The legacy shape without a contributed checkpoint; restorable tasks add one with {@link #withCheckpoint}. */
+    public TaskToolDefinition(
+            String name,
+            String description,
+            JsonObject schema,
+            Factory factory,
+            CallerFactory callerFactory,
+            boolean plannable,
+            AccessLevel minAccess,
+            QueueTraits queueTraits,
+            boolean restorable,
+            boolean creativeSensitive,
+            ToolMeta catalogMeta) {
+        this(
+                name,
+                description,
+                schema,
+                factory,
+                callerFactory,
+                plannable,
+                minAccess,
+                queueTraits,
+                restorable,
+                creativeSensitive,
+                catalogMeta,
+                null,
+                null);
+    }
+
+    /** Adds or replaces the contributed checkpoint decoder for this task. */
+    public TaskToolDefinition withCheckpoint(String type, CheckpointRestorer restorer) {
+        return new TaskToolDefinition(
+                name,
+                description,
+                schema,
+                factory,
+                callerFactory,
+                plannable,
+                minAccess,
+                queueTraits,
+                restorable,
+                creativeSensitive,
+                catalogMeta,
+                type,
+                restorer);
     }
 
     public TaskToolDefinition asCreativeSafe() {
@@ -79,7 +139,9 @@ public record TaskToolDefinition(
                 queueTraits,
                 restorable,
                 false,
-                catalogMeta);
+                catalogMeta,
+                checkpointType,
+                checkpointRestorer);
     }
 
     @FunctionalInterface

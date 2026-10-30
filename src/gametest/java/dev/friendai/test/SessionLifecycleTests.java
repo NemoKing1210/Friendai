@@ -380,6 +380,22 @@ public class SessionLifecycleTests {
         }
     }
 
+    @GameTest(maxTicks = 40)
+    public void theContributionSetRestoresABuiltinCheckpoint(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity companion = h.spawn(dev.friendai.entity.FriendaiEntities.COMPANION, 2, 2, 2);
+        var registry =
+                GameTestSupport.runtime(h.getLevel().getServer()).sessions().taskRestoreRegistry();
+
+        var restored = registry.restore(
+                        new dev.friendai.task.TaskState("go_to", "12.000000,64.000000,-3.000000"), companion)
+                .orElseThrow();
+
+        h.assertValueEqual("go_to", restored.type(), "type");
+        h.assertValueEqual("12.000000,64.000000,-3.000000", restored.saveData(), "coordinates");
+        h.succeed();
+    }
+
     @GameTest(maxTicks = 200)
     public void restoredOwnerWorkStaysSuspendedUntilTheOwnerJoins(GameTestHelper h) {
         GameTestSupport.platform(h, 8);

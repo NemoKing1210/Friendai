@@ -53,8 +53,9 @@ it can rewrite another session's files. CI runs `spotlessCheck`.
 2. Contribute the tool from the area's `*Tools` class via `FeatureToolContributor`, `FeatureToolRegistry` and
    `TaskToolDefinition`. Validate inputs with `SchemaBuilder`, choose access and queue behavior deliberately, and
    provide catalog metadata. `FriendaiTools.build` composes contributors; do not create another central factory.
-3. If work must resume after restart, make the definition restorable and ensure its bounded checkpoint can be
-   reconstructed by `TaskRestoreRegistry` from the current contribution set.
+3. If work must resume after restart, make the definition restorable and contribute its bounded checkpoint decoder
+   with `.withCheckpoint(<stable task type>, <CheckpointRestorer>)`; `TaskRestoreRegistry` composes contributed
+   decoders and rejects duplicate keys.
 4. Add both language entries and a GameTest under `src/gametest`; register each test class in
    `src/gametest/resources/fabric.mod.json`.
 5. Run the relevant unit group and one filtered GameTest class. Bump `mod_version` for shipped behavior changes;

@@ -31,6 +31,10 @@ public final class FeatureToolRegistry {
     public void registerTask(TaskToolDefinition definition) {
         Objects.requireNonNull(definition);
         ensureNameAvailable(definition.name());
+        if (definition.checkpointType() != null
+                && taskDefinitions.values().stream()
+                        .anyMatch(existing -> definition.checkpointType().equals(existing.checkpointType())))
+            throw new IllegalArgumentException("checkpoint type already contributed: " + definition.checkpointType());
         Tool<CompanionEntity> tool = Objects.requireNonNull(taskToolFactory.apply(definition));
         if (!definition.name().equals(tool.name())) {
             throw new IllegalArgumentException("task tool factory returned a different name for " + definition.name());
@@ -57,6 +61,16 @@ public final class FeatureToolRegistry {
 
     public List<ToolMeta> catalogMetadata() {
         return List.copyOf(catalogMetadata.values());
+    }
+
+    /** Checkpoint decoders contributed with their task definitions, keyed by the stable persisted task type. */
+    public Map<String, CheckpointRestorer> checkpointRestorers() {
+        Map<String, CheckpointRestorer> restorers = new LinkedHashMap<>();
+        taskDefinitions.forEach((name, definition) -> {
+            if (definition.checkpointRestorer() != null)
+                restorers.put(definition.checkpointType(), definition.checkpointRestorer());
+        });
+        return Map.copyOf(restorers);
     }
 
     public Set<String> restorableTaskNames() {
