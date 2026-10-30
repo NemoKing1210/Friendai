@@ -121,7 +121,9 @@ public final class ToolCatalog {
                 "use_skill",
                 "list_skills",
                 "skill_help",
-                "manage_skill");
+                "manage_skill",
+                "read_log",
+                "recent_chat");
         group(
                 metas,
                 ToolGroup.MOVEMENT,

@@ -27,12 +27,16 @@ import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.features.instructions.minecraft.tool.SkillToolAccess;
 import dev.friendai.features.memory.CompanionProfileRepository;
 import dev.friendai.features.memory.MemoryActions;
+import dev.friendai.features.memory.MemoryBook;
 import dev.friendai.features.memory.MemoryLimits;
 import dev.friendai.features.memory.MemoryPromptRenderer;
 import dev.friendai.features.memory.PlayerRecord;
 import dev.friendai.features.memory.PlayerRef;
 import dev.friendai.features.memory.minecraft.tool.MemoryAccess;
+import dev.friendai.features.memory.minecraft.tool.SelfAccess;
 import dev.friendai.features.memory.minecraft.tool.TrustAccess;
+import dev.friendai.features.memory.transcript.TranscriptBook;
+import dev.friendai.features.memory.transcript.TranscriptLimits;
 import dev.friendai.features.memory.transcript.TranscriptObserver;
 import dev.friendai.features.placements.minecraft.PlacedService;
 import dev.friendai.features.places.PlaceCandidate;
@@ -161,6 +165,62 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                         });
             }
         };
+        SelfAccess selfAccess = new SelfAccess() {
+            @Override
+            public boolean enabled() {
+                return config != null && config.memory.enabled;
+            }
+
+            @Override
+            public DebugLog log(UUID owner) {
+                return debug.logOf(owner);
+            }
+
+            @Override
+            public TranscriptBook transcript(UUID owner) {
+                return transcripts.book(owner);
+            }
+
+            @Override
+            public TranscriptLimits transcriptLimits() {
+                return config.memory.transcriptLimits();
+            }
+
+            @Override
+            public MemoryBook book(UUID owner) {
+                return memory.book(owner);
+            }
+
+            @Override
+            public MemoryLimits memoryLimits() {
+                return config.memory.limits();
+            }
+
+            @Override
+            public int promptBudget() {
+                return config.agent.promptBudget;
+            }
+
+            @Override
+            public int compactAtPercent() {
+                return config.memory.compactAtPercent;
+            }
+
+            @Override
+            public boolean compactionEnabled() {
+                return config.memory.compactionEnabled;
+            }
+
+            @Override
+            public UnaryOperator<String> redactor() {
+                return gateways.redactor();
+            }
+
+            @Override
+            public long now() {
+                return System.currentTimeMillis();
+            }
+        };
         FriendaiTools.Builtins builtins = FriendaiTools.build(
                 () -> settings.get().tasks().mineSearchRadius(),
                 () -> settings.get().tasks().treeSearchRadius(),
@@ -177,7 +237,8 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                         companion -> freeTime(),
                         this::searchHintLine,
                         placeService,
-                        placedService),
+                        placedService,
+                        selfAccess),
                 () -> settings.get().tasks().mineCollectDrops(),
                 () -> settings.get().tasks().fellCollectDrops());
         this.tools = builtins.registry();

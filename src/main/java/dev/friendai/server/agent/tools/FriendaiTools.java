@@ -25,6 +25,7 @@ import dev.friendai.features.memory.CompanionProfile;
 import dev.friendai.features.memory.CompanionProfileRepository;
 import dev.friendai.features.memory.minecraft.tool.MemoryAccess;
 import dev.friendai.features.memory.minecraft.tool.MemoryTools;
+import dev.friendai.features.memory.minecraft.tool.SelfTools;
 import dev.friendai.features.memory.minecraft.tool.TrustAccess;
 import dev.friendai.features.memory.minecraft.tool.TrustTools;
 import dev.friendai.features.mining.minecraft.tool.BlockInfoTools;
@@ -135,6 +136,7 @@ public final class FriendaiTools {
                 new BlockInfoTools(mineRadius, treeRadius, dependencies.resourceCandidates(), dependencies.places()),
                 new PlacedTools(dependencies.placed()),
                 new MemoryTools(dependencies.memory()),
+                new SelfTools(dependencies.self()),
                 new TrustTools(dependencies.trust()),
                 new ControlTools(dependencies.profiles()),
                 new TradingTools(dependencies.trading()),

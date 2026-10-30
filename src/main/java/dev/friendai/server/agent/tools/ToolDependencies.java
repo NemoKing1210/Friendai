@@ -4,6 +4,7 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.instructions.minecraft.tool.SkillToolAccess;
 import dev.friendai.features.memory.CompanionProfileRepository;
 import dev.friendai.features.memory.minecraft.tool.MemoryAccess;
+import dev.friendai.features.memory.minecraft.tool.SelfAccess;
 import dev.friendai.features.memory.minecraft.tool.TrustAccess;
 import dev.friendai.features.placements.minecraft.PlacedService;
 import dev.friendai.features.places.minecraft.PlaceService;
@@ -29,7 +30,39 @@ public record ToolDependencies(
         Function<CompanionEntity, FreeTimeDriver> freeTime,
         Function<CompanionEntity, String> searchHintLine,
         PlaceService places,
-        PlacedService placed) {
+        PlacedService placed,
+        SelfAccess self) {
+    public ToolDependencies(
+            MemoryAccess memory,
+            CompanionProfileRepository profiles,
+            Function<CompanionEntity, PerceptionContext> perceptionContext,
+            Function<CompanionEntity, ResourceCandidates> resourceCandidates,
+            TradingToolAccess trading,
+            QueueToolAccess queue,
+            GoalToolAccess goals,
+            Function<CompanionEntity, SkillToolAccess> skills,
+            Function<CompanionEntity, TrustAccess> trust,
+            Function<CompanionEntity, FreeTimeDriver> freeTime,
+            Function<CompanionEntity, String> searchHintLine,
+            PlaceService places,
+            PlacedService placed) {
+        this(
+                memory,
+                profiles,
+                perceptionContext,
+                resourceCandidates,
+                trading,
+                queue,
+                goals,
+                skills,
+                trust,
+                freeTime,
+                searchHintLine,
+                places,
+                placed,
+                SelfAccess.DISABLED);
+    }
+
     public ToolDependencies(
             MemoryAccess memory,
             CompanionProfileRepository profiles,
@@ -72,5 +105,6 @@ public record ToolDependencies(
         Objects.requireNonNull(searchHintLine);
         Objects.requireNonNull(places);
         Objects.requireNonNull(placed);
+        Objects.requireNonNull(self);
     }
 }

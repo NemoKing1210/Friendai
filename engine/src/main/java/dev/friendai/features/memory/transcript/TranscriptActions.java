@@ -5,6 +5,7 @@ import dev.friendai.foundation.text.TextBudget;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.UnaryOperator;
 
 /**
  * The logic behind {@code recent_chat}: one player's conversation window, both sides, bounded and owner-scoped.
@@ -39,6 +40,22 @@ public final class TranscriptActions {
             long now,
             int maxChars,
             TranscriptLimits activeLimits) {
+        return recent(book, owner, caller, requested, limit, minutes, beforeId, now, maxChars, activeLimits, t -> t);
+    }
+
+    /** @param redactor applied to every line on read: an entry may predate a later-configured secret */
+    public static String recent(
+            TranscriptBook book,
+            UUID owner,
+            Caller caller,
+            String requested,
+            int limit,
+            int minutes,
+            long beforeId,
+            long now,
+            int maxChars,
+            TranscriptLimits activeLimits,
+            UnaryOperator<String> redactor) {
         if (owner == null) {
             throw new IllegalArgumentException("The companion has no owner to read a conversation for.");
         }
@@ -87,7 +104,17 @@ public final class TranscriptActions {
         List<TranscriptEntry> chronological = new ArrayList<>(entries);
         java.util.Collections.reverse(chronological);
         for (TranscriptEntry entry : chronological) {
-            lines.add(TranscriptText.line(entry, player, label, now));
+            lines.add(TranscriptText.line(
+                    new TranscriptEntry(
+                            entry.id(),
+                            entry.atMillis(),
+                            entry.playerUuid(),
+                            entry.playerName(),
+                            entry.speaker(),
+                            redactor.apply(entry.text())),
+                    player,
+                    label,
+                    now));
         }
         TextBudget.Fit fit = TextBudget.fit(lines, maxChars);
         StringBuilder text = new StringBuilder("Conversation with ")
