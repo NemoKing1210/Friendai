@@ -1,22 +1,80 @@
 package dev.friendai.test;
 
+import com.mojang.authlib.GameProfile;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.knowledge.ResourceObservation;
 import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.perception.resource.ResourceSight;
 import dev.friendai.server.runtime.ServerRuntime;
 import dev.friendai.server.runtime.ServerRuntimeRegistry;
+import io.netty.channel.embedded.EmbeddedChannel;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.network.Connection;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.PacketFlow;
+import net.minecraft.network.protocol.game.ClientboundSystemChatPacket;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.network.CommonListenerCookie;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
 
 final class GameTestSupport {
     private GameTestSupport() {}
+
+    /**
+     * A player that is online with a live connection: in the player list, so {@code getPlayer(uuid)} finds it, and with
+     * a channel that records what the server sends it.
+     *
+     * <p>Anything that asks whether an owner is present needs one: a companion whose owner is offline is suspended,
+     * restored work waits for its owner to log in, and creative or trading authority is checked against the live
+     * player. Mock players are disconnected at once in 26.3, so they are only a place to stand.
+     */
+    record OnlinePlayer(ServerPlayer player, EmbeddedChannel channel) {
+        UUID id() {
+            return player.getUUID();
+        }
+
+        /** The system chat lines sent to the player since the last call. */
+        List<Component> drainSystemMessages() {
+            List<Component> messages = new ArrayList<>();
+            Object packet;
+            while ((packet = channel.outboundMessages().poll()) != null) {
+                if (packet instanceof ClientboundSystemChatPacket chat) {
+                    messages.add(chat.content());
+                }
+            }
+            return messages;
+        }
+    }
+
+    /** An online player with a unique name, because the stock helper names every player "test-mock-player". */
+    @SuppressWarnings("removal")
+    static OnlinePlayer onlinePlayer(GameTestHelper h, String name, double x, double y, double z) {
+        var server = h.getLevel().getServer();
+        GameProfile profile = new GameProfile(UUID.randomUUID(), name);
+        CommonListenerCookie cookie = CommonListenerCookie.createInitial(profile, false);
+        ServerPlayer player = new ServerPlayer(server, h.getLevel(), profile, cookie.clientInformation());
+        Connection connection = new Connection(PacketFlow.SERVERBOUND);
+        EmbeddedChannel channel = new EmbeddedChannel(connection);
+        server.getPlayerList().placeNewPlayer(connection, player, cookie);
+        var pos = h.absoluteVec(new Vec3(x, y, z));
+        player.teleportTo(pos.x, pos.y, pos.z);
+        return new OnlinePlayer(player, channel);
+    }
+
+    /** An online player named {@code <prefix>-<random>}, so tests that run side by side never share a name. */
+    static OnlinePlayer onlinePlayer(GameTestHelper h, String prefix, double x, double y, double z, boolean unique) {
+        String name = unique ? prefix + "-" + UUID.randomUUID().toString().substring(0, 8) : prefix;
+        return onlinePlayer(h, name, x, y, z);
+    }
 
     static void closeRuntime(MinecraftServer server) {
         ServerRuntimeRegistry.removeAndClose(server);

@@ -1,6 +1,5 @@
 package dev.friendai.test;
 
-import com.mojang.authlib.GameProfile;
 import dev.friendai.agent.llm.model.LlmResponse;
 import dev.friendai.agent.llm.model.Message;
 import dev.friendai.agent.llm.model.StopReason;
@@ -24,13 +23,10 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
-import net.minecraft.network.Connection;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
-import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.network.protocol.game.ClientboundSystemChatPacket;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.server.network.CommonListenerCookie;
 
 /** Trust changes asked for in chat or voice: owner-only tools, confirmation outside the model. */
 public class TrustTests {
@@ -60,18 +56,9 @@ public class TrustTests {
         return prefix + "-" + UUID.randomUUID().toString().substring(0, 8);
     }
 
-    @SuppressWarnings("removal")
     private static Mock mockPlayerNamed(GameTestHelper h, String name, double x, double y, double z) {
-        var server = h.getLevel().getServer();
-        GameProfile profile = new GameProfile(UUID.randomUUID(), name);
-        CommonListenerCookie cookie = CommonListenerCookie.createInitial(profile, false);
-        ServerPlayer player = new ServerPlayer(server, h.getLevel(), profile, cookie.clientInformation());
-        Connection connection = new Connection(PacketFlow.SERVERBOUND);
-        EmbeddedChannel channel = new EmbeddedChannel(connection);
-        server.getPlayerList().placeNewPlayer(connection, player, cookie);
-        var pos = h.absoluteVec(new net.minecraft.world.phys.Vec3(x, y, z));
-        player.teleportTo(pos.x, pos.y, pos.z);
-        return new Mock(player, channel);
+        var online = GameTestSupport.onlinePlayer(h, name, x, y, z);
+        return new Mock(online.player(), online.channel());
     }
 
     private static List<Component> drainMessages(EmbeddedChannel channel) {

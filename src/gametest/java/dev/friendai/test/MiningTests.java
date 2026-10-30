@@ -243,12 +243,37 @@ public class MiningTests {
         runner.setEventSink(outcome);
         runner.start(new MineBlocksTask(BlockMatcher.parse("minecraft:stone").orElseThrow(), 20, 16), "mine_blocks");
         h.succeedWhen(() -> {
+            // Sight is what the mining relies on, and the shared observation budget is spent by every companion in the
+            // world, so how fast a freshly exposed stone is noticed depends on the tests beside this one. The test
+            // is about mining on, not about eyesight (ResourceObservationTests has that), so it sees the stone face.
+            observeStoneFace(h, companion);
             runner.tick();
             h.assertTrue(
                     outcome.status == TaskStatus.SUCCESS,
                     "hill stone mining did not finish: " + outcome.status + " " + outcome.summary + ", cobblestone="
                             + companion.inventory().countItem(Items.COBBLESTONE));
         });
+    }
+
+    /** Observes every stone of the hill that touches air, the cells a companion standing outside can see. */
+    private static void observeStoneFace(GameTestHelper h, CompanionEntity companion) {
+        for (int x = 4; x <= 11; x++) {
+            for (int z = 3; z <= 9; z++) {
+                for (int y = 121; y <= 124; y++) {
+                    BlockPos cell = new BlockPos(x, y, z);
+                    if (!h.getBlockState(cell).is(Blocks.STONE)) {
+                        continue;
+                    }
+                    boolean exposed = false;
+                    for (net.minecraft.core.Direction side : net.minecraft.core.Direction.values()) {
+                        exposed |= h.getBlockState(cell.relative(side)).isAir();
+                    }
+                    if (exposed) {
+                        GameTestSupport.observeVisible(h, companion, h.absolutePos(cell));
+                    }
+                }
+            }
+        }
     }
 
     @GameTest(maxTicks = 2400)
