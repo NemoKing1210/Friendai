@@ -13,6 +13,7 @@ import dev.friendai.features.creative.CreativeActionContext;
 import dev.friendai.features.knowledge.ResourceKnowledge;
 import dev.friendai.features.knowledge.search.SearchHintStore;
 import dev.friendai.features.memory.MemoryViewers;
+import dev.friendai.features.mining.MiningRuntimeSettings;
 import dev.friendai.features.navigation.pathing.BlockList;
 import dev.friendai.features.navigation.pathing.PathingConfig;
 import dev.friendai.features.placements.minecraft.PlacedService;
@@ -77,6 +78,11 @@ public record TaskContext(
 
     public PathingConfig pathingConfig() {
         return serverSettings.pathing();
+    }
+
+    /** Whether a valuable drop is protected before its block is broken, and what that may cost. */
+    public MiningRuntimeSettings mining() {
+        return serverSettings.mining();
     }
 
     public BlockList breakList() {

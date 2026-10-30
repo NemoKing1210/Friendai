@@ -14,6 +14,7 @@ import dev.friendai.client.voice.MicCapture;
 import dev.friendai.client.voice.SpeechToText;
 import dev.friendai.client.voice.VoiceRuntime;
 import dev.friendai.common.Components;
+import dev.friendai.features.mining.MiningRuntimeSettings;
 import dev.friendai.features.speech.CloudField;
 import dev.friendai.features.speech.PcmConverter;
 import dev.friendai.features.speech.VoiceErrors;
@@ -135,6 +136,7 @@ public final class FriendaiConfigScreen {
             builder.category(companionCategory(server));
             builder.category(chatCategory(server));
             builder.category(memoryCategory(server));
+            builder.category(miningCategory(server));
         } else {
             builder.category(ConfigCategory.createBuilder()
                     .name(tr("friendai.config.category.server"))
@@ -504,6 +506,33 @@ public final class FriendaiConfigScreen {
                         .name(tr("friendai.config.memory.max_world_facts"))
                         .binding(128, () -> m.maxWorldFacts, v -> m.maxWorldFacts = v)
                         .controller(o -> IntegerFieldControllerBuilder.create(o).range(1, 200))
+                        .build())
+                .build();
+    }
+
+    /** A valuable drop's protection: whether it is on, what counts as valuable and how many blocks it may cost. */
+    private static ConfigCategory miningCategory(ServerConfig server) {
+        ServerConfig.MiningSection m = server.mining;
+        return ConfigCategory.createBuilder()
+                .name(tr("friendai.config.category.mining"))
+                .option(booleanOption(
+                        "friendai.config.mining.protect_drops", true, () -> m.protectDrops, v -> m.protectDrops = v))
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.mining.catch_blocks"))
+                        .binding(9, () -> m.catchBlocks, v -> m.catchBlocks = v)
+                        .controller(o -> IntegerFieldControllerBuilder.create(o).range(0, 27))
+                        .build())
+                .option(Option.<String>createBuilder()
+                        .name(tr("friendai.config.mining.valuable_blocks"))
+                        .description(OptionDescription.of(tr("friendai.config.mining.valuable_blocks.desc")))
+                        .binding(
+                                String.join(",", MiningRuntimeSettings.DEFAULT_VALUABLE),
+                                () -> m.valuableBlocks == null ? "" : String.join(",", m.valuableBlocks),
+                                v -> m.valuableBlocks = new java.util.ArrayList<>(java.util.Arrays.stream(v.split(","))
+                                        .map(String::strip)
+                                        .filter(entry -> !entry.isEmpty())
+                                        .toList()))
+                        .controller(StringControllerBuilder::create)
                         .build())
                 .build();
     }

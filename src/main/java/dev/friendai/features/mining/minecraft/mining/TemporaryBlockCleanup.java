@@ -26,11 +26,19 @@ public final class TemporaryBlockCleanup {
     private BlockBreaker breaker;
     private int removed;
     private int left;
+    /** A block the companion is standing on over a drop that would hurt it: kept, and said so. */
+    private int kept;
+
     private String failure = "";
 
     public TemporaryBlockCleanup(PlacementLedger ledger) {
+        this(ledger, ledger.positions());
+    }
+
+    /** Takes down only {@code positions}, so a task can remove its own platform while a route keeps its blocks. */
+    public TemporaryBlockCleanup(PlacementLedger ledger, List<BlockPos> positions) {
         this.ledger = ledger;
-        this.remaining = new ArrayList<>(ledger.positions());
+        this.remaining = new ArrayList<>(positions);
         this.remaining.sort(
                 Comparator.comparingInt((BlockPos pos) -> pos.getY()).reversed());
     }
@@ -51,11 +59,15 @@ public final class TemporaryBlockCleanup {
             if (state == BlockBreaker.State.WORKING) {
                 return State.WORKING;
             }
+            MiningRefusal refusal = breaker.refusal();
             breaker.stop(context);
             breaker = null;
             remaining.remove(0);
             if (state == BlockBreaker.State.BROKEN || state == BlockBreaker.State.GONE) {
                 removed++;
+            } else if (refusal instanceof MiningRefusal.OwnSupport) {
+                // Breaking it would drop the companion into whatever is below; a load-bearing platform stays.
+                kept++;
             } else {
                 left++;
                 if (failure.isEmpty()) {
@@ -79,6 +91,11 @@ public final class TemporaryBlockCleanup {
 
     public int left() {
         return left;
+    }
+
+    /** Blocks kept because the companion stood on them and the drop below would have hurt it. */
+    public int kept() {
+        return kept;
     }
 
     /** The first refusal that kept a block in the world, or empty. */

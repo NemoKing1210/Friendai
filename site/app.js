@@ -30,7 +30,8 @@ const CATS = [
       "fell_tree|Fell a whole tree top-down using scaffold.", "mine_blocks|Mine a number of blocks of a type.", "mine_block_at|Mine the block you point at, follow its vein, and report what was taken.",
       "pickup_items|Collect dropped items nearby.", "find_trees|Scan for trees.", "find_blocks|Scan for blocks and ore veins.",
       "find_placed|List blocks the companion placed earlier.",
-      "~Vein follower|Mines a whole vein, not one block.", "~Tool selection|Picks the best tool from the stack's tool component.", "~Safe digging|Checks support and hazards before approaching." ] },
+      "~Vein follower|Mines a whole vein, not one block.", "~Tool selection|Picks the best tool from the stack's tool component.", "~Safe digging|Checks support and hazards before approaching.",
+      "~Catch platform|Builds a block under a valuable drop over lava, a hole or the void, mines, then takes it back." ] },
   { id: "building", domain: "hands", name: "Building", icon: "🧱", color: COLORS.oak,
     desc: "Places blocks through a fake player so vanilla rules and protection apply. Blueprints up to 32x32x32.",
     items: [

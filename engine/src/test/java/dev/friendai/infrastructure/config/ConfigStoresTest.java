@@ -75,7 +75,7 @@ class ConfigStoresTest {
 
     @Test
     void eachSupportedServerVersionPreservesProfilesAndExplicitChoices() throws IOException {
-        for (int version = 3; version < 17; version++) {
+        for (int version = 3; version < 18; version++) {
             Path path = dir.resolve("server-" + version + ".json");
             String original = """
                     {"version":%d,"activeProfile":"custom","profiles":{"custom":{
@@ -88,7 +88,7 @@ class ConfigStoresTest {
             Files.writeString(path, original);
             var store = ConfigStores.server(path);
             ServerConfig config = store.load();
-            assertEquals(17, config.version);
+            assertEquals(ServerConfig.VERSION, config.version);
             assertEquals("custom", config.activeProfile);
             assertEquals("owner-model", config.profiles.get("custom").model);
             assertEquals("openai", config.profiles.get("custom").provider);
@@ -248,7 +248,7 @@ class ConfigStoresTest {
     @Test
     void unrecognizedServerAndClientVersionsAreNotGuessed() throws IOException {
         Path path = dir.resolve("unknown.json");
-        for (int version : List.of(1, 2, 18)) {
+        for (int version : List.of(1, 2, ServerConfig.VERSION + 1)) {
             String source = "{\"version\":" + version + "}";
             Files.writeString(path, source);
             assertThrows(UnsupportedStoreVersionException.class, ConfigStores.server(path)::load);

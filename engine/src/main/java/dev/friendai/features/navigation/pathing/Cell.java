@@ -50,6 +50,19 @@ public record Cell(Kind kind, int breakTicks, boolean falls, boolean placeable) 
         return kind == Kind.SOLID || kind == Kind.PARTIAL || kind == Kind.CLIMBABLE;
     }
 
+    /**
+     * Whether an item that fell into this cell would rest here. A ladder is standable but has no top to catch a drop
+     * with, so this is deliberately narrower than {@link #supports()}.
+     */
+    public boolean catchesDrops() {
+        return kind == Kind.SOLID || kind == Kind.PARTIAL || kind == Kind.TALL || kind == Kind.DOOR;
+    }
+
+    /** The pure mirror of {@code LevelCellView.destroysItems}: lava, fire and a cactus destroy a drop. */
+    public boolean destroysDrops() {
+        return kind == Kind.LAVA || kind == Kind.HAZARD;
+    }
+
     /** Whether the companion can be inside this cell. A closed door is only entered by opening it. */
     public boolean free() {
         return kind == Kind.AIR || kind == Kind.PASSABLE || kind == Kind.WATER || kind == Kind.CLIMBABLE;

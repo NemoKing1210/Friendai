@@ -2,6 +2,7 @@ package dev.friendai.features.mining.minecraft.mining;
 
 import dev.friendai.common.Components;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.mining.DropRisk;
 import dev.friendai.features.mining.ExplorationPlanner;
 import dev.friendai.features.mining.MiningBounds;
 import dev.friendai.features.mining.MiningGoal;
@@ -9,6 +10,7 @@ import dev.friendai.features.mining.MiningPathPolicy;
 import dev.friendai.features.navigation.minecraft.nav.Approach;
 import dev.friendai.features.navigation.minecraft.nav.MaterialPicker;
 import dev.friendai.features.navigation.minecraft.nav.PathExecutor;
+import dev.friendai.features.navigation.minecraft.nav.PlacementLedger;
 import dev.friendai.features.navigation.pathing.CostModel;
 import dev.friendai.features.navigation.pathing.Move;
 import dev.friendai.features.navigation.pathing.Node;
@@ -72,6 +74,11 @@ public final class MiningSession {
     private ExplorationPlanner exploration;
     private PathExecutor executor;
     private BreakAction extraction;
+    /** The catch platform under the target while it is built, and the ledger that records its blocks. */
+    private CatchPlatform platform;
+
+    private boolean catchChecked;
+    private final PlacementLedger placements;
     private BlockPos target;
     private State lastState = State.WORKING;
     private UserMessage failure;
@@ -83,6 +90,14 @@ public final class MiningSession {
     private String phase = "";
 
     public MiningSession(CompanionEntity companion, MiningBounds bounds, int maxBlocks, int maxTicks) {
+        this(companion, bounds, maxBlocks, maxTicks, new PlacementLedger());
+    }
+
+    /**
+     * @param placements the caller's ledger, so a catch platform built under a target is taken down by the same task
+     */
+    public MiningSession(
+            CompanionEntity companion, MiningBounds bounds, int maxBlocks, int maxTicks, PlacementLedger placements) {
         if (maxBlocks < 0 || maxTicks < 1) {
             throw new IllegalArgumentException("Mining limits must be non-negative blocks and positive ticks");
         }
@@ -90,6 +105,7 @@ public final class MiningSession {
         this.bounds = bounds;
         this.maxBlocks = maxBlocks;
         this.maxTicks = maxTicks;
+        this.placements = placements;
         BlockPos initial = companion.blockPosition();
         this.initialNode = new Node(initial.getX(), initial.getY(), initial.getZ());
     }
@@ -172,6 +188,11 @@ public final class MiningSession {
         return failure;
     }
 
+    /** The catch cells being placed under the current target, for the debug overlay; empty otherwise. */
+    public List<net.minecraft.core.BlockPos> catchCells() {
+        return platform == null ? List.of() : platform.cells();
+    }
+
     public String phase() {
         return phase;
     }
@@ -216,6 +237,10 @@ public final class MiningSession {
         if (extraction != null) {
             extraction.stop(context);
             extraction = null;
+        }
+        if (platform != null) {
+            platform.stop();
+            platform = null;
         }
         search = null;
         exploration = null;
@@ -264,6 +289,7 @@ public final class MiningSession {
             target = blockPos(visibleTarget.get());
             setPhase("extract");
             search = null;
+            catchChecked = false;
             if (!guard(context).allowTarget(context, target)) {
                 UserMessage reason = guard(context).targetFailure(context, target);
                 if (reason.key().equals("friendai.mining.no_tool")
@@ -380,6 +406,42 @@ public final class MiningSession {
                             ? UserMessage.of("friendai.mining.unreachable")
                             : guard(context).targetFailure(context, target));
         }
+        if (!catchChecked) {
+            catchChecked = true;
+            DropGuard.Plan plan = DropGuard.plan(context, target, placements);
+            if (plan.refusal() != null) {
+                excludedTargets.add(plain(target));
+                UserMessage refusal = ownerMessage(plan.refusal());
+                if (extraction != null) {
+                    extraction.stop(context);
+                    extraction = null;
+                }
+                target = null;
+                search = null;
+                return retryPlan(refusal);
+            }
+            platform = plan.platform();
+        }
+        if (platform != null) {
+            CatchPlatform.State state = platform.tick(context);
+            if (state == CatchPlatform.State.WORKING) {
+                return State.WORKING;
+            }
+            CatchPlatform finished = platform;
+            platform = null;
+            if (state == CatchPlatform.State.REFUSED) {
+                if (extraction != null) {
+                    extraction.stop(context);
+                    extraction = null;
+                }
+                MiningRefusal refusal = new MiningRefusal.DropUnprotected(
+                        target, null, DropRisk.Reason.PROTECTED_CELL, finished.failure());
+                excludedTargets.add(plain(target));
+                target = null;
+                search = null;
+                return retryPlan(ownerMessage(refusal));
+            }
+        }
         BreakAction.State result = extraction.tick(context, matches);
         if (result == BreakAction.State.WORKING) {
             setPhase("extract");
@@ -420,6 +482,7 @@ public final class MiningSession {
             case MiningRefusal.Blacklisted p -> UserMessage.of("friendai.mining.not_breakable", coords(p.pos()));
             case MiningRefusal.Unbreakable p -> UserMessage.of("friendai.mining.not_breakable", coords(p.pos()));
             case MiningRefusal.OutOfReach p -> UserMessage.of("friendai.mining.unreachable");
+            case MiningRefusal.DropUnprotected p -> UserMessage.of("friendai.mining.drop_unprotected", coords(p.pos()));
         };
     }
 

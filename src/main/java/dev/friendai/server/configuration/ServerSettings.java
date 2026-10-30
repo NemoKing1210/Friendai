@@ -3,6 +3,7 @@ package dev.friendai.server.configuration;
 import dev.friendai.agent.autonomy.AutonomySettings;
 import dev.friendai.execution.queue.QueueLimits;
 import dev.friendai.execution.settings.TaskRuntimeSettings;
+import dev.friendai.features.mining.MiningRuntimeSettings;
 import dev.friendai.features.navigation.pathing.BlockList;
 import dev.friendai.features.navigation.pathing.PathingConfig;
 import dev.friendai.features.trading.TradingRuntimeSettings;
@@ -15,7 +16,8 @@ public record ServerSettings(
         BlockList placeList,
         AutonomySettings autonomy,
         TradingRuntimeSettings trading,
-        int autoMineMinBlocks) {
+        int autoMineMinBlocks,
+        MiningRuntimeSettings mining) {
 
     public static final ServerSettings DEFAULTS = defaults();
 
@@ -27,6 +29,18 @@ public record ServerSettings(
         autonomy = autonomy == null ? AutonomySettings.DEFAULTS : autonomy;
         trading = trading == null ? TradingRuntimeSettings.DEFAULTS : trading;
         autoMineMinBlocks = autoMineMinBlocks < 1 ? 16 : autoMineMinBlocks;
+        mining = mining == null ? MiningRuntimeSettings.DEFAULTS : mining;
+    }
+
+    public ServerSettings(
+            TaskRuntimeSettings tasks,
+            PathingConfig pathing,
+            BlockList breakList,
+            BlockList placeList,
+            AutonomySettings autonomy,
+            TradingRuntimeSettings trading,
+            int autoMineMinBlocks) {
+        this(tasks, pathing, breakList, placeList, autonomy, trading, autoMineMinBlocks, null);
     }
 
     public ServerSettings(

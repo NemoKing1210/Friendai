@@ -8,6 +8,18 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.93.0] - 2026-10-30
+
+### Added
+
+- Mining a valuable block whose drop would fall into lava, fire, a hole or the void now builds a catch block under it first, takes the drop, and then removes the block again. Ore next to a lava pool no longer burns and ore over a ravine no longer strands.
+- `mining.protectDrops`, `mining.valuableBlocks` and `mining.catchBlocks` in the server config and a Mining category in the settings screen.
+
+### Changed
+
+- An ore whose drop has nowhere safe to land and no catch block can be built there is left in place with an answer that names where the drop would go and what is missing, instead of being mined and lost.
+- The debug overlay marks the catch cells before the block is broken, and the mining summary says how many catch blocks were placed and removed.
+
 ## [0.92.0] - 2026-10-30
 
 ### Added

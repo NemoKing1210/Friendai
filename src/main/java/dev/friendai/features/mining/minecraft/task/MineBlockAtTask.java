@@ -6,8 +6,12 @@ import dev.friendai.debug.DebugTarget;
 import dev.friendai.features.mining.ClusterFill;
 import dev.friendai.features.mining.MineReport;
 import dev.friendai.features.mining.minecraft.mining.BlockBreaker;
+import dev.friendai.features.mining.minecraft.mining.CatchPlatform;
+import dev.friendai.features.mining.minecraft.mining.DropGuard;
 import dev.friendai.features.mining.minecraft.mining.DropRoom;
 import dev.friendai.features.mining.minecraft.mining.MiningRefusal;
+import dev.friendai.features.mining.minecraft.mining.TemporaryBlockCleanup;
+import dev.friendai.features.navigation.minecraft.nav.PlacementLedger;
 import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.task.Task;
@@ -54,6 +58,16 @@ public final class MineBlockAtTask implements Task {
     /** The vein still to break, in the order the fill found it. */
     private final Deque<BlockPos> vein = new ArrayDeque<>();
 
+    /** The catch blocks this job placed, so they are taken down with it. */
+    private final PlacementLedger placements = new PlacementLedger();
+    /** The platform under the pointed block while it is being built, or null. */
+    private CatchPlatform platform;
+
+    private TemporaryBlockCleanup catchCleanup;
+    private TaskStatus pendingStatus;
+    /** The platform's own note for the summary: placed and removed, or left behind. */
+    private String catchNote = "";
+
     private final List<ItemStack> receipts = new ArrayList<>();
     private final List<DropCollector.Leftover> leftovers = new ArrayList<>();
     private boolean sawIntended;
@@ -82,6 +96,11 @@ public final class MineBlockAtTask implements Task {
         for (BlockPos cell : vein) {
             targets.add(new DebugTarget(cell.getX(), cell.getY(), cell.getZ(), DebugAction.BREAK, ""));
         }
+        if (platform != null) {
+            for (BlockPos cell : platform.cells()) {
+                targets.add(new DebugTarget(cell.getX(), cell.getY(), cell.getZ(), DebugAction.PLACE, "catch"));
+            }
+        }
         return targets;
     }
 
@@ -92,6 +111,47 @@ public final class MineBlockAtTask implements Task {
 
     @Override
     public TaskStatus tick(TaskContext c) {
+        if (catchCleanup != null) {
+            TemporaryBlockCleanup.State state = catchCleanup.tick(c);
+            if (state == TemporaryBlockCleanup.State.WORKING) {
+                return TaskStatus.RUNNING;
+            }
+            TemporaryBlockCleanup finished = catchCleanup;
+            catchCleanup = null;
+            catchNote = state == TemporaryBlockCleanup.State.DONE
+                    ? "; placed " + placements.size() + " catch block(s) and removed them"
+                    : "; left " + finished.left() + " catch block(s) (" + finished.failure() + ")";
+            if (finished.kept() > 0) {
+                catchNote += "; kept " + finished.kept() + " catch block(s) under the companion";
+            }
+            summary += catchNote;
+            TaskStatus status = pendingStatus;
+            pendingStatus = null;
+            placements.clear();
+            return status;
+        }
+        TaskStatus status = tickInner(c);
+        if (status != TaskStatus.RUNNING && !placements.isEmpty() && catchCleanup == null) {
+            catchCleanup = new TemporaryBlockCleanup(placements);
+            pendingStatus = status;
+            return TaskStatus.RUNNING;
+        }
+        return status;
+    }
+
+    private TaskStatus tickInner(TaskContext c) {
+        if (platform != null) {
+            CatchPlatform.State state = platform.tick(c);
+            if (state == CatchPlatform.State.WORKING) {
+                return TaskStatus.RUNNING;
+            }
+            CatchPlatform finished = platform;
+            platform = null;
+            if (state == CatchPlatform.State.REFUSED) {
+                summary = blockedDrop(finished) + "; " + finished.failure();
+                return TaskStatus.FAILED;
+            }
+        }
         if (sweep != null) {
             if (sweep.tick(c) != DropCollector.State.DONE) {
                 return TaskStatus.RUNNING;
@@ -125,8 +185,19 @@ public final class MineBlockAtTask implements Task {
             noticeInventoryFull(c);
             return TaskStatus.FAILED;
         }
+        DropGuard.Plan plan = DropGuard.plan(c, pos, placements);
+        if (plan.refusal() != null) {
+            summary = plan.refusal().describe() + "; " + plan.refusal().remedy();
+            return TaskStatus.FAILED;
+        }
+        platform = plan.platform();
         breaker = new BlockBreaker(pos, this::stillTarget);
         return TaskStatus.RUNNING;
+    }
+
+    /** The refusal sentence for a platform that could not be built, naming the block and the reason. */
+    private String blockedDrop(CatchPlatform finished) {
+        return blockId() + " at " + coords() + " would lose its drop and no catch block could be placed";
     }
 
     private TaskStatus tickBreaker(TaskContext c) {
@@ -280,6 +351,15 @@ public final class MineBlockAtTask implements Task {
 
     @Override
     public void stop(TaskContext c) {
+        if (platform != null) {
+            // The cells already placed stay in the ledger and in the placed service, so they are never unrecorded.
+            platform.stop();
+            platform = null;
+        }
+        if (catchCleanup != null) {
+            catchCleanup.stop(c);
+            catchCleanup = null;
+        }
         if (sweep != null) {
             sweep.stop(c);
             sweep = null;

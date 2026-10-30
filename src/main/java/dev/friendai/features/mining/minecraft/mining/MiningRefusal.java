@@ -1,6 +1,8 @@
 package dev.friendai.features.mining.minecraft.mining;
 
+import dev.friendai.features.mining.DropRisk;
 import dev.friendai.features.navigation.minecraft.nav.LevelCellView;
+import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.features.places.Place;
 import dev.friendai.features.places.PlaceKind;
 import dev.friendai.task.TaskContext;
@@ -38,6 +40,7 @@ public sealed interface MiningRefusal {
             case Blacklisted p -> "break list";
             case Unbreakable p -> "unbreakable";
             case OutOfReach p -> "out of reach";
+            case DropUnprotected p -> "no landing for the drop";
         };
     }
 
@@ -171,6 +174,40 @@ public sealed interface MiningRefusal {
         @Override
         public String remedy() {
             return "go closer or approach from another side";
+        }
+    }
+
+    /**
+     * The block is worth taking but its drop has nowhere to land and no catch block can be built there. Mining it
+     * anyway burns the drop in lava, strands it in a ravine or drops it out of the world.
+     */
+    record DropUnprotected(BlockPos pos, Pos landing, DropRisk.Reason reason, String detail) implements MiningRefusal {
+        @Override
+        public String describe() {
+            String where = landing == null
+                    ? ""
+                    : " and would fall from " + landing.x() + " " + landing.y() + " " + landing.z();
+            String suffix = detail == null || detail.isBlank() ? "" : " (" + detail + ")";
+            return switch (reason) {
+                case DESTROYS_DROP -> coords(pos) + " would drop into lava or fire below" + where + suffix;
+                case DEEP_BELOW -> coords(pos) + " would drop out of reach below" + where + suffix;
+                case VOID_BELOW -> coords(pos) + " has the void below it" + suffix;
+                case TOO_MANY_BLOCKS -> coords(pos) + " would need a platform wider than the configured limit" + suffix;
+                case PROTECTED_CELL -> coords(pos) + " has nowhere safe to build a catch block" + where + suffix;
+                case LANDS_BELOW, CATCHES_DROP -> coords(pos) + " would lose its drop" + where + suffix;
+            };
+        }
+
+        @Override
+        public String remedy() {
+            return switch (reason) {
+                case DESTROYS_DROP, DEEP_BELOW ->
+                    "place a block under the ore first (mine it from a side that has ground below), then break it";
+                case PROTECTED_CELL -> "ask the owner to allow building there, or mine it from another side";
+                case VOID_BELOW -> "leave it: a drop over the void cannot be recovered";
+                case TOO_MANY_BLOCKS -> "carry more blocks, or mine it from a side with ground below";
+                case LANDS_BELOW, CATCHES_DROP -> "mine it from another side";
+            };
         }
     }
 

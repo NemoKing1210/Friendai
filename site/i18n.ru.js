@@ -100,6 +100,9 @@ const RU = {
   "Picks the best tool from the stack's tool component.": "Берёт лучший инструмент по компоненту предмета.",
   "Safe digging": "Безопасное копание",
   "Checks support and hazards before approaching.": "Проверяет опору и опасности перед подходом.",
+  "Catch platform": "Ловящая площадка",
+  "Builds a block under a valuable drop over lava, a hole or the void, mines, then takes it back.":
+    "Ставит блок под ценной добычей над лавой, ямой или пустотой, добывает и затем убирает его.",
 
   /* ---- Building ---- */
   "Building": "Строительство",

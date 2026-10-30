@@ -10,6 +10,8 @@ import dev.friendai.debug.WorkStatus;
 import dev.friendai.features.mining.MiningBounds;
 import dev.friendai.features.mining.minecraft.mining.BlockBreaker;
 import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
+import dev.friendai.features.mining.minecraft.mining.CatchPlatform;
+import dev.friendai.features.mining.minecraft.mining.DropGuard;
 import dev.friendai.features.mining.minecraft.mining.DropRoom;
 import dev.friendai.features.mining.minecraft.mining.MiningRefusal;
 import dev.friendai.features.mining.minecraft.mining.MiningSession;
@@ -59,6 +61,10 @@ public final class MineBlocksTask implements Task {
 
     private TemporaryBlockCleanup cleanup;
     private TaskStatus pendingStatus;
+    /** The catch platform under the block being broken now, and the target it was planned for. */
+    private CatchPlatform platform;
+
+    private BlockPos platformTarget;
     private int mined;
     /** The last block mined: the rest of its tree is worked on before any other block is considered. */
     private BlockPos lastBroken;
@@ -122,8 +128,17 @@ public final class MineBlocksTask implements Task {
                     }
                     cells.add(new DebugTarget(pos.x(), pos.y(), pos.z(), DebugAction.BREAK, "Path obstacle"));
                 }
+                cells.addAll(catchTargets(miningSession.catchCells()));
             }
             return cells;
+        }
+        if (platform != null) {
+            List<DebugTarget> targets = new ArrayList<>();
+            if (breaker != null && breaker.target() != null) {
+                targets.add(target(breaker.target()));
+            }
+            targets.addAll(catchTargets(platform.cells()));
+            return targets;
         }
         if (breaker == null) {
             return List.of();
@@ -174,6 +189,12 @@ public final class MineBlocksTask implements Task {
                 cells));
     }
 
+    private static List<DebugTarget> catchTargets(List<BlockPos> cells) {
+        return cells.stream()
+                .map(cell -> new DebugTarget(cell.getX(), cell.getY(), cell.getZ(), DebugAction.PLACE, "catch"))
+                .toList();
+    }
+
     private DebugTarget target(BlockPos pos) {
         MiningRefusal refusal = breaker == null ? null : breaker.refusal();
         return new DebugTarget(
@@ -202,6 +223,9 @@ public final class MineBlocksTask implements Task {
             if (state == TemporaryBlockCleanup.State.FAILED) {
                 summary += "; left " + finished.left() + " temporary blocks (" + finished.failure() + ")";
             }
+            if (finished.kept() > 0) {
+                summary += "; kept " + finished.kept() + " temporary block(s) under the companion";
+            }
             placements.clear();
             TaskStatus status = pendingStatus;
             pendingStatus = null;
@@ -218,6 +242,10 @@ public final class MineBlocksTask implements Task {
 
     private TaskStatus tickTask(TaskContext c) {
         DropCollector.pickupAtFeet(c, FEET_RADIUS, null);
+        TaskStatus guarded = tickCatchPlatform(c);
+        if (guarded != null) {
+            return guarded;
+        }
         if (sweep != null) {
             if (sweep.tick(c) == DropCollector.State.DONE) {
                 sweep = null;
@@ -279,6 +307,47 @@ public final class MineBlocksTask implements Task {
                 yield TaskStatus.RUNNING;
             }
         };
+    }
+
+    /**
+     * Holds the breaker until the drop of the block it reached has somewhere to land, and refuses a valuable block
+     * whose match cannot be built. Returns null when the ordinary tick should continue.
+     */
+    private TaskStatus tickCatchPlatform(TaskContext c) {
+        if (platform != null) {
+            CatchPlatform.State state = platform.tick(c);
+            if (state == CatchPlatform.State.WORKING) {
+                return TaskStatus.RUNNING;
+            }
+            CatchPlatform finished = platform;
+            platform = null;
+            if (state == CatchPlatform.State.REFUSED) {
+                lastRefusal = new MiningRefusal.DropUnprotected(
+                        platformTarget,
+                        null,
+                        dev.friendai.features.mining.DropRisk.Reason.PROTECTED_CELL,
+                        finished.failure());
+                blacklist.add(platformTarget);
+                if (breaker != null) {
+                    breaker.stop(c);
+                    breaker = null;
+                }
+                return TaskStatus.RUNNING;
+            }
+        }
+        if (breaker != null && breaker.target() != null && !breaker.target().equals(platformTarget)) {
+            platformTarget = breaker.target();
+            DropGuard.Plan plan = DropGuard.plan(c, platformTarget, placements);
+            if (plan.refusal() != null) {
+                lastRefusal = plan.refusal();
+                blacklist.add(platformTarget);
+                breaker.stop(c);
+                breaker = null;
+                return TaskStatus.RUNNING;
+            }
+            platform = plan.platform();
+        }
+        return null;
     }
 
     private TaskStatus tickMiningSession(TaskContext c) {
@@ -435,7 +504,8 @@ public final class MineBlocksTask implements Task {
                         c.companion(),
                         new MiningBounds(new Node(start.getX(), start.getY(), start.getZ()), radius),
                         128,
-                        6_000);
+                        6_000,
+                        placements);
             }
             miningSession.setTargets(candidates, matcher::test);
             miningSessionActive = true;
@@ -521,6 +591,10 @@ public final class MineBlocksTask implements Task {
 
     @Override
     public void stop(TaskContext c) {
+        if (platform != null) {
+            platform.stop();
+            platform = null;
+        }
         if (cleanup != null) {
             cleanup.stop(c);
             cleanup = null;

@@ -1,6 +1,7 @@
 package dev.friendai.server.configuration;
 
 import dev.friendai.execution.settings.TaskRuntimeSettings;
+import dev.friendai.features.mining.MiningRuntimeSettings;
 import dev.friendai.features.navigation.pathing.BlockList;
 import dev.friendai.features.navigation.pathing.PathingConfig;
 import dev.friendai.features.trading.TradingRuntimeSettings;
@@ -52,6 +53,12 @@ public final class ServerSettingsResolver {
                 tradeConfig.maxBarterIngots,
                 tradeConfig.barterDefaultIngots);
 
+        ServerConfig.MiningSection miningConfig = config.mining;
+        MiningRuntimeSettings mining = new MiningRuntimeSettings(
+                miningConfig.protectDrops,
+                BlockList.parse(miningConfig.valuableBlocks, ignored -> {}),
+                miningConfig.catchBlocks);
+
         return new ServerSettings(
                 tasks,
                 pathing,
@@ -59,6 +66,7 @@ public final class ServerSettingsResolver {
                 placeList,
                 config.autonomy.toSettings(),
                 trading,
-                config.places.autoMineMinBlocks);
+                config.places.autoMineMinBlocks,
+                mining);
     }
 }

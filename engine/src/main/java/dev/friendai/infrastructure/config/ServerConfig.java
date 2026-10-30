@@ -4,6 +4,7 @@ import dev.friendai.agent.autonomy.AutonomySettings;
 import dev.friendai.agent.llm.provider.LlmProfile;
 import dev.friendai.agent.llm.provider.RoutingRule;
 import dev.friendai.features.memory.MemoryLimits;
+import dev.friendai.features.mining.MiningRuntimeSettings;
 import dev.friendai.features.navigation.pathing.PathingConfig;
 import dev.friendai.foundation.diagnostics.ConfigException;
 import dev.friendai.foundation.text.UserMessage;
@@ -15,7 +16,7 @@ import java.util.function.Function;
 
 /** friendai-server.json. */
 public class ServerConfig {
-    public static final int VERSION = 17;
+    public static final int VERSION = 18;
 
     public int version = VERSION;
     public String activeProfile = "main";
@@ -26,6 +27,7 @@ public class ServerConfig {
     public TasksSection tasks = new TasksSection();
     public MemorySection memory = new MemorySection();
     public PathingSection pathing = new PathingSection();
+    public MiningSection mining = new MiningSection();
     public PlacesSection places = new PlacesSection();
     public StructuresSection structures = new StructuresSection();
     public AgentSection agent = new AgentSection();
@@ -177,6 +179,13 @@ public class ServerConfig {
     }
 
     /** How the companion finds its way: what it may dig, place and gather on the way. */
+    /** Whether a valuable drop is protected before its block is broken, and what that may cost. */
+    public static class MiningSection {
+        public boolean protectDrops = true;
+        public List<String> valuableBlocks = new ArrayList<>(MiningRuntimeSettings.DEFAULT_VALUABLE);
+        public int catchBlocks = MiningRuntimeSettings.DEFAULT_CATCH_BLOCKS;
+    }
+
     public static class PathingSection {
         public boolean allowBreak = true;
         public boolean allowPlace = true;
@@ -424,6 +433,15 @@ public class ServerConfig {
         pathing.searchBudgetMs = clamp(problems, "pathing.searchBudgetMs", pathing.searchBudgetMs, 1, 10);
         pathing.maxNodes = clamp(problems, "pathing.maxNodes", pathing.maxNodes, 1_000, 100_000);
         pathing.maxGatherBlocks = clamp(problems, "pathing.maxGatherBlocks", pathing.maxGatherBlocks, 0, 256);
+        if (mining == null) {
+            mining = new MiningSection();
+            problems.add("mining was missing");
+        }
+        if (mining.valuableBlocks == null) {
+            mining.valuableBlocks = new ArrayList<>(MiningRuntimeSettings.DEFAULT_VALUABLE);
+            problems.add("mining.valuableBlocks was missing");
+        }
+        mining.catchBlocks = clamp(problems, "mining.catchBlocks", mining.catchBlocks, 0, 27);
         brain.maxToolStepsPerTurn = clamp(problems, "brain.maxToolStepsPerTurn", brain.maxToolStepsPerTurn, 1, 32);
         brain.historyMessages = clamp(problems, "brain.historyMessages", brain.historyMessages, 6, 200);
         brain.requestTimeoutSec = clamp(problems, "brain.requestTimeoutSec", brain.requestTimeoutSec, 5, 600);

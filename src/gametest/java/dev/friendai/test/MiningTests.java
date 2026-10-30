@@ -7,6 +7,7 @@ import dev.friendai.features.mining.MiningBounds;
 import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
 import dev.friendai.features.mining.minecraft.mining.BreakAction;
 import dev.friendai.features.mining.minecraft.mining.ExcavationGuard;
+import dev.friendai.features.mining.minecraft.task.MineBlockAtTask;
 import dev.friendai.features.mining.minecraft.task.MineBlocksTask;
 import dev.friendai.features.navigation.minecraft.nav.Sight;
 import dev.friendai.features.navigation.pathing.Move;
@@ -399,6 +400,33 @@ public class MiningTests {
         });
     }
 
+    /**
+     * The catch block is either gone, or kept because the companion stands on it and the drop below would hurt it -
+     * the documented "load-bearing" case the cleanup reports instead of breaking.
+     */
+    private static boolean removedOrLoadBearing(GameTestHelper h, BlockPos below, String summary) {
+        if (h.getLevel().getBlockState(below).isAir()) {
+            return true;
+        }
+        // The one allowed leftover: the block the companion's footprint occupies over a drop that would hurt it,
+        // which the summary names instead of removing it.
+        return summary.contains("kept 1 temporary block") || summary.contains("kept 1 catch block");
+    }
+
+    /** Every diamond the companion still has or the world still holds: the drop must not be lost, taken or not. */
+    private static int diamonds(GameTestHelper h, CompanionEntity companion) {
+        int inWorld = h
+                .getLevel()
+                .getEntitiesOfClass(
+                        net.minecraft.world.entity.item.ItemEntity.class,
+                        new net.minecraft.world.phys.AABB(h.absolutePos(new BlockPos(0, 0, 0))).inflate(32),
+                        e -> e.getItem().is(Items.DIAMOND))
+                .stream()
+                .mapToInt(e -> e.getItem().getCount())
+                .sum();
+        return companion.inventory().countItem(Items.DIAMOND) + inWorld;
+    }
+
     private static long cobbleDrops(GameTestHelper h) {
         return h
                 .getLevel()
@@ -414,5 +442,193 @@ public class MiningTests {
     private static ExcavationGuard guard(CompanionEntity companion, GameTestHelper h) {
         BlockPos start = companion.blockPosition();
         return new ExcavationGuard(new MiningBounds(new Node(start.getX(), start.getY(), start.getZ()), 8), Set.of());
+    }
+
+    // ---- item 33: a valuable drop must have somewhere to land -------------------------------------------------
+
+    @GameTest(maxTicks = 2400)
+    public void valuableOreOverLavaGetsACatchBlockAndKeepsItsDrop(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        // A lava lake, two cells deep and wide enough that a drifting drop cannot land on a neighbouring block.
+        // An item takes four damage per lava tick and has five health, so one cell would only hurt it.
+        for (int x = 3; x <= 5; x++) {
+            for (int z = 1; z <= 3; z++) {
+                h.setBlock(new BlockPos(x, 1, z), Blocks.LAVA);
+                h.setBlock(new BlockPos(x, 0, z), Blocks.LAVA);
+            }
+        }
+        h.setBlock(new BlockPos(4, 2, 2), Blocks.DIAMOND_ORE);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.inventory().addItem(Items.IRON_PICKAXE.getDefaultInstance());
+        companion.inventory().addItem(new ItemStack(Items.DIRT, 16));
+        BlockPos below = h.absolutePos(new BlockPos(4, 1, 2));
+        Outcome outcome = new Outcome();
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 400, () -> false);
+        runner.setEventSink(outcome);
+        runner.start(new MineBlockAtTask(h.absolutePos(new BlockPos(4, 2, 2))), "mine_block_at");
+
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(outcome.status != null, "mining did not finish: " + outcome.summary);
+            h.assertTrue(
+                    outcome.status == TaskStatus.SUCCESS,
+                    "the ore over lava was not mined: " + outcome.status + " " + outcome.summary);
+            h.assertTrue(
+                    companion.inventory().countItem(Items.DIAMOND) == 1,
+                    "the diamond burned instead of landing on the catch block: " + outcome.summary);
+            h.assertTrue(
+                    removedOrLoadBearing(h, below, outcome.summary),
+                    "the catch block was left behind: " + h.getLevel().getBlockState(below) + " / " + outcome.summary);
+            h.assertTrue(companion.inventory().countItem(Items.DIRT) < 16, "no catch block was placed at all");
+        });
+    }
+
+    @GameTest(maxTicks = 2400)
+    public void valuableOreOverARavineIsCaughtAndTheBlockIsTakenBack(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 20, 8);
+        // Eight cells of air under the ore, as over a ravine: far below the sweep's reach.
+        for (int y = 20; y >= 13; y--) {
+            h.setBlock(new BlockPos(4, y, 2), Blocks.AIR);
+        }
+        h.setBlock(new BlockPos(4, 21, 2), Blocks.DIAMOND_ORE);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 21, 2);
+        companion.inventory().addItem(Items.IRON_PICKAXE.getDefaultInstance());
+        companion.inventory().addItem(new ItemStack(Items.DIRT, 8));
+        BlockPos below = h.absolutePos(new BlockPos(4, 20, 2));
+        Outcome outcome = new Outcome();
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 400, () -> false);
+        runner.setEventSink(outcome);
+        runner.start(new MineBlockAtTask(h.absolutePos(new BlockPos(4, 21, 2))), "mine_block_at");
+
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(
+                    outcome.status == TaskStatus.SUCCESS,
+                    "the ore over the ravine was not mined: " + outcome.status + " " + outcome.summary);
+            h.assertTrue(diamonds(h, companion) == 1, "the diamond fell into the ravine: " + outcome.summary);
+            h.assertTrue(
+                    removedOrLoadBearing(h, below, outcome.summary),
+                    "the catch block was left behind: " + h.getLevel().getBlockState(below) + " / " + outcome.summary);
+            h.assertTrue(companion.inventory().countItem(Items.DIRT) < 16, "no catch block was placed at all");
+        });
+    }
+
+    @GameTest(maxTicks = 1200)
+    public void valuableOreWithoutBuildingMaterialIsLeftUntouched(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 20, 8);
+        for (int y = 20; y >= 13; y--) {
+            h.setBlock(new BlockPos(4, y, 2), Blocks.AIR);
+        }
+        h.setBlock(new BlockPos(4, 21, 2), Blocks.DIAMOND_ORE);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 21, 2);
+        companion.inventory().addItem(Items.IRON_PICKAXE.getDefaultInstance());
+        BlockPos ore = h.absolutePos(new BlockPos(4, 21, 2));
+        Outcome outcome = new Outcome();
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 400, () -> false);
+        runner.setEventSink(outcome);
+        runner.start(new MineBlockAtTask(ore), "mine_block_at");
+
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(outcome.status != null, "mining did not finish: " + outcome.summary);
+            h.assertTrue(
+                    outcome.status == TaskStatus.FAILED,
+                    "mining an unprotected drop was not refused: " + outcome.status + " " + outcome.summary);
+            h.assertTrue(
+                    h.getLevel().getBlockState(ore).is(Blocks.DIAMOND_ORE),
+                    "the ore was mined although the drop had nowhere to land");
+            h.assertTrue(
+                    outcome.summary.contains("catch block"),
+                    "the refusal must say what was missing: " + outcome.summary);
+        });
+    }
+
+    @GameTest(maxTicks = 1200)
+    public void aCatchBlockIsNeverBuiltInAProtectedPlace(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 20, 8);
+        // Eight cells of air under the ore, as over a ravine: far below the sweep's reach.
+        for (int y = 20; y >= 13; y--) {
+            h.setBlock(new BlockPos(4, y, 2), Blocks.AIR);
+        }
+        h.setBlock(new BlockPos(4, 21, 2), Blocks.DIAMOND_ORE);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 21, 2);
+        companion.inventory().addItem(Items.IRON_PICKAXE.getDefaultInstance());
+        companion.inventory().addItem(new ItemStack(Items.DIRT, 8));
+        BlockPos below = h.absolutePos(new BlockPos(4, 20, 2));
+        BlockPos ore = h.absolutePos(new BlockPos(4, 21, 2));
+        companion.hands().overrideProtection(pos -> pos.equals(below));
+        Outcome outcome = new Outcome();
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 400, () -> false);
+        runner.setEventSink(outcome);
+        runner.start(new MineBlockAtTask(ore), "mine_block_at");
+
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(outcome.status != null, "mining did not finish: " + outcome.summary);
+            h.assertTrue(
+                    outcome.status == TaskStatus.FAILED,
+                    "the protected catch cell was mined around: " + outcome.status + " " + outcome.summary);
+            h.assertTrue(h.getLevel().getBlockState(below).isAir(), "a block appeared in the protected cell");
+            h.assertTrue(h.getLevel().getBlockState(ore).is(Blocks.DIAMOND_ORE), "the ore was mined anyway");
+        });
+    }
+
+    @GameTest(maxTicks = 1200)
+    public void ordinaryStoneOverAHoleIsMinedWithoutAPlatform(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 20, 8);
+        h.setBlock(new BlockPos(4, 20, 2), Blocks.AIR);
+        h.setBlock(new BlockPos(4, 21, 2), Blocks.STONE);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 21, 2);
+        companion.inventory().addItem(Items.IRON_PICKAXE.getDefaultInstance());
+        companion.inventory().addItem(new ItemStack(Items.DIRT, 8));
+        BlockPos below = h.absolutePos(new BlockPos(4, 20, 2));
+        Outcome outcome = new Outcome();
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 400, () -> false);
+        runner.setEventSink(outcome);
+        runner.start(new MineBlockAtTask(h.absolutePos(new BlockPos(4, 21, 2))), "mine_block_at");
+
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(outcome.status != null, "mining did not finish: " + outcome.summary);
+            h.assertTrue(
+                    outcome.status == TaskStatus.SUCCESS,
+                    "ordinary stone was slowed down: " + outcome.status + " " + outcome.summary);
+            h.assertTrue(companion.inventory().countItem(Items.DIRT) == 8, "a platform was built for ordinary stone");
+            h.assertTrue(h.getLevel().getBlockState(below).isAir(), "a block appeared under ordinary stone");
+        });
+    }
+
+    @GameTest(maxTicks = 2400)
+    public void plannedMiningPathBuildsTheCatchPlatformToo(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 20, 8);
+        for (int y = 20; y >= 13; y--) {
+            h.setBlock(new BlockPos(4, y, 2), Blocks.AIR);
+        }
+        h.setBlock(new BlockPos(4, 21, 2), Blocks.DIAMOND_ORE);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 21, 2);
+        companion.inventory().addItem(Items.IRON_PICKAXE.getDefaultInstance());
+        companion.inventory().addItem(new ItemStack(Items.DIRT, 8));
+        BlockPos ore = h.absolutePos(new BlockPos(4, 21, 2));
+        BlockPos below = h.absolutePos(new BlockPos(4, 20, 2));
+        h.assertTrue(GameTestSupport.observeVisible(h, companion, ore), "the ore should be directly visible");
+        Outcome outcome = new Outcome();
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 400, () -> false);
+        runner.setEventSink(outcome);
+        runner.start(
+                new MineBlocksTask(BlockMatcher.parse("minecraft:diamond_ore").orElseThrow(), 1, 8), "mine_blocks");
+
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(outcome.status != null, "mining did not finish: " + outcome.summary);
+            h.assertTrue(
+                    outcome.status == TaskStatus.SUCCESS,
+                    "the planned path did not mine the ore: " + outcome.status + " " + outcome.summary);
+            h.assertTrue(diamonds(h, companion) == 1, "the planned path lost the diamond: " + outcome.summary);
+            h.assertTrue(
+                    removedOrLoadBearing(h, below, outcome.summary),
+                    "the catch block was left behind: " + h.getLevel().getBlockState(below) + " / " + outcome.summary);
+            h.assertTrue(companion.inventory().countItem(Items.DIRT) < 16, "no catch block was placed at all");
+            h.assertTrue(companion.inventory().countItem(Items.DIRT) < 16, "no catch block was placed at all");
+        });
     }
 }

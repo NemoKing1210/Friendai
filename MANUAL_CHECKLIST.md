@@ -25,6 +25,7 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] `search_resource` with `#minecraft:logs`: it inspects its surroundings first and only travels when nothing is in sight.
 - [ ] "Friendai, quickly, three logs from that tree": exactly three logs are cut and the task finishes.
 - [ ] A log cabin or wall next to the companion is not felled by "chop a tree".
+- [ ] "Friendai, mine that diamond ore" on the rim of a lava pool: it places one block under the ore first, the diamond is collected, and the block is taken back afterwards; with `mining.protectDrops` off it mines straight away.
 - [ ] "Friendai, chop the tree next to me" while the companion stands elsewhere: the tree at your position is felled, not the one at the companion.
 - [ ] The same in Russian ("Friendai, сруби дерево рядом со мной"): the companion answers in Russian and fells the tree.
 - [ ] Changing the model in the settings screen and saving: the next reply uses the new model (`/friendai status`).
