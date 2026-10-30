@@ -162,6 +162,11 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         return acquireHold(HoldReason.COMBAT);
     }
 
+    @Override
+    public TaskExecutionPort.Hold acquireSelfCareHold() {
+        return acquireHold(HoldReason.SELF_CARE);
+    }
+
     public ExecutionHold acquireHold(HoldReason reason) {
         return holds.acquire(reason);
     }

@@ -213,6 +213,11 @@ public final class CombatController {
         return state == State.EATING;
     }
 
+    /** True while the controller owns the body for a fight, a retreat or a meal. */
+    public boolean busy() {
+        return state != State.IDLE;
+    }
+
     /** Starts eating from an inventory slot; false when the controller is busy. */
     public boolean eatFromSlot(int slot) {
         if (state != State.IDLE || slot < 0) {
@@ -357,6 +362,10 @@ public final class CombatController {
     }
 
     private void tryEat(ServerLevel level) {
+        if (companion.selfCare().busy()) {
+            // The self-care reflex is using the hands; two eaters would take each other's item out of the hand.
+            return;
+        }
         int food = companion.hunger().food();
         float health = companion.getHealth();
         float maxHealth = companion.getMaxHealth();

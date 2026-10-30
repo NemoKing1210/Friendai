@@ -171,6 +171,8 @@ const RU = {
   "Food, saturation, exhaustion, regeneration, starvation.": "Еда, насыщение, истощение, регенерация, голодание.",
   "Fire reflex": "Рефлекс на огонь",
   "Reacts to nearby flames automatically.": "Автоматически реагирует на огонь рядом.",
+  "Self-care reflex": "Рефлекс самопомощи",
+  "Spends its own water bucket, milk, golden apples and potions to stay alive.": "Тратит своё ведро воды, молоко, золотые яблоки и зелья, чтобы выжить.",
   "Death and respawn": "Смерть и возрождение",
   "Inventory and queue return with the new body.": "Инвентарь и очередь возвращаются с новым телом.",
 

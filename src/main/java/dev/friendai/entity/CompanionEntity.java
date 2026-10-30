@@ -20,6 +20,7 @@ import dev.friendai.features.survival.Difficulty;
 import dev.friendai.features.survival.ExperienceModel;
 import dev.friendai.features.survival.HungerModel;
 import dev.friendai.features.survival.minecraft.HungerWatcher;
+import dev.friendai.features.survival.minecraft.selfcare.SelfCareReflex;
 import dev.friendai.features.survival.minecraft.task.SleepTask;
 import dev.friendai.menu.FriendaiMenus;
 import dev.friendai.server.companion.CompanionExecution;
@@ -152,6 +153,7 @@ public class CompanionEntity extends PathfinderMob {
             this::serverSettings);
     private final CombatController combatController = new CombatController(this);
     private final FireReflex fireReflex = new FireReflex(this);
+    private final SelfCareReflex selfCare = new SelfCareReflex(this);
     private final FurnaceJobs furnaceJobs = new FurnaceJobs();
     private final HungerWatcher hungerWatcher =
             new HungerWatcher(this, HungerWatcher.DEFAULT_AUTO_DELAY_TICKS, HungerWatcher.DEFAULT_COOL_DOWN_TICKS);
@@ -356,6 +358,12 @@ public class CompanionEntity extends PathfinderMob {
     public FireReflex fireReflex() {
         return fireReflex;
     }
+
+    /** The emergency items the companion spends on itself; ticked before the task runner. */
+    public SelfCareReflex selfCare() {
+        return selfCare;
+    }
+
     /** The furnaces this companion loaded; not saved, the results stay in the world instead. */
     public FurnaceJobs furnaceJobs() {
         return furnaceJobs;
@@ -1059,6 +1067,7 @@ public class CompanionEntity extends PathfinderMob {
     /** Killing or dismissing the companion drops its anchor; unloading the chunk or changing dimension keeps it. */
     @Override
     public void remove(RemovalReason reason) {
+        selfCare.stop();
         if (ownerUuid != null && !level().isClientSide() && level() instanceof ServerLevel serverLevel) {
             ServerRuntimeRegistry.find(serverLevel.getServer())
                     .ifPresent(runtime -> runtime.debugStream().closeMenu(runtime, ownerUuid));

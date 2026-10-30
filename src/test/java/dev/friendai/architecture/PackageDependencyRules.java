@@ -79,7 +79,8 @@ final class PackageDependencyRules {
             new FeatureDependency("survival", "farming"),
             new FeatureDependency("survival", "knowledge"),
             new FeatureDependency("survival", "mining"),
-            new FeatureDependency("survival", "navigation"));
+            new FeatureDependency("survival", "navigation"),
+            new FeatureDependency("survival", "fire"));
     private static final Set<String> FEATURE_TOOL_REGISTRATION_API = Set.of(
             "dev.friendai.server.execution.tools.FeatureToolContributor",
             "dev.friendai.server.execution.tools.FeatureToolRegistry",

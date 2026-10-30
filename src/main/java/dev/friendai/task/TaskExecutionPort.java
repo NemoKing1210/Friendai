@@ -18,6 +18,9 @@ public interface TaskExecutionPort {
 
     Hold acquireCombatHold();
 
+    /** A hold for drinking or eating: the runner is frozen for the few ticks the item needs. */
+    Hold acquireSelfCareHold();
+
     interface Hold extends AutoCloseable {
         @Override
         void close();

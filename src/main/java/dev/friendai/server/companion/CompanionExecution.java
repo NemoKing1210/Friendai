@@ -9,6 +9,7 @@ public final class CompanionExecution {
     public static void tick(CompanionEntity companion) {
         companion.combatController().tick();
         companion.fireReflex().tick();
+        companion.selfCare().tick();
         companion.executionCoordinator().tick();
     }
 }

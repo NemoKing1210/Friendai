@@ -58,7 +58,9 @@ const CATS = [
     items: [
       "eat|Eat suitable food.", "get_food|Gather food.", "allow_food|Allow an item as food.", "forbid_food|Never eat an item.",
       "reset_food_rule|Forget a food rule.", "get_food_rules|Show food rules.", "sleep|Sleep in a bed at night.", "extinguish_fire|Put fires out with a water bucket.",
-      "~Hunger model|Food, saturation, exhaustion, regeneration, starvation.", "~Fire reflex|Reacts to nearby flames automatically.", "~Death and respawn|Inventory and queue return with the new body." ] },
+      "~Hunger model|Food, saturation, exhaustion, regeneration, starvation.", "~Fire reflex|Reacts to nearby flames automatically.",
+      "~Self-care reflex|Spends its own water bucket, milk, golden apples and potions to stay alive.",
+      "~Death and respawn|Inventory and queue return with the new body." ] },
   { id: "farming", domain: "hands", name: "Farming & Animals", icon: "🌾", color: COLORS.emerald,
     desc: "Plans a field, plants, tends and harvests; works with animals and fishing.",
     items: [

@@ -4,6 +4,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import dev.friendai.features.combat.Threat;
 import dev.friendai.features.knowledge.Landmark;
+import dev.friendai.features.survival.selfcare.EffectMark;
+import dev.friendai.features.survival.selfcare.SelfCareEffect;
+import dev.friendai.features.survival.selfcare.SelfCareStock;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class PerceptionTextTest {
@@ -11,14 +15,41 @@ class PerceptionTextTest {
     void selfStatusLineIsCompact() {
         SelfStatus dry = new SelfStatus(true, false, false, false, false, true, 15, "stone at 1 63 2", 4);
         assertEquals(
-                "Self: on the ground; light 15, open sky; underfoot: stone at 1 63 2; headroom 4+", dry.toPromptText());
+                "Self: on the ground; light 15, open sky; underfoot: stone at 1 63 2; headroom 4+; health 100%",
+                dry.toPromptText());
 
         SelfStatus wet = new SelfStatus(
                 false, true, false, false, false, false, 3, "in the air above stone at 1 63 2 (2 blocks below)", 0);
         assertEquals(
                 "Self: in water, airborne; light 3, no sky above; "
-                        + "underfoot: in the air above stone at 1 63 2 (2 blocks below); headroom 0",
+                        + "underfoot: in the air above stone at 1 63 2 (2 blocks below); headroom 0; health 100%",
                 wet.toPromptText());
+    }
+
+    @Test
+    void selfStatusNamesEffectsFallsAndEmergencyItems() {
+        SelfStatus hurt = new SelfStatus(
+                false,
+                false,
+                false,
+                false,
+                false,
+                true,
+                15,
+                "stone at 1 63 2",
+                4,
+                0.25F,
+                6.5F,
+                List.of(
+                        new SelfCareEffect("minecraft:poison", 0, 240, EffectMark.HARMFUL),
+                        new SelfCareEffect("minecraft:speed", 1, 1200, EffectMark.BENEFICIAL)),
+                new SelfCareStock(1, 1, 1, 2, 0, 0, 0, 0, 0, 0, 0));
+        assertEquals(
+                "Self: airborne; light 15, open sky; underfoot: stone at 1 63 2; headroom 4+; health 25%; "
+                        + "falling 6.5 blocks\n"
+                        + "Effects: minecraft:poison 12 s, minecraft:speed 60 s\n"
+                        + "Emergency: water bucket, milk bucket, 2 golden apples",
+                hurt.toPromptText());
     }
 
     @Test

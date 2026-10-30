@@ -12,6 +12,7 @@ import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
 import dev.friendai.features.mining.minecraft.mining.TreeFinder;
 import dev.friendai.features.mining.tree.TreeSummary;
 import dev.friendai.features.navigation.RelativeDirection;
+import dev.friendai.features.survival.minecraft.selfcare.SelfCareItems;
 import dev.friendai.perception.resource.ResourceCandidates;
 import dev.friendai.server.configuration.ServerSettings;
 import java.util.Comparator;
@@ -191,7 +192,11 @@ public final class PerceptionBuilder {
                 level.canSeeSky(pos),
                 level.getMaxLocalRawBrightness(pos),
                 GroundText.under(level, c),
-                headroom);
+                headroom,
+                c.getHealth() / Math.max(1.0F, c.getMaxHealth()),
+                (float) c.fallDistance,
+                SelfCareItems.effects(c),
+                SelfCareItems.stock(c.inventory()));
     }
 
     private static Map<String, Integer> countBlocks(
