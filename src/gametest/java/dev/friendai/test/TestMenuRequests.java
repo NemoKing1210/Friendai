@@ -40,6 +40,7 @@ final class TestMenuRequests {
         MOVE_DEBUG_OFF,
         RENAME,
         PERSONA_SET,
+        TRANSCRIPT_CLEAR,
         SET_AUTO_RESPAWN,
         PLACES_OPEN,
         PLACES_CLOSE,
@@ -118,6 +119,7 @@ final class TestMenuRequests {
             case MEMORY_CLEAR -> new MemoryRequest.FactClear(a);
             case MEMORY_TRUST -> bool(b) == null ? null : new MemoryRequest.TrustSet(UUID.fromString(a), bool(b));
             case PERSONA_SET -> new MemoryRequest.PersonaSet(a);
+            case TRANSCRIPT_CLEAR -> new MemoryRequest.TranscriptClear();
             case PLACES_OPEN -> new PlaceRequest.Open();
             case PLACES_CLOSE -> new PlaceRequest.Close();
             case PLACES_RENAME -> new PlaceRequest.Rename(a, b);

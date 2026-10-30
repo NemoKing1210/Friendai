@@ -373,7 +373,9 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
         } catch (RuntimeException e) {
             // stays null: the registry reports invalid JSON arguments
         }
-        ToolResult result = tools.bind(companion.get()).execute(new ToolCall("manual", name, args, argsJson, null));
+        // A manual run acts for the owner, with the owner's identity, so owner-scoped records resolve correctly.
+        ToolResult result = tools.bind(companion.get())
+                .execute(new ToolCall("manual", name, args, argsJson, null), new Caller(owner, "", AccessLevel.OWNER));
         log.add(LogKind.MANUAL, "result: " + (result.error() ? "ERROR " : "") + result.content());
         return result;
     }

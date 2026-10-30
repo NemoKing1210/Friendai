@@ -8,6 +8,24 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.94.0] - 2026-10-30
+
+### Added
+
+- The companion can now look back at itself: `read_log` shows its own recent activity (owner only), `recent_chat` returns the last messages of a conversation including its own replies, `memory_overview` lists every fact with its id and how full each memory book is, and `compress_memory` merges duplicate or superseded facts, as a dry run first and applied only when the owner agrees. Promises are never merged and no fact is dropped without a replacement.
+- Conversations are kept per owner in a transcript that survives restarts and death. A trusted player can read only their own conversation and a guest none; secrets are masked when it is written and when it is read.
+- The Memory tab has a "Recent chat" entry that shows the last lines and a "Clear chat" button with a confirming second click.
+- `memory.transcriptMaxEntries`, `memory.transcriptMaxTextChars`, `memory.transcriptRetentionDays`, `memory.compactAtPercent` and `memory.compactionEnabled` in the server config (schema 19; an older file is upgraded with a backup).
+
+### Changed
+
+- `recall` can be narrowed by a text fragment and a category, and says what it searched when nothing matches instead of claiming nothing is remembered.
+- The memory block of the prompt shows how full each facts book is, and a short "your own records" note tells the model when to read its log, conversations and memory.
+
+### Fixed
+
+- The Memory tab refreshes only when what it shows has changed, including for a player with a custom description.
+
 ## [0.93.1] - 2026-10-30
 
 ### Fixed

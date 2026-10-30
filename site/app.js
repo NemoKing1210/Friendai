@@ -112,6 +112,7 @@ const CATS = [
     items: [
       "remember|Store a fact.", "recall|Read facts back.", "forget|Delete a fact.", "trust_player|Raise a player to trusted (needs confirmation).",
       "untrust_player|Lower trust.", "set_name|Rename the companion.", "use_skill|Load an instruction skill once.", "list_skills|List the owner's skills with ids, versions and on/off state.", "skill_help|Read the skill-authoring checklist and its limits.", "manage_skill|Propose a skill after a finished goal.",
+      "read_log|Read your recent activity log (owner only).", "recent_chat|Read recent conversations with a player.", "memory_overview|See facts with ids and how full each book is.", "compress_memory|Merge duplicate facts safely, dry run first (owner only).",
       "~Access levels|GUEST < TRUSTED < OWNER on every tool.", "~Language learning|Learns your language after a few samples.", "~Skills advise only|They never change permissions." ] },
   { id: "places", domain: "mind", name: "Places", icon: "📍", color: COLORS.diamond,
     desc: "A book of named places. Autonomous work never breaks inside a known place and takes only from containers in one.",
@@ -179,7 +180,7 @@ const MEM_CARDS = [
   { title: "Per-owner files", sub: "<world>/friendai/ - one file per owner UUID, atomic writes, .bak recovery", wide: true,
     hub: { label: "Owner data", icon: "🗂️", color: COLORS.amethyst, desc: "Memory, profile, goals and free-time stores share one bounded runtime writer; it flushes latest-revision snapshots on a 5 s server-tick cadence. Unsupported versions are never overwritten." },
     color: COLORS.amethyst, items: [
-      "~Memory|Facts about players, trust, learned language, food rules.", "~Companion profile|Name, description, language and address.", "~Goals|One primary and three background goals, lessons, replan budget.",
+      "~Memory|Facts about players, trust, learned language, food rules.", "~Conversation transcript|Both sides of every chat, redacted, capped by count and age.", "~Companion profile|Name, description, language and address.", "~Goals|One primary and three background goals, lessons, replan budget.",
       "~Free time|Shifts, history, cooldowns, away summaries.", "~Instruction skills|19 builtins, global and owner records; list_skills and skill_help read, manage_skill writes.", "~Places|Named places with aliases, dimension and visits.",
       "~Placed blocks|Ledger of blocks it placed (cap 512).", "~Knowledge|Observed resources.", "~Trades|Known villager trades.", "~Blueprints|Saved layouts as JSON." ] },
   { title: "In the world save", sub: "Companion entity + SavedData",
@@ -190,7 +191,7 @@ const MEM_CARDS = [
   { title: "Settings & caches", sub: "config/ and the game directory",
     hub: { label: "Settings", icon: "⚙️", color: COLORS.iron, desc: "API keys may be written as env:NAME so they never sit in a file." },
     color: COLORS.iron, items: [
-      "~Server config v17|Tasks, agent, places, autonomy, chunk loading, build pace.", "~Client config v4|Voice recognition and synthesis, UI.",
+      "~Server config v19|Tasks, agent, places, autonomy, chunk loading, build pace.", "~Client config v4|Voice recognition and synthesis, UI.",
       "~Automatic config upgrades|Validated upgrades with unique backups; unknown and future formats stay read-only.", "~Whisper models|tiny, base, small.",
       "~Piper voices|Five catalogued voices.", "~Skins|Fetched and cached by hash.", "~Atomic save|Temp file then move." ] },
   { title: "The memory book", sub: "What it remembers and who may see it",

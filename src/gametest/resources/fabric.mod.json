@@ -42,6 +42,7 @@
 			"dev.friendai.test.GuestTests",
 			"dev.friendai.test.MemoryTests",
 			"dev.friendai.test.MemoryMenuTests",
+			"dev.friendai.test.SelfKnowledgeTests",
 			"dev.friendai.test.SkillsTests",
 			"dev.friendai.test.PlanTests",
 			"dev.friendai.test.BrainServiceTests",

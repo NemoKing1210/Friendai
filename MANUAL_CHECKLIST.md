@@ -414,3 +414,15 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] In both GUI languages select the planner profile and total attempts, save/reload, and confirm the effective model in free-time status and operator debug. With a malformed reply verify one actionable chat line, shift end/backoff, and a bounded redacted operator planner entry. Confirm model-facing logs never expose the raw planner reply.
 
 These live provider and GUI checks were not performed by the automated implementation. Keep API keys and personal prompts out of captured samples; retain only short operator-local excerpts.
+
+## Self-knowledge: transcript, log and memory compaction (TODO 21)
+
+- [ ] Talk to the companion, restart the world, then ask what you talked about: `recent_chat` returns both sides from before the restart.
+- [ ] Let the companion die and respawn, then ask the same question: the conversation is still there.
+- [ ] After a failed task ask "what happened?": the companion reads `read_log` instead of guessing.
+- [ ] Fill a facts book to its cap with near-duplicates, ask the companion to tidy its memory: it shows a dry run first and applies only after you agree; promises survive.
+- [ ] Open the Memory tab in both GUI languages: "Recent chat" lists the last lines with the companion labelled, and "Clear chat" needs a second click and reports how many lines it cleared.
+- [ ] As a guest and as a trusted player, ask the owner's companion for the owner's chat and log: both are refused; a trusted player can read only their own conversation.
+- [ ] Lower `memory.transcriptRetentionDays` / `transcriptMaxEntries` in the server config, reload, and confirm old lines disappear from `recent_chat`.
+
+These checks need a real provider and the GUI; the automated tests use a scripted model and did not exercise the Memory tab rendering.

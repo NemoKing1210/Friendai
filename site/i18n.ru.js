@@ -312,6 +312,12 @@ const RU = {
   /* ---- Memory ---- */
   "Memory & Trust": "Память и доверие",
   "Per-owner memory with strict visibility: guests only see facts about themselves, and trust changes need the owner's confirmation.": "Память по владельцам со строгой видимостью: гости видят только факты о себе, а смена доверия требует подтверждения владельца.",
+  "Read your recent activity log (owner only).": "Прочитать свой недавний журнал действий (только владелец).",
+  "Read recent conversations with a player.": "Прочитать недавние разговоры с игроком.",
+  "See facts with ids and how full each book is.": "Факты с id и заполненность каждой книги.",
+  "Merge duplicate facts safely, dry run first (owner only).": "Безопасно слить дубликаты фактов, сначала пробный запуск (только владелец).",
+  "Conversation transcript": "Запись разговоров",
+  "Both sides of every chat, redacted, capped by count and age.": "Обе стороны каждого разговора, секреты скрыты, ограничено по числу и возрасту.",
   "Store a fact.": "Запомнить факт.",
   "List the owner's skills with ids, versions and on/off state.":
     "Показать навыки владельца: идентификаторы, версии и включённость.",
@@ -575,7 +581,7 @@ const RU = {
   "config/ and the game directory": "config/ и каталог игры",
   "Settings": "Настройки",
   "API keys may be written as env:NAME so they never sit in a file.": "Ключи API можно писать как env:NAME, чтобы они не лежали в файле.",
-  "Server config v17": "Серверный конфиг v17",
+  "Server config v19": "Серверный конфиг v19",
   "Automatic config upgrades": "Автоматическое обновление конфигурации",
   "Validated upgrades with unique backups; unknown and future formats stay read-only.": "Проверка перед обновлением и отдельные резервные копии; неизвестные и будущие форматы остаются только для чтения.",
   "Tasks, agent, places, autonomy, chunk loading, build pace.": "Задачи, агент, места, автономность, загрузка чанков, темп строительства.",
