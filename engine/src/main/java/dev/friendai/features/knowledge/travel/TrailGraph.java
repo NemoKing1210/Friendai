@@ -16,6 +16,9 @@ public final class TrailGraph {
     private static final int MAX_EDGES = 2_048;
     private final Map<NodeKey, Pos> nodes = new HashMap<>();
     private final Map<Long, Edge> edges = new HashMap<>();
+    /** Outgoing edges per node in ascending id order, so a search never sorts the whole edge set per node. */
+    private final Map<NodeKey, List<Edge>> outgoing = new HashMap<>();
+
     private Runnable onChange = () -> {};
     private long nextEdgeId = 1;
 
@@ -41,11 +44,15 @@ public final class TrailGraph {
             double segment = distance(a, b);
             long ticks = total <= 0 ? 0 : Math.max(1, Math.round(traversalTicks * segment / total));
             long forward = nextEdgeId++;
-            edges.put(forward, new Edge(forward, dimension, a, b, ticks, false));
+            Edge forwardEdge = new Edge(forward, dimension, a, b, ticks, false);
+            edges.put(forward, forwardEdge);
+            addOutgoing(forwardEdge);
             created.add(forward);
             if (reverseValidated && edges.size() < MAX_EDGES) {
                 long reverse = nextEdgeId++;
-                edges.put(reverse, new Edge(reverse, dimension, b, a, ticks, false));
+                Edge reverseEdge = new Edge(reverse, dimension, b, a, ticks, false);
+                edges.put(reverse, reverseEdge);
+                addOutgoing(reverseEdge);
                 created.add(reverse);
             }
         }
@@ -56,7 +63,17 @@ public final class TrailGraph {
     public synchronized void invalidate(long edgeId) {
         Edge edge = edges.get(edgeId);
         if (edge == null || edge.invalid()) return;
-        edges.put(edgeId, new Edge(edge.id(), edge.dimension(), edge.from(), edge.to(), edge.ticks(), true));
+        Edge invalid = new Edge(edge.id(), edge.dimension(), edge.from(), edge.to(), edge.ticks(), true);
+        edges.put(edgeId, invalid);
+        List<Edge> list = outgoing.get(new NodeKey(edge.dimension(), edge.from()));
+        if (list != null) {
+            for (int i = 0; i < list.size(); i++) {
+                if (list.get(i).id() == edgeId) {
+                    list.set(i, invalid);
+                    break;
+                }
+            }
+        }
         onChange.run();
     }
 
@@ -76,9 +93,7 @@ public final class TrailGraph {
             QueueNode current = queue.remove();
             if (current.cost() != distance.getOrDefault(current.key(), Long.MAX_VALUE)) continue;
             if (current.key().equals(goal)) break;
-            for (Edge edge : edges.values().stream()
-                    .sorted(Comparator.comparingLong(Edge::id))
-                    .toList()) {
+            for (Edge edge : outgoing.getOrDefault(current.key(), List.of())) {
                 if (edge.invalid()
                         || !edge.dimension().equals(dimension)
                         || !edge.from().equals(current.key().pos())) continue;
@@ -165,12 +180,14 @@ public final class TrailGraph {
                 throw new IllegalArgumentException("duplicate or excessive trail edge");
             graph.nodes.put(new NodeKey(dimension, from), from);
             graph.nodes.put(new NodeKey(dimension, to), to);
-            graph.edges.put(
-                    id,
-                    new Edge(id, dimension, from, to, ticks, row.get("invalid").getAsBoolean()));
+            Edge edge =
+                    new Edge(id, dimension, from, to, ticks, row.get("invalid").getAsBoolean());
+            graph.edges.put(id, edge);
+            graph.addOutgoing(edge);
             graph.nextEdgeId = Math.max(graph.nextEdgeId, id + 1);
         }
         if (graph.nodes.size() > MAX_NODES) throw new IllegalArgumentException("too many trail nodes");
+        graph.outgoing.values().forEach(list -> list.sort(Comparator.comparingLong(Edge::id)));
         return graph;
     }
 
@@ -199,6 +216,11 @@ public final class TrailGraph {
             }
         }
         return result;
+    }
+
+    private void addOutgoing(Edge edge) {
+        outgoing.computeIfAbsent(new NodeKey(edge.dimension(), edge.from()), ignored -> new ArrayList<>())
+                .add(edge);
     }
 
     private static boolean changedDirection(Pos a, Pos b, Pos c) {

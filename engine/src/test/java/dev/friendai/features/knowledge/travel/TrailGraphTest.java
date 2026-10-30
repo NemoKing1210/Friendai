@@ -70,6 +70,46 @@ class TrailGraphTest {
     }
 
     @Test
+    void routeKeepsItsTieBreakAfterInvalidationAndRestore() {
+        TrailGraph graph = new TrailGraph();
+        var first = graph.recordSegment("minecraft:overworld", List.of(new Pos(0, 64, 0), new Pos(8, 64, 0)), 20, true);
+        graph.recordSegment("minecraft:overworld", List.of(new Pos(0, 64, 0), new Pos(8, 64, 0)), 20, false);
+        List<Pos> expected = List.of(new Pos(0, 64, 0), new Pos(8, 64, 0));
+
+        assertEquals(expected, graph.route("minecraft:overworld", new Pos(0, 64, 0), new Pos(8, 64, 0)));
+        graph.invalidate(first.getFirst());
+        assertEquals(
+                expected,
+                graph.route("minecraft:overworld", new Pos(0, 64, 0), new Pos(8, 64, 0)),
+                "the parallel edge keeps the route alive");
+        TrailGraph restored = TrailGraph.fromJson(graph.toJson());
+        assertEquals(
+                expected,
+                restored.route("minecraft:overworld", new Pos(0, 64, 0), new Pos(8, 64, 0)),
+                "restored adjacency keeps the same deterministic route");
+        assertTrue(
+                restored.route("minecraft:overworld", new Pos(8, 64, 0), new Pos(0, 64, 0))
+                                .size()
+                        == 2,
+                "reversed edges survive the restore as well");
+    }
+
+    @Test
+    void graphCapsStayBoundedAndRoutingStillWorks() {
+        TrailGraph graph = new TrailGraph();
+        for (int i = 0; i < 3_000; i++) {
+            graph.recordSegment(
+                    "minecraft:overworld", List.of(new Pos(i * 8, 64, 0), new Pos((i + 1) * 8, 64, 0)), 8, false);
+        }
+        assertTrue(graph.nodeCount() <= 1_024, "node cap: " + graph.nodeCount());
+        assertTrue(graph.edgeCount() <= 2_048, "edge cap: " + graph.edgeCount());
+        assertEquals(
+                List.of(new Pos(0, 64, 0), new Pos(8, 64, 0), new Pos(16, 64, 0)),
+                graph.route("minecraft:overworld", new Pos(0, 64, 0), new Pos(16, 64, 0)),
+                "capped adjacency still routes along recorded edges");
+    }
+
+    @Test
     void nodeProximityIsDimensionScopedAndBounded() {
         TrailGraph graph = new TrailGraph();
         graph.recordSegment("minecraft:overworld", List.of(new Pos(0, 64, 0), new Pos(8, 64, 0)), 20, false);
