@@ -1,6 +1,7 @@
 package dev.friendai.client.render;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import dev.friendai.FriendaiMod;
 import dev.friendai.client.skin.SkinCache;
 import dev.friendai.entity.CompanionEntity;
 import net.minecraft.client.model.HumanoidModel;
@@ -19,13 +20,13 @@ import net.minecraft.world.item.ItemUseAnimation;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * Renders the companion with the player model and the default Steve skin, plus a thought indicator while it thinks.
+ * Renders the companion with the player model and its bundled default skin, plus a thought indicator while it thinks.
  */
 public class CompanionRenderer
         extends HumanoidMobRenderer<CompanionEntity, CompanionRenderState, HumanoidModel<CompanionRenderState>> {
     private final HumanoidModel<CompanionRenderState> wideModel;
     private final HumanoidModel<CompanionRenderState> slimModel;
-    private static final Identifier TEXTURE = Identifier.withDefaultNamespace("textures/entity/player/wide/steve.png");
+    private static final Identifier TEXTURE = FriendaiMod.id("textures/entity/companion.png");
     /** How long one dot of the thinking animation stays on screen. */
     private static final float TICKS_PER_DOT = 8.0F;
 
