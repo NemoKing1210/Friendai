@@ -66,8 +66,7 @@ public final class FriendaiConfigScreen {
     /** Set while a rebuild writes pending widget values into the config, so listeners stay quiet. */
     private static boolean applying;
 
-    /** Set while a rebuild replaces the screen, so the old screen's removal does not close the session. */
-    private static boolean replacing;
+    private static SettingsScreenLifecycle lifecycle;
 
     /** The open settings session; a rebuild reuses it, a fresh open replaces and closes it. */
     private static SettingsSession session;
@@ -125,6 +124,7 @@ public final class FriendaiConfigScreen {
         }
         if (session != null) session.close();
         session = SettingsSession.open(++nextGeneration, FriendaiClient.clientConfig(), server, serverConfigReadOnly);
+        lifecycle = new SettingsScreenLifecycle(session);
         return create(parent, null, session.voiceDraft());
     }
 
@@ -135,6 +135,7 @@ public final class FriendaiConfigScreen {
     private static Screen create(Screen parent, ProviderDraft draft, VoiceDraft voiceDraft) {
         SettingsSession current = session;
         if (current == null || !current.isOpen()) return parent;
+        SettingsScreenLifecycle currentLifecycle = lifecycle;
         current.voiceDraft(voiceDraft);
         ClientConfigurationCoordinator configuration = FriendaiClient.runtime().configuration();
         ServerConfig server = current.serverDraft();
@@ -174,7 +175,9 @@ public final class FriendaiConfigScreen {
             if (hooked[0]) return;
             hooked[0] = true;
             ScreenEvents.remove(screen).register(removed -> {
-                if (!replacing && session == current) current.close();
+                // YACL replaces this screen with PopupControllerScreen while a dropdown is open.
+                // Its popup flag is already set when removal fires; this is not an editing-session exit.
+                if (session == current) currentLifecycle.removed(screen.popupControllerVisible);
             });
         });
         return builder.build().generateScreen(parent);
@@ -182,12 +185,7 @@ public final class FriendaiConfigScreen {
 
     /** Replaces the screen as a rebuild, so the outgoing screen's removal keeps the session open. */
     private static void show(Screen next) {
-        replacing = true;
-        try {
-            Minecraft.getInstance().setScreenAndShow(next);
-        } finally {
-            replacing = false;
-        }
+        lifecycle.replace(() -> Minecraft.getInstance().setScreenAndShow(next));
     }
 
     private static Option<String> stringOption(
