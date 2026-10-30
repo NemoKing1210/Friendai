@@ -16,7 +16,7 @@ The root Gradle project remains the Loom mod and uses `loom.splitEnvironmentSour
 | `main` | `src/main/java` | Pure layers, Minecraft-layer server/common code, resources | The shipped jar's common half. |
 | `client` | `src/client/java` | Renderer, screens, HUD, keybinds, voice capture, speech output | Loaded only on the client. |
 | `test` | `src/test/java` | JUnit tests and reusable fakes | No Minecraft at runtime. |
-| `gametest` | `src/gametest/java` | Fabric GameTest classes plus `GameTestSupport` | Separate mod `friendai-gametest`; entrypoints listed in `src/gametest/resources/fabric.mod.json`. |
+| `gametest` | `src/gametest/java` | Fabric GameTest classes plus `GameTestSupport` | Separate mod `friendai-gametest`; entrypoints listed in `src/gametest/resources/fabric.mod.json`. CI's shard map is `.github/gametest-shards.json` and `scripts/run-gametest-shard.sh` boots one class per server. |
 
 ## Where to start
 

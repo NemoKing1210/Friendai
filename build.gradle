@@ -51,6 +51,57 @@ tasks.named('runGameTest') {
 	systemProperty "friendai.gametest.tolerateUnnegotiatedPeers", "true"
 }
 
+// CI runs the GameTest suite as a matrix of shards, each booting its own server, and every registered class must be in
+// exactly one shard so a new test cannot silently stop running. The map lives in one file; this task checks it and
+// writes the `strategy.matrix` body the workflow reads.
+tasks.register('verifyGametestShards') {
+	group = 'verification'
+	description = 'Checks that every registered GameTest class is in exactly one CI shard and writes the matrix file.'
+	def shardFile = file('.github/gametest-shards.json')
+	def modFile = file('src/gametest/resources/fabric.mod.json')
+	def matrixFile = new File(layout.buildDirectory.get().asFile, 'gametest-shard-matrix.json')
+	inputs.file(shardFile)
+	inputs.file(modFile)
+	outputs.file(matrixFile)
+
+	doLast { task ->
+		def slurper = new groovy.json.JsonSlurper()
+		def shards = slurper.parse(shardFile).shards
+		def registered = slurper.parse(modFile).entrypoints['fabric-gametest']
+				.collect { it.tokenize('.').last() } as Set
+		def owner = [:]
+		def problems = []
+		shards.each { shard ->
+			if (!(shard.name ==~ /[a-z0-9-]+/)) {
+				problems << "shard '${shard.name}' needs a lowercase name of letters, digits and dashes"
+			}
+			if (!shard.classes) {
+				problems << "shard '${shard.name}' has no classes"
+			}
+			shard.classes.each { name ->
+				if (!registered.contains(name)) {
+					problems << "shard '${shard.name}' lists '$name', which is not a fabric-gametest entrypoint"
+				}
+				if (owner.containsKey(name)) {
+					problems << "'$name' is in both '${owner[name]}' and '${shard.name}'"
+				}
+				owner[name] = shard.name
+			}
+		}
+		(registered - owner.keySet()).sort().each { problems << "'$it' is registered but in no shard" }
+		if (!problems.isEmpty()) {
+			throw new GradleException("GameTest shard map is invalid:\n  " + problems.join('\n  '))
+		}
+		// The workflow runs scripts/run-gametest-shard.sh, which reads the same file and boots one class at a time;
+		// the matrix only carries the shard names.
+		def matrix = [include: shards.collect { shard -> [name: shard.name] }]
+		matrixFile.parentFile.mkdirs()
+		matrixFile.text = groovy.json.JsonOutput.toJson(matrix)
+		task.logger.lifecycle("GameTest shards: "
+				+ shards.collect { "${it.name} (${it.classes.size()} classes)" }.join(', '))
+	}
+}
+
 dependencies {
 	implementation project(':engine')
 	include project(':engine')
@@ -115,6 +166,14 @@ test {
 			systemProperty key, value
 		}
 	}
+}
+
+// `./gradlew updatePromptGolden` works from the repository root; the work itself runs in the engine project, where
+// the golden files and the test live.
+tasks.register('updatePromptGolden') {
+	group = 'verification'
+	description = 'Rewrites the engine prompt goldens from the current system prompt; review the diff before committing.'
+	dependsOn ':engine:updatePromptGolden'
 }
 
 def requestedTaskNames = gradle.startParameter.taskNames

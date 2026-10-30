@@ -1,6 +1,5 @@
 package dev.friendai.agent.turn;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import dev.friendai.agent.goal.GoalView;
@@ -117,10 +116,58 @@ class PromptGoldenTest {
                     return;
                 }
                 String golden = read(name);
-                assertEquals(sortedLines(golden), sortedLines(prompt), "prompt case " + name + " changed");
+                List<String> expected = sortedLines(golden);
+                List<String> actual = sortedLines(prompt);
+                if (!expected.equals(actual)) {
+                    throw new AssertionError(differenceMessage(name, expected, actual));
+                }
             }));
         }
         return tests;
+    }
+
+    /**
+     * Names the case, quotes the first differing line with two lines of context from each side, and repeats the one
+     * command that regenerates the files, so a red golden test says what changed and what to do next.
+     */
+    static String differenceMessage(String name, List<String> expected, List<String> actual) {
+        int first = 0;
+        int shared = Math.min(expected.size(), actual.size());
+        while (first < shared && expected.get(first).equals(actual.get(first))) {
+            first++;
+        }
+        StringBuilder message = new StringBuilder();
+        message.append("prompt case ").append(name).append(" changed");
+        message.append(" (")
+                .append(expected.size())
+                .append(" golden lines, ")
+                .append(actual.size())
+                .append(" prompt lines)");
+        if (first < shared) {
+            message.append("\nfirst difference at sorted line ")
+                    .append(first + 1)
+                    .append(':');
+        } else {
+            message.append("\nthe prompt has ")
+                    .append(first)
+                    .append(" identical leading lines, then a different line count:");
+        }
+        message.append("\n  golden:").append(context(expected, first));
+        message.append("\n  prompt:").append(context(actual, first));
+        message.append("\nregenerate with ./gradlew updatePromptGolden and review the diff");
+        return message.toString();
+    }
+
+    private static String context(List<String> lines, int index) {
+        if (index >= lines.size()) {
+            return " <no more lines>";
+        }
+        StringBuilder text = new StringBuilder();
+        int end = Math.min(lines.size(), index + 3);
+        for (int i = index; i < end; i++) {
+            text.append("\n    ").append(lines.get(i));
+        }
+        return text.toString();
     }
 
     private static String read(String name) throws IOException {

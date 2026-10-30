@@ -131,6 +131,17 @@ The `barter` tool uses a real adult piglin and vanilla gold interaction. Its out
 
 The interface is available in English and Russian. The companion replies in the language you write in, or in a fixed language if you set one. To add a language, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## Download and releases
+
+Releases are published on the [Releases page](https://github.com/NemoKing1210/Friendai/releases). Each one carries
+exactly one mod jar, `friendai-<version>.jar`, and `friendai-<version>.jar.sha256`; download both, check the checksum
+(`sha256sum -c friendai-<version>.jar.sha256`, or `shasum -a 256 -c` on macOS), and put the jar in `mods/` on the client
+and on the server. The release notes are the `CHANGELOG.md` section for that version.
+
+Only the maintainer creates a tag. Pushing `vX.Y.Z` starts the release workflow, which refuses a tag that does not match
+`mod_version`, a commit that is not on `main`, or a commit whose CI run is not green; it then runs the full build and
+publishes the verified jar. See `CONTRIBUTING.md` for the dry run and the local checks.
+
 ## Building
 
 ```bash
