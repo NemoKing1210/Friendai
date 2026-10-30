@@ -6,11 +6,13 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
+import net.minecraft.world.item.ItemStack;
 
 /** Draws the companion's task queue: counters first, then the running, next and blocked jobs. */
 final class QueuePanel {
     private static final int LINE_GAP = 3;
     private static final int CHIP_GAP = 4;
+    private static final int ICON = 16;
 
     private QueuePanel() {}
 
@@ -95,23 +97,46 @@ final class QueuePanel {
 
     private static int job(
             GuiGraphicsExtractor g, Font font, String labelKey, int color, String body, int x, int y, int width) {
+        Component label = Component.translatable(labelKey);
+        return row(g, font, label, color, Math.max(54, font.width(label) + 8), body, x, y, width);
+    }
+
+    /**
+     * One labelled row: a coloured tag, then the body with ids shown by game name and, when the body names an item or
+     * block, its icon. Returns the height used including the gap; with a null {@code g} nothing is drawn.
+     */
+    static int row(
+            GuiGraphicsExtractor g,
+            Font font,
+            Component label,
+            int color,
+            int labelWidth,
+            String body,
+            int x,
+            int y,
+            int width) {
         if (body.isEmpty()) {
             return 0;
         }
-        Component label = Component.translatable(labelKey);
-        int labelWidth = Math.max(54, font.width(label) + 8);
-        int textX = x + labelWidth + 4;
+        ItemStack icon = TaskChips.firstStack(body);
+        int iconWidth = icon.isEmpty() ? 0 : ICON + 2;
+        int textX = x + labelWidth + 4 + iconWidth;
         int cursor = y;
         if (g != null) {
             g.fill(x, y, x + labelWidth, y + Ui.BADGE_HEIGHT, color);
             Ui.text(g, font, label, x + 5, y + 2, Ui.ON_WELL);
+            if (!icon.isEmpty()) {
+                g.fakeItem(icon, x + labelWidth + 4, y - 3);
+            }
         }
-        for (FormattedCharSequence line : font.split(Component.literal(body), Math.max(20, width - labelWidth - 4))) {
+        String shown = TaskChips.humanize(body);
+        for (FormattedCharSequence line :
+                font.split(Component.literal(shown), Math.max(20, width - labelWidth - 4 - iconWidth))) {
             if (g != null) {
                 Ui.text(g, font, line, textX, cursor + 2, Ui.TEXT);
             }
             cursor += font.lineHeight + 1;
         }
-        return Math.max(Ui.BADGE_HEIGHT, cursor - y + 2) + LINE_GAP;
+        return Math.max(icon.isEmpty() ? Ui.BADGE_HEIGHT : ICON - 2, cursor - y + 2) + LINE_GAP;
     }
 }
