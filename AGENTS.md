@@ -90,6 +90,7 @@ The first build downloads Minecraft and takes minutes; later builds take seconds
 | `run/`, `build/`, `logs/`, `.gradle/`, `config/` | Local runtime/generated files. Git-ignored. |
 | `index.html`, `site/` | The interactive capability map (Minecraft-styled graphs of tools, memory, turn flow, architecture). `site/app.js` holds the data (`CATS`, `FLOW`, `MEM_CARDS`, `ARCH_CARDS`), `site/style.css` the look; graphs are drawn by `vis-network` (pinned CDN version in `index.html`), draggable and with physics. `site/i18n.ru.js` is the Russian translation (a second, deliberate exception to "everything in the repository is English", like `ru_ru.json`). Keep it current: see "Definition of done", item 9. |
 | `AGENTS.md`, `ARCHITECTURE.md` | The two halves of this guide: the rules every session loads, and the reference (packages, flows, persistence, protocol). See "Code map and flows". |
+| `CHANGELOG.md` | The player-facing history of the shipped mod, one section per `mod_version`, newest first, in [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) form. Update it with every shipped change; see "Changelog". |
 | `README.md`, `CONTRIBUTING.md`, `MANUAL_CHECKLIST.md`, `TODO.md`, `TODO_ARCHIVE.md`, `commitlint.config.mjs` | User docs, contributor rules, manual test checklist, the open backlog and its finished-item archive (see "Working from TODO.md"), commit rules. |
 
 ### Code map and flows
@@ -348,6 +349,17 @@ Bump it as part of any change that alters the shipped mod, by the size of the ch
 - Do not create tags or releases yourself; tagging `vX.Y.Z` is the maintainer's call. Tell them when the version is ready to release.
 - When unsure between two sizes, pick the larger one and say why in the final message.
 
+## Changelog
+
+`CHANGELOG.md` is the player-facing history of the shipped mod: what an owner reads to decide whether a newer jar is worth installing. It follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), newest version first, and each heading names the `mod_version` it belongs to.
+
+- **An entry lands with the change.** A change that alters the shipped mod adds its line under `## [Unreleased]` in the same commit, or under the current version heading once that version's bump has landed. A change with no effect on the shipped jar — `docs`, `ci`, `test`, `style`, pure `chore`/`build`/`refactor` — gets no line.
+- **Map the commit type to a category.** `feat` → **Added**; a changed behavior, setting, command or tool → **Changed**; something withdrawn → **Removed** or **Deprecated**; `fix` → **Fixed**; `perf` and other user-visible improvements → **Changed**; a security or data-safety fix → **Security**. Add a category only when it has a line, in the standard order (Added, Changed, Deprecated, Removed, Fixed, Security).
+- **Write for a player, not for git.** One line says what the owner can now do, or which bug no longer happens; name the tool, command, key or config option by its player-facing name. No class names, package paths, test names, commit hashes, or "refactor"/"cleanup"/"bump" entries. English only.
+- **One block per version, not per commit.** "Versioning" already allows one `mod_version` bump per task, so the task's lines form one block. When the bump lands, retitle the collected `Unreleased` block `## [X.Y.Z] - YYYY-MM-DD` — the version `mod_version` now holds, the date of the bump — and put a fresh empty `## [Unreleased]` above it. A change that is one commit may write its line directly under the new version heading instead.
+- **A tagged version is history.** Never rewrite, reorder or delete a section whose `vX.Y.Z` tag exists; correct a plain factual error only, and say so. The current `mod_version` section may still take a correction before it is tagged.
+- **Do not invent history.** The file starts at 0.87.0; earlier versions predate it and stay in `git log`. A backfilled section needs the version that `gradle.properties` held at that commit, not a guess.
+
 ## Definition of done
 
 0. **The change must compile before it is committed.** Tests are optional for a commit, compilation is not: run `./gradlew assemble verifyModArtifact` (compiles every source set, packages and inspects the mod jar) and read its result, with `JAVA_HOME` pointing at JDK 25. Never commit code that was not compiled, and never rely on "the API probably has that method" for Minecraft names; look them up (see "Minecraft API notes (26.3)"). A commit that breaks the build blocks every other session. Formatting is part of this gate: run `./gradlew spotlessApply -PspotlessFiles=<the files you changed>` before the commit (see "Formatting").
@@ -360,6 +372,7 @@ Bump it as part of any change that alters the shipped mod, by the size of the ch
 7. Your changed files are committed (unless the file also holds another session's edits — then say so). For a multi-step task, the commits follow the batches you finished.
 8. `test-builds/friendai-<version>.jar` is refreshed (`exportTestJar` runs during `build`/`assemble`) and you tell the maintainer its path and version.
 9. **The capability map stays current.** When a change adds, renames, removes or materially changes something `index.html` shows — a tool or skill (the `CATS` lists in `site/app.js`, written as `name|description`, with `~` for built-in behaviour), the turn flow (`FLOW`), stored data and persistence (`MEM_CARDS`), or the layers, packages and rules (`ARCH_CARDS`, `ARCH_FLOW`) — update `site/app.js` in the same commit, in English, matching the surrounding entries. Add the Russian text for every new or changed string to `site/i18n.ru.js` (keys are the exact English strings; a missing key falls back to English, so nothing breaks, but the Russian view then shows English). A new category also needs a domain and a colour from `COLORS`. Open the page once in a browser and check that the affected graph still renders without overlaps. If nothing it shows changed, no edit is needed.
+10. **The changelog line is in.** A change that alters the shipped mod has its `CHANGELOG.md` line under `Unreleased` or the new version heading, in the same commit as the version bump; an internal-only change needs none (see "Changelog").
 
 ## Glossary
 
