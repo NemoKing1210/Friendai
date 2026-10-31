@@ -83,6 +83,33 @@ public class ResourceObservationTests {
         h.succeed();
     }
 
+    /**
+     * A crowded server drains the passive sweep slowly enough that its queue stays full — a class of twenty-seven
+     * companions shares one observation budget, and a companion that dug through stone for a thousand ticks never saw
+     * any of it. The ray a dig queues for the face it just exposed must make room for itself instead of being dropped
+     * behind that backlog. The ore sits off the sweep's axis checks, so it is the dig's ray that has to queue it.
+     */
+    @GameTest(maxTicks = 80)
+    public void digFaceIsQueuedBehindAFullSweepBacklog(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 5);
+        BlockPos ore = h.absolutePos(new BlockPos(8, 4, 6));
+        h.setBlock(8, 4, 6, Blocks.COAL_ORE);
+        ResourceObserver observer = new ResourceObserver(companion);
+        int queued = -1;
+        for (int sweep = 0; sweep < 40 && observer.queuedJobs() != queued; sweep++) {
+            queued = observer.queuedJobs();
+            observer.scheduleSweep(sweep * 20L);
+        }
+        h.assertTrue(observer.queuedJobs() > 0, "the passive sweep queued nothing");
+        h.assertValueEqual(queued, observer.queuedJobs(), "the passive sweep should have filled the queue to its cap");
+        h.assertFalse(observer.queued(ore), "the ore must not be part of the passive sweep for this test");
+        observer.changed(ore);
+        h.assertTrue(observer.queued(ore), "the face a dig exposed was dropped behind a full sweep queue");
+        h.assertValueEqual(queued, observer.queuedJobs(), "a dig's rays must replace the backlog, not grow it");
+        h.succeed();
+    }
+
     @GameTest(maxTicks = 40)
     public void sealedCaveOreUnknown(GameTestHelper h) {
         GameTestSupport.platform(h, 12);

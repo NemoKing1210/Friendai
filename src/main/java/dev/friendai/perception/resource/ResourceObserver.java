@@ -130,7 +130,11 @@ public final class ResourceObserver {
         return scheduled;
     }
 
-    /** Schedules inspection after a block change; the changed block and its six neighbors are candidates. */
+    /**
+     * Schedules inspection after a block change; the changed block and its six neighbors are candidates. A crowded
+     * server drains the passive sweep slowly enough that the queue stays full, and the face a dig just exposed is the
+     * evidence the task is waiting for, so it displaces the backlog instead of being dropped behind it.
+     */
     public void changed(BlockPos pos) {
         if (!activeLevel() || changedQueued >= MAX_CHANGED_JOBS) return;
         inspectTarget(pos, true);
@@ -156,23 +160,26 @@ public final class ResourceObserver {
             return;
         }
         // Explicit verification must not be starved behind a full passive sweep queue.
-        // Evict the oldest tail job; the fresh target is still checked only by ResourceSight.
-        while (queue.size() >= MAX_QUEUED_RAYS) {
-            PendingRay evicted = queue.removeLast();
-            forgetTarget(evicted);
-        }
         if (inspectTarget(key, false)) queue.addFirst(queue.removeLast());
+    }
+
+    /**
+     * Evicts the most recently queued ray so a targeted check always fits. The passive sweep re-aims itself from the
+     * current viewpoint every interval, while a targeted ray is the only copy of the evidence a task asked for; the
+     * rays at the head are the ones that already had work spent on them.
+     */
+    private void makeRoom() {
+        while (queue.size() >= MAX_QUEUED_RAYS) forgetTarget(queue.removeLast());
     }
 
     private boolean inspectTarget(BlockPos target, boolean changed) {
         BlockPos key = target.immutable();
         double radius = radius();
         if (companion.getEyePosition().distanceToSqr(Vec3.atCenterOf(key)) > radius * radius) return false;
+        if (queuedTargets.contains(key)) return false;
+        if (changed && changedQueued >= MAX_CHANGED_JOBS) return false;
+        makeRoom();
         if (queue.size() >= MAX_QUEUED_RAYS || !queuedTargets.add(key)) return false;
-        if (changed && changedQueued >= MAX_CHANGED_JOBS) {
-            queuedTargets.remove(key);
-            return false;
-        }
         Vec3 eye = companion.getEyePosition();
         // Aim at the target's center; the visibility job verifies that it is the first opaque hit.
         PendingRay ray = new PendingRay(eye, Vec3.atCenterOf(key), key, changed, dimension);
@@ -194,6 +201,11 @@ public final class ResourceObserver {
 
     public int queuedJobs() {
         return queue.size();
+    }
+
+    /** Whether a targeted check of this position is queued; for diagnostics and tests. */
+    public boolean queued(BlockPos pos) {
+        return queuedTargets.contains(pos.immutable());
     }
 
     private double radius() {

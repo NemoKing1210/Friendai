@@ -8,6 +8,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.95.6] - 2026-11-01
+
+### Fixed
+
+- A companion digging for a buried resource on a busy server now sees the faces its own digging opens. With several companions around, a dig's sighting could be dropped behind a full queue of view checks, so the search gave up with "no minecraft:stone observed or remembered nearby" while standing in the stone it had just mined.
+
 ## [0.95.5] - 2026-10-31
 
 ### Fixed
