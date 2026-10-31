@@ -84,10 +84,9 @@ public class ResourceObservationTests {
     }
 
     /**
-     * A crowded server drains the passive sweep slowly enough that its queue stays full — a class of twenty-seven
-     * companions shares one observation budget, and a companion that dug through stone for a thousand ticks never saw
-     * any of it. The ray a dig queues for the face it just exposed must make room for itself instead of being dropped
-     * behind that backlog. The ore sits off the sweep's axis checks, so it is the dig's ray that has to queue it.
+     * A crowded server drains the sight queue slowly, and a companion that dug through stone for a thousand ticks
+     * never saw any of it. The ray a dig queues for the face it just exposed must make room for itself instead of
+     * being dropped behind a full queue.
      */
     @GameTest(maxTicks = 80)
     public void digFaceIsQueuedBehindAFullSweepBacklog(GameTestHelper h) {
@@ -96,17 +95,47 @@ public class ResourceObservationTests {
         BlockPos ore = h.absolutePos(new BlockPos(8, 4, 6));
         h.setBlock(8, 4, 6, Blocks.COAL_ORE);
         ResourceObserver observer = new ResourceObserver(companion);
-        int queued = -1;
-        for (int sweep = 0; sweep < 40 && observer.queuedJobs() != queued; sweep++) {
-            queued = observer.queuedJobs();
-            observer.scheduleSweep(sweep * 20L);
+        BlockPos foot = companion.blockPosition();
+        for (int x = -8; x <= 8; x++) {
+            for (int z = -8; z <= 8; z++) {
+                for (int dy = -1; dy <= 2; dy++) {
+                    BlockPos cell = foot.offset(x, dy, z);
+                    if (!cell.equals(ore)) observer.inspect(cell);
+                }
+            }
         }
-        h.assertTrue(observer.queuedJobs() > 0, "the passive sweep queued nothing");
-        h.assertValueEqual(queued, observer.queuedJobs(), "the passive sweep should have filled the queue to its cap");
-        h.assertFalse(observer.queued(ore), "the ore must not be part of the passive sweep for this test");
+        int queued = observer.queuedJobs();
+        h.assertValueEqual(512, queued, "the sight queue should be full before the dig");
+        h.assertFalse(observer.queued(ore), "the ore must not be part of the backlog for this test");
         observer.changed(ore);
-        h.assertTrue(observer.queued(ore), "the face a dig exposed was dropped behind a full sweep queue");
+        h.assertTrue(observer.queued(ore), "the face a dig exposed was dropped behind a full sight queue");
         h.assertValueEqual(queued, observer.queuedJobs(), "a dig's rays must replace the backlog, not grow it");
+        h.succeed();
+    }
+
+    /**
+     * On a busy server a sweep drains slower than the second the interval allows, so every interval used to queue
+     * another full batch behind the one still waiting. The queue then held minutes-old rays from an old viewpoint and
+     * the newest sweep was never reached; the companion stood in the stone it had dug and saw nothing. A new sweep
+     * waits for the one in flight, and the next interval schedules again once it is done.
+     */
+    @GameTest(maxTicks = 80)
+    public void aSecondSweepWaitsForTheOneInFlight(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 5);
+        ResourceObserver observer = new ResourceObserver(companion);
+        observer.scheduleSweep(0);
+        int first = observer.queuedJobs();
+        h.assertTrue(first > 0, "the first sweep queued nothing");
+        observer.scheduleSweep(20);
+        observer.scheduleSweep(40);
+        h.assertValueEqual(first, observer.queuedJobs(), "a sweep was stacked behind the sweep still in flight");
+        for (int step = 0; step < 200 && observer.queuedJobs() > 0; step++) {
+            observer.tick(64, 512, Long.MAX_VALUE);
+        }
+        h.assertValueEqual(0, observer.queuedJobs(), "the sweep in flight never drained");
+        observer.scheduleSweep(1000);
+        h.assertTrue(observer.queuedJobs() > 0, "no sweep was scheduled after the previous one drained");
         h.succeed();
     }
 

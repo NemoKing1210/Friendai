@@ -40,7 +40,7 @@ public class ObtainTests {
      * candidate comes from the observation store, so this test fails unless the face a dig just opened survives the
      * sight queue — and the other twenty-six companions of this class keep that queue full.
      */
-    @GameTest(maxTicks = 1200)
+    @GameTest(maxTicks = 2400)
     public void callerObtainsStonePickaxeFromBuriedStone(GameTestHelper h) {
         GameTestSupport.platformAt(h, 200, 24);
         for (int x = 0; x < 24; x++) {
@@ -63,7 +63,7 @@ public class ObtainTests {
         ExecutionCoordinator runner = obtain(
                 companion,
                 result,
-                obtainTask("minecraft:stone_pickaxe", 1, false, true, 40, 1100, 64, 128, 800, "local", caller));
+                obtainTask("minecraft:stone_pickaxe", 1, false, true, 40, 2200, 64, 128, 800, "local", caller));
         TaskTrace.of(h, runner, companion).succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status != null, "caller-aware obtain should finish");

@@ -2,6 +2,7 @@ package dev.friendai.test;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.knowledge.ResourceObservation;
+import dev.friendai.perception.resource.ObservationScheduler;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.TaskContext;
 import java.util.ArrayDeque;
@@ -58,6 +59,7 @@ public final class TaskTrace {
     private int digests;
     private boolean busyBefore;
     private boolean endedReported;
+    private String firstLine;
 
     private TaskTrace(GameTestHelper h, ExecutionCoordinator runner, CompanionEntity companion) {
         this.h = h;
@@ -105,7 +107,9 @@ public final class TaskTrace {
     private void sample() {
         try {
             boolean busy = runner.current().isPresent();
-            lines.addLast(line());
+            String next = line();
+            if (firstLine == null) firstLine = next;
+            lines.addLast(next);
             while (lines.size() > CAPACITY) lines.removeFirst();
             // A task that failed and left the coordinator idle is the moment worth recording: everything after it is
             // the test waiting out its budget on a result that will not change.
@@ -130,16 +134,20 @@ public final class TaskTrace {
                     return status.isEmpty() ? current.describe() : current.type() + " " + status;
                 })
                 .orElse("idle");
+        ObservationScheduler.TickMetrics metrics = context.observations().lastMetrics();
         return "t=" + h.getTick()
                 + " at=" + at.getX() + "," + at.getY() + "," + at.getZ()
                 + " queue=" + runner.pendingJobs()
                 + " sight=" + queued
+                + " rays=" + metrics.completedRays() + "/" + metrics.scheduledRays()
+                + " us=" + metrics.elapsedNanos() / 1_000L
                 + " seen=" + seen.size()
                 + " " + shorten(task);
     }
 
     private void print(String reason, int count) {
         System.out.println("[friendai-trace] " + companion.getUUID() + " " + reason);
+        if (firstLine != null) System.out.println("[friendai-trace] first " + firstLine);
         for (String line : tail(count)) System.out.println("[friendai-trace] " + line);
     }
 
