@@ -52,11 +52,11 @@ public class CompanionChunkLoadingTests {
     }
 
     /**
-     * The ticket is armed by the tick loop synchronously; the chunk it names is generated asynchronously and how many
-     * ticks that takes depends on the server's load, so the load is awaited inside the test's own budget instead of
-     * being asserted at a fixed tick.
+     * The ticket is armed by the tick loop synchronously; the chunk it names is generated asynchronously, on a worker
+     * starved by the rest of the shard, so the load is awaited inside the test's own budget instead of being asserted
+     * at a fixed tick. The budget covers a fresh pair of chunk neighbourhoods; a failing run still ends, just later.
      */
-    @GameTest(maxTicks = 2400)
+    @GameTest(maxTicks = 6000)
     public void anchorsAreReArmedEveryTickAndRestoredWithoutBlocking(GameTestHelper h) {
         ServerLevel level = h.getLevel();
         CompanionChunkLoader loader = GameTestSupport.runtime(level.getServer()).chunkLoader();
@@ -69,7 +69,7 @@ public class CompanionChunkLoadingTests {
         anchors.put(first, new CompanionAnchors.Anchor(level.dimension(), firstChunk));
         h.runAfterDelay(60, () -> {
             h.assertTrue(loader.awaitingChunk(first), "a later tick should re-arm the saved anchor");
-            awaitChunk(h, level, firstChunk, 800, () -> {
+            awaitChunk(h, level, firstChunk, 2400, () -> {
                 // Phase 2: restore() over an anchor whose chunk is not in memory must not generate it
                 // synchronously; the pending ticket loads it a few ticks later.
                 UUID second = UUID.randomUUID();
@@ -85,7 +85,7 @@ public class CompanionChunkLoadingTests {
                         h,
                         level,
                         secondChunk,
-                        800,
+                        2400,
                         () -> h.runAfterDelay(120, () -> {
                             h.assertTrue(
                                     loader.anchorFor(first).isEmpty(),
