@@ -6,9 +6,25 @@ updates:
       interval: weekly
     commit-message:
       prefix: "ci"
+    groups:
+      # One pull request for routine action bumps; majors still arrive on their own.
+      actions-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
   - package-ecosystem: gradle
     directory: /
     schedule:
       interval: weekly
     commit-message:
       prefix: "build"
+    groups:
+      # One pull request for routine dependency bumps; majors still arrive on their own.
+      gradle-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
