@@ -8,6 +8,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.95.5] - 2026-10-31
+
+### Fixed
+
+- A companion that mined a few blocks down now places its crafting table or furnace on the rim of the hole it dug instead of giving up with "no free spot nearby", so it can craft what it went down for.
+
 ## [0.95.4] - 2026-10-31
 
 ### Fixed

@@ -73,6 +73,21 @@ public final class PlaceSpot {
 
     /** An automatic spot near the companion, for blocks like a crafting table. */
     public static Optional<Spot> near(ServerLevel level, CompanionEntity companion, int radius) {
+        return scan(level, companion, radius, -1, 1);
+    }
+
+    /**
+     * A spot for a station the companion has to place: the cells around its feet first, then, when those offer none,
+     * the rim of the hole above. A companion that mined a few blocks down has no free cell at its own level — the
+     * tunnel it dug is one wide — while the ground it came from is right above its head and it can walk back up.
+     */
+    public static Optional<Spot> nearForStation(ServerLevel level, CompanionEntity companion, int radius) {
+        Optional<Spot> atFeet = near(level, companion, radius);
+        return atFeet.isPresent() ? atFeet : scan(level, companion, radius, 2, radius);
+    }
+
+    private static Optional<Spot> scan(
+            ServerLevel level, CompanionEntity companion, int radius, int lowest, int highest) {
         BlockPos origin = companion.blockPosition();
         BlockPos ownerCell = companion
                 .owner()
@@ -87,7 +102,7 @@ public final class PlaceSpot {
                 if (horizontal < 2.0 || horizontal > radius) {
                     continue;
                 }
-                for (int dy = -1; dy <= 1; dy++) {
+                for (int dy = lowest; dy <= highest; dy++) {
                     BlockPos pos = origin.offset(dx, dy, dz);
                     if (pos.equals(origin) || pos.equals(ownerCell) || pos.equals(ownerAbove)) {
                         continue;

@@ -75,6 +75,7 @@ public class CraftingTests {
     private static final int TAKE_FAIL_DECK = 216;
     private static final int REUSE_DECK = 240;
     private static final int COLLECT_DECK = 264;
+    private static final int PIT_DECK = 288;
 
     /**
      * Station scenes live on separate stone decks well above the shared test grid, each at its own height, so no
@@ -526,6 +527,34 @@ public class CraftingTests {
             // Nothing else is crafted, so the lease runs out and the companion fetches the table back.
             h.assertValueEqual(c.inventory().countItem(Items.CRAFTING_TABLE), 1, "crafting tables fetched back");
             h.assertFalse(hasBlock(h, Blocks.CRAFTING_TABLE, 16, WOODEN_DECK), "the placed table should be gone");
+        });
+    }
+
+    /**
+     * A companion that mined a few blocks down places its table on the rim of the hole instead of reporting that
+     * there is no free spot: at its own level the one-wide shaft offers none, while the ground it came from is right
+     * above its head and the stair it dug leads back up.
+     */
+    @GameTest(maxTicks = 2000)
+    public void placesTheTableOnTheRimOfItsOwnHole(GameTestHelper h) {
+        for (int x = 3; x <= 13; x++) {
+            for (int z = 3; z <= 13; z++) {
+                for (int y = PIT_DECK - 2; y <= PIT_DECK; y++) h.setBlock(x, y, z, Blocks.STONE);
+            }
+        }
+        // Two blocks down, with the stair back out: the companion stands on the floor of the shaft it dug.
+        h.setBlock(8, PIT_DECK, 8, Blocks.AIR);
+        h.setBlock(8, PIT_DECK - 1, 8, Blocks.AIR);
+        h.setBlock(9, PIT_DECK, 8, Blocks.AIR);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 8, PIT_DECK - 1, 8);
+        addLogs(c, Items.JUNGLE_LOG, 3);
+        Result result = new Result();
+        ExecutionCoordinator runner = craft(c, result, "minecraft:wooden_pickaxe", 1);
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertValueEqual(1, c.inventory().countItem(Items.WOODEN_PICKAXE), "pickaxes");
+            h.assertTrue(result.summary.contains("placed a crafting table at "), "summary was " + result.summary);
         });
     }
 
