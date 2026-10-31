@@ -29,7 +29,8 @@ import net.minecraft.gametest.framework.GameTestHelper;
  *
  * <p>A test that keeps failing the same assertion prints the last twelve ticks every six hundred failed ticks, at most
  * twice, so a slow but healthy run stays quiet while a stuck one leaves a timeline of what changed and what did
- * not. An unexpected exception prints the last sixty ticks at once.
+ * not. A task that fails and leaves the coordinator idle prints the last sixty ticks at that moment, because everything
+ * after it is the test waiting out its budget on a result that will not change; an unexpected exception does the same.
  */
 public final class TaskTrace {
     /** Ticks kept for a dump; one minute of test time is enough to see a loop. */
@@ -55,6 +56,8 @@ public final class TaskTrace {
 
     private int failedTicks;
     private int digests;
+    private boolean busyBefore;
+    private boolean endedReported;
 
     private TaskTrace(GameTestHelper h, ExecutionCoordinator runner, CompanionEntity companion) {
         this.h = h;
@@ -101,8 +104,16 @@ public final class TaskTrace {
 
     private void sample() {
         try {
+            boolean busy = runner.current().isPresent();
             lines.addLast(line());
             while (lines.size() > CAPACITY) lines.removeFirst();
+            // A task that failed and left the coordinator idle is the moment worth recording: everything after it is
+            // the test waiting out its budget on a result that will not change.
+            if (busyBefore && !busy && failedTicks > 0 && !endedReported) {
+                endedReported = true;
+                print("the task ended while the test still expected success", EXCEPTION_LINES);
+            }
+            busyBefore = busy;
         } catch (RuntimeException ignored) {
             // A diagnostic must never be the reason a test fails.
         }
