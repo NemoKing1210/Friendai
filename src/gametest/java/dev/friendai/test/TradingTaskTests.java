@@ -79,7 +79,9 @@ public final class TradingTaskTests {
         GameTestSupport.platform(h, 16);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         companion.setNoAi(true);
-        var owner = GameTestSupport.mockPlayerAt(h, 4, 2, 2);
+        // A present owner keeps the companion ticking: a mock player is disconnected during the test, and an owner
+        // who left suspends the task on purpose, so the deadline would never be checked.
+        var owner = GameTestSupport.onlinePlayer(h, label, 4, 2, 2, true).player();
         companion.setOwner(owner.getUUID());
         Villager villager = h.spawn(EntityTypes.VILLAGER, 3, 2, 2);
         villager.setNoAi(true);
@@ -589,30 +591,40 @@ public final class TradingTaskTests {
         });
     }
 
-    /**
-     * Quarantined: with the merchant sealed away the trade does not reach FAILED at its bounded deadline; it stays
-     * authorized, so the task is not failing closed. Issue #13, deadline 2026-11-14; the test still runs and reports,
-     * it just does not fail the required gate.
-     */
-    @GameTest(maxTicks = 200, required = false)
+    @GameTest(maxTicks = 200)
     public void sealed_path_fails_without_changing_terrain_or_trading(GameTestHelper h) {
         Fixture f = setup(h, "task-sealed-path", 1, 1, 1, false, false, 140);
         f.companion().setNoAi(false);
-        f.villager().setPos(h.absoluteVec(new net.minecraft.world.phys.Vec3(12.5, 2, 2.5)));
-        for (int y = 1; y <= 4; y++) {
-            for (int x = 8; x <= 16; x++) {
-                h.setBlock(x, y, -2, Blocks.BEDROCK);
-                h.setBlock(x, y, 7, Blocks.BEDROCK);
-            }
-            for (int z = -2; z <= 7; z++) {
-                h.setBlock(8, y, z, Blocks.BEDROCK);
-                h.setBlock(16, y, z, Blocks.BEDROCK);
+        f.villager().setPos(h.absoluteVec(new net.minecraft.world.phys.Vec3(8.5, 2, 8.5)));
+        // Wall the arena itself. Everything sits inside the 16x16 structure: blocks outside it are not part of
+        // the test area and can disappear under the companion, and a companion that walks off the platform falls
+        // and dies before its order deadline can fail closed.
+        for (int level = 2; level <= 6; level++) {
+            for (int at = 0; at < 16; at++) {
+                h.setBlock(at, level, 0, Blocks.BEDROCK);
+                h.setBlock(at, level, 15, Blocks.BEDROCK);
+                h.setBlock(0, level, at, Blocks.BEDROCK);
+                h.setBlock(15, level, at, Blocks.BEDROCK);
             }
         }
-        // Seal the box overhead.
-        for (int x = 8; x <= 16; x++) {
-            for (int z = -2; z <= 7; z++) h.setBlock(x, 5, z, Blocks.BEDROCK);
+        // Seal the merchant inside a bedrock chamber with no reachable way in.
+        for (int level = 2; level <= 4; level++) {
+            for (int x = 5; x <= 11; x++) {
+                h.setBlock(x, level, 5, Blocks.BEDROCK);
+                h.setBlock(x, level, 11, Blocks.BEDROCK);
+            }
+            for (int z = 5; z <= 11; z++) {
+                h.setBlock(5, level, z, Blocks.BEDROCK);
+                h.setBlock(11, level, z, Blocks.BEDROCK);
+            }
         }
+        for (int x = 5; x <= 11; x++) {
+            for (int z = 5; z <= 11; z++) h.setBlock(x, 5, z, Blocks.BEDROCK);
+        }
+        h.assertTrue(
+                h.getBlockState(new BlockPos(5, 2, 5)).is(Blocks.BEDROCK)
+                        && h.getBlockState(new BlockPos(11, 5, 11)).is(Blocks.BEDROCK),
+                "the sealed chamber was not built");
         TradeTask task = new TradeTask(f.order());
         f.companion().executionCoordinator().start(task, "trade_item");
         h.runAfterDelay(145, () -> {
@@ -629,8 +641,8 @@ public final class TradingTaskTests {
                             && count(f.companion(), Items.BREAD) == 0,
                     "unreachable merchant changed stock or payment");
             h.assertTrue(
-                    h.getBlockState(new BlockPos(8, 2, -2)).is(Blocks.BEDROCK)
-                            && h.getBlockState(new BlockPos(16, 5, 7)).is(Blocks.BEDROCK),
+                    h.getBlockState(new BlockPos(5, 2, 5)).is(Blocks.BEDROCK)
+                            && h.getBlockState(new BlockPos(11, 5, 11)).is(Blocks.BEDROCK),
                     "trader navigation changed the sealed terrain");
             assertClosed(h, f);
             h.succeed();
