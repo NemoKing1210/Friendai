@@ -27,51 +27,59 @@ public class CombatPotionTests {
         thrown.onHitAsPotion(h.getLevel(), stack, new EntityHitResult(target));
     }
 
-    @GameTest
+    @GameTest(maxTicks = 100)
     public void splashProjectileAppliesExpectedEffects(GameTestHelper h) {
         GameTestSupport.platform(h, 15);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
-        Zombie zombie = h.spawnWithNoFreeWill(EntityTypes.ZOMBIE, 5, 2, 2);
-        zombie.setNoAi(true);
-        zombie.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH)
-                .setBaseValue(100.0);
-        zombie.setHealth(50.0f);
-        float before = zombie.getHealth();
-        splash(h, c, zombie, Potions.HARMING);
-        h.assertTrue(
-                zombie.getHealth() > before,
-                "harming must heal an undead target; health " + before + " -> " + zombie.getHealth());
-        h.succeed();
+        Zombie zombie = undeadAt(h, 5, 2, 2, 50.0f);
+        h.runAfterDelay(2, () -> {
+            float before = zombie.getHealth();
+            splash(h, c, zombie, Potions.HARMING);
+            h.assertTrue(
+                    zombie.getHealth() > before,
+                    "harming must heal an undead target; health " + before + " -> " + zombie.getHealth());
+            h.succeed();
+        });
     }
 
     /**
-     * Quarantined: it failed once on CI with the healed zombie still at full health. The effect is not deferred —
-     * `ThrownSplashPotion.onHitAsPotion` applies an instant effect inline and the damage lands before the read — so the
-     * cause is still unknown and is not this test's timing. Issue #18, deadline 2026-11-14.
+     * Vanilla semantics for the undead: a harming splash heals it and a healing splash hurts it. The splashes land one
+     * tick after both zombies are spawned, because a splash asks the level for the entities around the impact and an
+     * entity spawned and queried in the same tick was missed once in a full-suite run; the health is compared around
+     * the call, so a zombie that burned in the meantime cannot pass for a damaged one.
      */
-    @GameTest(required = false)
+    @GameTest(maxTicks = 100)
     public void undeadEffectSemanticsMatchVanilla(GameTestHelper h) {
         GameTestSupport.platform(h, 15);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
-        Zombie healedByHarm = h.spawnWithNoFreeWill(EntityTypes.ZOMBIE, 2, 2, 2);
-        Zombie hurtByHealing = h.spawnWithNoFreeWill(EntityTypes.ZOMBIE, 12, 2, 12);
-        healedByHarm.setNoAi(true);
-        hurtByHealing.setNoAi(true);
-        healedByHarm
-                .getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH)
-                .setBaseValue(100.0);
-        hurtByHealing
-                .getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH)
-                .setBaseValue(100.0);
-        healedByHarm.setHealth(50.0f);
-        hurtByHealing.setHealth(100.0f);
+        Zombie healedByHarm = undeadAt(h, 2, 2, 2, 50.0f);
+        Zombie hurtByHealing = undeadAt(h, 12, 2, 12, 100.0f);
+        h.runAfterDelay(2, () -> {
+            float beforeHeal = healedByHarm.getHealth();
+            float beforeHurt = hurtByHealing.getHealth();
+            splash(h, c, healedByHarm, Potions.HARMING);
+            splash(h, c, hurtByHealing, Potions.HEALING);
+            h.assertTrue(
+                    healedByHarm.getHealth() > beforeHeal,
+                    "harming did not heal the undead: " + beforeHeal + " -> " + healedByHarm.getHealth());
+            h.assertTrue(
+                    hurtByHealing.getHealth() < beforeHurt,
+                    "healing did not hurt the undead: " + beforeHurt + " -> " + hurtByHealing.getHealth());
+            h.succeed();
+        });
+    }
 
-        splash(h, c, healedByHarm, Potions.HARMING);
-        splash(h, c, hurtByHealing, Potions.HEALING);
-        h.assertTrue(healedByHarm.getHealth() > 50.0f, "harming did not heal the undead: " + healedByHarm.getHealth());
+    /** Spawns an undead target with a wide health bar and fails loudly when the level did not take it. */
+    private static Zombie undeadAt(GameTestHelper h, int x, int y, int z, float health) {
+        Zombie zombie = h.spawnWithNoFreeWill(EntityTypes.ZOMBIE, x, y, z);
+        zombie.setNoAi(true);
+        zombie.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH)
+                .setBaseValue(100.0);
+        zombie.setHealth(health);
         h.assertTrue(
-                hurtByHealing.getHealth() < 100.0f, "healing did not hurt the undead: " + hurtByHealing.getHealth());
-        h.succeed();
+                h.getLevel().getEntity(zombie.getId()) == zombie,
+                "the zombie at " + x + " " + y + " " + z + " was not added to the level");
+        return zombie;
     }
 
     @GameTest(maxTicks = 200)
