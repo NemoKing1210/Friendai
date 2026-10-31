@@ -32,7 +32,24 @@ public final class EntityApproach {
             mover.stop(context);
             return State.REACHED;
         }
-        return mover.tick(context, target.position()) == MoveHelper.State.STUCK ? State.UNREACHABLE : State.MOVING;
+        return switch (mover.tick(context, target.position())) {
+            case STUCK -> State.UNREACHABLE;
+            // The route's goal band is wider than the reach, so it can end with the entity just outside it, and the
+            // navigator keeps reporting that arrival. Walk the last step by hand instead of reporting movement that
+            // never happens, which would leave the task running until its timeout.
+            case ARRIVED -> {
+                MoveHelper.State lastStep = mover.align(context, target.getX(), target.getZ());
+                if (lastStep == MoveHelper.State.MOVING) {
+                    yield State.MOVING;
+                }
+                mover.stop(context);
+                yield lastStep == MoveHelper.State.ARRIVED
+                                && context.companion().distanceTo(target) <= reach
+                        ? State.REACHED
+                        : State.UNREACHABLE;
+            }
+            case MOVING -> State.MOVING;
+        };
     }
 
     public void stop(TaskContext context) {
