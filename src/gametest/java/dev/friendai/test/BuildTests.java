@@ -1883,14 +1883,7 @@ public class BuildTests {
         });
     }
 
-    /**
-     * Quarantined: the scenario fails on a builder bug, not on the material accounting it pins. On the 8-tall tower the
-     * companion ends up above a cell it still has to place (feet 14 for a cell at y 8), the build has no descent step,
-     * and every attempt ends in {@code OutOfReach("no route")}. Tracked in issue #9 with a deadline of 2026-11-14; the
-     * test still runs and reports, it just does not fail the required gate until the builder can place a cell below its
-     * feet. Restore {@code required = true} with the fix.
-     */
-    @GameTest(maxTicks = 12000, required = false)
+    @GameTest(maxTicks = 12000)
     public void foundationSpendingKeepsScaffoldSurplus(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         clearAir(h, 16, 2, 12);

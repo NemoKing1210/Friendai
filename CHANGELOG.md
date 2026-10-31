@@ -8,6 +8,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.95.2] - 2026-10-31
+
+### Fixed
+
+- The companion finishes a tall build instead of giving up partway: when it has scaffolded itself above a block it still has to place, it takes its own column back down and places the block instead of failing the whole build.
+
 ## [0.95.1] - 2026-10-31
 
 ### Fixed
