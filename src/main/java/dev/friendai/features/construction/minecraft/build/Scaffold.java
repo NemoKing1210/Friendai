@@ -372,6 +372,11 @@ public final class Scaffold {
         return placed.contains(pos) && level.hasChunkAt(pos) && isScaffold(level.getBlockState(pos));
     }
 
+    /** Whether the companion currently stands on a scaffold block this scaffold placed and still owns. */
+    public boolean standingOnScaffold() {
+        return stillScaffold(level(), companion.blockPosition().below());
+    }
+
     private void resetPillar() {
         pillarPhase = Pillar.IDLE;
         pillarFeet = null;

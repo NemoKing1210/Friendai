@@ -915,6 +915,21 @@ public final class BuildTask implements Task {
                             new PlacementRefusal.OutOfReach(toPos(currentPos), "flight", attempt(currentPos)),
                             false);
                 }
+                int stanceFeetY = currentPos.getY() - 2;
+                if (c.companion().blockPosition().getY() > stanceFeetY && scaffold.standingOnScaffold()) {
+                    // The companion climbed too high for this cell: take its own column down instead of failing.
+                    switch (scaffold.descendTo(c, stanceFeetY)) {
+                        case CLIMBING -> {
+                            return TaskStatus.RUNNING;
+                        }
+                        case READY -> {
+                            continue;
+                        }
+                        case FAILED -> {
+                            // Fall through: walking or climbing may still bring the cell within reach.
+                        }
+                    }
+                }
                 int feetY = pillarFeetY(c.companion(), currentPos);
                 if (feetY < 0) {
                     if (approach == null) {
