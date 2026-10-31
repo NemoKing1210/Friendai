@@ -8,6 +8,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.95.4] - 2026-10-31
+
+### Fixed
+
+- The companion notices the stone its own digging uncovers: restarting the view sweep from a new spot no longer throws away the block changes the dig had just queued, so a buried resource it exposes becomes known instead of being searched for again.
+
 ## [0.95.3] - 2026-10-31
 
 ### Fixed
