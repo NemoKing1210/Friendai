@@ -13,6 +13,7 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 ### Fixed
 
 - A companion digging for a buried resource on a busy server now sees the faces its own digging opens. With several companions around, a dig's sighting could be dropped behind a full queue of view checks, so the search gave up with "no minecraft:stone observed or remembered nearby" while standing in the stone it had just mined.
+- A companion asked for leather no longer answers that cows have none. It learns what creatures drop from sixteen samples instead of five, so one unlucky run of empty loot rolls can no longer hide a real source.
 
 ## [0.95.5] - 2026-10-31
 

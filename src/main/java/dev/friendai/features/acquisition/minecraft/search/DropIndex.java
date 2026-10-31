@@ -51,7 +51,13 @@ import org.slf4j.LoggerFactory;
  */
 public final class DropIndex implements SourceBook {
     private static final Logger LOGGER = LoggerFactory.getLogger("friendai/obtain");
-    private static final int ROLLS = 5;
+    /**
+     * Rolls per block and per creature. A creature that drops 0–2 of an item is missed entirely once in 243 builds at
+     * five rolls, which is enough to lose a shard — every class of a GameTest shard builds its own index — and, more
+     * importantly, to teach the planner that a cow has no leather. Sixteen rolls make that miss one in forty million.
+     */
+    private static final int ROLLS = 16;
+
     private static final int PROBE_X = 0;
     private static final int PROBE_Z = 0;
     /** A datapack reload replaces the manager, so the cached index follows the key. */
