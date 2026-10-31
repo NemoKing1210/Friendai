@@ -64,7 +64,7 @@ public class ObtainTests {
                 companion,
                 result,
                 obtainTask("minecraft:stone_pickaxe", 1, false, true, 40, 1100, 64, 128, 800, "local", caller));
-        h.succeedWhen(() -> {
+        TaskTrace.of(h, runner, companion).succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status != null, "caller-aware obtain should finish");
             h.assertTrue(result.status == TaskStatus.SUCCESS, result.summary + " at " + companion.blockPosition());

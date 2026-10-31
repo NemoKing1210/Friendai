@@ -628,6 +628,30 @@ public final class MineBlocksTask implements Task {
                 + (pendingObservation != null && observationWaitTicks > 0 ? " (checking exposed blocks)" : "");
     }
 
+    /** One line for the debug overlay and a failing test's tick trace: the phase, the target and what refused it. */
+    @Override
+    public String debugStatus() {
+        StringBuilder text = new StringBuilder(miningSessionActive ? "mine " : "search ");
+        text.append(matcher.label()).append(' ').append(mined).append('/').append(count);
+        if (miningSessionActive && miningSession != null) {
+            text.append(" phase=").append(miningSession.phase());
+            BlockPos target = miningSession.target();
+            if (target != null) {
+                text.append(" target=")
+                        .append(target.getX())
+                        .append(',')
+                        .append(target.getY())
+                        .append(',')
+                        .append(target.getZ());
+            }
+            var failure = miningSession.failure();
+            if (failure != null) text.append(" failure=").append(failure.key());
+        }
+        if (pendingObservation != null) text.append(" waiting=").append(observationWaitTicks);
+        if (lastRefusal != null) text.append(" refused=").append(lastRefusal.describe());
+        return text.toString();
+    }
+
     @Override
     public String resultSummary() {
         return summary;
