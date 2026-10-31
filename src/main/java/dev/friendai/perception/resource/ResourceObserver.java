@@ -60,11 +60,13 @@ public final class ResourceObserver {
     public int scheduleSweep(long tick) {
         if (!activeLevel()) return 0;
         Vec3 eye = companion.getEyePosition();
-        // Pending rays are valid only within two blocks of their source. A moving follower can
+        // Sweep rays are valid only within two blocks of their source. A moving follower can
         // otherwise spend most of every sweep discarding stale rays and wait another second
-        // before scheduling checks from its new viewpoint.
+        // before scheduling checks from its new viewpoint. A targeted ray — a block the companion
+        // broke or asks about — is re-aimed from the current eye instead, and the face a dig just
+        // opened is exactly the evidence that must not be swept away with the old sweep.
         if (lastSweepEye != null && lastSweepEye.distanceToSqr(eye) > 4.0) {
-            clearQueue();
+            dropSweepRays();
             nextSweep = Long.MIN_VALUE;
         }
         if (tick < nextSweep) return 0;
@@ -295,6 +297,11 @@ public final class ResourceObserver {
         queue.clear();
         queuedTargets.clear();
         changedQueued = 0;
+    }
+
+    /** Drops the untargeted rays of the previous sweep; targeted ones are re-aimed when they reach the head. */
+    private void dropSweepRays() {
+        queue.removeIf(ray -> ray.target == null);
     }
 
     private boolean refreshIdentity() {

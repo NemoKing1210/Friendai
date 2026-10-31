@@ -36,11 +36,9 @@ import net.minecraft.world.level.block.NetherWartBlock;
 
 public class ObtainTests {
     /**
-     * Quarantined: on CI the search returns to its origin without a single viewpoint, so the excavation never reports
-     * what it exposes, while the whole class passes locally. The observer no longer drops a sighting queued before the
-     * companion moved (pinned by {@code ResourceObservationTests.queuedSightingSurvivesAStep}), so the remaining cause
-     * is still open. Issue #12, deadline 2026-11-14; the test still runs and reports, it just does not fail the
-     * required gate.
+     * Quarantined: the search now gets past the buried stone, but on CI it then fails to craft, because it stands in
+     * the pit it dug and finds neither the seeded table nor a spot for a new one. Issue #12, deadline 2026-11-14; the
+     * test still runs and reports, it just does not fail the required gate.
      */
     @GameTest(maxTicks = 1200, required = false)
     public void callerObtainsStonePickaxeFromBuriedStone(GameTestHelper h) {
