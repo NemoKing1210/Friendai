@@ -48,7 +48,7 @@ public final class TaskTrace {
 
     private static final int EXCEPTION_LINES = 60;
 
-    private static final int TEXT_LIMIT = 90;
+    private static final int TEXT_LIMIT = 220;
 
     private final GameTestHelper h;
     private final ExecutionCoordinator runner;
@@ -60,6 +60,7 @@ public final class TaskTrace {
     private boolean busyBefore;
     private boolean endedReported;
     private String firstLine;
+    private String previousLine;
 
     private TaskTrace(GameTestHelper h, ExecutionCoordinator runner, CompanionEntity companion) {
         this.h = h;
@@ -111,6 +112,11 @@ public final class TaskTrace {
             if (firstLine == null) firstLine = next;
             lines.addLast(next);
             while (lines.size() > CAPACITY) lines.removeFirst();
+            // Every step a multi-step test runs ends here, and the step that failed is the one worth reading: the
+            // last tick it was running says how it went, and the steps after it are the test's reaction.
+            if (busyBefore && !busy && previousLine != null) {
+                System.out.println("[friendai-trace] " + companion.getUUID() + " end " + previousLine);
+            }
             // A task that failed and left the coordinator idle is the moment worth recording: everything after it is
             // the test waiting out its budget on a result that will not change.
             if (busyBefore && !busy && failedTicks > 0 && !endedReported) {
@@ -118,6 +124,7 @@ public final class TaskTrace {
                 print("the task ended while the test still expected success", EXCEPTION_LINES);
             }
             busyBefore = busy;
+            previousLine = next;
         } catch (RuntimeException ignored) {
             // A diagnostic must never be the reason a test fails.
         }
