@@ -40,6 +40,26 @@ public class ResourceObservationTests {
         h.succeed();
     }
 
+    /**
+     * A block the companion broke is queued for a sight ray, and a staircase dig moves the eye immediately. Dropping
+     * the queued ray because the eye moved would lose exactly the face the dig exposed.
+     */
+    @GameTest(maxTicks = 80)
+    public void queuedSightingSurvivesAStep(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 5);
+        BlockPos ore = h.absolutePos(new BlockPos(7, 3, 5));
+        h.setBlock(7, 3, 5, Blocks.COAL_ORE);
+        ResourceObserver observer = new ResourceObserver(companion);
+        observer.inspect(ore);
+        companion.setPos(h.absoluteVec(new Vec3(2.5, 2.0, 9.5)));
+        List<ResourceObservation> seen = drain(observer);
+        h.assertTrue(
+                seen.stream().anyMatch(item -> item.blockId().equals("minecraft:coal_ore")),
+                "a sighting queued before the companion walked on was dropped: " + seen);
+        h.succeed();
+    }
+
     @GameTest(maxTicks = 40)
     public void sealedCaveOreUnknown(GameTestHelper h) {
         GameTestSupport.platform(h, 12);

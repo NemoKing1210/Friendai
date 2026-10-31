@@ -214,11 +214,23 @@ public final class ResourceObserver {
                 && (!attemptedWork || System.nanoTime() < deadlineNanos)) {
             PendingRay pending = queue.peekFirst();
             Vec3 eye = companion.getEyePosition();
-            if (pending.dimension == null
-                    || !pending.dimension.equals(dimension)
-                    || pending.origin.distanceToSqr(eye) > 4.0) {
+            if (pending.dimension == null || !pending.dimension.equals(dimension)) {
                 queue.removeFirst();
                 forgetTarget(pending);
+                continue;
+            }
+            if (pending.origin.distanceToSqr(eye) > 4.0) {
+                // The companion walked away from where it queued this ray. A cell it dug open is exactly what it must
+                // not lose sight of, so aim the same ray from where it stands now; only a cell that left the
+                // observation radius is dropped.
+                if (pending.target == null
+                        || eye.distanceToSqr(Vec3.atCenterOf(pending.target)) > radius() * radius()) {
+                    queue.removeFirst();
+                    forgetTarget(pending);
+                    continue;
+                }
+                queue.removeFirst();
+                queue.addFirst(new PendingRay(eye, pending.end, pending.target, pending.changed, pending.dimension));
                 continue;
             }
             if (pending.job == null) {
