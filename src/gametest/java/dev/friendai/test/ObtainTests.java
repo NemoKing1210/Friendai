@@ -35,14 +35,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.NetherWartBlock;
 
 public class ObtainTests {
-    /**
-     * Quarantined: on CI the search returns to its origin without a single viewpoint, so the excavation never reports
-     * what it exposes, while the whole class passes locally. The observer no longer drops a sighting queued before the
-     * companion moved (pinned by {@code ResourceObservationTests.queuedSightingSurvivesAStep}), so the remaining cause
-     * is still open. Issue #12, deadline 2026-11-14; the test still runs and reports, it just does not fail the
-     * required gate.
-     */
-    @GameTest(maxTicks = 1200, required = false)
+    @GameTest(maxTicks = 1200)
     public void callerObtainsStonePickaxeFromBuriedStone(GameTestHelper h) {
         GameTestSupport.platformAt(h, 200, 24);
         for (int x = 0; x < 24; x++) {
