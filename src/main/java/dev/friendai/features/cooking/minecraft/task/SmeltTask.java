@@ -522,7 +522,7 @@ public final class SmeltTask implements Task {
     }
 
     private TaskStatus findSpot(TaskContext c) {
-        Optional<PlaceSpot.Spot> found = PlaceSpot.near(c.level(), c.companion(), PLACE_RADIUS);
+        Optional<PlaceSpot.Spot> found = PlaceSpot.nearForStation(c.level(), c.companion(), PLACE_RADIUS);
         if (found.isEmpty()) {
             summary = "couldn't place a " + kind.noun() + ": no free spot nearby";
             return TaskStatus.FAILED;

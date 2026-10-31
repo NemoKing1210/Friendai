@@ -332,7 +332,7 @@ public final class CraftTask implements Task {
             summary = "couldn't place a " + noun + ": no " + noun + " in the inventory";
             return TaskStatus.FAILED;
         }
-        Optional<PlaceSpot.Spot> found = PlaceSpot.near(c.level(), companion, PLACE_RADIUS);
+        Optional<PlaceSpot.Spot> found = PlaceSpot.nearForStation(c.level(), companion, PLACE_RADIUS);
         if (found.isEmpty()) {
             summary = "couldn't place a " + noun + ": no free spot nearby";
             return TaskStatus.FAILED;
