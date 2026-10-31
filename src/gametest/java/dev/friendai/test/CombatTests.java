@@ -222,14 +222,14 @@ public class CombatTests {
     }
 
     /**
-     * Quarantined: under the shard the companion was FIGHTING at tick 200 although nothing provoked it, while the same
-     * class passed in the previous run; the likely cause is a neighbour batch, not the classification this test pins.
-     * Issue #14, deadline 2026-11-14; the test still runs and reports, it just does not fail the required gate.
+     * The companion stands in the middle of its own area: tests of this class share one world and run in parallel, and
+     * the controller's eight-block threat scan reaches into the neighbouring structure, where another test's monster
+     * can pick this companion as its target, which is a fight this test never asked for.
      */
-    @GameTest(maxTicks = 300, required = false)
+    @GameTest(maxTicks = 300)
     public void defensiveIgnoresUnprovoked(GameTestHelper h) {
         GameTestSupport.platform(h, 15);
-        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 5, 2, 5);
         Notices notices = listen(c);
         var unprovoked = h.spawnWithNoFreeWill(EntityTypes.CREEPER, 12, 2, 2);
         unprovoked.setCustomName(Component.literal("test-unprovoked-creeper"));

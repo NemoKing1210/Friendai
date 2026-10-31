@@ -679,6 +679,9 @@ public class FarmingTests {
     @GameTest(maxTicks = 1200)
     public void farmPrefersFoodCropWhenHungry(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
+        // Water hydrates the row: vanilla turns a dry farmland with nothing planted on it back into dirt on a random
+        // tick, which can take a column out of the pass before it gets to it.
+        h.setBlock(8, 1, 4, Blocks.WATER);
         for (int x = 4; x <= 7; x++) {
             h.setBlock(x, 1, 4, Blocks.FARMLAND);
         }

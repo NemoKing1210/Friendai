@@ -45,8 +45,9 @@ public class CombatPotionTests {
     }
 
     /**
-     * Quarantined: the splash effect and the health read are one tick apart, so CI once saw the zombie at full health.
-     * Issue #18, deadline 2026-11-14; the test still runs and reports, it just does not fail the required gate.
+     * Quarantined: it failed once on CI with the healed zombie still at full health. The effect is not deferred —
+     * `ThrownSplashPotion.onHitAsPotion` applies an instant effect inline and the damage lands before the read — so the
+     * cause is still unknown and is not this test's timing. Issue #18, deadline 2026-11-14.
      */
     @GameTest(required = false)
     public void undeadEffectSemanticsMatchVanilla(GameTestHelper h) {
