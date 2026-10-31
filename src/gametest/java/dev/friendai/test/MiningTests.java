@@ -255,6 +255,40 @@ public class MiningTests {
         });
     }
 
+    /**
+     * The foot of a shaft the companion dug itself is still a place it can mine from: standing in a one-wide pocket
+     * in solid stone, it takes the wall beside it instead of reporting that the resource is out of reach.
+     */
+    @GameTest(maxTicks = 1200)
+    public void minesStoneFromTheBottomOfADugShaft(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 120, 12);
+        for (int x = 2; x <= 9; x++) {
+            for (int z = 2; z <= 9; z++) {
+                for (int y = 121; y <= 124; y++) h.setBlock(x, y, z, Blocks.STONE);
+            }
+        }
+        for (int y = 121; y <= 124; y++) h.setBlock(5, y, 5, Blocks.AIR);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 5, 121, 5);
+        companion.inventory().addItem(Items.STONE_PICKAXE.getDefaultInstance());
+        for (BlockPos face : List.of(
+                new BlockPos(4, 121, 5), new BlockPos(6, 121, 5), new BlockPos(5, 121, 4), new BlockPos(5, 121, 6))) {
+            h.assertTrue(
+                    GameTestSupport.observeVisible(h, companion, h.absolutePos(face)),
+                    "the shaft wall at " + face + " should be visible");
+        }
+        Outcome outcome = new Outcome();
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 300, () -> false);
+        runner.setEventSink(outcome);
+        runner.start(new MineBlocksTask(BlockMatcher.parse("minecraft:stone").orElseThrow(), 2, 4), "mine_blocks");
+        TaskTrace.of(h, runner, companion).succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(outcome.status != null, "mining should finish");
+            h.assertTrue(
+                    outcome.status == TaskStatus.SUCCESS,
+                    "the shaft wall was not mined: " + outcome.status + " " + outcome.summary);
+        });
+    }
+
     /** Observes every stone of the hill that touches air, the cells a companion standing outside can see. */
     private static void observeStoneFace(GameTestHelper h, CompanionEntity companion) {
         for (int x = 4; x <= 11; x++) {
