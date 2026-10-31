@@ -8,6 +8,13 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.95.3] - 2026-10-31
+
+### Fixed
+
+- The companion reaches a mob or a player it was sent to instead of standing a step short and giving up: the last stretch of the walk is finished by hand when the route ends just outside the reach.
+- The companion notices a block its own digging exposes: a sighting queued before it moved is re-aimed from where it stands instead of being dropped.
+
 ## [0.95.2] - 2026-10-31
 
 ### Fixed

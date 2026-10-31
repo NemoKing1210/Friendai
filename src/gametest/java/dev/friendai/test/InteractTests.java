@@ -20,30 +20,38 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
 
 public class InteractTests {
-    /**
-     * Quarantined: the approach was still RUNNING at its 400-tick budget in the shard, while the class passed in the
-     * two previous runs; the shared movement this test pins is not the part that timed out. Issue #16, deadline
-     * 2026-11-14; the test still runs and reports, it just does not fail the required gate.
-     */
-    @GameTest(maxTicks = 400, required = false)
+    @GameTest(maxTicks = 400)
     public void interactionApproachUsesSharedEntityMovement(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Cow target = h.spawn(EntityTypes.COW, 9, 2, 2);
+        target.setNoAi(true);
         assertApproachesEntity(h, c, target, new ApproachTask(target, 2.0), 2.0);
     }
 
-    /**
-     * Quarantined: like its sibling, the approach was still RUNNING at the 400-tick budget on CI, which is about load
-     * rather than the sharing this test pins. Issue #17, deadline 2026-11-14; the test still runs and reports, it just
-     * does not fail the required gate.
-     */
-    @GameTest(maxTicks = 400, required = false)
+    @GameTest(maxTicks = 400)
     public void navigationApproachToolUsesSharedEntityMovement(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         Cow target = h.spawn(EntityTypes.COW, 9, 2, 2);
+        target.setNoAi(true);
         assertApproachesEntity(h, c, target, new ApproachEntityTask(target, 2.0), 2.0);
+    }
+
+    /**
+     * The route's goal band is wider than the reach, so an arrival can still leave the target outside it, and the
+     * navigator latches that arrival. The approach then reported movement that never happened instead of walking the
+     * last step. A target in a corner of its cell, with the companion starting on the diagonal, reproduces it.
+     */
+    @GameTest(maxTicks = 400)
+    public void approachClosesTheLastStepToAnEntityInACellCorner(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        Cow target = h.spawn(EntityTypes.COW, 4, 2, 4);
+        target.setNoAi(true);
+        target.setPos(h.absoluteVec(new Vec3(4.05, 2.0, 4.05)));
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 5, 2, 5);
+        c.setPos(h.absoluteVec(new Vec3(5.5, 2.0, 5.5)));
+        assertApproachesEntity(h, c, target, new ApproachTask(target, 2.0), 2.0);
     }
 
     private static void assertApproachesEntity(

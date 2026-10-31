@@ -62,7 +62,11 @@ public class RecoveryTests {
                         + brains.debug().logOf(player.getUUID()).after(0, 200)));
     }
 
-    @GameTest(maxTicks = 400)
+    /**
+     * The event reaches the log through tick-deferred hops only: the task has to fail, the queue has to settle it and
+     * the brain has to open a turn. Four hundred ticks is enough locally and was not under the shard's load.
+     */
+    @GameTest(maxTicks = 1200)
     public void spent_replan_budget_blocks_the_goal_and_asks_the_player(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);

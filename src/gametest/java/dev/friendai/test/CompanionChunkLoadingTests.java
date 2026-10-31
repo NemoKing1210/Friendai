@@ -52,11 +52,11 @@ public class CompanionChunkLoadingTests {
     }
 
     /**
-     * Quarantined: on CI the pending ticket has not loaded the anchored chunk by the asserted tick, which is a loader
-     * timing question, not the ticket bookkeeping this test pins. Issue #11, deadline 2026-11-14; the test still runs
-     * and reports, it just does not fail the required gate.
+     * The ticket is armed by the tick loop synchronously; the chunk it names is generated asynchronously and how many
+     * ticks that takes depends on the server's load, so the load is awaited inside the test's own budget instead of
+     * being asserted at a fixed tick.
      */
-    @GameTest(maxTicks = 600, required = false)
+    @GameTest(maxTicks = 2400)
     public void anchorsAreReArmedEveryTickAndRestoredWithoutBlocking(GameTestHelper h) {
         ServerLevel level = h.getLevel();
         CompanionChunkLoader loader = GameTestSupport.runtime(level.getServer()).chunkLoader();
@@ -68,34 +68,34 @@ public class CompanionChunkLoadingTests {
         ChunkPos firstChunk = farChunk(h);
         anchors.put(first, new CompanionAnchors.Anchor(level.dimension(), firstChunk));
         h.runAfterDelay(60, () -> {
-            h.assertTrue(
-                    level.getChunkSource().getChunkNow(firstChunk.x(), firstChunk.z()) != null,
-                    "a later tick should re-arm the saved anchor");
+            h.assertTrue(loader.awaitingChunk(first), "a later tick should re-arm the saved anchor");
+            awaitChunk(h, level, firstChunk, 800, () -> {
+                // Phase 2: restore() over an anchor whose chunk is not in memory must not generate it
+                // synchronously; the pending ticket loads it a few ticks later.
+                UUID second = UUID.randomUUID();
+                ChunkPos secondChunk = new ChunkPos(firstChunk.x() + 16, firstChunk.z());
+                anchors.put(second, new CompanionAnchors.Anchor(level.dimension(), secondChunk));
+                loader.restore();
+                h.assertTrue(
+                        level.getChunkSource().getChunkNow(secondChunk.x(), secondChunk.z()) == null,
+                        "restore must not generate the anchored chunk on the server thread");
+                h.assertTrue(loader.awaitingChunk(second), "restore should arm the anchored chunk");
 
-            // Phase 2: restore() over an anchor whose chunk is not in memory must not generate it
-            // synchronously; the pending ticket loads it a few ticks later.
-            UUID second = UUID.randomUUID();
-            ChunkPos secondChunk = new ChunkPos(firstChunk.x() + 16, firstChunk.z());
-            anchors.put(second, new CompanionAnchors.Anchor(level.dimension(), secondChunk));
-            loader.restore();
-            h.assertTrue(
-                    level.getChunkSource().getChunkNow(secondChunk.x(), secondChunk.z()) == null,
-                    "restore must not generate the anchored chunk on the server thread");
-
-            awaitChunk(
-                    h,
-                    level,
-                    secondChunk,
-                    200,
-                    () -> h.runAfterDelay(120, () -> {
-                        h.assertTrue(
-                                loader.anchorFor(first).isEmpty(),
-                                "an anchor with no companion should be dropped after the grace period");
-                        h.assertTrue(
-                                loader.anchorFor(second).isEmpty(),
-                                "an anchor with no companion should be dropped after the grace period");
-                        h.succeed();
-                    }));
+                awaitChunk(
+                        h,
+                        level,
+                        secondChunk,
+                        800,
+                        () -> h.runAfterDelay(120, () -> {
+                            h.assertTrue(
+                                    loader.anchorFor(first).isEmpty(),
+                                    "an anchor with no companion should be dropped after the grace period");
+                            h.assertTrue(
+                                    loader.anchorFor(second).isEmpty(),
+                                    "an anchor with no companion should be dropped after the grace period");
+                            h.succeed();
+                        }));
+            });
         });
     }
 
