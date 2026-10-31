@@ -153,24 +153,34 @@ public final class MoveHelper {
 
     /** Node centres approximate a goal band; an exact positioning caller still needs the real feet inside it. */
     private State finishAlignment(TaskContext context) {
-        CompanionEntity companion = context.companion();
         GoalPoint point = (GoalPoint) navigator.goal();
-        double dx = point.x() - companion.getX();
-        double dz = point.z() - companion.getZ();
-        double horizontal = Math.hypot(dx, dz);
+        return align(context, point.x(), point.z());
+    }
+
+    /**
+     * Walks the body the last stretch toward a point on its own level once the route is done. A caller whose arrival
+     * test is stricter than the goal band uses this instead of stopping wherever the band happened to end.
+     */
+    State align(TaskContext context, double x, double z) {
+        CompanionEntity companion = context.companion();
+        double horizontal = Math.hypot(x - companion.getX(), z - companion.getZ());
         if (horizontal <= arriveDistance) {
-            navigator.stop(context);
+            if (navigator != null) {
+                navigator.stop(context);
+            }
             return State.ARRIVED;
         }
         companion.setPathing(true);
-        companion.getMoveControl().setWantedPosition(point.x(), companion.getY(), point.z(), speed);
+        companion.getMoveControl().setWantedPosition(x, companion.getY(), z, speed);
         if (sinceCheckpoint == 0) {
             checkpointDistance = horizontal;
         }
         if (++sinceCheckpoint >= STUCK_CHECK_TICKS) {
             sinceCheckpoint = 0;
             if (checkpointDistance - horizontal < Math.min(MIN_PROGRESS, arriveDistance)) {
-                navigator.stop(context);
+                if (navigator != null) {
+                    navigator.stop(context);
+                }
                 return State.STUCK;
             }
         }

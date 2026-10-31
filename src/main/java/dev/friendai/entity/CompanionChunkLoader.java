@@ -169,6 +169,11 @@ public final class CompanionChunkLoader {
         return anchors().get(owner);
     }
 
+    /** Whether the tick loop holds a chunk ticket for an owner whose companion is not loaded yet. */
+    public boolean awaitingChunk(UUID owner) {
+        return pending.containsKey(owner);
+    }
+
     private void apply(CompanionTicketSet.Change change) {
         for (CompanionTicketSet.Key key : change.add()) {
             ServerLevel level = level(key.dimension());

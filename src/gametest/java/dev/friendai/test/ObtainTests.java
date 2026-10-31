@@ -36,8 +36,10 @@ import net.minecraft.world.level.block.NetherWartBlock;
 
 public class ObtainTests {
     /**
-     * Quarantined: the search gives up on the buried stone without a single viewpoint, so the excavation never reports
-     * what it exposes. Issue #12, deadline 2026-11-14; the test still runs and reports, it just does not fail the
+     * Quarantined: on CI the search returns to its origin without a single viewpoint, so the excavation never reports
+     * what it exposes, while the whole class passes locally. The observer no longer drops a sighting queued before the
+     * companion moved (pinned by {@code ResourceObservationTests.queuedSightingSurvivesAStep}), so the remaining cause
+     * is still open. Issue #12, deadline 2026-11-14; the test still runs and reports, it just does not fail the
      * required gate.
      */
     @GameTest(maxTicks = 1200, required = false)
@@ -542,11 +544,10 @@ public class ObtainTests {
     }
 
     /**
-     * Quarantined: on CI the tool chain stops before the stone pickaxe, while the class passed on the Windows
-     * checkout; the search or the sight budget it uses is the subject. Issue #15, deadline 2026-11-14; the test still
-     * runs and reports, it just does not fail the required gate.
+     * What the companion has seen ages out of the observation window, and this chain is longer than the oak one, so the
+     * test keeps its evidence fresh on every tick the way its sibling does.
      */
-    @GameTest(maxTicks = 9600, required = false)
+    @GameTest(maxTicks = 9600)
     public void stonePickaxeFromAcaciaOnly(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         BlockPos[] logs = {new BlockPos(4, 2, 2), new BlockPos(4, 2, 7), new BlockPos(8, 2, 4), new BlockPos(8, 2, 6)};
@@ -568,6 +569,12 @@ public class ObtainTests {
         Result result = new Result();
         ExecutionCoordinator runner = obtain(c, result, obtainTask("minecraft:stone_pickaxe", 1, true, true));
         h.succeedWhen(() -> {
+            for (BlockPos pos : logs)
+                if (h.getBlockState(pos).is(Blocks.ACACIA_LOG))
+                    GameTestSupport.observeVisible(h, c, h.absolutePos(pos));
+            for (BlockPos pos : stones)
+                if (h.getBlockState(pos).is(Blocks.STONE)) GameTestSupport.observeVisible(h, c, h.absolutePos(pos));
+            GameTestSupport.observeVisible(h, c, h.absolutePos(table));
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
             h.assertTrue(result.summary.contains("acacia_log"), result.summary);
