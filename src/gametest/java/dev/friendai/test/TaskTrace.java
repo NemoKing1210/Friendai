@@ -48,7 +48,7 @@ public final class TaskTrace {
 
     private static final int EXCEPTION_LINES = 60;
 
-    private static final int TEXT_LIMIT = 220;
+    private static final int TEXT_LIMIT = 320;
 
     private final GameTestHelper h;
     private final ExecutionCoordinator runner;

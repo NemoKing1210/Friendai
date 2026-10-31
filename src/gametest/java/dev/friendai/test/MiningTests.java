@@ -289,6 +289,45 @@ public class MiningTests {
         });
     }
 
+    /**
+     * The same pocket under the dirt shelf of a buried hill: the stone the companion stands on is whole, and the walls
+     * beside it are all that is left to reach.
+     */
+    @GameTest(maxTicks = 1200)
+    public void minesStoneUnderDirtFromTheBottomOfADugPocket(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 120, 16);
+        for (int x = 2; x <= 13; x++) {
+            for (int z = 2; z <= 13; z++) {
+                for (int y = 121; y <= 124; y++) h.setBlock(x, y, z, Blocks.STONE);
+                for (int y = 125; y <= 126; y++) h.setBlock(x, y, z, Blocks.DIRT);
+            }
+        }
+        for (int y = 124; y <= 126; y++) h.setBlock(7, y, 7, Blocks.AIR);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 7, 124, 7);
+        companion.inventory().addItem(Items.STONE_PICKAXE.getDefaultInstance());
+        for (BlockPos face : List.of(
+                new BlockPos(6, 124, 7),
+                new BlockPos(8, 124, 7),
+                new BlockPos(7, 124, 6),
+                new BlockPos(7, 124, 8),
+                new BlockPos(7, 123, 7))) {
+            h.assertTrue(
+                    GameTestSupport.observeVisible(h, companion, h.absolutePos(face)),
+                    "the pocket wall at " + face + " should be visible");
+        }
+        Outcome outcome = new Outcome();
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 300, () -> false);
+        runner.setEventSink(outcome);
+        runner.start(new MineBlocksTask(BlockMatcher.parse("minecraft:stone").orElseThrow(), 1, 32), "mine_blocks");
+        TaskTrace.of(h, runner, companion).succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(outcome.status != null, "mining should finish");
+            h.assertTrue(
+                    outcome.status == TaskStatus.SUCCESS,
+                    "the buried pocket wall was not mined: " + outcome.status + " " + outcome.summary);
+        });
+    }
+
     /** Observes every stone of the hill that touches air, the cells a companion standing outside can see. */
     private static void observeStoneFace(GameTestHelper h, CompanionEntity companion) {
         for (int x = 4; x <= 11; x++) {

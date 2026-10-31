@@ -160,6 +160,31 @@ public class ResourceObservationTests {
         h.succeed();
     }
 
+    /** A pit under a dirt ceiling is still worth looking into: the walls beside the companion are what its eyes reach. */
+    @GameTest(maxTicks = 400)
+    public void aPocketUnderACeilingShowsItsWalls(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 120, 16);
+        for (int x = 2; x <= 13; x++) {
+            for (int z = 2; z <= 13; z++) {
+                for (int y = 121; y <= 124; y++) h.setBlock(x, y, z, Blocks.STONE);
+                for (int y = 125; y <= 126; y++) h.setBlock(x, y, z, Blocks.DIRT);
+            }
+        }
+        for (int y = 124; y <= 126; y++) h.setBlock(7, y, 7, Blocks.AIR);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 7, 124, 7);
+        ResourceObserver observer = new ResourceObserver(companion);
+        observer.scheduleSweep(0);
+        List<ResourceObservation> seen = new ArrayList<>();
+        for (int step = 0; step < 200 && observer.queuedJobs() > 0; step++) {
+            seen.addAll(observer.tick(256, 128, Long.MAX_VALUE).observations());
+        }
+        BlockPos wall = h.absolutePos(new BlockPos(6, 124, 7));
+        h.assertTrue(
+                seen.stream().anyMatch(item -> item.location().pos().equals(pos(wall))),
+                "the stone beside the companion was not seen: " + seen);
+        h.succeed();
+    }
+
     @GameTest(maxTicks = 60)
     public void newFaceLearnedOnlyAfterBreak(GameTestHelper h) {
         GameTestSupport.platform(h, 12);

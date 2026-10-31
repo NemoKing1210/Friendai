@@ -635,6 +635,8 @@ public final class MineBlocksTask implements Task {
         text.append(matcher.label()).append(' ').append(mined).append('/').append(count);
         if (miningSessionActive && miningSession != null) {
             text.append(" phase=").append(miningSession.phase());
+            String reason = miningSession.debugReason();
+            if (!reason.isEmpty()) text.append(' ').append(reason);
             BlockPos target = miningSession.target();
             if (target != null) {
                 text.append(" target=")
