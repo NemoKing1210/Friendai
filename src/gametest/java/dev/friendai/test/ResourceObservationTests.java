@@ -60,6 +60,29 @@ public class ResourceObservationTests {
         h.succeed();
     }
 
+    /**
+     * The sweep restarts from the companion's new viewpoint once it has walked on, and it used to empty the whole
+     * queue doing so — including the changed-block rays its own digging had queued in the same tick. The face a dig
+     * just opened is exactly what must survive the restart.
+     */
+    @GameTest(maxTicks = 80)
+    public void dugOpenBlockSurvivesTheSweepRestart(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 5);
+        BlockPos ore = h.absolutePos(new BlockPos(7, 3, 5));
+        h.setBlock(7, 3, 5, Blocks.COAL_ORE);
+        ResourceObserver observer = new ResourceObserver(companion);
+        observer.scheduleSweep(0);
+        observer.changed(ore);
+        companion.setPos(h.absoluteVec(new Vec3(2.5, 2.0, 9.5)));
+        observer.scheduleSweep(20);
+        List<ResourceObservation> seen = drain(observer);
+        h.assertTrue(
+                seen.stream().anyMatch(item -> item.blockId().equals("minecraft:coal_ore")),
+                "a sighting queued for the block just dug open was swept away: " + seen);
+        h.succeed();
+    }
+
     @GameTest(maxTicks = 40)
     public void sealedCaveOreUnknown(GameTestHelper h) {
         GameTestSupport.platform(h, 12);
