@@ -119,7 +119,10 @@ class MemoryStoreTest {
     @Test
     void unsupportedFormatIsReadOnlyAndPreserved() throws IOException {
         Path file = dir.resolve(A + ".json");
-        Files.writeString(file, "{\"formatVersion\":3,\"revision\":2}");
+        Files.writeString(
+                file,
+                "{\"formatVersion\":" + (dev.friendai.features.memory.MemoryRecord.FORMAT_VERSION + 1)
+                        + ",\"revision\":2}");
 
         String old = Files.readString(file);
         MemoryStore store = new MemoryStore(dir, () -> 0L);

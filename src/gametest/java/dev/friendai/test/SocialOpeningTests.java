@@ -37,6 +37,40 @@ public class SocialOpeningTests {
         }
     }
 
+    @GameTest(maxTicks = 600)
+    public void aJournalEntryReachesTheOwnerAsOneToollessLine(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        ServerRuntime runtime = GameTestSupport.runtime(h.getLevel().getServer());
+        Script script = new Script();
+        runtime.sessions().setGatewayOverride(owner.getUUID(), script);
+        CompanionManager.get(h.getLevel().getServer()).summon(owner);
+        runtime.memory()
+                .book(owner.getUUID())
+                .recordHappening(
+                        owner.getUUID(),
+                        new dev.friendai.features.social.Happening(
+                                dev.friendai.features.social.Happening.Kind.DEATH,
+                                dev.friendai.features.social.Happening.Importance.HIGH,
+                                0,
+                                "death:1",
+                                "you died to a creeper"));
+
+        h.succeedWhen(() -> {
+            boolean seen = false;
+            synchronized (script.requests) {
+                for (int i = 0; i < script.requests.size(); i++) {
+                    String text = script.requests.get(i).toString();
+                    if (text.contains("[event] social") && text.contains("creeper")) {
+                        seen = true;
+                        h.assertValueEqual(script.toolCounts.get(i), 0, "a social opening must offer no tools");
+                    }
+                }
+            }
+            h.assertTrue(seen, "the journal entry should have reached the owner as one line");
+        });
+    }
+
     @GameTest(maxTicks = 900)
     public void aDeathOpensOneToollessLine(GameTestHelper h) {
         GameTestSupport.platform(h, 12);

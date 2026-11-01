@@ -8,6 +8,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.126.0] - 2026-11-01
+
+### Added
+
+- The companion remembers what happened to you: a death, a respawn, a change of dimension and a return are kept in a small per-owner journal and the newest one may be said once, when you are near and free. An older memory file loads with an empty journal instead of being refused.
+
 ## [0.125.0] - 2026-11-01
 
 ### Added

@@ -207,9 +207,10 @@ respawn and a restart, and `/friendai social status` shows the same three reason
 ### Speaking first
 
 The companion answers by default; it may also start a line, and only about a fact. `server/agent/social/SocialDirector`
-runs once a second from `ServerTickPipeline`: it reads the newest remembered death of each owner's companion and, when
+runs once a second from `ServerTickPipeline`: it reads the owner's happenings journal — a death, a respawn, a change of
+dimension, a return, each recorded by `HappeningFeed` from the Fabric events the server already receives — and, when
 the owner is near enough to hear it, in the same dimension, not in a fight, not hurt and not holding an open container,
-posts one `BrainEvent.SocialOpening` with `Urgency.HIGH`. A line nobody could hear is held for 6,000 ticks and then
+posts one `BrainEvent.SocialOpening` for the newest entry nobody has spoken about yet. A line nobody could hear is held for 6,000 ticks and then
 dropped once; two lines never come closer than 1,200 ticks; a death already spoken about is never repeated.
 
 A social batch carries no tools at all: `CompanionBrain` sends `List.of()` schemas and an empty tool-name set for the
@@ -310,6 +311,7 @@ files remain read-only until explicit repair, which makes a fresh backup before 
 | Companion state | World save, `CompanionEntity` additional data | Owner, inventory, combat settings, pace mode, food/saturation/exhaustion, saved task. Equipment is in the superclass entity data. Hands, previews, station leases and furnace jobs are transient. |
 | Companion carry | World `SavedData` `friendai:companion_carry` | Version 2, per owner: the body captured at death (body state only — the loot was already dropped and the inventory is empty) and the last five deaths (dimension, position, cause, killer, tick, the dropped item-entity UUIDs, a stack fallback, an `unrecoverable` flag and the respawn point), plus the owner's recovery refusal. Version 1 files read with no recovery facts. Applied on respawn or the next summon; the death log outlives the applied body, feeds one prompt line and is what `RecoverDropsTask` walks to. |
 | Companion anchors | World `SavedData` `friendai:companion_anchors` | Owner → dimension + chunk, used to load the companion on startup. The chunk ticket itself is runtime-only and never saved. |
+| Happenings journal | Memory book file, record format 3 | Per owner: at most 12 entries of one fact each (kind, importance, tick, key, at most 160 characters), newest first, a repeated key replacing the older entry. Fed by `HappeningFeed` from death, respawn, dimension and join events; older formats read with an empty journal. |
 | Companion bond | Memory book file, record format 2 | Per owner: points, the last counted day, the day's awarded points, at most three reasons and per-kind gift peaks. Written after every change, read lazily by the body; a format 1 file reads with no bond. |
 | Conversation transcript | `<world>/friendai/transcript/<owner-uuid>.json` | Format version 1, bounded by `memory.transcriptMaxEntries`, text length and `transcriptRetentionDays`; both sides of every conversation with the owner's companion, redacted before it is written and again when read. `TranscriptStore` borrows the runtime writer, flushes on the server tick at a 5 s debounce, and leaves unsupported, corrupt and oversized files untouched and read-only (the owner talks to an empty in-memory book). A `.bak` holds the same redacted text. |
 | Memory | `<world>/friendai/memory/<owner-uuid>.json` | One memory-only record per owner, format version 1: facts, player records/trust and learned language, food rules, next fact ID. Independent revision, periodic server-tick flush at a 5 s debounce; `.bak` on corruption, then the original stays read-only. Prior combined memory formats remain read-only. |
