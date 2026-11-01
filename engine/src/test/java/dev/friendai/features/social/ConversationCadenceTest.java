@@ -13,8 +13,8 @@ class ConversationCadenceTest {
         assertFalse(cadence.maySpeak(ConversationCadence.Scene.FREE, 150));
         assertTrue(cadence.maySpeak(ConversationCadence.Scene.FREE, 1_000));
         cadence.recordLine(ConversationCadence.Scene.FREE, 1_000, false, false);
-        assertFalse(cadence.maySpeak(ConversationCadence.Scene.FREE, 1_100));
-        assertTrue(cadence.maySpeak(ConversationCadence.Scene.FREE, 1_900));
+        assertFalse(cadence.maySpeak(ConversationCadence.Scene.FREE, 2_000));
+        assertTrue(cadence.maySpeak(ConversationCadence.Scene.FREE, 4_000));
     }
 
     @Test
