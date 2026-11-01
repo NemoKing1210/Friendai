@@ -717,6 +717,8 @@
   "friendai.config.tasks.place_interval.tooltip": "Server ticks between two blocks placed in survival; a player places one every four. 1 is the fastest the printer can go, 40 the slowest (1–40, default 4). Creative mode always places one block per tick.",
   "friendai.menu.free_time.planner_model": "Planner model: %s",
   "friendai.menu.log.kind.planner": "Planner",
+  "friendai.menu.log.kind.request": "Request",
+  "friendai.menu.log.kind.response": "Reply",
   "friendai.freetime.no_plan.step": "step %s",
   "friendai.freetime.no_plan.invalid_steps": "invalid or unavailable actions"
 }

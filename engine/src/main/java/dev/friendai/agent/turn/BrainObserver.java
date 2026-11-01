@@ -25,5 +25,14 @@ public interface BrainObserver {
 
     default void onUsage(dev.friendai.agent.llm.model.Usage usage) {}
 
+    /** The exact request handed to the gateway, after routing: system prompt, history and offered tools. */
+    default void onRequest(
+            String system,
+            java.util.List<dev.friendai.agent.llm.model.Message> messages,
+            java.util.List<dev.friendai.agent.llm.model.ToolSpec> tools) {}
+
+    /** One provider reply: text, tool calls, finish reason and usage. Not a retry or an error. */
+    default void onResponse(dev.friendai.agent.llm.model.LlmResponse response) {}
+
     default void onError(Throwable error) {}
 }

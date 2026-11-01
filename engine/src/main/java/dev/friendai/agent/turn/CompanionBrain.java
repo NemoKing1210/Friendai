@@ -575,7 +575,9 @@ public final class CompanionBrain {
             turnToolNames = specs.stream().map(ToolSpec::name).collect(Collectors.toUnmodifiableSet());
             String system = buildSystemPrompt(plannerNote);
             plannerNote = "";
-            future = gateway.get().complete(system, memory.snapshot(), sent);
+            java.util.List<dev.friendai.agent.llm.model.Message> history = memory.snapshot();
+            observe(o -> o.onRequest(system, history, sent));
+            future = gateway.get().complete(system, history, sent);
         } catch (RuntimeException e) {
             future = CompletableFuture.failedFuture(e);
         }
@@ -587,6 +589,9 @@ public final class CompanionBrain {
             observe(o -> o.onUsage(response.usage()));
         if (gen != generation) {
             return;
+        }
+        if (response != null) {
+            observe(o -> o.onResponse(response));
         }
         if (error != null) {
             LOGGER.warn("LLM request failed: {}", error.toString());

@@ -8,6 +8,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.97.0] - 2026-11-01
+
+### Added
+
+- The operator Log tab now has request and reply entries for each model step: the system/message previews and offered tools on the way out, and the reply text, tool calls, finish reason and usage on the way back.
+
 ## [0.96.4] - 2026-11-01
 
 ### Fixed
