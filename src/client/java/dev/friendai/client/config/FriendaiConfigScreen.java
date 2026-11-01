@@ -130,6 +130,11 @@ public final class FriendaiConfigScreen {
         return Component.translatable(key);
     }
 
+    /** One badge per category, so a reader can tell what a change affects before opening it. */
+    private static Component scoped(Component name, String scopeKey) {
+        return name.copy().append(Component.literal(" \u00b7 ")).append(tr(scopeKey));
+    }
+
     public static Screen create(Screen parent) {
         Minecraft mc = Minecraft.getInstance();
         boolean serverEditable = mc.getSingleplayerServer() != null || mc.level == null;
@@ -196,7 +201,7 @@ public final class FriendaiConfigScreen {
             categories.add(miningCategory(server));
         } else {
             categories.add(ConfigCategory.createBuilder()
-                    .name(tr("friendai.config.category.server"))
+                    .name(scoped(tr("friendai.config.category.server"), "friendai.config.scope.server"))
                     .option(LabelOption.create(tr(
                             serverConfigReadOnly
                                     ? serverConfigProtected
@@ -921,12 +926,12 @@ public final class FriendaiConfigScreen {
                     }));
         }
         OptionGroup advanced = OptionGroup.createBuilder()
-                .name(tr("friendai.config.category.advanced"))
+                .name(scoped(tr("friendai.config.category.advanced"), "friendai.config.scope.server"))
                 .collapsed(true)
                 .option(baseUrlOpt)
                 .build();
         return ConfigCategory.createBuilder()
-                .name(tr("friendai.config.category.provider"))
+                .name(scoped(tr("friendai.config.category.provider"), "friendai.config.scope.server"))
                 .option(profileOpt)
                 .option(providerOpt)
                 .option(LabelOption.create(
@@ -949,7 +954,7 @@ public final class FriendaiConfigScreen {
         plannerProfiles.add("");
         plannerProfiles.addAll(server.profiles.keySet());
         return ConfigCategory.createBuilder()
-                .name(tr("friendai.config.category.companion"))
+                .name(scoped(tr("friendai.config.category.companion"), "friendai.config.scope.server"))
                 .option(stringOption(
                         "friendai.config.companion.name",
                         () -> c.name,
@@ -1065,7 +1070,7 @@ public final class FriendaiConfigScreen {
     private static ConfigCategory chatCategory(ServerConfig server) {
         var c = server.chat;
         return ConfigCategory.createBuilder()
-                .name(tr("friendai.config.category.chat"))
+                .name(scoped(tr("friendai.config.category.chat"), "friendai.config.scope.server"))
                 .option(stringOption("friendai.config.chat.prefix", () -> c.prefix, "@", v -> c.prefix = v))
                 .option(booleanOption(
                         "friendai.config.chat.respond_to_name", true, () -> c.respondToName, v -> c.respondToName = v))
@@ -1111,7 +1116,7 @@ public final class FriendaiConfigScreen {
     private static ConfigCategory planningCategory(ServerConfig server) {
         var agent = server.agent;
         return ConfigCategory.createBuilder()
-                .name(tr("friendai.config.category.planning"))
+                .name(scoped(tr("friendai.config.category.planning"), "friendai.config.scope.server"))
                 .option(booleanOption(
                         "friendai.config.agent.tool_routing",
                         true,
@@ -1193,7 +1198,7 @@ public final class FriendaiConfigScreen {
     private static ConfigCategory tasksCategory(ServerConfig server) {
         var tasks = server.tasks;
         return ConfigCategory.createBuilder()
-                .name(tr("friendai.config.category.tasks"))
+                .name(scoped(tr("friendai.config.category.tasks"), "friendai.config.scope.server"))
                 .option(booleanOption(
                         "friendai.config.tasks.default_follow",
                         true,
@@ -1284,7 +1289,7 @@ public final class FriendaiConfigScreen {
         var pathing = server.pathing;
         var places = server.places;
         return ConfigCategory.createBuilder()
-                .name(tr("friendai.config.category.world"))
+                .name(scoped(tr("friendai.config.category.world"), "friendai.config.scope.server"))
                 .option(booleanOption(
                         "friendai.config.pathing.allow_break",
                         "friendai.config.pathing.allow_break.tooltip",
@@ -1383,7 +1388,7 @@ public final class FriendaiConfigScreen {
     private static ConfigCategory tradingCategory(ServerConfig server) {
         var trading = server.tasks.trading;
         return ConfigCategory.createBuilder()
-                .name(tr("friendai.config.category.trading"))
+                .name(scoped(tr("friendai.config.category.trading"), "friendai.config.scope.server"))
                 .option(booleanOption(
                         "friendai.config.trading.enabled",
                         true,
@@ -1471,7 +1476,7 @@ public final class FriendaiConfigScreen {
     private static ConfigCategory resourcesCategory(ServerConfig server) {
         var resources = server.tasks.resources;
         return ConfigCategory.createBuilder()
-                .name(tr("friendai.config.category.resources"))
+                .name(scoped(tr("friendai.config.category.resources"), "friendai.config.scope.server"))
                 .option(booleanOption(
                         "friendai.config.resources.expeditions",
                         true,
@@ -1551,7 +1556,7 @@ public final class FriendaiConfigScreen {
     private static ConfigCategory autonomyCategory(ServerConfig server) {
         var autonomy = server.autonomy;
         return ConfigCategory.createBuilder()
-                .name(tr("friendai.config.category.autonomy"))
+                .name(scoped(tr("friendai.config.category.autonomy"), "friendai.config.scope.server"))
                 .option(booleanOption(
                         "friendai.config.autonomy.enabled",
                         true,
@@ -1626,7 +1631,7 @@ public final class FriendaiConfigScreen {
     private static ConfigCategory memoryCategory(ServerConfig server) {
         var m = server.memory;
         return ConfigCategory.createBuilder()
-                .name(tr("friendai.config.category.memory"))
+                .name(scoped(tr("friendai.config.category.memory"), "friendai.config.scope.server"))
                 .option(booleanOption("friendai.config.memory.enabled", true, () -> m.enabled, v -> m.enabled = v))
                 .option(Option.<Integer>createBuilder()
                         .name(tr("friendai.config.memory.max_fact_chars"))
@@ -1683,7 +1688,7 @@ public final class FriendaiConfigScreen {
     private static ConfigCategory miningCategory(ServerConfig server) {
         ServerConfig.MiningSection m = server.mining;
         return ConfigCategory.createBuilder()
-                .name(tr("friendai.config.category.mining"))
+                .name(scoped(tr("friendai.config.category.mining"), "friendai.config.scope.server"))
                 .option(booleanOption(
                         "friendai.config.mining.protect_drops",
                         "friendai.config.mining.protect_drops.tooltip",
@@ -1714,7 +1719,7 @@ public final class FriendaiConfigScreen {
     private static ConfigCategory socialCategory(ClientConfig client) {
         var social = client.social;
         return ConfigCategory.createBuilder()
-                .name(tr("friendai.config.category.display"))
+                .name(scoped(tr("friendai.config.category.display"), "friendai.config.scope.client"))
                 .option(booleanOption(
                         "friendai.config.social.outline",
                         "friendai.config.social.outline.tooltip",
@@ -1855,7 +1860,7 @@ public final class FriendaiConfigScreen {
         synthesis.add(testVoice);
 
         return ConfigCategory.createBuilder()
-                .name(tr("friendai.config.category.voice"))
+                .name(scoped(tr("friendai.config.category.voice"), "friendai.config.scope.client"))
                 .group(OptionGroup.createBuilder()
                         .name(tr("friendai.config.voice.group.recognition"))
                         .options(recognition)

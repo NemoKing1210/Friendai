@@ -962,5 +962,8 @@
   "friendai.command.pause.none": "У вас нет компаньона, которого можно остановить.",
   "friendai.menu.pause": "Пауза",
   "friendai.menu.resume": "Продолжить",
-  "friendai.config.nav.recovered": "Повреждённый файл конфигурации заменён последней исправной копией. Сохранение запишет новый файл."
+  "friendai.config.nav.recovered": "Повреждённый файл конфигурации заменён последней исправной копией. Сохранение запишет новый файл.",
+  "friendai.config.scope.client": "Клиент",
+  "friendai.config.scope.server": "Сервер",
+  "friendai.config.scope.world": "Мир"
 }

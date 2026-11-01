@@ -965,5 +965,8 @@
   "friendai.command.pause.none": "Vous n'avez pas de compagnon à retenir.",
   "friendai.menu.pause": "Pause",
   "friendai.menu.resume": "Reprendre",
-  "friendai.config.nav.recovered": "Un fichier de configuration endommagé a été remplacé par sa dernière sauvegarde valide. Enregistrer écrira un nouveau fichier."
+  "friendai.config.nav.recovered": "Un fichier de configuration endommagé a été remplacé par sa dernière sauvegarde valide. Enregistrer écrira un nouveau fichier.",
+  "friendai.config.scope.client": "Client",
+  "friendai.config.scope.server": "Serveur",
+  "friendai.config.scope.world": "Monde"
 }
