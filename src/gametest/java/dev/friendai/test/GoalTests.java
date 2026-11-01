@@ -149,4 +149,47 @@ public class GoalTests {
         h.assertTrue(goal.planId() != 0, "the plan is linked to the goal");
         h.succeed();
     }
+
+    @GameTest(maxTicks = 300)
+    public void finishingWithAnUnmetCriterionIsRefused(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
+        CompanionEntity c = CompanionManager.get(h.getLevel().getServer()).summon(player);
+        Caller owner = owner(player);
+        h.assertFalse(
+                call(
+                                c,
+                                owner,
+                                "set_goal",
+                                "{\"text\":\"get a diamond\",\"criteria\":[{\"text\":\"has a diamond\","
+                                        + "\"type\":\"has_item\",\"item\":\"minecraft:diamond\",\"count\":1}]}")
+                        .error(),
+                "goal with a checkable criterion");
+        long id = GameTestSupport.runtime(h.getLevel().getServer())
+                .goals()
+                .board(player.getUUID())
+                .primary()
+                .orElseThrow()
+                .id();
+
+        var refused = call(c, owner, "finish_goal", "{\"id\":" + id + ",\"done\":true,\"reason\":\"done\"}");
+        h.assertTrue(refused.error(), "a completion claim the world cannot confirm must be refused");
+        h.assertTrue(
+                refused.content().contains("has a diamond"),
+                "the refusal names the unmet criterion: " + refused.content());
+        h.assertTrue(
+                GameTestSupport.runtime(h.getLevel().getServer())
+                        .goals()
+                        .board(player.getUUID())
+                        .primary()
+                        .isPresent(),
+                "the goal stays active after the refusal");
+
+        c.inventory().addItem(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND, 1));
+        h.assertFalse(
+                call(c, owner, "finish_goal", "{\"id\":" + id + ",\"done\":true,\"reason\":\"done\"}")
+                        .error(),
+                "with the item in hand the claim holds");
+        h.succeed();
+    }
 }

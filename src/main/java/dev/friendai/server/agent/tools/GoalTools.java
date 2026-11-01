@@ -102,6 +102,24 @@ public final class GoalTools implements FeatureToolContributor {
                         .build(),
                 (companion, args) -> withBoard(companion, (owner, goals, board) -> {
                     boolean done = args.get("done").getAsBoolean();
+                    // A completion claim is checked against the world first: a criterion the world can test must
+                    // hold, or the goal stays active and the model is told exactly what is still missing.
+                    if (done) {
+                        long id = args.get("id").getAsLong();
+                        if (board.find(id).isPresent()) {
+                            var facts = new dev.friendai.task.queue.CompanionGuardFacts(companion);
+                            facts.refresh();
+                            var unmet = board.unmet(id, facts);
+                            if (!unmet.isEmpty()) {
+                                return ToolResult.error("Not done yet: "
+                                        + String.join(
+                                                "; ",
+                                                unmet.stream()
+                                                        .map(dev.friendai.agent.goal.Criterion::text)
+                                                        .toList()));
+                            }
+                        }
+                    }
                     GoalResult<Goal> result = board.finish(
                             args.get("id").getAsLong(),
                             done,
