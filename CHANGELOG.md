@@ -8,6 +8,13 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.114.0] - 2026-11-01
+
+### Added
+
+- **Trading** and **Resources** settings tabs expose villager trading radii, price and location freshness, wait limits and barter amounts, plus resource search and expedition radii and the escort distances used when the owner walks away — each with a plain-language tooltip.
+- The **Companion** tab now shows chunk loading and its radius.
+
 ## [0.113.0] - 2026-11-01
 
 ### Added

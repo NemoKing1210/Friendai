@@ -143,6 +143,8 @@ public final class FriendaiConfigScreen {
             builder.category(planningCategory(server));
             builder.category(tasksCategory(server));
             builder.category(worldCategory(server));
+            builder.category(tradingCategory(server));
+            builder.category(resourcesCategory(server));
             builder.category(autonomyCategory(server));
             builder.category(memoryCategory(server));
             builder.category(miningCategory(server));
@@ -519,6 +521,18 @@ public final class FriendaiConfigScreen {
                         .controller(option ->
                                 IntegerFieldControllerBuilder.create(option).range(1, 40))
                         .build())
+                .option(booleanOption(
+                        "friendai.config.companion.chunk_loading",
+                        true,
+                        () -> c.chunkLoading.enabled,
+                        value -> c.chunkLoading.enabled = value))
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.companion.chunk_radius"))
+                        .description(OptionDescription.of(tr("friendai.config.companion.chunk_radius.tooltip")))
+                        .binding(1, () -> c.chunkLoading.radius, value -> c.chunkLoading.radius = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(0, 4))
+                        .build())
                 .build();
     }
 
@@ -710,6 +724,174 @@ public final class FriendaiConfigScreen {
                                 value -> server.structures.maxNearbySpawned = value)
                         .controller(option ->
                                 IntegerFieldControllerBuilder.create(option).range(0, 32))
+                        .build())
+                .build();
+    }
+
+    private static ConfigCategory tradingCategory(ServerConfig server) {
+        var trading = server.tasks.trading;
+        return ConfigCategory.createBuilder()
+                .name(tr("friendai.config.category.trading"))
+                .option(booleanOption(
+                        "friendai.config.trading.enabled",
+                        true,
+                        () -> trading.enabled,
+                        value -> trading.enabled = value))
+                .option(booleanOption(
+                        "friendai.config.trading.idle_refresh",
+                        true,
+                        () -> trading.idleRefresh,
+                        value -> trading.idleRefresh = value))
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.trading.radius"))
+                        .description(OptionDescription.of(tr("friendai.config.trading.radius.tooltip")))
+                        .binding(64, () -> trading.observationRadius, value -> trading.observationRadius = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(8, 64))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.trading.quote_fresh_seconds"))
+                        .description(OptionDescription.of(tr("friendai.config.trading.quote_fresh_seconds.tooltip")))
+                        .binding(
+                                60,
+                                () -> trading.quoteFreshTicks / 20,
+                                value -> trading.quoteFreshTicks = Math.max(20, value * 20))
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(1, 3600))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.trading.location_fresh_minutes"))
+                        .description(OptionDescription.of(tr("friendai.config.trading.location_fresh_minutes.tooltip")))
+                        .binding(
+                                10,
+                                () -> trading.locationFreshTicks / 1_200,
+                                value -> trading.locationFreshTicks = Math.max(1_200, value * 1_200))
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(1, 60))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.trading.idle_refresh_seconds"))
+                        .description(OptionDescription.of(tr("friendai.config.trading.idle_refresh_seconds.tooltip")))
+                        .binding(
+                                10,
+                                () -> trading.idleRefreshIntervalTicks / 20,
+                                value -> trading.idleRefreshIntervalTicks = Math.max(20, value * 20))
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(1, 600))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.trading.wait_seconds"))
+                        .description(OptionDescription.of(tr("friendai.config.trading.wait_seconds.tooltip")))
+                        .binding(
+                                120,
+                                () -> trading.waitTicks / 20,
+                                value -> trading.waitTicks = Math.max(20, value * 20))
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(1, 600))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.trading.max_wait_seconds"))
+                        .description(OptionDescription.of(tr("friendai.config.trading.max_wait_seconds.tooltip")))
+                        .binding(
+                                600,
+                                () -> trading.maxWaitTicks / 20,
+                                value -> trading.maxWaitTicks = Math.max(20, value * 20))
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(1, 600))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.trading.max_ingots"))
+                        .description(OptionDescription.of(tr("friendai.config.trading.max_ingots.tooltip")))
+                        .binding(64, () -> trading.maxBarterIngots, value -> trading.maxBarterIngots = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(1, 64))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.trading.default_ingots"))
+                        .description(OptionDescription.of(tr("friendai.config.trading.default_ingots.tooltip")))
+                        .binding(8, () -> trading.barterDefaultIngots, value -> trading.barterDefaultIngots = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(1, 64))
+                        .build())
+                .build();
+    }
+
+    private static ConfigCategory resourcesCategory(ServerConfig server) {
+        var resources = server.tasks.resources;
+        return ConfigCategory.createBuilder()
+                .name(tr("friendai.config.category.resources"))
+                .option(booleanOption(
+                        "friendai.config.resources.expeditions",
+                        true,
+                        () -> resources.allowExpeditions,
+                        value -> resources.allowExpeditions = value))
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.resources.local_radius"))
+                        .description(OptionDescription.of(tr("friendai.config.resources.local_radius.tooltip")))
+                        .binding(64, () -> resources.localRadius, value -> resources.localRadius = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(16, 128))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.resources.local_seconds"))
+                        .description(OptionDescription.of(tr("friendai.config.resources.local_seconds.tooltip")))
+                        .binding(
+                                120,
+                                () -> resources.localTicks / 20,
+                                value -> resources.localTicks = Math.max(200, value * 20))
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(10, 600))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.resources.expedition_radius"))
+                        .description(OptionDescription.of(tr("friendai.config.resources.expedition_radius.tooltip")))
+                        .binding(512, () -> resources.expeditionRadius, value -> resources.expeditionRadius = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(16, 2048))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.resources.expedition_minutes"))
+                        .description(OptionDescription.of(tr("friendai.config.resources.expedition_minutes.tooltip")))
+                        .binding(
+                                10,
+                                () -> resources.expeditionTicks / 1_200,
+                                value -> resources.expeditionTicks = Math.max(1_200, value * 1_200))
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(1, 40))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.resources.observation_radius"))
+                        .description(OptionDescription.of(tr("friendai.config.resources.observation_radius.tooltip")))
+                        .binding(64, () -> resources.observationRadius, value -> resources.observationRadius = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(4, 64))
+                        .build())
+                .option(booleanOption(
+                        "friendai.config.resources.wait_for_owner",
+                        true,
+                        () -> resources.waitForOwner,
+                        value -> resources.waitForOwner = value))
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.resources.owner_sight"))
+                        .description(OptionDescription.of(tr("friendai.config.resources.owner_sight.tooltip")))
+                        .binding(32, () -> resources.ownerSightRadius, value -> resources.ownerSightRadius = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(8, 128))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.resources.owner_hold"))
+                        .description(OptionDescription.of(tr("friendai.config.resources.owner_hold.tooltip")))
+                        .binding(48, () -> resources.ownerHoldDistance, value -> resources.ownerHoldDistance = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(9, 512))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.resources.owner_resume"))
+                        .description(OptionDescription.of(tr("friendai.config.resources.owner_resume.tooltip")))
+                        .binding(
+                                24, () -> resources.ownerResumeDistance, value -> resources.ownerResumeDistance = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(1, 511))
                         .build())
                 .build();
     }
