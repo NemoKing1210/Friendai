@@ -1,5 +1,9 @@
 package dev.friendai.server.net;
 
+import dev.friendai.FriendaiMod;
+import dev.friendai.agent.goal.Criterion;
+import dev.friendai.agent.goal.Goal;
+import dev.friendai.agent.goal.GoalBoard;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.history.TaskRecord;
 import dev.friendai.foundation.diagnostics.LogEntry;
@@ -9,7 +13,9 @@ import dev.friendai.server.agent.CompanionSessions;
 import dev.friendai.server.agent.perception.PerceptionBuilder;
 import dev.friendai.server.agent.perception.PerceptionContext;
 import dev.friendai.server.runtime.ServerRuntime;
+import dev.friendai.task.queue.CompanionGuardFacts;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 import net.minecraft.server.level.ServerPlayer;
@@ -66,6 +72,7 @@ public final class SnapshotBuilder {
                     status.plannerModel());
         }
         CompanionEntity c = companion.get();
+        Feeling feeling = feelingOf(runtime, owner, c);
         return new CompanionSnapshot(
                 true,
                 operator,
@@ -97,7 +104,55 @@ public final class SnapshotBuilder {
                 status.next(),
                 status.budget(),
                 status.last(),
-                status.plannerModel());
+                status.plannerModel(),
+                feeling.bondTier(),
+                feeling.bondReasons(),
+                feeling.goalText(),
+                feeling.goalCriteria(),
+                feeling.goalUnmet());
+    }
+
+    /** What the companion feels and is working on, already in the shape the snapshot wants. */
+    private record Feeling(
+            String bondTier,
+            List<String> bondReasons,
+            String goalText,
+            List<String> goalCriteria,
+            List<String> goalUnmet) {}
+
+    /**
+     * The owner's own bond and the primary goal, read once per snapshot. Every part is empty rather than thrown when
+     * the read is impossible: a broken save or an unloaded companion must not cost the owner the whole menu.
+     */
+    private static Feeling feelingOf(ServerRuntime runtime, UUID owner, CompanionEntity companion) {
+        String tier = "";
+        List<String> reasons = List.of();
+        try {
+            tier = companion.bondTier().name().toLowerCase(Locale.ROOT);
+            reasons = companion.bondReasons();
+        } catch (RuntimeException failure) {
+            FriendaiMod.LOGGER.debug("Bond read for the menu failed for {}", owner, failure);
+        }
+        String goalText = "";
+        List<String> criteria = List.of();
+        List<String> unmet = List.of();
+        try {
+            GoalBoard board = runtime.goals().board(owner);
+            Optional<Goal> primary = board.primary();
+            if (primary.isPresent()) {
+                Goal goal = primary.get();
+                goalText = goal.text();
+                criteria = goal.criteria().stream().map(Criterion::text).toList();
+                CompanionGuardFacts facts = new CompanionGuardFacts(companion);
+                facts.refresh();
+                unmet = board.unmet(goal.id(), facts).stream()
+                        .map(Criterion::text)
+                        .toList();
+            }
+        } catch (RuntimeException failure) {
+            FriendaiMod.LOGGER.debug("Goal read for the menu failed for {}", owner, failure);
+        }
+        return new Feeling(tier, reasons, goalText, criteria, unmet);
     }
 
     private static CompanionVitals vitalsOf(CompanionEntity c) {

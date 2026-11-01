@@ -64,7 +64,12 @@ public final class CompanionSnapshotProtocolAdapter {
                 snapshot.freeTimeNext(),
                 snapshot.freeTimeBudget(),
                 snapshot.freeTimeLast(),
-                snapshot.freeTimePlannerModel());
+                snapshot.freeTimePlannerModel(),
+                snapshot.bondTier(),
+                snapshot.bondReasons(),
+                snapshot.goalText(),
+                snapshot.goalCriteria(),
+                snapshot.goalUnmet());
     }
 
     public static CompanionSnapshot fromProtocol(CompanionSnapshotView view) {
@@ -121,6 +126,11 @@ public final class CompanionSnapshotProtocolAdapter {
                 view.freeTimeNext(),
                 view.freeTimeBudget(),
                 view.freeTimeLast(),
-                view.freeTimePlannerModel());
+                view.freeTimePlannerModel(),
+                view.bondTier(),
+                view.bondReasons(),
+                view.goalText(),
+                view.goalCriteria(),
+                view.goalUnmet());
     }
 }

@@ -100,7 +100,12 @@ public final class CompanionSnapshotProtocolCodec {
                 snapshot.freeTimeNext(),
                 snapshot.freeTimeBudget(),
                 snapshot.freeTimeLast(),
-                snapshot.freeTimePlannerModel());
+                snapshot.freeTimePlannerModel(),
+                snapshot.bondTier(),
+                snapshot.bondReasons(),
+                snapshot.goalText(),
+                snapshot.goalCriteria(),
+                snapshot.goalUnmet());
     }
 
     private static void validate(CompanionSnapshotView snapshot) {
@@ -109,10 +114,16 @@ public final class CompanionSnapshotProtocolCodec {
                 || snapshot.toolNames() == null
                 || snapshot.queue() == null
                 || snapshot.vitals() == null
+                || snapshot.bondReasons() == null
+                || snapshot.goalCriteria() == null
+                || snapshot.goalUnmet() == null
                 || snapshot.history().size() > MAX_LIST_COUNT
                 || snapshot.newLog().size() > MAX_LIST_COUNT
                 || snapshot.toolNames().size() > MAX_LIST_COUNT
                 || snapshot.queue().size() > MAX_LIST_COUNT
+                || snapshot.bondReasons().size() > MAX_LIST_COUNT
+                || snapshot.goalCriteria().size() > MAX_LIST_COUNT
+                || snapshot.goalUnmet().size() > MAX_LIST_COUNT
                 || (!snapshot.operator()
                         && (!snapshot.newLog().isEmpty()
                                 || !snapshot.perception().isEmpty()
@@ -157,6 +168,11 @@ public final class CompanionSnapshotProtocolCodec {
         text(snapshot.freeTimeBudget(), 320);
         text(snapshot.freeTimeLast(), 800);
         text(snapshot.freeTimePlannerModel(), 512);
+        text(snapshot.bondTier(), 96);
+        for (String reason : snapshot.bondReasons()) text(reason, 640);
+        text(snapshot.goalText(), 640);
+        for (String criterion : snapshot.goalCriteria()) text(criterion, 640);
+        for (String criterion : snapshot.goalUnmet()) text(criterion, 640);
     }
 
     private static void text(String value, int maxBytes) {

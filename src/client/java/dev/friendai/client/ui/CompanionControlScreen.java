@@ -37,6 +37,7 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
     private final CompanionClientSession session;
     private final CompanionViewState viewState;
     private final Entry overview = new Entry("friendai.menu.tab.overview", new ControlTab());
+    private final Entry feeling = new Entry("friendai.menu.tab.feeling", new FeelingTab());
     private final Entry settings = new Entry("friendai.menu.tab.settings", new SettingsTab());
     private final Entry tasks = new Entry("friendai.menu.tab.tasks", new TasksTab());
     private final Entry memory = new Entry("friendai.menu.tab.memory", new MemoryTab());
@@ -47,7 +48,8 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
     private final Entry log = new Entry("friendai.menu.tab.log", new LogTab());
     private final Entry debug = new Entry("friendai.menu.tab.debug", new DebugTab());
 
-    private final List<Entry> ownerTabs = List.of(overview, tasks, memory, skills, places, appearance, traders);
+    private final List<Entry> ownerTabs =
+            List.of(overview, feeling, tasks, memory, skills, places, appearance, traders);
     private final List<Entry> operatorTabs = List.of(log, debug);
     private final List<Entry> lastTabs = List.of(settings);
     private final List<FlatButton> railButtons = new ArrayList<>();

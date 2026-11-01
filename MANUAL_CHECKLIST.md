@@ -46,6 +46,12 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] The Settings tab's free-time switch toggles it and shows the current activity (or "choosing an activity" while the director decides), in both UI languages.
 - [ ] Tell the companion "don't follow me" while free time runs: it stops walking after you, keeps working, and the Toggles tab shows "Following: off" after a relog. "Follow me" switches it back on.
 
+## Companion feeling tab
+
+- [ ] Open the companion menu and the Feeling tab: mood and the bond line render in both UI languages, and the goal with its criteria appears once a goal is set.
+- [ ] Finish a job the goal required: the criteria line changes from "not proven" to met without reopening the menu.
+- [ ] Join as a guest: the tab shows the mood only, never the bond, the reasons or the goal.
+
 ## Companion display
 
 - [ ] Turn on **Display → Show my companion through walls** and walk more than 12 blocks away: a box appears around your companion and disappears when you are close or it is in view.

@@ -39,10 +39,22 @@ final class CompanionSnapshotProtocolAdapterTest {
                 "next",
                 "budget",
                 "last shift",
-                "planner");
+                "planner",
+                "close",
+                List.of("rescue", "shared work"),
+                "build a shelter",
+                List.of("gather wood", "put the roof on"),
+                List.of("put the roof on"));
 
         assertEquals(
                 snapshot,
                 CompanionSnapshotProtocolAdapter.fromProtocol(CompanionSnapshotProtocolAdapter.toProtocol(snapshot)));
+        CompanionSnapshot back =
+                CompanionSnapshotProtocolAdapter.fromProtocol(CompanionSnapshotProtocolAdapter.toProtocol(snapshot));
+        assertEquals("close", back.bondTier());
+        assertEquals(List.of("rescue", "shared work"), back.bondReasons());
+        assertEquals("build a shelter", back.goalText());
+        assertEquals(List.of("gather wood", "put the roof on"), back.goalCriteria());
+        assertEquals(List.of("put the roof on"), back.goalUnmet());
     }
 }
