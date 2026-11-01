@@ -123,6 +123,7 @@
   "friendai.config.category.mining": "Minage",
   "friendai.config.category.voice": "Voix",
   "friendai.config.category.server": "Serveur",
+  "friendai.config.category.reset": "Réinitialiser la catégorie",
   "friendai.config.server_only": "Ces paramètres se configurent sur le serveur.",
   "friendai.config.server_protected": "Les paramètres du serveur ne peuvent pas être lus, sauvegardés ni mis à niveau en toute sécurité. friendai-server.json est conservé en lecture seule. Vérifiez le fichier, l'espace disque et les permissions du dossier, puis rouvrez cet écran pour réessayer.",
   "friendai.config.server_unsupported": "friendai-server.json a un format inconnu ou plus récent. Les anciens formats pris en charge sont mis à niveau automatiquement. Utilisez une version compatible du mod, ou sauvegardez puis remplacez le fichier pour modifier ces paramètres.",

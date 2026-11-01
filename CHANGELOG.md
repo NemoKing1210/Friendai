@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.142.0] - 2026-11-01
+
+### Added
+
+- A **Reset this category** button at the top of every settings category: it puts that one category back to its defaults and leaves every other change alone. Nothing is saved until you press Save.
+
 ## [0.141.0] - 2026-11-01
 
 ### Added

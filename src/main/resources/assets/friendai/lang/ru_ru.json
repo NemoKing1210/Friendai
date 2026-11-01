@@ -123,6 +123,7 @@
   "friendai.config.category.mining": "Добыча",
   "friendai.config.category.voice": "Голос",
   "friendai.config.category.server": "Сервер",
+  "friendai.config.category.reset": "Сбросить категорию",
   "friendai.config.server_only": "Эти настройки задаются на сервере.",
   "friendai.config.server_protected": "Не удалось безопасно прочитать, сохранить резервную копию или обновить настройки сервера. friendai-server.json остаётся только для чтения. Проверьте файл, свободное место и права на папку, затем откройте этот экран снова для повторной попытки.",
   "friendai.config.server_unsupported": "У friendai-server.json неизвестный или более новый формат. Поддерживаемые старые форматы обновляются автоматически. Используйте совместимую версию мода или сохраните резервную копию и замените файл, чтобы изменить настройки.",
