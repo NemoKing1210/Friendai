@@ -744,5 +744,21 @@
   "friendai.config.agent.prompt_budget": "System prompt character budget",
   "friendai.config.agent.prompt_budget.tooltip": "Maximum characters of the system prompt; 0 means unlimited. Larger prompts cost more tokens.",
   "friendai.config.agent.planner_timeout_sec": "Planner timeout (seconds)",
-  "friendai.config.agent.planner_timeout_sec.tooltip": "How long one planner call may take (10–300 seconds, default 60)."
+  "friendai.config.agent.planner_timeout_sec.tooltip": "How long one planner call may take (10–300 seconds, default 60).",
+  "friendai.config.category.tasks": "Tasks",
+  "friendai.config.tasks.default_follow": "Follow by default",
+  "friendai.config.tasks.mine_search_radius": "Mining search radius",
+  "friendai.config.tasks.mine_search_radius.tooltip": "Blocks searched around the companion when looking for a block to mine (1–128, default 32).",
+  "friendai.config.tasks.tree_search_radius": "Tree search radius",
+  "friendai.config.tasks.tree_search_radius.tooltip": "How far the companion looks for a tree to fell (1–128, default 32).",
+  "friendai.config.tasks.timeout_sec": "Task timeout (seconds)",
+  "friendai.config.tasks.timeout_sec.tooltip": "How long one task may run before it is stopped and reported (10–3600 seconds, default 300).",
+  "friendai.config.tasks.queue_max_jobs": "Queued jobs",
+  "friendai.config.tasks.queue_max_jobs.tooltip": "Maximum queued jobs (1–256, default 64). Older low-priority work is refused when full.",
+  "friendai.config.tasks.queue_max_plans": "Queued plans",
+  "friendai.config.tasks.queue_max_plans.tooltip": "Maximum queued plans (1–32, default 8). Each plan holds several steps.",
+  "friendai.config.tasks.queue_max_steps": "Steps per plan",
+  "friendai.config.tasks.queue_max_steps.tooltip": "Maximum steps accepted in one plan (1–128, default 32).",
+  "friendai.config.tasks.fell_collect": "Collect felled logs",
+  "friendai.config.tasks.mine_collect": "Collect mined drops"
 }

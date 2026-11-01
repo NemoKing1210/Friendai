@@ -744,5 +744,21 @@
   "friendai.config.agent.prompt_budget": "Budget de caractères du prompt système",
   "friendai.config.agent.prompt_budget.tooltip": "Nombre maximal de caractères du prompt système ; 0 signifie illimité. Les prompts plus longs coûtent plus de tokens.",
   "friendai.config.agent.planner_timeout_sec": "Délai du planificateur (secondes)",
-  "friendai.config.agent.planner_timeout_sec.tooltip": "Durée maximale d’un appel au planificateur (10–300 secondes, défaut 60)."
+  "friendai.config.agent.planner_timeout_sec.tooltip": "Durée maximale d’un appel au planificateur (10–300 secondes, défaut 60).",
+  "friendai.config.category.tasks": "Tâches",
+  "friendai.config.tasks.default_follow": "Suivre par défaut",
+  "friendai.config.tasks.mine_search_radius": "Rayon de recherche minière",
+  "friendai.config.tasks.mine_search_radius.tooltip": "Blocs recherchés autour du compagnon pour trouver un bloc à miner (1–128, défaut 32).",
+  "friendai.config.tasks.tree_search_radius": "Rayon de recherche d’arbres",
+  "friendai.config.tasks.tree_search_radius.tooltip": "Jusqu’où le compagnon cherche un arbre à abattre (1–128, défaut 32).",
+  "friendai.config.tasks.timeout_sec": "Délai d’une tâche (secondes)",
+  "friendai.config.tasks.timeout_sec.tooltip": "Durée maximale d’une tâche avant son arrêt et son rapport (10–3600 secondes, défaut 300).",
+  "friendai.config.tasks.queue_max_jobs": "Tâches en file",
+  "friendai.config.tasks.queue_max_jobs.tooltip": "Nombre maximal de tâches en file (1–256, défaut 64). Les anciennes tâches peu prioritaires sont refusées quand la file est pleine.",
+  "friendai.config.tasks.queue_max_plans": "Plans en file",
+  "friendai.config.tasks.queue_max_plans.tooltip": "Nombre maximal de plans en file (1–32, défaut 8). Chaque plan contient plusieurs étapes.",
+  "friendai.config.tasks.queue_max_steps": "Étapes par plan",
+  "friendai.config.tasks.queue_max_steps.tooltip": "Nombre maximal d’étapes dans un plan (1–128, défaut 32).",
+  "friendai.config.tasks.fell_collect": "Ramasser les troncs abattus",
+  "friendai.config.tasks.mine_collect": "Ramasser les butins minés"
 }

@@ -744,5 +744,21 @@
   "friendai.config.agent.prompt_budget": "Orçamento de caracteres do prompt",
   "friendai.config.agent.prompt_budget.tooltip": "Máximo de caracteres do prompt do sistema; 0 significa ilimitado. Prompts maiores custam mais tokens.",
   "friendai.config.agent.planner_timeout_sec": "Tempo limite do planejador (segundos)",
-  "friendai.config.agent.planner_timeout_sec.tooltip": "Quanto tempo uma chamada ao planejador pode levar (10–300 segundos, padrão 60)."
+  "friendai.config.agent.planner_timeout_sec.tooltip": "Quanto tempo uma chamada ao planejador pode levar (10–300 segundos, padrão 60).",
+  "friendai.config.category.tasks": "Tarefas",
+  "friendai.config.tasks.default_follow": "Seguir por padrão",
+  "friendai.config.tasks.mine_search_radius": "Raio de busca de mineração",
+  "friendai.config.tasks.mine_search_radius.tooltip": "Blocos procurados ao redor do companheiro ao buscar um bloco para minerar (1–128, padrão 32).",
+  "friendai.config.tasks.tree_search_radius": "Raio de busca de árvores",
+  "friendai.config.tasks.tree_search_radius.tooltip": "Até onde o companheiro procura uma árvore para derrubar (1–128, padrão 32).",
+  "friendai.config.tasks.timeout_sec": "Tempo limite da tarefa (segundos)",
+  "friendai.config.tasks.timeout_sec.tooltip": "Quanto tempo uma tarefa pode durar antes de ser interrompida e relatada (10–3600 segundos, padrão 300).",
+  "friendai.config.tasks.queue_max_jobs": "Tarefas na fila",
+  "friendai.config.tasks.queue_max_jobs.tooltip": "Máximo de tarefas na fila (1–256, padrão 64). Trabalho antigo de baixa prioridade é recusado quando cheia.",
+  "friendai.config.tasks.queue_max_plans": "Planos na fila",
+  "friendai.config.tasks.queue_max_plans.tooltip": "Máximo de planos na fila (1–32, padrão 8). Cada plano contém várias etapas.",
+  "friendai.config.tasks.queue_max_steps": "Etapas por plano",
+  "friendai.config.tasks.queue_max_steps.tooltip": "Máximo de etapas aceitas em um plano (1–128, padrão 32).",
+  "friendai.config.tasks.fell_collect": "Coletar troncos derrubados",
+  "friendai.config.tasks.mine_collect": "Coletar drops minerados"
 }

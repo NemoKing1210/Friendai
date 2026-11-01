@@ -741,5 +741,21 @@
   "friendai.config.agent.prompt_budget": "系统提示字符预算",
   "friendai.config.agent.prompt_budget.tooltip": "系统提示的最大字符数；0 表示不限制。提示越长，消耗的 token 越多。",
   "friendai.config.agent.planner_timeout_sec": "规划器超时（秒）",
-  "friendai.config.agent.planner_timeout_sec.tooltip": "一次规划器调用可以持续多久（10–300 秒，默认 60）。"
+  "friendai.config.agent.planner_timeout_sec.tooltip": "一次规划器调用可以持续多久（10–300 秒，默认 60）。",
+  "friendai.config.category.tasks": "任务",
+  "friendai.config.tasks.default_follow": "默认跟随",
+  "friendai.config.tasks.mine_search_radius": "挖矿搜索半径",
+  "friendai.config.tasks.mine_search_radius.tooltip": "寻找可挖掘方块时在同伴周围搜索的半径（1–128，默认 32）。",
+  "friendai.config.tasks.tree_search_radius": "树木搜索半径",
+  "friendai.config.tasks.tree_search_radius.tooltip": "同伴寻找可砍伐树木的距离（1–128，默认 32）。",
+  "friendai.config.tasks.timeout_sec": "任务超时（秒）",
+  "friendai.config.tasks.timeout_sec.tooltip": "单个任务运行多久后停止并报告（10–3600 秒，默认 300）。",
+  "friendai.config.tasks.queue_max_jobs": "队列任务数",
+  "friendai.config.tasks.queue_max_jobs.tooltip": "队列中的最大任务数（1–256，默认 64）。队列满时，较早的低优先级工作会被拒绝。",
+  "friendai.config.tasks.queue_max_plans": "队列方案数",
+  "friendai.config.tasks.queue_max_plans.tooltip": "队列中的最大方案数（1–32，默认 8）。每个方案包含多个步骤。",
+  "friendai.config.tasks.queue_max_steps": "每个方案的步骤数",
+  "friendai.config.tasks.queue_max_steps.tooltip": "单个方案接受的最大步骤数（1–128，默认 32）。",
+  "friendai.config.tasks.fell_collect": "收集砍下的原木",
+  "friendai.config.tasks.mine_collect": "收集挖掘掉落物"
 }

@@ -741,5 +741,21 @@
   "friendai.config.agent.prompt_budget": "Presupuesto de caracteres del prompt",
   "friendai.config.agent.prompt_budget.tooltip": "Máximo de caracteres del prompt del sistema; 0 significa ilimitado. Los prompts más largos cuestan más tokens.",
   "friendai.config.agent.planner_timeout_sec": "Tiempo límite del planificador (segundos)",
-  "friendai.config.agent.planner_timeout_sec.tooltip": "Cuánto puede tardar una llamada al planificador (10–300 segundos, predeterminado 60)."
+  "friendai.config.agent.planner_timeout_sec.tooltip": "Cuánto puede tardar una llamada al planificador (10–300 segundos, predeterminado 60).",
+  "friendai.config.category.tasks": "Tareas",
+  "friendai.config.tasks.default_follow": "Seguir por defecto",
+  "friendai.config.tasks.mine_search_radius": "Radio de búsqueda minera",
+  "friendai.config.tasks.mine_search_radius.tooltip": "Bloques buscados alrededor del compañero al buscar un bloque para minar (1–128, predeterminado 32).",
+  "friendai.config.tasks.tree_search_radius": "Radio de búsqueda de árboles",
+  "friendai.config.tasks.tree_search_radius.tooltip": "Hasta dónde busca el compañero un árbol para talar (1–128, predeterminado 32).",
+  "friendai.config.tasks.timeout_sec": "Tiempo límite de tarea (segundos)",
+  "friendai.config.tasks.timeout_sec.tooltip": "Cuánto puede durar una tarea antes de detenerse e informar (10–3600 segundos, predeterminado 300).",
+  "friendai.config.tasks.queue_max_jobs": "Tareas en cola",
+  "friendai.config.tasks.queue_max_jobs.tooltip": "Máximo de tareas en cola (1–256, predeterminado 64). El trabajo antiguo de baja prioridad se rechaza cuando está llena.",
+  "friendai.config.tasks.queue_max_plans": "Planes en cola",
+  "friendai.config.tasks.queue_max_plans.tooltip": "Máximo de planes en cola (1–32, predeterminado 8). Cada plan contiene varios pasos.",
+  "friendai.config.tasks.queue_max_steps": "Pasos por plan",
+  "friendai.config.tasks.queue_max_steps.tooltip": "Máximo de pasos aceptados en un plan (1–128, predeterminado 32).",
+  "friendai.config.tasks.fell_collect": "Recoger troncos talados",
+  "friendai.config.tasks.mine_collect": "Recoger botines minados"
 }

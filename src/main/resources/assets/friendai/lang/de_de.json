@@ -744,5 +744,21 @@
   "friendai.config.agent.prompt_budget": "Zeichenbudget des Systemprompts",
   "friendai.config.agent.prompt_budget.tooltip": "Maximale Zeichen des Systemprompts; 0 bedeutet unbegrenzt. Größere Prompts kosten mehr Tokens.",
   "friendai.config.agent.planner_timeout_sec": "Planer-Timeout (Sekunden)",
-  "friendai.config.agent.planner_timeout_sec.tooltip": "Wie lange ein Planer-Aufruf dauern darf (10–300 Sekunden, Standard 60)."
+  "friendai.config.agent.planner_timeout_sec.tooltip": "Wie lange ein Planer-Aufruf dauern darf (10–300 Sekunden, Standard 60).",
+  "friendai.config.category.tasks": "Aufgaben",
+  "friendai.config.tasks.default_follow": "Standardmäßig folgen",
+  "friendai.config.tasks.mine_search_radius": "Suchradius beim Abbau",
+  "friendai.config.tasks.mine_search_radius.tooltip": "Blöcke, die beim Suchen nach Abbaublöcken um den Begleiter geprüft werden (1–128, Standard 32).",
+  "friendai.config.tasks.tree_search_radius": "Suchradius für Bäume",
+  "friendai.config.tasks.tree_search_radius.tooltip": "Wie weit der Begleiter nach einem Baum zum Fällen sucht (1–128, Standard 32).",
+  "friendai.config.tasks.timeout_sec": "Aufgaben-Timeout (Sekunden)",
+  "friendai.config.tasks.timeout_sec.tooltip": "Wie lange eine Aufgabe laufen darf, bevor sie gestoppt und gemeldet wird (10–3600 Sekunden, Standard 300).",
+  "friendai.config.tasks.queue_max_jobs": "Aufträge in der Warteschlange",
+  "friendai.config.tasks.queue_max_jobs.tooltip": "Maximale Aufträge in der Warteschlange (1–256, Standard 64). Bei vollem Puffer wird ältere Arbeit mit niedriger Priorität abgelehnt.",
+  "friendai.config.tasks.queue_max_plans": "Pläne in der Warteschlange",
+  "friendai.config.tasks.queue_max_plans.tooltip": "Maximale Pläne in der Warteschlange (1–32, Standard 8). Jeder Plan enthält mehrere Schritte.",
+  "friendai.config.tasks.queue_max_steps": "Schritte pro Plan",
+  "friendai.config.tasks.queue_max_steps.tooltip": "Maximale Schritte in einem Plan (1–128, Standard 32).",
+  "friendai.config.tasks.fell_collect": "Gefällte Stämme sammeln",
+  "friendai.config.tasks.mine_collect": "Abgebaute Drops sammeln"
 }
