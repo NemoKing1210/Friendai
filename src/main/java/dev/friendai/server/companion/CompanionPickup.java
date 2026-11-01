@@ -4,6 +4,7 @@ import dev.friendai.entity.CompanionEntity;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.Predicate;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.item.ItemEntity;
 
@@ -30,7 +31,12 @@ public final class CompanionPickup {
             if (!item.isRemoved()
                     && item.getOwner() instanceof ServerPlayer player
                     && player.getUUID().equals(owner)) {
-                companion.storeItem(item);
+                var stack = item.getItem();
+                int moved = companion.storeItem(item);
+                if (moved > 0 && !stack.isEmpty()) {
+                    String kind = BuiltInRegistries.ITEM.getKey(stack.getItem()).getPath();
+                    companion.noteGift(kind, companion.inventory().countItem(stack.getItem()));
+                }
             }
         }
     }
