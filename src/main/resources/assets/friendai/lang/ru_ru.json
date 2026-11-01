@@ -718,5 +718,10 @@
   "friendai.menu.log.kind.response": "Ответ",
   "friendai.freetime.no_plan.step": "шаг %s",
   "friendai.freetime.no_plan.invalid_steps": "недопустимые или недоступные действия",
-  "friendai.config.get_key": "Получить ключ API"
+  "friendai.config.get_key": "Получить ключ API",
+  "friendai.command.settings.header": "Настройки Friendai (только чтение):",
+  "friendai.command.settings.line": "%s: %s",
+  "friendai.config.autonomy": "Автономность",
+  "friendai.config.chunk_loading": "Загрузка чанков",
+  "friendai.config.hearing_radius": "Радиус слышимости"
 }

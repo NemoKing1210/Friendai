@@ -718,5 +718,10 @@
   "friendai.menu.log.kind.response": "回复",
   "friendai.freetime.no_plan.step": "步骤 %s",
   "friendai.freetime.no_plan.invalid_steps": "无效或不可用的动作",
-  "friendai.config.get_key": "获取 API 密钥"
+  "friendai.config.get_key": "获取 API 密钥",
+  "friendai.command.settings.header": "Friendai 设置（只读）：",
+  "friendai.command.settings.line": "%s：%s",
+  "friendai.config.autonomy": "自主性",
+  "friendai.config.chunk_loading": "区块加载",
+  "friendai.config.hearing_radius": "听力范围"
 }
