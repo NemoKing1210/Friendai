@@ -8,6 +8,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.96.4] - 2026-11-01
+
+### Fixed
+
+- The planner is now told that a standing tree is one `fell_tree` step, not a `mine_blocks` count, so “collect 32 jungle logs” no longer starts a per-log mining plan.
+
 ## [0.96.3] - 2026-11-01
 
 ### Fixed

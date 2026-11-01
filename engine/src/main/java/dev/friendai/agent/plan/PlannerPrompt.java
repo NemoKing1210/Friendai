@@ -16,6 +16,7 @@ public final class PlannerPrompt {
                 + "- Conditions support all_of/any_of with 1..8 conditions, not, existing guards, and block_in_front, biome, fluid_ahead, distance_travelled, time_elapsed. Nesting is limited to 8.\n"
                 + "- Keep the worst-case action count within the supplied queue limit; normalized plans are limited to 49152 characters and each args object to 8192 characters. Every repeat needs a cap.\n"
                 + "- Keep the plan short and concrete. Prefer obtain_item over hand-written gathering chains.\n"
+                + "- For a standing tree, plan one fell_tree with the tree's log type; never plan mine_blocks or mine_block_at per log.\n"
                 + "- Stone and ores need the right pickaxe; obtain_item plans that tool chain. Never plan mine_blocks for a hard block before the companion has a suitable pickaxe.\n"
                 + "- Use a conditional for a world-checkable branch and repeat/until for bounded retry work; the server chooses branches deterministically.\n"
                 + "- Lessons list what already failed or was tried: do not repeat an approach that failed; choose a different one.\n"
