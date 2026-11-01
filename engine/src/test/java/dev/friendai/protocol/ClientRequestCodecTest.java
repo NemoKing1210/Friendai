@@ -44,6 +44,17 @@ final class ClientRequestCodecTest {
     }
 
     @Test
+    void roundTripsTheOwnerGoalEdit() {
+        byte[] encoded = ClientRequestCodec.encode(4, new ControlRequest.UpdateGoal(7L, "bring two stacks of oak"));
+
+        DecodeResult<DecodedClientRequest> result = ClientRequestCodec.decode(encoded);
+        assertInstanceOf(DecodeResult.Valid.class, result);
+        DecodedClientRequest decoded = ((DecodeResult.Valid<DecodedClientRequest>) result).value();
+        assertEquals(4, decoded.requestId());
+        assertEquals(new ControlRequest.UpdateGoal(7L, "bring two stacks of oak"), decoded.request());
+    }
+
+    @Test
     void rejectsNoncanonicalBooleanAndMalformedUtf8BeforeDispatch() {
         byte[] invalidBoolean = {1, 1, 8, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 2};
         byte[] invalidUtf8Rename = {1, 1, 7, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 3, 0, 1, (byte) 0xff};

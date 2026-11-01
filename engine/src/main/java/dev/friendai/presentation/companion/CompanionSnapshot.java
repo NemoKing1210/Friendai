@@ -21,6 +21,7 @@ import java.util.List;
  * @param goalText the owner's primary goal in the companion's own words, empty when there is none
  * @param goalCriteria every criterion of that goal, one line each
  * @param goalUnmet the subset of {@code goalCriteria} the world does not confirm yet
+ * @param goalId the primary goal's id, or 0 when there is none; the menu edits that goal by id
  */
 public record CompanionSnapshot(
         boolean present,
@@ -53,7 +54,8 @@ public record CompanionSnapshot(
         String goalText,
         List<String> goalCriteria,
         List<String> goalUnmet,
-        boolean workPaused) {
+        boolean workPaused,
+        long goalId) {
     public static final int MAX_ACTIVITY = 200;
     public static final int MAX_NEXT = 160;
     public static final int MAX_BUDGET = 80;
@@ -125,7 +127,76 @@ public record CompanionSnapshot(
                 goalText,
                 goalCriteria,
                 goalUnmet,
-                false);
+                false,
+                0);
+    }
+
+    /** The shape before the goal id, so a caller that does not edit goals stays unchanged. */
+    public CompanionSnapshot(
+            boolean present,
+            boolean operator,
+            String companionName,
+            String provider,
+            String model,
+            boolean thinking,
+            String currentTask,
+            List<TaskRecord> history,
+            List<LogEntry> newLog,
+            String perception,
+            List<String> toolNames,
+            CompanionVitals vitals,
+            List<QueueRow> queue,
+            boolean autoRespawn,
+            boolean autoRespawnAvailable,
+            boolean creativeMode,
+            boolean creativeModeAvailable,
+            boolean freeTimeOn,
+            String freeTimeActivity,
+            boolean freeTimeWaiting,
+            boolean followMode,
+            String freeTimeNext,
+            String freeTimeBudget,
+            String freeTimeLast,
+            String freeTimePlannerModel,
+            String bondTier,
+            List<String> bondReasons,
+            String goalText,
+            List<String> goalCriteria,
+            List<String> goalUnmet,
+            boolean workPaused) {
+        this(
+                present,
+                operator,
+                companionName,
+                provider,
+                model,
+                thinking,
+                currentTask,
+                history,
+                newLog,
+                perception,
+                toolNames,
+                vitals,
+                queue,
+                autoRespawn,
+                autoRespawnAvailable,
+                creativeMode,
+                creativeModeAvailable,
+                freeTimeOn,
+                freeTimeActivity,
+                freeTimeWaiting,
+                followMode,
+                freeTimeNext,
+                freeTimeBudget,
+                freeTimeLast,
+                freeTimePlannerModel,
+                bondTier,
+                bondReasons,
+                goalText,
+                goalCriteria,
+                goalUnmet,
+                workPaused,
+                0);
     }
 
     public CompanionSnapshot {

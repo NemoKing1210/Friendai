@@ -1,5 +1,6 @@
 package dev.friendai.client.ui;
 
+import dev.friendai.agent.goal.GoalBoard;
 import dev.friendai.presentation.companion.CompanionSnapshot;
 import dev.friendai.presentation.companion.CompanionVitals;
 import dev.friendai.protocol.control.ControlRequest;
@@ -7,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.network.chat.Component;
 
 /**
@@ -19,6 +21,13 @@ final class ControlTab extends StatefulMenuTab {
     private static final int HEADER_HEIGHT = 62;
     private static final int VITALS_HEIGHT = 64;
     private static final int PAD = 8;
+    private static final int GOAL_HEIGHT = 20;
+    private static final int GOAL_BUTTON = 64;
+
+    // The owner's unsent edit, kept across tab switches and screen rebuilds.
+    private static String goalDraft = "";
+    private static String goalSource = "";
+    private static long goalDraftId = Long.MIN_VALUE;
 
     private FlatButton summon;
     private FlatButton teleport;
@@ -26,6 +35,8 @@ final class ControlTab extends StatefulMenuTab {
     private FlatButton stop;
     private FlatButton pause;
     private FlatButton retry;
+    private EditBox goalBox;
+    private FlatButton goalSave;
     private int buttonsTop;
 
     @Override
@@ -36,6 +47,26 @@ final class ControlTab extends StatefulMenuTab {
         int rows = (buttons + columns - 1) / columns;
         int buttonWidth = (width - (columns - 1) * GAP) / columns;
         buttonsTop = top + height - rows * BUTTON_HEIGHT - (rows - 1) * GAP;
+        // The active goal sits above everything else: the owner edits it here instead of by chatting.
+        goalBox = host.add(new EditBox(
+                host.font(),
+                left,
+                top,
+                width - GOAL_BUTTON - GAP,
+                GOAL_HEIGHT,
+                Component.translatable("friendai.menu.goal.hint")));
+        goalBox.setMaxLength(GoalBoard.MAX_TEXT);
+        goalBox.setHint(Component.translatable("friendai.menu.goal.hint"));
+        goalBox.setValue(goalDraft);
+        goalBox.setResponder(text -> goalDraft = text);
+        goalSave = host.add(new FlatButton(
+                left + width - GOAL_BUTTON,
+                top,
+                GOAL_BUTTON,
+                GOAL_HEIGHT,
+                Component.translatable("friendai.menu.goal.update"),
+                Ui.GOOD,
+                this::saveGoal));
         int index = 0;
         summon = place(
                 host,
@@ -153,6 +184,37 @@ final class ControlTab extends StatefulMenuTab {
         pause.active = connected && present;
         retry.active = connected && present;
         pause.setMessage(workLabel());
+        syncGoal();
+    }
+
+    /** Shows the goal row only while there is a goal, and keeps its draft equal to the server's text until edited. */
+    private void syncGoal() {
+        var snapshot = state.snapshot();
+        boolean shown =
+                snapshot.map(s -> !s.goalText().isBlank() && s.goalId() > 0).orElse(false);
+        goalBox.visible = shown;
+        goalSave.visible = shown;
+        if (!shown) {
+            return;
+        }
+        CompanionSnapshot s = snapshot.get();
+        String text = s.goalText();
+        boolean changed = !text.equals(goalSource);
+        if (s.goalId() != goalDraftId || (changed && goalDraft.equals(goalSource))) {
+            goalDraftId = s.goalId();
+            goalDraft = text;
+            goalBox.setValue(goalDraft);
+        }
+        goalSource = text;
+        boolean connected = CompanionRequests.serverSupported() && !state.isStale();
+        goalSave.active = connected && s.present() && !goalDraft.isBlank() && !goalDraft.equals(text);
+    }
+
+    /** Asks the companion to change the primary goal's sentence; the owner path needs no operator rights. */
+    private void saveGoal() {
+        state.snapshot()
+                .ifPresent(snapshot ->
+                        CompanionRequests.send(new ControlRequest.UpdateGoal(snapshot.goalId(), goalBox.getValue())));
     }
 
     @Override
@@ -163,8 +225,9 @@ final class ControlTab extends StatefulMenuTab {
             return;
         }
         CompanionSnapshot s = snapshot.get();
-        drawHeader(g, font, s, left, top, width);
-        int y = top + HEADER_HEIGHT + GAP;
+        int contentTop = top + (goalBox.visible ? GOAL_HEIGHT + GAP : 0);
+        drawHeader(g, font, s, left, contentTop, width);
+        int y = contentTop + HEADER_HEIGHT + GAP;
         int limit = buttonsTop - GAP;
         if (s.present() && limit - y >= VITALS_HEIGHT + GAP + 40) {
             drawVitals(g, font, s.vitals(), left, y, width);

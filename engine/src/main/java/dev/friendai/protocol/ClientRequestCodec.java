@@ -453,7 +453,10 @@ public final class ClientRequestCodec {
         else if (request instanceof ControlRequest.SetPaused paused) out.writeBoolean(paused.paused());
         else if (request instanceof ControlRequest.SetCreativeMode toggle) out.writeBoolean(toggle.enabled());
         else if (request instanceof ControlRequest.SetFollowMode toggle) out.writeBoolean(toggle.enabled());
-        else if (request instanceof ControlRequest.SendChat chat) out.writeString(chat.text(), 500);
+        else if (request instanceof ControlRequest.UpdateGoal goal) {
+            out.writeLong(goal.goalId());
+            out.writeString(goal.text(), 200);
+        } else if (request instanceof ControlRequest.SendChat chat) out.writeString(chat.text(), 500);
         else if (request instanceof ControlRequest.InvokeTool tool) {
             out.writeString(tool.name(), 500);
             out.writeString(tool.argumentsJson(), 2_000);
@@ -487,6 +490,7 @@ public final class ClientRequestCodec {
             case 12 -> new ControlRequest.SendChat(in.readString(500));
             case 14 -> new ControlRequest.SetPaused(in.readBoolean());
             case 15 -> new ControlRequest.RetryLast();
+            case 16 -> new ControlRequest.UpdateGoal(in.readLong(), in.readString(200));
             case 13 -> new ControlRequest.InvokeTool(in.readString(500), in.readString(2_000));
             default -> throw new ProtocolDataException(DecodeResult.Reason.UNKNOWN_OPERATION);
         };

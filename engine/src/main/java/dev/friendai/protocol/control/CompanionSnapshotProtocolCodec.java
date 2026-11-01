@@ -106,7 +106,8 @@ public final class CompanionSnapshotProtocolCodec {
                 snapshot.goalText(),
                 snapshot.goalCriteria(),
                 snapshot.goalUnmet(),
-                snapshot.workPaused());
+                snapshot.workPaused(),
+                snapshot.goalId());
     }
 
     private static void validate(CompanionSnapshotView snapshot) {
@@ -125,6 +126,7 @@ public final class CompanionSnapshotProtocolCodec {
                 || snapshot.bondReasons().size() > MAX_LIST_COUNT
                 || snapshot.goalCriteria().size() > MAX_LIST_COUNT
                 || snapshot.goalUnmet().size() > MAX_LIST_COUNT
+                || snapshot.goalId() < 0
                 || (!snapshot.operator()
                         && (!snapshot.newLog().isEmpty()
                                 || !snapshot.perception().isEmpty()

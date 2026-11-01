@@ -36,7 +36,8 @@ public record CompanionSnapshotView(
         String goalText,
         List<String> goalCriteria,
         List<String> goalUnmet,
-        boolean workPaused) {
+        boolean workPaused,
+        long goalId) {
 
     /**
      * A payload written before these fields existed, or by a peer that leaves them out, decodes with them empty:
@@ -105,7 +106,76 @@ public record CompanionSnapshotView(
                 goalText,
                 goalCriteria,
                 goalUnmet,
-                false);
+                false,
+                0);
+    }
+
+    /** The shape before the goal id, so a payload reader that predates it keeps compiling. */
+    public CompanionSnapshotView(
+            boolean present,
+            boolean operator,
+            String companionName,
+            String provider,
+            String model,
+            boolean thinking,
+            String currentTask,
+            List<TaskRecord> history,
+            List<LogEntry> newLog,
+            String perception,
+            List<String> toolNames,
+            Vitals vitals,
+            List<QueueItem> queue,
+            boolean autoRespawn,
+            boolean autoRespawnAvailable,
+            boolean creativeMode,
+            boolean creativeModeAvailable,
+            boolean freeTimeOn,
+            String freeTimeActivity,
+            boolean freeTimeWaiting,
+            boolean followMode,
+            String freeTimeNext,
+            String freeTimeBudget,
+            String freeTimeLast,
+            String freeTimePlannerModel,
+            String bondTier,
+            List<String> bondReasons,
+            String goalText,
+            List<String> goalCriteria,
+            List<String> goalUnmet,
+            boolean workPaused) {
+        this(
+                present,
+                operator,
+                companionName,
+                provider,
+                model,
+                thinking,
+                currentTask,
+                history,
+                newLog,
+                perception,
+                toolNames,
+                vitals,
+                queue,
+                autoRespawn,
+                autoRespawnAvailable,
+                creativeMode,
+                creativeModeAvailable,
+                freeTimeOn,
+                freeTimeActivity,
+                freeTimeWaiting,
+                followMode,
+                freeTimeNext,
+                freeTimeBudget,
+                freeTimeLast,
+                freeTimePlannerModel,
+                bondTier,
+                bondReasons,
+                goalText,
+                goalCriteria,
+                goalUnmet,
+                workPaused,
+                0);
     }
 
     public CompanionSnapshotView {

@@ -112,7 +112,8 @@ public final class SnapshotBuilder {
                 feeling.goalUnmet(),
                 companion
                         .map(entity -> entity.executionCoordinator().manualPause())
-                        .orElse(false));
+                        .orElse(false),
+                feeling.goalId());
     }
 
     /** What the companion feels and is working on, already in the shape the snapshot wants. */
@@ -120,6 +121,7 @@ public final class SnapshotBuilder {
             String bondTier,
             List<String> bondReasons,
             String goalText,
+            long goalId,
             List<String> goalCriteria,
             List<String> goalUnmet) {}
 
@@ -137,6 +139,7 @@ public final class SnapshotBuilder {
             FriendaiMod.LOGGER.debug("Bond read for the menu failed for {}", owner, failure);
         }
         String goalText = "";
+        long goalId = 0;
         List<String> criteria = List.of();
         List<String> unmet = List.of();
         try {
@@ -145,6 +148,7 @@ public final class SnapshotBuilder {
             if (primary.isPresent()) {
                 Goal goal = primary.get();
                 goalText = goal.text();
+                goalId = goal.id();
                 criteria = goal.criteria().stream().map(Criterion::text).toList();
                 CompanionGuardFacts facts = new CompanionGuardFacts(companion);
                 facts.refresh();
@@ -155,7 +159,7 @@ public final class SnapshotBuilder {
         } catch (RuntimeException failure) {
             FriendaiMod.LOGGER.debug("Goal read for the menu failed for {}", owner, failure);
         }
-        return new Feeling(tier, reasons, goalText, criteria, unmet);
+        return new Feeling(tier, reasons, goalText, goalId, criteria, unmet);
     }
 
     private static CompanionVitals vitalsOf(CompanionEntity c) {

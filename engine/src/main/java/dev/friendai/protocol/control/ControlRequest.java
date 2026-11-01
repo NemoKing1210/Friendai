@@ -18,7 +18,8 @@ public sealed interface ControlRequest extends ClientRequest
                 ControlRequest.SendChat,
                 ControlRequest.InvokeTool,
                 ControlRequest.SetPaused,
-                ControlRequest.RetryLast {
+                ControlRequest.RetryLast,
+                ControlRequest.UpdateGoal {
     @Override
     default ProtocolFamily family() {
         return ProtocolFamily.CONTROL;
@@ -120,6 +121,18 @@ public sealed interface ControlRequest extends ClientRequest
         @Override
         public int operationId() {
             return 14;
+        }
+    }
+
+    /** The owner edits the wording of a goal from the menu; the criteria and status stay as they are. */
+    record UpdateGoal(long goalId, String text) implements ControlRequest {
+        @Override
+        public int operationId() {
+            return 16;
+        }
+
+        public UpdateGoal {
+            text = text == null ? "" : text;
         }
     }
 

@@ -135,6 +135,15 @@ public final class CompanionRequestHandler {
             }
         } else if (request instanceof ControlRequest.SetPaused paused) {
             companions.find(owner).ifPresent(c -> c.executionCoordinator().setManualPause(paused.paused()));
+        } else if (request instanceof ControlRequest.UpdateGoal edit) {
+            // The owner owns their goals: the id is checked by the board, and a blank text is refused there too.
+            runtime.goals()
+                    .board(owner)
+                    .update(
+                            edit.goalId(),
+                            edit.text().isBlank() ? java.util.Optional.empty() : java.util.Optional.of(edit.text()),
+                            java.util.Optional.empty(),
+                            java.util.Optional.empty());
         } else if (request instanceof ControlRequest.RetryLast) {
             companions.find(owner).ifPresent(c -> c.executionCoordinator().retryLast());
         } else if (request instanceof ControlRequest.Stop) {
@@ -185,7 +194,8 @@ public final class CompanionRequestHandler {
         if (request instanceof ControlRequest.Dismiss) return DebugAccess.Action.DISMISS;
         if (request instanceof ControlRequest.Stop
                 || request instanceof ControlRequest.SetPaused
-                || request instanceof ControlRequest.RetryLast) return DebugAccess.Action.STOP;
+                || request instanceof ControlRequest.RetryLast
+                || request instanceof ControlRequest.UpdateGoal) return DebugAccess.Action.STOP;
         if (request instanceof ControlRequest.Teleport) return DebugAccess.Action.TELEPORT;
         if (request instanceof ControlRequest.Rename) return DebugAccess.Action.RENAME;
         if (request instanceof ControlRequest.SetAutoRespawn) return DebugAccess.Action.SET_AUTO_RESPAWN;

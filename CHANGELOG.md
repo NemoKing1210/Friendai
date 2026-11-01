@@ -6,7 +6,13 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
-## [0.148.0] - 2026-11-02
+## [0.149.0] - 2026-11-02
+
+### Added
+
+- The companion menu now shows the active goal with its criteria and lets you **edit its wording** in place, so a goal set by chat can be corrected without starting over. Editing is owner-only and does not need operator rights.
+
+ - 2026-11-02
 
 ### Fixed
 
