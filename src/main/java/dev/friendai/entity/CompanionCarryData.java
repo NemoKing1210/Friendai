@@ -27,11 +27,36 @@ import net.minecraft.world.level.saveddata.SavedDataType;
  * the model only ever needs the most recent one.
  */
 public final class CompanionCarryData extends SavedData {
-    /** The format version of this store; a newer one is not guessed. */
-    static final int SAVE_VERSION = 1;
+    /**
+     * The format version of this store; a newer one is not guessed. Version 2 adds the recovery facts to a death:
+     * the item entities it spawned, the stack fallback and the respawn point. Version 1 files read with no drops.
+     */
+    static final int SAVE_VERSION = 2;
 
     /** How many deaths are kept per owner; the prompt renders only the newest. */
     public static final int MAX_DEATHS = 5;
+
+    private static final Codec<DeathRecord.Drops> DROPS_CODEC = RecordCodecBuilder.create(instance -> instance.group(
+                    Codec.STRING
+                            .listOf()
+                            .optionalFieldOf("entities", List.of())
+                            .forGetter(drops -> drops.entities().stream()
+                                    .map(UUID::toString)
+                                    .toList()),
+                    Codec.STRING.listOf().optionalFieldOf("stacks", List.of()).forGetter(DeathRecord.Drops::stacks),
+                    Codec.BOOL.optionalFieldOf("unrecoverable", false).forGetter(DeathRecord.Drops::unrecoverable))
+            .apply(
+                    instance,
+                    (entities, stacks, unrecoverable) ->
+                            new DeathRecord.Drops(uuids(entities), stacks, unrecoverable)));
+
+    private static final Codec<DeathRecord.Respawn> RESPAWN_CODEC =
+            RecordCodecBuilder.create(instance -> instance.group(
+                            Codec.STRING.optionalFieldOf("dimension", "").forGetter(DeathRecord.Respawn::dimension),
+                            Codec.INT.optionalFieldOf("x", 0).forGetter(DeathRecord.Respawn::x),
+                            Codec.INT.optionalFieldOf("y", 0).forGetter(DeathRecord.Respawn::y),
+                            Codec.INT.optionalFieldOf("z", 0).forGetter(DeathRecord.Respawn::z))
+                    .apply(instance, DeathRecord.Respawn::new));
 
     private static final Codec<DeathRecord> DEATH_RECORD_CODEC = RecordCodecBuilder.create(instance -> instance.group(
                     Codec.STRING.optionalFieldOf("dimension", "").forGetter(DeathRecord::dimension),
@@ -40,8 +65,21 @@ public final class CompanionCarryData extends SavedData {
                     Codec.INT.optionalFieldOf("z", 0).forGetter(DeathRecord::z),
                     Codec.STRING.optionalFieldOf("cause", "").forGetter(DeathRecord::cause),
                     Codec.STRING.optionalFieldOf("killer", "").forGetter(DeathRecord::killer),
-                    Codec.LONG.optionalFieldOf("tick", 0L).forGetter(DeathRecord::tick))
-            .apply(instance, DeathRecord::new));
+                    Codec.LONG.optionalFieldOf("tick", 0L).forGetter(DeathRecord::tick),
+                    DROPS_CODEC.optionalFieldOf("drops").forGetter(death -> Optional.of(death.drops())),
+                    RESPAWN_CODEC.optionalFieldOf("respawn").forGetter(death -> Optional.ofNullable(death.respawn())))
+            .apply(
+                    instance,
+                    (dimension, x, y, z, cause, killer, tick, drops, respawn) -> new DeathRecord(
+                            dimension,
+                            x,
+                            y,
+                            z,
+                            cause,
+                            killer,
+                            tick,
+                            drops.orElse(DeathRecord.Drops.NONE),
+                            respawn.orElse(null))));
 
     private record OwnerCarry(CompoundTag body, List<DeathRecord> deaths) {
         private static final Codec<OwnerCarry> CODEC = RecordCodecBuilder.create(instance -> instance.group(
@@ -97,6 +135,19 @@ public final class CompanionCarryData extends SavedData {
         this.version = SAVE_VERSION;
         this.owners = new HashMap<>(owners == null ? Map.of() : owners);
         this.readOnly = false;
+    }
+
+    /** Parses stored ids, skipping anything corrupted rather than dropping the whole record. */
+    private static List<UUID> uuids(List<String> stored) {
+        List<UUID> ids = new ArrayList<>(stored.size());
+        for (String id : stored) {
+            try {
+                ids.add(UUID.fromString(id));
+            } catch (IllegalArgumentException ignored) {
+                // A hand-edited file keeps its other drops.
+            }
+        }
+        return ids;
     }
 
     public static CompanionCarryData get(MinecraftServer server) {

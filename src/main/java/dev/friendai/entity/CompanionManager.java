@@ -17,10 +17,13 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.BlockTags;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.level.block.BedBlock;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.HorizontalDirectionalBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BedPart;
@@ -131,12 +134,17 @@ public final class CompanionManager {
         listeners.remove(listener);
     }
     /** Called only from the entity's actual death path; removals and unloads do not qualify. */
-    public void onDeath(CompanionEntity companion, ServerLevel level, DamageSource source) {
+    public void onDeath(
+            CompanionEntity companion,
+            ServerLevel level,
+            DamageSource source,
+            List<CompanionEntity.DeathDrop> dropped) {
         UUID owner = companion.ownerUuid();
         if (owner == null) {
             return;
         }
-        CompanionCarryData.get(server).record(owner, companion.captureCarry(), deathOf(companion, level, source));
+        CompanionCarryData.get(server)
+                .record(owner, companion.captureCarry(), deathOf(companion, level, source, dropped));
         transientCarry.put(
                 owner,
                 new TransientCarry(
@@ -144,10 +152,23 @@ public final class CompanionManager {
         pendingDeaths.put(owner, companion.getUUID());
     }
 
-    private static DeathRecord deathOf(CompanionEntity companion, ServerLevel level, DamageSource source) {
+    private DeathRecord deathOf(
+            CompanionEntity companion,
+            ServerLevel level,
+            DamageSource source,
+            List<CompanionEntity.DeathDrop> dropped) {
         BlockPos pos = companion.blockPosition();
         Entity attacker = source.getEntity();
         String killer = attacker == null ? "" : attacker.getName().getString();
+        List<UUID> entities = new ArrayList<>(dropped.size());
+        List<String> stacks = new ArrayList<>(dropped.size());
+        for (CompanionEntity.DeathDrop drop : dropped) {
+            if (drop.entity() != null) {
+                entities.add(drop.entity());
+            }
+            stacks.add(drop.stack());
+        }
+        DeathRecord.Drops drops = new DeathRecord.Drops(entities, stacks, unrecoverableSpot(level, pos, source));
         return new DeathRecord(
                 level.dimension().identifier().getPath(),
                 pos.getX(),
@@ -155,7 +176,37 @@ public final class CompanionManager {
                 pos.getZ(),
                 source.getMsgId(),
                 killer,
-                level.getGameTime());
+                level.getGameTime(),
+                drops,
+                respawnPointOf(companion.ownerUuid(), level));
+    }
+
+    /**
+     * Lava, fire and the void destroy the drops before anyone can walk back: the stacks are still remembered, but the
+     * recovery is not promised a trip that cannot succeed.
+     */
+    private static boolean unrecoverableSpot(ServerLevel level, BlockPos pos, DamageSource source) {
+        if (source.is(DamageTypes.FELL_OUT_OF_WORLD) || pos.getY() < level.getMinY()) {
+            return true;
+        }
+        BlockState state = level.getBlockState(pos);
+        return level.getFluidState(pos).is(FluidTags.LAVA) || state.is(Blocks.FIRE) || state.is(Blocks.LAVA);
+    }
+
+    /** The checkpoint respawn will use, recorded at death so the prompt can say where the body came back. */
+    private DeathRecord.Respawn respawnPointOf(@Nullable UUID owner, ServerLevel level) {
+        if (owner == null) {
+            return null;
+        }
+        return runtime()
+                .companionLife()
+                .respawnPoint(owner)
+                .map(point -> new DeathRecord.Respawn(
+                        point.dimension().identifier().getPath(),
+                        point.bed().getX(),
+                        point.bed().getY(),
+                        point.bed().getZ()))
+                .orElse(null);
     }
     /** Replaces eligible dead companions after their entity-unload callback has removed the old index entry. */
     public void tick() {

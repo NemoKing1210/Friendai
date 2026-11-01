@@ -122,7 +122,7 @@ public class CompanionDeathTests {
     }
 
     @GameTest(maxTicks = 200)
-    public void deathKeepsInventoryEquipmentAndVitals(GameTestHelper h) {
+    public void deathDropsLootButKeepsBodyState(GameTestHelper h) {
         ServerPlayer owner = ready(h);
         CompanionManager manager = CompanionManager.get(h.getLevel().getServer());
         ServerRuntime state = GameTestSupport.runtime(h.getLevel().getServer());
@@ -155,9 +155,11 @@ public class CompanionDeathTests {
             Optional<CompanionEntity> back = replacement(manager, owner.getUUID(), dead);
             h.assertTrue(back.isPresent(), "the companion should respawn automatically");
             CompanionEntity revived = back.get();
-            h.assertTrue(revived.inventory().countItem(Items.OAK_LOG) == 5, "the logs must survive death");
+            h.assertValueEqual(
+                    revived.inventory().countItem(Items.OAK_LOG), 0, "the replacement body starts with an empty bag");
             h.assertTrue(
-                    revived.getItemBySlot(EquipmentSlot.FEET).is(Items.IRON_BOOTS), "the boots must survive death");
+                    revived.getItemBySlot(EquipmentSlot.FEET).isEmpty(),
+                    "the replacement body does not wear what was dropped");
             h.assertValueEqual(revived.hunger().food(), 7, "hunger must survive death");
             h.assertValueEqual(revived.experience().points(), 25, "experience must survive death");
             h.assertValueEqual(
@@ -180,9 +182,13 @@ public class CompanionDeathTests {
                     "the loaded furnace must survive death");
             h.assertTrue(
                     h.getLevel().getEntitiesOfClass(ItemEntity.class, spot).stream()
-                            .noneMatch(item -> item.getItem().is(Items.OAK_LOG)
-                                    || item.getItem().is(Items.IRON_BOOTS)),
-                    "death must not scatter the carried items");
+                            .anyMatch(item -> item.getItem().is(Items.OAK_LOG)
+                                    && item.getItem().getCount() == 5),
+                    "the logs must lie where the companion died");
+            h.assertTrue(
+                    h.getLevel().getEntitiesOfClass(ItemEntity.class, spot).stream()
+                            .anyMatch(item -> item.getItem().is(Items.IRON_BOOTS)),
+                    "the boots must lie where the companion died");
 
             TagValueOutput out = TagValueOutput.createWithContext(
                     ProblemReporter.DISCARDING, h.getLevel().registryAccess());
@@ -190,11 +196,10 @@ public class CompanionDeathTests {
             CompanionEntity copy = h.spawn(FriendaiEntities.COMPANION, 1, 2, 1);
             copy.load(TagValueInput.create(
                     ProblemReporter.DISCARDING, h.getLevel().registryAccess(), out.buildResult()));
+            h.assertValueEqual(copy.inventory().countItem(Items.OAK_LOG), 0, "a world reload keeps the empty bag");
             h.assertTrue(
-                    copy.inventory().countItem(Items.OAK_LOG) == 5, "a world reload must keep the restored inventory");
-            h.assertTrue(
-                    copy.getItemBySlot(EquipmentSlot.FEET).is(Items.IRON_BOOTS),
-                    "a world reload must keep the restored equipment");
+                    copy.getItemBySlot(EquipmentSlot.FEET).isEmpty(),
+                    "a world reload does not resurrect the dropped boots");
         });
     }
 
@@ -272,6 +277,7 @@ public class CompanionDeathTests {
         CompanionEntity companion = manager.summon(owner);
         companion.inventory().addItem(new ItemStack(Items.OAK_LOG, 4));
         UUID dead = companion.getUUID();
+        AABB area = companion.getBoundingBox().inflate(8.0);
 
         kill(companion, h);
 
@@ -282,10 +288,73 @@ public class CompanionDeathTests {
             h.assertTrue(manager.find(owner.getUUID()).isEmpty(), "the dead body should be removed by now");
             CompanionEntity summoned = manager.summon(owner);
             h.assertTrue(!summoned.getUUID().equals(dead), "summoning after a death must create a new body");
+            h.assertValueEqual(
+                    summoned.inventory().countItem(Items.OAK_LOG),
+                    0,
+                    "a summon after a death must not restore what was dropped");
             h.assertTrue(
-                    summoned.inventory().countItem(Items.OAK_LOG) == 4,
-                    "a summon after a death must restore the carried state");
+                    h.getLevel().getEntitiesOfClass(ItemEntity.class, area).stream()
+                            .anyMatch(item -> item.getItem().is(Items.OAK_LOG)
+                                    && item.getItem().getCount() == 4),
+                    "the summoned body must find its old logs where it died");
             h.succeed();
+        });
+    }
+
+    @GameTest(maxTicks = 200)
+    public void deathDropsEveryCarriedStackExactlyOnce(GameTestHelper h) {
+        ServerPlayer owner = ready(h);
+        CompanionManager manager = CompanionManager.get(h.getLevel().getServer());
+        CompanionEntity companion = manager.summon(owner);
+        int carried = 0;
+        for (int slot = 0; slot < companion.inventory().getContainerSize(); slot++) {
+            int count = slot + 1;
+            companion.inventory().setItem(slot, new ItemStack(Items.OAK_LOG, count));
+            carried += count;
+        }
+        companion.setItemSlot(EquipmentSlot.HEAD, new ItemStack(Items.IRON_HELMET));
+        companion.setItemSlot(EquipmentSlot.CHEST, new ItemStack(Items.IRON_CHESTPLATE));
+        companion.setItemSlot(EquipmentSlot.LEGS, new ItemStack(Items.IRON_LEGGINGS));
+        companion.setItemSlot(EquipmentSlot.FEET, new ItemStack(Items.IRON_BOOTS));
+        companion.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.DIAMOND_SWORD));
+        companion.setItemSlot(EquipmentSlot.OFFHAND, new ItemStack(Items.SHIELD));
+        AABB spot = companion.getBoundingBox().inflate(8.0);
+        UUID dead = companion.getUUID();
+        int expected = carried;
+
+        kill(companion, h);
+
+        h.succeedWhen(() -> {
+            List<ItemEntity> drops = h.getLevel().getEntitiesOfClass(ItemEntity.class, spot);
+            int logs = drops.stream()
+                    .filter(item -> item.getItem().is(Items.OAK_LOG))
+                    .mapToInt(item -> item.getItem().getCount())
+                    .sum();
+            h.assertValueEqual(logs, expected, "the bag must be dropped once, not doubled or kept");
+            // Item entities merge when they land on each other, so only the total proves exactly-once.
+            h.assertTrue(
+                    drops.stream().anyMatch(item -> item.getItem().is(Items.OAK_LOG)),
+                    "the bag must leave the body as drops");
+            for (var worn : List.of(
+                    Items.IRON_HELMET,
+                    Items.IRON_CHESTPLATE,
+                    Items.IRON_LEGGINGS,
+                    Items.IRON_BOOTS,
+                    Items.DIAMOND_SWORD,
+                    Items.SHIELD)) {
+                long count =
+                        drops.stream().filter(item -> item.getItem().is(worn)).count();
+                h.assertTrue(count == 1L, "each worn piece must drop exactly once: " + worn + ", got " + count);
+            }
+            Optional<CompanionEntity> back = replacement(manager, owner.getUUID(), dead);
+            h.assertTrue(back.isPresent(), "the companion should respawn automatically");
+            h.assertValueEqual(
+                    back.get().inventory().countItem(Items.OAK_LOG), 0, "the replacement body carries nothing");
+            for (EquipmentSlot slot : EquipmentSlot.values()) {
+                h.assertTrue(
+                        back.get().getItemBySlot(slot).isEmpty(),
+                        "the replacement body must not keep " + slot + " after dropping it");
+            }
         });
     }
 
@@ -483,7 +552,8 @@ public class CompanionDeathTests {
         h.assertValueEqual(decoded.lastDeath(owner).orElseThrow().describe(), death.describe(), "the death");
 
         CompoundTag newer = new CompoundTag();
-        newer.putInt("version", 2);
+        // One past the current format: a file this build cannot write must stay untouched.
+        newer.putInt("version", 3);
         newer.put("owners", new CompoundTag());
         CompanionCarryData future = CompanionCarryData.TYPE
                 .codec()
@@ -498,7 +568,7 @@ public class CompanionDeathTests {
                 .result()
                 .orElseThrow();
         h.assertValueEqual(
-                ((CompoundTag) reencoded).getInt("version").orElse(0), 2, "the newer version header must be kept");
+                ((CompoundTag) reencoded).getInt("version").orElse(0), 3, "the newer version header must be kept");
         h.succeed();
     }
 }
