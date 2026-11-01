@@ -55,7 +55,9 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.ConfirmLinkScreen;
@@ -64,6 +66,7 @@ import net.minecraft.network.chat.Component;
 
 /** The Friendai settings screen, built with YACL. Only loaded when YACL is installed. */
 public final class FriendaiConfigScreen {
+    private static final Set<String> AUTO_FETCHED = ConcurrentHashMap.newKeySet();
     private static final List<String> WHISPER_MODELS = List.of("tiny", "base", "small");
 
     /** Set while a rebuild writes pending widget values into the config, so listeners stay quiet. */
@@ -391,6 +394,30 @@ public final class FriendaiConfigScreen {
                         })))
                 .build();
 
+        String requestedProvider = providerOpt.pendingValue();
+        String autoKey = requestedProvider + "|" + (p.baseUrl == null ? "" : p.baseUrl) + "|"
+                + Integer.toHexString(String.valueOf(p.apiKey).hashCode());
+        if (!"openai_compat".equals(requestedProvider)
+                && ModelCache.get(requestedProvider).isEmpty()
+                && p.apiKey != null
+                && !p.apiKey.isBlank()
+                && registry.preset(requestedProvider)
+                        .filter(preset -> preset.authStyle() != dev.friendai.agent.llm.provider.AuthStyle.NONE)
+                        .isPresent()
+                && AUTO_FETCHED.add(autoKey)) {
+            pendingClient
+                    .get()
+                    .listModels()
+                    .whenComplete((models, error) -> Minecraft.getInstance().execute(() -> {
+                        if (error != null) {
+                            return;
+                        }
+                        ModelCache.put(requestedProvider, models);
+                        if (session != null && session.current(generation) && screenRevision == revision) {
+                            deferRebuild(() -> show(create(parent, revealKey, voiceDraft)));
+                        }
+                    }));
+        }
         OptionGroup advanced = OptionGroup.createBuilder()
                 .name(tr("friendai.config.category.advanced"))
                 .collapsed(true)
