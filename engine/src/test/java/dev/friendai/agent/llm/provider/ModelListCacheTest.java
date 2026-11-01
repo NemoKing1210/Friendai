@@ -25,6 +25,14 @@ class ModelListCacheTest {
     }
 
     @Test
+    void aRestoredListIsServedAsAStaleFallback() {
+        ModelListCache cache = new ModelListCache(1_000);
+        cache.restore(java.util.Map.of("groq|", List.of("llama")));
+        assertEquals(List.of("llama"), cache.get("groq|", 5_000));
+        assertFalse(cache.isFresh("groq|", 5_000));
+    }
+
+    @Test
     void anEmptyAnswerNeverErasesTheLastGoodList() {
         ModelListCache cache = new ModelListCache(1_000);
         cache.put("mistral|", List.of("m"), 10);
