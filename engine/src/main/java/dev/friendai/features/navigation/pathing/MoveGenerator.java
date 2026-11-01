@@ -324,7 +324,9 @@ public final class MoveGenerator {
             return;
         }
         boolean headInWater = view.at(to.head()).kind() == Cell.Kind.WATER;
-        if (headInWater && headUnderwater >= MAX_UNDERWATER_RUN) {
+        boolean rising = to.y() > from.y();
+        // A rising stroke in a column reaches the surface; only a lateral submerged run spends the breath budget.
+        if (headInWater && !rising && headUnderwater >= MAX_UNDERWATER_RUN) {
             return;
         }
         // Swimming with the head under is slower and harder to steer than floating along the surface, and it
@@ -334,7 +336,7 @@ public final class MoveGenerator {
                 to,
                 Move.SWIM,
                 headInWater ? cost * SUBMERGED_FACTOR : cost,
-                headInWater ? headUnderwater + 1 : 0,
+                headInWater && !rising ? headUnderwater + 1 : 0,
                 out);
     }
 

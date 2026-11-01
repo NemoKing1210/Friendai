@@ -8,6 +8,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.96.3] - 2026-11-01
+
+### Fixed
+
+- A companion can now climb a water column taller than eight blocks: a rising stroke no longer counts as a submerged lateral swim and exhausts the breath budget.
+
 ## [0.96.2] - 2026-11-01
 
 ### Fixed
