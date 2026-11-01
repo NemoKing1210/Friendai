@@ -723,5 +723,6 @@
   "friendai.command.settings.line": "%s: %s",
   "friendai.config.autonomy": "Автономность",
   "friendai.config.chunk_loading": "Загрузка чанков",
-  "friendai.config.hearing_radius": "Радиус слышимости"
+  "friendai.config.hearing_radius": "Радиус слышимости",
+  "controls.reset": "Сброс"
 }
