@@ -8,6 +8,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.125.0] - 2026-11-01
+
+### Added
+
+- A **Feeling** tab in the companion menu shows the mood, the bond the owner has earned and its last reasons, plus the current goal with each criterion marked met or not proven. Only the owner sees it; guests and other players never receive it.
+
 ## [0.124.1] - 2026-11-01
 
 ### Changed

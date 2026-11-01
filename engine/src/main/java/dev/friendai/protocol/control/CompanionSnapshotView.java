@@ -30,7 +30,24 @@ public record CompanionSnapshotView(
         String freeTimeNext,
         String freeTimeBudget,
         String freeTimeLast,
-        String freeTimePlannerModel) {
+        String freeTimePlannerModel,
+        String bondTier,
+        List<String> bondReasons,
+        String goalText,
+        List<String> goalCriteria,
+        List<String> goalUnmet) {
+
+    /**
+     * A payload written before these fields existed, or by a peer that leaves them out, decodes with them empty:
+     * Gson fills a missing component with {@code null} and would otherwise fail the codec's bounds check.
+     */
+    public CompanionSnapshotView {
+        bondTier = bondTier == null ? "" : bondTier;
+        bondReasons = bondReasons == null ? List.of() : List.copyOf(bondReasons);
+        goalText = goalText == null ? "" : goalText;
+        goalCriteria = goalCriteria == null ? List.of() : List.copyOf(goalCriteria);
+        goalUnmet = goalUnmet == null ? List.of() : List.copyOf(goalUnmet);
+    }
 
     public record Vitals(
             float health,
