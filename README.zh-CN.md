@@ -134,6 +134,7 @@
 
 - **本地（免费，离线）**——[sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) 会在你的 CPU 上运行 Piper 语音。共提供五个语音：Irina 和 Dmitri（俄语）、Lessac 和 LibriTTS-R（英语）以及 Alba（英式英语）。选择一个并按 **下载语音**；语音保存在 `<game dir>/friendai/models/tts/`（每个约 67–82 MB）。俄语系统默认使用 Irina，其他系统默认使用 Lessac。每个语音都有自己的许可，显示在下拉菜单下方：模型文件大多为 MIT，LibriTTS-R 语音为 CC BY 4.0，而训练数据的条款各不相同。
 - **OpenAI（付费）**——OpenAI 语音 API，需要密钥、声音和语速。Base URL 可以指向任何兼容 OpenAI 的服务器，包括本地服务器，此时无需密钥。
+- **Google Cloud Text-to-Speech（付费）** — 密钥、语音、语言和语速；音频以 LINEAR16 返回。
 - **ElevenLabs（付费）**——ElevenLabs 文本转语音 API；需要密钥、语音 id 和语速。
 - **Yandex SpeechKit（付费）**——需要 API 密钥、云端文件夹 id、一个语音、一个语言标签、语速，以及 16 kHz PCM 输出。
 
