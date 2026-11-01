@@ -4,6 +4,8 @@ import dev.friendai.agent.turn.BrainEvent;
 import dev.friendai.entity.CompanionCarryData;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.social.ConversationCadence;
+import dev.friendai.features.social.TopicBank;
+import dev.friendai.features.social.TopicRing;
 import dev.friendai.features.survival.DeathRecord;
 import dev.friendai.server.runtime.ServerRuntime;
 import java.util.HashMap;
@@ -20,6 +22,11 @@ import net.minecraft.server.level.ServerPlayer;
  * free. The pace is {@link ConversationCadence} — a per-scene gap with jitter, a quiet window after the owner speaks
  * and a backoff when a line drew nothing — so an ignored question is not repeated. One bounded
  * {@link BrainEvent.SocialOpening} rides the normal turn, which carries no tools.
+ *
+ * <p>A happening always wins: when there is none to tell and the pace allows a line, the companion may instead open a
+ * subject of its own, taken from {@link TopicBank} in the owner's learned language and never one it already raised
+ * ({@link TopicRing}). That line is {@code ORDINARY} and carries an empty happenings list, so a topic and a fact are
+ * never spoken together.
  */
 public final class SocialDirector {
     /** One look per second is plenty for a line that happens at most every couple of minutes. */
@@ -33,6 +40,8 @@ public final class SocialDirector {
     private final Map<UUID, Held> held = new HashMap<>();
     /** The pace of unprompted lines, per owner. */
     private final Map<UUID, ConversationCadence> cadence = new HashMap<>();
+    /** The subjects already raised, per owner, so an opener is not repeated. Kept for the session, never cleared. */
+    private final Map<UUID, TopicRing> topics = new HashMap<>();
 
     private record Held(String text, long since) {}
 
@@ -60,12 +69,11 @@ public final class SocialDirector {
                 continue;
             }
             String text = nextFact(runtime, owner);
-            if (text == null) {
-                continue;
-            }
             ConversationCadence.Scene scene = scene(companion, player, hearing);
             if (scene == ConversationCadence.Scene.AWAY || !free(player, companion)) {
-                hold(owner, text, now);
+                if (text != null) {
+                    hold(owner, text, now);
+                }
                 continue;
             }
             ConversationCadence pace = cadence.computeIfAbsent(owner, ignored -> new ConversationCadence());
@@ -73,13 +81,30 @@ public final class SocialDirector {
                 continue;
             }
             held.remove(owner);
+            if (text != null) {
+                // A happening is news: it takes the line alone and a topic is not considered at all.
+                runtime.sessions()
+                        .post(
+                                owner,
+                                new BrainEvent.SocialOpening(
+                                        BrainEvent.SocialOpening.Urgency.HIGH, List.of(text), "", false));
+                // A statement, not a question: nothing waits for an answer.
+                pace.recordLine(scene, (int) now, false, false);
+                continue;
+            }
+            // Nothing to report: the companion may open a subject of its own, in the owner's own language.
+            String topic = nextTopic(runtime, owner);
+            if (topic == null) {
+                continue;
+            }
+            boolean asks = TopicBank.asks(topic) && pace.mayAskQuestion();
             runtime.sessions()
                     .post(
                             owner,
                             new BrainEvent.SocialOpening(
-                                    BrainEvent.SocialOpening.Urgency.HIGH, List.of(text), "", false));
-            // A statement, not a question: nothing waits for an answer.
-            pace.recordLine(scene, (int) now, false, false);
+                                    BrainEvent.SocialOpening.Urgency.ORDINARY, List.of(), topic, asks));
+            // A question waits for the owner to speak; an ignored one backs the next line off.
+            pace.recordLine(scene, (int) now, asks, false);
         }
     }
 
@@ -109,6 +134,23 @@ public final class SocialDirector {
             return null;
         }
         return "I died not long ago at " + death.get().describe() + ".";
+    }
+
+    /**
+     * The first opener of the bank, in the language the owner actually writes in, that the ring still allows; null
+     * when every opener was already raised. The opener is remembered before it is returned, so a line that never
+     * reaches the brain still counts as raised.
+     */
+    private String nextTopic(ServerRuntime runtime, UUID owner) {
+        String language = runtime.memory().book(owner).ownerLanguage(owner).orElse(null);
+        TopicRing ring = topics.computeIfAbsent(owner, ignored -> new TopicRing());
+        for (String opener : TopicBank.forLanguage(language)) {
+            if (ring.allows(opener)) {
+                ring.remember(opener);
+                return opener;
+            }
+        }
+        return null;
     }
 
     private void hold(UUID owner, String text, long now) {
