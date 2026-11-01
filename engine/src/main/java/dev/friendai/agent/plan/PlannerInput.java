@@ -28,6 +28,7 @@ public record PlannerInput(
         String failure,
         Map<String, JsonObject> schemas,
         Set<String> allTools,
+        List<String> verified,
         List<dev.friendai.agent.prompt.PromptSection> instructions,
         int promptBudget) {
     public PlannerInput(
@@ -40,12 +41,61 @@ public record PlannerInput(
             String failure,
             Map<String, JsonObject> schemas,
             Set<String> allTools) {
-        this(goal, world, toolDigest, knowledge, queueState, lessons, failure, schemas, allTools, List.of(), 0);
+        this(
+                goal,
+                world,
+                toolDigest,
+                knowledge,
+                queueState,
+                lessons,
+                failure,
+                schemas,
+                allTools,
+                List.of(),
+                List.of(),
+                0);
+    }
+
+    public PlannerInput(
+            Goal goal,
+            String world,
+            String toolDigest,
+            String knowledge,
+            Optional<String> queueState,
+            List<String> lessons,
+            String failure,
+            Map<String, JsonObject> schemas,
+            Set<String> allTools,
+            List<String> verified) {
+        this(
+                goal,
+                world,
+                toolDigest,
+                knowledge,
+                queueState,
+                lessons,
+                failure,
+                schemas,
+                allTools,
+                verified,
+                List.of(),
+                0);
     }
 
     public PlannerInput withInstructions(List<dev.friendai.agent.prompt.PromptSection> sections, int budget) {
         return new PlannerInput(
-                goal, world, toolDigest, knowledge, queueState, lessons, failure, schemas, allTools, sections, budget);
+                goal,
+                world,
+                toolDigest,
+                knowledge,
+                queueState,
+                lessons,
+                failure,
+                schemas,
+                allTools,
+                verified,
+                sections,
+                budget);
     }
 
     public PlannerInput {
@@ -58,6 +108,7 @@ public record PlannerInput(
         failure = failure == null ? "" : failure;
         schemas = schemas == null ? Map.of() : Map.copyOf(schemas);
         allTools = allTools == null ? Set.of() : Set.copyOf(allTools);
+        verified = verified == null ? List.of() : List.copyOf(verified);
     }
 
     /** A prompt-only input, for tests and callers that never parse a reply. */

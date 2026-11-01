@@ -74,4 +74,36 @@ class PlannerPromptTest {
         assertTrue(system.contains("one JSON object"));
         assertTrue(system.contains("do not repeat an approach that failed"));
     }
+
+    @Test
+    void factsEarlierTasksVerifiedAreShownButBounded() {
+        List<String> verified = new java.util.ArrayList<>();
+        for (int i = 1; i <= 12; i++) {
+            verified.add("+1 minecraft:item" + i);
+        }
+        PlannerInput in = new PlannerInput(
+                goal(),
+                "Position: 1 2 3",
+                "- jump {}",
+                "",
+                Optional.empty(),
+                List.of(),
+                "",
+                java.util.Map.of(),
+                java.util.Set.of(),
+                verified);
+        String user = PlannerPrompt.user(in, text -> text);
+        assertTrue(user.contains("Already verified by earlier tasks:"), user);
+        assertTrue(user.contains("- +1 minecraft:item1"), user);
+        assertTrue(user.contains("- +1 minecraft:item8"), user);
+        assertFalse(user.contains("minecraft:item9"), "the list stays bounded: " + user);
+    }
+
+    @Test
+    void aPromptWithoutVerifiedFactsDoesNotClaimAny() {
+        String user = PlannerPrompt.user(
+                PlannerInput.promptOnly(goal(), "Position: 1 2 3", "- jump {}", "", Optional.empty(), List.of(), ""),
+                text -> text);
+        assertFalse(user.contains("Already verified"), user);
+    }
 }

@@ -8,7 +8,9 @@ import dev.friendai.agent.turn.Speaker;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.memory.MemoryBook;
 import dev.friendai.foundation.teaching.TeachingContext;
+import java.util.ArrayDeque;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -20,6 +22,7 @@ public final class CompanionSession {
     private final TradingTurnAuthority tradingAuthority;
     private final OwnerProfileObserver profileObserver;
     private final Set<Long> replacedPlans = new HashSet<>();
+    private final ArrayDeque<String> verifiedFacts = new ArrayDeque<>();
     private CompanionEntity companion;
     private CompanionBrain brain;
     private LlmGateway gatewayOverride;
@@ -80,6 +83,20 @@ public final class CompanionSession {
 
     Set<Long> replacedPlans() {
         return replacedPlans;
+    }
+
+    /** The last verified outcome facts, newest first: the planner must not re-prove them. */
+    List<String> verifiedFacts() {
+        return List.copyOf(verifiedFacts);
+    }
+
+    void noteVerified(java.util.Collection<String> facts) {
+        for (String fact : facts) {
+            verifiedFacts.addFirst(fact);
+        }
+        while (verifiedFacts.size() > 8) {
+            verifiedFacts.removeLast();
+        }
     }
 
     long lastGoalTick() {

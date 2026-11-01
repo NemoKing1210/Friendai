@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.139.0] - 2026-11-01
+
+### Changed
+
+- When it plans new work, the companion is now told what its earlier tasks already proved (what it gathered, what changed), so a second plan stops re-doing steps it has already completed.
+
 ## [0.138.0] - 2026-11-01
 
 ### Changed
