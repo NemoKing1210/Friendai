@@ -452,7 +452,10 @@ public class ToolTests {
                 "request_tools",
                 "start_free_time",
                 "end_free_time",
-                "choose_activity");
+                "choose_activity",
+                "recover_drops",
+                "forget_drops",
+                "dropped_items");
         Set<String> actual = new HashSet<>(names);
         h.assertTrue(
                 actual.equals(expected),
