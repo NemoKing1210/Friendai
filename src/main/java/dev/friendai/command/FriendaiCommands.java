@@ -275,6 +275,9 @@ public final class FriendaiCommands {
                 task,
                 UserMessage.of(thinking ? "friendai.common.yes" : "friendai.common.no"));
         ctx.getSource().sendSuccess(() -> Components.of(message), false);
+        if (!runtime.sessions().modelUsable()) {
+            ctx.getSource().sendSuccess(() -> Component.translatable("friendai.command.status.offline"), false);
+        }
         return 1;
     }
 

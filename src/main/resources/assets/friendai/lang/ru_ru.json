@@ -33,6 +33,13 @@
   "friendai.companion.too_far": "Компаньон слишком далеко, чтобы вас услышать.",
 
   "friendai.command.stopped": "Остановился.",
+  "friendai.local_order.follow": "Иду за тобой.",
+  "friendai.local_order.stay": "Остаюсь здесь.",
+  "friendai.local_order.come": "Иду к тебе.",
+  "friendai.local_order.stop": "Остановился.",
+  "friendai.local_order.result": "Готово: %s",
+  "friendai.local_order.failed": "Не могу это сделать: %s",
+  "friendai.command.status.offline": "Языковая модель недоступна; команды «следуй», «стой», «иди сюда», «стоп», «статус» и «инвентарь» всё ещё работают.",
   "friendai.command.diagnose.written": "Пакет диагностики записан в %s. В нём есть координаты и содержимое инвентаря — проверьте его перед отправкой.",
   "friendai.command.diagnose.failed": "Не удалось записать пакет диагностики: %s",
   "friendai.freetime.idle_start": "Раз дел нет, займусь пока своими.",

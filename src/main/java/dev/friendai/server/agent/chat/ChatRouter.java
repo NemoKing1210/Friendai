@@ -50,6 +50,9 @@ public final class ChatRouter {
         Optional<String> addressed = detector.match(text);
         if (addressed.isPresent()) {
             if (recipient.isPresent()) {
+                if (LocalOrderExecutor.tryRun(runtime, player, recipient.get(), addressed.get())) {
+                    return;
+                }
                 CompanionRouting.deliver(runtime, player, recipient.get(), addressed.get(), BrainEvent.Source.CHAT);
             } else if (runtime.companions().find(player.getUUID()).isPresent()) {
                 player.sendSystemMessage(Component.translatable("friendai.companion.too_far"));
@@ -59,7 +62,9 @@ public final class ChatRouter {
         // Unaddressed lines only reach the speaker's own companion, never someone else's,
         // and only when that companion is close enough to hear them.
         if (cfg.chat.listenAll && ownNear) {
-            CompanionRouting.deliver(runtime, player, player.getUUID(), text, BrainEvent.Source.CHAT);
+            if (!LocalOrderExecutor.tryRun(runtime, player, player.getUUID(), text)) {
+                CompanionRouting.deliver(runtime, player, player.getUUID(), text, BrainEvent.Source.CHAT);
+            }
         }
     }
 }
