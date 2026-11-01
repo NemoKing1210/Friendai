@@ -426,3 +426,7 @@ These live provider and GUI checks were not performed by the automated implement
 - [ ] Lower `memory.transcriptRetentionDays` / `transcriptMaxEntries` in the server config, reload, and confirm old lines disappear from `recent_chat`.
 
 These checks need a real provider and the GUI; the automated tests use a scripted model and did not exercise the Memory tab rendering.
+
+## Interface languages (TODO 47)
+
+- [ ] Switch the game to each of `de_de`, `fr_fr`, `es_es`, `pt_br`, `zh_cn` and `uk_ua`; open the companion menu, the YACL settings screen and the HUD at GUI scale 4. Confirm no button, tab, tooltip or toast clips, the language switcher READMEs open, and the companion still answers in the owner's language.
