@@ -51,6 +51,8 @@ public final class FriendaiCommands {
                 .then(Commands.literal("settings").executes(FriendaiCommands::settings))
                 .then(Commands.literal("social")
                         .then(Commands.literal("status").executes(FriendaiCommands::socialStatus)))
+                .then(Commands.literal("speak")
+                        .then(Commands.literal("status").executes(FriendaiCommands::speakStatus)))
                 .then(Commands.literal("trust")
                         .then(Commands.argument("player", EntityArgument.player())
                                 .executes(FriendaiCommands::trust)))
@@ -150,6 +152,16 @@ public final class FriendaiCommands {
                 .stop(player.getUUID(), "owner ended free time");
         ctx.getSource().sendSuccess(() -> Component.translatable("friendai.command.freetime.off"), false);
         return 1;
+    }
+
+    private static int speakStatus(CommandContext<CommandSourceStack> ctx) {
+        boolean on =
+                ServerRuntimeRegistry.getOrCreate(ctx.getSource().getServer()).config().chat.ambientSpeech;
+        ctx.getSource()
+                .sendSuccess(
+                        () -> Component.translatable(on ? "friendai.command.speak.on" : "friendai.command.speak.off"),
+                        false);
+        return on ? 1 : 0;
     }
 
     private static int socialStatus(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {

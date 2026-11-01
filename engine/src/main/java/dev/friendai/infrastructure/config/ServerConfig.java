@@ -16,7 +16,7 @@ import java.util.function.Function;
 
 /** friendai-server.json. */
 public class ServerConfig {
-    public static final int VERSION = 19;
+    public static final int VERSION = 20;
 
     public int version = VERSION;
     public String activeProfile = "main";
@@ -102,6 +102,8 @@ public class ServerConfig {
         public boolean guestsEnabled = true;
         public int hearingRadius = 64;
         public int guestCooldownMs = 5000;
+        /** Whether the companion may start a line on its own; the owner can also switch it off per owner. */
+        public boolean ambientSpeech = true;
     }
 
     public static class BrainSection {

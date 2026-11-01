@@ -598,6 +598,12 @@ public final class FriendaiConfigScreen {
                         .binding(256, () -> c.maxReplyChars, v -> c.maxReplyChars = v)
                         .controller(o -> IntegerFieldControllerBuilder.create(o).range(32, 256))
                         .build())
+                .option(booleanOption(
+                        "friendai.config.chat.ambient_speech",
+                        "friendai.config.chat.ambient_speech.tooltip",
+                        true,
+                        () -> c.ambientSpeech,
+                        v -> c.ambientSpeech = v))
                 .option(Option.<Integer>createBuilder()
                         .name(tr("friendai.config.chat.guest_cooldown_seconds"))
                         .description(OptionDescription.of(tr("friendai.config.chat.guest_cooldown_seconds.tooltip")))

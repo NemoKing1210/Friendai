@@ -28,7 +28,8 @@ public final class ConfigStores {
                     ADDITIVE, // 15 -> 16: free-time watchdog
                     ADDITIVE, // 16 -> 17: build pace
                     ADDITIVE, // 17 -> 18: mining drop protection
-                    ADDITIVE)); // 18 -> 19: transcript retention and memory compaction
+                    ADDITIVE, // 18 -> 19: transcript retention and memory compaction
+                    ADDITIVE)); // 19 -> 20: ambient speech, enabled by default
     private static final ConfigMigration CLIENT = new ConfigMigration(
             1,
             List.of(

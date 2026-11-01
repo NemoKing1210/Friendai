@@ -19,6 +19,7 @@ and applied by `/friendai reload`. See `FriendaiConfigScreen` for the category e
 | Chat | chat.guestsEnabled | boolean | true |  | chat.guests_enabled | yes |
 | Chat | chat.hearingRadius | int | 64 | 4..64 | chat.hearing_radius | yes |
 | Chat | chat.guestCooldownMs | int | 5000 | 0..60000 | chat.guest_cooldown_seconds | yes |
+| Chat | chat.ambientSpeech | boolean | true | — | chat.ambient_speech | yes |
 | Brain | brain.maxToolStepsPerTurn | int | 8 | 1..32 | brain.max_tool_steps | yes |
 | Brain | brain.historyMessages | int | 30 | 6..200 | brain.history_messages | yes |
 | Brain | brain.requestTimeoutSec | int | 60 | 5..600 | brain.request_timeout_sec | yes |

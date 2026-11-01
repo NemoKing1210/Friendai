@@ -106,7 +106,8 @@
 			"dev.friendai.test.PlannerTests",
 			"dev.friendai.test.GoalTickTests",
 			"dev.friendai.test.SettingsCommandTests",
-			"dev.friendai.test.SocialBondTests"
+			"dev.friendai.test.SocialBondTests",
+			"dev.friendai.test.SocialOpeningTests"
 		]
 	},
 	"depends": {

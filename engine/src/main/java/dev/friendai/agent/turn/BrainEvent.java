@@ -182,6 +182,47 @@ public sealed interface BrainEvent {
         }
     }
 
+    /**
+     * An unprompted line the companion may say: what happened, a topic of its own, or both, with no tools and at most
+     * one question. The owner can switch ambient speech off; a refusal is a switch, never a prompt hint.
+     */
+    record SocialOpening(Urgency urgency, java.util.List<String> happenings, String topic, boolean mayAsk)
+            implements BrainEvent {
+        /** HIGH waits for the owner to be near and free; ORDINARY rides the cadence. */
+        public enum Urgency {
+            HIGH,
+            ORDINARY
+        }
+
+        public SocialOpening {
+            happenings = happenings == null ? java.util.List.of() : java.util.List.copyOf(happenings);
+            topic = topic == null ? "" : topic;
+        }
+
+        @Override
+        public String toPromptLine() {
+            StringBuilder line =
+                    new StringBuilder("[event] social: say one short line to your owner, or reply exactly [silent]."
+                            + " No tools, no task, no coordinates, never repeat yourself.");
+            if (!happenings.isEmpty()) {
+                line.append(" Happenings:");
+                for (String happening : happenings) {
+                    line.append(' ').append(happening);
+                    if (!happening.endsWith(".")) {
+                        line.append('.');
+                    }
+                }
+            }
+            if (!topic.isBlank()) {
+                line.append(" Topic: ").append(topic.strip()).append('.');
+            }
+            if (!mayAsk) {
+                line.append(" Do not ask a question this time.");
+            }
+            return line.toString();
+        }
+    }
+
     /** Something the companion noticed in the world, like a furnace finishing. Belongs to the owner. */
     record WorldNotice(String text) implements BrainEvent {
         @Override

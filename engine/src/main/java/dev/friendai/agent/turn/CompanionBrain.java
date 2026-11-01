@@ -85,6 +85,8 @@ public final class CompanionBrain {
     private boolean ownsTroubledPlan;
     /** What the planner just did; shown once in the next request's Mission block. */
     private String plannerNote = "";
+    /** A social batch answers with words only: no schema is sent and no tool call is accepted. */
+    private boolean socialTurn;
 
     private Supplier<AgentSettings> agentSettings = () -> AgentSettings.DEFAULTS;
     private BiFunction<Caller, String, String> tradingPromptSource = (caller, text) -> "";
@@ -481,6 +483,7 @@ public final class CompanionBrain {
                     .ifPresent(e -> teachingContext = new dev.friendai.foundation.teaching.TeachingContext(
                             access.owner(), e.outcomeId(), generation, e.kind()));
         }
+        socialTurn = batch.stream().anyMatch(event -> event instanceof BrainEvent.SocialOpening);
         visibleGroups.clear();
         visibleGroups.addAll(decision.groups());
         thinking = true;
@@ -570,9 +573,12 @@ public final class CompanionBrain {
                     .filter(spec -> !spec.name().equals("manage_skill") || teachingContext != null)
                     .toList();
             Set<ToolGroup> groups = agentSettings.get().toolRouting() ? visibleGroups : EnumSet.allOf(ToolGroup.class);
-            List<ToolSpec> sent = catalog.filter(specs, groups, decision.mode() == TurnMode.CHAT);
+            List<ToolSpec> sent =
+                    socialTurn ? List.of() : catalog.filter(specs, groups, decision.mode() == TurnMode.CHAT);
             // ReplyGuard sanitizes internal names across the full registry, even when routing hid a schema.
-            turnToolNames = specs.stream().map(ToolSpec::name).collect(Collectors.toUnmodifiableSet());
+            turnToolNames = socialTurn
+                    ? java.util.Set.of()
+                    : specs.stream().map(ToolSpec::name).collect(Collectors.toUnmodifiableSet());
             String system = buildSystemPrompt(plannerNote);
             plannerNote = "";
             java.util.List<dev.friendai.agent.llm.model.Message> history = memory.snapshot();

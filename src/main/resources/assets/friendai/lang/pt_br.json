@@ -912,5 +912,9 @@
   "friendai.social.mood.worried": "preocupado",
   "friendai.social.mood.pleased": "satisfeito",
   "friendai.social.mood.displeased": "insatisfeito",
-  "friendai.social.mood.combat": "em combate"
+  "friendai.social.mood.combat": "em combate",
+  "friendai.command.speak.on": "O companheiro pode falar primeiro.",
+  "friendai.command.speak.off": "O companheiro só responde quando falam com ele.",
+  "friendai.config.chat.ambient_speech": "Deixar o companheiro falar primeiro",
+  "friendai.config.chat.ambient_speech.tooltip": "Permite ao companheiro começar uma fala sobre algo que aconteceu, quando você está perto e livre. Desativado: ele só responde."
 }
