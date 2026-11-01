@@ -11,6 +11,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -259,6 +260,14 @@ public final class BlueprintParser {
             errors.add(location + ": unknown roof style '" + style + "'");
             return;
         }
+        if (!style.equals("flat")) {
+            Optional<String> stairs = RoofStairs.stairsFor(block, knownState);
+            if (stairs.isEmpty()) {
+                errors.add(location + ": roof " + block + " has no stairs; use roof_style flat or a stairs block");
+                return;
+            }
+            block = stairs.get();
+        }
         String axis = op.has("axis") ? op.get("axis").getAsString() : "x";
         RoofShape roof = new RoofShape(from, to, style, block, axis);
         switch (style) {
@@ -278,7 +287,7 @@ public final class BlueprintParser {
     private void buildGable(RoofShape roof) {
         int[] from = roof.from();
         int[] to = roof.to();
-        String stairs = stairsId(roof.block());
+        String stairs = roof.block();
         String ridge = ridgeBlock(roof.block());
         boolean alongX = roof.axis().equals("x");
         int span = (alongX ? to[2] - from[2] : to[0] - from[0]) + 1;
@@ -313,7 +322,7 @@ public final class BlueprintParser {
     private void buildPyramid(RoofShape roof) {
         int[] from = roof.from();
         int[] to = roof.to();
-        String stairs = stairsId(roof.block());
+        String stairs = roof.block();
         String ridge = ridgeBlock(roof.block());
         int x1 = from[0];
         int x2 = to[0];
@@ -676,15 +685,8 @@ public final class BlueprintParser {
         return bracket < 0 ? state : state.substring(0, bracket);
     }
 
-    private String stairsId(String block) {
-        return base(block);
-    }
-
-    /** A stairs state facing uphill; a slab or full block keeps its own shape. */
+    /** A stairs state facing uphill. The caller has already normalized the roof to a stairs id. */
     private static String stairState(String id, String facing) {
-        if (id.endsWith("_slab")) {
-            return id + "[type=bottom]";
-        }
         return id + "[facing=" + facing + ",half=bottom]";
     }
 

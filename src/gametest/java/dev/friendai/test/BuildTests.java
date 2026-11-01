@@ -1193,6 +1193,52 @@ public class BuildTests {
         });
     }
 
+    @GameTest(maxTicks = 8000)
+    public void buildsHouseWithPlanksRoof(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.inventory().addItem(new ItemStack(Items.BREAD, 4));
+        companion.inventory().addItem(new ItemStack(Items.DIRT, 64));
+        h.setBlock(2, 2, 9, Blocks.CHEST);
+        var chest = (net.minecraft.world.level.block.entity.ChestBlockEntity)
+                h.getLevel().getBlockEntity(h.absolutePos(new BlockPos(2, 2, 9)));
+        chest.setItem(0, new ItemStack(Items.COBBLESTONE, 64));
+        chest.setItem(1, new ItemStack(Items.OAK_PLANKS, 64));
+        chest.setItem(2, new ItemStack(Items.OAK_PLANKS, 64));
+        chest.setItem(3, new ItemStack(Items.OAK_STAIRS, 64));
+        chest.setItem(4, new ItemStack(Items.GLASS_PANE, 16));
+        chest.setItem(5, new ItemStack(Items.OAK_DOOR, 2));
+        chest.setItem(6, new ItemStack(Items.COBBLESTONE, 64));
+        chest.setChanged();
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, companion, h.absolutePos(new BlockPos(2, 2, 9))),
+                "materials chest should be directly visible");
+        Blueprint house = generator("""
+                { "type": "house", "width": 5, "depth": 5,
+                  "walls": "minecraft:oak_planks", "floor": "minecraft:cobblestone", "roof": "minecraft:oak_planks" }
+                """);
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(companion, result);
+        runner.start(build(house, h, 4, 2, 4, Direction.SOUTH), "build_structure");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status != null, "still running");
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
+            boolean stairs = false;
+            for (int x = 4; x <= 8; x++) {
+                for (int y = 5; y <= 10; y++) {
+                    for (int z = 4; z <= 8; z++) {
+                        if (h.getBlockState(new BlockPos(x, y, z)).is(Blocks.OAK_STAIRS)) {
+                            stairs = true;
+                        }
+                    }
+                }
+            }
+            h.assertTrue(stairs, "the gable roof must be built from stairs");
+            h.assertTrue(chest.getItem(3).getCount() < 64, "stairs must come from the chest");
+        });
+    }
+
     @GameTest(maxTicks = 2000)
     public void buildOnlyTheFloor(GameTestHelper h) {
         GameTestSupport.platform(h, 16);

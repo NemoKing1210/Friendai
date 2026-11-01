@@ -8,6 +8,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.95.10] - 2026-11-01
+
+### Fixed
+
+- A house asked for with a planks, slab or full-block roof now gets the matching stairs instead of failing with an unknown block state, and a roof with no stairs variant is refused before the first block with a message that names the field and the fix.
+
 ## [0.95.9] - 2026-11-01
 
 ### Fixed

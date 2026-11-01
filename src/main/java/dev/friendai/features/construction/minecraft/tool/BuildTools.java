@@ -56,12 +56,14 @@ final class BuildTools {
             - "block" takes a palette key or a block id. "." in layers means "leave unchanged"; "_" is the usual air key.
             - ops, applied in order:
               box (from, to, block, optional hollow), walls (four sides, optional corners), floor (box of height 1),
-              line (axis-aligned from/to), roof (style gable/pyramid/flat; block is a stairs or slab id; axis for gable),
+              line (axis-aligned from/to), roof (style gable/pyramid/flat; block is stairs, slab, planks or a full
+              block with a stairs variant; axis for gable),
               door (at, facing, block), window (from, to on a wall, block, default glass pane).
             - layers: optional; layer i is y = i, each layer is rows (z) of equal-length strings (x); they apply after ops.
             - Limits: at most 32 blocks on each axis and 8192 blocks. Unlisted positions are left unchanged.
             Generators (pass the JSON as the "generator" argument):
-            - house: width 5..15, depth 5..15, floors 1..3, walls, floor, frame (optional log id), roof (stairs id),
+            - house: width 5..15, depth 5..15, floors 1..3, walls, floor, frame (optional log id), roof (stairs, slab,
+              planks or a full block with a stairs variant; optional, derived from walls),
               roof_style gable|pyramid|flat, windows (glass pane id), door_side north|east|south|west, door (door id),
               torches true|false.
             - tower: size 3..9, height 4..24, walls, ladder true|false; crenellations on top.

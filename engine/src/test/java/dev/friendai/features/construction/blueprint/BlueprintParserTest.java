@@ -18,6 +18,8 @@ class BlueprintParserTest {
             "minecraft:air",
             "minecraft:stone",
             "minecraft:oak_stairs",
+            "minecraft:oak_slab",
+            "minecraft:glass",
             "minecraft:oak_door",
             "minecraft:dirt");
 
@@ -308,6 +310,57 @@ class BlueprintParserTest {
         assertEquals(
                 "minecraft:oak_stairs[facing=south,half=bottom]",
                 at(blueprint, 1, 0, 0).state());
+    }
+
+    @Test
+    void handWrittenRoofPlanksBecomeStairs() {
+        Blueprint blueprint = parseOk("""
+                {
+                  "palette": { "S": "minecraft:oak_planks" },
+                  "ops": [ { "op": "roof", "from": [0,0,0], "to": [4,0,4], "style": "gable", "block": "S", "axis": "z" } ]
+                }
+                """);
+        assertEquals(
+                "minecraft:oak_stairs[facing=east,half=bottom]",
+                at(blueprint, 0, 0, 0).state());
+        assertEquals("minecraft:oak_planks", at(blueprint, 2, 2, 0).state(), "ridge uses the full block");
+    }
+
+    @Test
+    void handWrittenRoofSlabBecomesStairs() {
+        Blueprint blueprint = parseOk("""
+                {
+                  "palette": { "S": "minecraft:oak_slab" },
+                  "ops": [ { "op": "roof", "from": [0,0,0], "to": [4,0,4], "style": "pyramid", "block": "S" } ]
+                }
+                """);
+        assertTrue(at(blueprint, 0, 0, 0).state().startsWith("minecraft:oak_stairs"), "slab becomes stairs");
+    }
+
+    @Test
+    void flatRoofKeepsItsFullBlock() {
+        Blueprint blueprint = parseOk("""
+                {
+                  "palette": { "S": "minecraft:oak_planks" },
+                  "ops": [ { "op": "roof", "from": [0,0,0], "to": [2,0,2], "style": "flat", "block": "S" } ]
+                }
+                """);
+        assertEquals("minecraft:oak_planks", at(blueprint, 1, 0, 1).state());
+    }
+
+    @Test
+    void handWrittenRoofWithoutStairsFailsClearly() {
+        List<String> errors = errors("""
+                {
+                  "palette": { "S": "minecraft:glass" },
+                  "ops": [ { "op": "roof", "from": [0,0,0], "to": [2,0,2], "style": "gable", "block": "S", "axis": "x" } ]
+                }
+                """);
+        assertTrue(
+                errors.stream()
+                        .anyMatch(
+                                e -> e.contains("roof minecraft:glass has no stairs") && e.contains("roof_style flat")),
+                errors.toString());
     }
 
     @Test
