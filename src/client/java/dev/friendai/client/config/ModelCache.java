@@ -1,20 +1,19 @@
 package dev.friendai.client.config;
 
-import java.util.HashMap;
+import dev.friendai.agent.llm.provider.ModelListCache;
 import java.util.List;
-import java.util.Map;
 
-/** Model lists fetched from providers, kept for the current game session. */
+/** Model lists fetched from providers, kept for a day with a last-good fallback when the provider is offline. */
 public final class ModelCache {
-    private static final Map<String, List<String>> MODELS = new HashMap<>();
+    private static final ModelListCache CACHE = new ModelListCache();
 
     private ModelCache() {}
 
-    public static synchronized List<String> get(String provider) {
-        return MODELS.getOrDefault(provider, List.of());
+    public static List<String> get(String provider) {
+        return CACHE.get(provider, System.currentTimeMillis());
     }
 
-    public static synchronized void put(String provider, List<String> models) {
-        MODELS.put(provider, List.copyOf(models));
+    public static void put(String provider, List<String> models) {
+        CACHE.put(provider, models, System.currentTimeMillis());
     }
 }
