@@ -622,6 +622,11 @@ public final class MineBlocksTask implements Task {
     }
 
     @Override
+    public long progressStamp() {
+        return mined;
+    }
+
+    @Override
     public String describe() {
         return "mining " + count + " " + matcher.label()
                 + (origin != null ? " around " + origin.getX() + " " + origin.getY() + " " + origin.getZ() : "")

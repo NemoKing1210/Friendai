@@ -1671,6 +1671,11 @@ public final class BuildTask implements Task {
     }
 
     @Override
+    public long progressStamp() {
+        return placedCount;
+    }
+
+    @Override
     public String describe() {
         String part = "";
         if (structure != null && current != null) {

@@ -56,6 +56,24 @@ public interface Task {
         return true;
     }
 
+    /**
+     * A value that changes only when the task made real progress; {@link ProgressWatch#UNKNOWN} means the task does
+     * not expose a signal and only the outer timeout applies.
+     */
+    default long progressStamp() {
+        return ProgressWatch.UNKNOWN;
+    }
+
+    /** How long the task has legitimately been waiting, or a negative value when it is not waiting. */
+    default int waitingTicks() {
+        return -1;
+    }
+
+    /** The task's own deadline for the current wait, or zero to use the runner's stall limit. */
+    default int waitingLimitTicks() {
+        return 0;
+    }
+
     /** The task-specific checkpoint payload, or null when this task is not restored after a reload. */
     default String saveData() {
         return null;

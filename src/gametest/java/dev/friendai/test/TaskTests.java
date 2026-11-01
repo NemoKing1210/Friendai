@@ -338,6 +338,23 @@ public class TaskTests {
         });
     }
 
+    @GameTest(maxTicks = 100)
+    public void aStalledTaskStopsWithItsReason(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        Events events = new Events();
+        ExecutionCoordinator runner = runner(c, events, 2, false);
+        runner.start(new StalledTask(), "stalled");
+        int[] ticks = {0};
+        h.succeedWhen(() -> {
+            runner.tick();
+            ticks[0]++;
+            h.assertTrue(events.finalStatus == TaskStatus.FAILED, "not failed yet: " + events.finalStatus);
+            h.assertTrue(events.finalSummary.startsWith("no progress for"), "summary was " + events.finalSummary);
+            h.assertTrue(ticks[0] <= 40, "took " + ticks[0] + " ticks");
+        });
+    }
+
     @GameTest
     public void exceptionInTaskBecomesFailed(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
@@ -398,6 +415,40 @@ public class TaskTests {
                         && b.executionCoordinator().current().get().type().equals("stay"),
                 "stay task not restored");
         h.succeed();
+    }
+
+    /** A task that is alive but never moves its progress stamp. */
+    private static final class StalledTask implements Task {
+        @Override
+        public String type() {
+            return "stalled";
+        }
+
+        @Override
+        public void start(TaskContext c) {}
+
+        @Override
+        public TaskStatus tick(TaskContext c) {
+            return TaskStatus.RUNNING;
+        }
+
+        @Override
+        public void stop(TaskContext c) {}
+
+        @Override
+        public String describe() {
+            return "stuck";
+        }
+
+        @Override
+        public String resultSummary() {
+            return "";
+        }
+
+        @Override
+        public long progressStamp() {
+            return 0;
+        }
     }
 
     /** A task that only counts how many times it was ticked. */
