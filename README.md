@@ -122,6 +122,7 @@ Hold **V** to talk. Open **Settings → Voice → Recognition** and choose where
 - **Local (Whisper, offline)** — [whisper.cpp](https://github.com/ggerganov/whisper.cpp) runs one of the `tiny`, `base` or `small` models on your CPU, free of charge. Press **Download model**; models are stored in `<game dir>/friendai/models/`.
 - **OpenAI (paid)** — an OpenAI-compatible transcription API (`gpt-transcribe` by default). The base URL can point at any OpenAI-compatible server, including a local one, which needs no key.
 - **Groq (paid)** — the same API through Groq (`whisper-large-v3` by default).
+- **Google Cloud Speech-to-Text (paid)** — a key and a language; the recording is sent as LINEAR16.
 - **Yandex SpeechKit (paid)** — an API key, the cloud folder id and a concrete language tag.
 
 The transcript is sent to the server as a chat message. Local recognition keeps the audio on your machine; a cloud provider uploads the recording, and only while that provider is selected.
