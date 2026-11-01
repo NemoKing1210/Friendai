@@ -3,6 +3,7 @@
   "modmenu.descriptionTranslation.friendai": "An AI companion you can play with and talk to вЂ” by chat or voice.",
 
   "friendai.error.config.unknown_provider": "Unknown provider: %s",
+  "friendai.error.access": "You do not have access to that.",
   "friendai.error.config.needs_base_url": "Provider %s needs a base URL",
   "friendai.error.config.no_route": "No routing rule for model %s",
   "friendai.config.test.ok_tools": "Connected: tool calling works",
@@ -32,6 +33,8 @@
   "friendai.companion.too_far": "Your companion is too far away to hear you.",
 
   "friendai.command.stopped": "Stopped.",
+  "friendai.command.diagnose.written": "Diagnostic bundle written to %s. It contains coordinates and inventory facts; review it before sharing.",
+  "friendai.command.diagnose.failed": "Could not write the diagnostic bundle: %s",
   "friendai.freetime.idle_start": "Nothing to do, so I'll get on with my own things.",
   "friendai.freetime.storage_full": "The storage is full; we need more chests.",
   "friendai.freetime.no_plan": "I couldn't plan that: %s",

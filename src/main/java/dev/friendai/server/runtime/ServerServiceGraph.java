@@ -92,6 +92,7 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
     private final dev.friendai.features.knowledge.search.SearchHintStore searchHints =
             new dev.friendai.features.knowledge.search.SearchHintStore();
     private final TrustConfirmations trust;
+    private final dev.friendai.debug.DiagnosticService diagnostics;
     private ServerConfig config;
     private long lastTrustTick;
     private boolean stopping;
@@ -99,6 +100,8 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
     ServerServiceGraph(MinecraftServer server, RuntimeResources resources) {
         this.server = server;
         OwnerStoreWriter writer = resources.own(new OwnerStoreWriter());
+        this.diagnostics = resources.own(new dev.friendai.debug.DiagnosticService(
+                FabricLoader.getInstance().getGameDir()));
         this.store =
                 ConfigStores.server(FabricLoader.getInstance().getConfigDir().resolve("friendai-server.json"));
         this.config = store.loadWithDefaultsOnUnsupportedVersion();
@@ -195,6 +198,10 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
 
     public ServerSettings settings() {
         return configuration.current();
+    }
+
+    public dev.friendai.debug.DiagnosticService diagnostics() {
+        return diagnostics;
     }
 
     public ConfigStore<ServerConfig> store() {

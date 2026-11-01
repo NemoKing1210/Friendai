@@ -34,6 +34,7 @@ import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.transport.protocol.CompanionSnapshotProtocolAdapter;
+import java.nio.file.Files;
 import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Queue;
@@ -620,5 +621,28 @@ public class CompanionControlTests {
         h.assertTrue(prompt.get().contains(state.config().companion.name), "prompt: " + prompt.get());
         h.assertTrue(state.sessions().currentPrompt(java.util.UUID.randomUUID()).isEmpty(), "no companion, no prompt");
         h.succeed();
+    }
+
+    @GameTest(maxTicks = 200)
+    public void diagnoseWritesForTheOwner(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 70, 16);
+        var owner = GameTestSupport.onlinePlayer(h, "diagnose-owner", 2, 71, 2, true);
+        var server = h.getLevel().getServer();
+        CompanionManager.get(server).summon(owner.player());
+        var commands = server.getCommands();
+        commands.performPrefixedCommand(owner.player().createCommandSourceStack(), "friendai diagnose");
+        var root = GameTestSupport.runtime(server).diagnostics().root();
+        h.succeedWhen(() -> {
+            if (!Files.exists(root)) {
+                return;
+            }
+            try (var files = Files.list(root)) {
+                h.assertTrue(
+                        files.anyMatch(path -> path.getFileName().toString().startsWith("diagnose-")),
+                        "bundle written");
+            } catch (java.io.IOException error) {
+                throw new RuntimeException(error);
+            }
+        });
     }
 }

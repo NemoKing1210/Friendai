@@ -32,6 +32,10 @@ public final class DebugService {
         return logs.computeIfAbsent(owner, o -> new DebugLog(LOG_CAPACITY, LOG_TEXT_CHARS, redactor, clock));
     }
 
+    public UnaryOperator<String> redactor() {
+        return redactor;
+    }
+
     public synchronized TaskHistory historyOf(UUID owner) {
         return histories.computeIfAbsent(owner, o -> new TaskHistory(HISTORY_CAPACITY));
     }

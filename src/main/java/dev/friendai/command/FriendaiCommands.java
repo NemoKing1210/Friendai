@@ -9,6 +9,8 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import dev.friendai.FriendaiMod;
 import dev.friendai.common.Components;
+import dev.friendai.debug.DiagnoseAccess;
+import dev.friendai.debug.DiagnosticCollector;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.execution.tool.InventoryAccess;
@@ -17,9 +19,11 @@ import dev.friendai.features.memory.MemoryReport;
 import dev.friendai.features.memory.PlayerRecord;
 import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.menu.FriendaiMenus;
+import dev.friendai.server.net.Operators;
 import dev.friendai.server.runtime.ServerRuntimeRegistry;
 import dev.friendai.task.Task;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.commands.CommandSourceStack;
@@ -72,6 +76,14 @@ public final class FriendaiCommands {
                                         .executes(ctx -> freeTimeOn(ctx, StringArgumentType.getString(ctx, "wish")))))
                         .then(Commands.literal("off").executes(FriendaiCommands::freeTimeOff))
                         .then(Commands.literal("status").executes(FriendaiCommands::freeTimeStatus)))
+                .then(Commands.literal("diagnose")
+                        .executes(ctx -> diagnose(ctx, false))
+                        .then(Commands.literal("chat").executes(ctx -> diagnose(ctx, true)))
+                        .then(Commands.argument("player", EntityArgument.player())
+                                .executes(ctx -> diagnoseFor(ctx, EntityArgument.getPlayer(ctx, "player"), false))
+                                .then(Commands.literal("chat")
+                                        .executes(ctx ->
+                                                diagnoseFor(ctx, EntityArgument.getPlayer(ctx, "player"), true)))))
                 .then(Commands.literal("reload")
                         .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                         .executes(FriendaiCommands::reload)));
@@ -154,6 +166,52 @@ public final class FriendaiCommands {
                         status.plannerModel().isBlank() ? "-" : status.plannerModel());
         ctx.getSource().sendSuccess(() -> answer, false);
         return status.on() ? 1 : 0;
+    }
+
+    private static int diagnose(CommandContext<CommandSourceStack> ctx, boolean includeChat)
+            throws CommandSyntaxException {
+        ServerPlayer sender = ctx.getSource().getPlayerOrException();
+        return diagnoseFor(ctx, sender, includeChat);
+    }
+
+    private static int diagnoseFor(CommandContext<CommandSourceStack> ctx, ServerPlayer target, boolean includeChat)
+            throws CommandSyntaxException {
+        ServerPlayer sender = ctx.getSource().getPlayerOrException();
+        CommandSourceStack source = ctx.getSource();
+        if (!DiagnoseAccess.allowed(sender.getUUID(), target.getUUID(), Operators.isOperator(sender))) {
+            source.sendFailure(Component.translatable("friendai.error.access"));
+            return 0;
+        }
+        var server = source.getServer();
+        var runtime = ServerRuntimeRegistry.getOrCreate(server);
+        if (CompanionManager.get(server).find(target.getUUID()).isEmpty()) {
+            source.sendFailure(Component.translatable("friendai.command.no_companion"));
+            return 0;
+        }
+        Map<String, String> files;
+        try {
+            files = DiagnosticCollector.collect(
+                    runtime, target, includeChat, runtime.sessions().debug().redactor());
+        } catch (RuntimeException error) {
+            source.sendFailure(Component.translatable(
+                    "friendai.command.diagnose.failed", error.getClass().getSimpleName()));
+            return 0;
+        }
+        runtime.diagnostics()
+                .write(files, runtime.sessions().debug().redactor())
+                .whenComplete((path, error) -> server.execute(() -> {
+                    if (error != null) {
+                        Throwable cause = error.getCause() == null ? error : error.getCause();
+                        source.sendFailure(Component.translatable(
+                                "friendai.command.diagnose.failed",
+                                cause.getClass().getSimpleName()));
+                    } else {
+                        source.sendSuccess(
+                                () -> Component.translatable("friendai.command.diagnose.written", path.toString()),
+                                false);
+                    }
+                }));
+        return 1;
     }
 
     private static int stop(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {

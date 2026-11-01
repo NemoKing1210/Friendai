@@ -198,6 +198,10 @@ public final class ServerRuntime implements AutoCloseable {
         return services.config();
     }
 
+    public dev.friendai.debug.DiagnosticService diagnostics() {
+        return services.diagnostics();
+    }
+
     public CompanionLifeData companionLife() {
         return services.companionLife();
     }
