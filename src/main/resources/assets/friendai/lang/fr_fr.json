@@ -727,5 +727,10 @@
   "friendai.config.autonomy": "Autonomie",
   "friendai.config.chunk_loading": "Chargement des chunks",
   "friendai.config.hearing_radius": "Rayon auditif",
-  "controls.reset": "Réinitialiser"
+  "controls.reset": "Réinitialiser",
+  "friendai.config.status.line": "État : %s",
+  "friendai.config.status.ready": "Prêt",
+  "friendai.config.status.no_key": "Pas encore de clé API",
+  "friendai.config.status.no_model": "Choisir un modèle",
+  "friendai.config.status.local": "Point local"
 }

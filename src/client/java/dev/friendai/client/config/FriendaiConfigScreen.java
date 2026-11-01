@@ -279,6 +279,18 @@ public final class FriendaiConfigScreen {
                         .values(providerIds)
                         .allowAnyValue(false))
                 .build();
+        String statusKey;
+        if (registry.preset(p.provider)
+                .map(preset -> preset.authStyle() == dev.friendai.agent.llm.provider.AuthStyle.NONE)
+                .orElse(false)) {
+            statusKey = "friendai.config.status.local";
+        } else if (p.apiKey == null || p.apiKey.isBlank()) {
+            statusKey = "friendai.config.status.no_key";
+        } else if (p.model == null || p.model.isBlank()) {
+            statusKey = "friendai.config.status.no_model";
+        } else {
+            statusKey = "friendai.config.status.ready";
+        }
         Option<String> baseUrlOpt = Option.<String>createBuilder()
                 .name(tr("friendai.config.base_url"))
                 .binding("", () -> p.baseUrl == null ? "" : p.baseUrl, v -> p.baseUrl = v.isBlank() ? null : v.strip())
@@ -383,6 +395,8 @@ public final class FriendaiConfigScreen {
                 .name(tr("friendai.config.category.provider"))
                 .option(profileOpt)
                 .option(providerOpt)
+                .option(LabelOption.create(
+                        Component.translatable("friendai.config.status.line", Component.translatable(statusKey))))
                 .option(baseUrlOpt)
                 .option(apiKeyOpt)
                 .option(toggleKey)

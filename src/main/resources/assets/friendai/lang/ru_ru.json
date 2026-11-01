@@ -724,5 +724,10 @@
   "friendai.config.autonomy": "Автономность",
   "friendai.config.chunk_loading": "Загрузка чанков",
   "friendai.config.hearing_radius": "Радиус слышимости",
-  "controls.reset": "Сброс"
+  "controls.reset": "Сброс",
+  "friendai.config.status.line": "Статус: %s",
+  "friendai.config.status.ready": "Готово",
+  "friendai.config.status.no_key": "Ключ API ещё не задан",
+  "friendai.config.status.no_model": "Выберите модель",
+  "friendai.config.status.local": "Локальная точка"
 }

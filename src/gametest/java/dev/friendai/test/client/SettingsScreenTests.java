@@ -563,10 +563,13 @@ public final class SettingsScreenTests implements FabricClientGameTest {
                                     .equals(id),
                             "wrong STT provider");
                     if (!id.equals("local")) set("friendai.config.voice.field.key", "test-" + id);
-                    if (id.equals("openai") || id.equals("groq")) {
+                    if (id.equals("openai") || id.equals("groq") || id.equals("deepgram")) {
                         set("friendai.config.voice.field.model", "stt-model-" + id);
+                    }
+                    if (!id.equals("yandex") && !id.equals("local")) {
                         set("friendai.config.voice.field.base_url", "http://localhost:12345/stt");
-                    } else if (id.equals("yandex")) {
+                    }
+                    if (id.equals("yandex")) {
                         set("friendai.config.voice.field.folder_id", "test-stt-folder");
                     }
                     set("friendai.config.voice.max_record", 40);
@@ -587,7 +590,9 @@ public final class SettingsScreenTests implements FabricClientGameTest {
                         if (id.equals("yandex")) {
                             require("test-stt-folder".equals(saved.folderId), "STT folder not saved");
                         } else {
-                            require(("stt-model-" + id).equals(saved.model), "STT model not saved");
+                            if (id.equals("openai") || id.equals("groq") || id.equals("deepgram")) {
+                                require(("stt-model-" + id).equals(saved.model), "STT model not saved");
+                            }
                             require("http://localhost:12345/stt".equals(saved.baseUrl), "STT base URL not saved");
                         }
                     }
