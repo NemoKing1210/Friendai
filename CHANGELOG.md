@@ -8,6 +8,13 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.101.0] - 2026-11-01
+
+### Added
+
+- German, French, Spanish, Brazilian Portuguese, Simplified Chinese and Ukrainian interface translations, with placeholder parity enforced for every language.
+- Portuguese is now recognised by the language detector, so an owner writing Portuguese gets Portuguese replies.
+
 ## [0.100.0] - 2026-11-01
 
 ### Changed
