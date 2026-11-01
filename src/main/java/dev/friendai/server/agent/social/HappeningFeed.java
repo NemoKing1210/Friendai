@@ -48,27 +48,27 @@ public final class HappeningFeed {
                     ? ""
                     : source.getEntity().getName().getString();
             if (victim instanceof ServerPlayer player) {
-                book(runtime, player.getUUID())
-                        .ifPresent(book -> book.recordHappening(
-                                player.getUUID(),
-                                new Happening(
-                                        Happening.Kind.DEATH,
-                                        Happening.Importance.HIGH,
-                                        (int) level.getGameTime(),
-                                        "death:" + level.getGameTime(),
-                                        "you died" + (killer.isBlank() ? "" : " to " + killer))));
+                record(
+                        runtime,
+                        player.getUUID(),
+                        new Happening(
+                                Happening.Kind.DEATH,
+                                Happening.Importance.HIGH,
+                                (int) level.getGameTime(),
+                                "death:" + level.getGameTime(),
+                                "you died" + (killer.isBlank() ? "" : " to " + killer)));
             } else if (victim instanceof CompanionEntity companion) {
                 UUID owner = companion.ownerUuid();
                 if (owner != null) {
-                    book(runtime, owner)
-                            .ifPresent(book -> book.recordHappening(
-                                    owner,
-                                    new Happening(
-                                            Happening.Kind.DEATH,
-                                            Happening.Importance.NORMAL,
-                                            (int) level.getGameTime(),
-                                            "mydeath:" + level.getGameTime(),
-                                            "I died" + (killer.isBlank() ? "" : " to " + killer))));
+                    record(
+                            runtime,
+                            owner,
+                            new Happening(
+                                    Happening.Kind.DEATH,
+                                    Happening.Importance.NORMAL,
+                                    (int) level.getGameTime(),
+                                    "mydeath:" + level.getGameTime(),
+                                    "I died" + (killer.isBlank() ? "" : " to " + killer)));
                 }
             }
         });
@@ -84,47 +84,46 @@ public final class HappeningFeed {
             return;
         }
         ServerRuntimeRegistry.find(level.getServer())
-                .ifPresent(runtime -> book(runtime, player.getUUID())
-                        .ifPresent(book -> book.recordHappening(
-                                player.getUUID(),
-                                new Happening(
-                                        Happening.Kind.ADVANCEMENT,
-                                        Happening.Importance.HIGH,
-                                        (int) level.getGameTime(),
-                                        "advancement:" + holder.id(),
-                                        "you earned " + display.get().title().getString()))));
+                .ifPresent(runtime -> record(
+                        runtime,
+                        player.getUUID(),
+                        new Happening(
+                                Happening.Kind.ADVANCEMENT,
+                                Happening.Importance.HIGH,
+                                (int) level.getGameTime(),
+                                "advancement:" + holder.id(),
+                                "you earned " + display.get().title().getString())));
     }
 
     private static void respawn(ServerPlayer player) {
         if (!(player.level() instanceof ServerLevel level)) {
             return;
         }
-        ServerRuntimeRegistry.find(level.getServer())
-                .ifPresent(runtime -> book(runtime, player.getUUID()).ifPresent(book -> {
-                    var pos = player.blockPosition();
-                    book.recordHappening(
-                            player.getUUID(),
-                            new Happening(
-                                    Happening.Kind.RESPAWN,
-                                    Happening.Importance.HIGH,
-                                    (int) level.getGameTime(),
-                                    "respawn:" + level.getGameTime(),
-                                    "you respawned at " + pos.getX() + " " + pos.getY() + " " + pos.getZ()));
-                }));
+        ServerRuntimeRegistry.find(level.getServer()).ifPresent(runtime -> {
+            var pos = player.blockPosition();
+            record(
+                    runtime,
+                    player.getUUID(),
+                    new Happening(
+                            Happening.Kind.RESPAWN,
+                            Happening.Importance.HIGH,
+                            (int) level.getGameTime(),
+                            "respawn:" + level.getGameTime(),
+                            "you respawned at " + pos.getX() + " " + pos.getY() + " " + pos.getZ()));
+        });
     }
 
     private static void dimension(ServerPlayer player, net.minecraft.server.level.ServerLevel to) {
         ServerRuntimeRegistry.find(to.getServer())
-                .ifPresent(runtime -> book(runtime, player.getUUID())
-                        .ifPresent(book -> book.recordHappening(
-                                player.getUUID(),
-                                new Happening(
-                                        Happening.Kind.DIMENSION,
-                                        Happening.Importance.NORMAL,
-                                        (int) to.getGameTime(),
-                                        "dimension:" + to.getGameTime(),
-                                        "you went to "
-                                                + to.dimension().identifier().getPath()))));
+                .ifPresent(runtime -> record(
+                        runtime,
+                        player.getUUID(),
+                        new Happening(
+                                Happening.Kind.DIMENSION,
+                                Happening.Importance.NORMAL,
+                                (int) to.getGameTime(),
+                                "dimension:" + to.getGameTime(),
+                                "you went to " + to.dimension().identifier().getPath())));
     }
 
     private static void joined(ServerRuntime runtime, ServerPlayer player) {
@@ -135,15 +134,31 @@ public final class HappeningFeed {
             return;
         }
         long minutes = away / 60_000L;
-        book(runtime, player.getUUID())
-                .ifPresent(book -> book.recordHappening(
-                        player.getUUID(),
-                        new Happening(
-                                Happening.Kind.JOIN,
-                                Happening.Importance.HIGH,
-                                (int) runtime.server().overworld().getGameTime(),
-                                "join:" + runtime.server().overworld().getGameTime(),
-                                "you came back after " + minutes + " minutes")));
+        record(
+                runtime,
+                player.getUUID(),
+                new Happening(
+                        Happening.Kind.JOIN,
+                        Happening.Importance.HIGH,
+                        (int) runtime.server().overworld().getGameTime(),
+                        "join:" + runtime.server().overworld().getGameTime(),
+                        "you came back after " + minutes + " minutes"));
+    }
+
+    /**
+     * Records one happening with the configured secrets masked. The journal is read back into the prompt, so this is
+     * the single place where a player-controlled name or a message reaches it: redact here, not at every call site.
+     */
+    private static void record(ServerRuntime runtime, UUID owner, Happening happening) {
+        book(runtime, owner).ifPresent(book -> {
+            String text = runtime.sessions().redactor().apply(happening.text());
+            book.recordHappening(
+                    owner,
+                    text.equals(happening.text())
+                            ? happening
+                            : new Happening(
+                                    happening.kind(), happening.importance(), happening.tick(), happening.key(), text));
+        });
     }
 
     /** The owner's book, only when that owner has a companion: a player without one has nobody to tell. */
