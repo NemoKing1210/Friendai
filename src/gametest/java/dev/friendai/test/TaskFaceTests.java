@@ -152,4 +152,23 @@ public final class TaskFaceTests {
         h.assertTrue(companion.syncedMood() != Mood.PLEASED, "and must not look like a success: " + before);
         h.succeed();
     }
+
+    @GameTest(maxTicks = 600)
+    public void theFaceInputsAreSampledWhileWorkRuns(GameTestHelper h) {
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        CompanionEntity companion =
+                CompanionManager.get(h.getLevel().getServer()).summon(owner);
+        ExecutionCoordinator coordinator = ready(h, owner, companion);
+        var runtime = GameTestSupport.runtime(h.getLevel().getServer());
+
+        enqueue(coordinator, owner, new dev.friendai.features.navigation.minecraft.task.StayTask(500));
+        coordinator.tick();
+
+        h.succeedWhen(() -> {
+            boolean sampled = runtime.sessions().debug().logOf(owner.getUUID()).after(0, 200).stream()
+                    .map(entry -> entry.text())
+                    .anyMatch(text -> text.startsWith("face inputs:") && text.contains("work=true"));
+            h.assertTrue(sampled, "the 38.1 measurement records the inputs a face could use");
+        });
+    }
 }

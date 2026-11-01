@@ -136,6 +136,15 @@ public class CompanionEntity extends PathfinderMob {
     private boolean traitsLoaded;
 
     private int moodTicks;
+    // The last face input tuple that reached the debug log, plus when it was sampled; runtime only.
+    private boolean faceInputsDanger;
+    private boolean faceInputsFire;
+    private boolean faceInputsCombat;
+    private boolean faceInputsWork;
+    private int faceInputsSampledTick;
+
+    /** How often the face inputs are sampled for the 38.1 measurement; one line per change per window. */
+    private static final int FACE_INPUT_SAMPLE_INTERVAL = 200;
 
     private static final EquipmentSlot[] ARMOR_SLOTS = {
         EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET
@@ -870,11 +879,47 @@ public class CompanionEntity extends PathfinderMob {
     }
 
     private void updateMood() {
-        boolean danger =
-                getHealth() < getMaxHealth() * 0.5F || isOnFire() || isInLava() || isEyeInFluid(FluidTags.WATER);
+        boolean fire = isOnFire() || isInLava();
+        boolean danger = getHealth() < getMaxHealth() * 0.5F || fire || isEyeInFluid(FluidTags.WATER);
         boolean combat = getTarget() != null;
         boolean work = executionCoordinator().current().isPresent();
         syncMood(moodModel.update(danger, combat, work, false, false, tickCount));
+        sampleFaceInputs(danger, fire, combat, work, tickCount);
+    }
+
+    /**
+     * Measurement for 38.1: how often the face inputs actually move. The tuple is taken from the values
+     * {@link #updateMood()} already holds and compared with the last logged one, at most once every ten
+     * seconds, so the trace is bounded to one line per change per window and allocates nothing otherwise.
+     */
+    private void sampleFaceInputs(boolean danger, boolean fire, boolean combat, boolean work, int tick) {
+        if (ownerUuid == null || tick - faceInputsSampledTick < FACE_INPUT_SAMPLE_INTERVAL) {
+            return;
+        }
+        faceInputsSampledTick = tick;
+        if (danger == faceInputsDanger
+                && fire == faceInputsFire
+                && combat == faceInputsCombat
+                && work == faceInputsWork) {
+            return;
+        }
+        faceInputsDanger = danger;
+        faceInputsFire = fire;
+        faceInputsCombat = combat;
+        faceInputsWork = work;
+        if (!(level() instanceof ServerLevel serverLevel)) {
+            return;
+        }
+        var moods = dev.friendai.features.social.Mood.values();
+        int ordinal = entityData.get(DATA_MOOD);
+        String mood = ordinal >= 0 && ordinal < moods.length ? moods[ordinal].name() : "?";
+        String line = "face inputs: danger=" + danger + ", fire=" + fire + ", combat=" + combat + ", work=" + work
+                + ", mood=" + mood;
+        ServerRuntimeRegistry.find(serverLevel.getServer())
+                .ifPresent(runtime -> runtime.sessions()
+                        .debug()
+                        .logOf(ownerUuid)
+                        .add(dev.friendai.foundation.diagnostics.LogKind.MANUAL, line));
     }
 
     /** Whether free time may let the companion work on its own; a plain flag, so features never name server types. */
