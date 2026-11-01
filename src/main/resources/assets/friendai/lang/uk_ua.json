@@ -962,5 +962,8 @@
   "friendai.command.pause.none": "У вас немає помічника, якого можна зупинити.",
   "friendai.menu.pause": "Пауза",
   "friendai.menu.resume": "Продовжити",
-  "friendai.config.nav.recovered": "Пошкоджений файл конфігурації замінено останньою справною копією. Збереження запише новий файл."
+  "friendai.config.nav.recovered": "Пошкоджений файл конфігурації замінено останньою справною копією. Збереження запише новий файл.",
+  "friendai.config.scope.client": "Клієнт",
+  "friendai.config.scope.server": "Сервер",
+  "friendai.config.scope.world": "Світ"
 }

@@ -965,5 +965,8 @@
   "friendai.command.pause.none": "Sie haben keinen Gefährten zum Anhalten.",
   "friendai.menu.pause": "Pause",
   "friendai.menu.resume": "Fortsetzen",
-  "friendai.config.nav.recovered": "Eine beschädigte Konfigurationsdatei wurde durch die letzte gute Sicherung ersetzt. Speichern schreibt eine neue Datei."
+  "friendai.config.nav.recovered": "Eine beschädigte Konfigurationsdatei wurde durch die letzte gute Sicherung ersetzt. Speichern schreibt eine neue Datei.",
+  "friendai.config.scope.client": "Client",
+  "friendai.config.scope.server": "Server",
+  "friendai.config.scope.world": "Welt"
 }

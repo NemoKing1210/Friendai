@@ -6,6 +6,13 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.136.0] - 2026-11-01
+
+### Changed
+
+- Every settings category now says what it affects — `Client`, `Server` — so it is clear before you open it whether a change touches the world for everyone or only your screen.
+
+
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
 ## [0.135.0] - 2026-11-01

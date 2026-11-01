@@ -962,5 +962,8 @@
   "friendai.command.pause.none": "你还没有可以停下的同伴。",
   "friendai.menu.pause": "暂停",
   "friendai.menu.resume": "继续",
-  "friendai.config.nav.recovered": "损坏的配置文件已由最后一份可用备份替换。保存将写入新文件。"
+  "friendai.config.nav.recovered": "损坏的配置文件已由最后一份可用备份替换。保存将写入新文件。",
+  "friendai.config.scope.client": "客户端",
+  "friendai.config.scope.server": "服务端",
+  "friendai.config.scope.world": "世界"
 }

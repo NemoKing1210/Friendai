@@ -962,5 +962,8 @@
   "friendai.command.pause.none": "No tienes un compañero al que detener.",
   "friendai.menu.pause": "Pausa",
   "friendai.menu.resume": "Reanudar",
-  "friendai.config.nav.recovered": "Un archivo de configuración dañado se sustituyó por su última copia válida. Guardar escribirá un archivo nuevo."
+  "friendai.config.nav.recovered": "Un archivo de configuración dañado se sustituyó por su última copia válida. Guardar escribirá un archivo nuevo.",
+  "friendai.config.scope.client": "Cliente",
+  "friendai.config.scope.server": "Servidor",
+  "friendai.config.scope.world": "Mundo"
 }
