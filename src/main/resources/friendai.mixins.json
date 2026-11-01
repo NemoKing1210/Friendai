@@ -7,7 +7,8 @@
 		"PiglinAiInvoker",
 		"BehaviorUtilsBarterOutputMixin",
 		"NearestAttackableTargetGoalMixin",
-		"TargetGoalAccessor"
+		"TargetGoalAccessor",
+		"PlayerAdvancementsMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1
