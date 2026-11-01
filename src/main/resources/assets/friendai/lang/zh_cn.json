@@ -729,5 +729,6 @@
   "friendai.config.status.ready": "就绪",
   "friendai.config.status.no_key": "尚未填写 API 密钥",
   "friendai.config.status.no_model": "选择模型",
-  "friendai.config.status.local": "本地端点"
+  "friendai.config.status.local": "本地端点",
+  "friendai.config.category.advanced": "高级"
 }

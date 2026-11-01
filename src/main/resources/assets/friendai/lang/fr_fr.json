@@ -732,5 +732,6 @@
   "friendai.config.status.ready": "Prêt",
   "friendai.config.status.no_key": "Pas encore de clé API",
   "friendai.config.status.no_model": "Choisir un modèle",
-  "friendai.config.status.local": "Point local"
+  "friendai.config.status.local": "Point local",
+  "friendai.config.category.advanced": "Avancé"
 }
