@@ -122,6 +122,7 @@ Mantén **V** para hablar. Abre **Ajustes → Voz → Reconocimiento** y elige d
 - **Local (Whisper, sin conexión)** — [whisper.cpp](https://github.com/ggerganov/whisper.cpp) ejecuta uno de los modelos `tiny`, `base` o `small` en tu CPU, sin coste. Pulsa **Descargar modelo**; los modelos se guardan en `<game dir>/friendai/models/`.
 - **OpenAI (de pago)** — una API de transcripción compatible con OpenAI (`gpt-transcribe` de forma predeterminada). La URL base puede apuntar a cualquier servidor compatible con OpenAI, incluido uno local, que no necesita clave.
 - **Groq (de pago)** — la misma API a través de Groq (`whisper-large-v3` de forma predeterminada).
+- **Google Cloud Speech-to-Text (de pago)** — una clave y un idioma; la grabación se envía como LINEAR16.
 - **Yandex SpeechKit (de pago)** — una clave de API, el id de la carpeta en la nube y una etiqueta de idioma concreta.
 
 La transcripción se envía al servidor como un mensaje de chat. El reconocimiento local mantiene el audio en tu máquina; un proveedor en la nube sube la grabación, y solo mientras ese proveedor está seleccionado.

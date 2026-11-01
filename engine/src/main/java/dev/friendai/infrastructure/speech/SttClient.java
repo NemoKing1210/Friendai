@@ -2,6 +2,7 @@ package dev.friendai.infrastructure.speech;
 
 import dev.friendai.features.speech.PreparedRequest;
 import dev.friendai.features.speech.ResolvedStt;
+import dev.friendai.features.speech.stt.GoogleSttProtocol;
 import dev.friendai.features.speech.stt.OpenAiSttProtocol;
 import dev.friendai.features.speech.stt.SttPresets;
 import dev.friendai.features.speech.stt.SttProtocol;
@@ -27,6 +28,7 @@ public final class SttClient {
                 http,
                 Map.of(
                         OpenAiSttProtocol.ID, new OpenAiSttProtocol(),
+                        GoogleSttProtocol.ID, new GoogleSttProtocol(),
                         YandexSttProtocol.ID, new YandexSttProtocol()));
     }
 
