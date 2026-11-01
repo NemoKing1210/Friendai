@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.141.0] - 2026-11-01
+
+### Added
+
+- A **Retry** button in the companion menu: after a task failed or was stopped, one click queues the same job again, unchanged. It does nothing while the job is still running or queued.
+
 ## [0.140.0] - 2026-11-01
 
 ### Changed

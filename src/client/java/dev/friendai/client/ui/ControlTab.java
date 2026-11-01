@@ -25,12 +25,13 @@ final class ControlTab extends StatefulMenuTab {
     private FlatButton dismiss;
     private FlatButton stop;
     private FlatButton pause;
+    private FlatButton retry;
     private int buttonsTop;
 
     @Override
     public void init(Host host, int left, int top, int width, int height) {
         // Five buttons, laid out by how many fit side by side: never narrower than 70 pixels each.
-        int buttons = 5;
+        int buttons = 6;
         int columns = width >= buttons * 70 + (buttons - 1) * GAP ? buttons : 2;
         int rows = (buttons + columns - 1) / columns;
         int buttonWidth = (width - (columns - 1) * GAP) / columns;
@@ -84,6 +85,16 @@ final class ControlTab extends StatefulMenuTab {
                 workLabel(),
                 Ui.ACCENT,
                 () -> CompanionRequests.send(new ControlRequest.SetPaused(!pausedNow()))));
+        retry = place(
+                host,
+                buttons,
+                columns,
+                buttonWidth,
+                "friendai.menu.retry",
+                new ControlRequest.RetryLast(),
+                Ui.ACCENT,
+                left,
+                index++);
         tick();
     }
 
@@ -139,6 +150,7 @@ final class ControlTab extends StatefulMenuTab {
         dismiss.active = connected && present;
         stop.active = connected && present;
         pause.active = connected && present;
+        retry.active = connected && present;
         pause.setMessage(workLabel());
     }
 

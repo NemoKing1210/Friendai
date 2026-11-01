@@ -313,6 +313,7 @@
   "friendai.menu.teleport": "传送到此",
   "friendai.menu.dismiss": "遣散",
   "friendai.menu.stop": "停止",
+  "friendai.menu.retry": "重试",
   "friendai.debug.goal": "目标",
   "friendai.debug.action.break": "破坏",
   "friendai.debug.action.place": "放置",

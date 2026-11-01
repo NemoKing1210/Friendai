@@ -63,6 +63,11 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     /** Queue plans that free time started; their jobs are autonomous work. */
     private TaskEventSink eventSink;
 
+    /** The last direct job the companion started, kept so the owner can retry it once it stopped or failed. */
+    private Started lastStarted;
+
+    private record Started(long jobId, QueuedStep step, StepFactory factory) {}
+
     private final List<String> pendingNotices = new java.util.ArrayList<>();
     private final ArrayDeque<java.util.function.Consumer<TaskEventSink>> pendingEvents = new ArrayDeque<>();
     private int transitionDepth;
@@ -320,6 +325,27 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
                         queueDriver.queue(),
                         facts(),
                         activeTask() == null ? null : activeTask().task().describe());
+    }
+
+    /**
+     * Queues the last direct job again, unchanged, when it is no longer running or waiting. The owner asks for this
+     * from the menu after a task failed or was stopped; nothing else about the queue is touched.
+     *
+     * @return true when a retry was queued, false when there is nothing to retry or the queue still holds it
+     */
+    public boolean retryLast() {
+        Started last = lastStarted;
+        if (last == null) return false;
+        // The idle fallback (follow/stay) does not block a retry: enqueueing it replaces that task anyway.
+        if (activeTask() != null && !activeTask().defaultActivity() && !movementOrder(activeTask())) return false;
+        // A cancelled or failed job is still listed until the queue sweeps it; only live work blocks a retry.
+        if (queueDriver
+                .queue()
+                .job(last.jobId())
+                .filter(job -> !dev.friendai.execution.queue.JobQueue.terminal(job))
+                .isPresent()) return false;
+        enqueue(last.step(), last.factory);
+        return true;
     }
 
     public long enqueue(QueuedStep step, StepFactory factory) {
@@ -887,6 +913,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
                 return startNextQueued();
             }
         }
+        if (job.planId() == 0) lastStarted = new Started(job.id(), step(job), factory);
         try {
             ServerSettings settings = settingsSupplier.get();
             Task task = factory.create(
