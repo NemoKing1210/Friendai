@@ -10,6 +10,7 @@ import java.util.function.Consumer;
 
 /** Owns client/server config persistence and applies validated changes outside the settings widgets. */
 public final class ClientConfigurationCoordinator {
+    private final Path configDirectory;
     private final ConfigStore<ClientConfig> clientStore;
     private final ConfigStore<ServerConfig> serverStore;
     private final IntegratedServerConfiguration integratedServer;
@@ -21,10 +22,16 @@ public final class ClientConfigurationCoordinator {
             IntegratedServerConfiguration integratedServer,
             Consumer<ClientConfig> clientConfigChanged) {
         Objects.requireNonNull(configDirectory, "configDirectory");
+        this.configDirectory = configDirectory;
         this.clientStore = ConfigStores.client(configDirectory.resolve("friendai-client.json"));
         this.serverStore = ConfigStores.server(configDirectory.resolve("friendai-server.json"));
         this.integratedServer = Objects.requireNonNull(integratedServer, "integratedServer");
         this.clientConfigChanged = Objects.requireNonNull(clientConfigChanged, "clientConfigChanged");
+    }
+
+    /** Where the config files live; the settings screen resolves relative import/export paths against it. */
+    public Path configDirectory() {
+        return configDirectory;
     }
 
     /** Loads and caches the client-local configuration. No audio engine or model is initialized here. */
