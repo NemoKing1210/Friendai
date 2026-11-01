@@ -97,11 +97,16 @@ saved records or retain old-format readers. Corrupt and oversized data must not 
 atomic replacement and backup recovery, add codec and repository round-trip/failure tests, and update the persistence
 inventory in `ARCHITECTURE.md`.
 
-### Add player-facing text
+### Add player-facing text or a language
 
-Add the key to `src/main/resources/assets/friendai/lang/en_us.json` and the matching key and placeholders to
-`ru_ru.json`. Reference it with `Component.translatable` or `Components.of(new UserMessage(...))`; run
+English (`en_us.json`) is the source of truth. Add the key there, then the same key to every shipped language:
+`ru_ru`, `de_de`, `fr_fr`, `es_es`, `pt_br`, `zh_cn` and `uk_ua`. Keep every `%s`, `%d` and `%%` placeholder, and their
+order, identical to English; `LangFilesTest` compares the ordered placeholder sequence, the key set and empty values
+across every file. Reference the key with `Component.translatable` or `Components.of(new UserMessage(...))`; run
 `./gradlew test --tests '*LangFilesTest'`.
+
+A new language is a full `en_us.json` translation plus long-string layout checks (buttons, tabs, tooltips, HUD, toasts
+and the settings screen at the smallest GUI scale); a translated interface does not add a local voice.
 
 ## Commits and CI
 

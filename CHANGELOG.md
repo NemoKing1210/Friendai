@@ -14,6 +14,7 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 - German, French, Spanish, Brazilian Portuguese, Simplified Chinese and Ukrainian interface translations, with placeholder parity enforced for every language.
 - Portuguese is now recognised by the language detector, so an owner writing Portuguese gets Portuguese replies.
+- The README is now a landing page with a feature table, contents, badges and language switcher, and is translated into Russian, Ukrainian, German, French, Spanish, Brazilian Portuguese and Simplified Chinese.
 
 ## [0.100.0] - 2026-11-01
 
