@@ -46,5 +46,19 @@ public final class ModelListCache {
         lastGood.put(key, copy);
     }
 
+    /** The last good lists, for a client that keeps them across restarts. */
+    public Map<String, List<String>> lastGood() {
+        return Map.copyOf(lastGood);
+    }
+
+    /** Restores persisted lists as stale entries; a fresh fetch replaces them. */
+    public void restore(Map<String, List<String>> saved) {
+        saved.forEach((key, models) -> {
+            if (key != null && models != null && !models.isEmpty()) {
+                lastGood.put(key, List.copyOf(models));
+            }
+        });
+    }
+
     private record Fetched(List<String> models, long fetchedAt) {}
 }
