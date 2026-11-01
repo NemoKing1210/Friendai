@@ -733,5 +733,16 @@
   "friendai.config.status.no_key": "No API key yet",
   "friendai.config.status.no_model": "Choose a model",
   "friendai.config.status.local": "Local endpoint",
-  "friendai.config.category.advanced": "Advanced"
+  "friendai.config.category.advanced": "Advanced",
+  "friendai.config.category.planning": "Planning",
+  "friendai.config.agent.tool_routing": "Send only the relevant tools",
+  "friendai.config.autonomy.tooltip": "Passive never starts on its own, assistive nudges an idle companion toward an unfinished goal, autonomous may also ask what to do next. It never acts unprompted.",
+  "friendai.config.agent.max_replans": "Replans per goal",
+  "friendai.config.agent.max_replans.tooltip": "How many times a failed plan may be rebuilt before the companion asks for help (0–10, default 3).",
+  "friendai.config.agent.goal_tick_sec": "Seconds between goal nudges",
+  "friendai.config.agent.goal_tick_sec.tooltip": "How often an idle companion is nudged toward an unfinished goal (10–600 seconds, default 30).",
+  "friendai.config.agent.prompt_budget": "System prompt character budget",
+  "friendai.config.agent.prompt_budget.tooltip": "Maximum characters of the system prompt; 0 means unlimited. Larger prompts cost more tokens.",
+  "friendai.config.agent.planner_timeout_sec": "Planner timeout (seconds)",
+  "friendai.config.agent.planner_timeout_sec.tooltip": "How long one planner call may take (10–300 seconds, default 60)."
 }

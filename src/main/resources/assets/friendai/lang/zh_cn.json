@@ -730,5 +730,16 @@
   "friendai.config.status.no_key": "尚未填写 API 密钥",
   "friendai.config.status.no_model": "选择模型",
   "friendai.config.status.local": "本地端点",
-  "friendai.config.category.advanced": "高级"
+  "friendai.config.category.advanced": "高级",
+  "friendai.config.category.planning": "规划",
+  "friendai.config.agent.tool_routing": "只发送相关工具",
+  "friendai.config.autonomy.tooltip": "被动模式从不自行开始，辅助模式会推动空闲的同伴继续未完成的目标，自主模式还可以询问下一步做什么；它绝不会未经请求就行动。",
+  "friendai.config.agent.max_replans": "每个目标的重规划次数",
+  "friendai.config.agent.max_replans.tooltip": "失败的方案在被同伴请求帮助前可以重建多少次（0–10，默认 3）。",
+  "friendai.config.agent.goal_tick_sec": "目标提醒间隔（秒）",
+  "friendai.config.agent.goal_tick_sec.tooltip": "空闲同伴多久被提醒一次未完成的目标（10–600 秒，默认 30）。",
+  "friendai.config.agent.prompt_budget": "系统提示字符预算",
+  "friendai.config.agent.prompt_budget.tooltip": "系统提示的最大字符数；0 表示不限制。提示越长，消耗的 token 越多。",
+  "friendai.config.agent.planner_timeout_sec": "规划器超时（秒）",
+  "friendai.config.agent.planner_timeout_sec.tooltip": "一次规划器调用可以持续多久（10–300 秒，默认 60）。"
 }

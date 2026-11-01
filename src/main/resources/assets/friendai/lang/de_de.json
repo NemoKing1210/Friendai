@@ -733,5 +733,16 @@
   "friendai.config.status.no_key": "Noch kein API-Schlüssel",
   "friendai.config.status.no_model": "Modell wählen",
   "friendai.config.status.local": "Lokaler Endpunkt",
-  "friendai.config.category.advanced": "Erweitert"
+  "friendai.config.category.advanced": "Erweitert",
+  "friendai.config.category.planning": "Planung",
+  "friendai.config.agent.tool_routing": "Nur passende Werkzeuge senden",
+  "friendai.config.autonomy.tooltip": "Passiv beginnt nie von selbst, Assistiv stößt einen untätigen Begleiter auf ein offenes Ziel, Autonom darf auch fragen, was als Nächstes zu tun ist. Von selbst handelt er nie.",
+  "friendai.config.agent.max_replans": "Neuplanungen pro Ziel",
+  "friendai.config.agent.max_replans.tooltip": "Wie oft ein gescheiterter Plan neu gebaut werden darf, bevor der Begleiter um Hilfe bittet (0–10, Standard 3).",
+  "friendai.config.agent.goal_tick_sec": "Sekunden zwischen Zielanstößen",
+  "friendai.config.agent.goal_tick_sec.tooltip": "Wie oft ein untätiger Begleiter auf ein offenes Ziel gestoßen wird (10–600 Sekunden, Standard 30).",
+  "friendai.config.agent.prompt_budget": "Zeichenbudget des Systemprompts",
+  "friendai.config.agent.prompt_budget.tooltip": "Maximale Zeichen des Systemprompts; 0 bedeutet unbegrenzt. Größere Prompts kosten mehr Tokens.",
+  "friendai.config.agent.planner_timeout_sec": "Planer-Timeout (Sekunden)",
+  "friendai.config.agent.planner_timeout_sec.tooltip": "Wie lange ein Planer-Aufruf dauern darf (10–300 Sekunden, Standard 60)."
 }
