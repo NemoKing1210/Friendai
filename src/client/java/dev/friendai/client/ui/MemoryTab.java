@@ -12,10 +12,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalInt;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.MultiLineEditBox;
+import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
 
@@ -40,7 +42,6 @@ final class MemoryTab extends StatefulMenuTab {
     private FlatButton categoryButton;
     private EditBox text;
     private MultiLineEditBox personaBox;
-    private HitArea factsHit;
     private FlatButton addOrSave;
     private FlatButton cancel;
     private Category draftCategory = Category.PROFILE;
@@ -64,6 +65,12 @@ final class MemoryTab extends StatefulMenuTab {
     private boolean wasEditing;
     private boolean wasPersona;
     private final List<FlatButton> presetButtons = new ArrayList<>();
+    private Host host;
+    private Font font;
+    /** One real widget per clickable row, so Tab reaches every row and the narrator reads it. */
+    private final List<FocusRow> sideRows = new ArrayList<>();
+
+    private final List<FocusRow> factRows = new ArrayList<>();
 
     private record Row(int factId, MemoryView.FactRow fact, List<FormattedCharSequence> lines, int height) {}
 
@@ -75,6 +82,8 @@ final class MemoryTab extends StatefulMenuTab {
     @Override
     public void init(Host host, int left, int top, int width, int height) {
         model = state.memoryTabModel();
+        this.host = host;
+        this.font = host.font();
         sideWidth = Math.max(70, Math.min(118, width / 4));
         sideLeft = left;
         sideTop = top;
@@ -111,8 +120,8 @@ final class MemoryTab extends StatefulMenuTab {
         listWidth = headWidth;
         listHeight = Math.max(LINE, actionY - GAP - listTop);
 
-        host.add(new HitArea(sideLeft, sideTop, sideWidth, sideHeight, this::clickGroup));
-        factsHit = host.add(new HitArea(listLeft, listTop, listWidth, listHeight, this::clickFact));
+        sideRows.clear();
+        factRows.clear();
         edit = host.add(new FlatButton(
                 headLeft,
                 actionY,
@@ -205,6 +214,17 @@ final class MemoryTab extends StatefulMenuTab {
                         Component.translatable("friendai.menu.description.title")));
         personaBox.setCharacterLimit(PersonaText.MAX_LENGTH);
         wasPersona = false;
+        // The sidebar's two fixed pages get their rows here; the group rows follow as the view grows.
+        sideRows.add(host.add(new FocusRow(Component.translatable("friendai.menu.description.title"), this::openPersona)
+                .withRingWidth(sideWidth)));
+        sideRows.add(host.add(new FocusRow(Component.translatable("friendai.menu.transcript.title"), () -> {
+                    model.selectTranscript();
+                    factsView.scroll(1000);
+                    sync();
+                })
+                .withRingWidth(sideWidth)));
+        refreshRows();
+        ensureRows();
         sync();
     }
 
@@ -236,6 +256,8 @@ final class MemoryTab extends StatefulMenuTab {
             }
         });
         sync();
+        refreshRows();
+        ensureRows();
     }
 
     private void openPersona() {
@@ -252,7 +274,13 @@ final class MemoryTab extends StatefulMenuTab {
         text.setValue("");
     }
 
+    /** Applies the model to every control and then to the row widgets the page shows. */
     private void sync() {
+        syncControls();
+        updateRows();
+    }
+
+    private void syncControls() {
         boolean enabled = model.view().map(MemoryView::enabled).orElse(true);
         boolean persona = model.personaSelected();
         if (wasPersona && !persona) {
@@ -270,7 +298,6 @@ final class MemoryTab extends StatefulMenuTab {
             text.visible = false;
             addOrSave.visible = false;
             cancel.visible = false;
-            factsHit.active = false;
             clear.visible = true;
             clear.active = enabled;
             clear.setMessage(Component.translatable(
@@ -290,7 +317,6 @@ final class MemoryTab extends StatefulMenuTab {
             preset.visible = persona;
         }
         personaBox.visible = persona;
-        factsHit.active = !persona;
         if (persona) {
             clear.active = false;
             trust.visible = false;
@@ -481,9 +507,11 @@ final class MemoryTab extends StatefulMenuTab {
     private void drawSidebar(GuiGraphicsExtractor g, Font font, MemoryView view, int mouseX, int mouseY) {
         Ui.card(g, sideLeft, sideTop, sideWidth, sideHeight, Ui.CARD, Ui.BORDER);
         List<MemoryView.Group> groups = view.groups();
+        reveal(sideRows, groupsView, sideTop + 1, sideTop + sideHeight - 1);
         groupsView.begin(
                 g, sideLeft + 1, sideTop + 1, sideWidth - 2, sideHeight - 2, (groups.size() + 2) * GROUP_ROW + 2);
         int y = groupsView.top() + 1;
+        int index = 0;
         if (groupsView.visible(y, GROUP_ROW)) {
             boolean current = model.personaSelected();
             boolean hot = groupsView.contains(mouseX, mouseY) && mouseY >= y && mouseY < y + GROUP_ROW;
@@ -506,6 +534,7 @@ final class MemoryTab extends StatefulMenuTab {
                     y + (GROUP_ROW - font.lineHeight) / 2 + 1,
                     current ? Ui.TEXT : Ui.DIM);
         }
+        placeSideRow(index++, y);
         y += GROUP_ROW;
         if (groupsView.visible(y, GROUP_ROW)) {
             boolean current = model.transcriptSelected();
@@ -538,6 +567,7 @@ final class MemoryTab extends StatefulMenuTab {
                     y + (GROUP_ROW - font.lineHeight) / 2 + 1,
                     Ui.DIM);
         }
+        placeSideRow(index++, y);
         y += GROUP_ROW;
         String selected = model.group().map(MemoryView.Group::key).orElse("");
         for (MemoryView.Group group : groups) {
@@ -571,6 +601,7 @@ final class MemoryTab extends StatefulMenuTab {
                     Ui.dot(g, sideLeft + sideWidth - 6, y + 2, 3, Ui.GOOD);
                 }
             }
+            placeSideRow(index++, y);
             y += GROUP_ROW;
         }
         groupsView.end(g);
@@ -724,10 +755,12 @@ final class MemoryTab extends StatefulMenuTab {
             total += row.height() + GAP;
         }
         int selected = model.selected().orElse(-1);
+        reveal(factRows, factsView, listTop, listTop + listHeight);
         factsView.begin(g, listLeft, listTop, listWidth, listHeight, total);
         int y = factsView.top();
         int cardWidth = listWidth - 6;
-        for (Row row : rows) {
+        for (int i = 0; i < rows.size(); i++) {
+            Row row = rows.get(i);
             if (factsView.visible(y, row.height())) {
                 boolean current = row.factId() == selected;
                 Ui.card(
@@ -756,6 +789,7 @@ final class MemoryTab extends StatefulMenuTab {
                     lineY += font.lineHeight + 1;
                 }
             }
+            placeFactRow(i, y, row.height());
             y += row.height() + GAP;
         }
         factsView.end(g);
@@ -774,38 +808,126 @@ final class MemoryTab extends StatefulMenuTab {
         g.disableScissor();
     }
 
-    private void clickGroup(double x, double y) {
-        int content = groupsView.contentY(y);
-        int index = content / GROUP_ROW - 2;
-        if (index == -2 && content >= 0) {
-            openPersona();
+    /**
+     * Keeps a row reached with the keyboard inside its list, so Tab can walk the whole page without a wheel. The row
+     * keeps its own top across scrolling; {@link FocusRow#place} clips only what the pointer and the ring see.
+     */
+    private void reveal(List<FocusRow> widgets, ScrollView view, int viewTop, int viewBottom) {
+        if (host == null) {
             return;
         }
-        if (index == -1 && content >= 0) {
-            model.selectTranscript();
-            factsView.scroll(1000);
-            sync();
+        // Only the keyboard pulls a focused row into view: a wheel turn after a click must not be undone.
+        if (!Minecraft.getInstance().getLastInputType().isKeyboard()) {
             return;
         }
+        GuiEventListener focused = host.focused();
+        if (focused == null) {
+            return;
+        }
+        int index = widgets.indexOf(focused);
+        if (index < 0) {
+            return;
+        }
+        FocusRow row = widgets.get(index);
+        // A row taller than the viewport only scrolls its top in; chasing its bottom would fight the next frame.
+        if (row.rowTop() < viewTop) {
+            view.nudge(row.rowTop() - viewTop);
+        } else if (row.rowHeight() <= viewBottom - viewTop && row.rowBottom() > viewBottom) {
+            view.nudge(row.rowBottom() - viewBottom);
+        }
+    }
+
+    /** Puts a sidebar row on its line; scrolling only clips it, the row keeps its own position for focus. */
+    private void placeSideRow(int index, int y) {
+        if (index < sideRows.size()) {
+            sideRows.get(index).place(sideLeft, y, sideWidth, GROUP_ROW, sideTop + 1, sideTop + sideHeight - 1);
+        }
+    }
+
+    private void placeFactRow(int index, int y, int height) {
+        if (index < factRows.size()) {
+            factRows.get(index).place(listLeft, y, listWidth, height, listTop, listTop + listHeight);
+        }
+    }
+
+    /** Wraps the facts into rows before the row widgets are matched to them; the same work render would do. */
+    private void refreshRows() {
+        List<MemoryView.FactRow> facts = model.facts();
+        if (!facts.equals(builtFor) || builtWidth != listWidth) {
+            rebuildRows(font, facts, listWidth);
+        }
+    }
+
+    /** Adds one focus widget the first time a row appears; the pool never shrinks, unused rows just go quiet. */
+    private void ensureRows() {
+        List<MemoryView.Group> groups = model.view().map(MemoryView::groups).orElse(List.of());
+        while (sideRows.size() < 2 + groups.size()) {
+            int index = sideRows.size() - 2;
+            sideRows.add(host.add(new FocusRow(Component.empty(), () -> selectGroup(index)).withRingWidth(sideWidth)));
+        }
+        while (factRows.size() < rows.size()) {
+            int index = factRows.size();
+            factRows.add(host.add(new FocusRow(Component.empty(), () -> selectFact(index))
+                    .withRingWidth(Math.max(1, listWidth - 6))));
+        }
+        updateRows();
+    }
+
+    /** Tells every row widget whether its row is on this page and what the narrator should read for it. */
+    private void updateRows() {
+        List<MemoryView.Group> groups = model.view().map(MemoryView::groups).orElse(List.of());
+        // Before the first snapshot arrives the page draws nothing, so no row may be a Tab stop with no position.
+        boolean haveView = model.view().isPresent();
+        for (int i = 0; i < sideRows.size(); i++) {
+            FocusRow row = sideRows.get(i);
+            boolean used = haveView && i < 2 + groups.size();
+            row.visible = used;
+            row.active = used;
+            if (used && i >= 2) {
+                row.setMessage(groupName(groups.get(i - 2)));
+            }
+        }
+        // A disabled page shows an error instead of the list, so its old rows must stop being Tab stops.
+        boolean facts = model.view().map(MemoryView::enabled).orElse(false)
+                && !model.personaSelected()
+                && !model.transcriptSelected();
+        for (int i = 0; i < factRows.size(); i++) {
+            FocusRow row = factRows.get(i);
+            boolean used = facts && i < rows.size();
+            row.visible = used;
+            row.active = used;
+            if (used) {
+                row.setMessage(Component.literal(rows.get(i).fact().text()));
+            }
+        }
+    }
+
+    /** A sidebar row was activated: 0 is the description, 1 the transcript, the rest are the groups. */
+    private void selectGroup(int index) {
         model.view().ifPresent(view -> {
-            if (index >= 0 && index < view.groups().size()) {
-                model.selectGroup(view.groups().get(index).key());
+            if (index == 0) {
+                openPersona();
+                return;
+            }
+            if (index == 1) {
+                model.selectTranscript();
+                factsView.scroll(1000);
+                sync();
+                return;
+            }
+            int group = index - 2;
+            if (group < view.groups().size()) {
+                model.selectGroup(view.groups().get(group).key());
                 factsView.scroll(1000);
                 sync();
             }
         });
     }
 
-    private void clickFact(double x, double y) {
-        int cursor = factsView.contentY(y);
-        int running = 0;
-        for (Row row : rows) {
-            if (cursor >= running && cursor < running + row.height()) {
-                model.select(row.factId());
-                sync();
-                return;
-            }
-            running += row.height() + GAP;
+    private void selectFact(int index) {
+        if (index < rows.size()) {
+            model.select(rows.get(index).factId());
+            sync();
         }
     }
 

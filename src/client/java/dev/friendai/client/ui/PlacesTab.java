@@ -6,12 +6,14 @@ import dev.friendai.features.places.PlaceLimits;
 import dev.friendai.features.places.PlaceView;
 import dev.friendai.presentation.companion.PlacesTabModel;
 import dev.friendai.protocol.places.PlaceRequest;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.network.chat.Component;
 
 /** The places tab: every place the companion remembers, with renaming and a guarded delete. */
@@ -29,7 +31,10 @@ final class PlacesTab extends StatefulMenuTab {
     private FlatButton rename;
     private FlatButton delete;
     private EditBox renameField;
-    private HitArea placesHit;
+    private Host host;
+    /** One real widget per place row, so Tab reaches every row and the narrator reads it. */
+    private final List<FocusRow> placeRows = new ArrayList<>();
+
     private int headLeft;
     private int headWidth;
     private int listLeft;
@@ -40,6 +45,7 @@ final class PlacesTab extends StatefulMenuTab {
     @Override
     public void init(Host host, int left, int top, int width, int height) {
         model = state.placesTabModel();
+        this.host = host;
         headLeft = left;
         headWidth = width;
 
@@ -56,7 +62,7 @@ final class PlacesTab extends StatefulMenuTab {
         int renameX = deleteX - GAP - renameWidth;
         int fieldWidth = Math.max(40, renameX - GAP - left);
 
-        placesHit = host.add(new HitArea(listLeft, listTop, listWidth, listHeight, this::clickRow));
+        placeRows.clear();
         renameField = host.add(new EditBox(
                 host.font(),
                 left,
@@ -84,6 +90,7 @@ final class PlacesTab extends StatefulMenuTab {
                 Ui.WARN,
                 this::clickDelete));
         sync();
+        ensureRows();
     }
 
     @Override
@@ -97,6 +104,7 @@ final class PlacesTab extends StatefulMenuTab {
         });
         model.tick(now);
         sync();
+        ensureRows();
     }
 
     private void sync() {
@@ -160,11 +168,13 @@ final class PlacesTab extends StatefulMenuTab {
             return;
         }
         int total = places.size() * (PLACE_ROW + GAP);
+        reveal(placeRows, placesView, listTop, listTop + listHeight);
         placesView.begin(g, listLeft, listTop, listWidth, listHeight, total);
         int y = placesView.top();
         int cardWidth = listWidth - 6;
         long selected = model.selected();
-        for (PlaceView.Row place : places) {
+        for (int i = 0; i < places.size(); i++) {
+            PlaceView.Row place = places.get(i);
             if (placesView.visible(y, PLACE_ROW)) {
                 boolean current = place.id() == selected;
                 Ui.card(
@@ -180,14 +190,10 @@ final class PlacesTab extends StatefulMenuTab {
                 int x = listLeft + PAD;
                 int badgeWidth = Ui.badge(
                         g, font, Component.translatable(place.kindKey()).getString(), x, y + 3, Ui.ACCENT);
-                String title = place.name();
-                if (!place.label().isBlank()) {
-                    title += " — " + place.label();
-                }
                 Ui.text(
                         g,
                         font,
-                        Ui.clip(font, title, Math.max(20, cardWidth - 2 * PAD - badgeWidth - 5)),
+                        Ui.clip(font, titleOf(place), Math.max(20, cardWidth - 2 * PAD - badgeWidth - 5)),
                         x + badgeWidth + 5,
                         y + 5,
                         Ui.TEXT);
@@ -208,9 +214,15 @@ final class PlacesTab extends StatefulMenuTab {
                         y + 5 + font.lineHeight + 1,
                         Ui.DIM);
             }
+            placeRow(i, y);
             y += PLACE_ROW + GAP;
         }
         placesView.end(g);
+    }
+
+    /** The row's own text, as drawn and as read by the narrator. */
+    private static String titleOf(PlaceView.Row place) {
+        return place.label().isBlank() ? place.name() : place.name() + " — " + place.label();
     }
 
     /** The distance from the local player, but only while both are in the same dimension. */
@@ -239,15 +251,64 @@ final class PlacesTab extends StatefulMenuTab {
         g.disableScissor();
     }
 
-    private void clickRow(double x, double y) {
-        if (!model.view().map(PlaceView::enabled).orElse(false)) {
+    /**
+     * Keeps a row reached with the keyboard inside the list, so Tab can walk every place without a wheel. The row
+     * keeps its own top across scrolling; {@link FocusRow#place} clips only what the pointer and the ring see.
+     */
+    private void reveal(List<FocusRow> widgets, ScrollView view, int viewTop, int viewBottom) {
+        if (host == null) {
             return;
         }
-        int cursor = placesView.contentY(y);
-        int stride = PLACE_ROW + GAP;
-        int index = cursor / stride;
+        // Only the keyboard pulls a focused row into view: a wheel turn after a click must not be undone.
+        if (!Minecraft.getInstance().getLastInputType().isKeyboard()) {
+            return;
+        }
+        GuiEventListener focused = host.focused();
+        if (focused == null) {
+            return;
+        }
+        int index = widgets.indexOf(focused);
+        if (index < 0) {
+            return;
+        }
+        FocusRow row = widgets.get(index);
+        // A row taller than the viewport only scrolls its top in; chasing its bottom would fight the next frame.
+        if (row.rowTop() < viewTop) {
+            view.nudge(row.rowTop() - viewTop);
+        } else if (row.rowHeight() <= viewBottom - viewTop && row.rowBottom() > viewBottom) {
+            view.nudge(row.rowBottom() - viewBottom);
+        }
+    }
+
+    private void placeRow(int index, int y) {
+        if (index < placeRows.size()) {
+            placeRows.get(index).place(listLeft, y, listWidth, PLACE_ROW, listTop, listTop + listHeight);
+        }
+    }
+
+    /** Adds one focus widget the first time a place appears; the pool never shrinks, unused rows just go quiet. */
+    private void ensureRows() {
         List<PlaceView.Row> places = model.rows();
-        if (cursor >= 0 && cursor % stride < PLACE_ROW && index >= 0 && index < places.size()) {
+        while (placeRows.size() < places.size()) {
+            int index = placeRows.size();
+            placeRows.add(host.add(new FocusRow(Component.empty(), () -> selectPlace(index))
+                    .withRingWidth(Math.max(1, listWidth - 6))));
+        }
+        boolean enabled = model.view().map(PlaceView::enabled).orElse(false);
+        for (int i = 0; i < placeRows.size(); i++) {
+            FocusRow row = placeRows.get(i);
+            boolean used = enabled && i < places.size();
+            row.visible = used;
+            row.active = used;
+            if (used) {
+                row.setMessage(Component.literal(titleOf(places.get(i))));
+            }
+        }
+    }
+
+    private void selectPlace(int index) {
+        List<PlaceView.Row> places = model.rows();
+        if (index < places.size()) {
             model.select(places.get(index).id());
             sync();
         }
