@@ -150,6 +150,17 @@ class MiningSafetyTest {
     }
 
     @Test
+    void aStanceWithNothingUnderItCanBeLeftButNotEntered() {
+        // The companion broke the block under itself: its own cell is air with the rim holding its box up.
+        GridCellView view = new GridCellView(".....", "..#..", ".....", ".....");
+        PathStep away = new PathStep(new Node(1, 2, 0), new Node(2, 2, 0), Move.WALK, List.of(), List.of(), 4, 0);
+        PathStep into = new PathStep(new Node(2, 2, 0), new Node(1, 2, 0), Move.WALK, List.of(), List.of(), 4, 0);
+
+        assertTrue(MiningSafety.reversible(view, away));
+        assertFalse(MiningSafety.reversible(view, into));
+    }
+
+    @Test
     void supportedHorizontalDigAndDrySingleBlockDescentRemainLegal() {
         GridCellView tunnel = new GridCellView("#####/#####/#####", "...../..#../.....", "...../...../.....");
         PathStep dig = new PathStep(

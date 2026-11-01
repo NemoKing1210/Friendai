@@ -90,7 +90,10 @@ public final class MiningSafety {
 
         Set<Pos> removed = new HashSet<>(step.breaks());
         CellView projected = (x, y, z) -> removed.contains(new Pos(x, y, z)) ? Cell.AIR : view.at(x, y, z);
-        if (!safeNode(projected, step.from()) || !safeNode(projected, step.to())) {
+        // The stance a step leaves needs free feet and head, but not a floor: a companion that broke the rim under
+        // itself rests its box on a neighbour's edge with nothing under its own cell, and demanding a floor there
+        // refused every step away from it, leaving it unable to plan at all. Where the step lands still has to hold.
+        if (!standable(projected, step.from()) || !safeNode(projected, step.to())) {
             return false;
         }
         // A one-block descent is reversible only if its inverse ascent has clear feet and head cells.
@@ -117,6 +120,12 @@ public final class MiningSafety {
             case DESCEND, DIG_DESCEND -> dy == -1;
             default -> false;
         };
+    }
+
+    private static boolean standable(CellView view, Node node) {
+        Cell feet = view.at(node.pos());
+        Cell head = view.at(node.head());
+        return feet.kind() != Cell.Kind.WATER && feet.free() && head.kind() != Cell.Kind.WATER && head.free();
     }
 
     private static boolean safeNode(CellView view, Node node) {

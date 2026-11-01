@@ -355,6 +355,38 @@ public class MiningTests {
         });
     }
 
+    /**
+     * A companion that broke the block under itself stands on the rim of its own pit: its box rests on the neighbour
+     * while the cell under its feet is empty. Every step away from there used to be refused as irreversible, so it
+     * could not plan at all. It now steps onto the rim and mines the stone beside it.
+     */
+    @GameTest(maxTicks = 600)
+    public void minesFromTheRimOfThePitItDugUnderItself(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 120, 12);
+        h.setBlock(5, 120, 5, Blocks.AIR);
+        h.setBlock(7, 121, 6, Blocks.STONE);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 5, 121, 5);
+        companion.inventory().addItem(Items.STONE_PICKAXE.getDefaultInstance());
+        // The centre of the box over the hole, its edge on the rim: standing, with nothing under its own cell.
+        BlockPos perch = h.absolutePos(new BlockPos(5, 121, 5));
+        companion.setPos(perch.getX() + 0.9, perch.getY(), perch.getZ() + 0.9);
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, companion, h.absolutePos(new BlockPos(7, 121, 6))),
+                "the stone beside the rim should be visible");
+        Outcome outcome = new Outcome();
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 300, () -> false);
+        runner.setEventSink(outcome);
+        runner.start(new MineBlocksTask(BlockMatcher.parse("minecraft:stone").orElseThrow(), 1, 8), "mine_blocks");
+        TaskTrace.of(h, runner, companion).succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(outcome.status != null, "mining should finish");
+            h.assertTrue(
+                    outcome.status == TaskStatus.SUCCESS,
+                    "the stone beside the rim was not mined from the pit the companion dug under itself: "
+                            + outcome.status + " " + outcome.summary);
+        });
+    }
+
     /** Observes every stone of the hill that touches air, the cells a companion standing outside can see. */
     private static void observeStoneFace(GameTestHelper h, CompanionEntity companion) {
         for (int x = 4; x <= 11; x++) {
