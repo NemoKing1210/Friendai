@@ -6,7 +6,13 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
-## [0.147.1] - 2026-11-01
+## [0.148.0] - 2026-11-02
+
+### Fixed
+
+- The companion can no longer report a goal as done when a criterion the world can check does not hold: such a claim is refused, the goal stays open, and the refusal names exactly what is still missing.
+
+ - 2026-11-01
 
 ### Fixed
 
