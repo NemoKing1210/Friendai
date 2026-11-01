@@ -12,7 +12,13 @@ import dev.friendai.agent.llm.model.Usage;
 import dev.friendai.agent.turn.BrainEvent;
 import dev.friendai.agent.turn.LlmGateway;
 import dev.friendai.agent.turn.Speaker;
+import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
+import dev.friendai.execution.queue.FailurePolicy;
+import dev.friendai.execution.queue.GuardAction;
+import dev.friendai.execution.queue.JobState;
+import dev.friendai.execution.queue.QueuedStep;
+import dev.friendai.features.navigation.minecraft.task.StayTask;
 import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.server.agent.chat.ChatRouter;
 import dev.friendai.server.runtime.ServerRuntime;
@@ -241,6 +247,54 @@ public class GuestTests {
             String prompt = brains.currentPrompt(owner.getUUID()).orElse("");
             h.assertTrue(
                     prompt.contains("usually writes in Russian"), "the prompt lost the learned language: " + prompt);
+        });
+    }
+
+    /** A guest's stop request must not cancel the owner's running job. */
+    @GameTest(maxTicks = 3600)
+    public void aGuestCannotChangeTheOwnersQueue(GameTestHelper h) {
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        ServerPlayer guest = GameTestSupport.mockPlayerAt(h, 3, 2, 3);
+        var server = h.getLevel().getServer();
+        ServerRuntime state = GameTestSupport.runtime(server);
+        Script script = new Script().call("stop", "{\"what\":\"all\"}").text("That is not mine to cancel");
+        state.sessions().setGatewayOverride(owner.getUUID(), script);
+        CompanionEntity companion = CompanionManager.get(server).summon(owner);
+        var coordinator = companion.executionCoordinator();
+        coordinator.resume();
+        long jobId = coordinator.enqueue(
+                new QueuedStep(
+                        "stay",
+                        new JsonObject(),
+                        null,
+                        List.of(),
+                        GuardAction.WAIT,
+                        FailurePolicy.ASK,
+                        1,
+                        List.of(),
+                        owner.getUUID(),
+                        false),
+                ctx -> new StayTask(100000));
+        for (int i = 0; i < 5; i++) coordinator.tick();
+        h.assertTrue(
+                coordinator.activeJob().map(job -> job.id() == jobId).orElse(false),
+                "the owner's job should be running before the guest asks to stop it");
+
+        ChatRouter.onChat(ServerRuntimeRegistry.getOrCreate(server), guest, "Friendai, stop everything");
+        h.succeedWhen(() -> {
+            h.assertTrue(script.requests.size() >= 2, "requests so far: " + script.requests.size());
+            h.assertTrue(
+                    script.requests.get(1).messages().stream()
+                            .anyMatch(m -> m.role() == Role.TOOL
+                                    && m.text().contains("not available to this speaker (guest)")),
+                    "messages were " + script.requests.get(1).messages());
+            var job = coordinator.queue().job(jobId);
+            h.assertTrue(job.isPresent(), "the guest cancelled the owner's job");
+            h.assertValueEqual(
+                    job.orElseThrow().state(), JobState.RUNNING, "the guest's stop request ended the owner's job");
+            h.assertTrue(
+                    coordinator.activeJob().map(active -> active.id() == jobId).orElse(false),
+                    "the owner's job must still be the running work");
         });
     }
 }

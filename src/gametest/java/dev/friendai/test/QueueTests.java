@@ -2,12 +2,20 @@ package dev.friendai.test;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import dev.friendai.agent.llm.model.LlmResponse;
+import dev.friendai.agent.llm.model.Message;
+import dev.friendai.agent.llm.model.StopReason;
 import dev.friendai.agent.llm.model.ToolCall;
+import dev.friendai.agent.llm.model.ToolSpec;
+import dev.friendai.agent.llm.model.Usage;
+import dev.friendai.agent.turn.BrainEvent;
+import dev.friendai.agent.turn.LlmGateway;
 import dev.friendai.agent.verify.OutcomeChecker;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.execution.queue.FailurePolicy;
+import dev.friendai.execution.queue.Guard;
 import dev.friendai.execution.queue.GuardAction;
 import dev.friendai.execution.queue.Job;
 import dev.friendai.execution.queue.JobQueue;
@@ -24,14 +32,17 @@ import dev.friendai.features.navigation.minecraft.task.StayTask;
 import dev.friendai.server.agent.OutcomeFacts;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.execution.TaskEventSink;
+import dev.friendai.server.runtime.ServerRuntime;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.queue.CompanionGuardFacts;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
@@ -85,6 +96,21 @@ public final class QueueTests {
         @Override
         public void onCancelled(int id, String toolName, String reason) {
             cancelled.add(toolName + ":" + reason);
+        }
+    }
+
+    /**
+     * The seam BrainServiceTests uses to count turns: every request is recorded and answered without a model, so a
+     * status read that wrongly posted a brain event would show up here as a request.
+     */
+    private static final class CountingGateway implements LlmGateway {
+        final List<List<Message>> requests = Collections.synchronizedList(new ArrayList<>());
+
+        @Override
+        public CompletableFuture<LlmResponse> complete(String system, List<Message> messages, List<ToolSpec> tools) {
+            requests.add(new ArrayList<>(messages));
+            return CompletableFuture.completedFuture(
+                    new LlmResponse("[silent]", List.of(), StopReason.END, new Usage(0, 0)));
         }
     }
 
@@ -435,5 +461,60 @@ public final class QueueTests {
         h.assertValueEqual(coordinator.queue().jobCount(), 0, "the completed retry leaves no job behind");
         h.assertTrue(events.finished.contains("stay:SUCCESS"), "the retry finishes on its own: " + events.finished);
         h.succeed();
+    }
+
+    /**
+     * A status check is a read: while a guard keeps a job waiting, asking for the queue over and over must never
+     * become work for the brain. The gateway override is the same seam BrainServiceTests counts turns with.
+     */
+    @GameTest(maxTicks = 3600)
+    public void repeatedStatusChecksDoNotMultiplyBrainEvents(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        ServerRuntime state = GameTestSupport.runtime(h.getLevel().getServer());
+        CountingGateway gateway = new CountingGateway();
+        state.sessions().setGatewayOverride(owner.getUUID(), gateway);
+        CompanionEntity companion =
+                CompanionManager.get(h.getLevel().getServer()).summon(owner);
+        ExecutionCoordinator coordinator = companion.executionCoordinator();
+        coordinator.resume();
+        long jobId = coordinator.enqueue(
+                new QueuedStep(
+                        "stay",
+                        new JsonObject(),
+                        null,
+                        List.of(new Guard.HasItem("minecraft:diamond", 64)),
+                        GuardAction.WAIT,
+                        FailurePolicy.ASK,
+                        1,
+                        List.of(),
+                        owner.getUUID(),
+                        false),
+                ctx -> new StayTask(200));
+        for (int i = 0; i < 5; i++) coordinator.tick();
+        h.assertValueEqual(
+                coordinator.queue().job(jobId).orElseThrow().state(),
+                JobState.PENDING,
+                "the guarded job cannot run while its guard is unmet");
+        h.assertTrue(
+                coordinator.activeJob().map(job -> job.id() != jobId).orElse(true),
+                "the guarded job must not become the active job");
+
+        int before = gateway.requests.size();
+        for (int i = 0; i < 20; i++) {
+            String status = coordinator.queueSummary();
+            h.assertTrue(
+                    status.contains("Blocked") && status.contains("stay"),
+                    "the status view keeps the waiting job: " + status);
+            coordinator.tick();
+        }
+        h.assertValueEqual(
+                gateway.requests.size(), before, "a status check must not enqueue brain events: " + gateway.requests);
+        h.assertValueEqual(coordinator.queue().jobCount(), 1, "the waiting job is still queued");
+
+        // The counter does move for a real event, so the unchanged count above is meaningful.
+        state.sessions().post(owner.getUUID(), new BrainEvent.WorldNotice("queue status checked"));
+        h.succeedWhen(
+                () -> h.assertTrue(gateway.requests.size() > before, "a real event should reach the model gateway"));
     }
 }
