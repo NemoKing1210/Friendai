@@ -8,6 +8,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.132.0] - 2026-11-01
+
+### Added
+
+- An announced advancement and a return after half an hour now join the journal the companion may speak from; a quick reconnect is not treated as an absence. The advancement rides a one-line mixin because Fabric has no advancement event.
+
 ## [0.131.0] - 2026-11-01
 
 ### Added

@@ -71,6 +71,38 @@ public class SocialOpeningTests {
         });
     }
 
+    @GameTest(maxTicks = 300)
+    public void anAdvancementLandsInTheJournal(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        ServerRuntime runtime = GameTestSupport.runtime(h.getLevel().getServer());
+        CompanionManager.get(h.getLevel().getServer()).summon(owner);
+        var holder = runtime.server()
+                .getAdvancements()
+                .get(net.minecraft.resources.Identifier.withDefaultNamespace("story/mine_stone"));
+        h.assertTrue(holder != null, "the root advancement must exist");
+        String criterion = holder.value().criteria().keySet().iterator().next();
+
+        boolean awarded = owner.getAdvancements().award(holder, criterion);
+
+        h.assertTrue(awarded, "the advancement should have been awarded");
+        h.succeedWhen(() -> {
+            boolean recorded =
+                    runtime
+                            .memory()
+                            .book(owner.getUUID())
+                            .journal(owner.getUUID())
+                            .recent(compatibilityLimit())
+                            .stream()
+                            .anyMatch(entry -> entry.key().startsWith("advancement:"));
+            h.assertTrue(recorded, "an announced advancement must reach the owner's journal");
+        });
+    }
+
+    private static int compatibilityLimit() {
+        return 12;
+    }
+
     @GameTest(maxTicks = 900)
     public void aDeathOpensOneToollessLine(GameTestHelper h) {
         GameTestSupport.platform(h, 12);

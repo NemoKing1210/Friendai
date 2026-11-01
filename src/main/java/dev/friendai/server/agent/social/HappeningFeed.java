@@ -22,6 +22,11 @@ import net.minecraft.world.entity.LivingEntity;
  * the memory book, which is flushed by the tick pipeline like every other owner record.
  */
 public final class HappeningFeed {
+    /** When each player left, so a return can say how long they were gone; cleared on the next join. */
+    private static final java.util.Map<UUID, Long> awaySince = new java.util.concurrent.ConcurrentHashMap<>();
+    /** A return shorter than this is not worth a line. */
+    private static final long RETURN_AFTER_MILLIS = 30L * 60L * 1_000L;
+
     private HappeningFeed() {}
 
     public static void register() {
@@ -30,6 +35,8 @@ public final class HappeningFeed {
         ServerEntityLevelChangeEvents.AFTER_PLAYER_CHANGE_LEVEL.register((player, from, to) -> dimension(player, to));
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) ->
                 ServerRuntimeRegistry.find(server).ifPresent(runtime -> joined(runtime, handler.getPlayer())));
+        ServerPlayConnectionEvents.DISCONNECT.register(
+                (handler, server) -> awaySince.put(handler.getPlayer().getUUID(), System.currentTimeMillis()));
     }
 
     private static void afterDeath(LivingEntity victim, DamageSource source) {
@@ -67,6 +74,27 @@ public final class HappeningFeed {
         });
     }
 
+    /** Called from the advancement mixin for an award that actually happened. */
+    public static void advancement(ServerPlayer player, net.minecraft.advancements.AdvancementHolder holder) {
+        var display = holder.value().display();
+        if (display.isEmpty() || !display.get().announceToChat()) {
+            return;
+        }
+        if (!(player.level() instanceof ServerLevel level)) {
+            return;
+        }
+        ServerRuntimeRegistry.find(level.getServer())
+                .ifPresent(runtime -> book(runtime, player.getUUID())
+                        .ifPresent(book -> book.recordHappening(
+                                player.getUUID(),
+                                new Happening(
+                                        Happening.Kind.ADVANCEMENT,
+                                        Happening.Importance.HIGH,
+                                        (int) level.getGameTime(),
+                                        "advancement:" + holder.id(),
+                                        "you earned " + display.get().title().getString()))));
+    }
+
     private static void respawn(ServerPlayer player) {
         if (!(player.level() instanceof ServerLevel level)) {
             return;
@@ -100,15 +128,22 @@ public final class HappeningFeed {
     }
 
     private static void joined(ServerRuntime runtime, ServerPlayer player) {
+        Long left = awaySince.remove(player.getUUID());
+        long away = left == null ? 0L : System.currentTimeMillis() - left;
+        if (away < RETURN_AFTER_MILLIS) {
+            // A quick reconnect is not news; only a real absence is worth a line.
+            return;
+        }
+        long minutes = away / 60_000L;
         book(runtime, player.getUUID())
                 .ifPresent(book -> book.recordHappening(
                         player.getUUID(),
                         new Happening(
                                 Happening.Kind.JOIN,
-                                Happening.Importance.LOW,
+                                Happening.Importance.HIGH,
                                 (int) runtime.server().overworld().getGameTime(),
                                 "join:" + runtime.server().overworld().getGameTime(),
-                                "you came back")));
+                                "you came back after " + minutes + " minutes")));
     }
 
     /** The owner's book, only when that owner has a companion: a player without one has nobody to tell. */
