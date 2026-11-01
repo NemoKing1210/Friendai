@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.147.0] - 2026-11-01
+
+### Changed
+
+- The settings screen now says exactly why voice will not start — a cloud voice without an API key, a local model that is not downloaded — using the same message the runtime prints instead of a generic "not configured", and it points at the model row when the chosen model cannot call tools.
+
 ## [0.146.0] - 2026-11-01
 
 ### Changed
