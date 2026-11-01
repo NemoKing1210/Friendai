@@ -959,5 +959,8 @@
   "friendai.menu.feeling.goal": "Ziel: %s",
   "friendai.menu.feeling.met": "erfüllt: %s",
   "friendai.menu.feeling.not_proven": "nicht belegt: %s",
-  "friendai.menu.feeling.empty": "Hier gibt es noch nichts zu sehen."
+  "friendai.menu.feeling.empty": "Hier gibt es noch nichts zu sehen.",
+  "friendai.command.pause.on": "Stillhalten: der Gefährte beginnt keine Arbeit, bis Sie fortsetzen.",
+  "friendai.command.pause.off": "Der Gefährte darf wieder arbeiten.",
+  "friendai.command.pause.none": "Sie haben keinen Gefährten zum Anhalten."
 }

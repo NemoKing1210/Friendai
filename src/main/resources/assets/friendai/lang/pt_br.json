@@ -959,5 +959,8 @@
   "friendai.menu.feeling.goal": "Objetivo: %s",
   "friendai.menu.feeling.met": "cumprido: %s",
   "friendai.menu.feeling.not_proven": "não comprovado: %s",
-  "friendai.menu.feeling.empty": "Ainda não há nada para mostrar."
+  "friendai.menu.feeling.empty": "Ainda não há nada para mostrar.",
+  "friendai.command.pause.on": "Parado: o companheiro deixa de começar trabalho até você retomar.",
+  "friendai.command.pause.off": "O companheiro pode trabalhar de novo.",
+  "friendai.command.pause.none": "Você não tem um companheiro para parar."
 }

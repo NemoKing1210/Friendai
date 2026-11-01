@@ -959,5 +959,8 @@
   "friendai.menu.feeling.goal": "Goal: %s",
   "friendai.menu.feeling.met": "met: %s",
   "friendai.menu.feeling.not_proven": "not proven: %s",
-  "friendai.menu.feeling.empty": "Nothing to show yet."
+  "friendai.menu.feeling.empty": "Nothing to show yet.",
+  "friendai.command.pause.on": "Hold still: the companion stops starting work until you resume.",
+  "friendai.command.pause.off": "The companion may work again.",
+  "friendai.command.pause.none": "You have no companion to hold."
 }

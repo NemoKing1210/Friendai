@@ -956,5 +956,8 @@
   "friendai.menu.feeling.goal": "Мета: %s",
   "friendai.menu.feeling.met": "виконано: %s",
   "friendai.menu.feeling.not_proven": "не підтверджено: %s",
-  "friendai.menu.feeling.empty": "Поки немає чого показати."
+  "friendai.menu.feeling.empty": "Поки немає чого показати.",
+  "friendai.command.pause.on": "Стояти: помічник не починає нової роботи, поки ви не продовжите.",
+  "friendai.command.pause.off": "Помічник знову може працювати.",
+  "friendai.command.pause.none": "У вас немає помічника, якого можна зупинити."
 }

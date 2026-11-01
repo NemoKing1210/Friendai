@@ -956,5 +956,8 @@
   "friendai.menu.feeling.goal": "Цель: %s",
   "friendai.menu.feeling.met": "выполнено: %s",
   "friendai.menu.feeling.not_proven": "не подтверждено: %s",
-  "friendai.menu.feeling.empty": "Пока нечего показать."
+  "friendai.menu.feeling.empty": "Пока нечего показать.",
+  "friendai.command.pause.on": "Стоять: компаньон не начинает новую работу, пока вы не продолжите.",
+  "friendai.command.pause.off": "Компаньон снова может работать.",
+  "friendai.command.pause.none": "У вас нет компаньона, которого можно остановить."
 }

@@ -69,6 +69,8 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     private boolean flushingEvents;
     private boolean paused;
     private boolean suspended;
+    /** The owner asked for a hold; a later join must not undo it. */
+    private boolean manualPause;
     /** A restored task held back because its owner was away; resume() starts it before the queue. */
     private Task pendingRestoredTask;
 
@@ -130,9 +132,28 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         suspended = true;
     }
 
+    /**
+     * The owner's own pause: the runner stops starting work and stays stopped through a rejoin or a respawn until it
+     * is released. Resuming starts whatever was waiting.
+     */
+    public void setManualPause(boolean paused) {
+        manualPause = paused;
+        if (paused) {
+            suspend();
+            inTransition(this::flushEvents);
+        } else {
+            resume();
+        }
+    }
+
+    /** Whether the owner is holding the companion still. */
+    public boolean manualPause() {
+        return manualPause;
+    }
+
     public void resume() {
         inTransition(() -> {
-            suspended = false;
+            suspended = manualPause;
             startPendingRestoredTask();
         });
     }

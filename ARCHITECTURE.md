@@ -179,7 +179,10 @@ Cross-feature dependencies are explicit and directed, and `PackageDependencyRule
 5. `requestStep` builds the system prompt with `PromptBuilder.system` and calls `gateway.complete(system, memory.snapshot(), tools.specs(access))`, where the specs are filtered to the visible groups when `agent.toolRouting` is on. Speech is still checked against every tool the caller has.
 6. The response callback speaks the text and executes every tool call in order through `ToolRegistry.run`; tools normally start a `Task`.
 7. Tool results are appended as TOOL messages and `requestStep` loops until there are no calls or `maxToolSteps` is reached; `endTurn` applies the cooldown.
-8. When a task finishes, `TaskEventSink` posts `TaskFinished` to the brain with the plan and goal it belonged to
+8. The owner's own hold (`/friendai pause`) is `ExecutionCoordinator.setManualPause`: it suspends the runner without
+   dropping the active task, survives a rejoin or respawn because `resume` keeps `suspended = manualPause`, and
+   releases with `resume`. A task under the hold is never reported as finished.
+9. When a task finishes, `TaskEventSink` posts `TaskFinished` to the brain with the plan and goal it belonged to
    (`onFinished(id, planId, tool, status, summary)`, the four-argument form still supported for listeners that do not
    care), so the prompt line reads `task #N ... (plan #P) (goal #G)` and the next turn can connect the result to the
    goal it was meant to prove.
