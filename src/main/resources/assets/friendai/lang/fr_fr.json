@@ -964,5 +964,6 @@
   "friendai.command.pause.off": "Le compagnon peut travailler de nouveau.",
   "friendai.command.pause.none": "Vous n'avez pas de compagnon à retenir.",
   "friendai.menu.pause": "Pause",
-  "friendai.menu.resume": "Reprendre"
+  "friendai.menu.resume": "Reprendre",
+  "friendai.config.nav.recovered": "Un fichier de configuration endommagé a été remplacé par sa dernière sauvegarde valide. Enregistrer écrira un nouveau fichier."
 }

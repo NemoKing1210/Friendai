@@ -180,7 +180,7 @@ public final class FriendaiConfigScreen {
         // The navigation tab is never filtered: it holds the search field, the Basic/Advanced switch,
         // profile management and import/export, so the way out of a filter is always one click away.
         Runnable reopen = () -> deferRebuild(() -> show(create(parent, revealKey, voiceDraft)));
-        builder.category(navigationCategory(server, client, reopen));
+        builder.category(navigationCategory(server, client, reopen, serverConfigProtected));
         List<ConfigCategory> categories = new ArrayList<>();
         if (server != null) {
             categories.add(providerCategory(parent, server, revealKey, voice));
@@ -311,7 +311,8 @@ public final class FriendaiConfigScreen {
      * The navigation tab, always first and never filtered: search, the Basic/Advanced switch, profile
      * management and import/export. Filters live here so clearing one is always a single click away.
      */
-    private static ConfigCategory navigationCategory(ServerConfig server, ClientConfig client, Runnable reopen) {
+    private static ConfigCategory navigationCategory(
+            ServerConfig server, ClientConfig client, Runnable reopen, boolean protectedFile) {
         UI_OPTIONS.clear();
         List<Option<?>> find = new ArrayList<>();
         Option<String> search = Option.<String>createBuilder()
@@ -338,6 +339,10 @@ public final class FriendaiConfigScreen {
         });
         find.add(advanced);
         UI_OPTIONS.add(advanced);
+        if (protectedFile) {
+            // The file was damaged and the last good backup is in use; saving replaces the damaged file.
+            find.add(LabelOption.create(Component.translatable("friendai.config.nav.recovered")));
+        }
         if (lastSaveProblem != null) {
             find.add(LabelOption.create(
                     Component.translatable("friendai.config.nav.save_problem", Component.literal(lastSaveProblem))));

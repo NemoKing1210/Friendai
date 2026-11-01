@@ -8,6 +8,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.131.0] - 2026-11-01
+
+### Added
+
+- When a config file was damaged and the mod is running from the last good backup, the settings screen says so instead of leaving the situation invisible.
+
 ## [0.130.0] - 2026-11-01
 
 ### Added

@@ -964,5 +964,6 @@
   "friendai.command.pause.off": "The companion may work again.",
   "friendai.command.pause.none": "You have no companion to hold.",
   "friendai.menu.pause": "Pause",
-  "friendai.menu.resume": "Resume"
+  "friendai.menu.resume": "Resume",
+  "friendai.config.nav.recovered": "A damaged config file was replaced by its last good backup. Saving now writes a fresh file."
 }
