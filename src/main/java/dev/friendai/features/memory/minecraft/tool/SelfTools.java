@@ -157,6 +157,8 @@ public final class SelfTools implements FeatureToolContributor {
                     + "\nNo fact has changed. Call compress_memory with apply:true when the owner agrees.");
         }
         String ownerName = book.player(owner).map(PlayerRecord::lastName).orElse("owner");
+        // A completed compaction is the one place the manner may drift, one small step per talk.
+        companion.driftTrait();
         return ToolResult.ok(renderApplied(
                 MemoryCompactor.apply(book, plan, owner, ownerName, self.now(), limits), self.resultBudget()));
     }

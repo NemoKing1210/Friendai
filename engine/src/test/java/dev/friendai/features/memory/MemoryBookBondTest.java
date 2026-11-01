@@ -94,8 +94,10 @@ class MemoryBookBondTest {
 
     @Test
     void aNewerFormatStaysVisibleSoTheStoreStillRefusesIt() {
-        MemoryRecord record = new Gson().fromJson("{\"formatVersion\":3,\"revision\":9}", MemoryRecord.class);
-        assertEquals(3, record.formatVersion(), "the store compares this with the current format and refuses it");
+        int future = MemoryRecord.FORMAT_VERSION + 1;
+        MemoryRecord record =
+                new Gson().fromJson("{\"formatVersion\":" + future + ",\"revision\":9}", MemoryRecord.class);
+        assertEquals(future, record.formatVersion(), "the store compares this with the current format and refuses it");
     }
 
     @Test

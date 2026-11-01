@@ -26,6 +26,7 @@ public final class MemoryBook {
     private final Map<UUID, BondState> bonds = new LinkedHashMap<>();
 
     private final Map<UUID, dev.friendai.features.social.HappeningJournal> journals = new LinkedHashMap<>();
+    private final Map<UUID, dev.friendai.features.social.Traits> traits = new LinkedHashMap<>();
     /** Item id to allowed: true when the owner allowed a food the companion refuses by default, false to ban one. */
     private final TreeMap<String, Boolean> foodRules = new TreeMap<>();
 
@@ -226,6 +227,28 @@ public final class MemoryBook {
         journal(owner).add(happening);
         dirty = true;
         revision++;
+    }
+
+    /** The owner's drifted manner, neutral until something moves it. */
+    public dev.friendai.features.social.Traits traits(UUID owner) {
+        return traits.getOrDefault(owner, dev.friendai.features.social.Traits.NEUTRAL);
+    }
+
+    /** Stores the owner's manner; the revision only moves when the value actually changes. */
+    public void setTraits(UUID owner, dev.friendai.features.social.Traits next) {
+        if (owner == null || next == null) {
+            return;
+        }
+        var previous = traits.put(owner, next);
+        if (!next.equals(previous)) {
+            dirty = true;
+            revision++;
+        }
+    }
+
+    /** Every owner's manner, in insertion order. Package-private: the record codec is the only writer. */
+    Map<UUID, dev.friendai.features.social.Traits> traits() {
+        return Collections.unmodifiableMap(new LinkedHashMap<>(traits));
     }
 
     /** Every journal, in insertion order. Package-private: the record codec is the only writer. */
@@ -522,6 +545,13 @@ public final class MemoryBook {
                 for (int i = entry.getValue().size() - 1; i >= 0; i--) {
                     journal.add(entry.getValue().get(i));
                 }
+            }
+        }
+        for (Map.Entry<String, dev.friendai.features.social.Traits> entry :
+                record.traits().entrySet()) {
+            UUID owner = parseUuid(entry.getKey());
+            if (owner != null && entry.getValue() != null) {
+                book.traits.put(owner, entry.getValue());
             }
         }
         for (Map.Entry<String, BondState> entry : record.bonds().entrySet()) {

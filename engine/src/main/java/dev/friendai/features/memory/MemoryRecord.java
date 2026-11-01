@@ -3,13 +3,14 @@ package dev.friendai.features.memory;
 import dev.friendai.features.social.BondState;
 import dev.friendai.features.social.Happening;
 import dev.friendai.features.social.HappeningJournal;
+import dev.friendai.features.social.Traits;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Immutable persisted memory snapshot, on-disk format 3: format 2 plus the owner happenings journal.
+ * Immutable persisted memory snapshot, on-disk format 4: format 3 plus the owner's drifted manner.
  *
  * <p>The bond entry for one owner is a {@link BondState}, whose component names ({@code points}, {@code lastDay},
  * {@code awardedToday}, {@code reasons}, {@code peaks}) are the persisted field names. A format 1 file has no bond
@@ -24,8 +25,9 @@ public record MemoryRecord(
         List<FactEntry> facts,
         Map<String, Boolean> foodRules,
         Map<String, BondState> bonds,
-        Map<String, List<Happening>> happenings) {
-    public static final int FORMAT_VERSION = 3;
+        Map<String, List<Happening>> happenings,
+        Map<String, Traits> traits) {
+    public static final int FORMAT_VERSION = 4;
 
     /** The oldest format this build can read; everything between it and the current version is migrated on read. */
     private static final int OLDEST_FORMAT = 1;
@@ -39,7 +41,20 @@ public record MemoryRecord(
             List<FactEntry> facts,
             Map<String, Boolean> foodRules,
             Map<String, BondState> bonds) {
-        this(formatVersion, revision, nextId, players, facts, foodRules, bonds, Map.of());
+        this(formatVersion, revision, nextId, players, facts, foodRules, bonds, Map.of(), Map.of());
+    }
+
+    /** The shape before the traits map, so a reader that only knows the journal keeps compiling. */
+    public MemoryRecord(
+            int formatVersion,
+            long revision,
+            int nextId,
+            List<PlayerEntry> players,
+            List<FactEntry> facts,
+            Map<String, Boolean> foodRules,
+            Map<String, BondState> bonds,
+            Map<String, List<Happening>> happenings) {
+        this(formatVersion, revision, nextId, players, facts, foodRules, bonds, happenings, Map.of());
     }
 
     public MemoryRecord {
@@ -49,6 +64,7 @@ public record MemoryRecord(
         foodRules = Map.copyOf(foodRules == null ? Map.of() : foodRules);
         bonds = copyBonds(bonds);
         happenings = copyHappenings(happenings);
+        traits = copyTraits(traits);
     }
 
     public static MemoryRecord capture(MemoryBook book) {
@@ -67,7 +83,10 @@ public record MemoryRecord(
         book.journals()
                 .forEach((owner, journal) ->
                         happenings.put(owner.toString(), journal.recent(HappeningJournal.MAX_ENTRIES)));
-        return new MemoryRecord(FORMAT_VERSION, book.revision(), file.nextId, players, facts, rules, bonds, happenings);
+        Map<String, Traits> traits = new LinkedHashMap<>();
+        book.traits().forEach((owner, value) -> traits.put(owner.toString(), value));
+        return new MemoryRecord(
+                FORMAT_VERSION, book.revision(), file.nextId, players, facts, rules, bonds, happenings, traits);
     }
 
     public MemoryFile toFile() {
@@ -142,6 +161,20 @@ public record MemoryRecord(
                     .toList();
             if (!bounded.isEmpty()) {
                 copied.put(owner, bounded);
+            }
+        });
+        return Collections.unmodifiableMap(copied);
+    }
+
+    /** Copies the traits without null entries, keeping the owner order. */
+    private static Map<String, Traits> copyTraits(Map<String, Traits> traits) {
+        if (traits == null || traits.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Traits> copied = new LinkedHashMap<>();
+        traits.forEach((owner, value) -> {
+            if (owner != null && !owner.isBlank() && value != null) {
+                copied.put(owner, value);
             }
         });
         return Collections.unmodifiableMap(copied);

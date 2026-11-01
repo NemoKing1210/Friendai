@@ -132,6 +132,9 @@ public class CompanionEntity extends PathfinderMob {
     /** The bond is read from the owner's memory book once, on first use, and written back after every change. */
     private boolean bondLoaded;
 
+    private dev.friendai.features.social.Traits traits = dev.friendai.features.social.Traits.NEUTRAL;
+    private boolean traitsLoaded;
+
     private int moodTicks;
 
     private static final EquipmentSlot[] ARMOR_SLOTS = {
@@ -928,6 +931,49 @@ public class CompanionEntity extends PathfinderMob {
             saveBond();
             syncMood(moodModel.pulse(dev.friendai.features.social.Mood.PLEASED, tickCount));
         }
+    }
+
+    /** How the companion's manner has drifted; read from the book once, neutral until something moves it. */
+    public dev.friendai.features.social.Traits traits() {
+        ensureTraits();
+        return traits;
+    }
+
+    /** One step of drift, called once per applied memory compaction; never more than one per talk. */
+    public void driftTrait() {
+        ensureTraits();
+        var next = traits.step(traits.next());
+        if (!next.equals(traits)) {
+            traits = next;
+            saveTraits();
+        }
+    }
+
+    /** A trait that annoyed the owner drops at once, back to neutral. */
+    public void dropTrait(dev.friendai.features.social.Traits.Kind kind) {
+        ensureTraits();
+        var next = traits.drop(kind);
+        if (!next.equals(traits)) {
+            traits = next;
+            saveTraits();
+        }
+    }
+
+    private void ensureTraits() {
+        if (traitsLoaded || ownerUuid == null || !(level() instanceof ServerLevel serverLevel)) {
+            return;
+        }
+        traitsLoaded = true;
+        ServerRuntimeRegistry.find(serverLevel.getServer())
+                .ifPresent(runtime -> traits = runtime.memory().book(ownerUuid).traits(ownerUuid));
+    }
+
+    private void saveTraits() {
+        if (ownerUuid == null || !(level() instanceof ServerLevel serverLevel)) {
+            return;
+        }
+        ServerRuntimeRegistry.find(serverLevel.getServer())
+                .ifPresent(runtime -> runtime.memory().book(ownerUuid).setTraits(ownerUuid, traits));
     }
 
     private int gameDay() {
