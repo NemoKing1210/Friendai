@@ -627,7 +627,7 @@ class ArchitectureRulesTest {
                     "Missing GameTest entrypoint: " + className);
         }
         assertEquals(
-                102, gameTestClasses.size(), "Update this inventory count when GameTest scope intentionally changes");
+                103, gameTestClasses.size(), "Update this inventory count when GameTest scope intentionally changes");
 
         try (Stream<Path> files = Files.walk(PROJECT_ROOT.resolve("src/gametest/java"))) {
             for (Path file :
