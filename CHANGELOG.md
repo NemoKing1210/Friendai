@@ -6,6 +6,16 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.143.0] - 2026-11-01
+
+### Changed
+
+- The companion's face now answers the work itself: a finished job shows a short pleased expression and a failed one a displeased one, and both fade back on their own. Stopping a task on purpose changes nothing — danger and combat still win over both.
+
+### Fixed
+
+- CI's GameTest shard check listed eight registered test classes with no shard, so the gate failed before any test ran; every registered class is back in exactly one shard.
+
 ## [0.142.0] - 2026-11-01
 
 ### Added

@@ -108,6 +108,7 @@
 			"dev.friendai.test.SettingsCommandTests",
 			"dev.friendai.test.SocialBondTests",
 			"dev.friendai.test.SocialOpeningTests",
+			"dev.friendai.test.TaskFaceTests",
 			"dev.friendai.test.PauseWorkTests"
 		]
 	},

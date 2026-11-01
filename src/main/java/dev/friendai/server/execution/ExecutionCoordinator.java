@@ -732,6 +732,10 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
 
     private void completeActive(ActiveTask active, TaskStatus status, String summary) {
         String result = summary == null ? active.task().resultSummary() : summary;
+        // The face answers what the work cost: a finished job pulses pleased, a failed one displeased. Danger and
+        // combat
+        // still win inside the model, and a cancellation is not an outcome, so it never colours the face.
+        companion.noteTaskOutcome(status == TaskStatus.SUCCESS);
         // One place per finished task: a thing the companion built, farmed or mined is worth remembering itself.
         if (status == TaskStatus.SUCCESS && eventSink != null) {
             PlaceCandidate candidate = active.task().placeCandidate();

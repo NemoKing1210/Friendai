@@ -17,7 +17,8 @@
 				"QueueTests",
 				"ConditionalPlansTests",
 				"PaceTests",
-				"SessionLifecycleTests"
+				"SessionLifecycleTests",
+				"TaskFaceTests"
 			]
 		},
 		{
@@ -79,7 +80,8 @@
 				"HungerTests",
 				"FireTests",
 				"SelfCareTests",
-				"RecoveryTests"
+				"RecoveryTests",
+				"ThreatClassificationTests"
 			]
 		},
 		{
@@ -100,7 +102,8 @@
 				"GuestTests",
 				"TrustTests",
 				"SpeechTests",
-				"VoiceTests"
+				"VoiceTests",
+				"LocalOrderTests"
 			]
 		},
 		{
@@ -123,7 +126,12 @@
 				"AnimalTests",
 				"FarmingTests",
 				"MenuHandsTests",
-				"SkinRenameTests"
+				"SkinRenameTests",
+				"PauseWorkTests",
+				"SettingsCommandTests",
+				"SoakTests",
+				"SocialBondTests",
+				"SocialOpeningTests"
 			]
 		}
 	]

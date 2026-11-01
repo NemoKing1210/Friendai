@@ -894,6 +894,16 @@ public class CompanionEntity extends PathfinderMob {
         return bondLedger.reasons();
     }
 
+    /**
+     * A task finished or failed: a short pleased or displeased pulse, exactly as the affect model describes.
+     * Danger and combat still win; a cancellation never reaches here because it is not an outcome.
+     */
+    public void noteTaskOutcome(boolean success) {
+        syncMood(moodModel.pulse(
+                success ? dev.friendai.features.social.Mood.PLEASED : dev.friendai.features.social.Mood.DISPLEASED,
+                tickCount));
+    }
+
     /** The owner hit their companion: the face turns displeased and the bond loses a little, within the daily cap. */
     public void noteOwnerHit() {
         ensureBond();
