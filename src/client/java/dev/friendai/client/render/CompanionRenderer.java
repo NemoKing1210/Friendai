@@ -5,6 +5,8 @@ import com.mojang.math.Axis;
 import dev.friendai.FriendaiMod;
 import dev.friendai.client.skin.SkinCache;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.social.Mood;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.model.HumanoidModel;
 import net.minecraft.client.model.geom.ModelLayers;
 import net.minecraft.client.renderer.SubmitNodeCollector;
@@ -36,6 +38,8 @@ public class CompanionRenderer
     private static final int DOTS = 3;
     /** Where the dots float above the hitbox. High enough to leave the name tag clear underneath them. */
     private static final double THOUGHT_HEIGHT = 0.6;
+    /** The mood mark sits just above the thought bubble so the two never overlap. */
+    private static final double MOOD_HEIGHT = 0.9;
 
     public CompanionRenderer(EntityRendererProvider.Context context) {
         super(context, new CompanionModel(context.bakeLayer(ModelLayers.PLAYER)), 0.5F);
@@ -56,6 +60,7 @@ public class CompanionRenderer
     public void extractRenderState(CompanionEntity companion, CompanionRenderState state, float partialTick) {
         super.extractRenderState(companion, state, partialTick);
         state.thinking = companion.isThinking();
+        state.mood = companion.syncedMood();
         state.skin = SkinCache.textureFor(companion.getSkinHash());
         showPlacedBlock(companion, state);
         // The model is only read while this entity is drawn, so picking the arm shape here is safe.
@@ -113,6 +118,9 @@ public class CompanionRenderer
     public void submit(
             CompanionRenderState state, PoseStack poseStack, SubmitNodeCollector collector, CameraRenderState camera) {
         super.submit(state, poseStack, collector, camera);
+        if (!state.thinking && state.mood != Mood.CALM) {
+            submitMood(state, poseStack, collector, camera);
+        }
         if (!state.thinking) {
             return;
         }
@@ -124,6 +132,34 @@ public class CompanionRenderer
                 new Vec3(0.0, state.boundingBoxHeight + THOUGHT_HEIGHT + bob, 0.0),
                 0,
                 Component.literal(".".repeat(dots)),
+                false,
+                state.lightCoords,
+                camera);
+    }
+
+    private static void submitMood(
+            CompanionRenderState state, PoseStack poseStack, SubmitNodeCollector collector, CameraRenderState camera) {
+        String mark = switch (state.mood) {
+            case FOCUSED -> "\u2022";
+            case WORRIED -> "!";
+            case PLEASED -> "^";
+            case DISPLEASED -> "~";
+            case COMBAT -> "!!";
+            case CALM -> "";
+        };
+        ChatFormatting color = switch (state.mood) {
+            case FOCUSED -> ChatFormatting.AQUA;
+            case WORRIED -> ChatFormatting.YELLOW;
+            case PLEASED -> ChatFormatting.GREEN;
+            case DISPLEASED -> ChatFormatting.GRAY;
+            case COMBAT -> ChatFormatting.RED;
+            case CALM -> ChatFormatting.WHITE;
+        };
+        collector.submitNameTag(
+                poseStack,
+                new Vec3(0.0, state.boundingBoxHeight + MOOD_HEIGHT, 0.0),
+                0,
+                Component.literal(mark).withStyle(color),
                 false,
                 state.lightCoords,
                 camera);

@@ -1,5 +1,6 @@
 package dev.friendai.client.render;
 
+import dev.friendai.features.social.Mood;
 import net.minecraft.client.renderer.entity.state.HumanoidRenderState;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
@@ -12,4 +13,6 @@ public final class CompanionRenderState extends HumanoidRenderState {
     public Identifier skin;
     /** The block the companion is placing right now, drawn in its main hand; empty when it is not placing. */
     public ItemStack placeItem = ItemStack.EMPTY;
+    /** The synced body language; drawn as a small mark above the head when it is not calm. */
+    public Mood mood = Mood.CALM;
 }
