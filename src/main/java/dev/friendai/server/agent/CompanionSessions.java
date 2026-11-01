@@ -326,6 +326,10 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
         return gateways.activeProvider();
     }
 
+    public boolean modelUsable() {
+        return gateways.usable();
+    }
+
     public String activeModel() {
         return gateways.activeModel();
     }
@@ -376,6 +380,20 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
         // A manual run acts for the owner, with the owner's identity, so owner-scoped records resolve correctly.
         ToolResult result = tools.bind(companion.get())
                 .execute(new ToolCall("manual", name, args, argsJson, null), new Caller(owner, "", AccessLevel.OWNER));
+        log.add(LogKind.MANUAL, "result: " + (result.error() ? "ERROR " : "") + result.content());
+        return result;
+    }
+
+    /** Runs a local order with the caller's real access; a guest must not inherit the owner's level. */
+    public ToolResult runTool(UUID owner, ToolCall call, Caller caller) {
+        Optional<CompanionEntity> companion = CompanionManager.get(server).find(owner);
+        if (companion.isEmpty()) {
+            return ToolResult.error("No companion");
+        }
+        entryFor(owner);
+        DebugLog log = debug.logOf(owner);
+        log.add(LogKind.MANUAL, "local " + call.name() + " " + call.rawArguments());
+        ToolResult result = tools.bind(companion.get()).execute(call, caller);
         log.add(LogKind.MANUAL, "result: " + (result.error() ? "ERROR " : "") + result.content());
         return result;
     }

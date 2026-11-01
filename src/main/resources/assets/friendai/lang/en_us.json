@@ -33,6 +33,13 @@
   "friendai.companion.too_far": "Your companion is too far away to hear you.",
 
   "friendai.command.stopped": "Stopped.",
+  "friendai.local_order.follow": "Following you.",
+  "friendai.local_order.stay": "Staying here.",
+  "friendai.local_order.come": "Coming to you.",
+  "friendai.local_order.stop": "Stopped.",
+  "friendai.local_order.result": "Done: %s",
+  "friendai.local_order.failed": "I can't do that: %s",
+  "friendai.command.status.offline": "The language model is unavailable; follow, stay, come, stop, status and inventory still work.",
   "friendai.command.diagnose.written": "Diagnostic bundle written to %s. It contains coordinates and inventory facts; review it before sharing.",
   "friendai.command.diagnose.failed": "Could not write the diagnostic bundle: %s",
   "friendai.freetime.idle_start": "Nothing to do, so I'll get on with my own things.",

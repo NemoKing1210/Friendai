@@ -49,6 +49,7 @@
     "dev.friendai.test.SessionLifecycleTests",
 			"dev.friendai.test.VoiceTests",
 			"dev.friendai.test.CompanionControlTests",
+			"dev.friendai.test.LocalOrderTests",
 			"dev.friendai.test.CraftingTests",
 			"dev.friendai.test.CookingTests",
 			"dev.friendai.test.CombatTests",

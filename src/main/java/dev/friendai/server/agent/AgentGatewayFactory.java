@@ -24,6 +24,7 @@ public final class AgentGatewayFactory {
     private ServerConfig config;
     private LlmGateway current;
     private LlmGateway planner;
+    private boolean usable;
     private String activeModel = "";
     private String activeProvider = "";
     private String plannerProfileName = "";
@@ -32,6 +33,7 @@ public final class AgentGatewayFactory {
     /** Rebuilds both clients from the live config; broken profiles become reportable gateways. */
     public void reload(ServerConfig cfg) {
         this.config = cfg;
+        this.usable = false;
         ServerConfig.ProfileConfig profile = cfg.profiles.get(cfg.activeProfile);
         activeProvider = profile == null ? "?" : profile.provider;
         activeModel = profile == null ? "?" : profile.model;
@@ -39,6 +41,7 @@ public final class AgentGatewayFactory {
                 httpClient, Duration.ofSeconds(cfg.brain.requestTimeoutSec), 2, Duration.ofMillis(500));
         try {
             current = new LlmClient(ProviderRegistry.withBuiltins(transport), cfg.toLlmProfile(System::getenv));
+            usable = true;
         } catch (ConfigException e) {
             current = (system, messages, toolSpecs) -> CompletableFuture.failedFuture(e);
         }
@@ -81,6 +84,10 @@ public final class AgentGatewayFactory {
 
     public String activeProvider() {
         return activeProvider;
+    }
+
+    public boolean usable() {
+        return usable;
     }
 
     public String activeModel() {
