@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.138.0] - 2026-11-01
+
+### Changed
+
+- After a task the companion now also reports how its health and hunger changed, so it notices when work cost it something and can say so or eat before the next job.
+
 ## [0.137.0] - 2026-11-01
 
 ### Added

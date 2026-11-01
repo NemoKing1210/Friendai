@@ -54,6 +54,12 @@ public final class OutcomeChecker {
         if (before.emptySlots() != after.emptySlots()) {
             facts.add(new Fact("empty slots " + after.emptySlots() + " (was " + before.emptySlots() + ")"));
         }
+        if (after.healthPercent() != before.healthPercent()) {
+            facts.add(new Fact("health " + after.healthPercent() + "% (was " + before.healthPercent() + "%)"));
+        }
+        if (after.foodLevel() >= 0 && after.foodLevel() != before.foodLevel()) {
+            facts.add(new Fact("food " + after.foodLevel() + " (was " + before.foodLevel() + ")"));
+        }
         if (after.ownerDistance() >= 0
                 && Math.abs(after.ownerDistance() - Math.max(0, before.ownerDistance())) >= OWNER_DISTANCE_CHANGE) {
             facts.add(new Fact("owner " + after.ownerDistance() + " blocks away"));
