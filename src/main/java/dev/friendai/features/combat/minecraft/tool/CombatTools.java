@@ -39,8 +39,9 @@ public final class CombatTools implements FeatureToolContributor {
     private static final String ATTACK_DESCRIPTION =
             "Hunt and kill mobs of a type near the companion, then collect the drops. Use attack_player for"
                     + " players. Villagers, wandering traders and golems are off limits on your own initiative;"
-                    + " when the owner explicitly orders one hit or killed, that order is the permission, so"
-                    + " call attack with its type and do it.";
+                    + " endermen, piglins and zombified piglins are left alone until provoked, and the warden and the"
+                    + " dragon are never targets. When the owner explicitly orders one hit or killed, that order is the"
+                    + " permission, so call attack with its type and do it.";
     private static final String ATTACK_PLAYER_DESCRIPTION =
             "Attack a player by name until they are defeated. Only the owner may order it. When the owner asks you to hit or kill them, do it: their order is consent. Otherwise only where PvP is allowed.";
 

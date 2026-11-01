@@ -8,6 +8,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.95.12] - 2026-11-01
+
+### Fixed
+
+- A guarding companion no longer starts fights with neutral mobs or the warden: endermen, piglins and zombified piglins are attacked only when provoked, a piglin group is avoided unless ordered, and the warden and dragon are treated as dangers rather than targets.
+
 ## [0.95.11] - 2026-11-01
 
 ### Added

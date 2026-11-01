@@ -118,7 +118,7 @@ public final class DropCollector {
                 return State.DONE;
             }
         }
-        if (!Threats.hostilesNear(c.level(), companion.position(), THREAT_RADIUS)
+        if (!Threats.dangersNear(c.level(), companion.position(), THREAT_RADIUS, companion)
                 .isEmpty()) {
             resetNavigation(c);
             return State.COLLECTING;

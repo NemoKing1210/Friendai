@@ -52,6 +52,7 @@
 			"dev.friendai.test.CraftingTests",
 			"dev.friendai.test.CookingTests",
 			"dev.friendai.test.CombatTests",
+			"dev.friendai.test.ThreatClassificationTests",
 			"dev.friendai.test.CombatMechanicsTests",
 			"dev.friendai.test.CombatTacticsTests",
 			"dev.friendai.test.CombatDefenseTests",

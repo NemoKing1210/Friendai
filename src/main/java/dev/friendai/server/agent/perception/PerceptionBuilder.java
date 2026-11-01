@@ -143,7 +143,7 @@ public final class PerceptionBuilder {
 
     private static List<Threat> threats(CompanionEntity c, ServerLevel level) {
         List<Threat> result = new java.util.ArrayList<>();
-        for (LivingEntity entity : Threats.hostilesNear(level, c.position(), 16)) {
+        for (LivingEntity entity : Threats.dangersNear(level, c.position(), 16, c)) {
             if (result.size() >= MAX_THREATS) break;
             if (level.clip(new ClipContext(
                                     c.getEyePosition(),
@@ -159,7 +159,8 @@ public final class PerceptionBuilder {
                     RelativeDirection.relativeTo(c.getYRot(), entity.getX() - c.getX(), entity.getZ() - c.getZ()),
                     entity.getHealth(),
                     entity.getMaxHealth(),
-                    targetOf(c, entity)));
+                    targetOf(c, entity),
+                    Threats.isAttackable(entity, c)));
         }
         return List.copyOf(result);
     }

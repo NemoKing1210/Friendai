@@ -504,7 +504,8 @@ public final class CombatController {
     /** Rule 1 plus any hostile mob within reach; used by the low-health retreat. */
     private List<LivingEntity> threatsNear(ServerLevel level) {
         List<LivingEntity> threats = new ArrayList<>(ruleOneThreats(level));
-        for (LivingEntity hostile : Threats.hostilesNear(level, companion.position(), RETREAT_THREAT_RADIUS)) {
+        for (LivingEntity hostile :
+                Threats.dangersNear(level, companion.position(), RETREAT_THREAT_RADIUS, companion)) {
             if (!threats.contains(hostile)) {
                 threats.add(hostile);
             }
@@ -674,7 +675,7 @@ public final class CombatController {
 
         if (settings.protection().guardsArea()) {
             Vec3 center = owner != null ? owner.position() : companion.position();
-            for (LivingEntity entity : Threats.hostilesNear(level, center, GUARD_RADIUS)) {
+            for (LivingEntity entity : Threats.threatsNear(level, center, GUARD_RADIUS, companion)) {
                 if (!Threats.isProtected(entity, companion) && companion.hasLineOfSight(entity)) {
                     addCandidate(scored, entity, Kind.GUARD, false, pursuitAnchor);
                 }
