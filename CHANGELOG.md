@@ -8,6 +8,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.128.0] - 2026-11-01
+
+### Changed
+
+- A finished task now tells the companion which plan and which goal it belonged to, so its next reply connects the result to the work it was meant to prove instead of reading as an unrelated event.
+
 ## [0.127.0] - 2026-11-01
 
 ### Added

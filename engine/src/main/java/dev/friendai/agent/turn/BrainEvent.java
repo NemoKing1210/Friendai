@@ -55,16 +55,24 @@ public sealed interface BrainEvent {
     }
 
     /** @param extra verified facts and diagnosis appended to the line, or empty */
-    record TaskFinished(int taskId, String toolName, boolean success, String summary, String extra)
+    record TaskFinished(
+            int taskId, long planId, long goalId, String toolName, boolean success, String summary, String extra)
             implements BrainEvent {
+        public TaskFinished(int taskId, String toolName, boolean success, String summary, String extra) {
+            this(taskId, 0, 0, toolName, success, summary, extra);
+        }
+
         public TaskFinished(int taskId, String toolName, boolean success, String summary) {
-            this(taskId, toolName, success, summary, "");
+            this(taskId, 0, 0, toolName, success, summary, "");
         }
 
         @Override
         public String toPromptLine() {
+            // The correlation is what lets the next turn connect this result to the goal it was meant to prove.
+            String about =
+                    (planId > 0 ? " (plan #" + planId + ")" : "") + (goalId > 0 ? " (goal #" + goalId + ")" : "");
             return "[event] task #" + taskId + " " + toolName + (success ? " finished: " : " failed: ") + summary
-                    + withExtra(extra);
+                    + about + withExtra(extra);
         }
     }
 

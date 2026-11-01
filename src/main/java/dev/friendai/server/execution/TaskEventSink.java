@@ -7,6 +7,14 @@ import dev.friendai.task.TaskStatus;
 public interface TaskEventSink {
     void onFinished(int id, String toolName, TaskStatus status, String summary);
 
+    /**
+     * The same notification with the correlation the caller already knows: the plan the task belonged to, or 0 for a
+     * standalone job. A listener that does not care keeps the four-argument form.
+     */
+    default void onFinished(int id, long planId, String toolName, TaskStatus status, String summary) {
+        onFinished(id, toolName, status, summary);
+    }
+
     void onCancelled(int id, String toolName, String reason);
 
     default void onJobFinished(long jobId, long planId, String toolName, TaskStatus status, String summary) {}
