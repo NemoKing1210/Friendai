@@ -30,9 +30,9 @@ import net.minecraft.server.level.ServerPlayer;
  * ({@link TopicRing}). That line is {@code ORDINARY} and carries an empty happenings list, so a topic and a fact are
  * never spoken together.
  *
- * <p>Every twenty minutes each owner's {@link SocialActivity} counters — spoken, held, dropped lines and owner messages
- * — are written as one line to that owner's debug log and then cleared. This changes nothing about when a line is
- * spoken: it only makes the companion's silence or noise measurable on a running server.
+ * <p>Every twenty minutes each owner's {@link SocialActivity} counters — spoken, held, dropped lines, owner messages
+ * and happenings seen — are written as one line to that owner's debug log and then cleared. This changes nothing about
+ * when a line is spoken: it only makes the companion's silence or noise measurable on a running server.
  */
 public final class SocialDirector {
     /** One look per second is plenty for a line that happens at most every couple of minutes. */
@@ -214,8 +214,11 @@ public final class SocialDirector {
         activityOf(owner).held();
     }
 
-    /** The counters of one owner's window; made on first use and kept for the session like the rest of the map. */
-    private SocialActivity activityOf(UUID owner) {
+    /**
+     * The counters of one owner's window; made on first use and kept for the session like the rest of the map. Also
+     * the seam {@link HappeningFeed} writes its event count through, so one summary covers lines and happenings.
+     */
+    public SocialActivity activityOf(UUID owner) {
         return activity.computeIfAbsent(owner, ignored -> new SocialActivity());
     }
 

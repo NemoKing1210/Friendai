@@ -148,9 +148,13 @@ public final class HappeningFeed {
     /**
      * Records one happening with the configured secrets masked. The journal is read back into the prompt, so this is
      * the single place where a player-controlled name or a message reaches it: redact here, not at every call site.
+     * It is also the one place that counts the happening in the owner's activity window, so the periodic summary can
+     * tell silence from nothing-to-say.
      */
     private static void record(ServerRuntime runtime, UUID owner, Happening happening) {
         book(runtime, owner).ifPresent(book -> {
+            // Counted before the write: a repeated key replaces an entry, but the server still saw this happening.
+            runtime.socialDirector().activityOf(owner).event();
             String text = runtime.sessions().redactor().apply(happening.text());
             book.recordHappening(
                     owner,
