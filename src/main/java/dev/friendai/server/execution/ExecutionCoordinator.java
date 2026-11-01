@@ -691,7 +691,8 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
             if (candidate != null) emit(sink -> sink.onPlace(candidate, active.toolName()));
         }
         if (active.interrupt()) {
-            if (active.emit()) emit(sink -> sink.onFinished(active.id(), active.toolName(), status, result));
+            if (active.emit())
+                emit(sink -> sink.onFinished(active.id(), active.planId(), active.toolName(), status, result));
             resumeFrozen();
             return;
         }
@@ -704,7 +705,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
             if (active.planId() == 0) {
                 if (!retried) {
                     if (active.task().emitsEvents())
-                        emit(sink -> sink.onFinished(active.id(), active.toolName(), status, result));
+                        emit(sink -> sink.onFinished(active.id(), active.planId(), active.toolName(), status, result));
                     queueDriver.remove(active.jobId());
                     queueDriver.clearFactory(active.jobId());
                 }

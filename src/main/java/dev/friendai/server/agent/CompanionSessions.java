@@ -1030,6 +1030,11 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
         companion.executionCoordinator().setEventSink(new TaskEventSink() {
             @Override
             public void onFinished(int id, String toolName, TaskStatus status, String summary) {
+                onFinished(id, 0, toolName, status, summary);
+            }
+
+            @Override
+            public void onFinished(int id, long planId, String toolName, TaskStatus status, String summary) {
                 if (!isCurrent(session, companion)) return;
                 debug.historyOf(owner)
                         .add(new TaskRecord(
@@ -1040,11 +1045,19 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                     // plan.
                     companion.noteSharedWork();
                 }
+                long goalId = planId == 0
+                        ? 0
+                        : goals.board(owner).all().stream()
+                                .filter(goal -> goal.planId() == planId)
+                                .mapToLong(dev.friendai.agent.goal.Goal::id)
+                                .findFirst()
+                                .orElse(0);
                 postFromSession(
                         session,
                         companion,
                         owner,
-                        new BrainEvent.TaskFinished(id, toolName, ok, summary, agent.extra(ok, 0, toolName, summary)));
+                        new BrainEvent.TaskFinished(
+                                id, planId, goalId, toolName, ok, summary, agent.extra(ok, planId, toolName, summary)));
             }
 
             @Override
