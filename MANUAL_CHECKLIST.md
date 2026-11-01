@@ -69,8 +69,11 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 ## Accessibility and the smallest screen
 
 - [ ] Open the settings screen with the keyboard only: Tab and Shift+Tab reach the search field, the Basic/Advanced switch, the category rail and every option, and Enter activates the focused control.
+- [ ] Open the companion menu with the keyboard only: Tab and Shift+Tab reach the category rail, the selected tab's controls and Done in that order, Enter or Space activates the focused control, and the focused control shows the focus outline.
 - [ ] Set GUI scale to the largest value and open the screen at a 320×240 window: no tab, label, tooltip, search field or button is clipped, and the page scrolls.
+- [ ] Open the companion menu at GUI scale 4 on a 320×240 window and visit every tab: the rail scrolls instead of dropping entries, the Settings tab scrolls to its last switch, and no button, label or switch is drawn over Done.
 - [ ] Read the screen with a screen reader: every option announces its label and its tooltip, and the mood and bond lines in the Feeling tab are announced as text.
+- [ ] Read the companion menu with a screen reader: every rail entry announces its name and whether it is selected, and each Settings switch announces its own setting with On or Off instead of only On or Off.
 - [ ] Check contrast of the menu well, the search field placeholder and the disabled buttons against both the light and the dark GUI background.
 - [ ] Try the screen as a non-operator client and confirm the read-only Server tab is reachable and says the same message in both UI languages.
 
@@ -80,6 +83,7 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] Visit every tab: Provider, Companion, Chat, Planning, Tasks, World, Trading, Resources, Free time, Memory, Mining and Voice each open and keep their values.
 - [ ] Trigger a validation error.
 - [ ] Reset one option and undo it.
+- [ ] Reset a whole category and then everything: each value returns to its shipped default in the draft, a category reset leaves the other categories' edits alone, and Save is still required.
 - [ ] Switch the profile dropdown and confirm its fields reload: provider, base URL, model, temperature and max tokens match the selected profile.
 - [ ] Open the screen as a non-operator client (read-only view): the only server tab says "These settings are configured on the server."
 - [ ] Open it with YACL absent and confirm the mod still runs from the config files: hand edits apply with `/friendai reload`.

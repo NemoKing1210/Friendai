@@ -7,6 +7,7 @@ import dev.friendai.protocol.debug.DebugRequest;
 import java.util.List;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
 
@@ -23,11 +24,18 @@ final class SettingsTab extends StatefulMenuTab {
     private static final int SWITCH_HEIGHT = 20;
     private static final int LINE = 10;
     private static final int MAX_DESCRIPTION_LINES = 2;
+    private static final int SCROLL_STEP = 18;
 
     private int left;
     private int top;
     private int width;
+    private int height;
     private Font font;
+    private Host host;
+    /** How far the card column is scrolled; the switches move with it, so none is left out of reach. */
+    private int scroll;
+
+    private int contentHeight;
     private Setting creativeMode;
     private Setting autoRespawn;
     private Setting freeTime;
@@ -43,6 +51,9 @@ final class SettingsTab extends StatefulMenuTab {
         List<FormattedCharSequence> description = List.of();
         Component status;
         int statusColor = Ui.DIM;
+        /** Whether the companion allows the change; {@link #visible} is whether the page shows the card. */
+        boolean enabled;
+
         boolean visible = true;
         int y;
         int height;
@@ -59,7 +70,9 @@ final class SettingsTab extends StatefulMenuTab {
         this.left = left;
         this.top = top;
         this.width = width;
+        this.height = height;
         this.font = host.font();
+        this.host = host;
         creativeMode = setting(
                 host,
                 "friendai.menu.settings.creative.title",
@@ -95,7 +108,8 @@ final class SettingsTab extends StatefulMenuTab {
     }
 
     private Setting setting(Host host, String titleKey, String descKey, int accent, Runnable action) {
-        FlatButton button = host.add(new FlatButton(0, 0, SWITCH_WIDTH, SWITCH_HEIGHT, Component.empty(), 0, action));
+        FlatButton button = host.add(new FlatButton(0, 0, SWITCH_WIDTH, SWITCH_HEIGHT, Component.empty(), 0, action)
+                .narrated(Component.translatable(titleKey)));
         Setting setting = new Setting(titleKey, accent, button);
         int textWidth = width - SWITCH_WIDTH - 4 * PAD;
         List<FormattedCharSequence> lines = font.split(Component.translatable(descKey), textWidth);
@@ -180,29 +194,91 @@ final class SettingsTab extends StatefulMenuTab {
         creativeMode.statusColor = Ui.WARN;
 
         layout();
+        followFocus();
     }
 
     private static void apply(Setting setting, boolean on, boolean enabled) {
+        setting.enabled = enabled;
         setting.button.active = enabled;
         setting.button.setMessage(
                 Component.translatable(on ? "friendai.menu.settings.on" : "friendai.menu.settings.off"));
         setting.button.setStatus(on ? Ui.GOOD : Ui.DIM);
     }
 
+    /** Scrolls the card column; the switches move with it, so none is left out of reach. */
+    @Override
+    public boolean scroll(double x, double y, double amount) {
+        int viewport = Math.max(1, height - HEADER_HEIGHT);
+        if (contentHeight <= viewport || x < left || x >= left + width || y < top || y >= top + height) {
+            return false;
+        }
+        scroll -= (int) Math.round(amount * SCROLL_STEP);
+        layout();
+        return true;
+    }
+
     /** Stacks the visible cards so a hidden one leaves no gap, and centres each switch in its card. */
     private void layout() {
-        int y = top + HEADER_HEIGHT;
+        int viewport = Math.max(1, height - HEADER_HEIGHT);
+        int total = 0;
         for (Setting setting : all) {
-            setting.button.visible = setting.visible;
             if (!setting.visible) {
                 continue;
             }
             int text = 20 + setting.description.size() * LINE + (setting.status == null ? 0 : LINE);
             setting.height = Math.max(34, text + PAD - 2);
+            total += setting.height + GAP;
+        }
+        total = Math.max(0, total - GAP);
+        contentHeight = total;
+        scroll = Math.clamp(scroll, 0, Math.max(0, total - viewport));
+        int viewTop = top + HEADER_HEIGHT;
+        int viewBottom = top + height;
+        int y = viewTop - scroll;
+        for (Setting setting : all) {
+            if (!setting.visible) {
+                setting.button.visible = false;
+                setting.button.active = false;
+                continue;
+            }
             setting.y = y;
+            setting.button.visible = true;
+            int switchY = y + (setting.height - SWITCH_HEIGHT) / 2;
             setting.button.setX(left + width - SWITCH_WIDTH - PAD);
-            setting.button.setY(y + (setting.height - SWITCH_HEIGHT) / 2);
+            setting.button.setY(switchY);
+            // Like a rail entry: a switch scrolled out of view stays visible and focusable, so Tab can reach it and
+            // followFocus() scrolls it in, but it must not take a click through the page around it.
+            boolean inView = switchY >= viewTop && switchY + SWITCH_HEIGHT <= viewBottom;
+            setting.button.setHitTest(inView);
             y += setting.height + GAP;
+        }
+    }
+
+    /** Keeps a switch reached with the keyboard in view, so Tab can walk the whole column without a wheel. */
+    private void followFocus() {
+        GuiEventListener focused = host == null ? null : host.focused();
+        if (focused == null) {
+            return;
+        }
+        int viewport = Math.max(1, height - HEADER_HEIGHT);
+        int columnTop = 0;
+        for (Setting setting : all) {
+            if (!setting.visible) {
+                continue;
+            }
+            if (setting.button == focused) {
+                int switchTop = columnTop + (setting.height - SWITCH_HEIGHT) / 2;
+                if (switchTop < scroll) {
+                    scroll = switchTop;
+                } else if (switchTop + SWITCH_HEIGHT > scroll + viewport) {
+                    scroll = switchTop + SWITCH_HEIGHT - viewport;
+                } else {
+                    return;
+                }
+                layout();
+                return;
+            }
+            columnTop += setting.height + GAP;
         }
     }
 
@@ -218,6 +294,9 @@ final class SettingsTab extends StatefulMenuTab {
                 width - 2 * PAD);
         String hint = Component.translatable("friendai.menu.settings.hint").getString();
         Ui.text(g, font, Ui.clip(font, hint, width - 2 * PAD), left + PAD, top + PAD + 12, Ui.DIM);
+        int viewTop = top + HEADER_HEIGHT;
+        int viewport = Math.max(1, height - HEADER_HEIGHT);
+        g.enableScissor(left, viewTop, left + width, viewTop + viewport);
         for (Setting setting : all) {
             if (!setting.visible) {
                 continue;
@@ -228,7 +307,7 @@ final class SettingsTab extends StatefulMenuTab {
                     setting.y,
                     left + 3,
                     setting.y + setting.height,
-                    setting.button.active || setting.status == null ? setting.accent : Ui.DIM);
+                    setting.enabled || setting.status == null ? setting.accent : Ui.DIM);
             int tx = left + PAD + 2;
             int ty = setting.y + 6;
             Ui.text(g, font, Component.translatable(setting.key), tx, ty, Ui.TEXT);
@@ -247,5 +326,7 @@ final class SettingsTab extends StatefulMenuTab {
                         setting.statusColor);
             }
         }
+        g.disableScissor();
+        Ui.scrollbar(g, left + width - 3, viewTop, viewport, contentHeight, scroll, viewport);
     }
 }

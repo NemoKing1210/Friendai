@@ -12,6 +12,12 @@ interface MenuTab {
         <T extends GuiEventListener & Renderable & NarratableEntry> T add(T widget);
 
         Font font();
+
+        /**
+         * The control the keyboard is on, or null. A tab whose content is taller than its rectangle scrolls the
+         * control into view with this, so Tab can walk the whole page without a mouse.
+         */
+        GuiEventListener focused();
     }
 
     void init(Host host, int left, int top, int width, int height);

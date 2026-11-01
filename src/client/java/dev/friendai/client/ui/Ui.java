@@ -107,6 +107,23 @@ final class Ui {
         g.fill(x, y, x + size, y + size, color);
     }
 
+    /**
+     * A thin vertical scrollbar: a track {@code height} tall with a thumb for a view of {@code viewport} pixels over
+     * {@code contentHeight} pixels, scrolled down by {@code offset}. Draws nothing when the content already fits.
+     */
+    static void scrollbar(
+            GuiGraphicsExtractor g, int x, int y, int height, int contentHeight, int offset, int viewport) {
+        if (contentHeight <= viewport) {
+            return;
+        }
+        g.fill(x, y, x + 3, y + height, TRACK);
+        int thumb = Math.max(12, height * height / contentHeight);
+        int travel = height - thumb;
+        int max = contentHeight - viewport;
+        int thumbY = y + (max == 0 ? 0 : travel * offset / max);
+        g.fill(x, thumbY, x + 3, thumbY + thumb, alpha(ACCENT, 0xC0));
+    }
+
     /** The text cut to {@code width} pixels with a trailing "..." when it does not fit. */
     static String clip(Font font, String text, int width) {
         if (font.width(text) <= width) {

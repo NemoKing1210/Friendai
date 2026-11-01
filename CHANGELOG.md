@@ -6,7 +6,14 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
-## [0.147.0] - 2026-11-01
+## [0.147.1] - 2026-11-01
+
+### Fixed
+
+- The menu's **Retry** button no longer paints over **Pause** in the companion control tab; each button has its own slot again.
+- The settings tab in the menu scrolls instead of drawing its lower switches over the Done button, settings switches announce which setting they belong to, and tab surfaces no longer cover their own widgets.
+
+ - 2026-11-01
 
 ### Changed
 

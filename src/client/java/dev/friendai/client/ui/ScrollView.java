@@ -54,15 +54,7 @@ final class ScrollView {
 
     void end(GuiGraphicsExtractor g) {
         g.disableScissor();
-        if (contentHeight > h) {
-            int barX = x + w - 3;
-            g.fill(barX, y, barX + 3, y + h, Ui.TRACK);
-            int thumb = Math.max(12, h * h / contentHeight);
-            int travel = h - thumb;
-            int max = contentHeight - h;
-            int thumbY = y + (max == 0 ? 0 : travel * offset / max);
-            g.fill(barX, thumbY, barX + 3, thumbY + thumb, Ui.alpha(Ui.ACCENT, 0xC0));
-        }
+        Ui.scrollbar(g, x + w - 3, y, h, contentHeight, offset, h);
     }
 
     boolean contains(double mx, double my) {
