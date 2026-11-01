@@ -109,6 +109,15 @@ Das nur dem Besitzer vorbehaltene Werkzeug `execute_command` akzeptiert eine beg
 
 Halte API-Schlüssel aus der Datei heraus, indem du auf eine Umgebungsvariable verweist:
 
+| Wenn Sie… | Wählen Sie |
+|---|---|
+| Kostenlos und lokal, ohne Schlüssel | `ollama` |
+| Ein Schlüssel für viele Modelle | `openrouter` |
+| Schnelle gehostete Antworten | `groq` |
+| Starkes Tool-Calling | `anthropic` oder `openai` |
+| Spracherkennung | `google`, `deepgram`, `openai` oder `groq` |
+| Sprachsynthese | `google`, `elevenlabs` oder `openai` |
+
 ```json
 "apiKey": "env:ANTHROPIC_API_KEY"
 ```

@@ -109,6 +109,15 @@ Ouvrez **Mod Menu → Friendai → Fournisseur**, ou modifiez `config/friendai-s
 
 Gardez les clés d'API hors du fichier en référençant une variable d'environnement :
 
+| Si vous voulez… | Choisissez |
+|---|---|
+| Gratuit et local, sans clé | `ollama` |
+| Une clé pour plusieurs modèles | `openrouter` |
+| Des réponses hébergées rapides | `groq` |
+| Un appel d’outils solide | `anthropic` ou `openai` |
+| La reconnaissance vocale | `google`, `deepgram`, `openai` ou `groq` |
+| La synthèse vocale | `google`, `elevenlabs` ou `openai` |
+
 ```json
 "apiKey": "env:ANTHROPIC_API_KEY"
 ```
