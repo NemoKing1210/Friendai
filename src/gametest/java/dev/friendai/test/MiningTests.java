@@ -328,6 +328,33 @@ public class MiningTests {
         });
     }
 
+    /**
+     * A companion that starts a mine in mid-air, as one does when it drops into the hole it has just opened, lands and
+     * mines anyway. From the air no stance accepts a target, so planning then is a wasted plan, and three of them in a
+     * row used to turn a plain landing into "the resource cannot be reached safely".
+     */
+    @GameTest(maxTicks = 400)
+    public void minesAfterDroppingIntoItsOwnHole(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 120, 12);
+        h.setBlock(6, 121, 5, Blocks.STONE);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 5, 126, 5);
+        companion.inventory().addItem(Items.STONE_PICKAXE.getDefaultInstance());
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, companion, h.absolutePos(new BlockPos(6, 121, 5))),
+                "the stone beside the landing place should be visible");
+        Outcome outcome = new Outcome();
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 300, () -> false);
+        runner.setEventSink(outcome);
+        runner.start(new MineBlocksTask(BlockMatcher.parse("minecraft:stone").orElseThrow(), 1, 8), "mine_blocks");
+        TaskTrace.of(h, runner, companion).succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(outcome.status != null, "mining should finish");
+            h.assertTrue(
+                    outcome.status == TaskStatus.SUCCESS,
+                    "the stone beside the landing place was not mined: " + outcome.status + " " + outcome.summary);
+        });
+    }
+
     /** Observes every stone of the hill that touches air, the cells a companion standing outside can see. */
     private static void observeStoneFace(GameTestHelper h, CompanionEntity companion) {
         for (int x = 4; x <= 11; x++) {

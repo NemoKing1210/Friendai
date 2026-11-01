@@ -50,6 +50,9 @@ public final class MiningSession {
     /** How many planned steps one search may commit to; a search per block would leave the companion standing still. */
     private static final int MAX_CHAIN = 8;
 
+    /** Ticks a fall is waited out before planning from mid-air, so a body that never lands still reports a failure. */
+    private static final int MAX_AIRBORNE_TICKS = 40;
+
     private final CompanionEntity companion;
     private final MiningBounds bounds;
     private final int maxBlocks;
@@ -67,6 +70,7 @@ public final class MiningSession {
     private int brokenBlocks;
     private int completedExplorationSteps;
     private int noProgressPlans;
+    private int airborneTicks;
     private boolean mustRelocateFromSupport;
     private boolean closeApproach;
     private PathSearch search;
@@ -125,6 +129,7 @@ public final class MiningSession {
         this.primaryFailure = null;
         this.toolFailure = null;
         this.diagnostic = "";
+        this.airborneTicks = 0;
         this.lastState = State.WORKING;
         this.search = null;
         this.goal = null;
@@ -172,6 +177,9 @@ public final class MiningSession {
         }
         if (extraction != null) {
             return tickExtraction(context);
+        }
+        if (mode == Mode.TARGETS && waitForGround()) {
+            return State.WORKING;
         }
         if (mode == Mode.EXPLORE) {
             return tickExplore(context);
@@ -633,6 +641,25 @@ public final class MiningSession {
         if (!targets.contains(blockPos(support))) {
             supports.add(support);
         }
+    }
+
+    /**
+     * Whether a fall has to be waited out before planning. A body in the air has no stance of its own: nothing under
+     * its feet holds it up, so every candidate is refused and three plans in a row turn a landing — a companion that
+     * dropped into the hole it just opened — into "the resource cannot be reached safely". The wait is bounded, because
+     * a body that never lands (a void, a long drop) still has to report something.
+     */
+    private boolean waitForGround() {
+        if (companion.onGround()) {
+            airborneTicks = 0;
+            return false;
+        }
+        if (++airborneTicks > MAX_AIRBORNE_TICKS) {
+            airborneTicks = 0;
+            return false;
+        }
+        setPhase("settle");
+        return true;
     }
 
     private State retryPlan(String key) {
