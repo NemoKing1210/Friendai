@@ -1,6 +1,7 @@
 package dev.friendai.server.runtime;
 
 import dev.friendai.entity.CompanionManager;
+import dev.friendai.server.agent.social.SocialDirector;
 import dev.friendai.server.net.SkillsViewStream;
 import dev.friendai.server.trading.TraderRefreshService;
 import net.minecraft.server.MinecraftServer;
@@ -12,6 +13,7 @@ public final class ServerTickPipeline {
     private final ServerServiceGraph services;
     private final TraderRefreshService traderRefresh;
     private final OwnerRecordFlush ownerRecordFlush;
+    private final SocialDirector socialDirector = new SocialDirector();
 
     ServerTickPipeline(MinecraftServer server, ServerServiceGraph services, TraderRefreshService traderRefresh) {
         this.server = server;
@@ -28,6 +30,7 @@ public final class ServerTickPipeline {
         traderRefresh.tick();
         services.observations().tick(server, gameTime);
         services.sessions().tick();
+        socialDirector.tick(runtime);
         services.chunkLoader().tick();
         CompanionManager.get(server).tick();
         services.tick(System.currentTimeMillis());

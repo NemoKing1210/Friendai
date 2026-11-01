@@ -912,5 +912,9 @@
   "friendai.social.mood.worried": "besorgt",
   "friendai.social.mood.pleased": "erfreut",
   "friendai.social.mood.displeased": "unzufrieden",
-  "friendai.social.mood.combat": "im Kampf"
+  "friendai.social.mood.combat": "im Kampf",
+  "friendai.command.speak.on": "Der Gefährte darf von sich aus sprechen.",
+  "friendai.command.speak.off": "Der Gefährte antwortet nur, wenn er angesprochen wird.",
+  "friendai.config.chat.ambient_speech": "Gefährten von sich aus sprechen lassen",
+  "friendai.config.chat.ambient_speech.tooltip": "Erlaubt dem Gefährten, von sich aus über etwas Erlebtes zu sprechen, wenn Sie in der Nähe und nicht beschäftigt sind. Aus bedeutet: er antwortet nur."
 }

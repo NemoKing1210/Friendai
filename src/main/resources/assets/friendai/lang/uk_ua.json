@@ -909,5 +909,9 @@
   "friendai.social.mood.worried": "стурбований",
   "friendai.social.mood.pleased": "задоволений",
   "friendai.social.mood.displeased": "незадоволений",
-  "friendai.social.mood.combat": "у бою"
+  "friendai.social.mood.combat": "у бою",
+  "friendai.command.speak.on": "Помічник може заговорити першим.",
+  "friendai.command.speak.off": "Помічник відповідає лише коли до нього звертаються.",
+  "friendai.config.chat.ambient_speech": "Дозволяти помічнику заговорити першим",
+  "friendai.config.chat.ambient_speech.tooltip": "Дозволяти помічнику самому почати розмову про те, що сталося, коли ви поруч і не зайняті. Якщо вимкнено, він лише відповідає."
 }

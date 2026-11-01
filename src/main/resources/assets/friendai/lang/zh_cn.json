@@ -909,5 +909,9 @@
   "friendai.social.mood.worried": "担忧",
   "friendai.social.mood.pleased": "愉快",
   "friendai.social.mood.displeased": "不悦",
-  "friendai.social.mood.combat": "战斗中"
+  "friendai.social.mood.combat": "战斗中",
+  "friendai.command.speak.on": "同伴可以主动开口。",
+  "friendai.command.speak.off": "同伴只在被搭话时回应。",
+  "friendai.config.chat.ambient_speech": "允许同伴主动开口",
+  "friendai.config.chat.ambient_speech.tooltip": "允许同伴在你附近且空闲时主动谈起发生的事。关闭后它只回应。"
 }

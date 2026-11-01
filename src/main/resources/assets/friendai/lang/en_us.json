@@ -912,5 +912,9 @@
   "friendai.social.mood.worried": "worried",
   "friendai.social.mood.pleased": "pleased",
   "friendai.social.mood.displeased": "displeased",
-  "friendai.social.mood.combat": "in a fight"
+  "friendai.social.mood.combat": "in a fight",
+  "friendai.command.speak.on": "The companion may speak first.",
+  "friendai.command.speak.off": "The companion answers only when spoken to.",
+  "friendai.config.chat.ambient_speech": "Let the companion speak first",
+  "friendai.config.chat.ambient_speech.tooltip": "Allow the companion to start a line of its own about something that happened, when you are near and not busy. Off means it answers only."
 }

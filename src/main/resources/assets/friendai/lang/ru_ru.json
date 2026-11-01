@@ -909,5 +909,9 @@
   "friendai.social.mood.worried": "встревоженное",
   "friendai.social.mood.pleased": "довольное",
   "friendai.social.mood.displeased": "недовольное",
-  "friendai.social.mood.combat": "в бою"
+  "friendai.social.mood.combat": "в бою",
+  "friendai.command.speak.on": "Компаньон может заговорить первым.",
+  "friendai.command.speak.off": "Компаньон отвечает только когда к нему обращаются.",
+  "friendai.config.chat.ambient_speech": "Разрешать компаньону заговаривать первым",
+  "friendai.config.chat.ambient_speech.tooltip": "Разрешать компаньону самому начать разговор о случившемся, когда вы рядом и не заняты. Если выключено, он только отвечает."
 }

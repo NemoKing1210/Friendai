@@ -204,6 +204,20 @@ previous peak, a rescue, and an owner hit within the daily cap — with one poin
 the owner only. `MemoryBook.bond`/`putBond` persist it inside the memory record (format 2), so it survives death,
 respawn and a restart, and `/friendai social status` shows the same three reasons to the owner.
 
+### Speaking first
+
+The companion answers by default; it may also start a line, and only about a fact. `server/agent/social/SocialDirector`
+runs once a second from `ServerTickPipeline`: it reads the newest remembered death of each owner's companion and, when
+the owner is near enough to hear it, in the same dimension, not in a fight, not hurt and not holding an open container,
+posts one `BrainEvent.SocialOpening` with `Urgency.HIGH`. A line nobody could hear is held for 6,000 ticks and then
+dropped once; two lines never come closer than 1,200 ticks; a death already spoken about is never repeated.
+
+A social batch carries no tools at all: `CompanionBrain` sends `List.of()` schemas and an empty tool-name set for the
+turn, so the model can only answer in words and the loop refuses anything it invents. `ReplyGuard` still strips the
+`[silent]` sentinel, ids, coordinates and repeats, and a late reply dies on the generation counter like any other. The
+owner switches it off with `chat.ambientSpeech` (off means the companion answers only) and reads the state with
+`/friendai speak status`.
+
 ### Death and respawn
 
 `CompanionEntity.die` drops first and captures second. `dropEverythingAtDeath` empties the 27 inventory
