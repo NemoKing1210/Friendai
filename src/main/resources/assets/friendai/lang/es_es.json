@@ -124,6 +124,7 @@
   "friendai.config.category.voice": "Voz",
   "friendai.config.category.server": "Servidor",
   "friendai.config.category.reset": "Restablecer categoría",
+  "friendai.config.reset_all": "Restablecer todo",
   "friendai.config.server_only": "Estos ajustes se configuran en el servidor.",
   "friendai.config.server_protected": "Los ajustes del servidor no se pueden leer, respaldar o actualizar de forma segura. friendai-server.json se mantiene en solo lectura. Comprueba el archivo, el espacio en disco y los permisos de la carpeta, y vuelve a abrir esta pantalla para reintentarlo.",
   "friendai.config.server_unsupported": "friendai-server.json tiene un formato desconocido o más reciente. Los formatos anteriores compatibles se actualizan automáticamente. Usa una versión del mod compatible, o haz una copia de seguridad y sustituye el archivo para editar estos ajustes.",

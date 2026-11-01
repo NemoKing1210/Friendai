@@ -212,8 +212,16 @@ public final class FriendaiConfigScreen {
         }
         categories.add(socialCategory(client));
         categories.add(voiceCategory(parent, client, voice));
-        for (ConfigCategory category : categories) {
-            ConfigCategory narrowed = filtered(withReset(category, reopen));
+        // "Reset everything" sits at the top of the first settings tab and targets the same option instances
+        // the per-category buttons do, so both kinds of reset reach the draft and need a Save.
+        List<Option<?>> resetAllTargets = new ArrayList<>();
+        for (ConfigCategory category : categories) resetAllTargets.addAll(resetTargets(category));
+        for (int index = 0; index < categories.size(); index++) {
+            ConfigCategory category = categories.get(index);
+            ConfigCategory prepared = index == 0
+                    ? withResetAll(withReset(category, reopen), resetAllTargets, reopen)
+                    : withReset(category, reopen);
+            ConfigCategory narrowed = filtered(prepared);
             if (narrowed != null) builder.category(narrowed);
         }
 
@@ -417,38 +425,67 @@ public final class FriendaiConfigScreen {
      * the reset lands in the draft exactly like a manual change: Save still has to be pressed.
      */
     private static ConfigCategory withReset(ConfigCategory category, Runnable reopen) {
-        List<Option<?>> root = new ArrayList<>();
+        List<Option<?>> targets = resetTargets(category);
+        if (targets.isEmpty()) return category;
+        return withLeadingButton(category, resetButton("friendai.config.category.reset", targets, reopen));
+    }
+
+    /**
+     * Rebuilds a category with the "reset everything" button as its first option. It returns every config
+     * option of every category to its default, so it lands in the draft exactly like the per-category button:
+     * Save still has to be pressed.
+     *
+     * <p>Resetting one option needs no control of ours: YACL itself puts a reset button on every option row
+     * whose {@code canResetToDefault()} is true, which is the default for options built with
+     * {@code .binding(default, getter, setter)}, and that button calls {@code requestSetDefault()} on that
+     * single option.
+     */
+    private static ConfigCategory withResetAll(ConfigCategory category, List<Option<?>> targets, Runnable reopen) {
+        return withLeadingButton(category, resetButton("friendai.config.reset_all", targets, reopen));
+    }
+
+    /** Every option of the category that holds a setting: labels and buttons only drive the screen. */
+    private static List<Option<?>> resetTargets(ConfigCategory category) {
         List<Option<?>> targets = new ArrayList<>();
-        List<OptionGroup> groups = new ArrayList<>();
         for (OptionGroup group : category.groups()) {
-            if (group.isRoot()) {
-                root.addAll(group.options());
-            } else {
-                OptionGroup.Builder rebuilt = OptionGroup.createBuilder()
-                        .name(group.name())
-                        .options(group.options())
-                        .collapsed(group.collapsed());
-                if (group.description() != null) rebuilt.description(group.description());
-                groups.add(rebuilt.build());
-            }
             for (Option<?> option : group.options()) {
-                // Labels and buttons only drive the screen; they hold no setting to put back.
                 if (option instanceof LabelOption || option instanceof ButtonOption) continue;
                 targets.add(option);
             }
         }
-        if (targets.isEmpty()) return category;
-        ButtonOption reset = ButtonOption.createBuilder()
-                .name(tr("friendai.config.category.reset"))
+        return targets;
+    }
+
+    private static ButtonOption resetButton(String nameKey, List<Option<?>> targets, Runnable reopen) {
+        List<Option<?>> reset = List.copyOf(targets);
+        return ButtonOption.createBuilder()
+                .name(tr(nameKey))
                 .action((screen, button) -> {
-                    for (Option<?> option : targets) option.requestSetDefault();
+                    for (Option<?> option : reset) option.requestSetDefault();
                     reopen.run();
                 })
                 .build();
-        ConfigCategory.Builder rebuilt = ConfigCategory.createBuilder()
-                .name(category.name())
-                .option(reset)
-                .options(root);
+    }
+
+    /** Rebuilds a category with one action button as its first option, keeping the order of everything else. */
+    private static ConfigCategory withLeadingButton(ConfigCategory category, ButtonOption button) {
+        List<Option<?>> root = new ArrayList<>();
+        root.add(button);
+        List<OptionGroup> groups = new ArrayList<>();
+        for (OptionGroup group : category.groups()) {
+            if (group.isRoot()) {
+                root.addAll(group.options());
+                continue;
+            }
+            OptionGroup.Builder rebuilt = OptionGroup.createBuilder()
+                    .name(group.name())
+                    .options(group.options())
+                    .collapsed(group.collapsed());
+            if (group.description() != null) rebuilt.description(group.description());
+            groups.add(rebuilt.build());
+        }
+        ConfigCategory.Builder rebuilt =
+                ConfigCategory.createBuilder().name(category.name()).options(root);
         if (!groups.isEmpty()) rebuilt.groups(groups);
         return rebuilt.build();
     }
