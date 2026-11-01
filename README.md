@@ -83,6 +83,8 @@ With [Mod Menu](https://modrinth.com/mod/modmenu) and [YACL](https://modrinth.co
 
 The screen is split into tabs: Provider, Companion, Chat, Planning, Tasks, World, Trading, Resources, Free time, Memory, Mining and Voice. A client that may not edit the server settings gets a single Server tab reading "These settings are configured on the server." instead of the server tabs.
 
+The screen is reachable with the keyboard alone: Tab and Shift+Tab walk the search field, the Basic/Advanced switch, the tab rail and every option, and Enter activates the focused control. Layouts are checked in all eight interface languages at the largest GUI scale; if a tooltip is cut on a very small window, the same text is in `architecture/settings-inventory.md`.
+
 Most options carry a tooltip with the default and the accepted range. Reset returns one option to its default; Cancel and Undo discard the whole edit. `architecture/settings-inventory.md` lists every field with its default, clamp, screen key and whether it has a tooltip.
 
 ## Creative mode
