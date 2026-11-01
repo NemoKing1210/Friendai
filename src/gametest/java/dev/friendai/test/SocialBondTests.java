@@ -20,6 +20,28 @@ public class SocialBondTests {
     }
 
     @GameTest(maxTicks = 300)
+    public void aMoodChangeIsTracedWithTheInputsThatCausedIt(GameTestHelper h) {
+        ServerPlayer owner = ready(h);
+        CompanionEntity companion =
+                CompanionManager.get(h.getLevel().getServer()).summon(owner);
+        ServerRuntime runtime = GameTestSupport.runtime(h.getLevel().getServer());
+
+        companion.setHealth(companion.getMaxHealth() * 0.4f);
+        h.succeedWhen(() -> {
+            var traced = runtime.sessions().debug().logOf(owner.getUUID()).after(0, 200).stream()
+                    .map(entry -> entry.text())
+                    .filter(text -> text.startsWith("mood "))
+                    .toList();
+            h.assertTrue(
+                    traced.stream().anyMatch(text -> text.contains("health=")),
+                    "every traced mood change names the health behind it: " + traced);
+            h.assertTrue(
+                    traced.stream().anyMatch(text -> text.contains(" -> WORRIED")),
+                    "hurt below half health worries: " + traced);
+        });
+    }
+
+    @GameTest(maxTicks = 300)
     public void sharedWorkRaisesTheBondAndAnOwnerHitLowersIt(GameTestHelper h) {
         ServerPlayer owner = ready(h);
         CompanionEntity companion =
