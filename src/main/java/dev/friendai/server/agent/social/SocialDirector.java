@@ -31,6 +31,8 @@ import net.minecraft.server.level.ServerPlayer;
 public final class SocialDirector {
     /** One look per second is plenty for a line that happens at most every couple of minutes. */
     private static final int LOOK_EVERY_TICKS = 20;
+    /** An answer to a raised subject arrives within this window; after it, the silence counts against the subject. */
+    private static final long ANSWER_WINDOW_TICKS = 1_800;
     /** A line nobody could hear waits this long, then is dropped once and never repeated. */
     private static final long WAIT_TICKS = 6_000;
 
@@ -42,12 +44,24 @@ public final class SocialDirector {
     private final Map<UUID, ConversationCadence> cadence = new HashMap<>();
     /** The subjects already raised, per owner, so an opener is not repeated. Kept for the session, never cleared. */
     private final Map<UUID, TopicRing> topics = new HashMap<>();
+    /** What the owner seems to like talking about, learned only from whether they answered. */
+    private final Map<UUID, dev.friendai.features.social.TopicTaste> taste = new HashMap<>();
+    /** The subject raised last, and when, so an answer or a silence can be counted once. */
+    private final Map<UUID, PendingTopic> pendingTopic = new HashMap<>();
+
+    private record PendingTopic(String topic, long raisedAt) {}
 
     private record Held(String text, long since) {}
 
     /** The owner said something: no unprompted line for the cadence's quiet window. */
     public void ownerSpoke(UUID owner, long gameTime) {
         cadence.computeIfAbsent(owner, ignored -> new ConversationCadence()).ownerSpoke((int) gameTime);
+        PendingTopic pending = pendingTopic.remove(owner);
+        if (pending != null && gameTime - pending.raisedAt() <= ANSWER_WINDOW_TICKS) {
+            // The owner came back to the subject we raised: that is what a preference is made of.
+            taste.computeIfAbsent(owner, ignored -> new dev.friendai.features.social.TopicTaste())
+                    .answered(pending.topic());
+        }
     }
 
     public void tick(ServerRuntime runtime) {
@@ -58,6 +72,7 @@ public final class SocialDirector {
             return;
         }
         long now = runtime.server().overworld().getGameTime();
+        expireAnswers(now);
         int hearing = runtime.config().chat.hearingRadius;
         for (CompanionEntity companion : runtime.companions().all()) {
             UUID owner = companion.ownerUuid();
@@ -141,16 +156,36 @@ public final class SocialDirector {
      * when every opener was already raised. The opener is remembered before it is returned, so a line that never
      * reaches the brain still counts as raised.
      */
+    /** A raised subject nobody answered stops counting as liked once its window closes. */
+    private void expireAnswers(long now) {
+        for (var entry : new java.util.ArrayList<>(pendingTopic.entrySet())) {
+            if (now - entry.getValue().raisedAt() > ANSWER_WINDOW_TICKS) {
+                pendingTopic.remove(entry.getKey());
+                taste.computeIfAbsent(entry.getKey(), ignored -> new dev.friendai.features.social.TopicTaste())
+                        .ignored(entry.getValue().topic());
+            }
+        }
+    }
+
     private String nextTopic(ServerRuntime runtime, UUID owner) {
         String language = runtime.memory().book(owner).ownerLanguage(owner).orElse(null);
         TopicRing ring = topics.computeIfAbsent(owner, ignored -> new TopicRing());
+        java.util.List<String> allowed = new java.util.ArrayList<>();
         for (String opener : TopicBank.forLanguage(language)) {
-            if (ring.allows(opener)) {
-                ring.remember(opener);
-                return opener;
+            if (ring.allows(opener) && !dev.friendai.features.social.BannedTopics.banned(opener, language)) {
+                allowed.add(opener);
             }
         }
-        return null;
+        if (allowed.isEmpty()) {
+            return null;
+        }
+        var learned = taste.computeIfAbsent(owner, ignored -> new dev.friendai.features.social.TopicTaste());
+        String chosen = learned.best(allowed);
+        if (chosen == null) {
+            chosen = allowed.getFirst();
+        }
+        ring.remember(chosen);
+        return chosen;
     }
 
     private void hold(UUID owner, String text, long now) {
