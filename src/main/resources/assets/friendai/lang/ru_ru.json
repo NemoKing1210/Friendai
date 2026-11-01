@@ -730,5 +730,16 @@
   "friendai.config.status.no_key": "Ключ API ещё не задан",
   "friendai.config.status.no_model": "Выберите модель",
   "friendai.config.status.local": "Локальная точка",
-  "friendai.config.category.advanced": "Дополнительно"
+  "friendai.config.category.advanced": "Дополнительно",
+  "friendai.config.category.planning": "Планирование",
+  "friendai.config.agent.tool_routing": "Отправлять только нужные инструменты",
+  "friendai.config.autonomy.tooltip": "Пассивный режим никогда не начинает сам, assistive подталкивает простаивающего компаньона к незавершённой цели, autonomous может ещё и спросить, что делать дальше. Сам он не действует.",
+  "friendai.config.agent.max_replans": "Перепланирований на цель",
+  "friendai.config.agent.max_replans.tooltip": "Сколько раз можно перестроить неудачный план, прежде чем компаньон попросит помощи (0–10, по умолчанию 3).",
+  "friendai.config.agent.goal_tick_sec": "Секунды между напоминаниями о цели",
+  "friendai.config.agent.goal_tick_sec.tooltip": "Как часто простаивающего компаньона подталкивают к незавершённой цели (10–600 секунд, по умолчанию 30).",
+  "friendai.config.agent.prompt_budget": "Лимит символов системного промпта",
+  "friendai.config.agent.prompt_budget.tooltip": "Максимум символов системного промпта; 0 — без ограничения. Большие промпты стоят дороже.",
+  "friendai.config.agent.planner_timeout_sec": "Таймаут планировщика (секунды)",
+  "friendai.config.agent.planner_timeout_sec.tooltip": "Сколько может длиться один вызов планировщика (10–300 секунд, по умолчанию 60)."
 }

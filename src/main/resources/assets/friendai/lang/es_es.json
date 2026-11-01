@@ -730,5 +730,16 @@
   "friendai.config.status.no_key": "Aún no hay clave API",
   "friendai.config.status.no_model": "Elige un modelo",
   "friendai.config.status.local": "Punto local",
-  "friendai.config.category.advanced": "Avanzado"
+  "friendai.config.category.advanced": "Avanzado",
+  "friendai.config.category.planning": "Planificación",
+  "friendai.config.agent.tool_routing": "Enviar solo las herramientas relevantes",
+  "friendai.config.autonomy.tooltip": "Pasivo nunca empieza solo, Asistente empuja a un compañero inactivo hacia un objetivo pendiente, Autónomo también puede preguntar qué hacer después. Nunca actúa sin que se lo pidan.",
+  "friendai.config.agent.max_replans": "Replanificaciones por objetivo",
+  "friendai.config.agent.max_replans.tooltip": "Cuántas veces se puede reconstruir un plan fallido antes de que el compañero pida ayuda (0–10, predeterminado 3).",
+  "friendai.config.agent.goal_tick_sec": "Segundos entre recordatorios de objetivo",
+  "friendai.config.agent.goal_tick_sec.tooltip": "Cada cuánto se empuja a un compañero inactivo hacia un objetivo pendiente (10–600 segundos, predeterminado 30).",
+  "friendai.config.agent.prompt_budget": "Presupuesto de caracteres del prompt",
+  "friendai.config.agent.prompt_budget.tooltip": "Máximo de caracteres del prompt del sistema; 0 significa ilimitado. Los prompts más largos cuestan más tokens.",
+  "friendai.config.agent.planner_timeout_sec": "Tiempo límite del planificador (segundos)",
+  "friendai.config.agent.planner_timeout_sec.tooltip": "Cuánto puede tardar una llamada al planificador (10–300 segundos, predeterminado 60)."
 }

@@ -140,6 +140,7 @@ public final class FriendaiConfigScreen {
             builder.category(providerCategory(parent, server, revealKey, voice));
             builder.category(companionCategory(server));
             builder.category(chatCategory(server));
+            builder.category(planningCategory(server));
             builder.category(memoryCategory(server));
             builder.category(miningCategory(server));
         } else {
@@ -538,6 +539,54 @@ public final class FriendaiConfigScreen {
                         .name(tr("friendai.config.chat.guest_cooldown_ms"))
                         .binding(5000, () -> c.guestCooldownMs, v -> c.guestCooldownMs = v)
                         .controller(o -> IntegerFieldControllerBuilder.create(o).range(0, 60000))
+                        .build())
+                .build();
+    }
+
+    private static ConfigCategory planningCategory(ServerConfig server) {
+        var agent = server.agent;
+        return ConfigCategory.createBuilder()
+                .name(tr("friendai.config.category.planning"))
+                .option(booleanOption(
+                        "friendai.config.agent.tool_routing",
+                        true,
+                        () -> agent.toolRouting,
+                        value -> agent.toolRouting = value))
+                .option(Option.<String>createBuilder()
+                        .name(tr("friendai.config.autonomy"))
+                        .description(OptionDescription.of(tr("friendai.config.autonomy.tooltip")))
+                        .binding("assistive", () -> agent.autonomy, value -> agent.autonomy = value)
+                        .controller(option -> DropdownStringControllerBuilder.create(option)
+                                .values(List.of("passive", "assistive", "autonomous"))
+                                .allowAnyValue(false))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.agent.max_replans"))
+                        .description(OptionDescription.of(tr("friendai.config.agent.max_replans.tooltip")))
+                        .binding(3, () -> agent.maxReplans, value -> agent.maxReplans = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(0, 10))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.agent.goal_tick_sec"))
+                        .description(OptionDescription.of(tr("friendai.config.agent.goal_tick_sec.tooltip")))
+                        .binding(30, () -> agent.goalTickSec, value -> agent.goalTickSec = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(10, 600))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.agent.prompt_budget"))
+                        .description(OptionDescription.of(tr("friendai.config.agent.prompt_budget.tooltip")))
+                        .binding(24_000, () -> agent.promptBudget, value -> agent.promptBudget = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(0, 100_000))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.agent.planner_timeout_sec"))
+                        .description(OptionDescription.of(tr("friendai.config.agent.planner_timeout_sec.tooltip")))
+                        .binding(60, () -> agent.plannerTimeoutSec, value -> agent.plannerTimeoutSec = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(10, 300))
                         .build())
                 .build();
     }
