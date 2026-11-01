@@ -109,6 +109,15 @@ Open **Mod Menu → Friendai → Provider**, or edit `config/friendai-server.jso
 
 Keep API keys out of the file by referencing an environment variable:
 
+| If you want… | Choose |
+|---|---|
+| Free and local, no key | `ollama` |
+| One key for many models | `openrouter` |
+| Fast hosted replies | `groq` |
+| Strong tool calling | `anthropic` or `openai` |
+| Speech recognition | `google`, `deepgram`, `openai` or `groq` |
+| Speech synthesis | `google`, `elevenlabs` or `openai` |
+
 ```json
 "apiKey": "env:ANTHROPIC_API_KEY"
 ```

@@ -109,6 +109,15 @@
 
 通过引用环境变量，可以让 API 密钥不出现在文件里：
 
+| 如果你想要… | 选择 |
+|---|---|
+| 免费本地、无需密钥 | `ollama` |
+| 一个密钥使用多种模型 | `openrouter` |
+| 快速托管回复 | `groq` |
+| 强大的工具调用 | `anthropic` 或 `openai` |
+| 语音识别 | `google`、`deepgram`、`openai` 或 `groq` |
+| 语音合成 | `google`、`elevenlabs` 或 `openai` |
+
 ```json
 "apiKey": "env:ANTHROPIC_API_KEY"
 ```
