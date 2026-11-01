@@ -16,9 +16,12 @@ class GeneratorsTest {
             "minecraft:oak_log",
             "minecraft:glass_pane",
             "minecraft:oak_stairs",
+            "minecraft:oak_slab",
             "minecraft:oak_door",
             "minecraft:stone",
+            "minecraft:stone_stairs",
             "minecraft:stone_bricks",
+            "minecraft:stone_brick_stairs",
             "minecraft:oak_fence",
             "minecraft:oak_fence_gate",
             "minecraft:ladder",
@@ -100,6 +103,70 @@ class GeneratorsTest {
         assertTrue(stateAt(house, 3, 4, 0).startsWith("minecraft:oak_stairs"), "north slope at y=4");
         assertTrue(stateAt(house, 3, 4, 6).startsWith("minecraft:oak_stairs"), "south slope at y=4");
         assertTrue(stateAt(house, 3, 7, 3).startsWith("minecraft:oak_planks"), "ridge row on top");
+    }
+
+    @Test
+    void houseRoofPlanksBecomeStairs() {
+        Blueprint house = generateOk("""
+                { "type": "house", "width": 7, "depth": 7, "floors": 1,
+                  "walls": "minecraft:oak_planks", "floor": "minecraft:cobblestone", "roof": "minecraft:oak_planks" }
+                """);
+        assertTrue(stateAt(house, 3, 4, 0).startsWith("minecraft:oak_stairs"), "north slope");
+        assertTrue(stateAt(house, 3, 4, 6).startsWith("minecraft:oak_stairs"), "south slope");
+        assertTrue(stateAt(house, 3, 7, 3).startsWith("minecraft:oak_planks"), "ridge");
+    }
+
+    @Test
+    void houseRoofSlabBecomesStairs() {
+        Blueprint house = generateOk("""
+                { "type": "house", "width": 7, "depth": 7, "floors": 1,
+                  "walls": "minecraft:oak_planks", "floor": "minecraft:cobblestone", "roof": "minecraft:oak_slab" }
+                """);
+        assertTrue(stateAt(house, 3, 4, 0).startsWith("minecraft:oak_stairs"), "north slope");
+        assertTrue(stateAt(house, 3, 7, 3).startsWith("minecraft:oak_planks"), "ridge");
+    }
+
+    @Test
+    void houseRoofFullBlocksUseTheirStairs() {
+        Blueprint stone = generateOk("""
+                { "type": "house", "width": 7, "depth": 7,
+                  "walls": "minecraft:oak_planks", "floor": "minecraft:cobblestone", "roof": "minecraft:stone" }
+                """);
+        assertTrue(stateAt(stone, 3, 4, 0).startsWith("minecraft:stone_stairs"), "stone slope");
+        assertEquals("minecraft:stone", stateAt(stone, 3, 7, 3), "stone ridge");
+
+        Blueprint bricks = generateOk("""
+                { "type": "house", "width": 7, "depth": 7,
+                  "walls": "minecraft:oak_planks", "floor": "minecraft:cobblestone", "roof": "minecraft:stone_bricks" }
+                """);
+        assertTrue(stateAt(bricks, 3, 4, 0).startsWith("minecraft:stone_brick_stairs"), "brick slope");
+        assertEquals("minecraft:stone_bricks", stateAt(bricks, 3, 7, 3), "brick ridge");
+    }
+
+    @Test
+    void houseRoofWithoutAStairsVariantFailsClearly() {
+        ParseResult result = generate("""
+                { "type": "house", "width": 7, "depth": 7,
+                  "walls": "minecraft:oak_planks", "floor": "minecraft:cobblestone", "roof": "minecraft:glass" }
+                """);
+        assertTrue(result.blueprint().isEmpty(), "an impossible roof must not build");
+        assertTrue(
+                result.errors().stream()
+                        .anyMatch(
+                                e -> e.contains("roof minecraft:glass has no stairs") && e.contains("roof_style flat")),
+                "actionable error: " + result.errors());
+    }
+
+    @Test
+    void houseRoofDefaultsToTheWallsStairs() {
+        ParseResult result = generate("""
+                { "type": "house", "width": 7, "depth": 7,
+                  "walls": "minecraft:oak_planks", "floor": "minecraft:cobblestone" }
+                """);
+        assertTrue(result.errors().isEmpty(), "unexpected errors: " + result.errors());
+        Blueprint house = result.blueprint().orElseThrow();
+        assertTrue(stateAt(house, 3, 4, 0).startsWith("minecraft:oak_stairs"), "slope from the walls");
+        assertTrue(result.notes().stream().anyMatch(n -> n.contains("roof omitted")), "note: " + result.notes());
     }
 
     @Test

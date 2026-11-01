@@ -4,6 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -27,13 +28,14 @@ public final class Generators {
     /** @param knownState whether a block state string exists; the Minecraft layer implements it */
     public static ParseResult generate(JsonObject spec, Predicate<String> knownState) {
         List<String> errors = new ArrayList<>();
+        List<String> notes = new ArrayList<>();
         String type = required(spec, "type", errors);
         if (type == null) {
             return ParseResult.failed(errors);
         }
         JsonArray ops = new JsonArray();
         switch (type) {
-            case "house" -> house(spec, ops, errors);
+            case "house" -> house(spec, ops, errors, notes, knownState);
             case "tower" -> tower(spec, ops, errors);
             case "wall" -> wall(spec, ops, errors);
             case "fence" -> fence(spec, ops, errors);
@@ -47,24 +49,47 @@ public final class Generators {
         JsonObject root = new JsonObject();
         root.addProperty("name", spec.has("name") ? spec.get("name").getAsString() : type);
         root.add("ops", ops);
-        return BlueprintParser.parse(root.toString(), knownState);
+        ParseResult parsed = BlueprintParser.parse(root.toString(), knownState);
+        if (parsed.blueprint().isEmpty() || notes.isEmpty()) {
+            return parsed;
+        }
+        List<String> allNotes = new ArrayList<>(notes);
+        allNotes.addAll(parsed.notes());
+        return ParseResult.ok(parsed.blueprint().get(), allNotes);
     }
 
-    private static void house(JsonObject spec, JsonArray ops, List<String> errors) {
+    private static void house(
+            JsonObject spec, JsonArray ops, List<String> errors, List<String> notes, Predicate<String> knownState) {
         int width = range(spec, "width", 5, 15, errors);
         int depth = range(spec, "depth", 5, 15, errors);
         int floors = spec.has("floors") ? range(spec, "floors", 1, 3, errors) : 1;
         String walls = required(spec, "walls", errors);
         String floor = required(spec, "floor", errors);
-        String roof = required(spec, "roof", errors);
+        String roof = spec.has("roof") ? spec.get("roof").getAsString() : null;
         String style = spec.has("roof_style") ? spec.get("roof_style").getAsString() : "gable";
         String window = spec.has("windows") ? spec.get("windows").getAsString() : DEFAULT_WINDOW;
         String side = spec.has("door_side") ? spec.get("door_side").getAsString() : "south";
         if (!SIDES.contains(side)) {
             errors.add("door side '" + side + "' is not north, east, south or west");
         }
-        if (walls == null || floor == null || roof == null) {
+        if (walls == null || floor == null) {
             return;
+        }
+        if (roof == null) {
+            roof = walls;
+            notes.add("roof omitted; using " + roof + " from the walls");
+        }
+        if (style.equals("gable") || style.equals("pyramid")) {
+            String requested = roof;
+            Optional<String> stairs = RoofStairs.stairsFor(requested, knownState);
+            if (stairs.isEmpty()) {
+                errors.add("roof " + requested + " has no stairs; use roof_style flat or a stairs block");
+                return;
+            }
+            roof = stairs.get();
+            if (!roof.equals(RoofStairs.base(requested))) {
+                notes.add("roof " + requested + " has no stairs of its own; using " + roof);
+            }
         }
         String door = spec.has("door") ? spec.get("door").getAsString() : deriveDoor(walls);
         String frame = spec.has("frame") ? spec.get("frame").getAsString() : null;
