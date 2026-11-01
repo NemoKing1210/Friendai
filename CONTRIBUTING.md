@@ -22,36 +22,14 @@ summary and must not add rules — when they disagree, `AGENTS.md` wins.
 Java 25 is required. If needed, set `JAVA_HOME` to a JDK 25 before invoking Gradle.
 
 ```bash
-./gradlew :engine:test --tests 'dev.friendai.<package>.*'  # selected pure engine tests
-./gradlew test --tests 'dev.friendai.<package>.*'          # selected root tests; root test also includes engine
-./gradlew test --tests '*SomeTest'                         # one unit-test class
-./gradlew compileGametestJava                              # compile GameTests; does not boot Minecraft
+./gradlew test --tests 'dev.friendai.<package>.*'                        # selected root tests (includes engine)
 ./gradlew runGameTest -Dfabric-api.gametest.filter='friendai-gametest:<class>_tests_*'
-./gradlew assemble verifyModArtifact                       # package and inspect the mod jar; exports the test jar
-./gradlew updatePromptGolden                               # rewrite the system-prompt goldens after a prompt change
+./gradlew assemble verifyModArtifact                                     # compile, package, refresh the test jar
 ```
 
-While working, run only the tests covering the change. A filtered `runGameTest` boots a Minecraft server; use the
-class glob for the affected area. Do not run `build`, `check` or the unfiltered GameTest suite as a local safety check.
-CI owns the full gate; a maintainer may explicitly request a local full run. Report the actual test group and result.
-
-Unit results are in `build/test-results/test/*.xml` and `engine/build/test-results/test/*.xml` (one file per test
-class). GameTest results are printed by the server, including `========= N GAME TESTS COMPLETE` and the required-test
-summary. Compilation is not a substitute for running a GameTest when a world behavior changed.
-
-Run the project formatter on only your Java files before committing:
-
-```bash
-./gradlew spotlessApply -PspotlessFiles=src/main/java/dev/friendai/path/File.java,engine/src/main/java/dev/friendai/path/File.java
-```
-
-Use root-relative paths and prefix engine paths with `engine/`. Do not run a bare `spotlessApply` in a shared checkout;
-it can rewrite another session's files. CI runs `spotlessCheck`.
-
-`PromptBuilder` output is pinned per role and turn kind in `engine/src/test/resources/prompt-golden/`. When a prompt
-change is deliberate, run `./gradlew updatePromptGolden`, review the changed files as a diff of the system prompt, and
-commit them with the change that caused them; never rewrite a golden just to make the test pass. Without an update the
-test names the case, quotes the first differing lines and repeats the command.
+The full command table, the test-scope rules, the formatter invocation and the prompt-golden workflow live in
+`AGENTS.md` ("Commands", "Testing", "Formatting"). Run only the group covering the change; CI owns the full gate.
+Compilation is not a substitute for running a GameTest when a world behavior changed.
 
 ## Common changes
 
@@ -122,15 +100,10 @@ git config core.hooksPath .githooks
 ```
 
 On every pull request, GitHub Actions runs the full unit tests, Fabric GameTests, formatting, artifact packaging and
-registration checks. The `CI gate` job is required; the `Commit lint gate` checks commits and the PR title. Do not mark
+registration checks. The `CI gate` job is required; the `Commit lint gate` checks commits and the PR title. See
+"CI checks and red runs" in `AGENTS.md` for the shard map, the nightly run and how to triage a red shard. Do not mark
 manual checks complete unless they were performed; record remaining platform/provider/microphone checks in
 `MANUAL_CHECKLIST.md`.
-
-The GameTests run as a matrix of shards, and `scripts/run-gametest-shard.sh` boots one class per server inside its
-shard, so a red run names the failing class and a class cannot pass only because of the neighbour it ran beside. The
-shard map is `.github/gametest-shards.json`: every class registered in `src/gametest/resources/fabric.mod.json` must be
-in exactly one shard, which `./gradlew verifyGametestShards` enforces before any shard starts. The nightly workflow
-runs the whole suite in one server to catch what only shows up across classes.
 
 Set `mod_version` in `gradle.properties` according to the sizing rules in `AGENTS.md`. Release tags are the
 maintainer's call; do not create tags or publish a release unless asked.
