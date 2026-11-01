@@ -717,5 +717,6 @@
   "friendai.menu.log.kind.request": "请求",
   "friendai.menu.log.kind.response": "回复",
   "friendai.freetime.no_plan.step": "步骤 %s",
-  "friendai.freetime.no_plan.invalid_steps": "无效或不可用的动作"
+  "friendai.freetime.no_plan.invalid_steps": "无效或不可用的动作",
+  "friendai.config.get_key": "获取 API 密钥"
 }

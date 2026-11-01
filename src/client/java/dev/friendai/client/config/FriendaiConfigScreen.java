@@ -1,6 +1,8 @@
 package dev.friendai.client.config;
 
+import com.mojang.blaze3d.Blaze3D;
 import dev.friendai.agent.llm.provider.LlmProfile;
+import dev.friendai.agent.llm.provider.ProviderDocs;
 import dev.friendai.agent.llm.provider.ProviderPreset;
 import dev.friendai.agent.llm.provider.ProviderRegistry;
 import dev.friendai.agent.turn.ErrorMessages;
@@ -360,6 +362,12 @@ public final class FriendaiConfigScreen {
                 .name(tr(revealKey ? "friendai.config.api_key.hide" : "friendai.config.api_key.show"))
                 .action((screen, button) -> deferRebuild(() -> show(create(parent, !revealKey, voiceDraft))))
                 .build();
+        ButtonOption getKey = ButtonOption.createBuilder()
+                .name(tr("friendai.config.get_key"))
+                .available(ProviderDocs.url(providerOpt.pendingValue()).isPresent())
+                .action((screen, button) ->
+                        ProviderDocs.url(providerOpt.pendingValue()).ifPresent(url -> Blaze3D.openUri(URI.create(url))))
+                .build();
         ButtonOption testConnection = ButtonOption.createBuilder()
                 .name(tr("friendai.config.test_connection"))
                 .action((screen, button) -> pendingClient
@@ -378,6 +386,7 @@ public final class FriendaiConfigScreen {
                 .option(baseUrlOpt)
                 .option(apiKeyOpt)
                 .option(toggleKey)
+                .option(getKey)
                 .option(modelOpt)
                 .option(loadModels)
                 .option(temperatureOpt)
