@@ -4,9 +4,11 @@ import dev.friendai.agent.turn.BrainEvent;
 import dev.friendai.entity.CompanionCarryData;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.social.ConversationCadence;
+import dev.friendai.features.social.SocialActivity;
 import dev.friendai.features.social.TopicBank;
 import dev.friendai.features.social.TopicRing;
 import dev.friendai.features.survival.DeathRecord;
+import dev.friendai.foundation.diagnostics.LogKind;
 import dev.friendai.server.runtime.ServerRuntime;
 import java.util.HashMap;
 import java.util.List;
@@ -27,6 +29,10 @@ import net.minecraft.server.level.ServerPlayer;
  * subject of its own, taken from {@link TopicBank} in the owner's learned language and never one it already raised
  * ({@link TopicRing}). That line is {@code ORDINARY} and carries an empty happenings list, so a topic and a fact are
  * never spoken together.
+ *
+ * <p>Every twenty minutes each owner's {@link SocialActivity} counters — spoken, held, dropped lines and owner messages
+ * — are written as one line to that owner's debug log and then cleared. This changes nothing about when a line is
+ * spoken: it only makes the companion's silence or noise measurable on a running server.
  */
 public final class SocialDirector {
     /** One look per second is plenty for a line that happens at most every couple of minutes. */
@@ -35,6 +41,8 @@ public final class SocialDirector {
     private static final long ANSWER_WINDOW_TICKS = 1_800;
     /** A line nobody could hear waits this long, then is dropped once and never repeated. */
     private static final long WAIT_TICKS = 6_000;
+    /** How often the per-owner counters reach the debug log: twenty minutes of server ticks. */
+    private static final int REPORT_EVERY_TICKS = 24_000;
 
     /** The happening keys already spoken about, per owner. */
     private final Map<UUID, java.util.Set<String>> announced = new HashMap<>();
@@ -48,6 +56,8 @@ public final class SocialDirector {
     private final Map<UUID, dev.friendai.features.social.TopicTaste> taste = new HashMap<>();
     /** The subject raised last, and when, so an answer or a silence can be counted once. */
     private final Map<UUID, PendingTopic> pendingTopic = new HashMap<>();
+    /** What happened in the current window, per owner: logged and then cleared, never player-facing. */
+    private final Map<UUID, SocialActivity> activity = new HashMap<>();
 
     private record PendingTopic(String topic, long raisedAt) {}
 
@@ -55,6 +65,7 @@ public final class SocialDirector {
 
     /** The owner said something: no unprompted line for the cadence's quiet window. */
     public void ownerSpoke(UUID owner, long gameTime) {
+        activityOf(owner).ownerSpoke();
         cadence.computeIfAbsent(owner, ignored -> new ConversationCadence()).ownerSpoke((int) gameTime);
         PendingTopic pending = pendingTopic.remove(owner);
         if (pending != null && gameTime - pending.raisedAt() <= ANSWER_WINDOW_TICKS) {
@@ -68,8 +79,12 @@ public final class SocialDirector {
         if (!runtime.config().chat.ambientSpeech) {
             return;
         }
-        if (runtime.server().getTickCount() % LOOK_EVERY_TICKS != 0) {
+        long ticks = runtime.server().getTickCount();
+        if (ticks % LOOK_EVERY_TICKS != 0) {
             return;
+        }
+        if (ticks > 0 && ticks % REPORT_EVERY_TICKS == 0) {
+            reportActivity(runtime);
         }
         long now = runtime.server().overworld().getGameTime();
         expireAnswers(now);
@@ -105,6 +120,7 @@ public final class SocialDirector {
                                         BrainEvent.SocialOpening.Urgency.HIGH, List.of(text), "", false));
                 // A statement, not a question: nothing waits for an answer.
                 pace.recordLine(scene, (int) now, false, false);
+                activityOf(owner).line(true);
                 continue;
             }
             // Nothing to report: the companion may open a subject of its own, in the owner's own language.
@@ -120,6 +136,7 @@ public final class SocialDirector {
                                     BrainEvent.SocialOpening.Urgency.ORDINARY, List.of(), topic, asks));
             // A question waits for the owner to speak; an ignored one backs the next line off.
             pace.recordLine(scene, (int) now, asks, false);
+            activityOf(owner).line(false);
         }
     }
 
@@ -132,6 +149,7 @@ public final class SocialDirector {
                 return waiting.text();
             }
             held.remove(owner);
+            activityOf(owner).dropped();
         }
         java.util.Set<String> spoken = announced.computeIfAbsent(owner, ignored -> new java.util.HashSet<>());
         for (var happening : runtime.memory().book(owner).journal(owner).recent(6)) {
@@ -189,7 +207,35 @@ public final class SocialDirector {
     }
 
     private void hold(UUID owner, String text, long now) {
-        held.computeIfAbsent(owner, ignored -> new Held(text, now));
+        if (held.containsKey(owner)) {
+            return;
+        }
+        held.put(owner, new Held(text, now));
+        activityOf(owner).held();
+    }
+
+    /** The counters of one owner's window; made on first use and kept for the session like the rest of the map. */
+    private SocialActivity activityOf(UUID owner) {
+        return activity.computeIfAbsent(owner, ignored -> new SocialActivity());
+    }
+
+    /**
+     * Writes one counter line into the debug log of each owner whose companion is loaded, then starts a fresh window.
+     * Runs once per {@link #REPORT_EVERY_TICKS}, so the summary string is built twenty minutes apart, never per tick.
+     */
+    private void reportActivity(ServerRuntime runtime) {
+        for (CompanionEntity companion : runtime.companions().all()) {
+            UUID owner = companion.ownerUuid();
+            if (owner == null) {
+                continue;
+            }
+            SocialActivity record = activity.get(owner);
+            if (record == null) {
+                continue;
+            }
+            runtime.sessions().debug().logOf(owner).add(LogKind.MANUAL, record.summary());
+            record.reset();
+        }
     }
 
     private static ConversationCadence.Scene scene(CompanionEntity companion, ServerPlayer player, int hearingRadius) {
