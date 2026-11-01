@@ -311,7 +311,7 @@
   "friendai.menu.state.thinking": "ThinkingвЂ¦",
   "friendai.menu.state.idle": "Idle",
   "friendai.menu.summon": "Summon",
-  "friendai.menu.teleport": "Teleport to me",
+  "friendai.menu.teleport": "Teleport",
   "friendai.menu.dismiss": "Dismiss",
   "friendai.menu.stop": "Stop",
   "friendai.debug.goal": "goal",

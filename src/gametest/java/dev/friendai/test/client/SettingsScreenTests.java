@@ -2,8 +2,10 @@ package dev.friendai.test.client;
 
 import com.google.gson.JsonParser;
 import dev.friendai.client.FriendaiClient;
+import dev.friendai.client.companion.session.CompanionClientSession;
 import dev.friendai.client.config.FriendaiConfigScreen;
 import dev.friendai.client.config.ModelCache;
+import dev.friendai.client.ui.CompanionControlScreen;
 import dev.friendai.features.speech.stt.SttPresets;
 import dev.friendai.features.speech.tts.TtsPresets;
 import dev.friendai.infrastructure.config.ClientConfig;
@@ -65,6 +67,25 @@ public final class SettingsScreenTests implements FabricClientGameTest {
                             require(
                                     width <= button.getWidth() - 4,
                                     locale + " button clipped: \""
+                                            + button.getMessage().getString() + "\" needs " + width + "px, has "
+                                            + button.getWidth());
+                        }
+                    }
+                });
+            });
+            check(context, "companion menu fit " + locale, c -> {
+                c.runOnClient(mc -> mc.setScreenAndShow(
+                        new CompanionControlScreen(new TitleScreen(), new CompanionClientSession())));
+                c.waitTicks(2);
+                c.runOnClient(mc -> {
+                    Screen menu = mc.gui.screen();
+                    require(menu instanceof CompanionControlScreen, "Expected companion menu for " + locale);
+                    for (var child : menu.children()) {
+                        if (child instanceof AbstractButton button && button.visible) {
+                            int width = mc.font.width(button.getMessage());
+                            require(
+                                    width <= button.getWidth() - 4,
+                                    locale + " companion menu button clipped: \""
                                             + button.getMessage().getString() + "\" needs " + width + "px, has "
                                             + button.getWidth());
                         }
