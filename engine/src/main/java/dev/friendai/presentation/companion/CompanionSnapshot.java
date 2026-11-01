@@ -52,7 +52,8 @@ public record CompanionSnapshot(
         List<String> bondReasons,
         String goalText,
         List<String> goalCriteria,
-        List<String> goalUnmet) {
+        List<String> goalUnmet,
+        boolean workPaused) {
     public static final int MAX_ACTIVITY = 200;
     public static final int MAX_NEXT = 160;
     public static final int MAX_BUDGET = 80;
@@ -60,6 +61,72 @@ public record CompanionSnapshot(
     public static final int MAX_BOND_TIER = 24;
     public static final int MAX_LIST_ENTRIES = 6;
     public static final int MAX_LIST_TEXT = 160;
+
+    /** The shape before the paused flag, so a reader that predates it keeps compiling. */
+    public CompanionSnapshot(
+            boolean present,
+            boolean operator,
+            String companionName,
+            String provider,
+            String model,
+            boolean thinking,
+            String currentTask,
+            List<TaskRecord> history,
+            List<LogEntry> newLog,
+            String perception,
+            List<String> toolNames,
+            CompanionVitals vitals,
+            List<QueueRow> queue,
+            boolean autoRespawn,
+            boolean autoRespawnAvailable,
+            boolean creativeMode,
+            boolean creativeModeAvailable,
+            boolean freeTimeOn,
+            String freeTimeActivity,
+            boolean freeTimeWaiting,
+            boolean followMode,
+            String freeTimeNext,
+            String freeTimeBudget,
+            String freeTimeLast,
+            String freeTimePlannerModel,
+            String bondTier,
+            List<String> bondReasons,
+            String goalText,
+            List<String> goalCriteria,
+            List<String> goalUnmet) {
+        this(
+                present,
+                operator,
+                companionName,
+                provider,
+                model,
+                thinking,
+                currentTask,
+                history,
+                newLog,
+                perception,
+                toolNames,
+                vitals,
+                queue,
+                autoRespawn,
+                autoRespawnAvailable,
+                creativeMode,
+                creativeModeAvailable,
+                freeTimeOn,
+                freeTimeActivity,
+                freeTimeWaiting,
+                followMode,
+                freeTimeNext,
+                freeTimeBudget,
+                freeTimeLast,
+                freeTimePlannerModel,
+                bondTier,
+                bondReasons,
+                goalText,
+                goalCriteria,
+                goalUnmet,
+                false);
+    }
 
     public CompanionSnapshot {
         freeTimeActivity = cut(freeTimeActivity, MAX_ACTIVITY);
@@ -131,7 +198,8 @@ public record CompanionSnapshot(
                 List.of(),
                 "",
                 List.of(),
-                List.of());
+                List.of(),
+                false);
     }
 
     public CompanionSnapshot(

@@ -105,7 +105,8 @@ public final class CompanionSnapshotProtocolCodec {
                 snapshot.bondReasons(),
                 snapshot.goalText(),
                 snapshot.goalCriteria(),
-                snapshot.goalUnmet());
+                snapshot.goalUnmet(),
+                snapshot.workPaused());
     }
 
     private static void validate(CompanionSnapshotView snapshot) {

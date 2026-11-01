@@ -962,5 +962,7 @@
   "friendai.menu.feeling.empty": "Ainda não há nada para mostrar.",
   "friendai.command.pause.on": "Parado: o companheiro deixa de começar trabalho até você retomar.",
   "friendai.command.pause.off": "O companheiro pode trabalhar de novo.",
-  "friendai.command.pause.none": "Você não tem um companheiro para parar."
+  "friendai.command.pause.none": "Você não tem um companheiro para parar.",
+  "friendai.menu.pause": "Pausar",
+  "friendai.menu.resume": "Retomar"
 }
