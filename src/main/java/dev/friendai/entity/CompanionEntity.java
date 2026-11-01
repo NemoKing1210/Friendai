@@ -1007,9 +1007,35 @@ public class CompanionEntity extends PathfinderMob {
     }
 
     private void syncMood(dev.friendai.features.social.Mood mood) {
-        if (entityData.get(DATA_MOOD) != mood.ordinal()) {
-            entityData.set(DATA_MOOD, mood.ordinal());
+        int previous = entityData.get(DATA_MOOD);
+        if (previous == mood.ordinal()) {
+            return;
         }
+        entityData.set(DATA_MOOD, mood.ordinal());
+        logMoodChange(previous, mood);
+    }
+
+    /** One line per change, with the inputs that caused it: the trace the face was measured against. */
+    private void logMoodChange(int previousOrdinal, dev.friendai.features.social.Mood mood) {
+        if (ownerUuid == null || !(level() instanceof ServerLevel serverLevel)) {
+            return;
+        }
+        var moods = dev.friendai.features.social.Mood.values();
+        String from = previousOrdinal >= 0 && previousOrdinal < moods.length ? moods[previousOrdinal].name() : "?";
+        ServerRuntimeRegistry.find(serverLevel.getServer())
+                .ifPresent(runtime -> runtime.sessions()
+                        .debug()
+                        .logOf(ownerUuid)
+                        .add(
+                                dev.friendai.foundation.diagnostics.LogKind.MANUAL,
+                                "mood " + from + " -> " + mood + " (" + moodCause() + ")"));
+    }
+
+    /** The facts behind the current face, in one short phrase; never text the owner wrote. */
+    private String moodCause() {
+        int healthPercent = getMaxHealth() <= 0 ? 0 : Math.round(getHealth() * 100f / getMaxHealth());
+        return "health=" + healthPercent + "%, fire=" + isOnFire() + ", combat=" + (getTarget() != null) + ", work="
+                + (executionCoordinator().current().isPresent());
     }
 
     /** Descends at a bounded speed with ordinary collision resolution; timeout returns to normal gravity. */
