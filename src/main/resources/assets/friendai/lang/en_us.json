@@ -839,5 +839,19 @@
   "friendai.config.brain.request_timeout_sec": "Request timeout (seconds)",
   "friendai.config.brain.request_timeout_sec.tooltip": "How long one model request may take before it is abandoned (5–600 seconds, default 60).",
   "friendai.config.brain.cooldown_ms": "Cooldown between replies (ms)",
-  "friendai.config.brain.cooldown_ms.tooltip": "Minimum pause between two replies to the same player (0–60000 milliseconds, default 500)."
+  "friendai.config.brain.cooldown_ms.tooltip": "Minimum pause between two replies to the same player (0–60000 milliseconds, default 500).",
+  "friendai.config.memory.transcript_entries": "Conversation lines kept",
+  "friendai.config.memory.transcript_entries.tooltip": "How many recent chat lines are stored per owner to remember a conversation (20–2000, default 200).",
+  "friendai.config.memory.transcript_chars": "Longest stored line (characters)",
+  "friendai.config.memory.transcript_chars.tooltip": "Maximum characters kept from one chat line (100–2000, default 400).",
+  "friendai.config.memory.transcript_retention_days": "Keep conversations for (days)",
+  "friendai.config.memory.transcript_retention_days.tooltip": "How long stored chat lines are kept before they are deleted (1–90 days, default 7).",
+  "friendai.config.memory.compact_at_percent": "Compacting warning at (% full)",
+  "friendai.config.memory.compact_at_percent.tooltip": "How full the memory book must be before the model is told it is nearly full (50–100%, default 90).",
+  "friendai.config.memory.compaction_enabled": "Let the model compact memory",
+  "friendai.config.autonomy.while_offline": "Keep working while you are offline",
+  "friendai.config.autonomy.resume_after": "Resume the shift after (seconds)",
+  "friendai.config.autonomy.resume_after.tooltip": "How long you must be back before a paused free-time shift resumes (10–900 seconds, default 60).",
+  "friendai.config.autonomy.offline_shifts": "Shifts per hour while you are away",
+  "friendai.config.autonomy.offline_shifts.tooltip": "Maximum free-time shifts per hour while you are offline (0–60, default 2)."
 }

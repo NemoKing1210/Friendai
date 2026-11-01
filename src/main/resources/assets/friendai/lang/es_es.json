@@ -836,5 +836,19 @@
   "friendai.config.brain.request_timeout_sec": "Tiempo límite de la petición (segundos)",
   "friendai.config.brain.request_timeout_sec.tooltip": "Cuánto puede durar una petición al modelo antes de abandonarse (5–600 segundos, por defecto 60).",
   "friendai.config.brain.cooldown_ms": "Espera entre respuestas (ms)",
-  "friendai.config.brain.cooldown_ms.tooltip": "Pausa mínima entre dos respuestas al mismo jugador (0–60000 milisegundos, por defecto 500)."
+  "friendai.config.brain.cooldown_ms.tooltip": "Pausa mínima entre dos respuestas al mismo jugador (0–60000 milisegundos, por defecto 500).",
+  "friendai.config.memory.transcript_entries": "Líneas de conversación guardadas",
+  "friendai.config.memory.transcript_entries.tooltip": "Cuántas líneas de chat recientes se guardan por dueño para recordar una conversación (20–2000, por defecto 200).",
+  "friendai.config.memory.transcript_chars": "Línea guardada más larga (caracteres)",
+  "friendai.config.memory.transcript_chars.tooltip": "Máximo de caracteres guardados de una línea de chat (100–2000, por defecto 400).",
+  "friendai.config.memory.transcript_retention_days": "Conservar conversaciones (días)",
+  "friendai.config.memory.transcript_retention_days.tooltip": "Cuánto tiempo se guardan las líneas de chat antes de borrarse (1–90 días, por defecto 7).",
+  "friendai.config.memory.compact_at_percent": "Aviso de llenado (%)",
+  "friendai.config.memory.compact_at_percent.tooltip": "Cuánto debe llenarse el libro de memoria para que se avise al modelo de que está casi lleno (50–100 %, por defecto 90).",
+  "friendai.config.memory.compaction_enabled": "Permitir al modelo compactar la memoria",
+  "friendai.config.autonomy.while_offline": "Seguir trabajando mientras estás desconectado",
+  "friendai.config.autonomy.resume_after": "Reanudar el turno tras (segundos)",
+  "friendai.config.autonomy.resume_after.tooltip": "Cuánto tiempo debes volver a estar conectado para que un turno de tiempo libre en pausa se reanude (10–900 segundos, por defecto 60).",
+  "friendai.config.autonomy.offline_shifts": "Turnos por hora mientras no estás",
+  "friendai.config.autonomy.offline_shifts.tooltip": "Máximo de turnos de tiempo libre por hora mientras estás desconectado (0–60, por defecto 2)."
 }

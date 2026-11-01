@@ -839,5 +839,19 @@
   "friendai.config.brain.request_timeout_sec": "Délai de requête (secondes)",
   "friendai.config.brain.request_timeout_sec.tooltip": "Combien de temps une requête au modèle peut durer avant d'être abandonnée (5–600 secondes, par défaut 60).",
   "friendai.config.brain.cooldown_ms": "Délai entre les réponses (ms)",
-  "friendai.config.brain.cooldown_ms.tooltip": "Pause minimale entre deux réponses au même joueur (0–60000 millisecondes, par défaut 500)."
+  "friendai.config.brain.cooldown_ms.tooltip": "Pause minimale entre deux réponses au même joueur (0–60000 millisecondes, par défaut 500).",
+  "friendai.config.memory.transcript_entries": "Lignes de conversation conservées",
+  "friendai.config.memory.transcript_entries.tooltip": "Combien de lignes de chat récentes sont stockées par propriétaire pour se souvenir d'une conversation (20–2000, par défaut 200).",
+  "friendai.config.memory.transcript_chars": "Ligne stockée la plus longue (caractères)",
+  "friendai.config.memory.transcript_chars.tooltip": "Nombre maximal de caractères conservés d'une ligne de chat (100–2000, par défaut 400).",
+  "friendai.config.memory.transcript_retention_days": "Conserver les conversations (jours)",
+  "friendai.config.memory.transcript_retention_days.tooltip": "Combien de temps les lignes de chat stockées sont conservées avant suppression (1–90 jours, par défaut 7).",
+  "friendai.config.memory.compact_at_percent": "Alerte de remplissage (%)",
+  "friendai.config.memory.compact_at_percent.tooltip": "À quel point le carnet de mémoire doit être rempli avant que le modèle soit averti qu'il est presque plein (50–100 %, par défaut 90).",
+  "friendai.config.memory.compaction_enabled": "Autoriser le modèle à compacter la mémoire",
+  "friendai.config.autonomy.while_offline": "Continuer à travailler quand vous êtes hors ligne",
+  "friendai.config.autonomy.resume_after": "Reprendre la session après (secondes)",
+  "friendai.config.autonomy.resume_after.tooltip": "Combien de temps vous devez être revenu avant qu'un créneau de temps libre en pause reprenne (10–900 secondes, par défaut 60).",
+  "friendai.config.autonomy.offline_shifts": "Créneaux par heure en votre absence",
+  "friendai.config.autonomy.offline_shifts.tooltip": "Nombre maximal de créneaux de temps libre par heure quand vous êtes hors ligne (0–60, par défaut 2)."
 }

@@ -836,5 +836,19 @@
   "friendai.config.brain.request_timeout_sec": "Тайм-аут запроса (секунды)",
   "friendai.config.brain.request_timeout_sec.tooltip": "Сколько может длиться один запрос к модели, прежде чем он будет прерван (5–600 секунд, по умолчанию 60).",
   "friendai.config.brain.cooldown_ms": "Пауза между ответами (мс)",
-  "friendai.config.brain.cooldown_ms.tooltip": "Минимальная пауза между двумя ответами одному игроку (0–60000 миллисекунд, по умолчанию 500)."
+  "friendai.config.brain.cooldown_ms.tooltip": "Минимальная пауза между двумя ответами одному игроку (0–60000 миллисекунд, по умолчанию 500).",
+  "friendai.config.memory.transcript_entries": "Хранимых строк разговора",
+  "friendai.config.memory.transcript_entries.tooltip": "Сколько последних строк чата хранится для каждого владельца, чтобы помнить разговор (20–2000, по умолчанию 200).",
+  "friendai.config.memory.transcript_chars": "Длина хранимой строки (символы)",
+  "friendai.config.memory.transcript_chars.tooltip": "Максимум символов, сохраняемых из одной строки чата (100–2000, по умолчанию 400).",
+  "friendai.config.memory.transcript_retention_days": "Хранить разговоры (дней)",
+  "friendai.config.memory.transcript_retention_days.tooltip": "Сколько хранятся строки чата, прежде чем удалиться (1–90 дней, по умолчанию 7).",
+  "friendai.config.memory.compact_at_percent": "Предупреждение о заполнении (%)",
+  "friendai.config.memory.compact_at_percent.tooltip": "Насколько должна заполниться книга памяти, чтобы модель узнала, что она почти полна (50–100%, по умолчанию 90).",
+  "friendai.config.memory.compaction_enabled": "Разрешать модели сжимать память",
+  "friendai.config.autonomy.while_offline": "Работать, пока вас нет в игре",
+  "friendai.config.autonomy.resume_after": "Возобновлять смену через (секунды)",
+  "friendai.config.autonomy.resume_after.tooltip": "Сколько нужно быть в игре, чтобы приостановленная смена свободного времени продолжилась (10–900 секунд, по умолчанию 60).",
+  "friendai.config.autonomy.offline_shifts": "Смен в час, пока вас нет",
+  "friendai.config.autonomy.offline_shifts.tooltip": "Максимум смен свободного времени в час, пока вас нет в игре (0–60, по умолчанию 2)."
 }

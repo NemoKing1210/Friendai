@@ -8,6 +8,13 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.116.0] - 2026-11-01
+
+### Added
+
+- The **Memory** tab controls how conversation lines are kept: how many, how long each may be, how many days they survive and when the companion is warned memory is nearly full, plus a switch for model-driven compaction.
+- The **Free time** tab now covers working while you are offline, the offline shift rate and how quickly a paused shift resumes when you return.
+
 ## [0.115.0] - 2026-11-01
 
 ### Added

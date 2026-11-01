@@ -836,5 +836,19 @@
   "friendai.config.brain.request_timeout_sec": "请求超时（秒）",
   "friendai.config.brain.request_timeout_sec.tooltip": "一次模型请求在被放弃前可持续的时长（5–600 秒，默认 60）。",
   "friendai.config.brain.cooldown_ms": "回复间隔（毫秒）",
-  "friendai.config.brain.cooldown_ms.tooltip": "对同一玩家两次回复之间的最短间隔（0–60000 毫秒，默认 500）。"
+  "friendai.config.brain.cooldown_ms.tooltip": "对同一玩家两次回复之间的最短间隔（0–60000 毫秒，默认 500）。",
+  "friendai.config.memory.transcript_entries": "保留的对话行数",
+  "friendai.config.memory.transcript_entries.tooltip": "每位主人保存的最近聊天行数，用于记住对话（20–2000，默认 200）。",
+  "friendai.config.memory.transcript_chars": "最长保存行（字符）",
+  "friendai.config.memory.transcript_chars.tooltip": "每条聊天保存的最大字符数（100–2000，默认 400）。",
+  "friendai.config.memory.transcript_retention_days": "保留对话（天）",
+  "friendai.config.memory.transcript_retention_days.tooltip": "保存的聊天行在删除前保留多久（1–90 天，默认 7）。",
+  "friendai.config.memory.compact_at_percent": "填充提醒（%）",
+  "friendai.config.memory.compact_at_percent.tooltip": "记忆簿达到多满时告知模型它快满了（50–100%，默认 90）。",
+  "friendai.config.memory.compaction_enabled": "允许模型压缩记忆",
+  "friendai.config.autonomy.while_offline": "你离线时继续工作",
+  "friendai.config.autonomy.resume_after": "恢复时段延迟（秒）",
+  "friendai.config.autonomy.resume_after.tooltip": "你回来后多久，暂停的空闲时段才继续（10–900 秒，默认 60）。",
+  "friendai.config.autonomy.offline_shifts": "你离线时每小时时段数",
+  "friendai.config.autonomy.offline_shifts.tooltip": "你离线时每小时最大空闲时段数（0–60，默认 2）。"
 }

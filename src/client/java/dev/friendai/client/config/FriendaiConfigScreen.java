@@ -952,6 +952,18 @@ public final class FriendaiConfigScreen {
                         true,
                         () -> autonomy.idleStart,
                         value -> autonomy.idleStart = value))
+                .option(booleanOption(
+                        "friendai.config.autonomy.while_offline",
+                        true,
+                        () -> autonomy.whileOffline,
+                        value -> autonomy.whileOffline = value))
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.autonomy.resume_after"))
+                        .description(OptionDescription.of(tr("friendai.config.autonomy.resume_after.tooltip")))
+                        .binding(60, () -> autonomy.resumeAfterSec, value -> autonomy.resumeAfterSec = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(10, 900))
+                        .build())
                 .option(Option.<Integer>createBuilder()
                         .name(tr("friendai.config.autonomy.idle_minutes"))
                         .description(OptionDescription.of(tr("friendai.config.autonomy.idle_minutes.tooltip")))
@@ -970,6 +982,13 @@ public final class FriendaiConfigScreen {
                         .name(tr("friendai.config.autonomy.max_shifts"))
                         .description(OptionDescription.of(tr("friendai.config.autonomy.max_shifts.tooltip")))
                         .binding(6, () -> autonomy.maxShiftsPerHour, value -> autonomy.maxShiftsPerHour = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(0, 60))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.autonomy.offline_shifts"))
+                        .description(OptionDescription.of(tr("friendai.config.autonomy.offline_shifts.tooltip")))
+                        .binding(2, () -> autonomy.offlineShiftsPerHour, value -> autonomy.offlineShiftsPerHour = value)
                         .controller(option ->
                                 IntegerFieldControllerBuilder.create(option).range(0, 60))
                         .build())
@@ -1013,6 +1032,36 @@ public final class FriendaiConfigScreen {
                         .binding(128, () -> m.maxWorldFacts, v -> m.maxWorldFacts = v)
                         .controller(o -> IntegerFieldControllerBuilder.create(o).range(1, 200))
                         .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.memory.transcript_entries"))
+                        .description(OptionDescription.of(tr("friendai.config.memory.transcript_entries.tooltip")))
+                        .binding(200, () -> m.transcriptMaxEntries, v -> m.transcriptMaxEntries = v)
+                        .controller(o -> IntegerFieldControllerBuilder.create(o).range(20, 2_000))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.memory.transcript_chars"))
+                        .description(OptionDescription.of(tr("friendai.config.memory.transcript_chars.tooltip")))
+                        .binding(400, () -> m.transcriptMaxTextChars, v -> m.transcriptMaxTextChars = v)
+                        .controller(o -> IntegerFieldControllerBuilder.create(o).range(100, 2_000))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.memory.transcript_retention_days"))
+                        .description(
+                                OptionDescription.of(tr("friendai.config.memory.transcript_retention_days.tooltip")))
+                        .binding(7, () -> m.transcriptRetentionDays, v -> m.transcriptRetentionDays = v)
+                        .controller(o -> IntegerFieldControllerBuilder.create(o).range(1, 90))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.memory.compact_at_percent"))
+                        .description(OptionDescription.of(tr("friendai.config.memory.compact_at_percent.tooltip")))
+                        .binding(90, () -> m.compactAtPercent, v -> m.compactAtPercent = v)
+                        .controller(o -> IntegerFieldControllerBuilder.create(o).range(50, 100))
+                        .build())
+                .option(booleanOption(
+                        "friendai.config.memory.compaction_enabled",
+                        true,
+                        () -> m.compactionEnabled,
+                        v -> m.compactionEnabled = v))
                 .build();
     }
 

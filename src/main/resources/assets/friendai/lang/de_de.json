@@ -839,5 +839,19 @@
   "friendai.config.brain.request_timeout_sec": "Zeitlimit der Anfrage (Sekunden)",
   "friendai.config.brain.request_timeout_sec.tooltip": "Wie lange eine Modellanfrage dauern darf, bevor sie abgebrochen wird (5–600 Sekunden, Standard 60).",
   "friendai.config.brain.cooldown_ms": "Pause zwischen Antworten (ms)",
-  "friendai.config.brain.cooldown_ms.tooltip": "Mindestpause zwischen zwei Antworten an denselben Spieler (0–60000 Millisekunden, Standard 500)."
+  "friendai.config.brain.cooldown_ms.tooltip": "Mindestpause zwischen zwei Antworten an denselben Spieler (0–60000 Millisekunden, Standard 500).",
+  "friendai.config.memory.transcript_entries": "Gespeicherte Gesprächszeilen",
+  "friendai.config.memory.transcript_entries.tooltip": "Wie viele letzte Chatzeilen pro Besitzer gespeichert werden, um ein Gespräch zu erinnern (20–2000, Standard 200).",
+  "friendai.config.memory.transcript_chars": "Längste gespeicherte Zeile (Zeichen)",
+  "friendai.config.memory.transcript_chars.tooltip": "Maximale Zeichenzahl aus einer Chatzeile (100–2000, Standard 400).",
+  "friendai.config.memory.transcript_retention_days": "Gespräche aufbewahren (Tage)",
+  "friendai.config.memory.transcript_retention_days.tooltip": "Wie lange gespeicherte Chatzeilen aufbewahrt werden, bevor sie gelöscht werden (1–90 Tage, Standard 7).",
+  "friendai.config.memory.compact_at_percent": "Warnung bei Füllstand (%)",
+  "friendai.config.memory.compact_at_percent.tooltip": "Wie voll das Erinnerungsbuch sein muss, bevor das Modell erfährt, dass es fast voll ist (50–100 %, Standard 90).",
+  "friendai.config.memory.compaction_enabled": "Modell darf Erinnerungen verdichten",
+  "friendai.config.autonomy.while_offline": "Weiterarbeiten, während Sie offline sind",
+  "friendai.config.autonomy.resume_after": "Schicht fortsetzen nach (Sekunden)",
+  "friendai.config.autonomy.resume_after.tooltip": "Wie lange Sie zurück sein müssen, bevor eine pausierte Freizeit-Schicht weiterläuft (10–900 Sekunden, Standard 60).",
+  "friendai.config.autonomy.offline_shifts": "Schichten pro Stunde während Ihrer Abwesenheit",
+  "friendai.config.autonomy.offline_shifts.tooltip": "Maximale Freizeit-Schichten pro Stunde, während Sie offline sind (0–60, Standard 2)."
 }

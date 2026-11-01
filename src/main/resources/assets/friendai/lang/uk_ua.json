@@ -836,5 +836,19 @@
   "friendai.config.brain.request_timeout_sec": "Тайм-аут запиту (секунди)",
   "friendai.config.brain.request_timeout_sec.tooltip": "Скільки може тривати один запит до моделі, перш ніж його буде перервано (5–600 секунд, типово 60).",
   "friendai.config.brain.cooldown_ms": "Пауза між відповідями (мс)",
-  "friendai.config.brain.cooldown_ms.tooltip": "Мінімальна пауза між двома відповідями одному гравцю (0–60000 мілісекунд, типово 500)."
+  "friendai.config.brain.cooldown_ms.tooltip": "Мінімальна пауза між двома відповідями одному гравцю (0–60000 мілісекунд, типово 500).",
+  "friendai.config.memory.transcript_entries": "Збережених рядків розмови",
+  "friendai.config.memory.transcript_entries.tooltip": "Скільки останніх рядків чату зберігається для кожного власника, щоб пам'ятати розмову (20–2000, типово 200).",
+  "friendai.config.memory.transcript_chars": "Найдовший збережений рядок (символи)",
+  "friendai.config.memory.transcript_chars.tooltip": "Максимум символів, що зберігаються з одного рядка чату (100–2000, типово 400).",
+  "friendai.config.memory.transcript_retention_days": "Зберігати розмови (дні)",
+  "friendai.config.memory.transcript_retention_days.tooltip": "Скільки зберігаються рядки чату, перш ніж видалитися (1–90 днів, типово 7).",
+  "friendai.config.memory.compact_at_percent": "Попередження про заповнення (%)",
+  "friendai.config.memory.compact_at_percent.tooltip": "Наскільки має заповнитися книга пам'яті, щоб модель дізналася, що вона майже повна (50–100%, типово 90).",
+  "friendai.config.memory.compaction_enabled": "Дозволяти моделі стискати пам'ять",
+  "friendai.config.autonomy.while_offline": "Працювати, поки вас немає в грі",
+  "friendai.config.autonomy.resume_after": "Відновлювати зміну через (секунди)",
+  "friendai.config.autonomy.resume_after.tooltip": "Скільки треба бути в грі, щоб призупинена зміна вільного часу продовжилася (10–900 секунд, типово 60).",
+  "friendai.config.autonomy.offline_shifts": "Змін на годину, поки вас немає",
+  "friendai.config.autonomy.offline_shifts.tooltip": "Максимум змін вільного часу на годину, поки вас немає в грі (0–60, типово 2)."
 }
