@@ -492,6 +492,34 @@ public final class FriendaiConfigScreen {
                         .controller(
                                 opt -> IntegerFieldControllerBuilder.create(opt).range(0, 60))
                         .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.skills.per_outcome"))
+                        .description(OptionDescription.of(tr("friendai.config.skills.per_outcome.tooltip")))
+                        .binding(2, () -> server.skills.writesPerOutcome, v -> server.skills.writesPerOutcome = v)
+                        .controller(
+                                opt -> IntegerFieldControllerBuilder.create(opt).range(0, 2))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.skills.owner_count"))
+                        .description(OptionDescription.of(tr("friendai.config.skills.owner_count.tooltip")))
+                        .binding(64, () -> server.skills.ownerCount, v -> server.skills.ownerCount = v)
+                        .controller(
+                                opt -> IntegerFieldControllerBuilder.create(opt).range(1, 64))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.skills.server_count"))
+                        .description(OptionDescription.of(tr("friendai.config.skills.server_count.tooltip")))
+                        .binding(32, () -> server.skills.serverCount, v -> server.skills.serverCount = v)
+                        .controller(
+                                opt -> IntegerFieldControllerBuilder.create(opt).range(1, 32))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.skills.total_chars"))
+                        .description(OptionDescription.of(tr("friendai.config.skills.total_chars.tooltip")))
+                        .binding(96_000, () -> server.skills.totalChars, v -> server.skills.totalChars = v)
+                        .controller(
+                                opt -> IntegerFieldControllerBuilder.create(opt).range(4_000, 96_000))
+                        .build())
                 .option(Option.<String>createBuilder()
                         .name(tr("friendai.config.agent.planner"))
                         .description(OptionDescription.of(tr("friendai.config.agent.planner.tooltip")))
@@ -711,6 +739,32 @@ public final class FriendaiConfigScreen {
                         true,
                         () -> tasks.mineCollectDrops,
                         value -> tasks.mineCollectDrops = value))
+                .option(booleanOption(
+                        "friendai.config.tasks.tree_perception",
+                        true,
+                        () -> tasks.treePerception,
+                        value -> tasks.treePerception = value))
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.tasks.tree_perception_radius"))
+                        .description(OptionDescription.of(tr("friendai.config.tasks.tree_perception_radius.tooltip")))
+                        .binding(12, () -> tasks.treePerceptionRadius, value -> tasks.treePerceptionRadius = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(4, 24))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.tasks.queue_blocked_notice_sec"))
+                        .description(OptionDescription.of(tr("friendai.config.tasks.queue_blocked_notice_sec.tooltip")))
+                        .binding(30, () -> tasks.queueBlockedNoticeSec, value -> tasks.queueBlockedNoticeSec = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(5, 600))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.tasks.free_time_watchdog_sec"))
+                        .description(OptionDescription.of(tr("friendai.config.tasks.free_time_watchdog_sec.tooltip")))
+                        .binding(120, () -> tasks.freeTimeWatchdogSec, value -> tasks.freeTimeWatchdogSec = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(1, 600))
+                        .build())
                 .build();
     }
 
@@ -743,6 +797,13 @@ public final class FriendaiConfigScreen {
                         .controller(option ->
                                 IntegerFieldControllerBuilder.create(option).range(1, 256))
                         .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.pathing.max_nodes"))
+                        .description(OptionDescription.of(tr("friendai.config.pathing.max_nodes.tooltip")))
+                        .binding(20_000, () -> pathing.maxNodes, value -> pathing.maxNodes = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(1_000, 100_000))
+                        .build())
                 .option(booleanOption(
                         "friendai.config.places.enabled", true, () -> places.enabled, value -> places.enabled = value))
                 .option(booleanOption(
@@ -756,6 +817,41 @@ public final class FriendaiConfigScreen {
                         .binding(128, () -> places.maxPlaces, value -> places.maxPlaces = value)
                         .controller(option ->
                                 IntegerFieldControllerBuilder.create(option).range(1, 512))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.places.auto_mine_min_blocks"))
+                        .description(OptionDescription.of(tr("friendai.config.places.auto_mine_min_blocks.tooltip")))
+                        .binding(16, () -> places.autoMineMinBlocks, value -> places.autoMineMinBlocks = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(1, 256))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.places.merge_radius"))
+                        .description(OptionDescription.of(tr("friendai.config.places.merge_radius.tooltip")))
+                        .binding(16, () -> places.mergeRadius, value -> places.mergeRadius = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(1, 64))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.places.prompt_limit"))
+                        .description(OptionDescription.of(tr("friendai.config.places.prompt_limit.tooltip")))
+                        .binding(6, () -> places.promptLimit, value -> places.promptLimit = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(1, 12))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.places.prompt_budget"))
+                        .description(OptionDescription.of(tr("friendai.config.places.prompt_budget.tooltip")))
+                        .binding(1_200, () -> places.promptBudget, value -> places.promptBudget = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(200, 4_000))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.places.planner_limit"))
+                        .description(OptionDescription.of(tr("friendai.config.places.planner_limit.tooltip")))
+                        .binding(40, () -> places.plannerLimit, value -> places.plannerLimit = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(1, 128))
                         .build())
                 .option(Option.<Integer>createBuilder()
                         .name(tr("friendai.config.structures.max_nearby"))

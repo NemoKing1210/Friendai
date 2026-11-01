@@ -8,6 +8,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.117.0] - 2026-11-01
+
+### Added
+
+- The settings screen now reaches the remaining server options: tree sight, blocked-queue notices and the free-time watchdog under **Tasks**; mine and place merging, prompt limits and planner limits under **World**; the path-search node budget; and the instruction-skill caps under **Companion**. Every one carries a tooltip with its default, range and unit.
+
 ## [0.116.0] - 2026-11-01
 
 ### Added
