@@ -115,6 +115,12 @@ public class CompanionEntity extends PathfinderMob {
      */
     private static final EntityDataAccessor<ItemStack> DATA_PLACE_ITEM =
             SynchedEntityData.defineId(CompanionEntity.class, EntityDataSerializers.ITEM_STACK);
+    /** Synced body language; see {@link MoodModel}. */
+    private static final EntityDataAccessor<Integer> DATA_MOOD =
+            SynchedEntityData.defineId(CompanionEntity.class, EntityDataSerializers.INT);
+
+    private final dev.friendai.features.social.MoodModel moodModel = new dev.friendai.features.social.MoodModel();
+    private int moodTicks;
 
     private static final EquipmentSlot[] ARMOR_SLOTS = {
         EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET
@@ -208,6 +214,7 @@ public class CompanionEntity extends PathfinderMob {
         builder.define(DATA_SLIM, false);
         builder.define(DATA_CREATIVE_MODE, false);
         builder.define(DATA_PLACE_ITEM, ItemStack.EMPTY);
+        builder.define(DATA_MOOD, 0);
     }
     /** The companion's experience; after changing it directly call {@link #syncExperience()}. */
     public ExperienceModel experience() {
@@ -283,6 +290,13 @@ public class CompanionEntity extends PathfinderMob {
 
     public void setThinking(boolean thinking) {
         entityData.set(DATA_THINKING, thinking);
+    }
+
+    /** The body language the client may draw; the server owns the model. */
+    public dev.friendai.features.social.Mood syncedMood() {
+        int ordinal = entityData.get(DATA_MOOD);
+        dev.friendai.features.social.Mood[] values = dev.friendai.features.social.Mood.values();
+        return ordinal >= 0 && ordinal < values.length ? values[ordinal] : dev.friendai.features.social.Mood.CALM;
     }
     /** The food level as the client sees it; the server ticks the model, the client only reads this field. */
     public int syncedFood() {
@@ -444,6 +458,9 @@ public class CompanionEntity extends PathfinderMob {
             }
             if (!creativeMode()) {
                 tickHunger((ServerLevel) level());
+            }
+            if (++moodTicks % 10 == 0) {
+                updateMood();
             }
             collectExperienceOrbs();
             // The cooldown advances before the tasks tick, so an interval of one still places on the very next tick.
@@ -813,6 +830,17 @@ public class CompanionEntity extends PathfinderMob {
         creativeLanding = true;
         setNoGravity(true);
         getNavigation().stop();
+    }
+
+    private void updateMood() {
+        boolean danger =
+                getHealth() < getMaxHealth() * 0.5F || isOnFire() || isInLava() || isEyeInFluid(FluidTags.WATER);
+        boolean combat = getTarget() != null;
+        boolean work = executionCoordinator().current().isPresent();
+        dev.friendai.features.social.Mood mood = moodModel.update(danger, combat, work, false, false, tickCount);
+        if (entityData.get(DATA_MOOD) != mood.ordinal()) {
+            entityData.set(DATA_MOOD, mood.ordinal());
+        }
     }
 
     /** Descends at a bounded speed with ordinary collision resolution; timeout returns to normal gravity. */
