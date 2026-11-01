@@ -66,7 +66,7 @@ public final class RecoveryReflex {
         }
         double away = companion.position().distanceTo(Vec3.atCenterOf(new BlockPos(death.x(), death.y(), death.z())));
         boolean nearby = away <= NEARBY_RADIUS;
-        boolean allowedWide = companion.serverSettings().autonomy().enabled();
+        boolean allowedWide = companion.autonomyEnabled();
         if (!nearby && !allowedWide) {
             return;
         }
