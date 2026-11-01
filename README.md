@@ -123,6 +123,7 @@ Hold **V** to talk. Open **Settings → Voice → Recognition** and choose where
 - **OpenAI (paid)** — an OpenAI-compatible transcription API (`gpt-transcribe` by default). The base URL can point at any OpenAI-compatible server, including a local one, which needs no key.
 - **Groq (paid)** — the same API through Groq (`whisper-large-v3` by default).
 - **Google Cloud Speech-to-Text (paid)** — a key and a language; the recording is sent as LINEAR16.
+- **Deepgram (paid)** — a key, a model and an optional language.
 - **Yandex SpeechKit (paid)** — an API key, the cloud folder id and a concrete language tag.
 
 The transcript is sent to the server as a chat message. Local recognition keeps the audio on your machine; a cloud provider uploads the recording, and only while that provider is selected.

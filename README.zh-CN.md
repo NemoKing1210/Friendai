@@ -123,6 +123,7 @@
 - **OpenAI（付费）**——兼容 OpenAI 的转写 API（默认为 `gpt-transcribe`）。Base URL 可以指向任何兼容 OpenAI 的服务器，包括本地服务器，此时无需密钥。
 - **Groq（付费）**——通过 Groq 使用同一 API（默认为 `whisper-large-v3`）。
 - **Google Cloud Speech-to-Text（付费）** — 密钥和语言；录音以 LINEAR16 发送。
+- **Deepgram（付费）** — 密钥、模型和可选语言。
 - **Yandex SpeechKit（付费）**——需要 API 密钥、云端文件夹 id 和一个具体的语言标签。
 
 转写结果会作为聊天消息发送到服务器。本地识别会让音频留在你的机器上；云端服务商会上传录音，且仅在选择该服务商时才会上传。
