@@ -586,6 +586,7 @@
   "friendai.menu.places.error.name_invalid": "Название места должно быть длиной 1-%s символов.",
 
   "friendai.mining.unsafe_support": "Не могу добывать блок, который поддерживает меня или путь.",
+  "friendai.mining.lava_below": "Не буду ломать %s: прямо под ним лава.",
   "friendai.mining.server_protected": "%s защищён сервером (защита спавна или правило мира).",
   "friendai.mining.place_protected": "%s находится внутри места, которое владелец просил защищать.",
   "friendai.mining.own_support_unsafe": "Под блоком у меня под ногами (%s) небезопасное падение.",

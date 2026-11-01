@@ -37,6 +37,7 @@ public sealed interface MiningRefusal {
             case ServerProtected p -> "server protection";
             case PlaceProtected p -> "inside " + p.name();
             case OwnSupport p -> p.safeDrop() ? "under my feet" : "unsafe drop under my feet";
+            case LavaBelow l -> "lava below";
             case Blacklisted p -> "break list";
             case Unbreakable p -> "unbreakable";
             case OutOfReach p -> "out of reach";
@@ -61,6 +62,9 @@ public sealed interface MiningRefusal {
             if (!allowSupport || !safe) {
                 return new OwnSupport(pos, safe);
             }
+        }
+        if (!allowSupport && level.getBlockState(pos.below()).getFluidState().is(net.minecraft.tags.FluidTags.LAVA)) {
+            return new LavaBelow(pos);
         }
         BlockState state = level.getBlockState(pos);
         String blockId = BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString();
@@ -135,6 +139,19 @@ public sealed interface MiningRefusal {
             return safeDrop
                     ? "break it and drop one block, or mine a neighbouring block"
                     : "mine a neighbouring block instead";
+        }
+    }
+
+    /** The block above lava: breaking it opens a hole into the lava. */
+    record LavaBelow(BlockPos pos) implements MiningRefusal {
+        @Override
+        public String describe() {
+            return coords(pos) + " has lava directly below it";
+        }
+
+        @Override
+        public String remedy() {
+            return "mine it from a side with solid ground below, or seal the lava first";
         }
     }
 

@@ -8,6 +8,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.96.2] - 2026-11-01
+
+### Fixed
+
+- A companion no longer breaks a block that has lava directly below it: the break is refused with the cell and a remedy, so neither the drop nor the companion falls into the lava.
+
 ## [0.96.1] - 2026-11-01
 
 ### Fixed

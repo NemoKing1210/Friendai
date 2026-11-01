@@ -640,6 +640,29 @@ public class MiningTests {
         });
     }
 
+    @GameTest(maxTicks = 200)
+    public void aBlockDirectlyAboveLavaIsNotBroken(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(new BlockPos(4, 1, 2), Blocks.LAVA);
+        h.setBlock(new BlockPos(4, 2, 2), Blocks.STONE);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.inventory().addItem(Items.IRON_PICKAXE.getDefaultInstance());
+        BlockPos target = h.absolutePos(new BlockPos(4, 2, 2));
+        Outcome outcome = new Outcome();
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 200, () -> false);
+        runner.setEventSink(outcome);
+        runner.start(new MineBlockAtTask(target), "mine_block_at");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(outcome.status != null, "mining did not finish: " + outcome.summary);
+            h.assertTrue(outcome.status == TaskStatus.FAILED, "lava below must refuse the break: " + outcome.summary);
+            h.assertTrue(
+                    h.getLevel().getBlockState(target).is(Blocks.STONE),
+                    "the block above lava was broken: " + outcome.summary);
+            h.assertTrue(!companion.isInLava(), "the companion ended in lava");
+        });
+    }
+
     @GameTest(maxTicks = 2400)
     public void valuableOreOverARavineIsCaughtAndTheBlockIsTakenBack(GameTestHelper h) {
         GameTestSupport.platformAt(h, 20, 8);
