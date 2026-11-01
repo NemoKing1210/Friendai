@@ -714,6 +714,8 @@
   "friendai.config.tasks.place_interval.tooltip": "Тиков сервера между двумя блоками в режиме выживания; игрок ставит один блок за четыре тика. 1 — самая быстрая печать, 40 — самая медленная (1–40, по умолчанию 4). В творческом режиме блок ставится каждый тик, как и раньше.",
   "friendai.menu.free_time.planner_model": "Модель планировщика: %s",
   "friendai.menu.log.kind.planner": "Планировщик",
+  "friendai.menu.log.kind.request": "Запрос",
+  "friendai.menu.log.kind.response": "Ответ",
   "friendai.freetime.no_plan.step": "шаг %s",
   "friendai.freetime.no_plan.invalid_steps": "недопустимые или недоступные действия"
 }

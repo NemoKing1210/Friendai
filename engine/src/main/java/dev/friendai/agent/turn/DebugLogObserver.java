@@ -63,6 +63,42 @@ public final class DebugLogObserver implements BrainObserver {
     }
 
     @Override
+    public void onRequest(
+            String system,
+            java.util.List<dev.friendai.agent.llm.model.Message> messages,
+            java.util.List<dev.friendai.agent.llm.model.ToolSpec> tools) {
+        StringBuilder text =
+                new StringBuilder("request: system=").append(system.length()).append(" chars; messages=");
+        for (dev.friendai.agent.llm.model.Message message : messages) {
+            text.append(message.role())
+                    .append(' ')
+                    .append(preview(message.text()))
+                    .append("; ");
+        }
+        text.append("tools=")
+                .append(tools.stream()
+                        .map(dev.friendai.agent.llm.model.ToolSpec::name)
+                        .toList());
+        log.add(LogKind.REQUEST, text.toString());
+    }
+
+    @Override
+    public void onResponse(dev.friendai.agent.llm.model.LlmResponse response) {
+        log.add(
+                LogKind.RESPONSE,
+                "reply: text=" + preview(response.text())
+                        + "; tools="
+                        + response.toolCalls().stream().map(ToolCall::name).toList()
+                        + "; stop=" + response.stopReason()
+                        + "; usage=" + response.usage());
+    }
+
+    private static String preview(String text) {
+        String flat = text.replace('\n', ' ').replace('\r', ' ');
+        return flat.length() <= 120 ? flat : flat.substring(0, 120) + "…";
+    }
+
+    @Override
     public void onError(Throwable error) {
         log.add(LogKind.ERROR, error.toString());
     }

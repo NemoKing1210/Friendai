@@ -9,5 +9,7 @@ public enum LogKind {
     ERROR,
     TASK,
     MANUAL,
-    PLANNER
+    PLANNER,
+    REQUEST,
+    RESPONSE
 }

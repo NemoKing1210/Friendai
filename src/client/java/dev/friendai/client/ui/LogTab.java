@@ -62,6 +62,8 @@ final class LogTab extends StatefulMenuTab {
             case TASK -> "friendai.menu.log.kind.task";
             case MANUAL -> "friendai.menu.log.kind.manual";
             case PLANNER -> "friendai.menu.log.kind.planner";
+            case REQUEST -> "friendai.menu.log.kind.request";
+            case RESPONSE -> "friendai.menu.log.kind.response";
         };
     }
 
@@ -75,6 +77,8 @@ final class LogTab extends StatefulMenuTab {
             case TASK -> Ui.WARN;
             case MANUAL -> Ui.PALETTE[6];
             case PLANNER -> Ui.PALETTE[5];
+            case REQUEST -> Ui.PALETTE[4];
+            case RESPONSE -> Ui.PALETTE[2];
         };
     }
 

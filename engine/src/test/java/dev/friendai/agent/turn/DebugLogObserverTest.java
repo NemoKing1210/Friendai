@@ -29,6 +29,31 @@ class DebugLogObserverTest {
     }
 
     @Test
+    void requestAndResponseAreLogged() {
+        DebugLog log = new DebugLog(50, 500, UnaryOperator.identity(), () -> 0L);
+        DebugLogObserver observer = new DebugLogObserver(log);
+        observer.onRequest(
+                "system",
+                List.of(dev.friendai.agent.llm.model.Message.user("hello")),
+                List.of(new dev.friendai.agent.llm.model.ToolSpec("go_to", "walk", new JsonObject())));
+        observer.onResponse(new dev.friendai.agent.llm.model.LlmResponse(
+                "done",
+                List.of(),
+                dev.friendai.agent.llm.model.StopReason.END,
+                new dev.friendai.agent.llm.model.Usage(10, 2)));
+        List<LogEntry> entries = log.after(0, 50);
+        assertEquals(
+                List.of(LogKind.REQUEST, LogKind.RESPONSE),
+                entries.stream().map(LogEntry::kind).toList());
+        assertEquals(
+                "request: system=6 chars; messages=USER hello; tools=[go_to]",
+                entries.get(0).text());
+        assertEquals(
+                "reply: text=done; tools=[]; stop=END; usage=Usage[inputTokens=10, outputTokens=2]",
+                entries.get(1).text());
+    }
+
+    @Test
     void mapsEachCallbackToExpectedKind() {
         DebugLog log = new DebugLog(50, 500, UnaryOperator.identity(), () -> 0L);
         DebugLogObserver observer = new DebugLogObserver(log);
