@@ -60,6 +60,14 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] Turn **Show the mood mark** off: the mark above the companion's head disappears; turn it back on and it returns.
 - [ ] Hit your own companion: it shows a displeased mark. Let a creeper come close: it shows a worried mark after about half a second, and calm returns a second later.
 
+## Accessibility and the smallest screen
+
+- [ ] Open the settings screen with the keyboard only: Tab and Shift+Tab reach the search field, the Basic/Advanced switch, the category rail and every option, and Enter activates the focused control.
+- [ ] Set GUI scale to the largest value and open the screen at a 320×240 window: no tab, label, tooltip, search field or button is clipped, and the page scrolls.
+- [ ] Read the screen with a screen reader: every option announces its label and its tooltip, and the mood and bond lines in the Feeling tab are announced as text.
+- [ ] Check contrast of the menu well, the search field placeholder and the disabled buttons against both the light and the dark GUI background.
+- [ ] Try the screen as a non-operator client and confirm the read-only Server tab is reachable and says the same message in both UI languages.
+
 ## Settings screen
 
 - [ ] Open the screen in both UI languages: no tab, label, tooltip or button clips at GUI scale 4.
