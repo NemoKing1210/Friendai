@@ -760,5 +760,18 @@
   "friendai.config.tasks.queue_max_steps": "Schritte pro Plan",
   "friendai.config.tasks.queue_max_steps.tooltip": "Maximale Schritte in einem Plan (1–128, Standard 32).",
   "friendai.config.tasks.fell_collect": "Gefällte Stämme sammeln",
-  "friendai.config.tasks.mine_collect": "Abgebaute Drops sammeln"
+  "friendai.config.tasks.mine_collect": "Abgebaute Drops sammeln",
+  "friendai.config.category.world": "Welt",
+  "friendai.config.pathing.allow_break": "Abbauen auf dem Weg erlauben",
+  "friendai.config.pathing.allow_place": "Platzieren auf dem Weg erlauben",
+  "friendai.config.pathing.search_budget_ms": "Budgets für Pfadsuche (ms)",
+  "friendai.config.pathing.search_budget_ms.tooltip": "Zeit, die eine Pfadsuche pro Tick nutzen darf (1–50 ms, Standard 2). Höhere Werte finden Pfade schneller, können aber Bildrate kosten.",
+  "friendai.config.pathing.max_gather": "Blöcke auf dem Weg sammeln",
+  "friendai.config.pathing.max_gather.tooltip": "Wie viele Blöcke der Begleiter auf dem Weg sammeln darf (1–256, Standard 64).",
+  "friendai.config.places.enabled": "Orte merken",
+  "friendai.config.places.auto_remember": "Wichtige Orte automatisch merken",
+  "friendai.config.places.max": "Gespeicherte Orte",
+  "friendai.config.places.max.tooltip": "Maximale Orte pro Besitzer (1–512, Standard 128).",
+  "friendai.config.structures.max_nearby": "Mobs in der Nähe vor dem Bau",
+  "friendai.config.structures.max_nearby.tooltip": "Wie viele Mobs derselben Art bereits am Ort stehen dürfen, bevor ein weiterer gebaut wird (0–32, Standard 4)."
 }

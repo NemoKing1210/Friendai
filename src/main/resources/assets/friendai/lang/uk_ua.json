@@ -757,5 +757,18 @@
   "friendai.config.tasks.queue_max_steps": "Кроків у плані",
   "friendai.config.tasks.queue_max_steps.tooltip": "Максимум кроків в одному плані (1–128, типово 32).",
   "friendai.config.tasks.fell_collect": "Збирати зрубані колоди",
-  "friendai.config.tasks.mine_collect": "Збирати видобуті дропи"
+  "friendai.config.tasks.mine_collect": "Збирати видобуті дропи",
+  "friendai.config.category.world": "Світ",
+  "friendai.config.pathing.allow_break": "Дозволяти копати дорогою",
+  "friendai.config.pathing.allow_place": "Дозволяти ставити блоки дорогою",
+  "friendai.config.pathing.search_budget_ms": "Бюджет пошуку шляху (мс)",
+  "friendai.config.pathing.search_budget_ms.tooltip": "Скільки часу пошук шляху може витрачати за тік (1–50 мс, типово 2). Більше — швидше знаходить шлях, але може впливати на FPS.",
+  "friendai.config.pathing.max_gather": "Блоків збирається дорогою",
+  "friendai.config.pathing.max_gather.tooltip": "Скільки блоків компаньйон може зібрати дорогою (1–256, типово 64).",
+  "friendai.config.places.enabled": "Запам’ятовувати місця",
+  "friendai.config.places.auto_remember": "Автоматично запам’ятовувати важливі місця",
+  "friendai.config.places.max": "Збережених місць",
+  "friendai.config.places.max.tooltip": "Максимум місць на власника (1–512, типово 128).",
+  "friendai.config.structures.max_nearby": "Мобів поруч до будівництва",
+  "friendai.config.structures.max_nearby.tooltip": "Скільки мобів того самого виду може вже стояти біля місця, перш ніж будувати ще (0–32, типово 4)."
 }

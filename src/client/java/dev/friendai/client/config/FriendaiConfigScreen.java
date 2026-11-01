@@ -142,6 +142,7 @@ public final class FriendaiConfigScreen {
             builder.category(chatCategory(server));
             builder.category(planningCategory(server));
             builder.category(tasksCategory(server));
+            builder.category(worldCategory(server));
             builder.category(memoryCategory(server));
             builder.category(miningCategory(server));
         } else {
@@ -653,6 +654,62 @@ public final class FriendaiConfigScreen {
                         true,
                         () -> tasks.mineCollectDrops,
                         value -> tasks.mineCollectDrops = value))
+                .build();
+    }
+
+    private static ConfigCategory worldCategory(ServerConfig server) {
+        var pathing = server.pathing;
+        var places = server.places;
+        return ConfigCategory.createBuilder()
+                .name(tr("friendai.config.category.world"))
+                .option(booleanOption(
+                        "friendai.config.pathing.allow_break",
+                        true,
+                        () -> pathing.allowBreak,
+                        value -> pathing.allowBreak = value))
+                .option(booleanOption(
+                        "friendai.config.pathing.allow_place",
+                        true,
+                        () -> pathing.allowPlace,
+                        value -> pathing.allowPlace = value))
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.pathing.search_budget_ms"))
+                        .description(OptionDescription.of(tr("friendai.config.pathing.search_budget_ms.tooltip")))
+                        .binding(2, () -> pathing.searchBudgetMs, value -> pathing.searchBudgetMs = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(1, 50))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.pathing.max_gather"))
+                        .description(OptionDescription.of(tr("friendai.config.pathing.max_gather.tooltip")))
+                        .binding(64, () -> pathing.maxGatherBlocks, value -> pathing.maxGatherBlocks = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(1, 256))
+                        .build())
+                .option(booleanOption(
+                        "friendai.config.places.enabled", true, () -> places.enabled, value -> places.enabled = value))
+                .option(booleanOption(
+                        "friendai.config.places.auto_remember",
+                        true,
+                        () -> places.autoRemember,
+                        value -> places.autoRemember = value))
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.places.max"))
+                        .description(OptionDescription.of(tr("friendai.config.places.max.tooltip")))
+                        .binding(128, () -> places.maxPlaces, value -> places.maxPlaces = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(1, 512))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.structures.max_nearby"))
+                        .description(OptionDescription.of(tr("friendai.config.structures.max_nearby.tooltip")))
+                        .binding(
+                                4,
+                                () -> server.structures.maxNearbySpawned,
+                                value -> server.structures.maxNearbySpawned = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(0, 32))
+                        .build())
                 .build();
     }
 

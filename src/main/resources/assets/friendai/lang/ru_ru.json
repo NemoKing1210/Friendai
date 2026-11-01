@@ -757,5 +757,18 @@
   "friendai.config.tasks.queue_max_steps": "Шагов в плане",
   "friendai.config.tasks.queue_max_steps.tooltip": "Максимум шагов в одном плане (1–128, по умолчанию 32).",
   "friendai.config.tasks.fell_collect": "Собирать срубленные брёвна",
-  "friendai.config.tasks.mine_collect": "Собирать добычу после копания"
+  "friendai.config.tasks.mine_collect": "Собирать добычу после копания",
+  "friendai.config.category.world": "Мир",
+  "friendai.config.pathing.allow_break": "Разрешать копать по пути",
+  "friendai.config.pathing.allow_place": "Разрешать ставить блоки по пути",
+  "friendai.config.pathing.search_budget_ms": "Бюджет поиска пути (мс)",
+  "friendai.config.pathing.search_budget_ms.tooltip": "Сколько времени поиск пути может тратить за тик (1–50 мс, по умолчанию 2). Больше — быстрее находит путь, но может влиять на FPS.",
+  "friendai.config.pathing.max_gather": "Блоков собирается по пути",
+  "friendai.config.pathing.max_gather.tooltip": "Сколько блоков компаньон может собрать по пути (1–256, по умолчанию 64).",
+  "friendai.config.places.enabled": "Запоминать места",
+  "friendai.config.places.auto_remember": "Автоматически запоминать важные места",
+  "friendai.config.places.max": "Сохранённых мест",
+  "friendai.config.places.max.tooltip": "Максимум мест на владельца (1–512, по умолчанию 128).",
+  "friendai.config.structures.max_nearby": "Мобов рядом до постройки",
+  "friendai.config.structures.max_nearby.tooltip": "Сколько мобов того же вида может уже стоять рядом с местом, прежде чем строить ещё (0–32, по умолчанию 4)."
 }
