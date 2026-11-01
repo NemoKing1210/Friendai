@@ -187,6 +187,23 @@ Every server tick runs the reflexes before the queue: `CombatController` (fight,
 
 `QueueDriver` selects queued work and interprets plans; `ExecutionCoordinator` owns orders, scoped holds, suspension and default activity; `ActiveTaskController` owns the current or frozen task, captures its caller and settings snapshot, enforces timeout, and turns a thrown task callback into `FAILED`. Replacing a task calls `stop` once. If a task starts a replacement during its own tick, the old tick result is discarded after the replacement is installed. Terminal notifications pass through `TaskEventSink` and flush after the coordinator settles the transition, so listeners cannot reenter a half-finished queue update. With nothing to do the coordinator falls back to `FollowTask`, unless free time makes standing still the default (`DefaultActivityPolicy`, asked through `CompanionEntity.mayFollowOwner`). Pausing suspends ticking without losing the task: `CombatController` sets it around a retreat and around a fight it did not order and the companion inventory window owns an independent token. The companion menu takes no hold: the world and the companion keep running while it is open. `TaskPersistenceCoordinator` decodes the versioned execution document, attaches event listeners before notices, rebuilds only tasks known to the current registry, and rejects work whose actor or ephemeral spending authority is no longer valid.
 
+### Mood, bond and the outline
+
+`features/social/` is pure and holds the affect model. `MoodModel` turns observed facts into one of six faces with
+hysteresis — ten ticks of danger before it turns `WORRIED` and twenty quiet ticks before it lets go — while `pulse`
+and `cue(SpeechCue)` add a bounded eighty-tick reaction to a deed or to something the owner explicitly said. The face
+is the only synced value: `DATA_MOOD` (`CompanionEntity.syncedMood`) reaches every tracking client, and
+`CompanionRenderer` draws one mark above the head while `client/render/CompanionOutlineRenderer` draws a box around
+the owner's own companion when it is farther than twelve blocks or out of sight, found through the synced owner id
+(`DATA_OWNER`) and gated by the client's Display switches.
+
+The bond is owner-private and never an accessor. `BondLedger` counts only deeds — shared work, a gift past its
+previous peak, a rescue, and an owner hit within the daily cap — with one point of decay per elapsed game day;
+`BondRules` holds the windows that decide whether a deed counts, `BondState` is its save shape, and
+`BondPrompt.line` renders at most 160 characters of tier, mood and newest reason into the prompt's memory block for
+the owner only. `MemoryBook.bond`/`putBond` persist it inside the memory record (format 2), so it survives death,
+respawn and a restart, and `/friendai social status` shows the same three reasons to the owner.
+
 ### Death and respawn
 
 `CompanionEntity.die` drops first and captures second. `dropEverythingAtDeath` empties the 27 inventory
@@ -279,6 +296,7 @@ files remain read-only until explicit repair, which makes a fresh backup before 
 | Companion state | World save, `CompanionEntity` additional data | Owner, inventory, combat settings, pace mode, food/saturation/exhaustion, saved task. Equipment is in the superclass entity data. Hands, previews, station leases and furnace jobs are transient. |
 | Companion carry | World `SavedData` `friendai:companion_carry` | Version 2, per owner: the body captured at death (body state only — the loot was already dropped and the inventory is empty) and the last five deaths (dimension, position, cause, killer, tick, the dropped item-entity UUIDs, a stack fallback, an `unrecoverable` flag and the respawn point), plus the owner's recovery refusal. Version 1 files read with no recovery facts. Applied on respawn or the next summon; the death log outlives the applied body, feeds one prompt line and is what `RecoverDropsTask` walks to. |
 | Companion anchors | World `SavedData` `friendai:companion_anchors` | Owner → dimension + chunk, used to load the companion on startup. The chunk ticket itself is runtime-only and never saved. |
+| Companion bond | Memory book file, record format 2 | Per owner: points, the last counted day, the day's awarded points, at most three reasons and per-kind gift peaks. Written after every change, read lazily by the body; a format 1 file reads with no bond. |
 | Conversation transcript | `<world>/friendai/transcript/<owner-uuid>.json` | Format version 1, bounded by `memory.transcriptMaxEntries`, text length and `transcriptRetentionDays`; both sides of every conversation with the owner's companion, redacted before it is written and again when read. `TranscriptStore` borrows the runtime writer, flushes on the server tick at a 5 s debounce, and leaves unsupported, corrupt and oversized files untouched and read-only (the owner talks to an empty in-memory book). A `.bak` holds the same redacted text. |
 | Memory | `<world>/friendai/memory/<owner-uuid>.json` | One memory-only record per owner, format version 1: facts, player records/trust and learned language, food rules, next fact ID. Independent revision, periodic server-tick flush at a 5 s debounce; `.bak` on corruption, then the original stays read-only. Prior combined memory formats remain read-only. |
 | Companion profile | `<world>/friendai/profiles/<owner-uuid>.json` | Format version 1: owner-selected companion name, description and owner language/address preferences. Independent revision; `OwnerRecordFlush` submits due snapshots on server ticks at a 5 s debounce. |

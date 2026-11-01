@@ -159,6 +159,7 @@ public final class FriendaiConfigScreen {
                                     : "friendai.config.server_only")))
                     .build());
         }
+        builder.category(socialCategory(client));
         builder.category(voiceCategory(parent, client, voice));
 
         builder.save(() -> {
@@ -1206,6 +1207,25 @@ public final class FriendaiConfigScreen {
                                         .toList()))
                         .controller(StringControllerBuilder::create)
                         .build())
+                .build();
+    }
+
+    private static ConfigCategory socialCategory(ClientConfig client) {
+        var social = client.social;
+        return ConfigCategory.createBuilder()
+                .name(tr("friendai.config.category.display"))
+                .option(booleanOption(
+                        "friendai.config.social.outline",
+                        "friendai.config.social.outline.tooltip",
+                        true,
+                        () -> social.outline,
+                        value -> social.outline = value))
+                .option(booleanOption(
+                        "friendai.config.social.mood_mark",
+                        "friendai.config.social.mood_mark.tooltip",
+                        true,
+                        () -> social.moodMark,
+                        value -> social.moodMark = value))
                 .build();
     }
 

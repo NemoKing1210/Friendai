@@ -3,12 +3,14 @@ package dev.friendai.client;
 import dev.friendai.client.companion.session.CompanionClientSession;
 import dev.friendai.client.debug.MovementDebugRenderer;
 import dev.friendai.client.net.ClientProtocolNetworking;
+import dev.friendai.client.render.CompanionOutlineRenderer;
 import dev.friendai.client.render.CompanionRenderer;
 import dev.friendai.client.runtime.ClientRuntime;
 import dev.friendai.client.tts.SpeechKeybind;
 import dev.friendai.client.tts.SpeechRuntime;
 import dev.friendai.client.ui.CompanionInventoryScreen;
 import dev.friendai.client.ui.CompanionRequests;
+import dev.friendai.client.ui.OutlineKeybind;
 import dev.friendai.client.ui.PauseMenuButton;
 import dev.friendai.client.voice.PushToTalkHandler;
 import dev.friendai.client.voice.VoiceHud;
@@ -48,7 +50,9 @@ public class FriendaiClient implements ClientModInitializer {
         clientConfig();
         VoiceHud.register();
         MovementDebugRenderer.register();
+        CompanionOutlineRenderer.register();
         SpeechKeybind.register();
+        OutlineKeybind.register();
         ClientTickEvents.END_CLIENT_TICK.register(client -> SpeechRuntime.tick());
         PauseMenuButton.register();
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) ->

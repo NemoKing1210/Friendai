@@ -118,7 +118,9 @@ public class CompanionRenderer
     public void submit(
             CompanionRenderState state, PoseStack poseStack, SubmitNodeCollector collector, CameraRenderState camera) {
         super.submit(state, poseStack, collector, camera);
-        if (!state.thinking && state.mood != Mood.CALM) {
+        if (!state.thinking
+                && state.mood != Mood.CALM
+                && dev.friendai.client.FriendaiClient.clientConfig().social.moodMark) {
             submitMood(state, poseStack, collector, camera);
         }
         if (!state.thinking) {

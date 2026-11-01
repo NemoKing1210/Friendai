@@ -49,6 +49,8 @@ public final class FriendaiCommands {
                 .then(Commands.literal("inventory").executes(FriendaiCommands::inventory))
                 .then(Commands.literal("status").executes(FriendaiCommands::status))
                 .then(Commands.literal("settings").executes(FriendaiCommands::settings))
+                .then(Commands.literal("social")
+                        .then(Commands.literal("status").executes(FriendaiCommands::socialStatus)))
                 .then(Commands.literal("trust")
                         .then(Commands.argument("player", EntityArgument.player())
                                 .executes(FriendaiCommands::trust)))
@@ -148,6 +150,46 @@ public final class FriendaiCommands {
                 .stop(player.getUUID(), "owner ended free time");
         ctx.getSource().sendSuccess(() -> Component.translatable("friendai.command.freetime.off"), false);
         return 1;
+    }
+
+    private static int socialStatus(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        ServerPlayer player = ctx.getSource().getPlayerOrException();
+        var companion = ServerRuntimeRegistry.getOrCreate(ctx.getSource().getServer())
+                .companions()
+                .find(player.getUUID())
+                .orElse(null);
+        if (companion == null) {
+            ctx.getSource().sendSuccess(() -> Component.translatable("friendai.command.social.none"), false);
+            return 0;
+        }
+        String reasons = companion.bondReasons().isEmpty() ? "-" : String.join("; ", companion.bondReasons());
+        Component answer = Component.translatable(
+                "friendai.command.social.status",
+                Component.translatable(tierKey(companion.bondTier())),
+                Component.translatable(moodKey(companion.syncedMood())),
+                reasons);
+        ctx.getSource().sendSuccess(() -> answer, false);
+        return 1;
+    }
+
+    private static String tierKey(dev.friendai.features.social.BondLedger.Tier tier) {
+        return switch (tier) {
+            case STRANGER -> "friendai.social.tier.stranger";
+            case ACQUAINTANCE -> "friendai.social.tier.acquaintance";
+            case FRIEND -> "friendai.social.tier.friend";
+            case CLOSE -> "friendai.social.tier.close";
+        };
+    }
+
+    private static String moodKey(dev.friendai.features.social.Mood mood) {
+        return switch (mood) {
+            case CALM -> "friendai.social.mood.calm";
+            case FOCUSED -> "friendai.social.mood.focused";
+            case WORRIED -> "friendai.social.mood.worried";
+            case PLEASED -> "friendai.social.mood.pleased";
+            case DISPLEASED -> "friendai.social.mood.displeased";
+            case COMBAT -> "friendai.social.mood.combat";
+        };
     }
 
     private static int freeTimeStatus(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {

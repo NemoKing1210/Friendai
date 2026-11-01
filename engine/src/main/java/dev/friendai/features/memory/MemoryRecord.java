@@ -1,22 +1,38 @@
 package dev.friendai.features.memory;
 
+import dev.friendai.features.social.BondState;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Immutable version-1 persisted memory snapshot. */
+/**
+ * Immutable persisted memory snapshot, on-disk format 2: format 1 plus the owner bonds.
+ *
+ * <p>The bond entry for one owner is a {@link BondState}, whose component names ({@code points}, {@code lastDay},
+ * {@code awardedToday}, {@code reasons}, {@code peaks}) are the persisted field names. A format 1 file has no bond
+ * map and reads as format 2 with no bonds, which is a migration read: the next save writes format 2. Any other
+ * foreign version is kept as read so the store still refuses it exactly as before.
+ */
 public record MemoryRecord(
         int formatVersion,
         long revision,
         int nextId,
         List<PlayerEntry> players,
         List<FactEntry> facts,
-        Map<String, Boolean> foodRules) {
-    public static final int FORMAT_VERSION = 1;
+        Map<String, Boolean> foodRules,
+        Map<String, BondState> bonds) {
+    public static final int FORMAT_VERSION = 2;
+
+    /** The one format that carries no bonds; reading it upgrades the snapshot instead of rewriting the file. */
+    private static final int BONDLESS_FORMAT = 1;
 
     public MemoryRecord {
+        formatVersion = migrate(formatVersion);
         players = List.copyOf(players == null ? List.of() : players);
         facts = List.copyOf(facts == null ? List.of() : facts);
         foodRules = Map.copyOf(foodRules == null ? Map.of() : foodRules);
+        bonds = copyBonds(bonds);
     }
 
     public static MemoryRecord capture(MemoryBook book) {
@@ -29,7 +45,9 @@ public record MemoryRecord(
                 .toList();
         Map<String, Boolean> rules = file.foodRules.stream()
                 .collect(java.util.stream.Collectors.toUnmodifiableMap(rule -> rule.item, rule -> rule.allowed));
-        return new MemoryRecord(FORMAT_VERSION, book.revision(), file.nextId, players, facts, rules);
+        Map<String, BondState> bonds = new LinkedHashMap<>();
+        book.bonds().forEach((owner, state) -> bonds.put(owner.toString(), state));
+        return new MemoryRecord(FORMAT_VERSION, book.revision(), file.nextId, players, facts, rules, bonds);
     }
 
     public MemoryFile toFile() {
@@ -62,6 +80,28 @@ public record MemoryRecord(
             file.foodRules.add(rule);
         });
         return file;
+    }
+
+    /**
+     * A format 1 file predates the bond map, so it is read as the current format with no bonds. Every other version
+     * stays as read: a newer file must still be refused rather than silently truncated.
+     */
+    private static int migrate(int version) {
+        return version == BONDLESS_FORMAT ? FORMAT_VERSION : version;
+    }
+
+    /** Copies the bonds without null entries, keeping the owner order so a save stays diffable. */
+    private static Map<String, BondState> copyBonds(Map<String, BondState> bonds) {
+        if (bonds == null || bonds.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, BondState> copied = new LinkedHashMap<>();
+        bonds.forEach((owner, state) -> {
+            if (owner != null && !owner.isBlank() && state != null) {
+                copied.put(owner, state);
+            }
+        });
+        return Collections.unmodifiableMap(copied);
     }
 
     public record PlayerEntry(String uuid, String lastName, boolean trusted, long lastSeen, String language) {}

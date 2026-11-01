@@ -1,11 +1,13 @@
 package dev.friendai.features.memory;
 
+import dev.friendai.features.social.BondState;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.TreeMap;
 import java.util.UUID;
@@ -17,6 +19,11 @@ import java.util.UUID;
 public final class MemoryBook {
     private final Map<UUID, PlayerRecord> players = new LinkedHashMap<>();
     private final TreeMap<Integer, Fact> facts = new TreeMap<>();
+    /**
+     * The owner's bond with the companion, keyed by the owner so a guest or another player never reads it. Only the
+     * server writes it; the book just remembers it.
+     */
+    private final Map<UUID, BondState> bonds = new LinkedHashMap<>();
     /** Item id to allowed: true when the owner allowed a food the companion refuses by default, false to ban one. */
     private final TreeMap<String, Boolean> foodRules = new TreeMap<>();
 
@@ -171,6 +178,34 @@ public final class MemoryBook {
         if (itemId == null || itemId.isBlank()) {
             throw new IllegalArgumentException("A food rule needs an item id.");
         }
+    }
+
+    /**
+     * The owner's bond with the companion. Empty until the first deed is saved, and empty for anyone who is not the
+     * owner: a guest has no bond of their own.
+     */
+    public Optional<BondState> bond(UUID owner) {
+        return Optional.ofNullable(bonds.get(owner));
+    }
+
+    /**
+     * Stores or replaces the owner's bond. A null state forgets it, which is what a reset does; the revision only
+     * moves when the stored value actually changes, so a save loop that re-stores the same snapshot stays quiet.
+     */
+    public void putBond(UUID owner, BondState state) {
+        if (owner == null) {
+            throw new IllegalArgumentException("A bond needs an owner id.");
+        }
+        BondState previous = state == null ? bonds.remove(owner) : bonds.put(owner, state);
+        if (!Objects.equals(previous, state)) {
+            dirty = true;
+            revision++;
+        }
+    }
+
+    /** Every stored bond, in insertion order. Package-private: the record codec is the only writer. */
+    Map<UUID, BondState> bonds() {
+        return Collections.unmodifiableMap(new LinkedHashMap<>(bonds));
     }
 
     public Optional<Fact> fact(int id) {
@@ -446,11 +481,31 @@ public final class MemoryBook {
         return book;
     }
 
-    /** Restores the monotonic persisted revision for an immutable target-format snapshot. */
+    /**
+     * Restores the monotonic persisted revision for an immutable target-format snapshot. The bonds arrive with the
+     * snapshot rather than the file shape, and an owner id that no longer parses is skipped like a bad player entry.
+     */
     public static MemoryBook fromRecord(MemoryRecord record) {
         MemoryBook book = fromFile(record.toFile());
+        for (Map.Entry<String, BondState> entry : record.bonds().entrySet()) {
+            UUID owner = parseUuid(entry.getKey());
+            if (owner != null && entry.getValue() != null) {
+                book.bonds.put(owner, entry.getValue());
+            }
+        }
         book.revision = Math.max(0, record.revision());
         book.dirty = false;
         return book;
+    }
+
+    private static UUID parseUuid(String text) {
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        try {
+            return UUID.fromString(text);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 }

@@ -34,7 +34,8 @@ public final class ConfigStores {
             List.of(
                     ADDITIVE, // 1 -> 2: optional synthesis, disabled by default
                     ConfigStores::unifyVoice, // 2 -> 3: both historical speech shapes
-                    ADDITIVE)); // 3 -> 4: movement overlay, disabled by default
+                    ADDITIVE, // 3 -> 4: movement overlay, disabled by default
+                    ADDITIVE)); // 4 -> 5: companion outline and mood mark, enabled by default
 
     private ConfigStores() {}
 
