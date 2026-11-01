@@ -773,5 +773,18 @@
   "friendai.config.places.max": "Saved places",
   "friendai.config.places.max.tooltip": "Maximum places kept per owner (1–512, default 128).",
   "friendai.config.structures.max_nearby": "Nearby mobs before building",
-  "friendai.config.structures.max_nearby.tooltip": "How many mobs of a structure’s kind may already stand near the site before another is built (0–32, default 4)."
+  "friendai.config.structures.max_nearby.tooltip": "How many mobs of a structure’s kind may already stand near the site before another is built (0–32, default 4).",
+  "friendai.config.category.autonomy": "Free time",
+  "friendai.config.autonomy.enabled": "Let the companion work while you are away",
+  "friendai.config.autonomy.idle_start": "Start after being idle",
+  "friendai.config.autonomy.idle_minutes": "Idle minutes before starting",
+  "friendai.config.autonomy.idle_minutes.tooltip": "How long you must be idle before free time starts (1–240 minutes, default 5).",
+  "friendai.config.autonomy.shift_minutes": "Free-time shift (minutes)",
+  "friendai.config.autonomy.shift_minutes.tooltip": "How long one free-time shift lasts (1–240 minutes, default 20).",
+  "friendai.config.autonomy.max_shifts": "Shifts per hour",
+  "friendai.config.autonomy.max_shifts.tooltip": "Maximum free-time shifts per hour (0–60, default 6).",
+  "friendai.config.autonomy.fail_cooldown": "Cooldown after a failed shift",
+  "friendai.config.autonomy.fail_cooldown.tooltip": "Minutes before another shift after a failure (0–240, default 10).",
+  "friendai.config.autonomy.protect_places": "Protect saved places",
+  "friendai.config.autonomy.allow_building": "Allow building in free time"
 }

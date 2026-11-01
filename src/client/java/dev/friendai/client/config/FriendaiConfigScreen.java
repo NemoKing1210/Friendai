@@ -143,6 +143,7 @@ public final class FriendaiConfigScreen {
             builder.category(planningCategory(server));
             builder.category(tasksCategory(server));
             builder.category(worldCategory(server));
+            builder.category(autonomyCategory(server));
             builder.category(memoryCategory(server));
             builder.category(miningCategory(server));
         } else {
@@ -710,6 +711,61 @@ public final class FriendaiConfigScreen {
                         .controller(option ->
                                 IntegerFieldControllerBuilder.create(option).range(0, 32))
                         .build())
+                .build();
+    }
+
+    private static ConfigCategory autonomyCategory(ServerConfig server) {
+        var autonomy = server.autonomy;
+        return ConfigCategory.createBuilder()
+                .name(tr("friendai.config.category.autonomy"))
+                .option(booleanOption(
+                        "friendai.config.autonomy.enabled",
+                        true,
+                        () -> autonomy.enabled,
+                        value -> autonomy.enabled = value))
+                .option(booleanOption(
+                        "friendai.config.autonomy.idle_start",
+                        true,
+                        () -> autonomy.idleStart,
+                        value -> autonomy.idleStart = value))
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.autonomy.idle_minutes"))
+                        .description(OptionDescription.of(tr("friendai.config.autonomy.idle_minutes.tooltip")))
+                        .binding(5, () -> autonomy.idleMinutes, value -> autonomy.idleMinutes = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(1, 240))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.autonomy.shift_minutes"))
+                        .description(OptionDescription.of(tr("friendai.config.autonomy.shift_minutes.tooltip")))
+                        .binding(20, () -> autonomy.shiftMinutes, value -> autonomy.shiftMinutes = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(1, 240))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.autonomy.max_shifts"))
+                        .description(OptionDescription.of(tr("friendai.config.autonomy.max_shifts.tooltip")))
+                        .binding(6, () -> autonomy.maxShiftsPerHour, value -> autonomy.maxShiftsPerHour = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(0, 60))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.autonomy.fail_cooldown"))
+                        .description(OptionDescription.of(tr("friendai.config.autonomy.fail_cooldown.tooltip")))
+                        .binding(10, () -> autonomy.failCooldownMin, value -> autonomy.failCooldownMin = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(0, 240))
+                        .build())
+                .option(booleanOption(
+                        "friendai.config.autonomy.protect_places",
+                        true,
+                        () -> autonomy.protectPlaces,
+                        value -> autonomy.protectPlaces = value))
+                .option(booleanOption(
+                        "friendai.config.autonomy.allow_building",
+                        true,
+                        () -> autonomy.allowBuilding,
+                        value -> autonomy.allowBuilding = value))
                 .build();
     }
 

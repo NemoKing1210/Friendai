@@ -8,6 +8,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.113.0] - 2026-11-01
+
+### Added
+
+- An **Autonomy** settings tab controls the companion's free time: whether it acts while you are idle or away, shift length, how many shifts it may take per hour, the cooldown after a failed shift, and whether it may touch saved places or build.
+
 ## [0.112.0] - 2026-11-01
 
 ### Added

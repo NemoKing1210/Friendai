@@ -770,5 +770,18 @@
   "friendai.config.places.max": "Збережених місць",
   "friendai.config.places.max.tooltip": "Максимум місць на власника (1–512, типово 128).",
   "friendai.config.structures.max_nearby": "Мобів поруч до будівництва",
-  "friendai.config.structures.max_nearby.tooltip": "Скільки мобів того самого виду може вже стояти біля місця, перш ніж будувати ще (0–32, типово 4)."
+  "friendai.config.structures.max_nearby.tooltip": "Скільки мобів того самого виду може вже стояти біля місця, перш ніж будувати ще (0–32, типово 4).",
+  "friendai.config.category.autonomy": "Вільний час",
+  "friendai.config.autonomy.enabled": "Дозволяти компаньйону працювати без вас",
+  "friendai.config.autonomy.idle_start": "Починати після простою",
+  "friendai.config.autonomy.idle_minutes": "Хвилин простою до початку",
+  "friendai.config.autonomy.idle_minutes.tooltip": "Скільки потрібно бути бездіяльним, перш ніж почнеться вільний час (1–240 хвилин, типово 5).",
+  "friendai.config.autonomy.shift_minutes": "Зміна вільного часу (хвилини)",
+  "friendai.config.autonomy.shift_minutes.tooltip": "Скільки триває одна зміна вільного часу (1–240 хвилин, типово 20).",
+  "friendai.config.autonomy.max_shifts": "Змін на годину",
+  "friendai.config.autonomy.max_shifts.tooltip": "Максимум змін вільного часу на годину (0–60, типово 6).",
+  "friendai.config.autonomy.fail_cooldown": "Пауза після невдалої зміни",
+  "friendai.config.autonomy.fail_cooldown.tooltip": "Хвилин до наступної зміни після невдачі (0–240, типово 10).",
+  "friendai.config.autonomy.protect_places": "Захищати збережені місця",
+  "friendai.config.autonomy.allow_building": "Дозволяти будувати у вільний час"
 }

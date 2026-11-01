@@ -773,5 +773,18 @@
   "friendai.config.places.max": "Lieux enregistrés",
   "friendai.config.places.max.tooltip": "Nombre maximal de lieux par propriétaire (1–512, défaut 128).",
   "friendai.config.structures.max_nearby": "Mobs proches avant de bâtir",
-  "friendai.config.structures.max_nearby.tooltip": "Combien de mobs du même type peuvent déjà se trouver près du site avant d’en construire un autre (0–32, défaut 4)."
+  "friendai.config.structures.max_nearby.tooltip": "Combien de mobs du même type peuvent déjà se trouver près du site avant d’en construire un autre (0–32, défaut 4).",
+  "friendai.config.category.autonomy": "Temps libre",
+  "friendai.config.autonomy.enabled": "Laisser le compagnon travailler en votre absence",
+  "friendai.config.autonomy.idle_start": "Commencer après une inactivité",
+  "friendai.config.autonomy.idle_minutes": "Minutes d’inactivité avant de commencer",
+  "friendai.config.autonomy.idle_minutes.tooltip": "Durée d’inactivité avant le début du temps libre (1–240 minutes, défaut 5).",
+  "friendai.config.autonomy.shift_minutes": "Session de temps libre (minutes)",
+  "friendai.config.autonomy.shift_minutes.tooltip": "Durée d’une session de temps libre (1–240 minutes, défaut 20).",
+  "friendai.config.autonomy.max_shifts": "Sessions par heure",
+  "friendai.config.autonomy.max_shifts.tooltip": "Nombre maximal de sessions de temps libre par heure (0–60, défaut 6).",
+  "friendai.config.autonomy.fail_cooldown": "Délai après une session échouée",
+  "friendai.config.autonomy.fail_cooldown.tooltip": "Minutes avant une autre session après un échec (0–240, défaut 10).",
+  "friendai.config.autonomy.protect_places": "Protéger les lieux enregistrés",
+  "friendai.config.autonomy.allow_building": "Autoriser la construction pendant le temps libre"
 }

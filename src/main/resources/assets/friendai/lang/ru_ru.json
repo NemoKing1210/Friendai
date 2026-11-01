@@ -770,5 +770,18 @@
   "friendai.config.places.max": "Сохранённых мест",
   "friendai.config.places.max.tooltip": "Максимум мест на владельца (1–512, по умолчанию 128).",
   "friendai.config.structures.max_nearby": "Мобов рядом до постройки",
-  "friendai.config.structures.max_nearby.tooltip": "Сколько мобов того же вида может уже стоять рядом с местом, прежде чем строить ещё (0–32, по умолчанию 4)."
+  "friendai.config.structures.max_nearby.tooltip": "Сколько мобов того же вида может уже стоять рядом с местом, прежде чем строить ещё (0–32, по умолчанию 4).",
+  "friendai.config.category.autonomy": "Свободное время",
+  "friendai.config.autonomy.enabled": "Разрешать компаньону работать без вас",
+  "friendai.config.autonomy.idle_start": "Начинать после простоя",
+  "friendai.config.autonomy.idle_minutes": "Минут простоя до начала",
+  "friendai.config.autonomy.idle_minutes.tooltip": "Сколько нужно бездействовать, прежде чем начнётся свободное время (1–240 минут, по умолчанию 5).",
+  "friendai.config.autonomy.shift_minutes": "Смена свободного времени (минуты)",
+  "friendai.config.autonomy.shift_minutes.tooltip": "Сколько длится одна смена свободного времени (1–240 минут, по умолчанию 20).",
+  "friendai.config.autonomy.max_shifts": "Смен в час",
+  "friendai.config.autonomy.max_shifts.tooltip": "Максимум смен свободного времени в час (0–60, по умолчанию 6).",
+  "friendai.config.autonomy.fail_cooldown": "Пауза после неудачной смены",
+  "friendai.config.autonomy.fail_cooldown.tooltip": "Минут до следующей смены после неудачи (0–240, по умолчанию 10).",
+  "friendai.config.autonomy.protect_places": "Защищать сохранённые места",
+  "friendai.config.autonomy.allow_building": "Разрешать строить в свободное время"
 }
