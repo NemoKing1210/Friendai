@@ -720,5 +720,6 @@
   "friendai.menu.log.kind.request": "Pedido",
   "friendai.menu.log.kind.response": "Resposta",
   "friendai.freetime.no_plan.step": "etapa %s",
-  "friendai.freetime.no_plan.invalid_steps": "ações inválidas ou indisponíveis"
+  "friendai.freetime.no_plan.invalid_steps": "ações inválidas ou indisponíveis",
+  "friendai.config.get_key": "Obter uma chave de API"
 }

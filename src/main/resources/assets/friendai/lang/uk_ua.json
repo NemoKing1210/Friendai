@@ -717,5 +717,6 @@
   "friendai.menu.log.kind.request": "Запит",
   "friendai.menu.log.kind.response": "Відповідь",
   "friendai.freetime.no_plan.step": "крок %s",
-  "friendai.freetime.no_plan.invalid_steps": "некоректні або недоступні дії"
+  "friendai.freetime.no_plan.invalid_steps": "некоректні або недоступні дії",
+  "friendai.config.get_key": "Отримати ключ API"
 }

@@ -720,5 +720,6 @@
   "friendai.menu.log.kind.request": "Anfrage",
   "friendai.menu.log.kind.response": "Antwort",
   "friendai.freetime.no_plan.step": "Schritt %s",
-  "friendai.freetime.no_plan.invalid_steps": "ungültige oder nicht verfügbare Aktionen"
+  "friendai.freetime.no_plan.invalid_steps": "ungültige oder nicht verfügbare Aktionen",
+  "friendai.config.get_key": "API-Schlüssel erhalten"
 }
