@@ -46,4 +46,21 @@ class TopicTasteTest {
         }
         assertTrue(taste.size() <= TopicTaste.MAX_TOPICS, "size=" + taste.size());
     }
+
+    @Test
+    void anIgnoredSubjectLosesOnePointAndMustEarnItsWeightBack() {
+        TopicTaste taste = new TopicTaste();
+        for (int i = 0; i < 4; i++) {
+            taste.answered("fishing");
+        }
+        assertEquals(2, taste.weight("fishing"));
+
+        taste.ignored("fishing");
+        assertEquals(1, taste.weight("fishing"), "one silence costs one point, not the whole weight");
+
+        taste.answered("fishing");
+        assertEquals(1, taste.weight("fishing"), "one answer after a silence is not enough");
+        taste.answered("fishing");
+        assertEquals(2, taste.weight("fishing"), "two fresh answers earn the point back");
+    }
 }

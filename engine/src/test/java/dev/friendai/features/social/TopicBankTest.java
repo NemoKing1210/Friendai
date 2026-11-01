@@ -84,4 +84,14 @@ class TopicBankTest {
         assertFalse(TopicBank.asks("The light is good today."));
         assertFalse(TopicBank.asks(null));
     }
+
+    @Test
+    void noOpenerTripsTheBannedFilterInItsOwnLanguage() {
+        for (String code : CODES) {
+            for (String opener : TopicBank.forLanguage(code)) {
+                assertFalse(
+                        BannedTopics.banned(opener, code), code + " ships an opener its own filter refuses: " + opener);
+            }
+        }
+    }
 }
