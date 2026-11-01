@@ -148,7 +148,6 @@
   "friendai.config.chat.listen_all": "Écouter tous les messages",
   "friendai.config.chat.guests_enabled": "Autoriser les autres joueurs à parler au compagnon",
   "friendai.config.chat.hearing_radius": "Rayon d'audition (blocs)",
-  "friendai.config.chat.guest_cooldown_ms": "Délai des invités (ms)",
   "friendai.config.mining.protect_drops": "Protéger les butins précieux",
   "friendai.config.mining.catch_blocks": "Nombre maximal de blocs dépensés pour un butin",
   "friendai.config.mining.valuable_blocks": "Blocs précieux",
@@ -827,5 +826,18 @@
   "friendai.config.resources.owner_resume.tooltip": "À quelle distance le propriétaire doit revenir pour que le compagnon reparte (1–511 blocs, par défaut 24). Doit rester sous la distance de retenue.",
   "friendai.config.companion.chunk_loading": "Garder les chunks chargés autour du compagnon",
   "friendai.config.companion.chunk_radius": "Rayon de chunks chargés",
-  "friendai.config.companion.chunk_radius.tooltip": "Combien de chunks autour du compagnon continuent de tourner (0–4, par défaut 1). 0 ne garde que son propre chunk. Des valeurs plus hautes coûtent en performance serveur."
+  "friendai.config.companion.chunk_radius.tooltip": "Combien de chunks autour du compagnon continuent de tourner (0–4, par défaut 1). 0 ne garde que son propre chunk. Des valeurs plus hautes coûtent en performance serveur.",
+  "friendai.config.chat.hearing_radius.tooltip": "À quelle distance le chat d'un joueur atteint le compagnon (4–64 blocs, par défaut 64).",
+  "friendai.config.chat.max_reply_chars": "Réponse la plus longue (caractères)",
+  "friendai.config.chat.max_reply_chars.tooltip": "Nombre maximal de caractères d'une réponse ; les réponses plus longues sont coupées (32–256, par défaut 256).",
+  "friendai.config.chat.guest_cooldown_seconds": "Délai pour les invités (secondes)",
+  "friendai.config.chat.guest_cooldown_seconds.tooltip": "Combien de temps un invité doit attendre entre deux messages au compagnon (0–60 secondes, par défaut 5).",
+  "friendai.config.brain.max_tool_steps": "Étapes d'outil par tour",
+  "friendai.config.brain.max_tool_steps.tooltip": "Combien d'appels d'outils le compagnon peut faire avant de devoir répondre (1–32, par défaut 8). Des valeurs plus hautes permettent des tâches plus longues mais coûtent plus de jetons.",
+  "friendai.config.brain.history_messages": "Historique de chat conservé",
+  "friendai.config.brain.history_messages.tooltip": "Combien de messages récents sont envoyés à chaque requête (6–200, par défaut 30). Plus d'historique donne plus de continuité et une requête plus grosse et plus chère.",
+  "friendai.config.brain.request_timeout_sec": "Délai de requête (secondes)",
+  "friendai.config.brain.request_timeout_sec.tooltip": "Combien de temps une requête au modèle peut durer avant d'être abandonnée (5–600 secondes, par défaut 60).",
+  "friendai.config.brain.cooldown_ms": "Délai entre les réponses (ms)",
+  "friendai.config.brain.cooldown_ms.tooltip": "Pause minimale entre deux réponses au même joueur (0–60000 millisecondes, par défaut 500)."
 }

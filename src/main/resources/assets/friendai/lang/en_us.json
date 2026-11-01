@@ -148,7 +148,6 @@
   "friendai.config.chat.listen_all": "Listen to all messages",
   "friendai.config.chat.guests_enabled": "Let other players talk to companions",
   "friendai.config.chat.hearing_radius": "Hearing radius (blocks)",
-  "friendai.config.chat.guest_cooldown_ms": "Guest cooldown (ms)",
   "friendai.config.mining.protect_drops": "Protect valuable drops",
   "friendai.config.mining.catch_blocks": "Most blocks spent on one drop",
   "friendai.config.mining.valuable_blocks": "Valuable blocks",
@@ -827,5 +826,18 @@
   "friendai.config.resources.owner_resume.tooltip": "How close the owner must come before a waiting companion resumes (1–511 blocks, default 24). Must stay below the hold distance.",
   "friendai.config.companion.chunk_loading": "Keep chunks loaded around the companion",
   "friendai.config.companion.chunk_radius": "Loaded chunk radius",
-  "friendai.config.companion.chunk_radius.tooltip": "How many chunks around the companion keep ticking (0–4, default 1). 0 keeps only the companion's own chunk. Higher values cost server performance."
+  "friendai.config.companion.chunk_radius.tooltip": "How many chunks around the companion keep ticking (0–4, default 1). 0 keeps only the companion's own chunk. Higher values cost server performance.",
+  "friendai.config.chat.hearing_radius.tooltip": "How far a player's chat reaches the companion (4–64 blocks, default 64).",
+  "friendai.config.chat.max_reply_chars": "Longest reply (characters)",
+  "friendai.config.chat.max_reply_chars.tooltip": "Maximum characters in one chat reply; longer answers are cut (32–256, default 256).",
+  "friendai.config.chat.guest_cooldown_seconds": "Guest cooldown (seconds)",
+  "friendai.config.chat.guest_cooldown_seconds.tooltip": "How long a guest must wait between messages to the companion (0–60 seconds, default 5).",
+  "friendai.config.brain.max_tool_steps": "Tool steps per turn",
+  "friendai.config.brain.max_tool_steps.tooltip": "How many tool calls the companion may make before it must answer (1–32, default 8). Higher values allow longer tasks but cost more tokens.",
+  "friendai.config.brain.history_messages": "Chat history kept",
+  "friendai.config.brain.history_messages.tooltip": "How many recent messages are sent with each request (6–200, default 30). More history means better continuity and a larger, costlier request.",
+  "friendai.config.brain.request_timeout_sec": "Request timeout (seconds)",
+  "friendai.config.brain.request_timeout_sec.tooltip": "How long one model request may take before it is abandoned (5–600 seconds, default 60).",
+  "friendai.config.brain.cooldown_ms": "Cooldown between replies (ms)",
+  "friendai.config.brain.cooldown_ms.tooltip": "Minimum pause between two replies to the same player (0–60000 milliseconds, default 500)."
 }

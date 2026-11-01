@@ -148,7 +148,6 @@
   "friendai.config.chat.listen_all": "监听所有消息",
   "friendai.config.chat.guests_enabled": "允许其他玩家和伙伴说话",
   "friendai.config.chat.hearing_radius": "听觉半径（方块）",
-  "friendai.config.chat.guest_cooldown_ms": "访客冷却（毫秒）",
   "friendai.config.mining.protect_drops": "保护贵重掉落物",
   "friendai.config.mining.catch_blocks": "单个掉落物最多消耗的方块数",
   "friendai.config.mining.valuable_blocks": "贵重方块",
@@ -824,5 +823,18 @@
   "friendai.config.resources.owner_resume.tooltip": "主人靠多近时等待的同伴才继续前进（1–511 方块，默认 24）。必须小于等待距离。",
   "friendai.config.companion.chunk_loading": "保持同伴周围区块加载",
   "friendai.config.companion.chunk_radius": "已加载区块半径",
-  "friendai.config.companion.chunk_radius.tooltip": "同伴周围继续运行的区块数（0–4，默认 1）。0 只保留自身区块。数值越大越消耗服务器性能。"
+  "friendai.config.companion.chunk_radius.tooltip": "同伴周围继续运行的区块数（0–4，默认 1）。0 只保留自身区块。数值越大越消耗服务器性能。",
+  "friendai.config.chat.hearing_radius.tooltip": "玩家聊天能传达到同伴的距离（4–64 方块，默认 64）。",
+  "friendai.config.chat.max_reply_chars": "最长回复（字符）",
+  "friendai.config.chat.max_reply_chars.tooltip": "一条聊天回复的最大字符数，更长的回答会被截断（32–256，默认 256）。",
+  "friendai.config.chat.guest_cooldown_seconds": "访客冷却（秒）",
+  "friendai.config.chat.guest_cooldown_seconds.tooltip": "访客向同伴发消息之间需等待的时间（0–60 秒，默认 5）。",
+  "friendai.config.brain.max_tool_steps": "每回合工具步数",
+  "friendai.config.brain.max_tool_steps.tooltip": "同伴在必须回答前可以进行的工具调用次数（1–32，默认 8）。数值越大任务越长，但消耗更多 token。",
+  "friendai.config.brain.history_messages": "保留的聊天历史",
+  "friendai.config.brain.history_messages.tooltip": "每次请求发送的最近消息数（6–200，默认 30）。历史越多连贯性越好，但请求更大更贵。",
+  "friendai.config.brain.request_timeout_sec": "请求超时（秒）",
+  "friendai.config.brain.request_timeout_sec.tooltip": "一次模型请求在被放弃前可持续的时长（5–600 秒，默认 60）。",
+  "friendai.config.brain.cooldown_ms": "回复间隔（毫秒）",
+  "friendai.config.brain.cooldown_ms.tooltip": "对同一玩家两次回复之间的最短间隔（0–60000 毫秒，默认 500）。"
 }

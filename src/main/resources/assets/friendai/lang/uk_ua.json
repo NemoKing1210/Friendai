@@ -148,7 +148,6 @@
   "friendai.config.chat.listen_all": "Слухати всі повідомлення",
   "friendai.config.chat.guests_enabled": "Дозволити іншим гравцям говорити з компаньйонами",
   "friendai.config.chat.hearing_radius": "Радіус чутності (блоків)",
-  "friendai.config.chat.guest_cooldown_ms": "Затримка для гостей (мс)",
   "friendai.config.mining.protect_drops": "Захищати цінний дроп",
   "friendai.config.mining.catch_blocks": "Найбільше блоків на один дроп",
   "friendai.config.mining.valuable_blocks": "Цінні блоки",
@@ -824,5 +823,18 @@
   "friendai.config.resources.owner_resume.tooltip": "Наскільки близько має підійти власник, щоб помічник рушив далі (1–511 блоків, типово 24). Має бути меншою за відстань очікування.",
   "friendai.config.companion.chunk_loading": "Тримати чанки навколо помічника завантаженими",
   "friendai.config.companion.chunk_radius": "Радіус завантажених чанків",
-  "friendai.config.companion.chunk_radius.tooltip": "Скільки чанків навколо помічника продовжують працювати (0–4, типово 1). 0 — лише власний чанк. Більші значення коштують продуктивності сервера."
+  "friendai.config.companion.chunk_radius.tooltip": "Скільки чанків навколо помічника продовжують працювати (0–4, типово 1). 0 — лише власний чанк. Більші значення коштують продуктивності сервера.",
+  "friendai.config.chat.hearing_radius.tooltip": "Наскільки далеко сягає чат гравця до помічника (4–64 блоки, типово 64).",
+  "friendai.config.chat.max_reply_chars": "Найдовша відповідь (символи)",
+  "friendai.config.chat.max_reply_chars.tooltip": "Максимум символів в одній відповіді в чаті; довші відповіді обрізаються (32–256, типово 256).",
+  "friendai.config.chat.guest_cooldown_seconds": "Пауза для гостей (секунди)",
+  "friendai.config.chat.guest_cooldown_seconds.tooltip": "Скільки гість має чекати між повідомленнями помічнику (0–60 секунд, типово 5).",
+  "friendai.config.brain.max_tool_steps": "Кроків з інструментами за хід",
+  "friendai.config.brain.max_tool_steps.tooltip": "Скільки викликів інструментів помічник може зробити, перш ніж відповісти (1–32, типово 8). Більші значення дозволяють довші задачі, але коштують більше токенів.",
+  "friendai.config.brain.history_messages": "Збережена історія чату",
+  "friendai.config.brain.history_messages.tooltip": "Скільки останніх повідомлень надсилається з кожним запитом (6–200, типово 30). Більше історії — краща зв'язність і дорожчий запит.",
+  "friendai.config.brain.request_timeout_sec": "Тайм-аут запиту (секунди)",
+  "friendai.config.brain.request_timeout_sec.tooltip": "Скільки може тривати один запит до моделі, перш ніж його буде перервано (5–600 секунд, типово 60).",
+  "friendai.config.brain.cooldown_ms": "Пауза між відповідями (мс)",
+  "friendai.config.brain.cooldown_ms.tooltip": "Мінімальна пауза між двома відповідями одному гравцю (0–60000 мілісекунд, типово 500)."
 }

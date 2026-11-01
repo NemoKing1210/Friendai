@@ -148,7 +148,7 @@ public final class SettingsScreenTests implements FabricClientGameTest {
                         Map.entry("friendai.config.chat.listen_all", true),
                         Map.entry("friendai.config.chat.guests_enabled", false),
                         Map.entry("friendai.config.chat.hearing_radius", 48),
-                        Map.entry("friendai.config.chat.guest_cooldown_ms", 9000),
+                        Map.entry("friendai.config.chat.guest_cooldown_seconds", 9),
                         Map.entry("friendai.config.memory.enabled", false),
                         Map.entry("friendai.config.memory.max_fact_chars", 240),
                         Map.entry("friendai.config.memory.max_facts_per_player", 35),

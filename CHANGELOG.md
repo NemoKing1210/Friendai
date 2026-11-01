@@ -8,6 +8,13 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.115.0] - 2026-11-01
+
+### Added
+
+- The **Chat** tab now exposes the longest reply and the guest cooldown in seconds, and explains the hearing radius in a tooltip.
+- The **Planning** tab now exposes the per-turn tool budget, how much chat history is sent, the model request timeout and the pause between replies.
+
 ## [0.114.0] - 2026-11-01
 
 ### Added

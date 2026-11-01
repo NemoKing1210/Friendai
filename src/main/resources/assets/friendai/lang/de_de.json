@@ -148,7 +148,6 @@
   "friendai.config.chat.listen_all": "Alle Nachrichten mitlesen",
   "friendai.config.chat.guests_enabled": "Andere Spieler mit Gefährten sprechen lassen",
   "friendai.config.chat.hearing_radius": "Hörradius (Blöcke)",
-  "friendai.config.chat.guest_cooldown_ms": "Wartezeit für Gäste (ms)",
   "friendai.config.mining.protect_drops": "Wertvolle Drops schützen",
   "friendai.config.mining.catch_blocks": "Maximale Blöcke für einen Drop",
   "friendai.config.mining.valuable_blocks": "Wertvolle Blöcke",
@@ -827,5 +826,18 @@
   "friendai.config.resources.owner_resume.tooltip": "Wie nah der Besitzer kommen muss, damit ein wartender Begleiter weitergeht (1–511 Blöcke, Standard 24). Muss unter dem Warteabstand liegen.",
   "friendai.config.companion.chunk_loading": "Chunks um den Begleiter geladen halten",
   "friendai.config.companion.chunk_radius": "Radius geladener Chunks",
-  "friendai.config.companion.chunk_radius.tooltip": "Wie viele Chunks um den Begleiter weiter ticken (0–4, Standard 1). 0 hält nur den eigenen Chunk. Höhere Werte kosten Serverleistung."
+  "friendai.config.companion.chunk_radius.tooltip": "Wie viele Chunks um den Begleiter weiter ticken (0–4, Standard 1). 0 hält nur den eigenen Chunk. Höhere Werte kosten Serverleistung.",
+  "friendai.config.chat.hearing_radius.tooltip": "Wie weit der Chat eines Spielers den Begleiter erreicht (4–64 Blöcke, Standard 64).",
+  "friendai.config.chat.max_reply_chars": "Längste Antwort (Zeichen)",
+  "friendai.config.chat.max_reply_chars.tooltip": "Maximale Zeichenzahl einer Chat-Antwort; längere Antworten werden gekürzt (32–256, Standard 256).",
+  "friendai.config.chat.guest_cooldown_seconds": "Abklingzeit für Gäste (Sekunden)",
+  "friendai.config.chat.guest_cooldown_seconds.tooltip": "Wie lange ein Gast zwischen Nachrichten an den Begleiter warten muss (0–60 Sekunden, Standard 5).",
+  "friendai.config.brain.max_tool_steps": "Werkzeugschritte pro Zug",
+  "friendai.config.brain.max_tool_steps.tooltip": "Wie viele Werkzeugaufrufe der Begleiter machen darf, bevor er antworten muss (1–32, Standard 8). Höhere Werte erlauben längere Aufgaben, kosten aber mehr Token.",
+  "friendai.config.brain.history_messages": "Gespeicherter Chatverlauf",
+  "friendai.config.brain.history_messages.tooltip": "Wie viele letzte Nachrichten mit jeder Anfrage gesendet werden (6–200, Standard 30). Mehr Verlauf bedeutet mehr Zusammenhang und eine größere, teurere Anfrage.",
+  "friendai.config.brain.request_timeout_sec": "Zeitlimit der Anfrage (Sekunden)",
+  "friendai.config.brain.request_timeout_sec.tooltip": "Wie lange eine Modellanfrage dauern darf, bevor sie abgebrochen wird (5–600 Sekunden, Standard 60).",
+  "friendai.config.brain.cooldown_ms": "Pause zwischen Antworten (ms)",
+  "friendai.config.brain.cooldown_ms.tooltip": "Mindestpause zwischen zwei Antworten an denselben Spieler (0–60000 Millisekunden, Standard 500)."
 }

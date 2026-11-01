@@ -549,13 +549,21 @@ public final class FriendaiConfigScreen {
                         "friendai.config.chat.guests_enabled", true, () -> c.guestsEnabled, v -> c.guestsEnabled = v))
                 .option(Option.<Integer>createBuilder()
                         .name(tr("friendai.config.chat.hearing_radius"))
+                        .description(OptionDescription.of(tr("friendai.config.chat.hearing_radius.tooltip")))
                         .binding(64, () -> c.hearingRadius, v -> c.hearingRadius = v)
                         .controller(o -> IntegerFieldControllerBuilder.create(o).range(4, 64))
                         .build())
                 .option(Option.<Integer>createBuilder()
-                        .name(tr("friendai.config.chat.guest_cooldown_ms"))
-                        .binding(5000, () -> c.guestCooldownMs, v -> c.guestCooldownMs = v)
-                        .controller(o -> IntegerFieldControllerBuilder.create(o).range(0, 60000))
+                        .name(tr("friendai.config.chat.max_reply_chars"))
+                        .description(OptionDescription.of(tr("friendai.config.chat.max_reply_chars.tooltip")))
+                        .binding(256, () -> c.maxReplyChars, v -> c.maxReplyChars = v)
+                        .controller(o -> IntegerFieldControllerBuilder.create(o).range(32, 256))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.chat.guest_cooldown_seconds"))
+                        .description(OptionDescription.of(tr("friendai.config.chat.guest_cooldown_seconds.tooltip")))
+                        .binding(5, () -> c.guestCooldownMs / 1_000, v -> c.guestCooldownMs = v * 1_000)
+                        .controller(o -> IntegerFieldControllerBuilder.create(o).range(0, 60))
                         .build())
                 .build();
     }
@@ -604,6 +612,40 @@ public final class FriendaiConfigScreen {
                         .binding(60, () -> agent.plannerTimeoutSec, value -> agent.plannerTimeoutSec = value)
                         .controller(option ->
                                 IntegerFieldControllerBuilder.create(option).range(10, 300))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.brain.max_tool_steps"))
+                        .description(OptionDescription.of(tr("friendai.config.brain.max_tool_steps.tooltip")))
+                        .binding(
+                                8,
+                                () -> server.brain.maxToolStepsPerTurn,
+                                value -> server.brain.maxToolStepsPerTurn = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(1, 32))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.brain.history_messages"))
+                        .description(OptionDescription.of(tr("friendai.config.brain.history_messages.tooltip")))
+                        .binding(30, () -> server.brain.historyMessages, value -> server.brain.historyMessages = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(6, 200))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.brain.request_timeout_sec"))
+                        .description(OptionDescription.of(tr("friendai.config.brain.request_timeout_sec.tooltip")))
+                        .binding(
+                                60,
+                                () -> server.brain.requestTimeoutSec,
+                                value -> server.brain.requestTimeoutSec = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(5, 600))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.brain.cooldown_ms"))
+                        .description(OptionDescription.of(tr("friendai.config.brain.cooldown_ms.tooltip")))
+                        .binding(500, () -> server.brain.cooldownMs, value -> server.brain.cooldownMs = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(0, 60_000))
                         .build())
                 .build();
     }

@@ -148,7 +148,6 @@
   "friendai.config.chat.listen_all": "Слушать все сообщения",
   "friendai.config.chat.guests_enabled": "Другие игроки могут говорить с компаньонами",
   "friendai.config.chat.hearing_radius": "Радиус слышимости (блоки)",
-  "friendai.config.chat.guest_cooldown_ms": "Пауза между сообщениями гостя (мс)",
   "friendai.config.mining.protect_drops": "Беречь ценную добычу",
   "friendai.config.mining.catch_blocks": "Предел блоков на одну добычу",
   "friendai.config.mining.valuable_blocks": "Ценные блоки",
@@ -824,5 +823,18 @@
   "friendai.config.resources.owner_resume.tooltip": "Насколько близко должен подойти владелец, чтобы компаньон продолжил путь (1–511 блоков, по умолчанию 24). Должна быть меньше дистанции ожидания.",
   "friendai.config.companion.chunk_loading": "Держать чанки вокруг компаньона загруженными",
   "friendai.config.companion.chunk_radius": "Радиус загруженных чанков",
-  "friendai.config.companion.chunk_radius.tooltip": "Сколько чанков вокруг компаньона продолжают работать (0–4, по умолчанию 1). 0 — только собственный чанк. Большие значения стоят производительности сервера."
+  "friendai.config.companion.chunk_radius.tooltip": "Сколько чанков вокруг компаньона продолжают работать (0–4, по умолчанию 1). 0 — только собственный чанк. Большие значения стоят производительности сервера.",
+  "friendai.config.chat.hearing_radius.tooltip": "Насколько далеко долетает чат игрока до компаньона (4–64 блока, по умолчанию 64).",
+  "friendai.config.chat.max_reply_chars": "Самая длинная реплика (символы)",
+  "friendai.config.chat.max_reply_chars.tooltip": "Максимум символов в одном ответе в чате; длинные ответы обрезаются (32–256, по умолчанию 256).",
+  "friendai.config.chat.guest_cooldown_seconds": "Пауза для гостей (секунды)",
+  "friendai.config.chat.guest_cooldown_seconds.tooltip": "Сколько гость должен ждать между сообщениями компаньону (0–60 секунд, по умолчанию 5).",
+  "friendai.config.brain.max_tool_steps": "Шагов с инструментами за ход",
+  "friendai.config.brain.max_tool_steps.tooltip": "Сколько вызовов инструментов компаньон может сделать, прежде чем ответить (1–32, по умолчанию 8). Большие значения позволяют длинные задачи, но стоят больше токенов.",
+  "friendai.config.brain.history_messages": "Хранимая история чата",
+  "friendai.config.brain.history_messages.tooltip": "Сколько последних сообщений отправляется с каждым запросом (6–200, по умолчанию 30). Больше истории — лучше связность и дороже запрос.",
+  "friendai.config.brain.request_timeout_sec": "Тайм-аут запроса (секунды)",
+  "friendai.config.brain.request_timeout_sec.tooltip": "Сколько может длиться один запрос к модели, прежде чем он будет прерван (5–600 секунд, по умолчанию 60).",
+  "friendai.config.brain.cooldown_ms": "Пауза между ответами (мс)",
+  "friendai.config.brain.cooldown_ms.tooltip": "Минимальная пауза между двумя ответами одному игроку (0–60000 миллисекунд, по умолчанию 500)."
 }
