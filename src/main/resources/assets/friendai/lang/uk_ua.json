@@ -961,5 +961,6 @@
   "friendai.command.pause.off": "Помічник знову може працювати.",
   "friendai.command.pause.none": "У вас немає помічника, якого можна зупинити.",
   "friendai.menu.pause": "Пауза",
-  "friendai.menu.resume": "Продовжити"
+  "friendai.menu.resume": "Продовжити",
+  "friendai.config.nav.recovered": "Пошкоджений файл конфігурації замінено останньою справною копією. Збереження запише новий файл."
 }

@@ -961,5 +961,6 @@
   "friendai.command.pause.off": "El compañero puede volver a trabajar.",
   "friendai.command.pause.none": "No tienes un compañero al que detener.",
   "friendai.menu.pause": "Pausa",
-  "friendai.menu.resume": "Reanudar"
+  "friendai.menu.resume": "Reanudar",
+  "friendai.config.nav.recovered": "Un archivo de configuración dañado se sustituyó por su última copia válida. Guardar escribirá un archivo nuevo."
 }

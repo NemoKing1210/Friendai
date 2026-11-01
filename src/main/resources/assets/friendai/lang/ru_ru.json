@@ -961,5 +961,6 @@
   "friendai.command.pause.off": "Компаньон снова может работать.",
   "friendai.command.pause.none": "У вас нет компаньона, которого можно остановить.",
   "friendai.menu.pause": "Пауза",
-  "friendai.menu.resume": "Продолжить"
+  "friendai.menu.resume": "Продолжить",
+  "friendai.config.nav.recovered": "Повреждённый файл конфигурации заменён последней исправной копией. Сохранение запишет новый файл."
 }

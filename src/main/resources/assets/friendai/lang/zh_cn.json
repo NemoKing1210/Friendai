@@ -961,5 +961,6 @@
   "friendai.command.pause.off": "同伴可以继续工作了。",
   "friendai.command.pause.none": "你还没有可以停下的同伴。",
   "friendai.menu.pause": "暂停",
-  "friendai.menu.resume": "继续"
+  "friendai.menu.resume": "继续",
+  "friendai.config.nav.recovered": "损坏的配置文件已由最后一份可用备份替换。保存将写入新文件。"
 }
