@@ -104,7 +104,21 @@ public final class ProviderRegistry {
                 AuthStyle.BEARER,
                 List.of(rule("claude-*", "anthropic_messages"), rule("*", "openai_chat")),
                 "openai_chat"));
+        r.add(openAiCompatible("openrouter", "OpenRouter", "https://openrouter.ai/api/v1"));
+        r.add(openAiCompatible("deepseek", "DeepSeek", "https://api.deepseek.com/v1"));
+        r.add(openAiCompatible("groq", "Groq", "https://api.groq.com/openai/v1"));
+        r.add(openAiCompatible("mistral", "Mistral", "https://api.mistral.ai/v1"));
+        r.add(openAiCompatible("xai", "xAI", "https://api.x.ai/v1"));
+        r.add(openAiCompatible("together", "Together AI", "https://api.together.xyz/v1"));
+        r.add(openAiCompatible("fireworks", "Fireworks AI", "https://api.fireworks.ai/inference/v1"));
+        r.add(openAiCompatible("cerebras", "Cerebras", "https://api.cerebras.ai/v1"));
+        r.add(openAiCompatible("github_models", "GitHub Models", "https://models.inference.ai.azure.com"));
         return r;
+    }
+
+    private static ProviderPreset openAiCompatible(String id, String name, String baseUrl) {
+        return new ProviderPreset(
+                id, name, baseUrl, AuthStyle.BEARER, List.of(rule("*", "openai_chat")), "openai_chat");
     }
 
     /** One id per registry, i.e. per server run; sent to providers that ask for a stable session. */
