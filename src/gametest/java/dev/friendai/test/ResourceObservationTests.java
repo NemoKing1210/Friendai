@@ -83,6 +83,62 @@ public class ResourceObservationTests {
         h.succeed();
     }
 
+    /**
+     * A crowded server drains the sight queue slowly, and a companion that dug through stone for a thousand ticks
+     * never saw any of it. The ray a dig queues for the face it just exposed must make room for itself instead of
+     * being dropped behind a full queue.
+     */
+    @GameTest(maxTicks = 80)
+    public void digFaceIsQueuedBehindAFullSweepBacklog(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 5);
+        BlockPos ore = h.absolutePos(new BlockPos(8, 4, 6));
+        h.setBlock(8, 4, 6, Blocks.COAL_ORE);
+        ResourceObserver observer = new ResourceObserver(companion);
+        BlockPos foot = companion.blockPosition();
+        for (int x = -8; x <= 8; x++) {
+            for (int z = -8; z <= 8; z++) {
+                for (int dy = -1; dy <= 2; dy++) {
+                    BlockPos cell = foot.offset(x, dy, z);
+                    if (!cell.equals(ore)) observer.inspect(cell);
+                }
+            }
+        }
+        int queued = observer.queuedJobs();
+        h.assertValueEqual(512, queued, "the sight queue should be full before the dig");
+        h.assertFalse(observer.queued(ore), "the ore must not be part of the backlog for this test");
+        observer.changed(ore);
+        h.assertTrue(observer.queued(ore), "the face a dig exposed was dropped behind a full sight queue");
+        h.assertValueEqual(queued, observer.queuedJobs(), "a dig's rays must replace the backlog, not grow it");
+        h.succeed();
+    }
+
+    /**
+     * On a busy server a sweep drains slower than the second the interval allows, so every interval used to queue
+     * another full batch behind the one still waiting. The queue then held minutes-old rays from an old viewpoint and
+     * the newest sweep was never reached; the companion stood in the stone it had dug and saw nothing. A new sweep
+     * waits for the one in flight, and the next interval schedules again once it is done.
+     */
+    @GameTest(maxTicks = 80)
+    public void aSecondSweepWaitsForTheOneInFlight(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 5);
+        ResourceObserver observer = new ResourceObserver(companion);
+        observer.scheduleSweep(0);
+        int first = observer.queuedJobs();
+        h.assertTrue(first > 0, "the first sweep queued nothing");
+        observer.scheduleSweep(20);
+        observer.scheduleSweep(40);
+        h.assertValueEqual(first, observer.queuedJobs(), "a sweep was stacked behind the sweep still in flight");
+        for (int step = 0; step < 200 && observer.queuedJobs() > 0; step++) {
+            observer.tick(64, 512, Long.MAX_VALUE);
+        }
+        h.assertValueEqual(0, observer.queuedJobs(), "the sweep in flight never drained");
+        observer.scheduleSweep(1000);
+        h.assertTrue(observer.queuedJobs() > 0, "no sweep was scheduled after the previous one drained");
+        h.succeed();
+    }
+
     @GameTest(maxTicks = 40)
     public void sealedCaveOreUnknown(GameTestHelper h) {
         GameTestSupport.platform(h, 12);
@@ -101,6 +157,31 @@ public class ResourceObservationTests {
         h.assertTrue(
                 seen.stream().noneMatch(item -> item.location().pos().equals(pos(ore))),
                 "sealed ore leaked into observations: " + seen);
+        h.succeed();
+    }
+
+    /** A pit under a dirt ceiling is still worth looking into: the walls beside the companion are what its eyes reach. */
+    @GameTest(maxTicks = 400)
+    public void aPocketUnderACeilingShowsItsWalls(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 120, 16);
+        for (int x = 2; x <= 13; x++) {
+            for (int z = 2; z <= 13; z++) {
+                for (int y = 121; y <= 124; y++) h.setBlock(x, y, z, Blocks.STONE);
+                for (int y = 125; y <= 126; y++) h.setBlock(x, y, z, Blocks.DIRT);
+            }
+        }
+        for (int y = 124; y <= 126; y++) h.setBlock(7, y, 7, Blocks.AIR);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 7, 124, 7);
+        ResourceObserver observer = new ResourceObserver(companion);
+        observer.scheduleSweep(0);
+        List<ResourceObservation> seen = new ArrayList<>();
+        for (int step = 0; step < 200 && observer.queuedJobs() > 0; step++) {
+            seen.addAll(observer.tick(256, 128, Long.MAX_VALUE).observations());
+        }
+        BlockPos wall = h.absolutePos(new BlockPos(6, 124, 7));
+        h.assertTrue(
+                seen.stream().anyMatch(item -> item.location().pos().equals(pos(wall))),
+                "the stone beside the companion was not seen: " + seen);
         h.succeed();
     }
 

@@ -36,14 +36,11 @@ import net.minecraft.world.level.block.NetherWartBlock;
 
 public class ObtainTests {
     /**
-     * Quarantined: the station placement that used to block it is fixed (the companion now places the table on the rim
-     * of the pit it dug, see {@code CraftingTests}), but the search before it is flaky. In a full class run its
-     * exploration leg has ended without evidence after three blocks, and on another run its mining step reported "no
-     * minecraft:stone observed or remembered nearby"; both failures are step-level give-ups, and the 26 companions of
-     * this class share the observation budget, so how much sight this one gets decides the outcome. Issue #28; the test
-     * still runs and reports, it just does not fail the required gate.
+     * The whole chain from a bare pit: dig down until the stone is exposed, see it, and craft a pickaxe from it. Every
+     * candidate comes from the observation store, so this test fails unless the face a dig just opened survives the
+     * sight queue — and the other twenty-six companions of this class keep that queue full.
      */
-    @GameTest(maxTicks = 1200, required = false)
+    @GameTest(maxTicks = 2400)
     public void callerObtainsStonePickaxeFromBuriedStone(GameTestHelper h) {
         GameTestSupport.platformAt(h, 200, 24);
         for (int x = 0; x < 24; x++) {
@@ -66,8 +63,8 @@ public class ObtainTests {
         ExecutionCoordinator runner = obtain(
                 companion,
                 result,
-                obtainTask("minecraft:stone_pickaxe", 1, false, true, 40, 1100, 64, 128, 800, "local", caller));
-        h.succeedWhen(() -> {
+                obtainTask("minecraft:stone_pickaxe", 1, false, true, 40, 2200, 64, 128, 800, "local", caller));
+        TaskTrace.of(h, runner, companion).succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status != null, "caller-aware obtain should finish");
             h.assertTrue(result.status == TaskStatus.SUCCESS, result.summary + " at " + companion.blockPosition());

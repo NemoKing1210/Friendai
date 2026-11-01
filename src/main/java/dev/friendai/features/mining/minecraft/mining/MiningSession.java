@@ -50,6 +50,9 @@ public final class MiningSession {
     /** How many planned steps one search may commit to; a search per block would leave the companion standing still. */
     private static final int MAX_CHAIN = 8;
 
+    /** Ticks a fall is waited out before planning from mid-air, so a body that never lands still reports a failure. */
+    private static final int MAX_AIRBORNE_TICKS = 40;
+
     private final CompanionEntity companion;
     private final MiningBounds bounds;
     private final int maxBlocks;
@@ -67,6 +70,7 @@ public final class MiningSession {
     private int brokenBlocks;
     private int completedExplorationSteps;
     private int noProgressPlans;
+    private int airborneTicks;
     private boolean mustRelocateFromSupport;
     private boolean closeApproach;
     private PathSearch search;
@@ -88,6 +92,8 @@ public final class MiningSession {
     private UserMessage toolFailure;
 
     private String phase = "";
+    /** Which plan attempt last gave up, for the debug line; empty while the session is getting on with the job. */
+    private String diagnostic = "";
 
     public MiningSession(CompanionEntity companion, MiningBounds bounds, int maxBlocks, int maxTicks) {
         this(companion, bounds, maxBlocks, maxTicks, new PlacementLedger());
@@ -122,6 +128,8 @@ public final class MiningSession {
         this.failure = null;
         this.primaryFailure = null;
         this.toolFailure = null;
+        this.diagnostic = "";
+        this.airborneTicks = 0;
         this.lastState = State.WORKING;
         this.search = null;
         this.goal = null;
@@ -148,6 +156,7 @@ public final class MiningSession {
         this.failure = null;
         this.primaryFailure = null;
         this.toolFailure = null;
+        this.diagnostic = "";
         this.lastState = State.WORKING;
         this.search = null;
         this.goal = null;
@@ -168,6 +177,9 @@ public final class MiningSession {
         }
         if (extraction != null) {
             return tickExtraction(context);
+        }
+        if (mode == Mode.TARGETS && waitForGround()) {
+            return State.WORKING;
         }
         if (mode == Mode.EXPLORE) {
             return tickExplore(context);
@@ -195,6 +207,35 @@ public final class MiningSession {
 
     public String phase() {
         return phase;
+    }
+
+    /**
+     * One line on why the last plans gave up, for the debug status and a failing test's trace: which refusal fired,
+     * how many plans it took to reach the limit, how many candidates are left, and what the companion is standing in.
+     * A session that gives up within a few ticks never sets a phase, so this is the only account of what happened.
+     */
+    public String debugReason() {
+        if (diagnostic.isEmpty() && primaryFailure == null) {
+            return "";
+        }
+        BlockPos at = companion.blockPosition();
+        String reason = diagnostic.isEmpty() ? shortKey(primaryFailure.key()) : diagnostic;
+        return "why=" + reason
+                + " x" + noProgressPlans
+                + " cand=" + targets.size()
+                + " ex=" + excludedTargets.size() + "/" + excludedStances.size()
+                + " feet=" + cell(at)
+                + " head=" + cell(at.above())
+                + " below=" + cell(at.below());
+    }
+
+    private static String shortKey(String key) {
+        int dot = key.lastIndexOf('.');
+        return dot < 0 ? key : key.substring(dot + 1);
+    }
+
+    private String cell(BlockPos pos) {
+        return companion.level().getBlockState(pos).isAir() ? "air" : "solid";
     }
 
     public int brokenBlocks() {
@@ -269,14 +310,17 @@ public final class MiningSession {
             if (!closeApproach) {
                 closeApproach = true;
                 search = null;
+                diagnostic = "no-path-close";
                 return State.WORKING;
             }
+            diagnostic = "no-path";
             return retryPlan("friendai.mining.unreachable");
         }
         Path passage = path.passagePrefix().orElse(null);
         if (passage == null) {
             // A partial route that places a block is a stair cut short; the route that would reach is planned from
             // the material the companion carries, so search again rather than spend the block on half a rise.
+            diagnostic = "cut-passage";
             return retryPlan("friendai.mining.unreachable");
         }
         Node current = node();
@@ -284,6 +328,7 @@ public final class MiningSession {
             var visibleTarget = goal.targetAt(current, guard(context).planningView(context, context.pathingConfig()));
             if (visibleTarget.isEmpty()) {
                 excludedStances.add(current);
+                diagnostic = "blind-stance";
                 return retryPlan("friendai.mining.unreachable");
             }
             target = blockPos(visibleTarget.get());
@@ -299,6 +344,7 @@ public final class MiningSession {
                 } else {
                     excludedStances.add(current);
                 }
+                diagnostic = "refused-" + shortKey(reason.key());
                 return retryPlan(reason);
             }
             extraction = new BreakAction(target);
@@ -343,6 +389,7 @@ public final class MiningSession {
         }
         if (result == ExplorationPlanner.Status.NO_ROUTE) {
             exploration = null;
+            diagnostic = "no-route";
             return retryPlan("friendai.mining.unreachable");
         }
         PathStep next = exploration.nextStep().orElseThrow();
@@ -365,6 +412,7 @@ public final class MiningSession {
             remainingSteps = List.of();
             search = null;
             exploration = null;
+            diagnostic = "walk-failed";
             return retryPlan("friendai.mining.unsafe_passage");
         }
         brokenBlocks += executor.brokenBlocks();
@@ -382,6 +430,7 @@ public final class MiningSession {
             }
         }
         noProgressPlans = 0;
+        diagnostic = "";
         excludedStances.clear();
         activeSteps = List.of();
         if (mustRelocateFromSupport && !node().equals(initialNode)) {
@@ -401,10 +450,11 @@ public final class MiningSession {
             if (target != null) {
                 excludedTargets.add(plain(target));
             }
-            return retryPlan(
-                    target == null
-                            ? UserMessage.of("friendai.mining.unreachable")
-                            : guard(context).targetFailure(context, target));
+            UserMessage lost = target == null
+                    ? UserMessage.of("friendai.mining.unreachable")
+                    : guard(context).targetFailure(context, target);
+            diagnostic = target == null ? "target-gone" : "target-refused-" + shortKey(lost.key());
+            return retryPlan(lost);
         }
         if (!catchChecked) {
             catchChecked = true;
@@ -418,6 +468,7 @@ public final class MiningSession {
                 }
                 target = null;
                 search = null;
+                diagnostic = "catch-refused";
                 return retryPlan(refusal);
             }
             platform = plan.platform();
@@ -439,6 +490,7 @@ public final class MiningSession {
                 excludedTargets.add(plain(target));
                 target = null;
                 search = null;
+                diagnostic = "platform-refused";
                 return retryPlan(ownerMessage(refusal));
             }
         }
@@ -452,6 +504,7 @@ public final class MiningSession {
         extraction = null;
         if (result == BreakAction.State.BROKEN) {
             noProgressPlans = 0;
+            diagnostic = "";
             search = null;
             return lastState = State.EXTRACTED;
         }
@@ -464,6 +517,7 @@ public final class MiningSession {
         }
         target = null;
         search = null;
+        diagnostic = result == BreakAction.State.BLOCKED ? "break-blocked" : "break-failed";
         return retryPlan(
                 result == BreakAction.State.BLOCKED
                         ? ownerMessage(refusal)
@@ -587,6 +641,25 @@ public final class MiningSession {
         if (!targets.contains(blockPos(support))) {
             supports.add(support);
         }
+    }
+
+    /**
+     * Whether a fall has to be waited out before planning. A body in the air has no stance of its own: nothing under
+     * its feet holds it up, so every candidate is refused and three plans in a row turn a landing — a companion that
+     * dropped into the hole it just opened — into "the resource cannot be reached safely". The wait is bounded, because
+     * a body that never lands (a void, a long drop) still has to report something.
+     */
+    private boolean waitForGround() {
+        if (companion.onGround()) {
+            airborneTicks = 0;
+            return false;
+        }
+        if (++airborneTicks > MAX_AIRBORNE_TICKS) {
+            airborneTicks = 0;
+            return false;
+        }
+        setPhase("settle");
+        return true;
     }
 
     private State retryPlan(String key) {

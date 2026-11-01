@@ -627,6 +627,15 @@ public final class ObtainTask implements Task {
     }
 
     @Override
+    public String debugStatus() {
+        String step = currentStep == null ? "planning" : ObtainText.stepText(currentStep);
+        String inner = current == null ? "" : current.debugStatus();
+        return "step " + (stepsRun + 1) + "/" + maxSteps + " " + step
+                + (inner.isEmpty() ? "" : " | " + inner)
+                + " t=" + ticks + "/" + maxTicks;
+    }
+
+    @Override
     public List<DebugTarget> debugTargets() {
         return current == null ? List.of() : current.debugTargets();
     }

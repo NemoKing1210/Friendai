@@ -6,6 +6,7 @@ import dev.friendai.features.navigation.pathing.Pos;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -70,6 +71,14 @@ public final class ResourceObserver {
             nextSweep = Long.MIN_VALUE;
         }
         if (tick < nextSweep) return 0;
+        // A sweep is a fresh aim from where the companion stands now, so a second batch only queues behind the
+        // first one and re-aims its leftovers later. A busy server drains a sweep slower than the interval, and
+        // stacking them fills the whole queue with rays from an old viewpoint: the evidence a task waits for then
+        // arrives seconds late or not at all. Wait for the sweep in flight instead.
+        if (sweepInFlight()) {
+            nextSweep = tick + SWEEP_INTERVAL;
+            return 0;
+        }
         nextSweep = tick + SWEEP_INTERVAL;
         lastSweepEye = eye;
         BlockPos center = BlockPos.containing(eye);
@@ -78,15 +87,15 @@ public final class ResourceObserver {
         // Cardinal rays are the shortest route to current surface evidence, so put them
         // ahead of the broad scan while keeping the scan itself in FIFO order.
         for (Vec3 direction : CARDINALS)
-            if (enqueue(eye, eye.add(direction.scale(reach)), null, false, false)) scheduled++;
+            if (enqueue(eye, eye.add(direction.scale(reach)), null, false, false, true)) scheduled++;
         // Aim a bounded set of near-field checks at geometric face centers. These targets are
         // selected without reading block identity; ResourceSight emits a block only when it is
         // the first visible obstruction on the ray.
         for (int distance = 1; distance <= NEAR_FACE_CHECKS_PER_AXIS; distance++) {
-            if (inspectTarget(center.offset(distance, 0, 0), false)) scheduled++;
-            if (inspectTarget(center.offset(-distance, 0, 0), false)) scheduled++;
-            if (inspectTarget(center.offset(0, 0, distance), false)) scheduled++;
-            if (inspectTarget(center.offset(0, 0, -distance), false)) scheduled++;
+            if (inspectTarget(center.offset(distance, 0, 0), false, true)) scheduled++;
+            if (inspectTarget(center.offset(-distance, 0, 0), false, true)) scheduled++;
+            if (inspectTarget(center.offset(0, 0, distance), false, true)) scheduled++;
+            if (inspectTarget(center.offset(0, 0, -distance), false, true)) scheduled++;
         }
         // Trunks are taller than the eye line: inspect the first three body heights and the diagonals so a tree
         // standing beside the companion is not missed by horizontal rays alone.
@@ -94,7 +103,7 @@ public final class ResourceObserver {
         for (int dy = 0; dy <= 2; dy++) {
             BlockPos level = foot.above(dy);
             for (int[] direction : NEAR_DIRECTIONS) {
-                if (inspectTarget(level.offset(direction[0] * 3, 0, direction[1] * 3), false)) scheduled++;
+                if (inspectTarget(level.offset(direction[0] * 3, 0, direction[1] * 3), false, true)) scheduled++;
             }
         }
         // A short fan in the facing direction catches the surface the companion is walking toward.
@@ -112,7 +121,8 @@ public final class ResourceObserver {
                                             forwardX * distance + sideX * lateral,
                                             0,
                                             forwardZ * distance + sideZ * lateral),
-                            false)) scheduled++;
+                            false,
+                            true)) scheduled++;
                 }
             }
         }
@@ -125,12 +135,24 @@ public final class ResourceObserver {
             double ring = Math.sqrt(Math.max(0.0, 1.0 - y * y));
             double angle = i * golden + rotation;
             Vec3 direction = new Vec3(Math.cos(angle) * ring, y, Math.sin(angle) * ring);
-            if (enqueue(eye, eye.add(direction.scale(reach)), null, false, false)) scheduled++;
+            if (enqueue(eye, eye.add(direction.scale(reach)), null, false, false, true)) scheduled++;
         }
         return scheduled;
     }
 
-    /** Schedules inspection after a block change; the changed block and its six neighbors are candidates. */
+    /** Whether rays of an earlier passive sweep are still queued, so a new sweep would only stack behind them. */
+    private boolean sweepInFlight() {
+        for (PendingRay ray : queue) {
+            if (ray.sweep) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Schedules inspection after a block change; the changed block and its six neighbors are candidates. A crowded
+     * server drains the passive sweep slowly enough that the queue stays full, and the face a dig just exposed is the
+     * evidence the task is waiting for, so it displaces the backlog instead of being dropped behind it.
+     */
     public void changed(BlockPos pos) {
         if (!activeLevel() || changedQueued >= MAX_CHANGED_JOBS) return;
         inspectTarget(pos, true);
@@ -156,26 +178,33 @@ public final class ResourceObserver {
             return;
         }
         // Explicit verification must not be starved behind a full passive sweep queue.
-        // Evict the oldest tail job; the fresh target is still checked only by ResourceSight.
-        while (queue.size() >= MAX_QUEUED_RAYS) {
-            PendingRay evicted = queue.removeLast();
-            forgetTarget(evicted);
-        }
         if (inspectTarget(key, false)) queue.addFirst(queue.removeLast());
     }
 
+    /**
+     * Evicts the most recently queued ray so a targeted check always fits. The passive sweep re-aims itself from the
+     * current viewpoint every interval, while a targeted ray is the only copy of the evidence a task asked for; the
+     * rays at the head are the ones that already had work spent on them.
+     */
+    private void makeRoom() {
+        while (queue.size() >= MAX_QUEUED_RAYS) forgetTarget(queue.removeLast());
+    }
+
     private boolean inspectTarget(BlockPos target, boolean changed) {
+        return inspectTarget(target, changed, false);
+    }
+
+    private boolean inspectTarget(BlockPos target, boolean changed, boolean sweep) {
         BlockPos key = target.immutable();
         double radius = radius();
         if (companion.getEyePosition().distanceToSqr(Vec3.atCenterOf(key)) > radius * radius) return false;
+        if (queuedTargets.contains(key)) return false;
+        if (changed && changedQueued >= MAX_CHANGED_JOBS) return false;
+        makeRoom();
         if (queue.size() >= MAX_QUEUED_RAYS || !queuedTargets.add(key)) return false;
-        if (changed && changedQueued >= MAX_CHANGED_JOBS) {
-            queuedTargets.remove(key);
-            return false;
-        }
         Vec3 eye = companion.getEyePosition();
         // Aim at the target's center; the visibility job verifies that it is the first opaque hit.
-        PendingRay ray = new PendingRay(eye, Vec3.atCenterOf(key), key, changed, dimension);
+        PendingRay ray = new PendingRay(eye, Vec3.atCenterOf(key), key, changed, dimension, sweep);
         if (changed) {
             changedQueued++;
             queue.addFirst(ray);
@@ -183,10 +212,11 @@ public final class ResourceObserver {
         return true;
     }
 
-    private boolean enqueue(Vec3 from, Vec3 to, BlockPos target, boolean changed, boolean focused) {
+    private boolean enqueue(Vec3 from, Vec3 to, BlockPos target, boolean changed, boolean focused, boolean sweep) {
         if (queue.size() >= MAX_QUEUED_RAYS) return false;
         if (target != null && !queuedTargets.add(target.immutable())) return false;
-        PendingRay ray = new PendingRay(from, to, target == null ? null : target.immutable(), changed, dimension);
+        PendingRay ray =
+                new PendingRay(from, to, target == null ? null : target.immutable(), changed, dimension, sweep);
         if (focused) queue.addFirst(ray);
         else queue.addLast(ray);
         return true;
@@ -194,6 +224,11 @@ public final class ResourceObserver {
 
     public int queuedJobs() {
         return queue.size();
+    }
+
+    /** Whether a targeted check of this position is queued; for diagnostics and tests. */
+    public boolean queued(BlockPos pos) {
+        return queuedTargets.contains(pos.immutable());
     }
 
     private double radius() {
@@ -232,7 +267,8 @@ public final class ResourceObserver {
                     continue;
                 }
                 queue.removeFirst();
-                queue.addFirst(new PendingRay(eye, pending.end, pending.target, pending.changed, pending.dimension));
+                queue.addFirst(new PendingRay(
+                        eye, pending.end, pending.target, pending.changed, pending.dimension, pending.sweep));
                 continue;
             }
             if (pending.job == null) {
@@ -299,9 +335,19 @@ public final class ResourceObserver {
         changedQueued = 0;
     }
 
-    /** Drops the untargeted rays of the previous sweep; targeted ones are re-aimed when they reach the head. */
+    /**
+     * Drops the previous sweep: the next one aims the same directions from the new viewpoint. Rays a task asked for
+     * are kept and re-aimed when they reach the head.
+     */
     private void dropSweepRays() {
-        queue.removeIf(ray -> ray.target == null);
+        Iterator<PendingRay> rays = queue.iterator();
+        while (rays.hasNext()) {
+            PendingRay ray = rays.next();
+            if (ray.sweep && ray.target == null) {
+                rays.remove();
+                forgetTarget(ray);
+            }
+        }
     }
 
     private boolean refreshIdentity() {
@@ -333,15 +379,19 @@ public final class ResourceObserver {
         final Vec3 end;
         final BlockPos target;
         final boolean changed;
+        /** Passively scheduled by a sweep, so a later sweep supersedes it instead of queueing behind it. */
+        final boolean sweep;
+
         final String dimension;
         ResourceSight.Job job;
 
-        PendingRay(Vec3 origin, Vec3 end, BlockPos target, boolean changed, String dimension) {
+        PendingRay(Vec3 origin, Vec3 end, BlockPos target, boolean changed, String dimension, boolean sweep) {
             this.origin = origin;
             this.end = end;
             this.target = target;
             this.changed = changed;
             this.dimension = dimension;
+            this.sweep = sweep;
         }
     }
 
