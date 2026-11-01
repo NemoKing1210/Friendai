@@ -877,5 +877,17 @@
   "friendai.config.skills.server_count": "Habilidades por servidor",
   "friendai.config.skills.server_count.tooltip": "Cuántas habilidades de instrucción compartidas se guardan por servidor (1–32, por defecto 32).",
   "friendai.config.skills.total_chars": "Texto total de habilidades (caracteres)",
-  "friendai.config.skills.total_chars.tooltip": "Límite del texto de habilidades guardado por dueño (4000–96000, por defecto 96000)."
+  "friendai.config.skills.total_chars.tooltip": "Límite del texto de habilidades guardado por dueño (4000–96000, por defecto 96000).",
+  "friendai.config.memory.max_fact_chars.tooltip": "Longitud de un dato recordado (caracteres; 40–512, por defecto 512).",
+  "friendai.config.memory.max_facts_per_player.tooltip": "Cuántos datos se recuerdan de cada jugador (1–128, por defecto 128).",
+  "friendai.config.memory.max_world_facts.tooltip": "Cuántos datos se recuerdan del mundo (1–200, por defecto 128).",
+  "friendai.config.skills.budget.tooltip": "Cuántos caracteres de habilidades de instrucción caben en un mensaje (200–6000, por defecto 4096). Más espacio significa más habilidades y una petición mayor y más costosa.",
+  "friendai.config.skills.hourly.tooltip": "Cuántas habilidades de instrucción puede escribir el modelo por hora (0–60, por defecto 6).",
+  "friendai.config.mining.catch_blocks.tooltip": "Cuántos bloques puede costar proteger un hallazgo, en plataforma o desvío (0–27, por defecto 9).",
+  "friendai.config.pathing.allow_break.tooltip": "Si el compañero puede cavar bloques de camino a un destino. Desactívalo para no dañar construcciones.",
+  "friendai.config.pathing.allow_place.tooltip": "Si el compañero puede colocar bloques para subir o tender puentes. Desactívalo para no dañar construcciones.",
+  "friendai.config.chat.listen_all.tooltip": "Si el compañero reacciona al chat que no va dirigido a él. Desactivado por defecto para no interrumpir.",
+  "friendai.config.chat.guests_enabled.tooltip": "Si los jugadores en los que el dueño no confía pueden hablar con el compañero.",
+  "friendai.config.autonomy.allow_building.tooltip": "Si el tiempo libre puede colocar bloques. Desactivado, el trabajo autónomo se limita a recoger, viajar y fabricar.",
+  "friendai.config.mining.protect_drops.tooltip": "Si un hallazgo valioso se protege con una plataforma antes de romper su bloque, gastando bloques para no perderlo."
 }

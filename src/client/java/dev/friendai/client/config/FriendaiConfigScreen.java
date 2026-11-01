@@ -482,12 +482,14 @@ public final class FriendaiConfigScreen {
                         v -> server.skills.requireApproval = v))
                 .option(Option.<Integer>createBuilder()
                         .name(tr("friendai.config.skills.budget"))
+                        .description(OptionDescription.of(tr("friendai.config.skills.budget.tooltip")))
                         .binding(4096, () -> server.skills.promptBudget, v -> server.skills.promptBudget = v)
                         .controller(
                                 opt -> IntegerFieldControllerBuilder.create(opt).range(200, 6000))
                         .build())
                 .option(Option.<Integer>createBuilder()
                         .name(tr("friendai.config.skills.hourly"))
+                        .description(OptionDescription.of(tr("friendai.config.skills.hourly.tooltip")))
                         .binding(6, () -> server.skills.modelWritesPerHour, v -> server.skills.modelWritesPerHour = v)
                         .controller(
                                 opt -> IntegerFieldControllerBuilder.create(opt).range(0, 60))
@@ -572,9 +574,17 @@ public final class FriendaiConfigScreen {
                 .option(booleanOption(
                         "friendai.config.chat.respond_to_name", true, () -> c.respondToName, v -> c.respondToName = v))
                 .option(booleanOption(
-                        "friendai.config.chat.listen_all", false, () -> c.listenAll, v -> c.listenAll = v))
+                        "friendai.config.chat.listen_all",
+                        "friendai.config.chat.listen_all.tooltip",
+                        false,
+                        () -> c.listenAll,
+                        v -> c.listenAll = v))
                 .option(booleanOption(
-                        "friendai.config.chat.guests_enabled", true, () -> c.guestsEnabled, v -> c.guestsEnabled = v))
+                        "friendai.config.chat.guests_enabled",
+                        "friendai.config.chat.guests_enabled.tooltip",
+                        true,
+                        () -> c.guestsEnabled,
+                        v -> c.guestsEnabled = v))
                 .option(Option.<Integer>createBuilder()
                         .name(tr("friendai.config.chat.hearing_radius"))
                         .description(OptionDescription.of(tr("friendai.config.chat.hearing_radius.tooltip")))
@@ -775,11 +785,13 @@ public final class FriendaiConfigScreen {
                 .name(tr("friendai.config.category.world"))
                 .option(booleanOption(
                         "friendai.config.pathing.allow_break",
+                        "friendai.config.pathing.allow_break.tooltip",
                         true,
                         () -> pathing.allowBreak,
                         value -> pathing.allowBreak = value))
                 .option(booleanOption(
                         "friendai.config.pathing.allow_place",
+                        "friendai.config.pathing.allow_place.tooltip",
                         true,
                         () -> pathing.allowPlace,
                         value -> pathing.allowPlace = value))
@@ -1102,6 +1114,7 @@ public final class FriendaiConfigScreen {
                         value -> autonomy.protectPlaces = value))
                 .option(booleanOption(
                         "friendai.config.autonomy.allow_building",
+                        "friendai.config.autonomy.allow_building.tooltip",
                         true,
                         () -> autonomy.allowBuilding,
                         value -> autonomy.allowBuilding = value))
@@ -1115,16 +1128,19 @@ public final class FriendaiConfigScreen {
                 .option(booleanOption("friendai.config.memory.enabled", true, () -> m.enabled, v -> m.enabled = v))
                 .option(Option.<Integer>createBuilder()
                         .name(tr("friendai.config.memory.max_fact_chars"))
+                        .description(OptionDescription.of(tr("friendai.config.memory.max_fact_chars.tooltip")))
                         .binding(512, () -> m.maxFactChars, v -> m.maxFactChars = v)
                         .controller(o -> IntegerFieldControllerBuilder.create(o).range(40, 512))
                         .build())
                 .option(Option.<Integer>createBuilder()
                         .name(tr("friendai.config.memory.max_facts_per_player"))
+                        .description(OptionDescription.of(tr("friendai.config.memory.max_facts_per_player.tooltip")))
                         .binding(128, () -> m.maxFactsPerPlayer, v -> m.maxFactsPerPlayer = v)
                         .controller(o -> IntegerFieldControllerBuilder.create(o).range(1, 128))
                         .build())
                 .option(Option.<Integer>createBuilder()
                         .name(tr("friendai.config.memory.max_world_facts"))
+                        .description(OptionDescription.of(tr("friendai.config.memory.max_world_facts.tooltip")))
                         .binding(128, () -> m.maxWorldFacts, v -> m.maxWorldFacts = v)
                         .controller(o -> IntegerFieldControllerBuilder.create(o).range(1, 200))
                         .build())
@@ -1167,9 +1183,14 @@ public final class FriendaiConfigScreen {
         return ConfigCategory.createBuilder()
                 .name(tr("friendai.config.category.mining"))
                 .option(booleanOption(
-                        "friendai.config.mining.protect_drops", true, () -> m.protectDrops, v -> m.protectDrops = v))
+                        "friendai.config.mining.protect_drops",
+                        "friendai.config.mining.protect_drops.tooltip",
+                        true,
+                        () -> m.protectDrops,
+                        v -> m.protectDrops = v))
                 .option(Option.<Integer>createBuilder()
                         .name(tr("friendai.config.mining.catch_blocks"))
+                        .description(OptionDescription.of(tr("friendai.config.mining.catch_blocks.tooltip")))
                         .binding(9, () -> m.catchBlocks, v -> m.catchBlocks = v)
                         .controller(o -> IntegerFieldControllerBuilder.create(o).range(0, 27))
                         .build())
@@ -1775,6 +1796,20 @@ public final class FriendaiConfigScreen {
             java.util.function.Consumer<Boolean> setter) {
         return Option.<Boolean>createBuilder()
                 .name(tr(nameKey))
+                .binding(def, getter, setter)
+                .controller(BooleanControllerBuilder::create)
+                .build();
+    }
+
+    private static Option<Boolean> booleanOption(
+            String nameKey,
+            String descriptionKey,
+            boolean def,
+            java.util.function.Supplier<Boolean> getter,
+            java.util.function.Consumer<Boolean> setter) {
+        return Option.<Boolean>createBuilder()
+                .name(tr(nameKey))
+                .description(OptionDescription.of(tr(descriptionKey)))
                 .binding(def, getter, setter)
                 .controller(BooleanControllerBuilder::create)
                 .build();

@@ -880,5 +880,17 @@
   "friendai.config.skills.server_count": "Skills kept per server",
   "friendai.config.skills.server_count.tooltip": "How many shared instruction skills are kept per server (1–32, default 32).",
   "friendai.config.skills.total_chars": "Total skill text (characters)",
-  "friendai.config.skills.total_chars.tooltip": "Upper bound on stored instruction-skill text per owner (4000–96000, default 96000)."
+  "friendai.config.skills.total_chars.tooltip": "Upper bound on stored instruction-skill text per owner (4000–96000, default 96000).",
+  "friendai.config.memory.max_fact_chars.tooltip": "Longest single remembered fact (characters; 40–512, default 512).",
+  "friendai.config.memory.max_facts_per_player.tooltip": "How many facts are remembered about each player (1–128, default 128).",
+  "friendai.config.memory.max_world_facts.tooltip": "How many facts are remembered about the world (1–200, default 128).",
+  "friendai.config.skills.budget.tooltip": "Characters of instruction skills allowed in one prompt (200–6000, default 4096). More room means more skills and a larger, costlier request.",
+  "friendai.config.skills.hourly.tooltip": "How many instruction skills the model may write per hour (0–60, default 6).",
+  "friendai.config.mining.catch_blocks.tooltip": "Most blocks one protected drop may cost as a platform or shortcut (0–27, default 9).",
+  "friendai.config.pathing.allow_break.tooltip": "Whether the companion may dig through blocks on its way to a destination. Turn it off to keep builds intact.",
+  "friendai.config.pathing.allow_place.tooltip": "Whether the companion may place blocks to climb or bridge on its way. Turn it off to keep builds intact.",
+  "friendai.config.chat.listen_all.tooltip": "Whether the companion reacts to chat it was not addressed in. Off by default so it does not interrupt.",
+  "friendai.config.chat.guests_enabled.tooltip": "Whether players the owner has not trusted may talk to the companion.",
+  "friendai.config.autonomy.allow_building.tooltip": "Whether free time may place blocks. Off keeps autonomous work to gathering, travel and crafting.",
+  "friendai.config.mining.protect_drops.tooltip": "Whether a valuable drop is protected with a platform before its block is broken, spending blocks to avoid losing it."
 }

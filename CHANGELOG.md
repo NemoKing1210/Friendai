@@ -8,6 +8,16 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.118.0] - 2026-11-01
+
+### Added
+
+- Consequential switches now explain themselves: digging and bridging on the way, hearing unaddressed chat, letting guests talk, building in free time and protecting valuable drops each carry a tooltip, as do the memory and skill limits.
+
+### Changed
+
+- `architecture/settings-inventory.md` records every server setting, its default, clamp, screen key and tooltip, so a new option has a checklist to fit into.
+
 ## [0.117.0] - 2026-11-01
 
 ### Added

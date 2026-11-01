@@ -880,5 +880,17 @@
   "friendai.config.skills.server_count": "Compétences conservées par serveur",
   "friendai.config.skills.server_count.tooltip": "Combien de compétences procédurales partagées sont conservées par serveur (1–32, par défaut 32).",
   "friendai.config.skills.total_chars": "Texte total des compétences (caractères)",
-  "friendai.config.skills.total_chars.tooltip": "Plafond du texte de compétences conservé par propriétaire (4000–96000, par défaut 96000)."
+  "friendai.config.skills.total_chars.tooltip": "Plafond du texte de compétences conservé par propriétaire (4000–96000, par défaut 96000).",
+  "friendai.config.memory.max_fact_chars.tooltip": "Longueur d'un fait mémorisé (caractères ; 40–512, par défaut 512).",
+  "friendai.config.memory.max_facts_per_player.tooltip": "Combien de faits sont mémorisés sur chaque joueur (1–128, par défaut 128).",
+  "friendai.config.memory.max_world_facts.tooltip": "Combien de faits sont mémorisés sur le monde (1–200, par défaut 128).",
+  "friendai.config.skills.budget.tooltip": "Combien de caractères de compétences procédurales tiennent dans une invite (200–6000, par défaut 4096). Plus de place signifie plus de compétences et une requête plus grosse et plus chère.",
+  "friendai.config.skills.hourly.tooltip": "Combien de compétences procédurales le modèle peut écrire par heure (0–60, par défaut 6).",
+  "friendai.config.mining.catch_blocks.tooltip": "Combien de blocs un butin protégé peut coûter en plateforme ou détour (0–27, par défaut 9).",
+  "friendai.config.pathing.allow_break.tooltip": "Si le compagnon peut creuser des blocs en chemin. Désactivez pour garder vos constructions intactes.",
+  "friendai.config.pathing.allow_place.tooltip": "Si le compagnon peut poser des blocs pour grimper ou faire un pont. Désactivez pour garder vos constructions intactes.",
+  "friendai.config.chat.listen_all.tooltip": "Si le compagnon réagit au chat qui ne lui est pas adressé. Désactivé par défaut pour ne pas interrompre.",
+  "friendai.config.chat.guests_enabled.tooltip": "Si les joueurs non approuvés par le propriétaire peuvent parler au compagnon.",
+  "friendai.config.autonomy.allow_building.tooltip": "Si le temps libre peut poser des blocs. Désactivé, le travail autonome se limite à la collecte, aux trajets et à l'artisanat.",
+  "friendai.config.mining.protect_drops.tooltip": "Si un butin précieux est protégé par une plateforme avant de casser son bloc, au prix de quelques blocs."
 }

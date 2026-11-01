@@ -880,5 +880,17 @@
   "friendai.config.skills.server_count": "Gespeicherte Serverfähigkeiten",
   "friendai.config.skills.server_count.tooltip": "Wie viele gemeinsame Anleitungsfähigkeiten pro Server gespeichert werden (1–32, Standard 32).",
   "friendai.config.skills.total_chars": "Gesamttext der Fähigkeiten (Zeichen)",
-  "friendai.config.skills.total_chars.tooltip": "Obergrenze für gespeicherten Anleitungstext pro Besitzer (4000–96000, Standard 96000)."
+  "friendai.config.skills.total_chars.tooltip": "Obergrenze für gespeicherten Anleitungstext pro Besitzer (4000–96000, Standard 96000).",
+  "friendai.config.memory.max_fact_chars.tooltip": "Länge eines einzelnen gemerkten Fakts (Zeichen; 40–512, Standard 512).",
+  "friendai.config.memory.max_facts_per_player.tooltip": "Wie viele Fakten über jeden Spieler gemerkt werden (1–128, Standard 128).",
+  "friendai.config.memory.max_world_facts.tooltip": "Wie viele Fakten über die Welt gemerkt werden (1–200, Standard 128).",
+  "friendai.config.skills.budget.tooltip": "Wie viele Zeichen Anleitungsfähigkeiten in eine Anweisung passen (200–6000, Standard 4096). Mehr Platz bedeutet mehr Fähigkeiten und eine größere, teurere Anfrage.",
+  "friendai.config.skills.hourly.tooltip": "Wie viele Anleitungsfähigkeiten das Modell pro Stunde schreiben darf (0–60, Standard 6).",
+  "friendai.config.mining.catch_blocks.tooltip": "Wie viele Blöcke ein geschützter Fund als Plattform oder Umweg kosten darf (0–27, Standard 9).",
+  "friendai.config.pathing.allow_break.tooltip": "Ob der Begleiter auf dem Weg zum Ziel Blöcke abbauen darf. Ausschalten, um Bauten unversehrt zu lassen.",
+  "friendai.config.pathing.allow_place.tooltip": "Ob der Begleiter auf dem Weg Blöcke setzen darf, um zu klettern oder zu brücken. Ausschalten, um Bauten unversehrt zu lassen.",
+  "friendai.config.chat.listen_all.tooltip": "Ob der Begleiter auf Chat reagiert, der nicht an ihn gerichtet ist. Standardmäßig aus, damit er nicht stört.",
+  "friendai.config.chat.guests_enabled.tooltip": "Ob Spieler, denen der Besitzer nicht vertraut, mit dem Begleiter sprechen dürfen.",
+  "friendai.config.autonomy.allow_building.tooltip": "Ob die Freizeit Blöcke setzen darf. Aus beschränkt autonome Arbeit auf Sammeln, Reisen und Handwerk.",
+  "friendai.config.mining.protect_drops.tooltip": "Ob ein wertvoller Fund vor dem Abbau mit einer Plattform gesichert wird, damit er nicht verloren geht."
 }

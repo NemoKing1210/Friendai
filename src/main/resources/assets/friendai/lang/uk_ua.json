@@ -877,5 +877,17 @@
   "friendai.config.skills.server_count": "Збережених навичок сервера",
   "friendai.config.skills.server_count.tooltip": "Скільки спільних навичок-інструкцій зберігається на сервері (1–32, типово 32).",
   "friendai.config.skills.total_chars": "Усього тексту навичок (символи)",
-  "friendai.config.skills.total_chars.tooltip": "Верхня межа збереженого тексту інструкцій на власника (4000–96000, типово 96000)."
+  "friendai.config.skills.total_chars.tooltip": "Верхня межа збереженого тексту інструкцій на власника (4000–96000, типово 96000).",
+  "friendai.config.memory.max_fact_chars.tooltip": "Довжина одного запам'ятованого факту (символи; 40–512, типово 512).",
+  "friendai.config.memory.max_facts_per_player.tooltip": "Скільки фактів запам'ятовується про кожного гравця (1–128, типово 128).",
+  "friendai.config.memory.max_world_facts.tooltip": "Скільки фактів запам'ятовується про світ (1–200, типово 128).",
+  "friendai.config.skills.budget.tooltip": "Скільки символів навичок-інструкцій вміщується в одну підказку (200–6000, типово 4096). Більше місця — більше навичок і дорожчий запит.",
+  "friendai.config.skills.hourly.tooltip": "Скільки навичок-інструкцій модель може написати за годину (0–60, типово 6).",
+  "friendai.config.mining.catch_blocks.tooltip": "Скільки блоків може коштувати захист однієї цінної знахідки — платформа чи обхід (0–27, типово 9).",
+  "friendai.config.pathing.allow_break.tooltip": "Чи може помічник копати блоки дорогою до цілі. Вимкніть, щоб будівлі залишалися цілими.",
+  "friendai.config.pathing.allow_place.tooltip": "Чи може помічник ставити блоки, щоб піднятися чи збудувати міст. Вимкніть, щоб будівлі залишалися цілими.",
+  "friendai.config.chat.listen_all.tooltip": "Чи реагує помічник на чат, до нього не звернений. Типово вимкнено, щоб не заважати.",
+  "friendai.config.chat.guests_enabled.tooltip": "Чи можуть гравці, яким власник не довіряє, розмовляти з помічником.",
+  "friendai.config.autonomy.allow_building.tooltip": "Чи може вільний час ставити блоки. Якщо вимкнено, автономна робота обмежується збором, подорожами та крафтом.",
+  "friendai.config.mining.protect_drops.tooltip": "Чи захищати цінну знахідку платформою перед руйнуванням блока, витрачаючи блоки, щоб її не втратити."
 }

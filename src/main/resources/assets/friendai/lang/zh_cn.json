@@ -877,5 +877,17 @@
   "friendai.config.skills.server_count": "服务器保留的技能",
   "friendai.config.skills.server_count.tooltip": "服务器保留多少条共享指令技能（1–32，默认 32）。",
   "friendai.config.skills.total_chars": "技能文本总量（字符）",
-  "friendai.config.skills.total_chars.tooltip": "每位主人保存的指令技能文本上限（4000–96000，默认 96000）。"
+  "friendai.config.skills.total_chars.tooltip": "每位主人保存的指令技能文本上限（4000–96000，默认 96000）。",
+  "friendai.config.memory.max_fact_chars.tooltip": "单条记忆事实的长度（字符；40–512，默认 512）。",
+  "friendai.config.memory.max_facts_per_player.tooltip": "记住每位玩家的多少条事实（1–128，默认 128）。",
+  "friendai.config.memory.max_world_facts.tooltip": "记住关于世界的多少条事实（1–200，默认 128）。",
+  "friendai.config.skills.budget.tooltip": "单个提示中可容纳的指令技能字符数（200–6000，默认 4096）。空间越大技能越多，请求也越大越贵。",
+  "friendai.config.skills.hourly.tooltip": "模型每小时可写多少条指令技能（0–60，默认 6）。",
+  "friendai.config.mining.catch_blocks.tooltip": "保护一件珍贵掉落最多可花费的方块数（平台或绕行，0–27，默认 9）。",
+  "friendai.config.pathing.allow_break.tooltip": "同伴前往目的地时是否可以挖掘方块。关闭可保护建筑。",
+  "friendai.config.pathing.allow_place.tooltip": "同伴在途中是否可以放置方块来攀爬或搭桥。关闭可保护建筑。",
+  "friendai.config.chat.listen_all.tooltip": "同伴是否对并非对它说的话作出反应。默认关闭以免打断。",
+  "friendai.config.chat.guests_enabled.tooltip": "主人未信任的玩家是否可以与同伴交谈。",
+  "friendai.config.autonomy.allow_building.tooltip": "空闲时间是否可以放置方块。关闭后自主工作仅限采集、赶路和合成。",
+  "friendai.config.mining.protect_drops.tooltip": "破坏方块前是否用平台保护珍贵掉落，以免它掉进危险处。"
 }
