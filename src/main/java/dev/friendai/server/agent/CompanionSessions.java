@@ -831,15 +831,26 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
         String extra(boolean success, long planId, String tool, String text) {
             try {
                 dev.friendai.agent.verify.WorldSnapshot after = OutcomeFacts.snapshot(companion);
-                String factsLine = dev.friendai.agent.verify.OutcomeChecker.check(
-                                last,
-                                after,
-                                success,
-                                java.util.List.of(),
-                                new dev.friendai.task.queue.CompanionGuardFacts(companion))
-                        .factsLine();
-                last = after;
                 var board = goals.board(owner);
+                // The goal that owns this plan is what the task was for: its criteria are the proof to check.
+                java.util.List<dev.friendai.agent.goal.Criterion> criteria = planId == 0
+                        ? java.util.List.of()
+                        : board.all().stream()
+                                .filter(goal -> goal.planId() == planId)
+                                .findFirst()
+                                .map(dev.friendai.agent.goal.Goal::criteria)
+                                .orElse(java.util.List.of());
+                var outcome = dev.friendai.agent.verify.OutcomeChecker.check(
+                        last, after, success, criteria, new dev.friendai.task.queue.CompanionGuardFacts(companion));
+                last = after;
+                String factsLine = outcome.factsLine();
+                if (!outcome.unmetCriteria().isEmpty()) {
+                    // A criterion the world cannot show is not a completion, and the model must be told so.
+                    factsLine = (factsLine.isBlank() ? "" : factsLine + " ")
+                            + "not proven yet: "
+                            + String.join("; ", outcome.unmetCriteria())
+                            + ".";
+                }
                 var priorGoals = board.all();
                 String extra;
                 if (success) {
