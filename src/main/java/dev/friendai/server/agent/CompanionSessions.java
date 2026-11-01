@@ -699,13 +699,13 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
     private final class GamePlannerPort implements dev.friendai.agent.turn.PlannerPort {
         private final UUID owner;
         private final CompanionEntity companion;
-        /** Plans the planner cancels itself; their end is not news and must not trigger another replan. */
-        private final java.util.Set<Long> replaced;
+        /** The owner's session: self-cancelled plans and the facts earlier tasks verified. */
+        private final CompanionSession session;
 
-        GamePlannerPort(UUID owner, CompanionEntity companion, java.util.Set<Long> replaced) {
+        GamePlannerPort(UUID owner, CompanionEntity companion, CompanionSession session) {
             this.owner = owner;
             this.companion = companion;
-            this.replaced = replaced;
+            this.session = session;
         }
 
         @Override
@@ -748,7 +748,8 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                     primary.get().lessons(),
                     failure,
                     schemas,
-                    taskTools.keySet()));
+                    taskTools.keySet(),
+                    session.verifiedFacts()));
         }
 
         @Override
@@ -772,7 +773,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                 long oldPlan = primary.get().planId();
                 // Unlink first and silence the plan's end event: cancelling must not count as a failure.
                 board.linkPlan(primary.get().id(), 0);
-                replaced.add(oldPlan);
+                session.replacedPlans().add(oldPlan);
                 JsonObject cancel = new JsonObject();
                 cancel.addProperty("action", "cancel");
                 cancel.addProperty("plan", oldPlan);
@@ -821,9 +822,12 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                 new dev.friendai.agent.recover.FailureHandler(new dev.friendai.agent.recover.RecoveryAdvisor());
         private dev.friendai.agent.verify.WorldSnapshot last;
 
-        AgentEvents(UUID owner, CompanionEntity companion) {
+        private final CompanionSession session;
+
+        AgentEvents(UUID owner, CompanionEntity companion, CompanionSession session) {
             this.owner = owner;
             this.companion = companion;
+            this.session = session;
             this.last = OutcomeFacts.snapshot(companion);
         }
 
@@ -843,6 +847,9 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                 var outcome = dev.friendai.agent.verify.OutcomeChecker.check(
                         last, after, success, criteria, new dev.friendai.task.queue.CompanionGuardFacts(companion));
                 last = after;
+                session.noteVerified(outcome.facts().stream()
+                        .map(dev.friendai.agent.verify.Fact::text)
+                        .toList());
                 String factsLine = outcome.factsLine();
                 if (!outcome.unmetCriteria().isEmpty()) {
                     // A criterion the world cannot show is not a completion, and the model must be told so.
@@ -996,7 +1003,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                                 .player(uuid)
                                 .map(PlayerRecord::lastName)
                                 .orElse(""))));
-        brain.setPlannerPort(new GamePlannerPort(owner, companion, session.replacedPlans()));
+        brain.setPlannerPort(new GamePlannerPort(owner, companion, session));
         brain.setAgentSettings(() -> new dev.friendai.agent.turn.AgentSettings(
                 config.agent.toolRouting,
                 dev.friendai.agent.turn.AgentSettings.Autonomy.parse(config.agent.autonomy),
@@ -1027,7 +1034,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
             facts.refresh();
             return board.view(plan, facts);
         });
-        AgentEvents agent = new AgentEvents(owner, companion);
+        AgentEvents agent = new AgentEvents(owner, companion, session);
         companion.executionCoordinator().setEventSink(new TaskEventSink() {
             @Override
             public void onFinished(int id, String toolName, TaskStatus status, String summary) {

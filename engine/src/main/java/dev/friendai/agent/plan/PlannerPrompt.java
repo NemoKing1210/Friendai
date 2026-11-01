@@ -54,6 +54,12 @@ public final class PlannerPrompt {
             }
         }
         out.append("World:\n").append(in.world()).append('\n');
+        if (!in.verified().isEmpty()) {
+            out.append("Already verified by earlier tasks:\n");
+            for (int i = 0; i < Math.min(8, in.verified().size()); i++) {
+                out.append("- ").append(in.verified().get(i)).append('\n');
+            }
+        }
         if (!in.knowledge().isBlank()) {
             out.append("Known places and resources:\n").append(in.knowledge()).append('\n');
         }
