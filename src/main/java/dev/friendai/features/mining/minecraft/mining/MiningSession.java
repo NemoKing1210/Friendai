@@ -533,6 +533,7 @@ public final class MiningSession {
             case MiningRefusal.ServerProtected p -> UserMessage.of("friendai.mining.server_protected", coords(p.pos()));
             case MiningRefusal.PlaceProtected p -> UserMessage.of("friendai.mining.place_protected", coords(p.pos()));
             case MiningRefusal.OwnSupport p -> UserMessage.of("friendai.mining.own_support_unsafe", coords(p.pos()));
+            case MiningRefusal.LavaBelow p -> UserMessage.of("friendai.mining.lava_below", coords(p.pos()));
             case MiningRefusal.Blacklisted p -> UserMessage.of("friendai.mining.not_breakable", coords(p.pos()));
             case MiningRefusal.Unbreakable p -> UserMessage.of("friendai.mining.not_breakable", coords(p.pos()));
             case MiningRefusal.OutOfReach p -> UserMessage.of("friendai.mining.unreachable");

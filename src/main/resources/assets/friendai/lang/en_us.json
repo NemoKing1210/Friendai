@@ -586,6 +586,7 @@
   "friendai.menu.places.error.name_invalid": "A place name must be 1-%s characters.",
 
   "friendai.mining.unsafe_support": "I can't mine a block that supports me or the route.",
+  "friendai.mining.lava_below": "I won't break %s: there is lava directly below it.",
   "friendai.mining.server_protected": "%s is protected by the server (spawn protection or a world rule).",
   "friendai.mining.place_protected": "%s is inside a place the owner asked me to protect.",
   "friendai.mining.own_support_unsafe": "The block under my feet at %s has an unsafe drop below.",

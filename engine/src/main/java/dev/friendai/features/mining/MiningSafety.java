@@ -16,6 +16,35 @@ public final class MiningSafety {
 
     private MiningSafety() {}
 
+    /** What a break leaves under the target and the stance. */
+    public enum FloorRisk {
+        SAFE,
+        LAVA_BELOW_TARGET,
+        LAVA_BELOW_STANCE,
+        LAVA_BEHIND,
+        NO_SUPPORT_AFTER
+    }
+
+    /**
+     * A pure floor-and-back check. {@code behind} is the cell behind the target in the direction the companion
+     * faces; it may be null when the caller has no facing.
+     */
+    public static FloorRisk floorRisk(CellView view, Pos target, Pos stance, Pos behind) {
+        if (view.at(target.x(), target.y() - 1, target.z()).kind() == Cell.Kind.LAVA) {
+            return FloorRisk.LAVA_BELOW_TARGET;
+        }
+        if (view.at(stance.x(), stance.y() - 1, stance.z()).kind() == Cell.Kind.LAVA) {
+            return FloorRisk.LAVA_BELOW_STANCE;
+        }
+        if (behind != null && view.at(behind).kind() == Cell.Kind.LAVA) {
+            return FloorRisk.LAVA_BEHIND;
+        }
+        if (!view.at(stance.x(), stance.y() - 1, stance.z()).supports()) {
+            return FloorRisk.NO_SUPPORT_AFTER;
+        }
+        return FloorRisk.SAFE;
+    }
+
     /** Whether a target may be extracted from this stance without removing its feet, head, or support. */
     public static boolean canBreak(CellView view, Node stance, Pos target, Set<Pos> protectedSupports) {
         if (target.equals(stance.pos())
