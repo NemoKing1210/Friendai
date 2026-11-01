@@ -56,13 +56,13 @@ class PerceptionTextTest {
     void threatLineNamesTarget() {
         assertEquals(
                 "zombie 4.2 blocks behind-right, 18/20 hp, coming for me",
-                new Threat("zombie", 4.2, "behind-right", 18f, 20f, "me").toPromptText());
+                new Threat("zombie", 4.2, "behind-right", 18f, 20f, "me", true).toPromptText());
         assertEquals(
                 "skeleton 9.0 blocks north, 20/20 hp, not targeting anyone",
-                new Threat("skeleton", 9.0, "north", 20f, 20f, "nothing").toPromptText());
+                new Threat("skeleton", 9.0, "north", 20f, 20f, "nothing", true).toPromptText());
         assertEquals(
                 "creeper 3.0 blocks left, 20/20 hp, coming for the owner",
-                new Threat("creeper", 3.0, "left", 20f, 20f, "owner").toPromptText());
+                new Threat("creeper", 3.0, "left", 20f, 20f, "owner", true).toPromptText());
     }
 
     @Test

@@ -34,7 +34,7 @@ final class SelfCareFactsBuilder {
         float ownerHealth = owner == null ? 1.0F : owner.getHealth() / Math.max(1.0F, owner.getMaxHealth());
         boolean ownerThreatNear = owner != null
                 && ownerHealth <= SelfCarePlanner.OWNER_HURT
-                && !Threats.hostilesNear(level, owner.position(), OWNER_THREAT_RADIUS)
+                && !Threats.dangersNear(level, owner.position(), OWNER_THREAT_RADIUS, companion)
                         .isEmpty();
         return new SelfCareFacts(
                 companion.getHealth() / Math.max(1.0F, companion.getMaxHealth()),

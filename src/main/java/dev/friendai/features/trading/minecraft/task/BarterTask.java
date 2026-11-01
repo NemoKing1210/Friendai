@@ -111,10 +111,11 @@ public final class BarterTask implements Task {
             return TaskStatus.RUNNING;
         }
         TraderTaskNavigation.stop(navigator, context);
-        if (!Threats.hostilesNear(
+        if (!Threats.dangersNear(
                                 (net.minecraft.server.level.ServerLevel) context.level(),
                                 context.companion().position(),
-                                8.0)
+                                8.0,
+                                context.companion())
                         .stream()
                         .anyMatch(hostile -> hostile != piglin)
                 && phase == Phase.READY) {

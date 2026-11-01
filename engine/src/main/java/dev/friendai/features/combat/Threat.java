@@ -6,10 +6,18 @@ import java.util.Locale;
  * One hostile mob near the companion, with no Minecraft types. {@code target} is one of {@code me},
  * {@code owner}, {@code someone else} or {@code nothing}; text is English, LLM-facing.
  */
-public record Threat(String type, double distance, String direction, float health, float maxHealth, String target) {
+public record Threat(
+        String type,
+        double distance,
+        String direction,
+        float health,
+        float maxHealth,
+        String target,
+        boolean attackable) {
     public String toPromptText() {
-        return type + " " + String.format(Locale.ROOT, "%.1f", distance) + " blocks " + direction + ", "
+        String line = type + " " + String.format(Locale.ROOT, "%.1f", distance) + " blocks " + direction + ", "
                 + Math.round(health) + "/" + Math.round(maxHealth) + " hp, " + targetText();
+        return attackable ? line : line + " — danger, do not attack";
     }
 
     private String targetText() {

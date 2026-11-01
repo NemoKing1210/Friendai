@@ -267,7 +267,7 @@ class PerceptionSnapshotTest {
                 "none",
                 focus,
                 self,
-                List.of(new Threat("zombie", 4.2, "behind-right", 18f, 20f, "me")),
+                List.of(new Threat("zombie", 4.2, "behind-right", 18f, 20f, "me", true)),
                 List.of(new Landmark("crafting_table", "crafting_table", "12 64 -3", 4.1, "south-east")),
                 List.of());
         String text = snapshot.toPromptText();
