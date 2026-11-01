@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.140.0] - 2026-11-01
+
+### Changed
+
+- When the companion runs out of replans it now names the exact blocker — for example "target not reachable (can't reach 1 2 3)" — instead of reporting a generic failure, and it records no further lessons for that goal until you unblock it.
+
 ## [0.139.0] - 2026-11-01
 
 ### Changed

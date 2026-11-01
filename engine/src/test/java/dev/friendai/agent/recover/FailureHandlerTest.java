@@ -90,7 +90,19 @@ class FailureHandlerTest {
         assertFalse(first.contains(FailureHandler.BUDGET_SPENT), first);
         String second = handler.onFailure(board, 7, "go_to", "can't reach 1 2 3", "");
         assertTrue(second.contains(FailureHandler.BUDGET_SPENT), second);
+        assertTrue(
+                second.contains("blocker: target not reachable (can't reach 1 2 3)"),
+                "the exhausted budget names the blocker and the place: " + second);
         assertEquals(GoalStatus.BLOCKED, board.primary().orElseThrow().status());
+
+        String third = handler.onFailure(board, 7, "go_to", "can't reach 4 5 6", "");
+        assertTrue(third.contains(FailureHandler.BUDGET_SPENT), "a blocked goal never replans again: " + third);
+        assertTrue(third.contains("blocker: target not reachable"), "a blocked goal still names its blocker: " + third);
+        assertEquals(
+                2,
+                board.primary().orElseThrow().lessons().size(),
+                "lessons stop growing once blocked: "
+                        + board.primary().orElseThrow().lessons());
     }
 
     @Test
