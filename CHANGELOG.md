@@ -8,6 +8,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.95.9] - 2026-11-01
+
+### Fixed
+
+- A companion that broke the block it was standing on no longer calls the thing it was sent for unreachable. Standing on the rim of the hole it has just dug, with nothing under its own feet, it now steps back onto solid ground and carries on instead of refusing every step it could take.
+
 ## [0.95.8] - 2026-11-01
 
 ### Fixed
