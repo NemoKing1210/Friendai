@@ -29,17 +29,40 @@ The mod is **not client-only**: the server owns the companion entity, the brain,
 2. Implement against that spec and plan, following "Test scope" and "Definition of done" like any other task.
 3. Close the loop: when the item is done, tick it `[x]` and move it to `TODO_ARCHIVE.md`, in the same commit that carries the change. Never renumber the remaining items — the maintainer refers to work by number ("do task 2"), so numbers are stable and finished items keep theirs. The archive is read-only history: never renumber an archived item and never reuse its number.
 
-**Pick a whole item, never a slice.** When the maintainer asks you to choose work from `TODO.md` ("take the next task", "pick something", "do a task"), choose a top-level item with its own number — `17`, not `17.1`. A sub-item is one slice of its parent, so picking it leaves the rest of the parent unattended and that number half-finished in the list, while the parent reads as still open. Once you have claimed the parent, work through its sub-items in order and tick each `[x]` as it lands. If the maintainer names a sub-item ("do 17.1"), that is an explicit order: take that line alone and leave the parent's box as it is (see the claim rule below).
+**Pick a whole item, never a slice.**
 
-**Claim the item before you start it.** Several sessions share this checkout, so an unmarked item can be taken twice. As the first edit of the work — before the spec, before any code — change the item's `- [ ]` to `- [~]`. That marker is the whole claim: **never add** a session name, a timestamp or an `**In progress**` line under the item, and do not ask another session to add one. Taking a single sub-item — only when the maintainer names that sub-item, per "Pick a whole item, never a slice" — marks that line the same way (`- [~] **2.3. …`) and leaves the parent's box alone. Check `grep -nE '^\s*- \[~\]' TODO.md` and `git log --oneline -5` before picking, and leave a claimed item to its session.
+- When the maintainer asks you to choose work from `TODO.md` ("take the next task", "pick something", "do a task"), choose a top-level item with its own number — `17`, not `17.1`.
+- A sub-item is one slice of its parent: picking it leaves the rest of the parent unattended and that number half-finished, while the parent reads as still open.
+- Once you have claimed the parent, work through its sub-items in order and tick each `[x]` as it lands.
+- If the maintainer names a sub-item ("do 17.1"), that is an explicit order: take that line alone and leave the parent's box as it is (see the claim rule below).
 
-**The claim is never a commit of its own.** Mark the item `[~]` and leave `TODO.md` uncommitted: the marker waits and is committed only once the whole task is finished, together with the task's files (the commit that ticks the item `[x]` and moves it to `TODO_ARCHIVE.md`; for a task split into several commits, the final one). Do not make a `chore(todo): take task N` commit. The trade-off is real — another checkout cannot see an uncommitted marker — so before you take an item check `grep -nE '^\s*- \[~\]' TODO.md`, `git status` and `git log`, and when two sessions share the file, coordinate instead of trusting the commit history.
+**Claim the item before you start it.**
+
+- Several sessions share this checkout, so an unmarked item can be taken twice. As the first edit of the work — before the spec, before any code — change the item's `- [ ]` to `- [~]`.
+- That marker is the whole claim: **never add** a session name, a timestamp or an `**In progress**` line under the item, and do not ask another session to add one.
+- Taking a single sub-item — only when the maintainer names that sub-item, per "Pick a whole item, never a slice" — marks that line the same way (`- [~] **2.3. …`) and leaves the parent's box alone.
+- Check `grep -nE '^\s*- \[~\]' TODO.md` and `git log --oneline -5` before picking, and leave a claimed item to its session.
+
+**The claim is never a commit of its own.**
+
+- Mark the item `[~]` and leave `TODO.md` uncommitted: the marker waits and is committed only once the whole task is finished, together with the task's files (the commit that ticks the item `[x]` and moves it to `TODO_ARCHIVE.md`; for a task split into several commits, the final one).
+- Do not make a `chore(todo): take task N` commit.
+- The trade-off is real — another checkout cannot see an uncommitted marker — so before you take an item check `grep -nE '^\s*- \[~\]' TODO.md`, `git status` and `git log`, and when two sessions share the file, coordinate instead of trusting the commit history.
 
 When the work ends: tick `[x]` and move the item to `TODO_ARCHIVE.md`, in the commit that carries the change. When you stop or abandon it: restore `[ ]` and say why in your final message. Never delete or silently rewrite another session's marker; a `[~]` older than 24 hours whose session is visibly gone may be taken over by saying so.
 
-**When the spec and the plan are not needed.** Small, fully understood items go straight to code: a simple bug fix with a clear cause, a text change in the UI, a translation or comment fix, a version bump. The call is the agent's. If you can state the whole change in two sentences and the risk of a wrong direction is low, skip the paperwork. If the item spans several modules, changes an interface, a save format, a config schema or user-visible behavior that needs design, or you are not sure what the fix is, write the spec and the plan first. Unsure whether it is small? Write a one-paragraph spec: the cost is low, a wrong direction is not.
+**When the spec and the plan are not needed.**
 
-**Recording an item is not a commit of its own.** When the maintainer dictates work into `TODO.md`, write it and leave the file uncommitted — several items usually arrive in one sitting, and one commit per item is noise. Commit `TODO.md` once the batch is done or when the maintainer asks, along with the other files of that commit. This is one of two deliberate exceptions to "commit your own work as you finish it": dictated items wait for the batch, and a claim marker waits for the task it marks.
+- Small, fully understood items go straight to code: a simple bug fix with a clear cause, a text change in the UI, a translation or comment fix, a version bump. The call is the agent's.
+- If you can state the whole change in two sentences and the risk of a wrong direction is low, skip the paperwork.
+- If the item spans several modules, changes an interface, a save format, a config schema or user-visible behavior that needs design, or you are not sure what the fix is, write the spec and the plan first.
+- Unsure whether it is small? Write a one-paragraph spec: the cost is low, a wrong direction is not.
+
+**Recording an item is not a commit of its own.**
+
+- When the maintainer dictates work into `TODO.md`, write it and leave the file uncommitted — several items usually arrive in one sitting, and one commit per item is noise.
+- Commit `TODO.md` once the batch is done or when the maintainer asks, along with the other files of that commit.
+- This is one of two deliberate exceptions to "commit your own work as you finish it": dictated items wait for the batch, and a claim marker waits for the task it marks.
 
 ## Commands
 
@@ -91,6 +114,7 @@ The first build downloads Minecraft and takes minutes; later builds take seconds
 | `src/gametest/resources/` | GameTest `fabric.mod.json` (entrypoints) and `data/.../structure/*.nbt`. |
 | `build.gradle`, `engine/build.gradle`, `settings.gradle`, `gradle.properties` | Loom + engine setup, dependencies, and all versions including `mod_version`. |
 | `gradle/` | Wrapper. |
+| `.gitattributes`, `.editorconfig` | Line endings and editor defaults: text files are stored and checked out with LF, `*.bat`/`*.cmd` with CRLF, and Markdown keeps trailing spaces. Do not change them to "fix" a Windows checkout; a CRLF rewrite makes the whole tree look modified. |
 | `scripts/` | Maintenance scripts (`setup-branch-protection.sh`). |
 | `.github/workflows/` | CI: unit tests, GameTests, build, commit lint, release. |
 | `.githooks/` | Local `commit-msg` hook mirroring commitlint. Enable with `git config core.hooksPath .githooks`. |
@@ -108,6 +132,7 @@ The first build downloads Minecraft and takes minutes; later builds take seconds
 The rest of the map lives in `ARCHITECTURE.md`: the source sets, the **Where to start** table, the dependency rule, every package with its classes, the runtime flows (one chat turn, the task lifecycle, the menu, configuration, speech in and out), data and persistence, the network protocol and the access rules. Read it before changing a package you have not touched.
 
 Both files are part of the contract: add or move a package that either one names, and update it in the same commit.
+
 ## Rules that keep it working
 
 1. **Threads.** The world is touched only on the server thread. Server-side HTTP (the brain) runs on its own thread and hops back with `server.execute(...)` through `ServerBrainScheduler.execute`. Client speech stays on the client: recognition and synthesis run on worker threads and hop back with `Minecraft.getInstance().execute(...)`, and only the server-side transcript handler uses `server.execute(...)`. A `CompletableFuture` callback never touches entities directly.
@@ -144,7 +169,7 @@ The mod ships one mixin set — `friendai.mixins.json`, package `dev.friendai.mi
 
 Java layout is not a matter of taste: `build.gradle` wires [Spotless](https://github.com/diffplug/spotless) to [palantir-java-format](https://github.com/palantir/palantir-java-format) over `src/*/java/**/*.java`, both versions pinned in `gradle.properties`. Palantir is the formatter that matches this repository — 4-space indent and 120-column lines — where google-java-format would re-indent every file to 2 spaces.
 
-- **Formatting is the last step of every task, before the commit.** Run `./gradlew spotlessApply -PspotlessFiles=<comma-separated root-relative paths>` over the files you changed — the ones `git diff --name-only -- '*.java'` lists plus the files you created. Include `engine/` in paths under the engine module. The root formatter task delegates to both projects and each formats only its own selection. It rewrites them, sorts and prunes imports, trims trailing whitespace and ends the file with a newline. The `Formatting` job in CI runs `spotlessCheck` and fails on any file that differs, so an unformatted file costs a red gate.
+- **Format after your last edit and before the covering test run, never after it.** Run `./gradlew spotlessApply -PspotlessFiles=<comma-separated root-relative paths>` over the files you changed — the ones `git diff --name-only -- '*.java'` lists plus the files you created. If you edit them again, format again before the commit. Include `engine/` in paths under the engine module. The root formatter task delegates to both projects and each formats only its own selection. It rewrites them, sorts and prunes imports, trims trailing whitespace and ends the file with a newline. The `Formatting` job in CI runs `spotlessCheck` and fails on any file that differs, so an unformatted file costs a red gate.
 - **Never run a bare `./gradlew spotlessApply` in a shared checkout.** Without `-PspotlessFiles` it rewrites the whole tree, including another session's uncommitted files (see "Parallel sessions"). The bare form is for a checkout you own and for the one-time sweep after a formatter bump; in a shared one, pass your own files, or `./gradlew spotlessCheck -PspotlessFiles=…` to check without writing.
 - The tool owns the layout: never hand-format around it, and do not reflow a file yourself to "fix" its diff.
 - `// spotless:off` and `// spotless:on` around a block that must keep its own layout (an ASCII table, a generated literal, a golden file written out as text), with a reason next to it.
@@ -184,8 +209,15 @@ An agent slows itself down by running Gradle after every edit: a unit run costs 
 - **Unit fakes you can reuse:** `MockHttpServer` (scripted loopback HTTP, records method/path/headers/body), `FakeGateway` (scripted LLM responses/calls/failures), `FakeToolExecutor` (records specs/executions/access), `ManualScheduler` (virtual clock), `GridCellView` (ASCII grid `CellView` in engine test fixtures, shared with pathing tests), `RecordingSpeaker` (captures speech/errors/thinking).
 - **GameTests share one world and run in parallel.** So: never rely on global state; give each test its own block type (`MineBlocksTests` uses a different log per test) and filter item/entity counts by type; build a floor with `GameTestSupport.platform(h, size)`; use `GameTestSupport.mockPlayerAt(...)` because mock players log in at the world origin, in an unloaded area. Drive an `ExecutionCoordinator` yourself inside `h.succeedWhen(() -> { coordinator.tick(); ... })` for deterministic ticking, and set `@GameTest(maxTicks = ...)` for slow tests.
 - **Entities tick only in the chunk(s) the test structure covers.** A mob that walks or is knocked out of them freezes mid-step: it keeps its velocity, stops falling and stops taking damage, so a fight against it never lands another hit and a companion that walks out stops arriving. Arenas are wider than the 8x8 structure, so build them with `GameTestSupport.platform`/`platformAt`, which force-load every chunk they cover; add `GameTestSupport.enclose(h, y, size, height)` when a hurt or fleeing mob could run off the edge.
-- **GameTest runs are expensive; batch them.** Every `runGameTest` boots a Minecraft server, so do not repeat a filtered boot per test. While debugging one test, filter it: `./gradlew runGameTest -Dfabric-api.gametest.filter=friendai-gametest:<test_name>`; `build.gradle` forwards the property to the GameTest server. The value is one glob where `*` matches any text (`friendai-gametest:hunger_tests_*` runs the whole `HungerTests` class, 24 tests in about 50 s including the boot); there is no negation and no pattern list, so "everything except X" is not expressible. A full run takes about 9 minutes, mostly in the batches holding the long `BuildTests`; for a change in one area run that area's class glob first. Run the tests that cover the change when practical; a full `./gradlew runGameTest` is justified only when a game-layer change cannot be covered by one class glob (see "Test scope"), and it is never a prerequisite for a commit. If a full run shows a failure in an unrelated, timing-sensitive test (the shared world makes a few rotate), re-run only that test filtered for a clean signal instead of repeating the whole suite.
-- **A hanging task test must say what it was doing.** Drive the tick loop through `TaskTrace.of(h, runner, companion).succeedWhen(() -> { … })` instead of a bare `h.succeedWhen(...)`: it records one line per tick (position, active task with its `debugStatus()`, queued jobs, sight backlog and how much the companion currently sees) and prints the last twelve ticks every six hundred failed ticks, at most twice; a task that fails and leaves the coordinator idle prints its last sixty ticks right then, and an unexpected exception does the same. A green test prints nothing; a flaky one leaves the whole timeline in `build/gametest-shards/<class>.log`, which CI uploads when a shard fails. Do not add ad-hoc `System.out.println` probes to product code for a test.
+- **GameTest runs are expensive; batch them.**
+  - Every `runGameTest` boots a Minecraft server, so do not repeat a filtered boot per test. While debugging one test, filter it: `./gradlew runGameTest -Dfabric-api.gametest.filter=friendai-gametest:<test_name>`; `build.gradle` forwards the property to the GameTest server.
+  - The value is one glob where `*` matches any text (`friendai-gametest:hunger_tests_*` runs the whole `HungerTests` class, 24 tests in about 50 s including the boot); there is no negation and no pattern list, so "everything except X" is not expressible.
+  - A full run takes about 9 minutes, mostly in the batches holding the long `BuildTests`; for a change in one area run that area's class glob first. A full `./gradlew runGameTest` is justified only when a game-layer change cannot be covered by one class glob (see "Test scope"), and it is never a prerequisite for a commit.
+  - If a full run shows a failure in an unrelated, timing-sensitive test (the shared world makes a few rotate), re-run only that test filtered for a clean signal instead of repeating the whole suite.
+- **A hanging task test must say what it was doing.**
+  - Drive the tick loop through `TaskTrace.of(h, runner, companion).succeedWhen(() -> { … })` instead of a bare `h.succeedWhen(...)`: it records one line per tick (position, active task with its `debugStatus()`, queued jobs, sight backlog and how much the companion currently sees).
+  - It prints the last twelve ticks every six hundred failed ticks, at most twice; a task that fails and leaves the coordinator idle prints its last sixty ticks right then, and an unexpected exception does the same.
+  - A green test prints nothing; a flaky one leaves the whole timeline in `build/gametest-shards/<class>.log`, which CI uploads when a shard fails. Do not add ad-hoc `System.out.println` probes to product code for a test.
 - **New GameTest class?** Add it to the `fabric-gametest` entrypoint list in `src/gametest/resources/fabric.mod.json`, or it will not run, **and** add it to exactly one shard in `.github/gametest-shards.json`; `verifyGametestShards` (part of `CI gate`) fails a class that is registered but in no shard.
 - Per-owner test hooks exist on `CompanionSessions` (`setGatewayOverride`, `setSpeakerWrapper`) so tests can script the LLM without touching the network.
 - `MANUAL_CHECKLIST.md` lists what automation cannot cover (real providers, voice, LAN, both UI languages). Do not tick an item you did not perform.
@@ -253,7 +285,7 @@ An agent slows itself down by running Gradle after every edit: a unit run costs 
 | Symptom | Likely cause / fix |
 |---|---|
 | `Dependency requires at least JVM runtime version 25` | Gradle is on an older JDK. Set `JAVA_HOME` to a JDK 25 for the command. |
-| `Процесс не может получить доступ к файлу` / world lock, or Gradle lock timeout | Another session is running `runGameTest`/`runClient` or a build. Wait and retry; never delete lock files or kill other Java processes. |
+| Windows `Процесс не может получить доступ к файлу` (quoted OS message), world lock, or Gradle lock timeout | Another session is running `runGameTest`/`runClient` or a build. Wait and retry; never delete lock files or kill other Java processes. |
 | Compile error in a file you did not touch | Another session's work in progress. Check `git status`/`git diff` for that file and report it instead of patching. |
 | GameTest fails only in the full run | Shared world or timing. Re-run that test filtered; if it passes alone, note it as flaky rather than changing unrelated code. |
 | A mob freezes, a fight never lands a second hit, a companion stops arriving | The entity left the force-loaded chunks; use `GameTestSupport.platform`/`platformAt`/`enclose`. |
@@ -268,7 +300,11 @@ An agent slows itself down by running Gradle after every edit: a unit run costs 
 
 Use the delegation tool your environment provides (`task`, `Task`/`Agent`, `subagent`, `@mention`, "spawn agents", etc.). The rules below are tool-independent; the adapter notes at the end only name the tools.
 
-**Delegating is the default for work that splits.** A task with independent parts should not be executed serially. Look for the split before you start typing: wide searches, separate modules or files, a set of review passes, a batch of tests or translations all run at the same time instead of one after another. That is the largest wall-clock saving available to an agent — one round of latency instead of four — and it keeps the main context small, because each child returns a conclusion rather than the files it read. If you cannot yet name the parts, spend a minute finding them; if you can, delegate them in one batch.
+**Delegating is the default for work that splits.**
+
+- A task with independent parts should not be executed serially. Look for the split before you start typing: wide searches, separate modules or files, a set of review passes, a batch of tests or translations — anything that can run at the same time instead of one after another.
+- That is the largest wall-clock saving available to an agent — one round of latency instead of four — and it keeps the main context small, because each child returns a conclusion rather than the files it read.
+- If you cannot yet name the parts, spend a minute finding them; if you can, delegate them in one batch.
 
 **You are the orchestrator.** Split the work, write the briefs, fix the shared contracts, integrate the results, and own the final verification. Subagents do bounded pieces; the decisions stay with you.
 
@@ -376,7 +412,7 @@ Bump it as part of any change that alters the shipped mod, by the size of the ch
 |---|---|---|
 | Bug fix, small tweak, translation fix, dependency patch | **PATCH** (`0.1.0` → `0.1.1`) | `fix:` commits, `perf:` with no API change |
 | New feature or skill, new setting, new provider preset, user-visible improvement | **MINOR** (`0.1.1` → `0.2.0`), PATCH resets to 0 | `feat:` commits |
-| Breaking change: config format change that needs a migration, removed or renamed command/tool/setting, save-data incompatibility, Minecraft or Java version bump | **MAJOR** (`0.x` → next `MINOR`, see below), lower parts reset to 0 | `feat!:` / `BREAKING CHANGE:` commits |
+| Breaking change: config format change that needs a migration, removed or renamed command/tool/setting, save-data incompatibility, Minecraft or Java version bump | **MAJOR** after 1.0; while `0.x`, bump **MINOR** instead (see below); lower parts reset to 0 | `feat!:` / `BREAKING CHANGE:` commits |
 | No effect on the shipped jar | **no bump** | `docs`, `ci`, `test`, `style`, `chore`, `build` (tooling only), pure `refactor` |
 
 - While the major version is `0` (pre-1.0), breaking changes bump MINOR instead of MAJOR. Moving to `1.0.0` is the maintainer's decision; never do it on your own.
@@ -428,14 +464,20 @@ is a normal commit on `main`.
 - **Owner / trusted / guest** — the player who summoned the companion, a player the owner trusts, and anyone else who talks to it.
 - **Brain** — `CompanionBrain`, the per-owner agent loop that turns messages into LLM requests and tool calls.
 - **Turn** — one user message plus the tool calls and final reply that answer it.
+- **Goal** — one objective on the owner's `GoalBoard`, with criteria, queue-plan IDs, lessons and a replan budget; goals live in an owner file, so they outlive the entity.
+- **Shift (free time)** — one autonomous block of the companion's free time, planned by `ShiftPolicy`, budgeted per hour and closed with an outcome and a lesson.
 - **Skill** — a player-facing ability exposed to the LLM as a `Tool`, usually implemented by a `Task`.
 - **Instruction skill** — bounded plain-text procedural guidance stored in `skill/`, selected per turn; it advises but never executes or changes tool permissions.
 - **Description** — the companion summary/details plus the owner’s explicit language/address profile in memory format 4.
 - **Tool** — the LLM-facing definition (schema, access level, executor) registered in `FriendaiTools`.
 - **Task** — long-running world work driven tick by tick by `ExecutionCoordinator`.
+- **Reflex** — work ticked before the task runner every server tick (combat, fire, self-care, recovery); it may hold the runner for a few ticks.
+- **Hold** — a scoped suspension of the task runner (`HoldReason`) that keeps the active task and resumes it; the owner's pause is its own hold.
+- **Checkpoint / restore** — a bounded, versioned `TaskState` saved with the execution document and rebuilt by `TaskRestoreRegistry` on load; unsupported or unauthorized work is rejected, not run.
 - **Plan** — an ordered list of tasks (`run_plan` / `SequenceTask`).
 - **Blueprint** — a saved or generated block layout that `BuildTask` places.
 - **Station** — a crafting/cooking block the companion uses; a `StationLease` remembers one it placed.
 - **Perception** — the surroundings and owner focus rendered into prompt text.
 - **Snapshot** — the menu state built by `SnapshotBuilder` and sent to the client.
+- **Owner store** — one versioned JSON file per owner under `<world>/friendai/…`, written by `OwnerFileStore` with debounced, atomic replacement and a `.bak` on corruption.
 - **Provider / preset / route / protocol** — where an LLM request goes and how it is encoded (engine `agent/llm/provider` and `agent/llm/protocol`; root `llm/http/HttpTransport` implements the engine `JsonHttpTransport` port).
