@@ -125,7 +125,8 @@ public final class ToolCatalog {
                 "read_log",
                 "recent_chat",
                 "memory_overview",
-                "compress_memory");
+                "compress_memory",
+                "reset_manner");
         group(
                 metas,
                 ToolGroup.MOVEMENT,

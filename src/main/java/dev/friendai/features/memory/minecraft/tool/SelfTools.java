@@ -111,6 +111,41 @@ public final class SelfTools implements FeatureToolContributor {
                         AccessLevel.OWNER,
                         this::compressMemory),
                 meta("compress_memory"));
+        registry.registerTool(
+                callerTool(
+                        "reset_manner",
+                        "Drop a mannerism the owner dislikes — teasing, humour, warmth, curiosity or energy — or bring the "
+                                + "whole manner back to neutral. Use it the moment the owner says how you talk is wrong, and "
+                                + "speak plainly afterwards.",
+                        SchemaBuilder.object()
+                                .string("kind", "teasing, humour, warmth, curiosity or energy; blank resets all of it")
+                                .build(),
+                        AccessLevel.OWNER,
+                        this::resetManner),
+                meta("reset_manner"));
+    }
+
+    private ToolResult resetManner(CompanionEntity companion, Caller caller, JsonObject args) {
+        UUID owner = self.owner(companion);
+        if (owner == null || caller == null || caller.access() != AccessLevel.OWNER || !owner.equals(caller.uuid()))
+            return ToolResult.error("Only the owner may reset the companion's manner.");
+        if (companion == null) return ToolResult.error("The companion is not in the world.");
+        String raw = args.has("kind") && !args.get("kind").isJsonNull()
+                ? args.get("kind").getAsString().strip()
+                : "";
+        if (raw.isEmpty()) {
+            companion.rejectManner(null);
+            return ToolResult.ok("Manner reset to neutral. Speak plainly from now on.");
+        }
+        dev.friendai.features.social.Traits.Kind kind;
+        try {
+            kind = dev.friendai.features.social.Traits.Kind.valueOf(raw.toUpperCase(java.util.Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            return ToolResult.error("Unknown manner '" + raw + "'; use teasing, humour, warmth, curiosity or energy.");
+        }
+        companion.rejectManner(kind);
+        return ToolResult.ok(
+                "Dropped " + kind.name().toLowerCase(java.util.Locale.ROOT) + "; it will not come back on its own.");
     }
 
     private ToolResult memoryOverview(CompanionEntity companion, Caller caller, JsonObject args) {

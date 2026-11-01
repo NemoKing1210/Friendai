@@ -1,6 +1,7 @@
 package dev.friendai.features.social;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
@@ -43,5 +44,34 @@ class TraitsTest {
     void aCorruptValueIsClampedOnConstruction() {
         assertEquals(0, new Traits(-5, 99, 0, 0, 0).of(Traits.Kind.HUMOUR));
         assertEquals(Traits.MAX, new Traits(-5, 99, 0, 0, 0).of(Traits.Kind.WARMTH));
+    }
+
+    @Test
+    void aRejectedTraitIsDroppedAtOnceAndNeverChosenAgain() {
+        Traits drifted = new Traits(2, 1, 0, 0, 0);
+        Traits dropped = drifted.drop(Traits.Kind.HUMOUR);
+        assertEquals(0, dropped.of(Traits.Kind.HUMOUR), "a rejected trait drops at once");
+
+        var rejected = java.util.Set.of(Traits.Kind.HUMOUR);
+        for (int i = 0; i < 8; i++) {
+            var next = dropped.nextAllowed(rejected);
+            assertTrue(next.isPresent(), "other traits may still grow");
+            assertFalse(next.get() == Traits.Kind.HUMOUR, "a rejected trait is never chosen again");
+            dropped = dropped.step(next.get());
+        }
+    }
+
+    @Test
+    void droppingEverythingReturnsToNeutral() {
+        Traits drifted = new Traits(3, 2, 1, 1, 3);
+        assertEquals(Traits.NEUTRAL, drifted.dropAll());
+        assertTrue(drifted.dropAll().toneLine().isEmpty());
+    }
+
+    @Test
+    void nothingMayGrowWhenEveryTraitIsRejected() {
+        assertTrue(Traits.NEUTRAL
+                .nextAllowed(java.util.EnumSet.allOf(Traits.Kind.class))
+                .isEmpty());
     }
 }
