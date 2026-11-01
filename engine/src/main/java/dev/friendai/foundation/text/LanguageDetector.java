@@ -38,6 +38,9 @@ public final class LanguageDetector {
     private static final Set<String> SPANISH = Set.of(
             "el", "la", "los", "las", "y", "es", "no", "que", "un", "una", "para", "con", "por", "como", "muy", "esta",
             "puedes", "traerme", "pico", "cofre");
+    private static final Set<String> PORTUGUESE = Set.of(
+            "o", "a", "os", "as", "e", "nao", "que", "um", "uma", "para", "com", "por", "como", "muito", "esta",
+            "voce", "pode", "trazer", "picareta", "bau");
 
     private LanguageDetector() {}
 
@@ -90,6 +93,7 @@ public final class LanguageDetector {
         int german = 0;
         int french = 0;
         int spanish = 0;
+        int portuguese = 0;
         var words = WORD.matcher(text.toLowerCase(Locale.ROOT));
         while (words.find()) {
             String word = unaccented(words.group());
@@ -97,15 +101,16 @@ public final class LanguageDetector {
             if (GERMAN.contains(word)) german++;
             if (FRENCH.contains(word)) french++;
             if (SPANISH.contains(word)) spanish++;
+            if (PORTUGUESE.contains(word)) portuguese++;
         }
-        int best = Math.max(Math.max(english, german), Math.max(french, spanish));
+        int best = Math.max(Math.max(english, german), Math.max(Math.max(french, spanish), portuguese));
         if (best < MIN_STOPWORDS) {
             return Optional.empty();
         }
         int winners = 0;
         String name = null;
-        int[] scores = {english, german, french, spanish};
-        String[] names = {"English", "German", "French", "Spanish"};
+        int[] scores = {english, german, french, spanish, portuguese};
+        String[] names = {"English", "German", "French", "Spanish", "Portuguese"};
         for (int i = 0; i < scores.length; i++) {
             if (scores[i] == best) {
                 winners++;

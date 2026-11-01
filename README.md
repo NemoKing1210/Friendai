@@ -129,7 +129,7 @@ The `barter` tool uses a real adult piglin and vanilla gold interaction. Its out
 
 ## Languages
 
-The interface is available in English and Russian. The companion replies in the language you write in, or in a fixed language if you set one. To add a language, see [CONTRIBUTING.md](CONTRIBUTING.md).
+The interface is available in English, Russian, German (`de_de`), French (`fr_fr`), Spanish (`es_es`), Brazilian Portuguese (`pt_br`), Simplified Chinese (`zh_cn`) and Ukrainian (`uk_ua`). The companion replies in the language you write in, or in a fixed language if you set one. Local Piper voices exist only for Russian and English; a translated interface does not add a local voice, so cloud synthesis or English/Russian speech is still required for other languages. To add a language, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Download and releases
 

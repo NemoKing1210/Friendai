@@ -42,6 +42,11 @@ class LanguageDetectorTest {
     }
 
     @Test
+    void portugueseIsNotTakenForSpanish() {
+        assertEquals(Optional.of("Portuguese"), detect("Você pode trazer a picareta de ferro que está no baú?"));
+    }
+
+    @Test
     void aShortReplyIsNotEvidence() {
         assertTrue(detect("да").isEmpty());
         assertTrue(detect("ok").isEmpty());

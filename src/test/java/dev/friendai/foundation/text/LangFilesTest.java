@@ -61,13 +61,22 @@ class LangFilesTest {
         return merged;
     }
 
-    private static int count(String s) {
+    private static List<String> placeholders(String s) {
         Matcher m = PLACEHOLDER.matcher(s);
-        int n = 0;
+        List<String> result = new ArrayList<>();
         while (m.find()) {
-            n++;
+            result.add(m.group());
         }
-        return n;
+        return result;
+    }
+
+    private static Set<String> locales() throws IOException {
+        Set<String> locales = new TreeSet<>();
+        for (Path file : langFiles()) {
+            String filename = file.getFileName().toString();
+            locales.add(filename.substring(0, filename.length() - ".json".length()));
+        }
+        return locales;
     }
 
     @Test
@@ -91,25 +100,33 @@ class LangFilesTest {
     }
 
     @Test
-    void placeholdersMatch() throws IOException {
+    void placeholdersMatchInEveryLanguageInOrder() throws IOException {
         JsonObject en = language("en_us");
-        JsonObject ru = language("ru_ru");
-        for (String key : en.keySet()) {
-            assertEquals(count(en.get(key).getAsString()), count(ru.get(key).getAsString()), key);
+        for (String locale : locales()) {
+            if (locale.equals("en_us")) {
+                continue;
+            }
+            JsonObject translated = language(locale);
+            for (String key : en.keySet()) {
+                assertEquals(
+                        placeholders(en.get(key).getAsString()),
+                        placeholders(translated.get(key).getAsString()),
+                        locale + ": " + key);
+            }
         }
     }
 
     @Test
-    void everyBuiltinSkillHasATitleInBothLanguages() throws IOException {
-        JsonObject en = language("en_us");
-        JsonObject ru = language("ru_ru");
+    void everyBuiltinSkillHasATitleInEveryLanguage() throws IOException {
         List<String> missing = new ArrayList<>();
-        for (var skill :
-                dev.friendai.features.instructions.BuiltinSkills.load(getClass().getClassLoader())) {
-            String key = dev.friendai.features.instructions.BuiltinSkills.titleKey(skill.id())
-                    .orElseThrow();
-            if (!en.has(key)) missing.add("en_us: " + key);
-            if (!ru.has(key)) missing.add("ru_ru: " + key);
+        for (String locale : locales()) {
+            JsonObject catalog = language(locale);
+            for (var skill :
+                    dev.friendai.features.instructions.BuiltinSkills.load(getClass().getClassLoader())) {
+                String key = dev.friendai.features.instructions.BuiltinSkills.titleKey(skill.id())
+                        .orElseThrow();
+                if (!catalog.has(key)) missing.add(locale + ": " + key);
+            }
         }
         assertTrue(missing.isEmpty(), "Missing builtin skill titles: " + missing);
     }
