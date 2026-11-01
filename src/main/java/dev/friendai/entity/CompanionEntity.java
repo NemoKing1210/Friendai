@@ -900,6 +900,27 @@ public class CompanionEntity extends PathfinderMob {
         syncMood(moodModel.pulse(dev.friendai.features.social.Mood.DISPLEASED, tickCount));
     }
 
+    /**
+     * The owner handed something over: one gift point when the stack grows past what that kind ever reached, so
+     * putting the same item down and picking it up again does not pay twice.
+     */
+    public void noteGift(String kind, int balance) {
+        ensureBond();
+        if (bondLedger.gift(kind, balance, gameDay())) {
+            saveBond();
+            syncMood(moodModel.pulse(dev.friendai.features.social.Mood.PLEASED, tickCount));
+        }
+    }
+
+    /** A kill that saved the owner: the mob that had just hurt them is dead. */
+    public void noteRescue() {
+        ensureBond();
+        if (bondLedger.rescue(gameDay())) {
+            saveBond();
+            syncMood(moodModel.pulse(dev.friendai.features.social.Mood.PLEASED, tickCount));
+        }
+    }
+
     /** Work the owner asked for finished: one shared-work point, never for a free-time shift. */
     public void noteSharedWork() {
         ensureBond();

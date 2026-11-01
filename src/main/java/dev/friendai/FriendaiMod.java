@@ -37,6 +37,19 @@ public class FriendaiMod implements ModInitializer {
         });
         FriendaiNetworking.register();
         ChatRouter.register();
+        net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents.AFTER_DEATH.register((entity, source) -> {
+            if (!(source.getEntity() instanceof dev.friendai.entity.CompanionEntity companion)) {
+                return;
+            }
+            companion.owner().ifPresent(owner -> {
+                // The killing blow landed on the mob that had just hurt the owner: a rescue, not a hunt.
+                if (owner.level() == companion.level()
+                        && owner.getLastHurtByMob() == entity
+                        && owner.tickCount - owner.getLastHurtByMobTimestamp() <= 200) {
+                    companion.noteRescue();
+                }
+            });
+        });
         ServerLifecycleEvents.SERVER_STARTING.register(ServerRuntimeRegistry::getOrCreate);
         ServerLifecycleEvents.SERVER_STARTED.register(
                 server -> ServerRuntimeRegistry.find(server).ifPresent(ServerRuntime::onServerStarted));

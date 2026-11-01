@@ -50,6 +50,54 @@ public class SocialBondTests {
         h.succeed();
     }
 
+    @GameTest(maxTicks = 300)
+    public void aGiftPaysOncePerKindAndARescueIsRemembered(GameTestHelper h) {
+        ServerPlayer owner = ready(h);
+        CompanionEntity companion =
+                CompanionManager.get(h.getLevel().getServer()).summon(owner);
+        ServerRuntime runtime = GameTestSupport.runtime(h.getLevel().getServer());
+
+        companion.noteGift("oak_log", 5);
+        h.assertValueEqual(
+                runtime.memory()
+                        .book(owner.getUUID())
+                        .bond(owner.getUUID())
+                        .orElseThrow()
+                        .points(),
+                3,
+                "a gift past the previous peak is worth three");
+        companion.noteGift("oak_log", 5);
+        h.assertValueEqual(
+                runtime.memory()
+                        .book(owner.getUUID())
+                        .bond(owner.getUUID())
+                        .orElseThrow()
+                        .points(),
+                3,
+                "the same balance again pays nothing");
+
+        // A rescue is worth five, and the daily cap still governs: three points already spent leaves no room for it.
+        companion.noteRescue();
+        h.assertValueEqual(
+                runtime.memory()
+                        .book(owner.getUUID())
+                        .bond(owner.getUUID())
+                        .orElseThrow()
+                        .points(),
+                3,
+                "the daily cap refuses a rescue that would pass six points");
+
+        ServerPlayer other = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
+        CompanionEntity second = CompanionManager.get(h.getLevel().getServer()).summon(other);
+        second.noteRescue();
+        var bond = runtime.memory().book(other.getUUID()).bond(other.getUUID()).orElseThrow();
+        h.assertValueEqual(bond.points(), 5, "a rescue is worth five");
+        h.assertTrue(
+                bond.reasons().getFirst().contains("rescue"),
+                "the newest reason must be the rescue, got " + bond.reasons());
+        h.succeed();
+    }
+
     @GameTest(maxTicks = 400)
     public void theBondSurvivesDeathAndRespawn(GameTestHelper h) {
         ServerPlayer owner = ready(h);
