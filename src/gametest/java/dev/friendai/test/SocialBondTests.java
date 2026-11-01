@@ -1,16 +1,31 @@
 package dev.friendai.test;
 
+import dev.friendai.agent.llm.model.LlmResponse;
+import dev.friendai.agent.llm.model.StopReason;
+import dev.friendai.agent.llm.model.Usage;
+import dev.friendai.agent.turn.Speaker;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.features.social.BondLedger;
+import dev.friendai.features.social.BondPrompt;
 import dev.friendai.features.social.Mood;
+import dev.friendai.foundation.text.UserMessage;
+import dev.friendai.presentation.companion.CompanionSnapshot;
+import dev.friendai.server.agent.chat.ChatRouter;
+import dev.friendai.server.net.SnapshotBuilder;
 import dev.friendai.server.runtime.ServerRuntime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.ProblemReporter;
+import net.minecraft.world.level.storage.TagValueInput;
+import net.minecraft.world.level.storage.TagValueOutput;
 
 /** The bond counts real deeds, survives death and never changes a permission. */
 public class SocialBondTests {
@@ -235,6 +250,125 @@ public class SocialBondTests {
                     () -> h.succeedWhen(() -> h.assertTrue(
                             companion.syncedMood() != Mood.WORRIED,
                             "the face leaves worry once the danger is gone: " + companion.syncedMood())));
+        });
+    }
+
+    @GameTest(maxTicks = 300)
+    public void theBondAndMannerSurviveASaveAndLoad(GameTestHelper h) {
+        ServerPlayer owner = ready(h);
+        CompanionEntity companion =
+                CompanionManager.get(h.getLevel().getServer()).summon(owner);
+        companion.noteSharedWork();
+        companion.noteSharedWork();
+        companion.driftTrait();
+        companion.driftTrait();
+
+        BondLedger.Tier tier = companion.bondTier();
+        List<String> reasons = companion.bondReasons();
+        var traits = companion.traits();
+        h.assertTrue(!reasons.isEmpty(), "the saved companion has no deed behind it, so nothing is proved");
+
+        TagValueOutput output = TagValueOutput.createWithContext(
+                ProblemReporter.DISCARDING, h.getLevel().registryAccess());
+        companion.saveWithoutId(output);
+        CompanionEntity restored = h.spawn(FriendaiEntities.COMPANION, 4, 2, 4);
+        restored.load(
+                TagValueInput.create(ProblemReporter.DISCARDING, h.getLevel().registryAccess(), output.buildResult()));
+
+        // The body save carries only the owner; the bond and the manner are read back from the book under that owner.
+        // Four points stay below ACQUAINTANCE, so the tier alone would read STRANGER even for a lost bond: the exact
+        // reasons and the exact drifted traits are what prove the ledger and the drift came through the round trip.
+        h.assertValueEqual(restored.bondTier(), tier, "the bond tier survives a save and load");
+        h.assertValueEqual(restored.bondReasons(), reasons, "the bond reasons survive a save and load");
+        h.assertValueEqual(restored.traits(), traits, "the drifted manner survives a save and load");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 300)
+    public void aGuestCannotReadOrChangeTheBond(GameTestHelper h) {
+        ServerPlayer owner = ready(h);
+        ServerPlayer guest = GameTestSupport.mockPlayerAt(h, 3, 2, 3);
+        ServerRuntime runtime = GameTestSupport.runtime(h.getLevel().getServer());
+
+        // Both hooks must exist before the brain is created, which the first turn does.
+        AtomicReference<String> guestSystem = new AtomicReference<>();
+        runtime.sessions().setGatewayOverride(owner.getUUID(), (system, messages, tools) -> {
+            // An ambient or owner turn is not what this test measures; only the guest's own line is recorded.
+            if (messages.stream().anyMatch(message -> message.text().contains("(guest)]: "))) {
+                guestSystem.set(system);
+            }
+            return CompletableFuture.completedFuture(
+                    new LlmResponse("Noted.", List.of(), StopReason.END, new Usage(0, 0)));
+        });
+        runtime.sessions().setSpeakerWrapper(owner.getUUID(), real -> new Speaker() {
+            @Override
+            public void say(String text) {}
+
+            @Override
+            public void thinking(boolean on) {}
+
+            @Override
+            public void error(UserMessage message) {}
+        });
+
+        CompanionEntity companion =
+                CompanionManager.get(h.getLevel().getServer()).summon(owner);
+        companion.noteSharedWork();
+        companion.noteSharedWork();
+
+        BondLedger.Tier tier = companion.bondTier();
+        List<String> reasons = companion.bondReasons();
+        int points = runtime.memory()
+                .book(owner.getUUID())
+                .bond(owner.getUUID())
+                .orElseThrow()
+                .points();
+        h.assertTrue(!reasons.isEmpty(), "the owner's bond has nothing to leak, so the guest check proves nothing");
+
+        // A menu snapshot resolves a companion by the player who asks, never by a target that player names. The
+        // owner's own snapshot carries the bond, so the guest's empty one is the guard holding, not an empty ledger.
+        CompanionSnapshot ownerMenu = SnapshotBuilder.build(runtime, owner, 0L);
+        h.assertValueEqual(
+                ownerMenu.bondTier(),
+                tier.name().toLowerCase(java.util.Locale.ROOT),
+                "the owner's menu must show the bond tier");
+        h.assertValueEqual(ownerMenu.bondReasons(), reasons, "the owner's menu must show the bond reasons");
+        CompanionSnapshot guestMenu = SnapshotBuilder.build(runtime, guest, 0L);
+        h.assertTrue(
+                guestMenu.bondTier().isEmpty(),
+                "a guest's menu carried the owner's bond tier: " + guestMenu.bondTier());
+        h.assertTrue(
+                guestMenu.bondReasons().isEmpty(),
+                "a guest's menu carried the owner's bond reasons: " + guestMenu.bondReasons());
+
+        // CompanionSessions turns bond facts into prompt text through this one function and tells it whether the
+        // caller is the owner. The entity accessors are permission-blind by design (a bond never gates an action), so
+        // this gate is the guard: the very facts that render a line for the owner render nothing for a guest.
+        String ownerLine = BondPrompt.line(tier, companion.syncedMood(), reasons, true);
+        h.assertTrue(
+                ownerLine.contains("remembered: " + reasons.getFirst()),
+                "the same facts must render a line for the owner, got " + ownerLine);
+        h.assertTrue(
+                BondPrompt.line(tier, companion.syncedMood(), reasons, false).isEmpty(),
+                "the bond facts must render no line for a guest");
+
+        // A real guest turn through the router must neither see the bond in its prompt nor move it.
+        ChatRouter.onChat(runtime, guest, "Friendai, hi");
+
+        h.succeedWhen(() -> {
+            String system = guestSystem.get();
+            h.assertTrue(system != null, "the guest turn never reached the owner's companion");
+            h.assertTrue(!system.contains("remembered:"), "the guest's prompt carried the owner's bond: " + system);
+            h.assertValueEqual(
+                    runtime.memory()
+                            .book(owner.getUUID())
+                            .bond(owner.getUUID())
+                            .orElseThrow()
+                            .points(),
+                    points,
+                    "a guest turn moved the bond");
+            h.assertValueEqual(companion.bondTier(), tier, "a guest turn moved the bond tier");
+            h.assertValueEqual(companion.bondReasons(), reasons, "a guest turn changed the bond reasons");
         });
     }
 }
