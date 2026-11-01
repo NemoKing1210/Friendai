@@ -956,5 +956,8 @@
   "friendai.menu.feeling.goal": "目标：%s",
   "friendai.menu.feeling.met": "已达成：%s",
   "friendai.menu.feeling.not_proven": "未证实：%s",
-  "friendai.menu.feeling.empty": "目前还没有可显示的内容。"
+  "friendai.menu.feeling.empty": "目前还没有可显示的内容。",
+  "friendai.command.pause.on": "停下：在你恢复之前，同伴不会开始新的工作。",
+  "friendai.command.pause.off": "同伴可以继续工作了。",
+  "friendai.command.pause.none": "你还没有可以停下的同伴。"
 }

@@ -8,6 +8,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.129.0] - 2026-11-01
+
+### Added
+
+- `/friendai pause` holds the companion's work and `/friendai resume` lets it continue the same job from where it stopped. The hold survives a rejoin and a respawn until you release it, and a paused companion never reports work as finished.
+
 ## [0.128.0] - 2026-11-01
 
 ### Changed

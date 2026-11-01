@@ -51,6 +51,8 @@ public final class FriendaiCommands {
                 .then(Commands.literal("settings").executes(FriendaiCommands::settings))
                 .then(Commands.literal("social")
                         .then(Commands.literal("status").executes(FriendaiCommands::socialStatus)))
+                .then(Commands.literal("pause").executes(ctx -> pause(ctx, true)))
+                .then(Commands.literal("resume").executes(ctx -> pause(ctx, false)))
                 .then(Commands.literal("speak")
                         .then(Commands.literal("status").executes(FriendaiCommands::speakStatus)))
                 .then(Commands.literal("trust")
@@ -151,6 +153,26 @@ public final class FriendaiCommands {
                 .freeTime()
                 .stop(player.getUUID(), "owner ended free time");
         ctx.getSource().sendSuccess(() -> Component.translatable("friendai.command.freetime.off"), false);
+        return 1;
+    }
+
+    /** Holds the companion's work or lets it continue; the owner's own switch, not a permission. */
+    private static int pause(CommandContext<CommandSourceStack> ctx, boolean paused) throws CommandSyntaxException {
+        ServerPlayer player = ctx.getSource().getPlayerOrException();
+        var companion = ServerRuntimeRegistry.getOrCreate(ctx.getSource().getServer())
+                .companions()
+                .find(player.getUUID())
+                .orElse(null);
+        if (companion == null) {
+            ctx.getSource().sendSuccess(() -> Component.translatable("friendai.command.pause.none"), false);
+            return 0;
+        }
+        companion.executionCoordinator().setManualPause(paused);
+        ctx.getSource()
+                .sendSuccess(
+                        () -> Component.translatable(
+                                paused ? "friendai.command.pause.on" : "friendai.command.pause.off"),
+                        true);
         return 1;
     }
 
