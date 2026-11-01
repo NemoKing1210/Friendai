@@ -757,5 +757,18 @@
   "friendai.config.tasks.queue_max_steps": "Pasos por plan",
   "friendai.config.tasks.queue_max_steps.tooltip": "Máximo de pasos aceptados en un plan (1–128, predeterminado 32).",
   "friendai.config.tasks.fell_collect": "Recoger troncos talados",
-  "friendai.config.tasks.mine_collect": "Recoger botines minados"
+  "friendai.config.tasks.mine_collect": "Recoger botines minados",
+  "friendai.config.category.world": "Mundo",
+  "friendai.config.pathing.allow_break": "Permitir minar en el camino",
+  "friendai.config.pathing.allow_place": "Permitir colocar en el camino",
+  "friendai.config.pathing.search_budget_ms": "Presupuesto de búsqueda de ruta (ms)",
+  "friendai.config.pathing.search_budget_ms.tooltip": "Tiempo que una búsqueda de ruta puede usar por tick (1–50 ms, predeterminado 2). Más alto encuentra antes, pero puede costar FPS.",
+  "friendai.config.pathing.max_gather": "Bloques recogidos en el camino",
+  "friendai.config.pathing.max_gather.tooltip": "Cuántos bloques puede recoger el compañero al rutar (1–256, predeterminado 64).",
+  "friendai.config.places.enabled": "Recordar lugares",
+  "friendai.config.places.auto_remember": "Recordar lugares importantes automáticamente",
+  "friendai.config.places.max": "Lugares guardados",
+  "friendai.config.places.max.tooltip": "Máximo de lugares por propietario (1–512, predeterminado 128).",
+  "friendai.config.structures.max_nearby": "Mobs cercanos antes de construir",
+  "friendai.config.structures.max_nearby.tooltip": "Cuántos mobs del mismo tipo pueden estar ya cerca del sitio antes de construir otro (0–32, predeterminado 4)."
 }

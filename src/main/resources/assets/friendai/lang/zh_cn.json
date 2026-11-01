@@ -757,5 +757,18 @@
   "friendai.config.tasks.queue_max_steps": "每个方案的步骤数",
   "friendai.config.tasks.queue_max_steps.tooltip": "单个方案接受的最大步骤数（1–128，默认 32）。",
   "friendai.config.tasks.fell_collect": "收集砍下的原木",
-  "friendai.config.tasks.mine_collect": "收集挖掘掉落物"
+  "friendai.config.tasks.mine_collect": "收集挖掘掉落物",
+  "friendai.config.category.world": "世界",
+  "friendai.config.pathing.allow_break": "允许途中挖掘",
+  "friendai.config.pathing.allow_place": "允许途中放置",
+  "friendai.config.pathing.search_budget_ms": "寻路预算（毫秒）",
+  "friendai.config.pathing.search_budget_ms.tooltip": "每次寻路每个 tick 可使用的时间（1–50 毫秒，默认 2）。更高会更快找到路径，但可能影响帧率。",
+  "friendai.config.pathing.max_gather": "途中收集方块数",
+  "friendai.config.pathing.max_gather.tooltip": "同伴在寻路途中可以收集多少方块（1–256，默认 64）。",
+  "friendai.config.places.enabled": "记住地点",
+  "friendai.config.places.auto_remember": "自动记住重要地点",
+  "friendai.config.places.max": "保存的地点",
+  "friendai.config.places.max.tooltip": "每位主人保留的最大地点数（1–512，默认 128）。",
+  "friendai.config.structures.max_nearby": "建造前的附近生物数",
+  "friendai.config.structures.max_nearby.tooltip": "在建造前，同一结构类型的生物可以在附近存在多少只（0–32，默认 4）。"
 }

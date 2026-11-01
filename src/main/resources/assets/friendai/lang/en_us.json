@@ -760,5 +760,18 @@
   "friendai.config.tasks.queue_max_steps": "Steps per plan",
   "friendai.config.tasks.queue_max_steps.tooltip": "Maximum steps accepted in one plan (1–128, default 32).",
   "friendai.config.tasks.fell_collect": "Collect felled logs",
-  "friendai.config.tasks.mine_collect": "Collect mined drops"
+  "friendai.config.tasks.mine_collect": "Collect mined drops",
+  "friendai.config.category.world": "World",
+  "friendai.config.pathing.allow_break": "Allow breaking on the way",
+  "friendai.config.pathing.allow_place": "Allow placing on the way",
+  "friendai.config.pathing.search_budget_ms": "Path search budget (ms)",
+  "friendai.config.pathing.search_budget_ms.tooltip": "Time one path search may spend per tick (1–50 ms, default 2). Higher values find paths sooner but can cost frame time.",
+  "friendai.config.pathing.max_gather": "Blocks gathered on the way",
+  "friendai.config.pathing.max_gather.tooltip": "How many blocks the companion may gather while routing (1–256, default 64).",
+  "friendai.config.places.enabled": "Remember places",
+  "friendai.config.places.auto_remember": "Remember important places automatically",
+  "friendai.config.places.max": "Saved places",
+  "friendai.config.places.max.tooltip": "Maximum places kept per owner (1–512, default 128).",
+  "friendai.config.structures.max_nearby": "Nearby mobs before building",
+  "friendai.config.structures.max_nearby.tooltip": "How many mobs of a structure’s kind may already stand near the site before another is built (0–32, default 4)."
 }
