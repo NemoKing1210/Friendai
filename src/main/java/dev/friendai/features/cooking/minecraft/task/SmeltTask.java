@@ -209,6 +209,16 @@ public final class SmeltTask implements Task {
     }
 
     @Override
+    public int waitingTicks() {
+        return waitMode && phase == Phase.WAIT ? waitTicks : -1;
+    }
+
+    @Override
+    public int waitingLimitTicks() {
+        return waitLimitTicks;
+    }
+
+    @Override
     public String describe() {
         if (waitMode && phase == Phase.WAIT) {
             return "waiting for " + targets.size() + " " + plural(targets.size()) + ": " + collected + "/" + total()

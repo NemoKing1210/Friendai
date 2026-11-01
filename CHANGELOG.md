@@ -8,6 +8,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.96.1] - 2026-11-01
+
+### Fixed
+
+- A task that is alive but stops making progress now stops with “no progress for N s: …” instead of burning the whole five-minute timeout, and a short soak checks that a long runner session finishes or cancels without a duplicate terminal event.
+
 ## [0.96.0] - 2026-11-01
 
 ### Added

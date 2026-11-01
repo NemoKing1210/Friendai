@@ -29,7 +29,8 @@ public final class ActiveTaskController {
             CreativeActionContext creativeActionContext,
             boolean creativeSensitive,
             int timeoutSec,
-            ServerSettings settings) {}
+            ServerSettings settings,
+            dev.friendai.task.ProgressWatch progress) {}
 
     public record Completion(ActiveTask active, TaskStatus status, String summary) {}
 
@@ -65,7 +66,8 @@ public final class ActiveTaskController {
                 start.creativeActionContext(),
                 start.creativeSensitive(),
                 timeoutSec.getAsInt(),
-                start.settings());
+                start.settings(),
+                new dev.friendai.task.ProgressWatch(activeTicks));
         current = active;
         try {
             task.start(context(start.taskContext(), active));
@@ -92,6 +94,23 @@ public final class ActiveTaskController {
             summary = "task crashed: " + e.getClass().getSimpleName();
         }
         if (current != active) return Optional.empty();
+        if (status == TaskStatus.RUNNING) {
+            int stallTicks = Math.max(20, active.timeoutSec() * 10);
+            dev.friendai.task.ProgressWatch.Status progress = active.progress()
+                    .observe(
+                            active.task().progressStamp(),
+                            active.task().waitingTicks(),
+                            active.task().waitingLimitTicks(),
+                            activeTicks,
+                            stallTicks);
+            if (progress == dev.friendai.task.ProgressWatch.Status.STALLED) {
+                safeStop(active.task(), activeContext, "no progress");
+                status = TaskStatus.FAILED;
+                String phase = active.task().debugStatus();
+                if (phase == null || phase.isBlank()) phase = active.task().describe();
+                summary = "no progress for " + Math.max(1, stallTicks / 20) + "s: " + phase;
+            }
+        }
         if (status == TaskStatus.RUNNING
                 && active.task().hasTimeout()
                 && activeTicks - active.startActiveTick() > active.timeoutSec() * 20) {
@@ -152,7 +171,8 @@ public final class ActiveTaskController {
                 active.creativeActionContext(),
                 active.creativeSensitive(),
                 active.timeoutSec(),
-                active.settings());
+                active.settings(),
+                active.progress());
         frozenElapsed = 0;
     }
 
