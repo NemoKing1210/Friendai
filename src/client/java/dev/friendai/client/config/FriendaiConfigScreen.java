@@ -24,8 +24,10 @@ import dev.friendai.common.Components;
 import dev.friendai.features.mining.MiningRuntimeSettings;
 import dev.friendai.features.speech.CloudField;
 import dev.friendai.features.speech.PcmConverter;
+import dev.friendai.features.speech.ResolvedTts;
 import dev.friendai.features.speech.VoiceErrors;
 import dev.friendai.features.speech.VoicePreset;
+import dev.friendai.features.speech.VoiceReadiness;
 import dev.friendai.features.speech.stt.SttPresets;
 import dev.friendai.features.speech.tts.TtsPresets;
 import dev.friendai.features.speech.tts.VoiceModel;
@@ -36,6 +38,7 @@ import dev.friendai.infrastructure.config.SecretResolver;
 import dev.friendai.infrastructure.config.ServerConfig;
 import dev.friendai.infrastructure.config.SettingsModel;
 import dev.friendai.infrastructure.config.SettingsSession;
+import dev.friendai.infrastructure.config.VoiceConfig;
 import dev.friendai.infrastructure.config.VoiceDraft;
 import dev.friendai.llm.LlmClient;
 import dev.friendai.llm.http.HttpTransport;
@@ -79,6 +82,14 @@ import net.minecraft.network.chat.contents.TranslatableContents;
 /** The Friendai settings screen, built with YACL. Only loaded when YACL is installed. */
 public final class FriendaiConfigScreen {
     private static final Set<String> AUTO_FETCHED = ConcurrentHashMap.newKeySet();
+
+    /**
+     * Models the connectivity test saw answering with text instead of calling the tool, by
+     * "provider|model". Only a real request can tell, so the verdict is recorded when the player
+     * tests the connection and stays next to the model option for the rest of the session.
+     */
+    private static final Map<String, UserMessage> TEXT_ONLY_MODELS = new ConcurrentHashMap<>();
+
     private static final List<String> WHISPER_MODELS = List.of("tiny", "base", "small");
 
     /** Export/import envelope version; a file that does not carry this number is refused. */
@@ -984,7 +995,15 @@ public final class FriendaiConfigScreen {
                         .testConnection()
                         .whenComplete((result, error) -> Minecraft.getInstance().execute(() -> {
                             if (session == null || !session.current(generation) || screenRevision != revision) return;
-                            toast(error != null ? Components.of(ErrorMessages.forUser(error)) : Components.of(result));
+                            if (error != null) {
+                                toast(Components.of(ErrorMessages.forUser(error)));
+                                return;
+                            }
+                            // The runtime's own verdict decides whether the model can call a tool;
+                            // keep it so the model option carries the reason after the toast is gone.
+                            rememberToolVerdict(providerOpt.pendingValue(), modelOpt.pendingValue(), result);
+                            toast(Components.of(result));
+                            deferRebuild(() -> show(create(parent, revealKey, voiceDraft)));
                         })))
                 .build();
 
@@ -1017,7 +1036,12 @@ public final class FriendaiConfigScreen {
                 .collapsed(true)
                 .option(baseUrlOpt)
                 .build();
-        return ConfigCategory.createBuilder()
+        // The brain offers tools on every acting turn, so a model that answers text instead of a
+        // tool call breaks the companion's action layer; a zero tool-step budget makes a turn chat
+        // only, and then the verdict does not matter.
+        String toolKey = server.brain.maxToolStepsPerTurn > 0 ? toolVerdictKey(p.provider, p.model) : null;
+        UserMessage toolNotice = toolKey == null ? null : TEXT_ONLY_MODELS.get(toolKey);
+        ConfigCategory.Builder provider = ConfigCategory.createBuilder()
                 .name(scoped(tr("friendai.config.category.provider"), "friendai.config.scope.server"))
                 .option(profileOpt)
                 .option(providerOpt)
@@ -1026,13 +1050,18 @@ public final class FriendaiConfigScreen {
                 .option(apiKeyOpt)
                 .option(toggleKey)
                 .option(getKey)
-                .option(modelOpt)
-                .option(loadModels)
+                .option(modelOpt);
+        if (toolNotice != null) {
+            // The exact message the runtime gives a text-only model, so the warning needs no second wording.
+            provider.option(LabelOption.create(
+                    Component.translatable("friendai.config.status.line", Components.of(toolNotice))));
+        }
+        provider.option(loadModels)
                 .option(temperatureOpt)
                 .option(maxTokensOpt)
                 .option(testConnection)
-                .group(advanced)
-                .build();
+                .group(advanced);
+        return provider.build();
     }
 
     private static ConfigCategory companionCategory(ServerConfig server) {
@@ -1949,6 +1978,8 @@ public final class FriendaiConfigScreen {
             ClientConfig.CloudSettings ttsCloud = cloud(tts.cloud, ttsPreset);
             synthesis.addAll(
                     cloudOptions(ttsPreset, ttsCloud, ttsReveal, () -> reopen(parent, client, sttReveal, !ttsReveal)));
+            // A cloud voice without a key cannot speak; the runtime's own message names the field.
+            synthesis.add(statusLabel(synthesisReadiness(tts), "friendai.config.status.ready"));
             synthesis.add(cloudSpeedOption(ttsCloud, ttsPreset.id()));
             if (ttsPreset.paid()) {
                 synthesis.add(LabelOption.create(tr("friendai.config.voice.tts.paid_notice")));
@@ -2020,10 +2051,10 @@ public final class FriendaiConfigScreen {
                         .values(WHISPER_MODELS)
                         .allowAnyValue(false))
                 .build();
-        boolean installed = VoiceRuntime.manager()
-                .isInstalled(WhisperModel.byId(stt.local.model).spec());
-        LabelOption status = LabelOption.create(
-                tr(installed ? "friendai.config.voice.status.installed" : "friendai.config.voice.status.missing"));
+        // A missing model is reported with the runtime's own message, so recording fails with the
+        // same words this row shows.
+        LabelOption status =
+                statusLabel(VoiceRuntime.sttStatus(stt).problem(), "friendai.config.voice.status.installed");
         ButtonOption download = ButtonOption.createBuilder()
                 .name(tr("friendai.config.voice.download"))
                 .action((screen, button) -> {
@@ -2082,10 +2113,7 @@ public final class FriendaiConfigScreen {
                         .values(ids)
                         .valueFormatter(FriendaiConfigScreen::localVoiceLabel))
                 .build();
-        LabelOption status = LabelOption.create(tr(
-                SpeechRuntime.models().isInstalled(effective)
-                        ? "friendai.config.voice.tts.local.status.installed"
-                        : "friendai.config.voice.tts.local.status.missing"));
+        LabelOption status = statusLabel(synthesisReadiness(tts), "friendai.config.voice.tts.local.status.installed");
         LabelOption license = LabelOption.create(
                 Component.translatable("friendai.config.voice.tts.local.license", effective.license()));
         ButtonOption download = ButtonOption.createBuilder()
@@ -2345,8 +2373,50 @@ public final class FriendaiConfigScreen {
     }
 
     private static LabelOption statusLabel(VoiceRuntime.SttStatus status) {
-        return LabelOption.create(
-                status.ready() ? tr("friendai.config.voice.stt.status.ready") : Components.of(status.problem()));
+        return statusLabel(status.problem(), "friendai.config.voice.stt.status.ready");
+    }
+
+    /**
+     * The row a voice dependency shows. When the runtime would refuse to start, its own message is
+     * used verbatim, so the screen names the same reason a failed recording or reply names.
+     */
+    private static LabelOption statusLabel(UserMessage problem, String readyKey) {
+        return LabelOption.create(problem == null ? tr(readyKey) : Components.of(problem));
+    }
+
+    /**
+     * Why synthesis cannot start right now, or null when it can: the same decision
+     * {@code SpeechRuntime.playOne} makes, with the same installed-voice check.
+     */
+    private static UserMessage synthesisReadiness(ClientConfig.TtsSection tts) {
+        ResolvedTts resolved = VoiceConfig.resolveTts(
+                tts, Minecraft.getInstance().getLanguageManager().getSelected(), System::getenv);
+        boolean installed = true;
+        if (resolved.local()) {
+            installed = VoiceModels.byId(resolved.voice())
+                    .map(SpeechRuntime.models()::isInstalled)
+                    .orElse(false);
+        }
+        return VoiceReadiness.tts(resolved, installed);
+    }
+
+    /**
+     * Keeps what one connectivity test proved about a model. Only the runtime's text-only answer is
+     * stored: a model that called the tool needs no warning, and an untested model has no verdict.
+     */
+    private static void rememberToolVerdict(String provider, String model, UserMessage verdict) {
+        String key = toolVerdictKey(provider, model);
+        if (key == null) return;
+        if ("friendai.config.test.ok_text".equals(verdict.key())) {
+            TEXT_ONLY_MODELS.put(key, verdict);
+        } else {
+            TEXT_ONLY_MODELS.remove(key);
+        }
+    }
+
+    private static String toolVerdictKey(String provider, String model) {
+        if (provider == null || model == null || model.isBlank()) return null;
+        return provider.strip() + "|" + model.strip();
     }
 
     /** The entry for one provider; entries are per provider so one key never moves to another. */
