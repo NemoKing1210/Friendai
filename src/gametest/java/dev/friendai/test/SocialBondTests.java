@@ -2,6 +2,7 @@ package dev.friendai.test;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
+import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.features.social.BondLedger;
 import dev.friendai.features.social.Mood;
 import dev.friendai.server.runtime.ServerRuntime;
@@ -131,6 +132,33 @@ public class SocialBondTests {
                     back.get().bondTier() == BondLedger.Tier.STRANGER,
                     "a small bond stays at its tier, but it is read from the book");
         });
+    }
+
+    @GameTest(maxTicks = 300)
+    public void theDriftedMannerIsKeptInTheBook(GameTestHelper h) {
+        ServerPlayer owner = ready(h);
+        ServerRuntime runtime = GameTestSupport.runtime(h.getLevel().getServer());
+        CompanionEntity companion =
+                CompanionManager.get(h.getLevel().getServer()).summon(owner);
+
+        companion.driftTrait();
+        companion.driftTrait();
+
+        var drifted = runtime.memory().book(owner.getUUID()).traits(owner.getUUID());
+        h.assertValueEqual(
+                drifted.of(dev.friendai.features.social.Traits.Kind.HUMOUR)
+                        + drifted.of(dev.friendai.features.social.Traits.Kind.WARMTH)
+                        + drifted.of(dev.friendai.features.social.Traits.Kind.CURIOSITY)
+                        + drifted.of(dev.friendai.features.social.Traits.Kind.ENERGY)
+                        + drifted.of(dev.friendai.features.social.Traits.Kind.TEASING),
+                2,
+                "two compactions make two small steps");
+        h.assertTrue(!drifted.toneLine().isBlank(), "a drifted manner must reach the prompt");
+
+        CompanionEntity fresh = h.spawn(FriendaiEntities.COMPANION, 4, 2, 4);
+        fresh.setOwner(owner.getUUID());
+        h.assertValueEqual(fresh.traits(), drifted, "a new body reads the same manner from the book");
+        h.succeed();
     }
 
     @GameTest(maxTicks = 200)

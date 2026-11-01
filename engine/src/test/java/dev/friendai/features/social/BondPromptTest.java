@@ -27,6 +27,14 @@ class BondPromptTest {
     }
 
     @Test
+    void theDriftedMannerJoinsTheLineWithoutNumbers() {
+        String line = BondPrompt.line(
+                BondLedger.Tier.FRIEND, Mood.CALM, List.of(), new Traits(1, 0, 0, 0, 0), true);
+        assertTrue(line.contains("humour"), line);
+        assertTrue(line.chars().noneMatch(Character::isDigit), line);
+    }
+
+    @Test
     void theLineStaysWithinItsBudget() {
         String line = BondPrompt.line(
                 BondLedger.Tier.CLOSE,

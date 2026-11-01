@@ -15,6 +15,12 @@ public final class BondPrompt {
     private BondPrompt() {}
 
     public static String line(BondLedger.Tier tier, Mood mood, List<String> reasons, boolean ownerCaller) {
+        return line(tier, mood, reasons, Traits.NEUTRAL, ownerCaller);
+    }
+
+    /** The same line plus the drifted manner, which is only ever a style note and never a feeling. */
+    public static String line(
+            BondLedger.Tier tier, Mood mood, List<String> reasons, Traits traits, boolean ownerCaller) {
         if (!ownerCaller) {
             return "";
         }
@@ -33,8 +39,13 @@ public final class BondPrompt {
             case COMBAT -> "you are in a fight";
         };
         String reason = reasons == null || reasons.isEmpty() ? "" : "remembered: " + reasons.getFirst();
+        String drift = traits == null ? "" : traits.toneLine();
         String body = join(tierText, moodText, reason);
-        return body.isEmpty() ? "" : clip("How you feel right now: " + body + ".", MAX_CHARS);
+        String line = body.isEmpty() ? "" : "How you feel right now: " + body + ".";
+        if (!drift.isBlank()) {
+            line = line.isBlank() ? drift : line + " " + drift;
+        }
+        return line.isBlank() ? "" : clip(line, MAX_CHARS + 80);
     }
 
     private static String join(String... parts) {

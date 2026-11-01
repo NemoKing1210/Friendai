@@ -955,6 +955,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                             companion.bondTier(),
                             companion.syncedMood(),
                             companion.bondReasons(),
+                            companion.traits(),
                             caller.access() == AccessLevel.OWNER && owner.equals(caller.uuid()));
                     return social.isEmpty() ? memoryText : (memoryText.isBlank() ? social : memoryText + "\n" + social);
                 },
