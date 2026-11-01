@@ -24,7 +24,9 @@ import java.util.function.Consumer;
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.components.AbstractButton;
 import net.minecraft.client.gui.screens.ConfirmLinkScreen;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.input.MouseButtonInfo;
@@ -37,17 +39,43 @@ public final class SettingsScreenTests implements FabricClientGameTest {
 
     @Override
     public void runTest(ClientGameTestContext context) {
-        runCases(context);
-        var reload = context.computeOnClient(mc -> {
-            mc.getLanguageManager().setSelected("ru_ru");
-            return mc.reloadResourcePacks();
-        });
-        context.waitFor(mc -> reload.isDone());
-        reload.join();
-        runCases(context);
-        context.setScreen(TitleScreen::new);
+        int originalScale = context.computeOnClient(mc -> mc.options.guiScale().get());
+        for (String locale : List.of("en_us", "ru_ru", "de_de", "fr_fr", "es_es", "pt_br", "zh_cn", "uk_ua")) {
+            var reload = context.computeOnClient(mc -> {
+                mc.getLanguageManager().setSelected(locale);
+                return mc.reloadResourcePacks();
+            });
+            context.waitFor(mc -> reload.isDone());
+            reload.join();
+            if (locale.equals("en_us") || locale.equals("ru_ru")) {
+                runCases(context);
+            }
+            check(context, "settings fit " + locale, c -> {
+                c.runOnClient(mc -> {
+                    mc.options.guiScale().set(4);
+                    mc.setScreenAndShow(FriendaiConfigScreen.create(new TitleScreen()));
+                });
+                c.waitTicks(2);
+                c.runOnClient(mc -> {
+                    Screen screen = mc.gui.screen();
+                    require(screen instanceof YACLScreen, "Expected Friendai settings for " + locale);
+                    for (var child : screen.children()) {
+                        if (child instanceof AbstractButton button && button.visible) {
+                            int width = mc.font.width(button.getMessage());
+                            require(
+                                    width <= button.getWidth() - 4,
+                                    locale + " button clipped: \""
+                                            + button.getMessage().getString() + "\" needs " + width + "px, has "
+                                            + button.getWidth());
+                        }
+                    }
+                });
+            });
+            context.setScreen(TitleScreen::new);
+        }
+        context.runOnClient(mc -> mc.options.guiScale().set(originalScale));
         if (!failures.isEmpty()) throw new AssertionError(String.join("\n", failures));
-        System.out.println("FRIENDAI_SETTINGS: all " + passed + " scenarios passed (English and Russian)");
+        System.out.println("FRIENDAI_SETTINGS: all " + passed + " scenarios passed (8 languages, GUI scale 4)");
     }
 
     private void runCases(ClientGameTestContext context) {

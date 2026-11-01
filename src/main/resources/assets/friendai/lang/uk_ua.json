@@ -723,5 +723,6 @@
   "friendai.command.settings.line": "%s: %s",
   "friendai.config.autonomy": "Автономність",
   "friendai.config.chunk_loading": "Завантаження чанків",
-  "friendai.config.hearing_radius": "Радіус чутності"
+  "friendai.config.hearing_radius": "Радіус чутності",
+  "controls.reset": "Скинути"
 }

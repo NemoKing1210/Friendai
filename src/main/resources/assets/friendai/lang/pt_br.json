@@ -726,5 +726,6 @@
   "friendai.command.settings.line": "%s: %s",
   "friendai.config.autonomy": "Autonomia",
   "friendai.config.chunk_loading": "Carregamento de chunks",
-  "friendai.config.hearing_radius": "Raio de audição"
+  "friendai.config.hearing_radius": "Raio de audição",
+  "controls.reset": "Redefinir"
 }
