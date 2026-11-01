@@ -770,5 +770,18 @@
   "friendai.config.places.max": "保存的地点",
   "friendai.config.places.max.tooltip": "每位主人保留的最大地点数（1–512，默认 128）。",
   "friendai.config.structures.max_nearby": "建造前的附近生物数",
-  "friendai.config.structures.max_nearby.tooltip": "在建造前，同一结构类型的生物可以在附近存在多少只（0–32，默认 4）。"
+  "friendai.config.structures.max_nearby.tooltip": "在建造前，同一结构类型的生物可以在附近存在多少只（0–32，默认 4）。",
+  "friendai.config.category.autonomy": "空闲时间",
+  "friendai.config.autonomy.enabled": "允许同伴在你离开时工作",
+  "friendai.config.autonomy.idle_start": "空闲后开始",
+  "friendai.config.autonomy.idle_minutes": "开始前的空闲分钟数",
+  "friendai.config.autonomy.idle_minutes.tooltip": "开始空闲时间前你需要空闲多久（1–240 分钟，默认 5）。",
+  "friendai.config.autonomy.shift_minutes": "空闲时段（分钟）",
+  "friendai.config.autonomy.shift_minutes.tooltip": "一个空闲时段持续多久（1–240 分钟，默认 20）。",
+  "friendai.config.autonomy.max_shifts": "每小时时段数",
+  "friendai.config.autonomy.max_shifts.tooltip": "每小时最大空闲时段数（0–60，默认 6）。",
+  "friendai.config.autonomy.fail_cooldown": "失败时段后的冷却",
+  "friendai.config.autonomy.fail_cooldown.tooltip": "失败后到下一个时段前的分钟数（0–240，默认 10）。",
+  "friendai.config.autonomy.protect_places": "保护已保存地点",
+  "friendai.config.autonomy.allow_building": "允许在空闲时间建造"
 }

@@ -773,5 +773,18 @@
   "friendai.config.places.max": "Lugares salvos",
   "friendai.config.places.max.tooltip": "Máximo de lugares por proprietário (1–512, padrão 128).",
   "friendai.config.structures.max_nearby": "Mobs próximos antes de construir",
-  "friendai.config.structures.max_nearby.tooltip": "Quantos mobs do mesmo tipo podem já estar perto do local antes de construir outro (0–32, padrão 4)."
+  "friendai.config.structures.max_nearby.tooltip": "Quantos mobs do mesmo tipo podem já estar perto do local antes de construir outro (0–32, padrão 4).",
+  "friendai.config.category.autonomy": "Tempo livre",
+  "friendai.config.autonomy.enabled": "Permitir que o companheiro trabalhe enquanto você está fora",
+  "friendai.config.autonomy.idle_start": "Começar após ficar ocioso",
+  "friendai.config.autonomy.idle_minutes": "Minutos ocioso antes de começar",
+  "friendai.config.autonomy.idle_minutes.tooltip": "Quanto tempo você deve ficar ocioso antes do tempo livre começar (1–240 minutos, padrão 5).",
+  "friendai.config.autonomy.shift_minutes": "Turno de tempo livre (minutos)",
+  "friendai.config.autonomy.shift_minutes.tooltip": "Quanto dura um turno de tempo livre (1–240 minutos, padrão 20).",
+  "friendai.config.autonomy.max_shifts": "Turnos por hora",
+  "friendai.config.autonomy.max_shifts.tooltip": "Máximo de turnos de tempo livre por hora (0–60, padrão 6).",
+  "friendai.config.autonomy.fail_cooldown": "Espera após um turno falho",
+  "friendai.config.autonomy.fail_cooldown.tooltip": "Minutos antes de outro turno após uma falha (0–240, padrão 10).",
+  "friendai.config.autonomy.protect_places": "Proteger lugares salvos",
+  "friendai.config.autonomy.allow_building": "Permitir construir no tempo livre"
 }

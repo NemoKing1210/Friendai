@@ -773,5 +773,18 @@
   "friendai.config.places.max": "Gespeicherte Orte",
   "friendai.config.places.max.tooltip": "Maximale Orte pro Besitzer (1–512, Standard 128).",
   "friendai.config.structures.max_nearby": "Mobs in der Nähe vor dem Bau",
-  "friendai.config.structures.max_nearby.tooltip": "Wie viele Mobs derselben Art bereits am Ort stehen dürfen, bevor ein weiterer gebaut wird (0–32, Standard 4)."
+  "friendai.config.structures.max_nearby.tooltip": "Wie viele Mobs derselben Art bereits am Ort stehen dürfen, bevor ein weiterer gebaut wird (0–32, Standard 4).",
+  "friendai.config.category.autonomy": "Freizeit",
+  "friendai.config.autonomy.enabled": "Begleiter darf arbeiten, während Sie weg sind",
+  "friendai.config.autonomy.idle_start": "Nach Untätigkeit beginnen",
+  "friendai.config.autonomy.idle_minutes": "Minuten Untätigkeit vor dem Start",
+  "friendai.config.autonomy.idle_minutes.tooltip": "Wie lange Sie untätig sein müssen, bevor die Freizeit beginnt (1–240 Minuten, Standard 5).",
+  "friendai.config.autonomy.shift_minutes": "Freizeit-Schicht (Minuten)",
+  "friendai.config.autonomy.shift_minutes.tooltip": "Wie lange eine Freizeit-Schicht dauert (1–240 Minuten, Standard 20).",
+  "friendai.config.autonomy.max_shifts": "Schichten pro Stunde",
+  "friendai.config.autonomy.max_shifts.tooltip": "Maximale Freizeit-Schichten pro Stunde (0–60, Standard 6).",
+  "friendai.config.autonomy.fail_cooldown": "Abklingzeit nach einer fehlgeschlagenen Schicht",
+  "friendai.config.autonomy.fail_cooldown.tooltip": "Minuten bis zur nächsten Schicht nach einem Fehler (0–240, Standard 10).",
+  "friendai.config.autonomy.protect_places": "Gespeicherte Orte schützen",
+  "friendai.config.autonomy.allow_building": "Bauen in der Freizeit erlauben"
 }
