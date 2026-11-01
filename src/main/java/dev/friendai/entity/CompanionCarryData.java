@@ -27,11 +27,36 @@ import net.minecraft.world.level.saveddata.SavedDataType;
  * the model only ever needs the most recent one.
  */
 public final class CompanionCarryData extends SavedData {
-    /** The format version of this store; a newer one is not guessed. */
-    static final int SAVE_VERSION = 1;
+    /**
+     * The format version of this store; a newer one is not guessed. Version 2 adds the recovery facts to a death:
+     * the item entities it spawned, the stack fallback and the respawn point. Version 1 files read with no drops.
+     */
+    static final int SAVE_VERSION = 2;
 
     /** How many deaths are kept per owner; the prompt renders only the newest. */
     public static final int MAX_DEATHS = 5;
+
+    private static final Codec<DeathRecord.Drops> DROPS_CODEC = RecordCodecBuilder.create(instance -> instance.group(
+                    Codec.STRING
+                            .listOf()
+                            .optionalFieldOf("entities", List.of())
+                            .forGetter(drops -> drops.entities().stream()
+                                    .map(UUID::toString)
+                                    .toList()),
+                    Codec.STRING.listOf().optionalFieldOf("stacks", List.of()).forGetter(DeathRecord.Drops::stacks),
+                    Codec.BOOL.optionalFieldOf("unrecoverable", false).forGetter(DeathRecord.Drops::unrecoverable))
+            .apply(
+                    instance,
+                    (entities, stacks, unrecoverable) ->
+                            new DeathRecord.Drops(uuids(entities), stacks, unrecoverable)));
+
+    private static final Codec<DeathRecord.Respawn> RESPAWN_CODEC =
+            RecordCodecBuilder.create(instance -> instance.group(
+                            Codec.STRING.optionalFieldOf("dimension", "").forGetter(DeathRecord.Respawn::dimension),
+                            Codec.INT.optionalFieldOf("x", 0).forGetter(DeathRecord.Respawn::x),
+                            Codec.INT.optionalFieldOf("y", 0).forGetter(DeathRecord.Respawn::y),
+                            Codec.INT.optionalFieldOf("z", 0).forGetter(DeathRecord.Respawn::z))
+                    .apply(instance, DeathRecord.Respawn::new));
 
     private static final Codec<DeathRecord> DEATH_RECORD_CODEC = RecordCodecBuilder.create(instance -> instance.group(
                     Codec.STRING.optionalFieldOf("dimension", "").forGetter(DeathRecord::dimension),
@@ -40,10 +65,23 @@ public final class CompanionCarryData extends SavedData {
                     Codec.INT.optionalFieldOf("z", 0).forGetter(DeathRecord::z),
                     Codec.STRING.optionalFieldOf("cause", "").forGetter(DeathRecord::cause),
                     Codec.STRING.optionalFieldOf("killer", "").forGetter(DeathRecord::killer),
-                    Codec.LONG.optionalFieldOf("tick", 0L).forGetter(DeathRecord::tick))
-            .apply(instance, DeathRecord::new));
+                    Codec.LONG.optionalFieldOf("tick", 0L).forGetter(DeathRecord::tick),
+                    DROPS_CODEC.optionalFieldOf("drops").forGetter(death -> Optional.of(death.drops())),
+                    RESPAWN_CODEC.optionalFieldOf("respawn").forGetter(death -> Optional.ofNullable(death.respawn())))
+            .apply(
+                    instance,
+                    (dimension, x, y, z, cause, killer, tick, drops, respawn) -> new DeathRecord(
+                            dimension,
+                            x,
+                            y,
+                            z,
+                            cause,
+                            killer,
+                            tick,
+                            drops.orElse(DeathRecord.Drops.NONE),
+                            respawn.orElse(null))));
 
-    private record OwnerCarry(CompoundTag body, List<DeathRecord> deaths) {
+    private record OwnerCarry(CompoundTag body, List<DeathRecord> deaths, boolean refusedRecovery) {
         private static final Codec<OwnerCarry> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                         CompoundTag.CODEC
                                 .optionalFieldOf("body", new CompoundTag())
@@ -51,12 +89,21 @@ public final class CompanionCarryData extends SavedData {
                         DEATH_RECORD_CODEC
                                 .listOf()
                                 .optionalFieldOf("deaths", List.of())
-                                .forGetter(OwnerCarry::deaths))
+                                .forGetter(OwnerCarry::deaths),
+                        Codec.BOOL.optionalFieldOf("refused_recovery", false).forGetter(OwnerCarry::refusedRecovery))
                 .apply(instance, OwnerCarry::new));
 
         private OwnerCarry {
             body = body == null ? new CompoundTag() : body;
             deaths = List.copyOf(deaths == null ? List.of() : deaths);
+        }
+
+        private OwnerCarry withBody(CompoundTag next) {
+            return new OwnerCarry(next, deaths, refusedRecovery);
+        }
+
+        private OwnerCarry withDeaths(List<DeathRecord> next) {
+            return new OwnerCarry(body, next, refusedRecovery);
         }
 
         private boolean hasBody() {
@@ -99,6 +146,19 @@ public final class CompanionCarryData extends SavedData {
         this.readOnly = false;
     }
 
+    /** Parses stored ids, skipping anything corrupted rather than dropping the whole record. */
+    private static List<UUID> uuids(List<String> stored) {
+        List<UUID> ids = new ArrayList<>(stored.size());
+        for (String id : stored) {
+            try {
+                ids.add(UUID.fromString(id));
+            } catch (IllegalArgumentException ignored) {
+                // A hand-edited file keeps its other drops.
+            }
+        }
+        return ids;
+    }
+
     public static CompanionCarryData get(MinecraftServer server) {
         return server.getDataStorage().computeIfAbsent(TYPE);
     }
@@ -116,7 +176,7 @@ public final class CompanionCarryData extends SavedData {
                 deaths.removeFirst();
             }
         }
-        owners.put(owner, new OwnerCarry(body, deaths));
+        owners.put(owner, new OwnerCarry(body, deaths, false));
         setDirty();
     }
 
@@ -135,7 +195,7 @@ public final class CompanionCarryData extends SavedData {
         if (current == null || !current.hasBody()) {
             return;
         }
-        owners.put(owner, new OwnerCarry(new CompoundTag(), current.deaths()));
+        owners.put(owner, current.withBody(new CompoundTag()));
         setDirty();
     }
 
@@ -152,6 +212,60 @@ public final class CompanionCarryData extends SavedData {
             return Optional.empty();
         }
         return Optional.of(current.deaths().getLast());
+    }
+
+    /** The newest death that still has drops to fetch, empty when there is nothing to go back for. */
+    public Optional<DeathRecord> openDrops(UUID owner) {
+        return lastDeath(owner).filter(death -> !death.drops().empty());
+    }
+
+    /** Marks the drops as dealt with (collected, gone or forbidden) and keeps the death itself in the log. */
+    public void clearDrops(UUID owner) {
+        if (readOnly) {
+            return;
+        }
+        OwnerCarry current = owners.get(owner);
+        if (current == null || current.deaths().isEmpty()) {
+            return;
+        }
+        List<DeathRecord> deaths = new ArrayList<>(current.deaths());
+        DeathRecord newest = deaths.getLast();
+        deaths.set(
+                deaths.size() - 1,
+                new DeathRecord(
+                        newest.dimension(),
+                        newest.x(),
+                        newest.y(),
+                        newest.z(),
+                        newest.cause(),
+                        newest.killer(),
+                        newest.tick(),
+                        DeathRecord.Drops.NONE,
+                        newest.respawn()));
+        owners.put(owner, current.withDeaths(deaths));
+        setDirty();
+    }
+
+    /** Whether the owner told the companion not to go back for its last death. */
+    public boolean refusedRecovery(UUID owner) {
+        OwnerCarry current = owners.get(owner);
+        return current != null && current.refusedRecovery();
+    }
+
+    /** Sets or clears the owner's refusal; a later death clears it by itself. */
+    public void setRefuseRecovery(UUID owner, boolean refused) {
+        if (readOnly) {
+            return;
+        }
+        OwnerCarry current = owners.get(owner);
+        if (current == null) {
+            owners.put(owner, new OwnerCarry(new CompoundTag(), List.of(), refused));
+        } else if (current.refusedRecovery() != refused) {
+            owners.put(owner, new OwnerCarry(current.body(), current.deaths(), refused));
+        } else {
+            return;
+        }
+        setDirty();
     }
 
     /** One prompt line for the newest death, or an empty string when there is none. */

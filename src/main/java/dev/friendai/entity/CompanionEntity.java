@@ -36,6 +36,7 @@ import dev.friendai.server.execution.persistence.TaskPersistenceCoordinator;
 import dev.friendai.server.runtime.ServerRuntimeRegistry;
 import dev.friendai.task.TaskExecutionPort;
 import dev.friendai.task.interact.CompanionHands;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -160,6 +161,8 @@ public class CompanionEntity extends PathfinderMob {
     private final CombatController combatController = new CombatController(this);
     private final FireReflex fireReflex = new FireReflex(this);
     private final SelfCareReflex selfCare = new SelfCareReflex(this);
+    private final dev.friendai.features.survival.minecraft.RecoveryReflex recoveryReflex =
+            new dev.friendai.features.survival.minecraft.RecoveryReflex(this);
     private final FurnaceJobs furnaceJobs = new FurnaceJobs();
     private final HungerWatcher hungerWatcher =
             new HungerWatcher(this, HungerWatcher.DEFAULT_AUTO_DELAY_TICKS, HungerWatcher.DEFAULT_COOL_DOWN_TICKS);
@@ -370,6 +373,13 @@ public class CompanionEntity extends PathfinderMob {
     }
 
     /** The emergency items the companion spends on itself; ticked before the task runner. */
+    /**
+     * Goes back for the drops of the last death: nearby on its own, farther only with free time allowed.
+     */
+    public dev.friendai.features.survival.minecraft.RecoveryReflex recoveryReflex() {
+        return recoveryReflex;
+    }
+
     public SelfCareReflex selfCare() {
         return selfCare;
     }
@@ -1027,6 +1037,44 @@ public class CompanionEntity extends PathfinderMob {
         return moved;
     }
 
+    /** One stack that left the body, with the id of the entity that now carries it. */
+    public record DeathDrop(UUID entity, String stack) {}
+
+    /**
+     * Empties every slot the companion owns onto the ground at the death spot and returns what left, in one pass.
+     * The containers are cleared in the same step, so neither the replacement body nor a vanilla drop path can hand
+     * out a second copy.
+     */
+    private List<DeathDrop> dropEverythingAtDeath(ServerLevel level) {
+        List<DeathDrop> dropped = new ArrayList<>();
+        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
+            ItemStack stack = inventory.getItem(slot);
+            if (stack.isEmpty()) {
+                continue;
+            }
+            ItemStack copy = stack.copy();
+            inventory.setItem(slot, ItemStack.EMPTY);
+            spawnDeathDrop(level, copy, dropped);
+        }
+        inventory.clearContent();
+        for (EquipmentSlot slot : EquipmentSlot.values()) {
+            ItemStack stack = getItemBySlot(slot);
+            if (stack.isEmpty()) {
+                continue;
+            }
+            ItemStack copy = stack.copy();
+            setItemSlot(slot, ItemStack.EMPTY);
+            spawnDeathDrop(level, copy, dropped);
+        }
+        return dropped;
+    }
+
+    private void spawnDeathDrop(ServerLevel level, ItemStack stack, List<DeathDrop> dropped) {
+        ItemEntity entity = spawnAtLocation(level, stack);
+        dropped.add(new DeathDrop(
+                entity == null ? null : entity.getUUID(), stack.getHoverName().getString() + " x" + stack.getCount()));
+    }
+
     public void dropInventory() {
         if (!(level() instanceof ServerLevel serverLevel)) {
             return;
@@ -1040,11 +1088,12 @@ public class CompanionEntity extends PathfinderMob {
         inventory.clearContent();
     }
 
+    /**
+     * Vanilla drops a mob's loot here; the companion has already dropped everything in {@link #die}, and dropping
+     * again would duplicate stacks. The override stays so that no vanilla path can spawn a second copy.
+     */
     @Override
-    protected void dropCustomDeathLoot(ServerLevel level, DamageSource source, boolean killedByPlayer) {
-        // The companion keeps what it carries through death; the replacement body is restored from
-        // captureCarry() and nothing is spawned here. See TODO item 20.
-    }
+    protected void dropCustomDeathLoot(ServerLevel level, DamageSource source, boolean killedByPlayer) {}
 
     @Override
     public void die(DamageSource source) {
@@ -1052,9 +1101,11 @@ public class CompanionEntity extends PathfinderMob {
                 && level() instanceof ServerLevel serverLevel
                 && ownerUuid != null
                 && !deathCaptured) {
-            // Capture while the body, the equipment and the queue are still intact.
+            // Drop before the body is captured: the carry then holds hunger, XP, settings and the queue but no
+            // loot, so the replacement cannot duplicate what already lies on the ground.
             deathCaptured = true;
-            CompanionManager.get(serverLevel.getServer()).onDeath(this, serverLevel, source);
+            List<DeathDrop> dropped = dropEverythingAtDeath(serverLevel);
+            CompanionManager.get(serverLevel.getServer()).onDeath(this, serverLevel, source, dropped);
         }
         super.die(source);
         if (!level().isClientSide() && level() instanceof ServerLevel serverLevel) {

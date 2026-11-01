@@ -8,6 +8,17 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.119.0] - 2026-11-01
+
+### Added
+
+- The companion now drops everything it carries where it dies — bag, armour and both hands, once each — and goes back for it: an idle or following companion fetches drops within 24 blocks on its own, and with free time allowed it walks farther. A hazard (lava, fire, the void), a spot it cannot reach or a full bag is reported instead of retried forever.
+- Two new owner tools: `recover_drops` sends it back for the last death's things, `dropped_items` reports what is still there. Saying "leave it" is remembered until the next death.
+
+### Changed
+
+- After a death the new body starts with an empty bag; hunger, experience, settings and queued work still carry over.
+
 ## [0.118.0] - 2026-11-01
 
 ### Added

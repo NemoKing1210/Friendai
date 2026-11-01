@@ -10,6 +10,7 @@ public final class CompanionExecution {
         companion.combatController().tick();
         companion.fireReflex().tick();
         companion.selfCare().tick();
+        companion.recoveryReflex().tick();
         companion.executionCoordinator().tick();
     }
 }
