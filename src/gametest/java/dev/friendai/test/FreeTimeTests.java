@@ -357,6 +357,65 @@ public class FreeTimeTests {
         });
     }
 
+    /**
+     * The owner coming back does not stop a shift by itself: free time has no distance leash and keeps working with
+     * the owner standing next to the companion. The owner's return order does stop it: the brain's {@code stop} call
+     * ends free time, releases the shift's plan and leaves the companion under the owner's orders.
+     */
+    @GameTest(maxTicks = 600)
+    public void theOwnersReturnOrderStopsTheShift(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        var player = GameTestSupport.mockPlayerAt(h, 12, 2, 12);
+        UUID owner = player.getUUID();
+        var brains = GameTestSupport.runtime(h.getLevel().getServer()).sessions();
+        brains.setGatewayOverride(
+                owner,
+                (system, messages, tools) ->
+                        CompletableFuture.failedFuture(new IllegalStateException("no model in tests")));
+        CompanionEntity c = registered(h, owner);
+        driver(h).start(c, dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, "");
+        long plan = shiftPlan(h, c, "[{\"tool\":\"stay\"}]");
+        c.executionCoordinator().tick();
+        h.assertTrue(
+                c.executionCoordinator().autonomousActive(),
+                "the shift job runs: " + c.executionCoordinator().currentToolName());
+        // The owner walks back to the companion and stands beside it.
+        BlockPos near = h.absolutePos(new BlockPos(3, 2, 3));
+        player.teleportTo(near.getX() + 0.5, near.getY(), near.getZ() + 0.5);
+        int[] ticks = {0};
+        h.succeedWhen(() -> {
+            ticks[0]++;
+            if (ticks[0] == 40) {
+                h.assertTrue(
+                        driver(h).state(owner).on(),
+                        "the owner standing nearby must not stop the shift: "
+                                + driver(h).state(owner));
+                h.assertTrue(driver(h).state(owner).shift() != null, "the shift is still open");
+                brains.setGatewayOverride(owner, new ToolScript("stop", "{}"));
+                brains.post(
+                        owner,
+                        new BrainEvent.PlayerSaid(
+                                owner, "Steve", "that is enough, come back to me", BrainEvent.Source.CHAT));
+            }
+            h.assertTrue(ticks[0] > 40, "waiting for the owner's order");
+            var state = driver(h).state(owner);
+            h.assertTrue(!state.on(), "the owner's order ends free time");
+            h.assertTrue(state.shift() == null, "the shift is closed: " + state.shift());
+            h.assertTrue(
+                    c.executionCoordinator().queue().plan(plan).isEmpty()
+                            || c.executionCoordinator().queue().planStatus(plan)
+                                    != dev.friendai.execution.queue.PlanStatus.ACTIVE,
+                    "the shift plan is released");
+            h.assertTrue(
+                    state.history().stream().anyMatch(record -> record.summary().contains("owner asked to stop")),
+                    "the owner's order is what ended it: " + state.history());
+            h.assertTrue(
+                    !c.executionCoordinator().autonomousActive(),
+                    "no free-time work runs after the order: "
+                            + c.executionCoordinator().currentToolName());
+        });
+    }
+
     @GameTest(maxTicks = 200)
     public void stopEnds(GameTestHelper h) {
         GameTestSupport.platform(h, 8);

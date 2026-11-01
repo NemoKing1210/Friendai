@@ -188,6 +188,43 @@ public class ItemTaskTests {
         });
     }
 
+    /**
+     * Giving is a delivery, not a collection: holding the items is not the outcome. With the owner twelve blocks
+     * away the job keeps running and the bag untouched; it only ends once the companion is close enough to hand the
+     * items over, and the drop lands at the owner rather than at the companion.
+     */
+    @GameTest(maxTicks = 1000)
+    public void givingWaitsUntilTheItemsReachTheOwner(GameTestHelper h) {
+        GameTestSupport.platform(h, 20);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 14, 2, 2);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(owner.getUUID());
+        c.inventory().addItem(new ItemStack(Items.OAK_LOG, 6));
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(new GiveItemsTask(ItemMatcher.parse("minecraft:oak_log").orElseThrow(), 6), "give_items");
+        runner.tick();
+        h.assertTrue(result.status == null, "the job must not finish while the owner is far: " + result.summary);
+        h.assertValueEqual(c.inventory().countItem(Items.OAK_LOG), 6, "the logs are carried, not delivered");
+        h.assertValueEqual(droppedLogs(h, owner), 0, "nothing has reached the owner yet");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "the delivery did not finish: " + result.status);
+            h.assertValueEqual(c.inventory().countItem(Items.OAK_LOG), 0, "delivered logs leave the bag");
+            h.assertTrue(c.distanceTo(owner) <= 6.0, "handed over " + c.distanceTo(owner) + " blocks away");
+            h.assertValueEqual(droppedLogs(h, owner), 6, "the owner did not get the logs");
+            h.assertTrue(result.summary.equals("gave 6 minecraft:oak_log"), "summary was " + result.summary);
+        });
+    }
+
+    /** Oak logs lying within four blocks of the owner: what the delivery actually handed over. */
+    private static int droppedLogs(GameTestHelper h, ServerPlayer owner) {
+        return h.getLevel().getEntitiesOfClass(ItemEntity.class, new AABB(owner.blockPosition()).inflate(4)).stream()
+                .filter(e -> e.getItem().is(Items.OAK_LOG))
+                .mapToInt(e -> e.getItem().getCount())
+                .sum();
+    }
+
     @GameTest
     public void giveWithoutItemFails(GameTestHelper h) {
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 3, 2, 2);
