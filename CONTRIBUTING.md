@@ -4,6 +4,9 @@ Friendai is a Fabric mod for Minecraft 26.3. The server owns the companion entit
 client owns rendering, menus, voice input/output and client settings. Both sides need the mod, including the integrated
 server in singleplayer. Read [AGENTS.md](AGENTS.md) and [ARCHITECTURE.md](ARCHITECTURE.md) before changing an area.
 
+`AGENTS.md` is the canonical rulebook and `ARCHITECTURE.md` the reference; this file is a short human-facing
+summary and must not add rules — when they disagree, `AGENTS.md` wins.
+
 ## Ground rules
 
 - Repository content is English. Player-facing text uses translation keys from `en_us.json`, mirrored in `ru_ru.json`.
