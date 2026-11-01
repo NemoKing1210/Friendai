@@ -37,6 +37,7 @@ public class FriendaiMod implements ModInitializer {
         });
         FriendaiNetworking.register();
         ChatRouter.register();
+        dev.friendai.server.agent.social.HappeningFeed.register();
         net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents.AFTER_DEATH.register((entity, source) -> {
             if (!(source.getEntity() instanceof dev.friendai.entity.CompanionEntity companion)) {
                 return;

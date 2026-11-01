@@ -27,8 +27,8 @@ public final class SocialDirector {
     /** A line nobody could hear waits this long, then is dropped once and never repeated. */
     private static final long WAIT_TICKS = 6_000;
 
-    /** The death tick already spoken about, per owner. */
-    private final Map<UUID, Long> announced = new HashMap<>();
+    /** The happening keys already spoken about, per owner. */
+    private final Map<UUID, java.util.Set<String>> announced = new HashMap<>();
     /** A line waiting for the owner to be free, with the tick it was first held. */
     private final Map<UUID, Held> held = new HashMap<>();
     /** The pace of unprompted lines, per owner. */
@@ -83,7 +83,7 @@ public final class SocialDirector {
         }
     }
 
-    /** The held line if it is still fresh, otherwise the newest death nobody has spoken about yet. */
+    /** The held line if it is still fresh, otherwise the newest unspoken fact: a journal entry, or a death. */
     private String nextFact(ServerRuntime runtime, UUID owner) {
         long now = runtime.server().overworld().getGameTime();
         Held waiting = held.get(owner);
@@ -93,15 +93,21 @@ public final class SocialDirector {
             }
             held.remove(owner);
         }
+        java.util.Set<String> spoken = announced.computeIfAbsent(owner, ignored -> new java.util.HashSet<>());
+        for (var happening : runtime.memory().book(owner).journal(owner).recent(6)) {
+            if (spoken.add(happening.key())) {
+                return happening.text();
+            }
+        }
+        // No journal yet (an older world, or the feed was not registered): fall back to the recorded death.
         Optional<DeathRecord> death = CompanionCarryData.get(runtime.server()).lastDeath(owner);
         if (death.isEmpty()) {
             return null;
         }
-        long tick = death.get().tick();
-        if (announced.getOrDefault(owner, Long.MIN_VALUE) == tick) {
+        String key = "record:" + death.get().tick();
+        if (!spoken.add(key)) {
             return null;
         }
-        announced.put(owner, tick);
         return "I died not long ago at " + death.get().describe() + ".";
     }
 
