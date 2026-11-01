@@ -8,6 +8,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.95.11] - 2026-11-01
+
+### Added
+
+- `/friendai diagnose` writes a bounded, redacted diagnostic bundle for the owner (or an operator for a named owner), with an optional `chat` history and never an API key.
+
 ## [0.95.10] - 2026-11-01
 
 ### Fixed

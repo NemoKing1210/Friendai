@@ -3,6 +3,7 @@
   "modmenu.descriptionTranslation.friendai": "ИИ-компаньон, с которым можно играть и разговаривать — в чате или голосом.",
 
   "friendai.error.config.unknown_provider": "Неизвестный провайдер: %s",
+  "friendai.error.access": "У вас нет доступа к этому.",
   "friendai.error.config.needs_base_url": "Для провайдера %s нужен base URL",
   "friendai.error.config.no_route": "Нет правила маршрутизации для модели %s",
   "friendai.config.test.ok_tools": "Соединение есть: вызов инструментов работает",
@@ -32,6 +33,8 @@
   "friendai.companion.too_far": "Компаньон слишком далеко, чтобы вас услышать.",
 
   "friendai.command.stopped": "Остановился.",
+  "friendai.command.diagnose.written": "Пакет диагностики записан в %s. В нём есть координаты и содержимое инвентаря — проверьте его перед отправкой.",
+  "friendai.command.diagnose.failed": "Не удалось записать пакет диагностики: %s",
   "friendai.freetime.idle_start": "Раз дел нет, займусь пока своими.",
   "friendai.freetime.storage_full": "Склад забит, нужны ещё сундуки.",
   "friendai.freetime.no_plan": "Не получилось это спланировать: %s",
