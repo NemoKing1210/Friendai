@@ -738,6 +738,51 @@ class CompanionBrainTest {
         assertEquals(ReplyGuard.SILENT, assistant.text());
     }
 
+    private static BrainEvent social(String... happenings) {
+        return new BrainEvent.SocialOpening(
+                BrainEvent.SocialOpening.Urgency.ORDINARY, List.of(happenings), "How was the trip?", true);
+    }
+
+    @Test
+    void aSocialTurnOffersTheModelNoTools() {
+        routedToolbox(false);
+        gateway.enqueue(text("The light is good today."));
+        brain.post(social());
+
+        assertTrue(gateway.requests.get(0).tools().isEmpty(), "a social turn must not offer a tool");
+        assertEquals(List.of("The light is good today."), speaker.said);
+        assertTrue(tools.executed.isEmpty(), tools.executed.toString());
+    }
+
+    @Test
+    void aSilentSocialReplySaysAndSpeaksNothing() {
+        gateway.enqueue(text(ReplyGuard.SILENT));
+        brain.post(new BrainEvent.SocialOpening(
+                BrainEvent.SocialOpening.Urgency.HIGH, List.of("you died to a creeper"), "", false));
+
+        assertTrue(speaker.said.isEmpty(), speaker.said.toString());
+        assertTrue(speaker.addressees.isEmpty(), "nothing was spoken to anyone: " + speaker.addressees);
+        assertFalse(brain.isThinking());
+    }
+
+    @Test
+    void aFailedSocialRequestLeavesTheQueuedJobAlone() {
+        CompletableFuture<LlmResponse> pending = gateway.enqueuePending();
+        gateway.enqueue(text("Back to work."));
+        brain.post(social());
+        brain.post(new BrainEvent.TaskFinished(7, "mine_blocks", true, "mined 3 logs"));
+        assertEquals(1, gateway.requests.size(), "the queued job waits behind the running social turn");
+
+        pending.completeExceptionally(new LlmException(LlmErrorKind.AUTH, "bad key"));
+
+        assertEquals(2, gateway.requests.size(), "the queued job still gets its turn");
+        Message user = lastUser(gateway.requests.get(1));
+        assertTrue(user.text().contains("task #7"), "the queued job reached the model: " + user.text());
+        assertTrue(user.text().contains("mined 3 logs"), user.text());
+        assertEquals(List.of("Back to work."), speaker.said);
+        assertFalse(brain.isThinking());
+    }
+
     @Test
     void playerTurnKeepsCoordinatesWhenAsked() {
         gateway.enqueue(text("The hive is at 1279 68 358."));
