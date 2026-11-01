@@ -311,7 +311,7 @@
   "friendai.menu.state.thinking": "思考中…",
   "friendai.menu.state.idle": "空闲",
   "friendai.menu.summon": "召唤",
-  "friendai.menu.teleport": "传送到我身边",
+  "friendai.menu.teleport": "传送到此",
   "friendai.menu.dismiss": "遣散",
   "friendai.menu.stop": "停止",
   "friendai.debug.goal": "目标",

@@ -311,7 +311,7 @@
   "friendai.menu.state.thinking": "Réflexion…",
   "friendai.menu.state.idle": "Inactif",
   "friendai.menu.summon": "Invoquer",
-  "friendai.menu.teleport": "Se téléporter vers moi",
+  "friendai.menu.teleport": "Vers moi",
   "friendai.menu.dismiss": "Renvoyer",
   "friendai.menu.stop": "Arrêter",
   "friendai.debug.goal": "objectif",
