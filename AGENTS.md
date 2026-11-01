@@ -11,6 +11,7 @@ The mod is **not client-only**: the server owns the companion entity, the brain,
 3. Find the exact entry point in `ARCHITECTURE.md`, "Where to start".
 4. Follow "Testing" and "Definition of done".
 5. If several sessions work in this checkout, read "Parallel sessions" first.
+6. Before starting, check whether the task splits into independent parts and run them in parallel — see "Working with subagents".
 
 **Taking a task from `TODO.md`?** Read "Working from TODO.md" first: most items need a spec and a plan before any code.
 
@@ -259,7 +260,9 @@ An agent slows itself down by running Gradle after every edit: a unit run costs 
 
 Use the delegation tool your environment provides (`task`, `Task`/`Agent`, `subagent`, `@mention`, "spawn agents", etc.). The rules below are tool-independent; the adapter notes at the end only name the tools.
 
-**You are the orchestrator.** Split the work, write the briefs, integrate the results, and own the final verification. Subagents do bounded pieces.
+**Delegating is the default for work that splits.** A task with independent parts should not be executed serially. Look for the split before you start typing: wide searches, separate modules or files, a set of review passes, a batch of tests or translations all run at the same time instead of one after another. That is the largest wall-clock saving available to an agent — one round of latency instead of four — and it keeps the main context small, because each child returns a conclusion rather than the files it read. If you cannot yet name the parts, spend a minute finding them; if you can, delegate them in one batch.
+
+**You are the orchestrator.** Split the work, write the briefs, fix the shared contracts, integrate the results, and own the final verification. Subagents do bounded pieces; the decisions stay with you.
 
 **Children run on a cheap model.** A subagent does bounded, mechanical work — a search, a slice of a diff, a review pass — so it runs on the default or the cheapest model that can do the job. Never hand a child an expensive model: no `astra` (or anything in that price class) as a `model`/`model_profile` argument, no `.codex/agents/*.toml` pinned to one, and no copying a pricey session model into a child. If a piece of work seems to need the expensive model, the brief is wrong: split it smaller or do that piece yourself. Say which model a child ran on when a delegation's cost matters.
 
@@ -268,10 +271,22 @@ Use the delegation tool your environment provides (`task`, `Task`/`Agent`, `suba
 - The task splits into 2+ independent parts (separate modules or files, parallel searches, comparing several options, writing tests, reviewing). Launch them **in parallel in one step**, not one after another, if the tool allows it.
 - Heavy reading goes to a subagent: wide code searches, tracing a call path through many files, reading logs or decompiled Minecraft sources. Ask for a short summary with `path:line` references so your own context stays small.
 - Review changes with parallel reviewer subagents (e.g. one for the thread and layer rules, one for tests and localization), when the tool supports it.
+- A feature that touches many feature packages at once: one child per package, all launched together, after the interface they share is fixed.
+
+### How to split the work
+
+Good parallelism is decided before the first child starts, by the file sets:
+
+- **Split by ownership, not by step.** Each child owns a set of files, a module or one review dimension. Two children never write the same file: if two pieces must touch one file, either run them one after the other or keep that file in the main session.
+- **Fix the contract first.** When children implement parts of one feature, the main session writes the interface, the shared types and the file layout before launching them; the children then fill in only their own files. An unclear split produces conflicting edits, a clear one produces parallel files.
+- **Read-only work runs beside everything.** Searches, call-path tracing, log and source reading and independent review passes change nothing, so they can overlap with writers without isolation.
+- **Launch the batch, integrate once.** Start every independent child in a single step so they actually overlap, then read the diffs, resolve conflicts yourself and run the covering build/test pass once, in the main session.
+- **Keep design in the main session.** Architecture choices, interfaces and anything that needs the whole conversation stay with you; children get bounded, mechanical pieces a short brief can describe.
 
 ### When NOT to delegate
 
 - Steps depend on each other's output, the task is small (a few tool calls), or the decision needs one continuous context. Delegating then only adds tokens and latency.
+- The brief would be longer than the work: if describing the piece takes more effort than doing it, do it yourself.
 - If your environment has no subagents, do not invent them. Do the work yourself, but still split it into independent steps and read only what you need.
 
 ### Writing a brief
