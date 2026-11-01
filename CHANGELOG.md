@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.145.0] - 2026-11-01
+
+### Security
+
+- Text the companion remembers about what happened to you (a death, an advancement, a return) now goes through the same secret masking as the rest of the prompt, so a key that slipped into a name cannot reach the model through the journal.
+
 ## [0.144.0] - 2026-11-01
 
 ### Added
