@@ -1,8 +1,47 @@
 # Friendai
 
+**English** · [Русский](README.ru.md) · [Українська](README.uk.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Español](README.es.md) · [Português (Brasil)](README.pt-BR.md) · [简体中文](README.zh-CN.md)
+
+![Minecraft 26.3](https://img.shields.io/badge/Minecraft-26.3-62B47A)
+![Fabric](https://img.shields.io/badge/Fabric-Loader-DBB69C)
+![Java 25](https://img.shields.io/badge/Java-25-ED8B00)
+![MIT](https://img.shields.io/badge/License-MIT-blue)
+
+<img src="src/main/resources/assets/friendai/icon.png" alt="Friendai icon" width="128" align="right">
+
 An open-source Fabric mod that adds an AI companion to Minecraft. Talk to it in chat or by voice, and it will follow you, fetch items, walk to places and mine blocks for you.
 
 > "Friendai, mine 10 logs" — the companion answers in chat, walks to the trees, chops them, picks up the drops and reports back.
+
+## Contents
+
+- [What it can do](#what-it-can-do)
+- [Requirements](#requirements)
+- [Quick start](#quick-start)
+- [Setting up a provider](#setting-up-a-provider)
+- [Voice](#voice)
+- [Goals and planning](#goals-and-planning)
+- [Trading](#trading)
+- [Resource knowledge and search](#resource-knowledge-and-search)
+- [Languages](#languages)
+- [Configuration upgrades](#configuration-upgrades)
+- [Creative mode](#creative-mode)
+- [Download and releases](#download-and-releases)
+- [Building](#building)
+- [Contributing](#contributing)
+
+## What it can do
+
+| Area | What the companion does |
+|---|---|
+| Follow and stay | Follows at a walking distance, stays where told, walks to a point and comes back. |
+| Fetch and deliver | Picks up drops, takes items from containers it has checked, and hands items to you. |
+| Mine and build | Mines a counted block kind, fells a standing tree, places blueprints and builds stairs. |
+| Explore | Looks around, searches a bounded area for a resource, and routes through water and caves. |
+| Fight | Guards you, targets hostile mobs, and retreats or eats when hurt. |
+| Keep working | Loads the chunks around itself, survives a restart, and resumes its last task. |
+| Remember | Keeps owner-scoped memories, places, resource sightings, goals and trading notes. |
+| Speak | Answers in chat or by voice, and can speak replies with a local or cloud voice. |
 
 ## Requirements
 
@@ -52,9 +91,18 @@ Open **Mod Menu → Friendai → Provider**, or edit `config/friendai-server.jso
 | Preset id | Service | Notes |
 |---|---|---|
 | `openai` | OpenAI | Responses API |
-| `openai_compat` | Any OpenAI-compatible endpoint (OpenRouter, Groq, DeepSeek, LM Studio, …) | `baseUrl` is required |
 | `anthropic` | Anthropic | |
 | `gemini` | Google Gemini | |
+| `openrouter` | OpenRouter | one key for many models |
+| `deepseek` | DeepSeek | |
+| `groq` | Groq | fast hosted models |
+| `mistral` | Mistral | |
+| `xai` | xAI | |
+| `together` | Together AI | |
+| `fireworks` | Fireworks AI | |
+| `cerebras` | Cerebras | |
+| `github_models` | GitHub Models | GitHub token |
+| `openai_compat` | Any OpenAI-compatible endpoint (LM Studio, vLLM, …) | `baseUrl` is required |
 | `ollama` | Ollama (native API) | no API key |
 | `opencode_zen` | OpenCode Zen | routes by model name |
 | `command_code` | Command Code | routes by model name |
@@ -131,6 +179,17 @@ The `barter` tool uses a real adult piglin and vanilla gold interaction. Its out
 
 The interface is available in English, Russian, German (`de_de`), French (`fr_fr`), Spanish (`es_es`), Brazilian Portuguese (`pt_br`), Simplified Chinese (`zh_cn`) and Ukrainian (`uk_ua`). The companion replies in the language you write in, or in a fixed language if you set one. Local Piper voices exist only for Russian and English; a translated interface does not add a local voice, so cloud synthesis or English/Russian speech is still required for other languages. To add a language, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
+| Language | Code | Interface | Local voice |
+|---|---|---|---|
+| English | `en_us` | yes | yes |
+| Russian | `ru_ru` | yes | yes |
+| German | `de_de` | yes | no |
+| French | `fr_fr` | yes | no |
+| Spanish | `es_es` | yes | no |
+| Brazilian Portuguese | `pt_br` | yes | no |
+| Simplified Chinese | `zh_cn` | yes | no |
+| Ukrainian | `uk_ua` | yes | no |
+
 ## Download and releases
 
 Releases are published on the [Releases page](https://github.com/NemoKing1210/Friendai/releases). Each one carries
@@ -141,6 +200,10 @@ and on the server. The release notes are the `CHANGELOG.md` section for that ver
 Only the maintainer creates a tag. Pushing `vX.Y.Z` starts the release workflow, which refuses a tag that does not match
 `mod_version`, a commit that is not on `main`, or a commit whose CI run is not green; it then runs the full build and
 publishes the verified jar. See `CONTRIBUTING.md` for the dry run and the local checks.
+
+## Contributing
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md) for the branch, commit, test and translation rules.
 
 ## Building
 
