@@ -54,6 +54,20 @@ public class CompanionEntityTests {
     }
 
     @GameTest
+    public void theOwnerIdIsSyncedSoTheOutlineCanFindItsCompanion(GameTestHelper h) {
+        ServerPlayer player = mockPlayerHere(h);
+        CompanionEntity owned = h.spawn(FriendaiEntities.COMPANION, 1, 2, 1);
+        owned.setOwner(player.getUUID());
+        CompanionEntity orphan = h.spawn(FriendaiEntities.COMPANION, 3, 2, 3);
+        h.assertValueEqual(
+                owned.syncedOwner(),
+                player.getUUID().toString(),
+                "the owner id must reach the client, or the outline cannot tell whose companion this is");
+        h.assertValueEqual(orphan.syncedOwner(), "", "a body with no owner syncs nothing");
+        h.succeed();
+    }
+
+    @GameTest
     public void companionSavesOwnerAndInventory(GameTestHelper h) {
         ServerPlayer player = mockPlayerHere(h);
         CompanionEntity a = h.spawn(FriendaiEntities.COMPANION, 1, 2, 1);

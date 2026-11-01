@@ -11,11 +11,21 @@ import org.slf4j.LoggerFactory;
 
 /** friendai-client.json. */
 public class ClientConfig {
-    public static final int CURRENT_VERSION = 4;
+    public static final int CURRENT_VERSION = 5;
 
     private static final Logger LOGGER = LoggerFactory.getLogger("friendai/config");
     public int version = CURRENT_VERSION;
     public VoiceSection voice = new VoiceSection();
+    public SocialSection social = new SocialSection();
+
+    /** How the owner's companion is shown: the outline through walls and the mood mark above the head. */
+    public static class SocialSection {
+        /** Draw a box around the owner's companion when it is far away or out of sight. */
+        public boolean outline = true;
+
+        /** Draw the mood mark above the companion's head. */
+        public boolean moodMark = true;
+    }
 
     public static class VoiceSection {
         public SttSection stt = new SttSection();

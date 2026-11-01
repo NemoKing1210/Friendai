@@ -16,7 +16,6 @@ public final class BondLedger {
     public static final int FRIEND = 30;
     public static final int CLOSE = 60;
     public static final int DAILY_CAP = 6;
-    private static final int MAX_REASONS = 3;
 
     public enum Tier {
         STRANGER,
@@ -44,6 +43,28 @@ public final class BondLedger {
 
     public List<String> reasons() {
         return List.copyOf(reasons);
+    }
+
+    /**
+     * Every field as one immutable value, newest reason first, so a save can carry the whole ledger across a restart.
+     */
+    public BondState snapshot() {
+        return new BondState(score, lastDay, awardedToday, reasons(), giftPeaks);
+    }
+
+    /**
+     * Replaces every field with a snapshot; a null state restores {@link BondState#EMPTY}, the ledger a fresh
+     * companion starts with. The daily counter and the gift peaks come back exactly as they were saved.
+     */
+    public void restore(BondState state) {
+        BondState value = state == null ? BondState.EMPTY : state;
+        score = value.points();
+        lastDay = value.lastDay();
+        awardedToday = value.awardedToday();
+        reasons.clear();
+        reasons.addAll(value.reasons());
+        giftPeaks.clear();
+        giftPeaks.putAll(value.peaks());
     }
 
     /** One point per elapsed game day toward the base. */
@@ -98,7 +119,7 @@ public final class BondLedger {
 
     private void addReason(String reason) {
         reasons.addFirst(reason);
-        while (reasons.size() > MAX_REASONS) {
+        while (reasons.size() > BondState.MAX_REASONS) {
             reasons.removeLast();
         }
     }

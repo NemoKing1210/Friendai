@@ -116,11 +116,22 @@ public class CompanionEntity extends PathfinderMob {
      */
     private static final EntityDataAccessor<ItemStack> DATA_PLACE_ITEM =
             SynchedEntityData.defineId(CompanionEntity.class, EntityDataSerializers.ITEM_STACK);
+    /**
+     * The owner's UUID, synced so the owner's client can find its own companion for the outline. Nothing else is
+     * derived from it on the client, and the bond never rides an accessor.
+     */
+    private static final EntityDataAccessor<String> DATA_OWNER =
+            SynchedEntityData.defineId(CompanionEntity.class, EntityDataSerializers.STRING);
+
     /** Synced body language; see {@link MoodModel}. */
     private static final EntityDataAccessor<Integer> DATA_MOOD =
             SynchedEntityData.defineId(CompanionEntity.class, EntityDataSerializers.INT);
 
     private final dev.friendai.features.social.MoodModel moodModel = new dev.friendai.features.social.MoodModel();
+    private final dev.friendai.features.social.BondLedger bondLedger = new dev.friendai.features.social.BondLedger();
+    /** The bond is read from the owner's memory book once, on first use, and written back after every change. */
+    private boolean bondLoaded;
+
     private int moodTicks;
 
     private static final EquipmentSlot[] ARMOR_SLOTS = {
@@ -217,6 +228,7 @@ public class CompanionEntity extends PathfinderMob {
         builder.define(DATA_SLIM, false);
         builder.define(DATA_CREATIVE_MODE, false);
         builder.define(DATA_PLACE_ITEM, ItemStack.EMPTY);
+        builder.define(DATA_OWNER, "");
         builder.define(DATA_MOOD, 0);
     }
     /** The companion's experience; after changing it directly call {@link #syncExperience()}. */
@@ -628,6 +640,12 @@ public class CompanionEntity extends PathfinderMob {
         boolean hurt = super.hurtServer(level, source, amount);
         if (hurt && !creativeMode()) {
             hunger.addExhaustion(EXHAUSTION_DAMAGE);
+            if (source.getEntity() instanceof Player player
+                    && !player.isSpectator()
+                    && player.getUUID().equals(ownerUuid)) {
+                // The owner hit it: a displeased face, but never over a fight it is already in.
+                noteOwnerHit();
+            }
         }
         return hurt;
     }
@@ -707,6 +725,11 @@ public class CompanionEntity extends PathfinderMob {
         return ownerUuid;
     }
 
+    /** The owner's UUID as the client sees it; empty when the body has no owner. */
+    public String syncedOwner() {
+        return entityData.get(DATA_OWNER);
+    }
+
     /** Persistent owner combat preferences. Never null; malformed save data loads as documented defaults. */
     public CombatSettings combatSettings() {
         return combatSettings;
@@ -752,6 +775,7 @@ public class CompanionEntity extends PathfinderMob {
 
     public void setOwner(UUID owner) {
         if (!java.util.Objects.equals(this.ownerUuid, owner)) {
+            entityData.set(DATA_OWNER, owner == null ? "" : owner.toString());
             this.ownerUuid = owner;
             creativeModeRevision++;
         }
@@ -847,7 +871,75 @@ public class CompanionEntity extends PathfinderMob {
                 getHealth() < getMaxHealth() * 0.5F || isOnFire() || isInLava() || isEyeInFluid(FluidTags.WATER);
         boolean combat = getTarget() != null;
         boolean work = executionCoordinator().current().isPresent();
-        dev.friendai.features.social.Mood mood = moodModel.update(danger, combat, work, false, false, tickCount);
+        syncMood(moodModel.update(danger, combat, work, false, false, tickCount));
+    }
+
+    /** Whether free time may let the companion work on its own; a plain flag, so features never name server types. */
+    public boolean autonomyEnabled() {
+        return serverSettings().autonomy().enabled();
+    }
+
+    /** The tier the bond has reached; loaded lazily so a body without an owner costs nothing. */
+    public dev.friendai.features.social.BondLedger.Tier bondTier() {
+        ensureBond();
+        return bondLedger.tier();
+    }
+
+    /** At most three remembered reasons, newest first, for the prompt and the status command. */
+    public java.util.List<String> bondReasons() {
+        ensureBond();
+        return bondLedger.reasons();
+    }
+
+    /** The owner hit their companion: the face turns displeased and the bond loses a little, within the daily cap. */
+    public void noteOwnerHit() {
+        ensureBond();
+        if (bondLedger.hurtByOwner(gameDay())) {
+            saveBond();
+        }
+        syncMood(moodModel.pulse(dev.friendai.features.social.Mood.DISPLEASED, tickCount));
+    }
+
+    /** Work the owner asked for finished: one shared-work point, never for a free-time shift. */
+    public void noteSharedWork() {
+        ensureBond();
+        if (bondLedger.sharedWork(gameDay())) {
+            saveBond();
+            syncMood(moodModel.pulse(dev.friendai.features.social.Mood.PLEASED, tickCount));
+        }
+    }
+
+    private int gameDay() {
+        return (int) (level().getGameTime() / 24_000L);
+    }
+
+    private void ensureBond() {
+        if (bondLoaded || ownerUuid == null || !(level() instanceof ServerLevel serverLevel)) {
+            return;
+        }
+        bondLoaded = true;
+        ServerRuntimeRegistry.find(serverLevel.getServer())
+                .ifPresent(runtime -> bondLedger.restore(
+                        runtime.memory().book(ownerUuid).bond(ownerUuid).orElse(null)));
+    }
+
+    private void saveBond() {
+        if (ownerUuid == null || !(level() instanceof ServerLevel serverLevel)) {
+            return;
+        }
+        ServerRuntimeRegistry.find(serverLevel.getServer())
+                .ifPresent(runtime -> runtime.memory().book(ownerUuid).putBond(ownerUuid, bondLedger.snapshot()));
+    }
+
+    /** Applies what the owner explicitly said that is a recognised cue; anything else leaves the face alone. */
+    public void moodCue(String text) {
+        if (level().isClientSide()) {
+            return;
+        }
+        syncMood(moodModel.cue(dev.friendai.features.social.SpeechCue.of(text), tickCount));
+    }
+
+    private void syncMood(dev.friendai.features.social.Mood mood) {
         if (entityData.get(DATA_MOOD) != mood.ordinal()) {
             entityData.set(DATA_MOOD, mood.ordinal());
         }
@@ -1168,7 +1260,10 @@ public class CompanionEntity extends PathfinderMob {
         creativeLanding = false;
         creativeLandingTicks = 0;
         setNoGravity(false);
-        input.read("Owner", UUID_CODEC).ifPresent(id -> this.ownerUuid = id);
+        input.read("Owner", UUID_CODEC).ifPresent(id -> {
+            this.ownerUuid = id;
+            entityData.set(DATA_OWNER, id.toString());
+        });
         syncCreativeModePreference();
         CompanionBodyCodec.read(this, input, taskPersistence());
     }

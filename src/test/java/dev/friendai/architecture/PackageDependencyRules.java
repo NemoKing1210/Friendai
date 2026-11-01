@@ -66,6 +66,9 @@ final class PackageDependencyRules {
             new FeatureDependency("places", "navigation"),
             new FeatureDependency("placements", "navigation"),
             new FeatureDependency("instructions", "memory"),
+            // The memory book owns what the companion remembers about the owner, and the bond is one of those
+            // memories.
+            new FeatureDependency("memory", "social"),
             new FeatureDependency("interaction", "creative"),
             new FeatureDependency("interaction", "combat"),
             new FeatureDependency("interaction", "navigation"),

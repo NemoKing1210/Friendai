@@ -235,10 +235,28 @@ class ConfigStoresTest {
         assertEquals("Mic", config.voice.stt.inputDevice);
         assertEquals(45, config.voice.stt.maxRecordSec);
         assertFalse(config.voice.tts.enabled);
-        assertEquals(4, config.version);
+        assertEquals(ClientConfig.CURRENT_VERSION, config.version);
         assertFalse(json(path).getAsJsonObject("voice").has("whisperModel"));
         store.save(config);
         assertEquals(7, json(path).getAsJsonObject("voice").get("extension").getAsInt());
+    }
+
+    @Test
+    void clientV4GetsTheSocialDefaultsWithoutLosingVoiceSettings() throws IOException {
+        Path path = dir.resolve("client-v4.json");
+        Files.writeString(path, """
+                {"version":4,"voice":{"stt":{"enabled":true,"provider":"groq"},
+                "tts":{"enabled":true,"provider":"local"}}}
+                """);
+        ClientConfig config = ConfigStores.client(path).load();
+        assertEquals(ClientConfig.CURRENT_VERSION, config.version);
+        assertTrue(config.voice.stt.enabled);
+        assertEquals("groq", config.voice.stt.provider);
+        assertTrue(config.voice.tts.enabled);
+        assertTrue(config.social.outline, "the outline is on until the player turns it off");
+        assertTrue(config.social.moodMark, "the mood mark is on until the player turns it off");
+        ConfigStores.client(path).save(config);
+        assertTrue(json(path).getAsJsonObject("social").get("outline").getAsBoolean());
     }
 
     @Test
@@ -306,8 +324,9 @@ class ConfigStoresTest {
             assertThrows(UnsupportedStoreVersionException.class, ConfigStores.server(path)::load);
             assertEquals(source, Files.readString(path));
         }
-        Files.writeString(path, "{\"version\":5}");
+        String futureClient = "{\"version\":" + (ClientConfig.CURRENT_VERSION + 1) + "}";
+        Files.writeString(path, futureClient);
         assertThrows(UnsupportedStoreVersionException.class, ConfigStores.client(path)::load);
-        assertEquals("{\"version\":5}", Files.readString(path));
+        assertEquals(futureClient, Files.readString(path));
     }
 }

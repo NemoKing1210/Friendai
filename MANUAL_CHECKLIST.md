@@ -46,6 +46,14 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] The Settings tab's free-time switch toggles it and shows the current activity (or "choosing an activity" while the director decides), in both UI languages.
 - [ ] Tell the companion "don't follow me" while free time runs: it stops walking after you, keeps working, and the Toggles tab shows "Following: off" after a relog. "Follow me" switches it back on.
 
+## Companion display
+
+- [ ] Turn on **Display → Show my companion through walls** and walk more than 12 blocks away: a box appears around your companion and disappears when you are close or it is in view.
+- [ ] Press the unbound **Companion outline** key in Controls, assigned by you: the action bar confirms on or off, and the setting survives a restart.
+- [ ] Stand where another player's companion is present: it is never outlined.
+- [ ] Turn **Show the mood mark** off: the mark above the companion's head disappears; turn it back on and it returns.
+- [ ] Hit your own companion: it shows a displeased mark. Let a creeper come close: it shows a worried mark after about half a second, and calm returns a second later.
+
 ## Settings screen
 
 - [ ] Open the screen in both UI languages: no tab, label, tooltip or button clips at GUI scale 4.

@@ -930,15 +930,23 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                 effective,
                 scheduler,
                 AccessResolver.of(owner, p -> memory.book(owner).isTrusted(p)),
-                caller -> config.memory.enabled
-                        ? MemoryPromptRenderer.render(
-                                memory.book(owner),
-                                owner,
-                                caller,
-                                config.memory.limits(),
-                                config.memory.compactAtPercent,
-                                gateways.redactor())
-                        : "",
+                caller -> {
+                    String memoryText = config.memory.enabled
+                            ? MemoryPromptRenderer.render(
+                                    memory.book(owner),
+                                    owner,
+                                    caller,
+                                    config.memory.limits(),
+                                    config.memory.compactAtPercent,
+                                    gateways.redactor())
+                            : "";
+                    String social = dev.friendai.features.social.BondPrompt.line(
+                            companion.bondTier(),
+                            companion.syncedMood(),
+                            companion.bondReasons(),
+                            caller.access() == AccessLevel.OWNER && owner.equals(caller.uuid()));
+                    return social.isEmpty() ? memoryText : (memoryText.isBlank() ? social : memoryText + "\n" + social);
+                },
                 toolCatalog);
         brain.setTradingTurnPort(session.tradingAuthority());
         brain.setTradingPromptSource((caller, request) -> {
@@ -1016,6 +1024,11 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                         .add(new TaskRecord(
                                 id, toolName, status == TaskStatus.SUCCESS ? "SUCCESS" : "FAILED", summary));
                 boolean ok = status == TaskStatus.SUCCESS;
+                if (ok && companion.owner().isPresent()) {
+                    // A direct job that succeeded while the owner was there is shared work; a free-time shift is a
+                    // plan.
+                    companion.noteSharedWork();
+                }
                 postFromSession(
                         session,
                         companion,

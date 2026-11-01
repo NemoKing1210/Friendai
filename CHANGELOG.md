@@ -8,6 +8,14 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.120.0] - 2026-11-01
+
+### Added
+
+- **Show my companion through walls**: a box appears around your own companion when it is more than 12 blocks away or hidden, with an unbound **Companion outline** key and a switch in a new **Display** tab. Another player's companion is never outlined.
+- The companion now shows a mood that lasts: it turns worried only after a moment of real danger, stays worried a little longer, and reacts to a hit, to finished work and to what you explicitly say.
+- A **bond built from deeds** — shared finished work, gifts, rescues, and the odd hit — kept in the memory book, surviving death and restarts, with `/friendai social status` to see the tier, the mood and the last reasons. The bond only changes tone; it never changes a permission.
+
 ## [0.119.0] - 2026-11-01
 
 ### Added

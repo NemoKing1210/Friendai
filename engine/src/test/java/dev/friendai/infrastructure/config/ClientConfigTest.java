@@ -104,7 +104,7 @@ class ClientConfigTest {
     void aJsonWithoutVoiceNumbersGetsTheDocumentedDefaults() throws IOException {
         Path file = dir.resolve("friendai-client.json");
         Files.writeString(file, """
-            {"version":4,"voice":{"stt":{"provider":"local","local":{"model":"base"}},
+            {"version":5,"voice":{"stt":{"provider":"local","local":{"model":"base"}},
              "tts":{"provider":"local","local":{}}}}""");
         ConfigStore<ClientConfig> store =
                 new ConfigStore<>(file, ClientConfig.class, ClientConfig::defaults, ClientConfig.CURRENT_VERSION);
@@ -213,7 +213,7 @@ class ClientConfigTest {
     void spatialDefaultsToOnWhenTheFieldIsAbsent() throws IOException {
         Path file = dir.resolve("friendai-client.json");
         Files.writeString(file, """
-            {"version":4,"voice":{"stt":{"provider":"local"},"tts":{"provider":"local"}}}""");
+            {"version":5,"voice":{"stt":{"provider":"local"},"tts":{"provider":"local"}}}""");
         ConfigStore<ClientConfig> store =
                 new ConfigStore<>(file, ClientConfig.class, ClientConfig::defaults, ClientConfig.CURRENT_VERSION);
         assertTrue(store.load().voice.tts.spatial);
