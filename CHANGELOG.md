@@ -8,6 +8,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.109.0] - 2026-11-01
+
+### Changed
+
+- The provider screen loads the model list automatically when it opens with a usable key, instead of waiting for **Refresh models**.
+
 ## [0.108.0] - 2026-11-01
 
 ### Changed
