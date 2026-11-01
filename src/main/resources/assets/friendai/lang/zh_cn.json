@@ -724,5 +724,10 @@
   "friendai.config.autonomy": "自主性",
   "friendai.config.chunk_loading": "区块加载",
   "friendai.config.hearing_radius": "听力范围",
-  "controls.reset": "重置"
+  "controls.reset": "重置",
+  "friendai.config.status.line": "状态：%s",
+  "friendai.config.status.ready": "就绪",
+  "friendai.config.status.no_key": "尚未填写 API 密钥",
+  "friendai.config.status.no_model": "选择模型",
+  "friendai.config.status.local": "本地端点"
 }

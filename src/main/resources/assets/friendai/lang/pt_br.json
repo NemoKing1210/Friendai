@@ -727,5 +727,10 @@
   "friendai.config.autonomy": "Autonomia",
   "friendai.config.chunk_loading": "Carregamento de chunks",
   "friendai.config.hearing_radius": "Raio de audição",
-  "controls.reset": "Redefinir"
+  "controls.reset": "Redefinir",
+  "friendai.config.status.line": "Status: %s",
+  "friendai.config.status.ready": "Pronto",
+  "friendai.config.status.no_key": "Ainda sem chave de API",
+  "friendai.config.status.no_model": "Escolha um modelo",
+  "friendai.config.status.local": "Endpoint local"
 }

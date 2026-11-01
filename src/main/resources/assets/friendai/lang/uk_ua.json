@@ -724,5 +724,10 @@
   "friendai.config.autonomy": "Автономність",
   "friendai.config.chunk_loading": "Завантаження чанків",
   "friendai.config.hearing_radius": "Радіус чутності",
-  "controls.reset": "Скинути"
+  "controls.reset": "Скинути",
+  "friendai.config.status.line": "Статус: %s",
+  "friendai.config.status.ready": "Готово",
+  "friendai.config.status.no_key": "Ключ API ще не задано",
+  "friendai.config.status.no_model": "Виберіть модель",
+  "friendai.config.status.local": "Локальна точка"
 }
