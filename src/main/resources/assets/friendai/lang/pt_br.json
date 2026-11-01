@@ -313,6 +313,7 @@
   "friendai.menu.teleport": "Até mim",
   "friendai.menu.dismiss": "Dispensar",
   "friendai.menu.stop": "Parar",
+  "friendai.menu.retry": "Tentar de novo",
   "friendai.debug.goal": "objetivo",
   "friendai.debug.action.break": "Quebrar",
   "friendai.debug.action.place": "Colocar",

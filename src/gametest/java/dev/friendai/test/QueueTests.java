@@ -278,4 +278,37 @@ public final class QueueTests {
         h.assertTrue(snapshot.foodLevel() >= 0, "and its hunger: " + snapshot.foodLevel());
         h.succeed();
     }
+
+    @GameTest(maxTicks = 300)
+    public void theLastDirectJobCanBeRetriedAfterItStops(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        CompanionEntity companion =
+                CompanionManager.get(h.getLevel().getServer()).summon(owner);
+        ExecutionCoordinator coordinator = companion.executionCoordinator();
+        coordinator.resume();
+        coordinator.enqueue(
+                new QueuedStep(
+                        "stay",
+                        new JsonObject(),
+                        null,
+                        List.of(),
+                        GuardAction.WAIT,
+                        FailurePolicy.ASK,
+                        1,
+                        List.of(),
+                        owner.getUUID(),
+                        false),
+                ctx -> new StayTask());
+        for (int i = 0; i < 5; i++) {
+            coordinator.tick();
+        }
+        coordinator.stop("test");
+        coordinator.tick();
+        h.assertValueEqual(coordinator.queue().jobCount(), 0, "the stopped job is gone");
+        h.assertFalse(coordinator.retryLast() == false, "the last direct job can be retried");
+        h.assertValueEqual(coordinator.queue().jobCount(), 1, "retry queues exactly one job again");
+        h.assertValueEqual(coordinator.queue().jobs().getFirst().tool(), "stay", "retry keeps the same tool");
+        h.succeed();
+    }
 }

@@ -135,6 +135,8 @@ public final class CompanionRequestHandler {
             }
         } else if (request instanceof ControlRequest.SetPaused paused) {
             companions.find(owner).ifPresent(c -> c.executionCoordinator().setManualPause(paused.paused()));
+        } else if (request instanceof ControlRequest.RetryLast) {
+            companions.find(owner).ifPresent(c -> c.executionCoordinator().retryLast());
         } else if (request instanceof ControlRequest.Stop) {
             companions.find(owner).ifPresent(c -> {
                 brains.freeTime().stop(owner, "stopped from menu");
@@ -181,8 +183,9 @@ public final class CompanionRequestHandler {
             return DebugAccess.Action.VIEW_STATUS;
         if (request instanceof ControlRequest.Summon) return DebugAccess.Action.SUMMON;
         if (request instanceof ControlRequest.Dismiss) return DebugAccess.Action.DISMISS;
-        if (request instanceof ControlRequest.Stop || request instanceof ControlRequest.SetPaused)
-            return DebugAccess.Action.STOP;
+        if (request instanceof ControlRequest.Stop
+                || request instanceof ControlRequest.SetPaused
+                || request instanceof ControlRequest.RetryLast) return DebugAccess.Action.STOP;
         if (request instanceof ControlRequest.Teleport) return DebugAccess.Action.TELEPORT;
         if (request instanceof ControlRequest.Rename) return DebugAccess.Action.RENAME;
         if (request instanceof ControlRequest.SetAutoRespawn) return DebugAccess.Action.SET_AUTO_RESPAWN;

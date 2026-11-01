@@ -313,6 +313,7 @@
   "friendai.menu.teleport": "До мене",
   "friendai.menu.dismiss": "Відпустити",
   "friendai.menu.stop": "Стоп",
+  "friendai.menu.retry": "Ще раз",
   "friendai.debug.goal": "ціль",
   "friendai.debug.action.break": "Зламати",
   "friendai.debug.action.place": "Поставити",

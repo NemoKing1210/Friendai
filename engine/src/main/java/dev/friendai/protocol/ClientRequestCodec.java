@@ -463,7 +463,8 @@ public final class ClientRequestCodec {
                 || request instanceof ControlRequest.Dismiss
                 || request instanceof ControlRequest.Stop
                 || request instanceof ControlRequest.Teleport
-                || request instanceof ControlRequest.FreeTimeToggle)) {
+                || request instanceof ControlRequest.FreeTimeToggle
+                || request instanceof ControlRequest.RetryLast)) {
             throw new IllegalArgumentException("unsupported control request");
         }
         return out.toByteArray();
@@ -485,6 +486,7 @@ public final class ClientRequestCodec {
             case 11 -> new ControlRequest.FreeTimeToggle();
             case 12 -> new ControlRequest.SendChat(in.readString(500));
             case 14 -> new ControlRequest.SetPaused(in.readBoolean());
+            case 15 -> new ControlRequest.RetryLast();
             case 13 -> new ControlRequest.InvokeTool(in.readString(500), in.readString(2_000));
             default -> throw new ProtocolDataException(DecodeResult.Reason.UNKNOWN_OPERATION);
         };

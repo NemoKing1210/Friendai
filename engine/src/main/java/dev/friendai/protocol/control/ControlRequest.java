@@ -17,7 +17,8 @@ public sealed interface ControlRequest extends ClientRequest
                 ControlRequest.FreeTimeToggle,
                 ControlRequest.SendChat,
                 ControlRequest.InvokeTool,
-                ControlRequest.SetPaused {
+                ControlRequest.SetPaused,
+                ControlRequest.RetryLast {
     @Override
     default ProtocolFamily family() {
         return ProtocolFamily.CONTROL;
@@ -119,6 +120,14 @@ public sealed interface ControlRequest extends ClientRequest
         @Override
         public int operationId() {
             return 14;
+        }
+    }
+
+    /** The owner asks for the last direct job again, after it failed or was stopped. */
+    record RetryLast() implements ControlRequest {
+        @Override
+        public int operationId() {
+            return 15;
         }
     }
 }
