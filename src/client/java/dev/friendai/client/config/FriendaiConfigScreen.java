@@ -141,6 +141,7 @@ public final class FriendaiConfigScreen {
             builder.category(companionCategory(server));
             builder.category(chatCategory(server));
             builder.category(planningCategory(server));
+            builder.category(tasksCategory(server));
             builder.category(memoryCategory(server));
             builder.category(miningCategory(server));
         } else {
@@ -588,6 +589,70 @@ public final class FriendaiConfigScreen {
                         .controller(option ->
                                 IntegerFieldControllerBuilder.create(option).range(10, 300))
                         .build())
+                .build();
+    }
+
+    private static ConfigCategory tasksCategory(ServerConfig server) {
+        var tasks = server.tasks;
+        return ConfigCategory.createBuilder()
+                .name(tr("friendai.config.category.tasks"))
+                .option(booleanOption(
+                        "friendai.config.tasks.default_follow",
+                        true,
+                        () -> tasks.defaultFollow,
+                        value -> tasks.defaultFollow = value))
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.tasks.mine_search_radius"))
+                        .description(OptionDescription.of(tr("friendai.config.tasks.mine_search_radius.tooltip")))
+                        .binding(32, () -> tasks.mineSearchRadius, value -> tasks.mineSearchRadius = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(1, 128))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.tasks.tree_search_radius"))
+                        .description(OptionDescription.of(tr("friendai.config.tasks.tree_search_radius.tooltip")))
+                        .binding(32, () -> tasks.treeSearchRadius, value -> tasks.treeSearchRadius = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(1, 128))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.tasks.timeout_sec"))
+                        .description(OptionDescription.of(tr("friendai.config.tasks.timeout_sec.tooltip")))
+                        .binding(300, () -> tasks.taskTimeoutSec, value -> tasks.taskTimeoutSec = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(10, 3600))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.tasks.queue_max_jobs"))
+                        .description(OptionDescription.of(tr("friendai.config.tasks.queue_max_jobs.tooltip")))
+                        .binding(64, () -> tasks.queueMaxJobs, value -> tasks.queueMaxJobs = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(1, 256))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.tasks.queue_max_plans"))
+                        .description(OptionDescription.of(tr("friendai.config.tasks.queue_max_plans.tooltip")))
+                        .binding(8, () -> tasks.queueMaxPlans, value -> tasks.queueMaxPlans = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(1, 32))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.tasks.queue_max_steps"))
+                        .description(OptionDescription.of(tr("friendai.config.tasks.queue_max_steps.tooltip")))
+                        .binding(32, () -> tasks.queueMaxStepsPerAdd, value -> tasks.queueMaxStepsPerAdd = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(1, 128))
+                        .build())
+                .option(booleanOption(
+                        "friendai.config.tasks.fell_collect",
+                        true,
+                        () -> tasks.fellCollectDrops,
+                        value -> tasks.fellCollectDrops = value))
+                .option(booleanOption(
+                        "friendai.config.tasks.mine_collect",
+                        true,
+                        () -> tasks.mineCollectDrops,
+                        value -> tasks.mineCollectDrops = value))
                 .build();
     }
 

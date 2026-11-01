@@ -741,5 +741,21 @@
   "friendai.config.agent.prompt_budget": "Лимит символов системного промпта",
   "friendai.config.agent.prompt_budget.tooltip": "Максимум символов системного промпта; 0 — без ограничения. Большие промпты стоят дороже.",
   "friendai.config.agent.planner_timeout_sec": "Таймаут планировщика (секунды)",
-  "friendai.config.agent.planner_timeout_sec.tooltip": "Сколько может длиться один вызов планировщика (10–300 секунд, по умолчанию 60)."
+  "friendai.config.agent.planner_timeout_sec.tooltip": "Сколько может длиться один вызов планировщика (10–300 секунд, по умолчанию 60).",
+  "friendai.config.category.tasks": "Задачи",
+  "friendai.config.tasks.default_follow": "Следовать по умолчанию",
+  "friendai.config.tasks.mine_search_radius": "Радиус поиска руды",
+  "friendai.config.tasks.mine_search_radius.tooltip": "Сколько блоков вокруг компаньона проверяется при поиске руды (1–128, по умолчанию 32).",
+  "friendai.config.tasks.tree_search_radius": "Радиус поиска деревьев",
+  "friendai.config.tasks.tree_search_radius.tooltip": "Как далеко компаньон ищет дерево для сруба (1–128, по умолчанию 32).",
+  "friendai.config.tasks.timeout_sec": "Таймаут задачи (секунды)",
+  "friendai.config.tasks.timeout_sec.tooltip": "Сколько может длиться одна задача до остановки и отчёта (10–3600 секунд, по умолчанию 300).",
+  "friendai.config.tasks.queue_max_jobs": "Заданий в очереди",
+  "friendai.config.tasks.queue_max_jobs.tooltip": "Максимум заданий в очереди (1–256, по умолчанию 64). При заполнении старая низкоприоритетная работа отклоняется.",
+  "friendai.config.tasks.queue_max_plans": "Планов в очереди",
+  "friendai.config.tasks.queue_max_plans.tooltip": "Максимум планов в очереди (1–32, по умолчанию 8). Каждый план содержит несколько шагов.",
+  "friendai.config.tasks.queue_max_steps": "Шагов в плане",
+  "friendai.config.tasks.queue_max_steps.tooltip": "Максимум шагов в одном плане (1–128, по умолчанию 32).",
+  "friendai.config.tasks.fell_collect": "Собирать срубленные брёвна",
+  "friendai.config.tasks.mine_collect": "Собирать добычу после копания"
 }

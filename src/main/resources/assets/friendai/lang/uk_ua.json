@@ -741,5 +741,21 @@
   "friendai.config.agent.prompt_budget": "Ліміт символів системного промпту",
   "friendai.config.agent.prompt_budget.tooltip": "Максимум символів системного промпту; 0 — без обмежень. Більші промпти коштують дорожче.",
   "friendai.config.agent.planner_timeout_sec": "Тайм-аут планувальника (секунди)",
-  "friendai.config.agent.planner_timeout_sec.tooltip": "Скільки може тривати один виклик планувальника (10–300 секунд, типово 60)."
+  "friendai.config.agent.planner_timeout_sec.tooltip": "Скільки може тривати один виклик планувальника (10–300 секунд, типово 60).",
+  "friendai.config.category.tasks": "Завдання",
+  "friendai.config.tasks.default_follow": "Слідувати за замовчуванням",
+  "friendai.config.tasks.mine_search_radius": "Радіус пошуку руди",
+  "friendai.config.tasks.mine_search_radius.tooltip": "Скільки блоків навколо компаньйона перевіряється під час пошуку руди (1–128, типово 32).",
+  "friendai.config.tasks.tree_search_radius": "Радіус пошуку дерев",
+  "friendai.config.tasks.tree_search_radius.tooltip": "Як далеко компаньйон шукає дерево для зрубу (1–128, типово 32).",
+  "friendai.config.tasks.timeout_sec": "Тайм-аут завдання (секунди)",
+  "friendai.config.tasks.timeout_sec.tooltip": "Скільки може тривати одне завдання до зупинки та звіту (10–3600 секунд, типово 300).",
+  "friendai.config.tasks.queue_max_jobs": "Завдань у черзі",
+  "friendai.config.tasks.queue_max_jobs.tooltip": "Максимум завдань у черзі (1–256, типово 64). Коли черга заповнена, старіша низькопріоритетна робота відхиляється.",
+  "friendai.config.tasks.queue_max_plans": "Планів у черзі",
+  "friendai.config.tasks.queue_max_plans.tooltip": "Максимум планів у черзі (1–32, типово 8). Кожен план містить кілька кроків.",
+  "friendai.config.tasks.queue_max_steps": "Кроків у плані",
+  "friendai.config.tasks.queue_max_steps.tooltip": "Максимум кроків в одному плані (1–128, типово 32).",
+  "friendai.config.tasks.fell_collect": "Збирати зрубані колоди",
+  "friendai.config.tasks.mine_collect": "Збирати видобуті дропи"
 }
