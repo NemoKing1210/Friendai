@@ -283,6 +283,76 @@ The client captures audio only while push-to-talk is held, resolves the selected
 
 `CompanionSpeaker` sends each reply as a typed SPEECH view inside `ProtocolViewS2CPayload`; the last two values are filled from the speaking entity and `chat.hearingRadius`. The client’s `SpeechRuntime` cleans and splits the text, then either synthesizes locally with sherpa-onnx (`client/audio/LocalTtsEngine`, a downloaded Piper voice) or calls a cloud engine (`infrastructure/speech/CloudTtsEngine`: OpenAI, ElevenLabs or Yandex) through `TtsClient` and `VoiceHttp` on a worker thread. `SpeechPlayback` plays the clip through the chosen device, opened with a small buffer so a change is heard without the device’s default delay; when **Voice comes from the companion** is on (`voice.tts.spatial`), it mixes the clip to stereo in 20 ms blocks and ramps each channel from the previous block’s gains to the `SpatialAudio` gains that `SpeechRuntime.tick` recomputes every client tick, so the pan and attenuation follow the player without steps or clicks, and a reply whose companion is not in the client’s level is dropped. With the setting off the clip plays centred at full volume. Synthesis is off by default; the settings live under `voice.tts` in the client config. `SpeechGate` drops a frame while recording or when it is addressed to another player and “speak for other players” is off. Push-to-talk and the **Stop speaking** keybind stop playback. Disconnect invalidates the session token, closes the microphone and playback, clears connection-scoped views, and makes late recognition/synthesis callbacks stale; the worker and model downloads remain application-scoped. Native whisper/sherpa initialization is guarded to the client environment. Only cloud engines send the reply text off the machine, keys travel in headers only, and paid requests are never retried automatically.
 
+### Measuring whether it feels smarter and quieter
+
+The numbers ride on one chain of existing objects, and they are only worth reading where that chain already leaves
+text behind. A turn arrives as a sealed `BrainEvent` — `PlayerSaid`, `TaskFinished`, `TaskCancelled`, `PlanFinished`,
+`PlanBlocked`, `GoalTick`, `SocialOpening`, `WorldNotice`, `SkillOutcome`, `FreeTimeShift` or `IdleNudge` — whose
+`toPromptLine` is what the model reads. `DebugLogObserver` also writes every one of them verbatim to the owner's
+`DebugLog` as a TASK line (a `PlayerSaid` as USER), the raw assistant text as ASSISTANT, each tool call and result,
+the provider error and token usage. That bounded log, `TaskRecord` history (SUCCESS, FAILED, CANCELLED) and the goal
+and free-time files are the measurement surface; the Log tab and the `/friendai diagnose` bundle read the same state.
+
+The honest half of the chain is the evidence `CompanionSessions.AgentEvents.extra` builds. `OutcomeFacts.snapshot`
+captures a `WorldSnapshot` before and after a task, and `OutcomeChecker.check` diffs it — inventory deltas, empty
+slots, health, food and owner distance, at most `MAX_FACTS` (eight) — then asks `GoalBoard` whether the criteria of
+the goal that owns the plan hold. `Criterion` pairs text with an optional `Guard` (`has_item`, `inventory_space`,
+`health_at_least`, `owner_within`, `block_within`, `dimension`, `all_of`/`any_of`/`not`, `biome`, `fluid_ahead`,
+`distance_travelled`, `time_elapsed`); a failing guard and a text-only criterion both count as unmet. `FailureHandler`
+turns that into the suffix the model reads: `facts:`, `diagnosis:`, `tried:`, `unmet:`, `blocker:` or the replan-budget
+notice, and `all criteria confirmed: call finish_goal` on success. A `finish_goal` call posts the terminal
+`SkillOutcome` for `goal:<id>` (`GOAL_SUCCESS` or `GOAL_FAILURE`). `GoalTick` wakes an idle companion with its unmet
+list, and `QueueText` renders the prompt and status view (`Task queue: N running, N pending`, `Blocked: #id ...`,
+`plan #id "...": current <path>`) so what the owner sees can be compared line for line with the log. `GoalBoard.finish`
+takes the model's word and does not re-check criteria, which is exactly why false completion has to be observed
+rather than trusted.
+
+| Metric | How it is counted today | Where to read it |
+|---|---|---|
+| Verified-goal completion rate | `not counted yet` as a rate. Each terminal goal leaves one TASK line `[event] completed work outcome: GOAL_SUCCESS` or `GOAL_FAILURE`, with its `facts:`/`unmet:` evidence on the lines just above it; count the terminal lines per run. | Operator Log tab (`TASK`), `log.txt` in `/friendai diagnose`. |
+| False completion claims (target: zero) | `not counted yet`. A claim is one `finish_goal` TOOL_CALL with `done:true` after an `unmet:` or `not proven yet:` TASK line, or a `GOAL_SUCCESS` whose last evidence was unmet. | `TOOL_CALL` and `TASK` lines in the same log; the goal's criteria before it left the board. |
+| Repeated failed remedy rate | `not counted yet` as a rate. `FailureHandler` appends `diagnosis:` and one `tried: <remedy>` to the event and stores the lesson (at most five); `RecoveryAdvisor` already skips a remedy the goal tried; count a `tried:` text that appears twice for one goal. | `TASK` lines; the goal's lessons in `goals/<uuid>.json`. |
+| Owner clarification rate | `not counted yet`. `IdleNudge` and `GoalTick` each post one TASK line, and a question is one ASSISTANT line; nothing pairs either with the turn route. | `TASK` (`IdleNudge`/`GoalTick`) and `ASSISTANT` lines. |
+| Unnecessary status messages | `SocialActivity.summary()` counts unprompted lines (ordinary and urgent), held, dropped and owner messages, per owner, written every 24,000 ticks — ambient speech only. Replies that narrate steps are `not counted yet`. | The `MANUAL` line `social activity: ...`; `ASSISTANT` lines for the replies. |
+| Time from owner interrupt to stopped work | `not counted yet`. `LogEntry.timeMillis` is recorded but neither the Log tab nor `log.txt` prints it; the stop itself is one `[event] task #N ... cancelled` TASK line and one CANCELLED `TaskRecord`. | Stopwatch from sending the order to the `cancelled` line; Tasks tab history. |
+| Autonomous duplicate-work rate | `not counted yet` as a rate. Finished shifts are `ShiftRecord`s in `FreeTime.history` (capped at five: goal, ok/failed, summary) and `/friendai freetime status` prints "Finished shifts remembered: N"; nothing detects a repeat. | `/friendai freetime status`, `free-time/<uuid>.json`, Tasks tab history. |
+| Recovery after reload | `not counted yet` as a rate. `TaskPersistenceCoordinator.restore` returns `RestoreReport(restored, rejected)`; every rejection is logged server-side as `Execution restore: ...`, a job whose tool disappeared is also posted to the brain as a `WorldNotice`, and restored jobs reappear in the queue. | Server log; `queue.txt` in the diagnose bundle; Tasks tab. |
+
+**The fixture set.** Run it before and after a change on the same save copy, provider and model, `agent.promptBudget`
+and `skills.promptBudget`, language, `goalTickSec`, `chat.ambientSpeech` and `autonomy.enabled`; copy the save rather
+than re-summoning, and start each run with an empty owner log. Keep the `/friendai diagnose` bundle
+(`summary.txt`, `log.txt`, `tasks.json`, `queue.txt`, plus `chat.txt` when chat is included) with the fixture name and
+date, and compare only like with like.
+
+1. Verified quantity goal: stand next to trees and say "Friendai, mine 3 logs". Expect one goal with a `has_item`
+   criterion, then `facts: +3 ...`, `all criteria confirmed: call finish_goal`, `finish_goal done:true` and one
+   `GOAL_SUCCESS`. Count terminal goals, claims made before the criterion held, and narration lines.
+2. Partial completion: ask for a build or a count the nearby world cannot supply in one trip (a 3×3 stone platform
+   with no stone in the bag). The gather step runs first, the log shows `unmet:` or `not proven yet:`, and nothing is
+   reported as done until the criterion holds.
+3. One remedy, then a blocker: ask it to reach something it cannot (a tree across a ravine, an ore behind a wall).
+   Expect one `PlanBlocked`, one `diagnosis:`, one `tried:` and one `queue_edit` repair; when the repair fails,
+   `blocker:` names the cause instead of repeating the same remedy.
+4. Interruption: start "mine 15 logs" in a forest and say "stop" as the first log is cut. Time the stop with a
+   stopwatch (entry times are not printed), confirm no later TOOL_CALL, and check the reply is one line.
+5. Reload: with a plan mid-step, leave and rejoin or restart the server. Read the `Execution restore:` lines and the
+   queue after rejoining; the job resumes and reports once, a missing tool produces the repair notice, and a resource
+   search is cancelled as a restart victim by design.
+6. Free time: `/friendai freetime on`, stay within hearing, and go quiet for a recorded hour. Read
+   `/friendai freetime status`, count shifts, how many repeat a recent activity, and any failed shift.
+7. Silence: with `chat.ambientSpeech` on, stay near and silent for twenty minutes. Read the `social activity:` line
+   (ordinary, urgent, held, dropped, owner messages), ignore one question and confirm it is not repeated inside the
+   backoff, then answer the next one.
+8. Second language: repeat fixture 1 in Russian, and open the menu in both UI languages. The reply follows the
+   owner's language, the log evidence stays English, and the same guard (`has_item`) is what makes the criterion
+   checkable in either.
+9. Menu agreement: with a goal open and a task running, compare Overview, Tasks and Feeling with the log — the task
+   line, the `TaskRecord` history and the criterion (not proven → met) must be the same state, before and after a
+   relaunch.
+
+A change counts as an improvement only when verified goals rise while false claims, repeated remedies, clarifications,
+narration, stop latency, duplicate shifts and restore rejections do not; more model calls or more chat are not a gain.
+
 ## Data and persistence
 
 Owner-file persistence uses the pure `StoreCodec<T>` contract (including bounded `Reader` decoding) and

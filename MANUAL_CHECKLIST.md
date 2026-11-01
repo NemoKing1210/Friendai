@@ -46,6 +46,17 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] The Settings tab's free-time switch toggles it and shows the current activity (or "choosing an activity" while the director decides), in both UI languages.
 - [ ] Tell the companion "don't follow me" while free time runs: it stops walking after you, keeps working, and the Toggles tab shows "Following: off" after a relog. "Follow me" switches it back on.
 
+## Smartness and quiet
+
+- [ ] With a real provider, "Friendai, mine 3 logs" next to trees, operator Log tab open: a `set_goal` with a `has_item` criterion, then `facts: +3 ...`, `all criteria confirmed: call finish_goal`, `finish_goal` and one completed-work outcome; nothing claims done before the criterion holds. Record it if no goal is set at all.
+- [ ] Ask for a 3×3 stone platform with no stone in the bag: the reply names what is still missing (an `unmet:` or `not proven yet:` line in the log), the goal stays open, and a second trip finishes it.
+- [ ] Start "mine 15 logs" and say "stop" as the first log is cut: the log shows one cancelled task, no tool call follows, and the reply is one line rather than a report of every step.
+- [ ] Leave and rejoin mid-plan: the job resumes, the result is reported once on return, and the server log prints an `Execution restore:` line only for what was rejected.
+- [ ] `/friendai freetime on`, stay within hearing and quiet for a recorded hour: `/friendai freetime status` shows the shifts, and the log records how many repeat a recent activity and whether a failed shift was retried.
+- [ ] Keep ambient speech on and stay near and silent for twenty minutes: one `social activity:` line appears with ordinary, urgent, held, dropped and owner-message counts, and an ignored question is not asked again within the backoff.
+- [ ] Repeat the quantity request in Russian and open the menu in both UI languages: the reply and the labels follow the language, the log evidence stays English, and the criterion is still checkable by its guard.
+- [ ] With a goal open and a task running, the Overview, Tasks and Feeling tabs agree with the log: the task line, the history entry and the criterion (not proven → met) are the same state after Done and after a relaunch.
+
 ## Companion controls
 
 - [ ] Pause from the menu's Control tab: a running job stops, the button reads Resume, and Resume continues the same job.
