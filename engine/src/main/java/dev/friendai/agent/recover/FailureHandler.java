@@ -51,14 +51,30 @@ public final class FailureHandler {
         }
         if (goal.isPresent()) {
             long id = goal.get().id();
-            if (diagnosis.kind() != FailureKind.UNKNOWN) {
+            // The budget decides first: a failure that spends the last replan blocks the goal, so the lesson it
+            // would have taught is never used and must not grow the board.
+            boolean replanned = board.recordReplan(id);
+            if (replanned && diagnosis.kind() != FailureKind.UNKNOWN) {
                 board.addLesson(id, diagnosis.detail());
                 if (!diagnosis.remedies().isEmpty()) {
                     board.addLesson(id, TRIED + diagnosis.remedies().get(0));
                 }
             }
-            if (!board.recordReplan(id)) {
+            if (!replanned) {
+                // Say exactly what stopped the work: an owner can act on a named blocker, not on "something failed".
                 parts.add(BUDGET_SPENT);
+                String cause = diagnosis.kind() != FailureKind.UNKNOWN ? diagnosis.detail() : "";
+                cause = cause == null ? "" : cause.strip();
+                String detail = failureText == null ? "" : failureText.strip();
+                if (detail.length() > 80) {
+                    detail = detail.substring(0, 80);
+                }
+                String blocker = cause.isEmpty()
+                        ? detail
+                        : detail.isEmpty() || detail.equals(cause) ? cause : cause + " (" + detail + ")";
+                if (!blocker.isEmpty()) {
+                    parts.add("blocker: " + blocker);
+                }
             }
         }
         return String.join("; ", parts);
