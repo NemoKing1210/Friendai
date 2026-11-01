@@ -57,6 +57,8 @@ public final class ServerRuntime implements AutoCloseable {
     private final RuntimeResources resources;
     private final ServerProtocolConnections protocolConnections;
     private final CompanionManager companions;
+    private final dev.friendai.server.agent.social.SocialDirector socialDirector =
+            new dev.friendai.server.agent.social.SocialDirector();
     private final DebugStream debugStream;
     private final MovementDebugStream movementDebugStream;
     private final MemoryViewStream memoryViewStream;
@@ -144,6 +146,11 @@ public final class ServerRuntime implements AutoCloseable {
     public void tick() {
         if (protocolConnections != null) protocolConnections.tick();
         if (acceptingWork) tickWork.accept(this);
+    }
+
+    /** The one director that decides when the companion may speak first. */
+    public dev.friendai.server.agent.social.SocialDirector socialDirector() {
+        return socialDirector;
     }
 
     public ServerProtocolConnections protocolConnections() {

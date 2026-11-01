@@ -47,6 +47,7 @@ public final class CompanionRouting {
             ServerRuntime runtime, ServerPlayer sender, UUID owner, String text, BrainEvent.Source source) {
         String name = sender.getName().getString();
         runtime.memory().book(owner).touch(sender.getUUID(), name, System.currentTimeMillis());
+        runtime.socialDirector().ownerSpoke(owner, runtime.server().overworld().getGameTime());
         if (sender.getUUID().equals(owner)) {
             // The owner's own words may move the face; a guest line never does.
             runtime.companions().find(owner).ifPresent(companion -> companion.moodCue(text));
