@@ -8,6 +8,14 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.124.0] - 2026-11-01
+
+### Added
+
+- The settings screen has a **search** field that filters categories and options by name or synonym, and a **Basic / Advanced** switch so keys, budgets, radii and blacklists stay out of the way until you ask for them.
+- Profiles can be created, duplicated, renamed and deleted from the screen, with the last profile and the one in use protected.
+- Settings can be **exported** to a file with keys masked and **imported** back, refusing a file this build does not understand and never letting a masked key overwrite a real one.
+
 ## [0.123.0] - 2026-11-01
 
 ### Changed

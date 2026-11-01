@@ -1,5 +1,10 @@
 package dev.friendai.client.config;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.mojang.blaze3d.Blaze3D;
 import dev.friendai.agent.llm.provider.LlmProfile;
 import dev.friendai.agent.llm.provider.ProviderDocs;
@@ -29,6 +34,7 @@ import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.infrastructure.config.ClientConfig;
 import dev.friendai.infrastructure.config.SecretResolver;
 import dev.friendai.infrastructure.config.ServerConfig;
+import dev.friendai.infrastructure.config.SettingsModel;
 import dev.friendai.infrastructure.config.SettingsSession;
 import dev.friendai.infrastructure.config.VoiceDraft;
 import dev.friendai.llm.LlmClient;
@@ -49,10 +55,15 @@ import dev.isxander.yacl3.api.controller.DropdownStringControllerBuilder;
 import dev.isxander.yacl3.api.controller.IntegerFieldControllerBuilder;
 import dev.isxander.yacl3.api.controller.StringControllerBuilder;
 import dev.isxander.yacl3.gui.YACLScreen;
+import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -63,11 +74,21 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.ConfirmLinkScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.contents.TranslatableContents;
 
 /** The Friendai settings screen, built with YACL. Only loaded when YACL is installed. */
 public final class FriendaiConfigScreen {
     private static final Set<String> AUTO_FETCHED = ConcurrentHashMap.newKeySet();
     private static final List<String> WHISPER_MODELS = List.of("tiny", "base", "small");
+
+    /** Export/import envelope version; a file that does not carry this number is refused. */
+    private static final int TRANSFER_VERSION = 1;
+
+    /** What an exported key looks like: the real value never leaves the machine. */
+    private static final String MASK = "***";
+
+    private static final String DEFAULT_TRANSFER_FILE = "friendai-settings-export.json";
+    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     /** Set while a rebuild writes pending widget values into the config, so listeners stay quiet. */
     private static boolean applying;
@@ -84,6 +105,24 @@ public final class FriendaiConfigScreen {
     private static boolean providerKeyRevealed;
     private static YACLScreen settingsScreen;
     private static Runnable pendingRebuild;
+
+    /** True shows advanced options (keys, URLs, budgets, radii, internals); survives closing the screen. */
+    private static boolean advancedOptions = true;
+
+    /** Filter applied to the option lists. A fresh open clears it so a stale search never hides a tab. */
+    private static String searchQuery = "";
+
+    /** Name typed in the navigation tab; create, duplicate, rename and delete all read this field. */
+    private static String profileName = "";
+
+    /** Import/export target; relative paths resolve against the config directory. Kept across openings. */
+    private static String transferPath = DEFAULT_TRANSFER_FILE;
+
+    /** First line of the last validation report, shown next to the search field until a clean save. */
+    private static String lastSaveProblem;
+
+    /** Options that only drive the screen; changing them must not arm Save or count as an unsaved edit. */
+    private static final List<Option<?>> UI_OPTIONS = new ArrayList<>();
 
     private FriendaiConfigScreen() {}
 
@@ -106,6 +145,8 @@ public final class FriendaiConfigScreen {
         pendingOptions = List.of();
         draftChanged = false;
         providerKeyRevealed = false;
+        searchQuery = "";
+        profileName = "";
         session = SettingsSession.open(++nextGeneration, FriendaiClient.clientConfig(), server, serverConfigReadOnly);
         lifecycle = new SettingsScreenLifecycle(session);
         return create(parent, false, session.voiceDraft());
@@ -136,20 +177,25 @@ public final class FriendaiConfigScreen {
 
         YetAnotherConfigLib.Builder builder =
                 YetAnotherConfigLib.createBuilder().title(tr("friendai.config.title"));
+        // The navigation tab is never filtered: it holds the search field, the Basic/Advanced switch,
+        // profile management and import/export, so the way out of a filter is always one click away.
+        Runnable reopen = () -> deferRebuild(() -> show(create(parent, revealKey, voiceDraft)));
+        builder.category(navigationCategory(server, client, reopen));
+        List<ConfigCategory> categories = new ArrayList<>();
         if (server != null) {
-            builder.category(providerCategory(parent, server, revealKey, voice));
-            builder.category(companionCategory(server));
-            builder.category(chatCategory(server));
-            builder.category(planningCategory(server));
-            builder.category(tasksCategory(server));
-            builder.category(worldCategory(server));
-            builder.category(tradingCategory(server));
-            builder.category(resourcesCategory(server));
-            builder.category(autonomyCategory(server));
-            builder.category(memoryCategory(server));
-            builder.category(miningCategory(server));
+            categories.add(providerCategory(parent, server, revealKey, voice));
+            categories.add(companionCategory(server));
+            categories.add(chatCategory(server));
+            categories.add(planningCategory(server));
+            categories.add(tasksCategory(server));
+            categories.add(worldCategory(server));
+            categories.add(tradingCategory(server));
+            categories.add(resourcesCategory(server));
+            categories.add(autonomyCategory(server));
+            categories.add(memoryCategory(server));
+            categories.add(miningCategory(server));
         } else {
-            builder.category(ConfigCategory.createBuilder()
+            categories.add(ConfigCategory.createBuilder()
                     .name(tr("friendai.config.category.server"))
                     .option(LabelOption.create(tr(
                             serverConfigReadOnly
@@ -159,11 +205,18 @@ public final class FriendaiConfigScreen {
                                     : "friendai.config.server_only")))
                     .build());
         }
-        builder.category(socialCategory(client));
-        builder.category(voiceCategory(parent, client, voice));
+        categories.add(socialCategory(client));
+        categories.add(voiceCategory(parent, client, voice));
+        for (ConfigCategory category : categories) {
+            ConfigCategory narrowed = filtered(category);
+            if (narrowed != null) builder.category(narrowed);
+        }
 
         builder.save(() -> {
             current.voiceDraft(VoiceDraft.from(client));
+            // Validate before publishing: validate() is also what clamps, and its first line is the only
+            // honest way to say that a value was adjusted instead of dropping the change silently.
+            lastSaveProblem = firstProblem(current);
             current.publish(configuration::save, configuration::saveServer);
             // YACL's Save button leaves the editor open. A fresh session permits another edit/save,
             // and makes subsequent Cancel/Undo return to the newly saved configuration.
@@ -180,7 +233,10 @@ public final class FriendaiConfigScreen {
             removeEvent.register(removed -> {
                 // YACL replaces this screen with PopupControllerScreen while a dropdown is open.
                 // Its popup flag is already set when removal fires; this is not an editing-session exit.
-                if (session == current) currentLifecycle.removed(screen.popupControllerVisible);
+                if (session != current) return;
+                currentLifecycle.removed(screen.popupControllerVisible);
+                // A real exit (not a rebuild and not a dropdown popup) also drops the stale save report.
+                if (!current.isOpen()) lastSaveProblem = null;
             });
             ScreenEvents.afterTick(screen).register(ticked -> {
                 if (session == current && Minecraft.getInstance().gui.screen() == screen && pendingRebuild != null) {
@@ -249,6 +305,440 @@ public final class FriendaiConfigScreen {
                 pendingRebuild = rebuild;
             }
         });
+    }
+
+    /**
+     * The navigation tab, always first and never filtered: search, the Basic/Advanced switch, profile
+     * management and import/export. Filters live here so clearing one is always a single click away.
+     */
+    private static ConfigCategory navigationCategory(ServerConfig server, ClientConfig client, Runnable reopen) {
+        UI_OPTIONS.clear();
+        List<Option<?>> find = new ArrayList<>();
+        Option<String> search = Option.<String>createBuilder()
+                .name(tr("friendai.config.nav.search"))
+                .description(OptionDescription.of(tr("friendai.config.nav.search.tooltip")))
+                .binding("", () -> searchQuery, value -> searchQuery = value == null ? "" : value.strip())
+                .controller(StringControllerBuilder::create)
+                .build();
+        // The controller commits on Enter or on losing focus, so one committed query costs one rebuild.
+        // An instant controller would rebuild per keystroke and steal the caret between characters.
+        search.addListener((option, value) -> {
+            if (!applying) reopen.run();
+        });
+        find.add(search);
+        UI_OPTIONS.add(search);
+        Option<Boolean> advanced = Option.<Boolean>createBuilder()
+                .name(tr("friendai.config.nav.advanced"))
+                .description(OptionDescription.of(tr("friendai.config.nav.advanced.tooltip")))
+                .binding(true, () -> advancedOptions, value -> advancedOptions = value)
+                .controller(BooleanControllerBuilder::create)
+                .build();
+        advanced.addListener((option, value) -> {
+            if (!applying) reopen.run();
+        });
+        find.add(advanced);
+        UI_OPTIONS.add(advanced);
+        if (lastSaveProblem != null) {
+            find.add(LabelOption.create(
+                    Component.translatable("friendai.config.nav.save_problem", Component.literal(lastSaveProblem))));
+        }
+        if (!searchQuery.isBlank() || !advancedOptions) {
+            find.add(LabelOption.create(tr("friendai.config.nav.filter_note")));
+        }
+        ConfigCategory.Builder category = ConfigCategory.createBuilder()
+                .name(tr("friendai.config.nav.title"))
+                .options(find);
+        if (server != null) category.group(profileGroup(server, reopen));
+        category.group(transferGroup(server, client, reopen));
+        return category.build();
+    }
+
+    /** Create, duplicate, rename and delete read the one name field above them. */
+    private static OptionGroup profileGroup(ServerConfig server, Runnable reopen) {
+        List<Option<?>> options = new ArrayList<>();
+        Option<String> name = Option.<String>createBuilder()
+                .name(tr("friendai.config.nav.profile_name"))
+                .description(OptionDescription.of(tr("friendai.config.nav.profile_name.tooltip")))
+                .binding("", () -> profileName, value -> profileName = value == null ? "" : value.strip())
+                .controller(StringControllerBuilder::create)
+                .build();
+        options.add(name);
+        UI_OPTIONS.add(name);
+        options.add(actionButton("friendai.config.nav.profile_create", () -> createProfile(server, reopen)));
+        options.add(actionButton("friendai.config.nav.profile_duplicate", () -> duplicateProfile(server, reopen)));
+        options.add(actionButton("friendai.config.nav.profile_rename", () -> renameProfile(server, reopen)));
+        options.add(actionButton("friendai.config.nav.profile_delete", () -> deleteProfile(server, reopen)));
+        return OptionGroup.createBuilder()
+                .name(tr("friendai.config.nav.profiles"))
+                .options(options)
+                .build();
+    }
+
+    /** Share a file between installs; secrets leave masked and masked secrets never overwrite a real key. */
+    private static OptionGroup transferGroup(ServerConfig server, ClientConfig client, Runnable reopen) {
+        Option<String> path = Option.<String>createBuilder()
+                .name(tr("friendai.config.nav.transfer_path"))
+                .description(OptionDescription.of(tr("friendai.config.nav.transfer_path.tooltip")))
+                .binding(
+                        DEFAULT_TRANSFER_FILE,
+                        () -> transferPath,
+                        value -> transferPath = value == null ? "" : value.strip())
+                .controller(StringControllerBuilder::create)
+                .build();
+        UI_OPTIONS.add(path);
+        return OptionGroup.createBuilder()
+                .name(tr("friendai.config.nav.transfer"))
+                .option(path)
+                .option(actionButton("friendai.config.nav.export", () -> exportSettings(client, server)))
+                .option(actionButton("friendai.config.nav.import", () -> importSettings(client, server, reopen)))
+                .build();
+    }
+
+    private static ButtonOption actionButton(String nameKey, Runnable action) {
+        return ButtonOption.createBuilder()
+                .name(tr(nameKey))
+                .action((screen, button) -> action.run())
+                .build();
+    }
+
+    /**
+     * Rebuilds a category with only the options the current mode and query leave visible, keeping the option
+     * order, the group order and a group's collapsed flag. Returns null when nothing is left to show.
+     */
+    private static ConfigCategory filtered(ConfigCategory category) {
+        if (searchQuery.isBlank() && advancedOptions) return category;
+        List<Option<?>> root = new ArrayList<>();
+        List<OptionGroup> groups = new ArrayList<>();
+        for (OptionGroup group : category.groups()) {
+            List<Option<?>> kept = new ArrayList<>();
+            for (Option<?> option : group.options()) {
+                if (visible(option)) kept.add(option);
+            }
+            if (kept.isEmpty()) continue;
+            if (group.isRoot()) {
+                root.addAll(kept);
+                continue;
+            }
+            OptionGroup.Builder narrowed =
+                    OptionGroup.createBuilder().name(group.name()).options(kept).collapsed(group.collapsed());
+            if (group.description() != null) narrowed.description(group.description());
+            groups.add(narrowed.build());
+        }
+        if (root.isEmpty() && groups.isEmpty()) return null;
+        return ConfigCategory.createBuilder()
+                .name(category.name())
+                .options(root)
+                .groups(groups)
+                .build();
+    }
+
+    /**
+     * True when the option survives the current Basic/Advanced mode and query. Labels and buttons are named
+     * with translation keys too, so they follow their category and match on their own words.
+     */
+    private static boolean visible(Option<?> option) {
+        String key = translationKey(option.name());
+        if (key == null) return false;
+        return SettingsModel.show(key, advancedOptions) && SettingsModel.matches(searchQuery, key);
+    }
+
+    private static String translationKey(Component name) {
+        return name != null && name.getContents() instanceof TranslatableContents text ? text.getKey() : null;
+    }
+
+    /** The first line of the server validation report, or null when the draft needed no adjustment. */
+    private static String firstProblem(SettingsSession current) {
+        ServerConfig draft = current.serverDraft();
+        if (draft == null) return null;
+        List<String> problems = draft.validate();
+        return problems.isEmpty() ? null : problems.getFirst();
+    }
+
+    private static void createProfile(ServerConfig server, Runnable reopen) {
+        String name = profileName.strip();
+        String problem = profileNameProblem(server, name);
+        if (problem != null) {
+            toast(Component.translatable(problem, name));
+            return;
+        }
+        server.profiles.put(name, new ServerConfig.ProfileConfig());
+        server.activeProfile = name;
+        profileName = "";
+        toast(Component.translatable("friendai.config.nav.profile_created", name));
+        reopen.run();
+    }
+
+    private static void duplicateProfile(ServerConfig server, Runnable reopen) {
+        String source = server.activeProfile;
+        ServerConfig.ProfileConfig existing = server.profiles.get(source);
+        if (existing == null) {
+            toast(Component.translatable("friendai.config.nav.profile_unknown", source));
+            return;
+        }
+        String name = profileName.strip().isEmpty() ? uniqueProfileName(server, source + "-copy") : profileName.strip();
+        String problem = profileNameProblem(server, name);
+        if (problem != null) {
+            toast(Component.translatable(problem, name));
+            return;
+        }
+        server.profiles.put(name, GSON.fromJson(GSON.toJson(existing), ServerConfig.ProfileConfig.class));
+        server.activeProfile = name;
+        profileName = "";
+        toast(Component.translatable("friendai.config.nav.profile_duplicated", name));
+        reopen.run();
+    }
+
+    private static void renameProfile(ServerConfig server, Runnable reopen) {
+        String from = server.activeProfile;
+        String name = profileName.strip();
+        if (name.isEmpty()) {
+            toast(Component.translatable("friendai.config.nav.profile_name_required"));
+            return;
+        }
+        if (!server.profiles.containsKey(from)) {
+            toast(Component.translatable("friendai.config.nav.profile_unknown", from));
+            return;
+        }
+        if (name.equals(from)) {
+            toast(Component.translatable("friendai.config.nav.profile_same", name));
+            return;
+        }
+        String problem = profileNameProblem(server, name);
+        if (problem != null) {
+            toast(Component.translatable(problem, name));
+            return;
+        }
+        // Keep the drop-down order: the renamed profile takes the old slot instead of moving to the end.
+        Map<String, ServerConfig.ProfileConfig> renamed = new LinkedHashMap<>();
+        server.profiles.forEach((key, profile) -> renamed.put(key.equals(from) ? name : key, profile));
+        server.profiles = renamed;
+        server.activeProfile = name;
+        if (from.equals(server.agent.planner)) server.agent.planner = name;
+        profileName = "";
+        toast(Component.translatable("friendai.config.nav.profile_renamed", name));
+        reopen.run();
+    }
+
+    private static void deleteProfile(ServerConfig server, Runnable reopen) {
+        String name = profileName.strip();
+        if (name.isEmpty()) {
+            toast(Component.translatable("friendai.config.nav.profile_name_required"));
+            return;
+        }
+        if (!server.profiles.containsKey(name)) {
+            toast(Component.translatable("friendai.config.nav.profile_unknown", name));
+            return;
+        }
+        if (server.profiles.size() <= 1) {
+            toast(Component.translatable("friendai.config.nav.profile_last"));
+            return;
+        }
+        if (name.equals(server.activeProfile)) {
+            toast(Component.translatable("friendai.config.nav.profile_in_use", name));
+            return;
+        }
+        server.profiles.remove(name);
+        // The planner must not point at a profile that no longer exists.
+        if (name.equals(server.agent.planner)) server.agent.planner = null;
+        profileName = "";
+        toast(Component.translatable("friendai.config.nav.profile_deleted", name));
+        reopen.run();
+    }
+
+    /** Null when the name may be used, otherwise the translation key of the refusal. */
+    private static String profileNameProblem(ServerConfig server, String name) {
+        if (name.isEmpty()) return "friendai.config.nav.profile_name_required";
+        if (name.length() > 32) return "friendai.config.nav.profile_too_long";
+        if (server.profiles.containsKey(name)) return "friendai.config.nav.profile_exists";
+        return null;
+    }
+
+    private static String uniqueProfileName(ServerConfig server, String base) {
+        if (!server.profiles.containsKey(base)) return base;
+        for (int i = 2; ; i++) {
+            String candidate = base + "-" + i;
+            if (!server.profiles.containsKey(candidate)) return candidate;
+        }
+    }
+
+    /**
+     * Writes both drafts to {@link #transferPath} as {@code {"friendai": 1, "client": {...}, "server": {...}}}
+     * with every {@code apiKey} replaced by {@value #MASK}. No new dependency: plain Gson over the drafts.
+     */
+    private static void exportSettings(ClientConfig client, ServerConfig server) {
+        Path file;
+        try {
+            file = transferFile();
+        } catch (RuntimeException error) {
+            toast(Component.translatable("friendai.config.nav.transfer_failed", message(error)));
+            return;
+        }
+        JsonObject root = new JsonObject();
+        root.addProperty("friendai", TRANSFER_VERSION);
+        JsonElement clientTree = GSON.toJsonTree(client);
+        maskKeys(clientTree);
+        root.add("client", clientTree);
+        if (server != null) {
+            JsonElement serverTree = GSON.toJsonTree(server);
+            maskKeys(serverTree);
+            root.add("server", serverTree);
+        }
+        try {
+            Path directory = file.getParent();
+            if (directory != null) Files.createDirectories(directory);
+            Files.writeString(file, GSON.toJson(root) + "\n", StandardCharsets.UTF_8);
+            toast(Component.translatable("friendai.config.nav.exported", file.toString()));
+        } catch (IOException | RuntimeException error) {
+            toast(Component.translatable("friendai.config.nav.transfer_failed", message(error)));
+        }
+    }
+
+    /**
+     * Replaces both drafts with the file's contents so the player can review them before Save. Refuses a file
+     * without this build's envelope version, and refuses to write a masked key over a real one.
+     */
+    private static void importSettings(ClientConfig client, ServerConfig server, Runnable reopen) {
+        Path file;
+        try {
+            file = transferFile();
+        } catch (RuntimeException error) {
+            toast(Component.translatable("friendai.config.nav.transfer_failed", message(error)));
+            return;
+        }
+        if (!Files.isRegularFile(file)) {
+            toast(Component.translatable("friendai.config.nav.import_missing", file.toString()));
+            return;
+        }
+        JsonObject root;
+        try {
+            JsonElement parsed = JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8));
+            if (!parsed.isJsonObject()) {
+                toast(Component.translatable("friendai.config.nav.import_invalid", file.toString()));
+                return;
+            }
+            root = parsed.getAsJsonObject();
+        } catch (IOException | RuntimeException error) {
+            toast(Component.translatable("friendai.config.nav.import_invalid", file.toString()));
+            return;
+        }
+        JsonElement version = root.get("friendai");
+        if (version == null
+                || !version.isJsonPrimitive()
+                || !version.getAsJsonPrimitive().isNumber()) {
+            toast(Component.translatable("friendai.config.nav.import_invalid", file.toString()));
+            return;
+        }
+        int found = version.getAsInt();
+        if (found != TRANSFER_VERSION) {
+            toast(Component.translatable("friendai.config.nav.import_version", found, TRANSFER_VERSION));
+            return;
+        }
+        JsonElement clientTree = root.get("client");
+        if (clientTree == null || !clientTree.isJsonObject()) {
+            toast(Component.translatable("friendai.config.nav.import_invalid", file.toString()));
+            return;
+        }
+        ClientConfig importedClient = GSON.fromJson(clientTree, ClientConfig.class);
+        if (importedClient == null) {
+            toast(Component.translatable("friendai.config.nav.import_invalid", file.toString()));
+            return;
+        }
+        restoreCloudKeys(importedClient, client);
+        client.voice = importedClient.voice;
+        if (importedClient.social != null) client.social = importedClient.social;
+        List<String> problems = new ArrayList<>();
+        client.validate();
+        JsonElement serverTree = root.get("server");
+        if (server != null && serverTree != null && serverTree.isJsonObject()) {
+            ServerConfig importedServer = GSON.fromJson(serverTree, ServerConfig.class);
+            if (importedServer != null) {
+                restoreProfileKeys(importedServer, server);
+                applyServerDraft(server, importedServer);
+                problems.addAll(server.validate());
+            }
+        }
+        lastSaveProblem = problems.isEmpty() ? null : problems.getFirst();
+        toast(Component.translatable("friendai.config.nav.imported", file.toString()));
+        reopen.run();
+    }
+
+    private static Path transferFile() {
+        String value = transferPath == null || transferPath.isBlank() ? DEFAULT_TRANSFER_FILE : transferPath.strip();
+        Path file = Path.of(value);
+        if (file.isAbsolute()) return file;
+        return FriendaiClient.runtime().configuration().configDirectory().resolve(file);
+    }
+
+    /** Replaces every {@code apiKey} member anywhere in the tree with the mask. */
+    private static void maskKeys(JsonElement element) {
+        if (element == null || element.isJsonNull()) return;
+        if (element.isJsonArray()) {
+            for (JsonElement child : element.getAsJsonArray()) maskKeys(child);
+            return;
+        }
+        if (!element.isJsonObject()) return;
+        JsonObject object = element.getAsJsonObject();
+        for (String name : List.copyOf(object.keySet())) {
+            JsonElement value = object.get(name);
+            if ("apiKey".equals(name) && value != null && value.isJsonPrimitive()) {
+                object.addProperty(name, MASK);
+            } else {
+                maskKeys(value);
+            }
+        }
+    }
+
+    /** A masked key means "unchanged": the provider entry keeps the key this install already has. */
+    private static void restoreCloudKeys(ClientConfig imported, ClientConfig current) {
+        if (imported.voice == null) return;
+        restoreCloudKeys(imported.voice.stt == null ? null : imported.voice.stt.cloud, current.voice.stt.cloud);
+        restoreCloudKeys(imported.voice.tts == null ? null : imported.voice.tts.cloud, current.voice.tts.cloud);
+    }
+
+    private static void restoreCloudKeys(
+            Map<String, ClientConfig.CloudSettings> imported, Map<String, ClientConfig.CloudSettings> current) {
+        if (imported == null) return;
+        imported.forEach((id, settings) -> {
+            if (settings == null || !MASK.equals(settings.apiKey)) return;
+            ClientConfig.CloudSettings existing = current == null ? null : current.get(id);
+            settings.apiKey = existing == null ? null : existing.apiKey;
+        });
+    }
+
+    private static void restoreProfileKeys(ServerConfig imported, ServerConfig current) {
+        if (imported.profiles == null) return;
+        imported.profiles.forEach((id, profile) -> {
+            if (!MASK.equals(profile.apiKey)) return;
+            ServerConfig.ProfileConfig existing = current.profiles.get(id);
+            profile.apiKey = existing == null ? null : existing.apiKey;
+        });
+    }
+
+    /** Replaces each section of the live draft; the widgets read the same objects after the rebuild. */
+    private static void applyServerDraft(ServerConfig draft, ServerConfig imported) {
+        if (imported.profiles != null && !imported.profiles.isEmpty()) {
+            draft.profiles = new LinkedHashMap<>(imported.profiles);
+            draft.activeProfile = draft.profiles.containsKey(imported.activeProfile)
+                    ? imported.activeProfile
+                    : draft.profiles.keySet().iterator().next();
+        }
+        if (imported.companion != null) draft.companion = imported.companion;
+        if (imported.chat != null) draft.chat = imported.chat;
+        if (imported.brain != null) draft.brain = imported.brain;
+        if (imported.tasks != null) draft.tasks = imported.tasks;
+        if (imported.memory != null) draft.memory = imported.memory;
+        if (imported.pathing != null) draft.pathing = imported.pathing;
+        if (imported.mining != null) draft.mining = imported.mining;
+        if (imported.places != null) draft.places = imported.places;
+        if (imported.structures != null) draft.structures = imported.structures;
+        if (imported.agent != null) draft.agent = imported.agent;
+        if (imported.autonomy != null) draft.autonomy = imported.autonomy;
+        if (imported.skills != null) draft.skills = imported.skills;
+    }
+
+    private static String message(Throwable error) {
+        String text = error.getMessage();
+        return text == null || text.isBlank() ? error.getClass().getSimpleName() : text;
     }
 
     private static Option<String> stringOption(
@@ -1707,7 +2197,9 @@ public final class FriendaiConfigScreen {
         applying = true;
         try {
             for (Option<?> option : pendingOptions) {
-                if (option.changed()) draftChanged = true;
+                // Search, the Basic/Advanced switch and the profile/transfer fields only drive the screen:
+                // their pending values are written back, but they never arm Save or mark a draft as edited.
+                if (option.changed() && !UI_OPTIONS.contains(option)) draftChanged = true;
                 option.applyValue();
             }
         } finally {
