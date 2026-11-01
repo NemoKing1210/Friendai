@@ -84,6 +84,11 @@ public final class ConditionalPlansTests {
             coordinator.tick();
         }
         h.assertValueEqual(coordinator.queue().jobCount(), 1, "an unmet guard keeps the job queued, not failed");
+        String summary = coordinator.queueSummary();
+        h.assertTrue(summary.contains("Blocked"), "the status line must say the work is blocked: " + summary);
+        h.assertTrue(
+                summary.toLowerCase(java.util.Locale.ROOT).contains("diamond"),
+                "the status line must name what it is waiting for: " + summary);
         h.assertTrue(
                 !"stay".equals(coordinator.current().map(Task::type).orElse("none")),
                 "the guarded task must not start before its condition holds");
