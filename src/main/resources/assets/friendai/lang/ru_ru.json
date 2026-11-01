@@ -959,5 +959,7 @@
   "friendai.menu.feeling.empty": "Пока нечего показать.",
   "friendai.command.pause.on": "Стоять: компаньон не начинает новую работу, пока вы не продолжите.",
   "friendai.command.pause.off": "Компаньон снова может работать.",
-  "friendai.command.pause.none": "У вас нет компаньона, которого можно остановить."
+  "friendai.command.pause.none": "У вас нет компаньона, которого можно остановить.",
+  "friendai.menu.pause": "Пауза",
+  "friendai.menu.resume": "Продолжить"
 }

@@ -109,7 +109,10 @@ public final class SnapshotBuilder {
                 feeling.bondReasons(),
                 feeling.goalText(),
                 feeling.goalCriteria(),
-                feeling.goalUnmet());
+                feeling.goalUnmet(),
+                companion
+                        .map(entity -> entity.executionCoordinator().manualPause())
+                        .orElse(false));
     }
 
     /** What the companion feels and is working on, already in the shape the snapshot wants. */

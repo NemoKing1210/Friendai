@@ -8,6 +8,16 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.130.0] - 2026-11-01
+
+### Added
+
+- A **Pause / Resume** button in the companion menu's Control tab, the same switch as `/friendai pause`: the label follows the real state, so a held companion reads "Resume" even after a rejoin.
+
+### Changed
+
+- The Control tab lays its five buttons out by the width available instead of assuming four, so they still fit on the smallest menu.
+
 ## [0.129.0] - 2026-11-01
 
 ### Added

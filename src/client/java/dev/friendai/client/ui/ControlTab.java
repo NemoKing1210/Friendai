@@ -24,38 +24,103 @@ final class ControlTab extends StatefulMenuTab {
     private FlatButton teleport;
     private FlatButton dismiss;
     private FlatButton stop;
+    private FlatButton pause;
     private int buttonsTop;
 
     @Override
     public void init(Host host, int left, int top, int width, int height) {
-        boolean oneRow = width >= 4 * 70 + 3 * GAP;
-        int rows = oneRow ? 1 : 2;
-        int columns = oneRow ? 4 : 2;
+        // Five buttons, laid out by how many fit side by side: never narrower than 70 pixels each.
+        int buttons = 5;
+        int columns = width >= buttons * 70 + (buttons - 1) * GAP ? buttons : 2;
+        int rows = (buttons + columns - 1) / columns;
         int buttonWidth = (width - (columns - 1) * GAP) / columns;
         buttonsTop = top + height - rows * BUTTON_HEIGHT - (rows - 1) * GAP;
-        summon = button(
-                host, "friendai.menu.summon", new ControlRequest.Summon(), Ui.GOOD, left, buttonsTop, buttonWidth);
-        teleport = button(
+        int index = 0;
+        summon = place(
                 host,
+                buttons,
+                columns,
+                buttonWidth,
+                "friendai.menu.summon",
+                new ControlRequest.Summon(),
+                Ui.GOOD,
+                left,
+                index++);
+        teleport = place(
+                host,
+                buttons,
+                columns,
+                buttonWidth,
                 "friendai.menu.teleport",
                 new ControlRequest.Teleport(),
                 Ui.ACCENT,
-                left + (buttonWidth + GAP),
-                buttonsTop,
-                buttonWidth);
-        int secondRow = oneRow ? buttonsTop : buttonsTop + BUTTON_HEIGHT + GAP;
-        int dismissX = oneRow ? left + 2 * (buttonWidth + GAP) : left;
-        dismiss = button(
-                host, "friendai.menu.dismiss", new ControlRequest.Dismiss(), Ui.WARN, dismissX, secondRow, buttonWidth);
-        stop = button(
+                left,
+                index++);
+        dismiss = place(
                 host,
+                buttons,
+                columns,
+                buttonWidth,
+                "friendai.menu.dismiss",
+                new ControlRequest.Dismiss(),
+                Ui.WARN,
+                left,
+                index++);
+        stop = place(
+                host,
+                buttons,
+                columns,
+                buttonWidth,
                 "friendai.menu.stop",
                 new ControlRequest.Stop(),
                 Ui.BAD,
-                dismissX + buttonWidth + GAP,
-                secondRow,
-                buttonWidth);
+                left,
+                index++);
+        pause = host.add(new FlatButton(
+                x(left, buttonWidth, columns, index),
+                y(index, columns),
+                buttonWidth,
+                BUTTON_HEIGHT,
+                workLabel(),
+                Ui.ACCENT,
+                () -> CompanionRequests.send(new ControlRequest.SetPaused(!pausedNow()))));
         tick();
+    }
+
+    private FlatButton place(
+            Host host,
+            int buttons,
+            int columns,
+            int buttonWidth,
+            String key,
+            ControlRequest request,
+            int color,
+            int left,
+            int index) {
+        return host.add(new FlatButton(
+                x(left, buttonWidth, columns, index),
+                y(index, columns),
+                buttonWidth,
+                BUTTON_HEIGHT,
+                Component.translatable(key),
+                color,
+                () -> CompanionRequests.send(request)));
+    }
+
+    private int x(int left, int buttonWidth, int columns, int index) {
+        return left + (index % columns) * (buttonWidth + GAP);
+    }
+
+    private int y(int index, int columns) {
+        return buttonsTop + (index / columns) * (BUTTON_HEIGHT + GAP);
+    }
+
+    private boolean pausedNow() {
+        return state.snapshot().map(CompanionSnapshot::workPaused).orElse(false);
+    }
+
+    private Component workLabel() {
+        return Component.translatable(pausedNow() ? "friendai.menu.resume" : "friendai.menu.pause");
     }
 
     private static FlatButton button(
@@ -73,6 +138,8 @@ final class ControlTab extends StatefulMenuTab {
         teleport.active = connected && present;
         dismiss.active = connected && present;
         stop.active = connected && present;
+        pause.active = connected && present;
+        pause.setMessage(workLabel());
     }
 
     @Override

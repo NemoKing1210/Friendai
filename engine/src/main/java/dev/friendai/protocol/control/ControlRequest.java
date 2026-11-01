@@ -16,7 +16,8 @@ public sealed interface ControlRequest extends ClientRequest
                 ControlRequest.SetFollowMode,
                 ControlRequest.FreeTimeToggle,
                 ControlRequest.SendChat,
-                ControlRequest.InvokeTool {
+                ControlRequest.InvokeTool,
+                ControlRequest.SetPaused {
     @Override
     default ProtocolFamily family() {
         return ProtocolFamily.CONTROL;
@@ -110,6 +111,14 @@ public sealed interface ControlRequest extends ClientRequest
         @Override
         public int operationId() {
             return 13;
+        }
+    }
+
+    /** The owner holds the companion's work or lets it continue. */
+    record SetPaused(boolean paused) implements ControlRequest {
+        @Override
+        public int operationId() {
+            return 14;
         }
     }
 }

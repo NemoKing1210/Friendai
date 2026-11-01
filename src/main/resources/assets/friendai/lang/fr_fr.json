@@ -962,5 +962,7 @@
   "friendai.menu.feeling.empty": "Rien à montrer pour l'instant.",
   "friendai.command.pause.on": "Immobile : le compagnon ne commence plus de travail jusqu'à la reprise.",
   "friendai.command.pause.off": "Le compagnon peut travailler de nouveau.",
-  "friendai.command.pause.none": "Vous n'avez pas de compagnon à retenir."
+  "friendai.command.pause.none": "Vous n'avez pas de compagnon à retenir.",
+  "friendai.menu.pause": "Pause",
+  "friendai.menu.resume": "Reprendre"
 }

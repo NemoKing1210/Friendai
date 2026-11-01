@@ -46,6 +46,12 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] The Settings tab's free-time switch toggles it and shows the current activity (or "choosing an activity" while the director decides), in both UI languages.
 - [ ] Tell the companion "don't follow me" while free time runs: it stops walking after you, keeps working, and the Toggles tab shows "Following: off" after a relog. "Follow me" switches it back on.
 
+## Companion controls
+
+- [ ] Pause from the menu's Control tab: a running job stops, the button reads Resume, and Resume continues the same job.
+- [ ] Pause, quit to the title and rejoin: the button still reads Resume and no new work starts until it is pressed.
+- [ ] `/friendai pause` and the menu button agree in both directions.
+
 ## Companion feeling tab
 
 - [ ] Open the companion menu and the Feeling tab: mood and the bond line render in both UI languages, and the goal with its criteria appears once a goal is set.
