@@ -391,13 +391,17 @@ public final class FriendaiConfigScreen {
                         })))
                 .build();
 
+        OptionGroup advanced = OptionGroup.createBuilder()
+                .name(tr("friendai.config.category.advanced"))
+                .collapsed(true)
+                .option(baseUrlOpt)
+                .build();
         return ConfigCategory.createBuilder()
                 .name(tr("friendai.config.category.provider"))
                 .option(profileOpt)
                 .option(providerOpt)
                 .option(LabelOption.create(
                         Component.translatable("friendai.config.status.line", Component.translatable(statusKey))))
-                .option(baseUrlOpt)
                 .option(apiKeyOpt)
                 .option(toggleKey)
                 .option(getKey)
@@ -406,6 +410,7 @@ public final class FriendaiConfigScreen {
                 .option(temperatureOpt)
                 .option(maxTokensOpt)
                 .option(testConnection)
+                .group(advanced)
                 .build();
     }
 

@@ -729,5 +729,6 @@
   "friendai.config.status.ready": "Готово",
   "friendai.config.status.no_key": "Ключ API ще не задано",
   "friendai.config.status.no_model": "Виберіть модель",
-  "friendai.config.status.local": "Локальна точка"
+  "friendai.config.status.local": "Локальна точка",
+  "friendai.config.category.advanced": "Додатково"
 }
