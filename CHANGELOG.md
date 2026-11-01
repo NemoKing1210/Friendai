@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.136.1] - 2026-11-01
+
+### Fixed
+
+- Memory compaction no longer fails when the companion is not present in the world; the merge still applies and the manner only drifts while the companion exists.
+
 ## [0.136.0] - 2026-11-01
 
 ### Changed

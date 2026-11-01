@@ -158,7 +158,8 @@ public final class SelfTools implements FeatureToolContributor {
         }
         String ownerName = book.player(owner).map(PlayerRecord::lastName).orElse("owner");
         // A completed compaction is the one place the manner may drift, one small step per talk.
-        companion.driftTrait();
+        // The tool also runs from a companion-less context (owner tools outside a world), where there is no manner.
+        if (companion != null) companion.driftTrait();
         return ToolResult.ok(renderApplied(
                 MemoryCompactor.apply(book, plan, owner, ownerName, self.now(), limits), self.resultBudget()));
     }
