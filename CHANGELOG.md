@@ -8,6 +8,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.99.0] - 2026-11-01
+
+### Added
+
+- The companion's body language now shows above its head: focus while it works, worry when hurt or in danger, pleasure after a finished job, displeasure after a failed one, and alarm in combat.
+
 ## [0.98.0] - 2026-11-01
 
 ### Added
