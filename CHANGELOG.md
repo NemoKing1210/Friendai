@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.144.0] - 2026-11-01
+
+### Added
+
+- A **Reset everything** button at the top of the first settings tab, next to the per-category buttons: it returns every setting of the screen to its defaults in one click, still without saving until you press Save. A single row keeps YACL's own per-option reset.
+
 ## [0.143.0] - 2026-11-01
 
 ### Changed

@@ -124,6 +124,7 @@
   "friendai.config.category.voice": "Голос",
   "friendai.config.category.server": "Сервер",
   "friendai.config.category.reset": "Скинути категорію",
+  "friendai.config.reset_all": "Скинути все",
   "friendai.config.server_only": "Ці налаштування задаються на сервері.",
   "friendai.config.server_protected": "Налаштування сервера неможливо безпечно прочитати, зберегти в резервну копію чи оновити. friendai-server.json відкрито лише для читання. Перевірте файл, вільне місце на диску та права на теку, потім відкрийте цей екран знову.",
   "friendai.config.server_unsupported": "friendai-server.json має невідомий або новіший формат. Підтримувані старіші формати оновлюються автоматично. Використайте сумісну версію мода або зробіть резервну копію й замініть файл, щоб редагувати ці налаштування.",
