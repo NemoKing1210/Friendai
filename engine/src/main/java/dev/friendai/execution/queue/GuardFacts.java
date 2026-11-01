@@ -14,6 +14,11 @@ public interface GuardFacts {
 
     String dimension();
 
+    /** Hunger points, or a negative value when the caller cannot know them. */
+    default int foodLevel() {
+        return -1;
+    }
+
     default boolean blockInFront(String idOrTag, int distance) {
         return false;
     }

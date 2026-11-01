@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.UUID;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.ProblemReporter;
 import net.minecraft.world.level.storage.TagValueInput;
 import net.minecraft.world.level.storage.TagValueOutput;
@@ -261,6 +262,20 @@ public final class QueueTests {
                 execution.queue().planStatus(plan.planId()) == PlanStatus.NEEDS_DECISION,
                 "failed ASK plan should still require a decision");
         h.assertTrue(execution.current().isEmpty(), "default follow must wait for the owner's decision");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 200)
+    public void theOutcomeSnapshotReadsHealthAndFoodOffTheBody(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        CompanionEntity companion =
+                CompanionManager.get(h.getLevel().getServer()).summon(owner);
+        companion.setHealth(companion.getMaxHealth() * 0.5f);
+
+        var snapshot = dev.friendai.server.agent.OutcomeFacts.snapshot(companion);
+        h.assertValueEqual(snapshot.healthPercent(), 50, "the snapshot carries the body's health");
+        h.assertTrue(snapshot.foodLevel() >= 0, "and its hunger: " + snapshot.foodLevel());
         h.succeed();
     }
 }

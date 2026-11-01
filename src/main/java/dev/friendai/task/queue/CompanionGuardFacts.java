@@ -109,6 +109,11 @@ public final class CompanionGuardFacts implements GuardFacts {
     }
 
     @Override
+    public int foodLevel() {
+        return companion.syncedFood();
+    }
+
+    @Override
     public int ownerDistance() {
         if (ownerDistance == null) {
             ServerPlayer owner = companion.owner().orElse(null);

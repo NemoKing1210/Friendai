@@ -20,7 +20,13 @@ public final class OutcomeFacts {
         }
         CompanionGuardFacts facts = new CompanionGuardFacts(companion);
         facts.refresh();
-        return new WorldSnapshot(items, facts.emptySlots(), facts.ownerDistance(), facts.dimension());
+        return new WorldSnapshot(
+                items,
+                facts.emptySlots(),
+                facts.ownerDistance(),
+                facts.dimension(),
+                Math.round(facts.healthFraction() * 100f),
+                facts.foodLevel());
     }
 
     private static void add(Map<String, Integer> items, ItemStack stack) {

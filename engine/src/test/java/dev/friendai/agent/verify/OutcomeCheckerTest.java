@@ -125,4 +125,28 @@ class OutcomeCheckerTest {
                 List.of("owner 40 blocks away"),
                 o.facts().stream().map(Fact::text).toList());
     }
+
+    @Test
+    void bodyDeltasAreReportedAndUnchangedBodyFactsStayQuiet() {
+        WorldSnapshot before = new WorldSnapshot(Map.of(), 0, 2, "minecraft:overworld", 80, 18);
+        WorldSnapshot hurt = new WorldSnapshot(Map.of(), 0, 2, "minecraft:overworld", 35, 12);
+        List<String> hurtText = OutcomeChecker.check(before, hurt, true, List.of(), facts(hurt)).facts().stream()
+                .map(Fact::text)
+                .toList();
+        assertTrue(hurtText.contains("health 35% (was 80%)"), hurtText.toString());
+        assertTrue(hurtText.contains("food 12 (was 18)"), hurtText.toString());
+
+        WorldSnapshot still = new WorldSnapshot(Map.of(), 0, 2, "minecraft:overworld", 35, 12);
+        List<String> stillText = OutcomeChecker.check(hurt, still, true, List.of(), facts(still)).facts().stream()
+                .map(Fact::text)
+                .toList();
+        assertTrue(stillText.isEmpty(), "an unchanged body produces no fact: " + stillText);
+
+        WorldSnapshot unknownFood = new WorldSnapshot(Map.of(), 0, 2, "minecraft:overworld", 35, -1);
+        List<String> unknownText =
+                OutcomeChecker.check(hurt, unknownFood, true, List.of(), facts(unknownFood)).facts().stream()
+                        .map(Fact::text)
+                        .toList();
+        assertTrue(unknownText.stream().noneMatch(text -> text.startsWith("food")), unknownText.toString());
+    }
 }
