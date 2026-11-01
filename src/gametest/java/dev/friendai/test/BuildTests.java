@@ -725,6 +725,96 @@ public class BuildTests {
         });
     }
 
+    /**
+     * A build that hits one blocked cell keeps what it already placed and reports honestly: the summary names the
+     * obstacle and the resume hint, the in-progress record lists only the cell that is still missing, and the same
+     * build finishes once the obstacle is gone.
+     */
+    @GameTest(maxTicks = 3000)
+    public void aPartialBuildLeavesOnlyTheRestResumable(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.inventory().addItem(new ItemStack(Items.COBBLESTONE, 8));
+        Blueprint platform =
+                generator("{\"type\":\"platform\",\"width\":3,\"depth\":1,\"block\":\"minecraft:cobblestone\"}");
+        BlockPos origin = h.absolutePos(new BlockPos(4, 2, 4));
+        BuildTask task = new BuildTask(platform, origin, Rotation.NONE, true, false);
+        String saved = task.saveData();
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(companion, result);
+        runner.start(task, "build_structure");
+        int[] blocked = {-1};
+        boolean[] retrying = {false};
+        Result retried = new Result();
+        ExecutionCoordinator[] retryRunner = {null};
+        h.succeedWhen(() -> {
+            if (!retrying[0]) {
+                runner.tick();
+                if (blocked[0] < 0 && result.status == null) {
+                    // The site check happens before any work, so the obstacle has to appear mid-build: two cells
+                    // go in, then a chest lands on the cell the build has not reached yet.
+                    int built = 0;
+                    int free = -1;
+                    for (int x = 4; x <= 6; x++) {
+                        if (h.getBlockState(new BlockPos(x, 2, 4)).is(Blocks.COBBLESTONE)) {
+                            built++;
+                        } else {
+                            free = x;
+                        }
+                    }
+                    if (built == 2 && free > 0) {
+                        blocked[0] = free;
+                        h.setBlock(free, 2, 4, Blocks.CHEST);
+                    }
+                    h.assertTrue(false, "the blocked build is still running: " + built + " cells placed");
+                }
+                h.assertTrue(
+                        result.status != null, "a build with a blocked cell must report: " + runner.currentToolName());
+                h.assertTrue(result.status == TaskStatus.FAILED, "status " + result.status + ": " + result.summary);
+                h.assertTrue(blocked[0] > 0, "the build never reached its blocked cell: " + result.summary);
+                h.assertTrue(
+                        result.summary.contains("the site isn't clear: minecraft:chest"),
+                        "the partial failure names the obstacle: " + result.summary);
+                h.assertTrue(
+                        result.summary.contains("half built at"),
+                        "a partial build must say it is partial: " + result.summary);
+                h.assertTrue(
+                        result.summary.contains("resume it with build_structure at the same origin"),
+                        "the partial failure says how to finish: " + result.summary);
+                BlueprintStore.InProgress record = store(h).findResumable(
+                                platform,
+                                companion.ownerUuid(),
+                                h.getLevel().dimension().identifier().toString(),
+                                origin)
+                        .orElse(null);
+                h.assertTrue(record != null, "a partial build must leave a resumable record");
+                h.assertTrue(record.origin().equals(origin), "the record keeps the origin");
+                h.assertTrue(
+                        record.remaining().equals(List.of(h.absolutePos(new BlockPos(blocked[0], 2, 4)))),
+                        "the record holds only the work left, got " + record.remaining());
+                h.setBlock(blocked[0], 2, 4, Blocks.AIR);
+                retrying[0] = true;
+                BuildTask resumed = (BuildTask)
+                        TaskRestoreRegistry.restoreCheckpoint(new TaskState("build_structure", saved), h.getLevel())
+                                .orElseThrow();
+                retryRunner[0] = runner(companion, retried);
+                retryRunner[0].start(resumed, "build_structure");
+                h.assertTrue(false, "the rest of the build is resuming from " + blocked[0] + ",2,4");
+            }
+            retryRunner[0].tick();
+            h.assertTrue(retried.status != null, "the resumed build is still running");
+            h.assertTrue(
+                    retried.status == TaskStatus.SUCCESS, "resume status " + retried.status + ": " + retried.summary);
+            for (int x = 4; x <= 6; x++) {
+                h.assertTrue(
+                        h.getBlockState(new BlockPos(x, 2, 4)).is(Blocks.COBBLESTONE),
+                        "missing the remaining cell at " + x + ",2,4: " + h.getBlockState(new BlockPos(x, 2, 4)));
+            }
+            h.assertTrue(
+                    !Files.exists(store(h).inProgressFile(buildId(saved))), "a finished resume deletes its record");
+        });
+    }
+
     @GameTest
     public void anOwnScaffoldIsNotASiteProblem(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
