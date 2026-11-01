@@ -832,11 +832,13 @@ public final class FriendaiConfigScreen {
 
     private static Option<String> stringOption(
             String nameKey,
+            String descriptionKey,
             java.util.function.Supplier<String> getter,
             String def,
             java.util.function.Consumer<String> setter) {
         return Option.<String>createBuilder()
                 .name(tr(nameKey))
+                .description(OptionDescription.of(tr(descriptionKey)))
                 .binding(def, getter, setter)
                 .controller(StringControllerBuilder::create)
                 .build();
@@ -853,6 +855,7 @@ public final class FriendaiConfigScreen {
 
         Option<String> profileOpt = Option.<String>createBuilder()
                 .name(tr("friendai.config.profile"))
+                .description(OptionDescription.of(tr("friendai.config.profile.tooltip")))
                 .binding(
                         server.profiles.containsKey("main") ? "main" : server.activeProfile,
                         () -> server.activeProfile,
@@ -863,6 +866,7 @@ public final class FriendaiConfigScreen {
                 .build();
         Option<String> providerOpt = Option.<String>createBuilder()
                 .name(tr("friendai.config.provider"))
+                .description(OptionDescription.of(tr("friendai.config.provider.tooltip")))
                 .binding(new ServerConfig.ProfileConfig().provider, () -> p.provider, v -> p.provider = v)
                 .controller(o -> DropdownStringControllerBuilder.create(o)
                         .values(providerIds)
@@ -882,6 +886,7 @@ public final class FriendaiConfigScreen {
         }
         Option<String> baseUrlOpt = Option.<String>createBuilder()
                 .name(tr("friendai.config.base_url"))
+                .description(OptionDescription.of(tr("friendai.config.base_url.tooltip")))
                 .binding("", () -> p.baseUrl == null ? "" : p.baseUrl, v -> p.baseUrl = v.isBlank() ? null : v.strip())
                 .controller(StringControllerBuilder::create)
                 .build();
@@ -898,16 +903,19 @@ public final class FriendaiConfigScreen {
                 .build();
         Option<String> modelOpt = Option.<String>createBuilder()
                 .name(tr("friendai.config.model"))
+                .description(OptionDescription.of(tr("friendai.config.model.tooltip")))
                 .binding(new ServerConfig.ProfileConfig().model, () -> p.model, v -> p.model = v)
                 .customController(o -> new SuggestedStringController(o, ModelCache.get(p.provider)))
                 .build();
         Option<Double> temperatureOpt = Option.<Double>createBuilder()
                 .name(tr("friendai.config.temperature"))
+                .description(OptionDescription.of(tr("friendai.config.temperature.tooltip")))
                 .binding(0.7, () -> p.temperature == null ? 0.7 : p.temperature, v -> p.temperature = v)
                 .controller(o -> DoubleFieldControllerBuilder.create(o).range(0.0, 2.0))
                 .build();
         Option<Integer> maxTokensOpt = Option.<Integer>createBuilder()
                 .name(tr("friendai.config.max_tokens"))
+                .description(OptionDescription.of(tr("friendai.config.max_tokens.tooltip")))
                 .binding(8192, () -> p.maxTokens, v -> p.maxTokens = v)
                 .controller(o -> IntegerFieldControllerBuilder.create(o).range(16, 65536))
                 .build();
@@ -1036,11 +1044,13 @@ public final class FriendaiConfigScreen {
                 .name(scoped(tr("friendai.config.category.companion"), "friendai.config.scope.server"))
                 .option(stringOption(
                         "friendai.config.companion.name",
+                        "friendai.config.companion.name.tooltip",
                         () -> c.name,
                         "Friendai",
                         v -> c.name = v.isBlank() ? "Friendai" : v.strip()))
                 .option(stringOption(
                         "friendai.config.companion.description",
+                        "friendai.config.companion.description.tooltip",
                         () -> c.description,
                         new ServerConfig.CompanionSection().description,
                         v -> c.description = v))
@@ -1052,11 +1062,13 @@ public final class FriendaiConfigScreen {
                         .build())
                 .option(booleanOption(
                         "friendai.config.skills.enabled",
+                        "friendai.config.skills.enabled.tooltip",
                         true,
                         () -> server.skills.enabled,
                         v -> server.skills.enabled = v))
                 .option(booleanOption(
                         "friendai.config.skills.approval",
+                        "friendai.config.skills.approval.tooltip",
                         true,
                         () -> server.skills.requireApproval,
                         v -> server.skills.requireApproval = v))
@@ -1133,6 +1145,7 @@ public final class FriendaiConfigScreen {
                         .build())
                 .option(booleanOption(
                         "friendai.config.companion.chunk_loading",
+                        "friendai.config.companion.chunk_loading.tooltip",
                         true,
                         () -> c.chunkLoading.enabled,
                         value -> c.chunkLoading.enabled = value))
@@ -1150,9 +1163,18 @@ public final class FriendaiConfigScreen {
         var c = server.chat;
         return ConfigCategory.createBuilder()
                 .name(scoped(tr("friendai.config.category.chat"), "friendai.config.scope.server"))
-                .option(stringOption("friendai.config.chat.prefix", () -> c.prefix, "@", v -> c.prefix = v))
+                .option(stringOption(
+                        "friendai.config.chat.prefix",
+                        "friendai.config.chat.prefix.tooltip",
+                        () -> c.prefix,
+                        "@",
+                        v -> c.prefix = v))
                 .option(booleanOption(
-                        "friendai.config.chat.respond_to_name", true, () -> c.respondToName, v -> c.respondToName = v))
+                        "friendai.config.chat.respond_to_name",
+                        "friendai.config.chat.respond_to_name.tooltip",
+                        true,
+                        () -> c.respondToName,
+                        v -> c.respondToName = v))
                 .option(booleanOption(
                         "friendai.config.chat.listen_all",
                         "friendai.config.chat.listen_all.tooltip",
@@ -1198,6 +1220,7 @@ public final class FriendaiConfigScreen {
                 .name(scoped(tr("friendai.config.category.planning"), "friendai.config.scope.server"))
                 .option(booleanOption(
                         "friendai.config.agent.tool_routing",
+                        "friendai.config.agent.tool_routing.tooltip",
                         true,
                         () -> agent.toolRouting,
                         value -> agent.toolRouting = value))
@@ -1280,6 +1303,7 @@ public final class FriendaiConfigScreen {
                 .name(scoped(tr("friendai.config.category.tasks"), "friendai.config.scope.server"))
                 .option(booleanOption(
                         "friendai.config.tasks.default_follow",
+                        "friendai.config.tasks.default_follow.tooltip",
                         true,
                         () -> tasks.defaultFollow,
                         value -> tasks.defaultFollow = value))
@@ -1327,16 +1351,19 @@ public final class FriendaiConfigScreen {
                         .build())
                 .option(booleanOption(
                         "friendai.config.tasks.fell_collect",
+                        "friendai.config.tasks.fell_collect.tooltip",
                         true,
                         () -> tasks.fellCollectDrops,
                         value -> tasks.fellCollectDrops = value))
                 .option(booleanOption(
                         "friendai.config.tasks.mine_collect",
+                        "friendai.config.tasks.mine_collect.tooltip",
                         true,
                         () -> tasks.mineCollectDrops,
                         value -> tasks.mineCollectDrops = value))
                 .option(booleanOption(
                         "friendai.config.tasks.tree_perception",
+                        "friendai.config.tasks.tree_perception.tooltip",
                         true,
                         () -> tasks.treePerception,
                         value -> tasks.treePerception = value))
@@ -1403,9 +1430,14 @@ public final class FriendaiConfigScreen {
                                 IntegerFieldControllerBuilder.create(option).range(1_000, 100_000))
                         .build())
                 .option(booleanOption(
-                        "friendai.config.places.enabled", true, () -> places.enabled, value -> places.enabled = value))
+                        "friendai.config.places.enabled",
+                        "friendai.config.places.enabled.tooltip",
+                        true,
+                        () -> places.enabled,
+                        value -> places.enabled = value))
                 .option(booleanOption(
                         "friendai.config.places.auto_remember",
+                        "friendai.config.places.auto_remember.tooltip",
                         true,
                         () -> places.autoRemember,
                         value -> places.autoRemember = value))
@@ -1470,11 +1502,13 @@ public final class FriendaiConfigScreen {
                 .name(scoped(tr("friendai.config.category.trading"), "friendai.config.scope.server"))
                 .option(booleanOption(
                         "friendai.config.trading.enabled",
+                        "friendai.config.trading.enabled.tooltip",
                         true,
                         () -> trading.enabled,
                         value -> trading.enabled = value))
                 .option(booleanOption(
                         "friendai.config.trading.idle_refresh",
+                        "friendai.config.trading.idle_refresh.tooltip",
                         true,
                         () -> trading.idleRefresh,
                         value -> trading.idleRefresh = value))
@@ -1558,6 +1592,7 @@ public final class FriendaiConfigScreen {
                 .name(scoped(tr("friendai.config.category.resources"), "friendai.config.scope.server"))
                 .option(booleanOption(
                         "friendai.config.resources.expeditions",
+                        "friendai.config.resources.expeditions.tooltip",
                         true,
                         () -> resources.allowExpeditions,
                         value -> resources.allowExpeditions = value))
@@ -1604,6 +1639,7 @@ public final class FriendaiConfigScreen {
                         .build())
                 .option(booleanOption(
                         "friendai.config.resources.wait_for_owner",
+                        "friendai.config.resources.wait_for_owner.tooltip",
                         true,
                         () -> resources.waitForOwner,
                         value -> resources.waitForOwner = value))
@@ -1638,16 +1674,19 @@ public final class FriendaiConfigScreen {
                 .name(scoped(tr("friendai.config.category.autonomy"), "friendai.config.scope.server"))
                 .option(booleanOption(
                         "friendai.config.autonomy.enabled",
+                        "friendai.config.autonomy.enabled.tooltip",
                         true,
                         () -> autonomy.enabled,
                         value -> autonomy.enabled = value))
                 .option(booleanOption(
                         "friendai.config.autonomy.idle_start",
+                        "friendai.config.autonomy.idle_start.tooltip",
                         true,
                         () -> autonomy.idleStart,
                         value -> autonomy.idleStart = value))
                 .option(booleanOption(
                         "friendai.config.autonomy.while_offline",
+                        "friendai.config.autonomy.while_offline.tooltip",
                         true,
                         () -> autonomy.whileOffline,
                         value -> autonomy.whileOffline = value))
@@ -1695,6 +1734,7 @@ public final class FriendaiConfigScreen {
                         .build())
                 .option(booleanOption(
                         "friendai.config.autonomy.protect_places",
+                        "friendai.config.autonomy.protect_places.tooltip",
                         true,
                         () -> autonomy.protectPlaces,
                         value -> autonomy.protectPlaces = value))
@@ -1711,7 +1751,12 @@ public final class FriendaiConfigScreen {
         var m = server.memory;
         return ConfigCategory.createBuilder()
                 .name(scoped(tr("friendai.config.category.memory"), "friendai.config.scope.server"))
-                .option(booleanOption("friendai.config.memory.enabled", true, () -> m.enabled, v -> m.enabled = v))
+                .option(booleanOption(
+                        "friendai.config.memory.enabled",
+                        "friendai.config.memory.enabled.tooltip",
+                        true,
+                        () -> m.enabled,
+                        v -> m.enabled = v))
                 .option(Option.<Integer>createBuilder()
                         .name(tr("friendai.config.memory.max_fact_chars"))
                         .description(OptionDescription.of(tr("friendai.config.memory.max_fact_chars.tooltip")))
@@ -1757,6 +1802,7 @@ public final class FriendaiConfigScreen {
                         .build())
                 .option(booleanOption(
                         "friendai.config.memory.compaction_enabled",
+                        "friendai.config.memory.compaction_enabled.tooltip",
                         true,
                         () -> m.compactionEnabled,
                         v -> m.compactionEnabled = v))
@@ -1825,8 +1871,12 @@ public final class FriendaiConfigScreen {
         List<Option<?>> recognition = new ArrayList<>();
         List<Option<?>> synthesis = new ArrayList<>();
 
-        Option<Boolean> sttEnabled =
-                booleanOption("friendai.config.voice.enabled", true, () -> stt.enabled, value -> stt.enabled = value);
+        Option<Boolean> sttEnabled = booleanOption(
+                "friendai.config.voice.enabled",
+                "friendai.config.voice.enabled.tooltip",
+                true,
+                () -> stt.enabled,
+                value -> stt.enabled = value);
         Option<String> sttProvider = providerOption(
                 "friendai.config.voice.stt.provider",
                 SttPresets.LOCAL,
@@ -1853,11 +1903,13 @@ public final class FriendaiConfigScreen {
 
         Option<String> sttLanguage = Option.<String>createBuilder()
                 .name(tr("friendai.config.voice.language"))
+                .description(OptionDescription.of(tr("friendai.config.voice.language.tooltip")))
                 .binding("auto", () -> stt.language, value -> stt.language = value.isBlank() ? "auto" : value.strip())
                 .controller(StringControllerBuilder::create)
                 .build();
         Option<Integer> maxRecord = Option.<Integer>createBuilder()
                 .name(tr("friendai.config.voice.max_record"))
+                .description(OptionDescription.of(tr("friendai.config.voice.max_record.tooltip")))
                 .binding(30, () -> stt.maxRecordSec, value -> stt.maxRecordSec = value)
                 .controller(o -> IntegerFieldControllerBuilder.create(o).range(1, 120))
                 .build();
@@ -1871,7 +1923,11 @@ public final class FriendaiConfigScreen {
         recognition.add(sttTest);
 
         Option<Boolean> ttsEnabled = booleanOption(
-                "friendai.config.voice.tts.enabled", false, () -> tts.enabled, value -> tts.enabled = value);
+                "friendai.config.voice.tts.enabled",
+                "friendai.config.voice.tts.enabled.tooltip",
+                false,
+                () -> tts.enabled,
+                value -> tts.enabled = value);
         Option<String> ttsProvider = providerOption(
                 "friendai.config.voice.tts.provider",
                 TtsPresets.LOCAL,
@@ -1904,17 +1960,20 @@ public final class FriendaiConfigScreen {
 
         Option<Double> volume = Option.<Double>createBuilder()
                 .name(tr("friendai.config.voice.tts.volume"))
+                .description(OptionDescription.of(tr("friendai.config.voice.tts.volume.tooltip")))
                 .binding(1.0, () -> tts.volume, value -> tts.volume = value)
                 .controller(o ->
                         DoubleSliderControllerBuilder.create(o).range(0.0, 1.0).step(0.05))
                 .build();
         Option<Integer> maxChars = Option.<Integer>createBuilder()
                 .name(tr("friendai.config.voice.tts.max_chars"))
+                .description(OptionDescription.of(tr("friendai.config.voice.tts.max_chars.tooltip")))
                 .binding(300, () -> tts.maxChars, value -> tts.maxChars = value)
                 .controller(o -> IntegerFieldControllerBuilder.create(o).range(20, 500))
                 .build();
         Option<Boolean> speakGuests = booleanOption(
                 "friendai.config.voice.tts.speak_guests",
+                "friendai.config.voice.tts.speak_guests.tooltip",
                 false,
                 () -> tts.speakGuests,
                 value -> tts.speakGuests = value);
@@ -1955,6 +2014,7 @@ public final class FriendaiConfigScreen {
             Screen parent, ClientConfig client, ClientConfig.SttSection stt, boolean sttReveal, boolean ttsReveal) {
         Option<String> model = Option.<String>createBuilder()
                 .name(tr("friendai.config.voice.model"))
+                .description(OptionDescription.of(tr("friendai.config.voice.model.tooltip")))
                 .binding("base", () -> stt.local.model, value -> stt.local.model = value)
                 .controller(o -> DropdownStringControllerBuilder.create(o)
                         .values(WHISPER_MODELS)
@@ -2013,6 +2073,7 @@ public final class FriendaiConfigScreen {
         VoiceModel effective = effectiveVoice(tts);
         Option<String> voice = Option.<String>createBuilder()
                 .name(tr("friendai.config.voice.tts.local.voice"))
+                .description(OptionDescription.of(tr("friendai.config.voice.tts.local.voice.tooltip")))
                 .binding(
                         "",
                         () -> tts.local.voice == null ? "" : tts.local.voice,
@@ -2062,6 +2123,7 @@ public final class FriendaiConfigScreen {
                 .build();
         Option<Double> speed = Option.<Double>createBuilder()
                 .name(tr("friendai.config.voice.tts.speed"))
+                .description(OptionDescription.of(tr("friendai.config.voice.tts.speed.tooltip")))
                 .binding(1.0, () -> tts.local.speed, value -> tts.local.speed = value)
                 .controller(o ->
                         DoubleSliderControllerBuilder.create(o).range(0.5, 2.0).step(0.05))
@@ -2085,6 +2147,7 @@ public final class FriendaiConfigScreen {
         if (preset.uses(CloudField.MODEL)) {
             options.add(stringOption(
                     "friendai.config.voice.field.model",
+                    "friendai.config.voice.field.model.tooltip",
                     () -> settings.model == null ? preset.defaultModel() : settings.model,
                     preset.defaultModel(),
                     value -> settings.model = value));
@@ -2123,12 +2186,14 @@ public final class FriendaiConfigScreen {
         if (preset.voices().isEmpty()) {
             return Option.<String>createBuilder()
                     .name(tr("friendai.config.voice.field.voice_id"))
+                    .description(OptionDescription.of(tr("friendai.config.voice.field.voice_id.tooltip")))
                     .binding("", () -> nullToEmpty(settings.voice), value -> settings.voice = blankToNull(value))
                     .controller(StringControllerBuilder::create)
                     .build();
         }
         return Option.<String>createBuilder()
                 .name(tr("friendai.config.voice.field.voice"))
+                .description(OptionDescription.of(tr("friendai.config.voice.field.voice.tooltip")))
                 .binding(
                         preset.defaultVoice(),
                         () -> settings.voice == null ? preset.defaultVoice() : settings.voice,
@@ -2197,6 +2262,7 @@ public final class FriendaiConfigScreen {
         }
         return Option.<String>createBuilder()
                 .name(tr("friendai.config.voice.device"))
+                .description(OptionDescription.of(tr("friendai.config.voice.device.tooltip")))
                 .binding(
                         defaultDevice,
                         () -> stt.inputDevice == null ? defaultDevice : stt.inputDevice,
@@ -2219,6 +2285,7 @@ public final class FriendaiConfigScreen {
         }
         return Option.<String>createBuilder()
                 .name(tr("friendai.config.voice.tts.output_device"))
+                .description(OptionDescription.of(tr("friendai.config.voice.tts.output_device.tooltip")))
                 .binding(
                         defaultDevice,
                         () -> tts.outputDevice == null ? defaultDevice : tts.outputDevice,
@@ -2246,16 +2313,23 @@ public final class FriendaiConfigScreen {
                 max = 2.0;
             }
         }
-        return speedOption(min, max, () -> settings.speed, value -> settings.speed = value);
+        return speedOption(
+                min,
+                max,
+                "friendai.config.voice.tts.speed.cloud.tooltip",
+                () -> settings.speed,
+                value -> settings.speed = value);
     }
 
     private static Option<Double> speedOption(
             double min,
             double max,
+            String descriptionKey,
             java.util.function.Supplier<Double> getter,
             java.util.function.Consumer<Double> setter) {
         return Option.<Double>createBuilder()
                 .name(tr("friendai.config.voice.tts.speed"))
+                .description(OptionDescription.of(tr(descriptionKey)))
                 .binding(1.0, getter::get, setter::accept)
                 .controller(o ->
                         DoubleSliderControllerBuilder.create(o).range(min, max).step(0.05))
