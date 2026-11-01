@@ -721,5 +721,10 @@
   "friendai.menu.log.kind.response": "Reply",
   "friendai.freetime.no_plan.step": "step %s",
   "friendai.freetime.no_plan.invalid_steps": "invalid or unavailable actions",
-  "friendai.config.get_key": "Get an API key"
+  "friendai.config.get_key": "Get an API key",
+  "friendai.command.settings.header": "Friendai settings (read-only):",
+  "friendai.command.settings.line": "%s: %s",
+  "friendai.config.autonomy": "Autonomy",
+  "friendai.config.chunk_loading": "Chunk loading",
+  "friendai.config.hearing_radius": "Hearing radius"
 }

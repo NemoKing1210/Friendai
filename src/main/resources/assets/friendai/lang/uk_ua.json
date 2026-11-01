@@ -718,5 +718,10 @@
   "friendai.menu.log.kind.response": "Відповідь",
   "friendai.freetime.no_plan.step": "крок %s",
   "friendai.freetime.no_plan.invalid_steps": "некоректні або недоступні дії",
-  "friendai.config.get_key": "Отримати ключ API"
+  "friendai.config.get_key": "Отримати ключ API",
+  "friendai.command.settings.header": "Налаштування Friendai (лише читання):",
+  "friendai.command.settings.line": "%s: %s",
+  "friendai.config.autonomy": "Автономність",
+  "friendai.config.chunk_loading": "Завантаження чанків",
+  "friendai.config.hearing_radius": "Радіус чутності"
 }

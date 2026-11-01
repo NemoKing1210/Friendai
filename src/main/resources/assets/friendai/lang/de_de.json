@@ -721,5 +721,10 @@
   "friendai.menu.log.kind.response": "Antwort",
   "friendai.freetime.no_plan.step": "Schritt %s",
   "friendai.freetime.no_plan.invalid_steps": "ungültige oder nicht verfügbare Aktionen",
-  "friendai.config.get_key": "API-Schlüssel erhalten"
+  "friendai.config.get_key": "API-Schlüssel erhalten",
+  "friendai.command.settings.header": "Friendai-Einstellungen (schreibgeschützt):",
+  "friendai.command.settings.line": "%s: %s",
+  "friendai.config.autonomy": "Autonomie",
+  "friendai.config.chunk_loading": "Chunk-Laden",
+  "friendai.config.hearing_radius": "Hörradius"
 }

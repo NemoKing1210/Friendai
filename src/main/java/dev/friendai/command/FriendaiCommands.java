@@ -18,6 +18,7 @@ import dev.friendai.features.memory.MemoryBook;
 import dev.friendai.features.memory.MemoryReport;
 import dev.friendai.features.memory.PlayerRecord;
 import dev.friendai.foundation.text.UserMessage;
+import dev.friendai.infrastructure.config.ServerConfig;
 import dev.friendai.menu.FriendaiMenus;
 import dev.friendai.server.net.Operators;
 import dev.friendai.server.runtime.ServerRuntimeRegistry;
@@ -47,6 +48,7 @@ public final class FriendaiCommands {
                 .then(Commands.literal("stop").executes(FriendaiCommands::stop))
                 .then(Commands.literal("inventory").executes(FriendaiCommands::inventory))
                 .then(Commands.literal("status").executes(FriendaiCommands::status))
+                .then(Commands.literal("settings").executes(FriendaiCommands::settings))
                 .then(Commands.literal("trust")
                         .then(Commands.argument("player", EntityArgument.player())
                                 .executes(FriendaiCommands::trust)))
@@ -279,6 +281,32 @@ public final class FriendaiCommands {
             ctx.getSource().sendSuccess(() -> Component.translatable("friendai.command.status.offline"), false);
         }
         return 1;
+    }
+
+    private static int settings(CommandContext<CommandSourceStack> ctx) {
+        var config =
+                ServerRuntimeRegistry.getOrCreate(ctx.getSource().getServer()).config();
+        var profile = config.profiles.getOrDefault(config.activeProfile, new ServerConfig.ProfileConfig());
+        ctx.getSource().sendSuccess(() -> Component.translatable("friendai.command.settings.header"), false);
+        settingsLine(ctx, "friendai.config.provider", profile.provider);
+        settingsLine(ctx, "friendai.config.model", profile.model);
+        settingsLine(ctx, "friendai.config.autonomy", config.agent.autonomy);
+        settingsLine(
+                ctx,
+                "friendai.config.chunk_loading",
+                config.companion.chunkLoading.enabled + " (" + config.companion.chunkLoading.radius + ")");
+        settingsLine(ctx, "friendai.config.hearing_radius", Integer.toString(config.chat.hearingRadius));
+        settingsLine(ctx, "friendai.config.memory.enabled", Boolean.toString(config.memory.enabled));
+        settingsLine(ctx, "friendai.config.skills.enabled", Boolean.toString(config.skills.enabled));
+        return 1;
+    }
+
+    private static void settingsLine(CommandContext<CommandSourceStack> ctx, String label, String value) {
+        ctx.getSource()
+                .sendSuccess(
+                        () -> Component.translatable(
+                                "friendai.command.settings.line", Component.translatable(label), value),
+                        false);
     }
 
     private static int trust(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {

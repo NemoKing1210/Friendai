@@ -721,5 +721,10 @@
   "friendai.menu.log.kind.response": "Resposta",
   "friendai.freetime.no_plan.step": "etapa %s",
   "friendai.freetime.no_plan.invalid_steps": "ações inválidas ou indisponíveis",
-  "friendai.config.get_key": "Obter uma chave de API"
+  "friendai.config.get_key": "Obter uma chave de API",
+  "friendai.command.settings.header": "Configurações do Friendai (somente leitura):",
+  "friendai.command.settings.line": "%s: %s",
+  "friendai.config.autonomy": "Autonomia",
+  "friendai.config.chunk_loading": "Carregamento de chunks",
+  "friendai.config.hearing_radius": "Raio de audição"
 }
