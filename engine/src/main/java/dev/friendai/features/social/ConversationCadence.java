@@ -13,8 +13,9 @@ public final class ConversationCadence {
         AWAY
     }
 
-    private static final int[] BASE_GAP = {1200, 600, 1800, 200, 2400};
-    private static final int[] JITTER = {300, 240, 400, 80, 600};
+    // The item's numbers: a calm companion speaks about every two minutes, never closer than a minute and a half.
+    private static final int[] BASE_GAP = {3_600, 2_400, 4_800, 200, 6_000};
+    private static final int[] JITTER = {600, 400, 800, 80, 1_000};
     private static final int QUIET_AFTER_OWNER = 100;
     private static final int MAX_BACKOFF = 3;
 

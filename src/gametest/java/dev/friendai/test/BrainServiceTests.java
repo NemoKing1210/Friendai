@@ -40,12 +40,15 @@ public class BrainServiceTests {
         final Queue<LlmResponse> responses = new ArrayDeque<>();
         final List<List<Message>> requests = Collections.synchronizedList(new ArrayList<>());
         boolean hang;
+        /** The future a hanging request returned, so a test can answer it late. */
+        volatile CompletableFuture<LlmResponse> held;
 
         @Override
         public CompletableFuture<LlmResponse> complete(String system, List<Message> messages, List<ToolSpec> tools) {
             requests.add(new ArrayList<>(messages));
             if (hang) {
-                return new CompletableFuture<>();
+                held = new CompletableFuture<>();
+                return held;
             }
             LlmResponse next = responses.poll();
             return next == null
@@ -179,9 +182,12 @@ public class BrainServiceTests {
                                     .map(task -> task.type() + ":" + task.resultSummary())
                             + ", history="
                             + brains.debug().historyOf(player.getUUID()).recent());
-            h.assertTrue(
-                    script.requests.size() == 2,
-                    "a successful queue job must not generate a brain event: " + script.requests.size());
+            // Social lines may arrive on their own; what this test pins is that the finished job posts no task event.
+            long taskEvents = script.requests.stream()
+                    .map(request -> request.get(request.size() - 1))
+                    .filter(last -> last.role() == Role.USER && last.text().contains("[event] task"))
+                    .count();
+            h.assertValueEqual(taskEvents, 0L, "a successful queue job must not generate a task event");
         });
     }
 
@@ -221,6 +227,47 @@ public class BrainServiceTests {
         brains.onOwnerLeft(player.getUUID());
         h.assertTrue(!brains.brainOf(player.getUUID()).get().isThinking(), "brain should have been cancelled");
         h.succeed();
+    }
+
+    @GameTest(maxTicks = 200)
+    public void aLateReplyAfterCancelIsNeverSpoken(GameTestHelper h) {
+        ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        var server = h.getLevel().getServer();
+        CompanionSessions brains = GameTestSupport.runtime(server).sessions();
+        List<String> said = Collections.synchronizedList(new ArrayList<>());
+        brains.setSpeakerWrapper(player.getUUID(), speaker -> new Speaker() {
+            @Override
+            public void say(String text) {
+                said.add(text);
+            }
+
+            @Override
+            public void thinking(boolean on) {}
+
+            @Override
+            public void error(UserMessage message) {}
+        });
+        Script script = new Script();
+        script.hang = true;
+        brains.setGatewayOverride(player.getUUID(), script);
+        CompanionManager.get(server).summon(player);
+
+        brains.post(
+                player.getUUID(),
+                new BrainEvent.PlayerSaid(player.getUUID(), "Steve", "hello", BrainEvent.Source.CHAT));
+        h.assertTrue(brains.brainOf(player.getUUID()).get().isThinking(), "the brain should wait for the model");
+
+        brains.cancel(player.getUUID());
+        CompletableFuture<LlmResponse> late = script.held;
+        h.assertTrue(late != null, "the request should have been held");
+        late.complete(new LlmResponse("late answer", List.of(), StopReason.END, new Usage(0, 0)));
+
+        h.runAfterDelay(20, () -> {
+            h.assertTrue(
+                    said.stream().noneMatch(text -> text.contains("late answer")),
+                    "a cancelled turn must never speak, said=" + said);
+            h.succeed();
+        });
     }
 
     @GameTest

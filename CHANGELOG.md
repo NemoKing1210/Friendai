@@ -8,6 +8,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 <!-- Add entries here while you work; the version bump moves them into that version's section. -->
 
+## [0.135.0] - 2026-11-01
+
+### Changed
+
+- The companion's own lines are calmer: about one every two minutes when you are free, never closer than a minute and a half, and longer pauses while it works, rests or you are away.
+
 ## [0.134.0] - 2026-11-01
 
 ### Changed
