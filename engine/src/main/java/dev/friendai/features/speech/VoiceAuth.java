@@ -8,6 +8,7 @@ public enum VoiceAuth {
     BEARER,
     ELEVENLABS,
     GOOGLE,
+    DEEPGRAM,
     YANDEX;
 
     /** @param apiKey resolved key; blank means no header is sent at all */
@@ -20,6 +21,7 @@ public enum VoiceAuth {
             case BEARER -> Map.of("Authorization", "Bearer " + apiKey);
             case ELEVENLABS -> Map.of("xi-api-key", apiKey);
             case GOOGLE -> Map.of("X-Goog-Api-Key", apiKey);
+            case DEEPGRAM -> Map.of("Authorization", "Token " + apiKey);
             case YANDEX -> Map.of("Authorization", "Api-Key " + apiKey);
         };
     }
