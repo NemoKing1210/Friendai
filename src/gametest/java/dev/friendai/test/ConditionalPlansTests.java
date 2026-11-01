@@ -22,6 +22,9 @@ import java.util.List;
 import java.util.Map;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 
 /** Server-world acceptance tests for deterministic conditional plan execution. */
@@ -53,6 +56,44 @@ public final class ConditionalPlansTests {
                         runner.queue().archives().getLast().success(), "selected branch should complete successfully");
             }
         });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void aGuardedJobWaitsForItsConditionThenRuns(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.setOwner(owner.getUUID());
+        ExecutionCoordinator coordinator = companion.executionCoordinator();
+        coordinator.resume();
+        coordinator.enqueue(
+                new QueuedStep(
+                        "stay",
+                        new JsonObject(),
+                        null,
+                        List.of(new Guard.HasItem("minecraft:diamond", 1)),
+                        GuardAction.WAIT,
+                        FailurePolicy.ASK,
+                        1,
+                        List.of(),
+                        owner.getUUID(),
+                        false),
+                context -> new dev.friendai.features.navigation.minecraft.task.StayTask(2));
+
+        for (int i = 0; i < 20; i++) {
+            coordinator.tick();
+        }
+        h.assertValueEqual(coordinator.queue().jobCount(), 1, "an unmet guard keeps the job queued, not failed");
+        h.assertTrue(
+                !"stay".equals(coordinator.current().map(Task::type).orElse("none")),
+                "the guarded task must not start before its condition holds");
+
+        companion.inventory().addItem(new ItemStack(Items.DIAMOND, 1));
+        for (int i = 0; i < 80; i++) {
+            coordinator.tick();
+        }
+        h.assertValueEqual(coordinator.queue().jobCount(), 0, "the job runs once its guard holds");
+        h.succeed();
     }
 
     @GameTest
