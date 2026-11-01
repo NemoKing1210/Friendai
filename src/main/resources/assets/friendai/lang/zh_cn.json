@@ -123,6 +123,7 @@
   "friendai.config.category.mining": "挖矿",
   "friendai.config.category.voice": "语音",
   "friendai.config.category.server": "服务器",
+  "friendai.config.category.reset": "重置此分类",
   "friendai.config.server_only": "这些设置需要在服务器上配置。",
   "friendai.config.server_protected": "无法安全地读取、备份或升级服务器设置。friendai-server.json 保持为只读。请检查该文件、磁盘空间和文件夹权限，然后重新打开此界面重试。",
   "friendai.config.server_unsupported": "friendai-server.json 是未知或更新的格式。受支持的旧格式会自动升级。请使用兼容的模组版本，或备份并替换该文件后再编辑这些设置。",

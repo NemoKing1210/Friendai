@@ -213,7 +213,7 @@ public final class FriendaiConfigScreen {
         categories.add(socialCategory(client));
         categories.add(voiceCategory(parent, client, voice));
         for (ConfigCategory category : categories) {
-            ConfigCategory narrowed = filtered(category);
+            ConfigCategory narrowed = filtered(withReset(category, reopen));
             if (narrowed != null) builder.category(narrowed);
         }
 
@@ -409,6 +409,48 @@ public final class FriendaiConfigScreen {
                 .name(tr(nameKey))
                 .action((screen, button) -> action.run())
                 .build();
+    }
+
+    /**
+     * Rebuilds a category with a reset button as its first option. The button returns every config option of
+     * that one category to its default and reopens the screen, so the other categories keep their edits and
+     * the reset lands in the draft exactly like a manual change: Save still has to be pressed.
+     */
+    private static ConfigCategory withReset(ConfigCategory category, Runnable reopen) {
+        List<Option<?>> root = new ArrayList<>();
+        List<Option<?>> targets = new ArrayList<>();
+        List<OptionGroup> groups = new ArrayList<>();
+        for (OptionGroup group : category.groups()) {
+            if (group.isRoot()) {
+                root.addAll(group.options());
+            } else {
+                OptionGroup.Builder rebuilt = OptionGroup.createBuilder()
+                        .name(group.name())
+                        .options(group.options())
+                        .collapsed(group.collapsed());
+                if (group.description() != null) rebuilt.description(group.description());
+                groups.add(rebuilt.build());
+            }
+            for (Option<?> option : group.options()) {
+                // Labels and buttons only drive the screen; they hold no setting to put back.
+                if (option instanceof LabelOption || option instanceof ButtonOption) continue;
+                targets.add(option);
+            }
+        }
+        if (targets.isEmpty()) return category;
+        ButtonOption reset = ButtonOption.createBuilder()
+                .name(tr("friendai.config.category.reset"))
+                .action((screen, button) -> {
+                    for (Option<?> option : targets) option.requestSetDefault();
+                    reopen.run();
+                })
+                .build();
+        ConfigCategory.Builder rebuilt = ConfigCategory.createBuilder()
+                .name(category.name())
+                .option(reset)
+                .options(root);
+        if (!groups.isEmpty()) rebuilt.groups(groups);
+        return rebuilt.build();
     }
 
     /**
