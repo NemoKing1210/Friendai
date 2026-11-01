@@ -3,6 +3,7 @@ package dev.friendai.server.agent.social;
 import dev.friendai.agent.turn.BrainEvent;
 import dev.friendai.entity.CompanionCarryData;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.social.ConversationCadence;
 import dev.friendai.features.survival.DeathRecord;
 import dev.friendai.server.runtime.ServerRuntime;
 import java.util.HashMap;
@@ -16,14 +17,13 @@ import net.minecraft.server.level.ServerPlayer;
  * Decides when the companion may speak first, and about what.
  *
  * <p>Only facts start a line: the newest death it remembers, said once, when the owner is near enough to hear it and
- * not busy. There is no small talk and no second request — one bounded {@link BrainEvent.SocialOpening} rides the
- * normal turn, which carries no tools. The owner's switch, the hearing radius and a minimum gap keep it from nagging.
+ * free. The pace is {@link ConversationCadence} — a per-scene gap with jitter, a quiet window after the owner speaks
+ * and a backoff when a line drew nothing — so an ignored question is not repeated. One bounded
+ * {@link BrainEvent.SocialOpening} rides the normal turn, which carries no tools.
  */
 public final class SocialDirector {
     /** One look per second is plenty for a line that happens at most every couple of minutes. */
     private static final int LOOK_EVERY_TICKS = 20;
-    /** Two lines never come closer than this, whatever happened. */
-    private static final long QUIET_TICKS = 1_200;
     /** A line nobody could hear waits this long, then is dropped once and never repeated. */
     private static final long WAIT_TICKS = 6_000;
 
@@ -31,10 +31,15 @@ public final class SocialDirector {
     private final Map<UUID, Long> announced = new HashMap<>();
     /** A line waiting for the owner to be free, with the tick it was first held. */
     private final Map<UUID, Held> held = new HashMap<>();
-    /** The last line posted, per owner, for the quiet window. */
-    private final Map<UUID, Long> lastLine = new HashMap<>();
+    /** The pace of unprompted lines, per owner. */
+    private final Map<UUID, ConversationCadence> cadence = new HashMap<>();
 
     private record Held(String text, long since) {}
+
+    /** The owner said something: no unprompted line for the cadence's quiet window. */
+    public void ownerSpoke(UUID owner, long gameTime) {
+        cadence.computeIfAbsent(owner, ignored -> new ConversationCadence()).ownerSpoke((int) gameTime);
+    }
 
     public void tick(ServerRuntime runtime) {
         if (!runtime.config().chat.ambientSpeech) {
@@ -54,16 +59,17 @@ public final class SocialDirector {
             if (player == null) {
                 continue;
             }
-            Long last = lastLine.get(owner);
-            if (last != null && now - last < QUIET_TICKS) {
-                continue;
-            }
             String text = nextFact(runtime, owner);
             if (text == null) {
                 continue;
             }
-            if (!canHear(companion, player, hearing) || !free(player, companion)) {
+            ConversationCadence.Scene scene = scene(companion, player, hearing);
+            if (scene == ConversationCadence.Scene.AWAY || !free(player, companion)) {
                 hold(owner, text, now);
+                continue;
+            }
+            ConversationCadence pace = cadence.computeIfAbsent(owner, ignored -> new ConversationCadence());
+            if (!pace.maySpeak(scene, (int) now)) {
                 continue;
             }
             held.remove(owner);
@@ -72,7 +78,8 @@ public final class SocialDirector {
                             owner,
                             new BrainEvent.SocialOpening(
                                     BrainEvent.SocialOpening.Urgency.HIGH, List.of(text), "", false));
-            lastLine.put(owner, now);
+            // A statement, not a question: nothing waits for an answer.
+            pace.recordLine(scene, (int) now, false, false);
         }
     }
 
@@ -102,8 +109,16 @@ public final class SocialDirector {
         held.computeIfAbsent(owner, ignored -> new Held(text, now));
     }
 
-    private static boolean canHear(CompanionEntity companion, ServerPlayer player, int hearingRadius) {
-        return player.level() == companion.level() && player.distanceTo(companion) <= hearingRadius;
+    private static ConversationCadence.Scene scene(CompanionEntity companion, ServerPlayer player, int hearingRadius) {
+        if (companion.getTarget() != null) {
+            return ConversationCadence.Scene.COMBAT;
+        }
+        if (player.level() != companion.level() || player.distanceTo(companion) > hearingRadius) {
+            return ConversationCadence.Scene.AWAY;
+        }
+        return companion.taskExecution().currentToolName().isEmpty()
+                ? ConversationCadence.Scene.FREE
+                : ConversationCadence.Scene.BUSY;
     }
 
     private static boolean free(ServerPlayer player, CompanionEntity companion) {
