@@ -20,6 +20,42 @@ public class SocialBondTests {
     }
 
     @GameTest(maxTicks = 300)
+    public void aMannerTheOwnerRejectsIsDroppedAndNeverDriftsBack(GameTestHelper h) {
+        ServerPlayer owner = ready(h);
+        CompanionEntity companion =
+                CompanionManager.get(h.getLevel().getServer()).summon(owner);
+
+        companion.driftTrait();
+        h.assertValueEqual(
+                companion.traits().of(dev.friendai.features.social.Traits.Kind.HUMOUR), 1, "drift starts with humour");
+        companion.rejectManner(dev.friendai.features.social.Traits.Kind.HUMOUR);
+        h.assertValueEqual(
+                companion.traits().of(dev.friendai.features.social.Traits.Kind.HUMOUR),
+                0,
+                "a rejected manner drops at once");
+
+        for (int i = 0; i < 8; i++) {
+            companion.driftTrait();
+        }
+        h.assertValueEqual(
+                companion.traits().of(dev.friendai.features.social.Traits.Kind.HUMOUR),
+                0,
+                "drift never brings a rejected manner back: " + companion.traits());
+        h.assertTrue(
+                companion.traits().of(dev.friendai.features.social.Traits.Kind.WARMTH) > 0,
+                "the other manners keep drifting: " + companion.traits());
+        h.assertTrue(
+                !companion
+                        .traits()
+                        .toneLine()
+                        .toLowerCase(java.util.Locale.ROOT)
+                        .contains("humour"),
+                "the prompt no longer asks for the rejected manner: "
+                        + companion.traits().toneLine());
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 300)
     public void aMoodChangeIsTracedWithTheInputsThatCausedIt(GameTestHelper h) {
         ServerPlayer owner = ready(h);
         CompanionEntity companion =

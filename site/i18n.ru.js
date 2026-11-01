@@ -316,6 +316,7 @@ const RU = {
   "Read recent conversations with a player.": "Прочитать недавние разговоры с игроком.",
   "See facts with ids and how full each book is.": "Факты с id и заполненность каждой книги.",
   "Merge duplicate facts safely, dry run first (owner only).": "Безопасно слить дубликаты фактов, сначала пробный запуск (только владелец).",
+  "Drop a manner the owner dislikes and never drift back into it (owner only).": "Убрать манеру, которая не нравится владельцу, и не возвращаться к ней (только владелец).",
   "Conversation transcript": "Запись разговоров",
   "Both sides of every chat, redacted, capped by count and age.": "Обе стороны каждого разговора, секреты скрыты, ограничено по числу и возрасту.",
   "Store a fact.": "Запомнить факт.",

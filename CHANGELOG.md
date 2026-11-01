@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.137.0] - 2026-11-01
+
+### Added
+
+- The companion can now drop a manner you dislike — teasing, humour, warmth, curiosity or energy — or reset the whole manner to neutral when you say how it talks is wrong. A dropped manner never drifts back on its own.
+
 ## [0.136.1] - 2026-11-01
 
 ### Fixed

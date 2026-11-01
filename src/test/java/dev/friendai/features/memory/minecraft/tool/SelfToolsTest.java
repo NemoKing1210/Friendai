@@ -51,7 +51,7 @@ class SelfToolsTest {
     @Test
     void theToolsAreOfferedByRoleAndHiddenWhenMemoryIsDisabled() {
         assertEquals(
-                Set.of("read_log", "recent_chat", "memory_overview", "compress_memory"),
+                Set.of("read_log", "recent_chat", "memory_overview", "compress_memory", "reset_manner"),
                 names(tools.specs(AccessLevel.OWNER)));
         assertEquals(Set.of("recent_chat", "memory_overview"), names(tools.specs(AccessLevel.TRUSTED)));
         assertEquals(Set.of("memory_overview"), names(tools.specs(AccessLevel.GUEST)));
@@ -67,7 +67,7 @@ class SelfToolsTest {
         });
         new SelfTools(access).register(contributions);
         dev.friendai.agent.tools.ToolCatalog catalog = dev.friendai.agent.tools.ToolCatalog.defaults();
-        assertEquals(4, contributions.catalogMetadata().size());
+        assertEquals(5, contributions.catalogMetadata().size());
         contributions
                 .catalogMetadata()
                 .forEach(meta -> assertEquals(catalog.meta(meta.name()).orElseThrow(), meta));

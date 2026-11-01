@@ -46,6 +46,28 @@ public record Traits(int humour, int warmth, int curiosity, int energy, int teas
         return with(kind, 0);
     }
 
+    /** Everything back to neutral: the owner asked for it in so many words. */
+    public Traits dropAll() {
+        return NEUTRAL;
+    }
+
+    /**
+     * The next trait that may grow: the smallest one the owner has not rejected, so the manner stays even
+     * instead of spiking and a rejected habit never returns on its own.
+     */
+    public java.util.Optional<Kind> nextAllowed(java.util.Set<Kind> rejected) {
+        Kind best = null;
+        for (Kind kind : Kind.values()) {
+            if (rejected.contains(kind)) {
+                continue;
+            }
+            if (best == null || of(kind) < of(best)) {
+                best = kind;
+            }
+        }
+        return java.util.Optional.ofNullable(best);
+    }
+
     /** The next trait to grow: the smallest one, so the manner stays even instead of spiking. */
     public Kind next() {
         Kind best = Kind.HUMOUR;

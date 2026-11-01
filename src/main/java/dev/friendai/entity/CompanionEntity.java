@@ -942,11 +942,74 @@ public class CompanionEntity extends PathfinderMob {
     /** One step of drift, called once per applied memory compaction; never more than one per talk. */
     public void driftTrait() {
         ensureTraits();
-        var next = traits.step(traits.next());
+        var next = traits.nextAllowed(rejectedManners()).map(traits::step);
+        if (next.isPresent() && !next.get().equals(traits)) {
+            traits = next.get();
+            saveTraits();
+        }
+    }
+
+    /**
+     * The owner said they dislike this manner: drop it now, remember the dislike as a preference and never drift
+     * back into it on its own. A null kind means the whole manner, back to neutral.
+     */
+    public void rejectManner(dev.friendai.features.social.Traits.Kind kind) {
+        ensureTraits();
+        var next = kind == null ? traits.dropAll() : traits.drop(kind);
         if (!next.equals(traits)) {
             traits = next;
             saveTraits();
         }
+        if (kind != null) {
+            rememberRejection(kind);
+        }
+    }
+
+    private java.util.Set<dev.friendai.features.social.Traits.Kind> rejectedManners() {
+        if (ownerUuid == null || !(level() instanceof ServerLevel serverLevel)) {
+            return java.util.Set.of();
+        }
+        var found = java.util.EnumSet.noneOf(dev.friendai.features.social.Traits.Kind.class);
+        ServerRuntimeRegistry.find(serverLevel.getServer()).ifPresent(runtime -> {
+            var subject = dev.friendai.features.memory.Subject.player(ownerUuid);
+            for (var fact : runtime.memory().book(ownerUuid).allFacts()) {
+                if (!fact.subject().equals(subject)
+                        || fact.category() != dev.friendai.features.memory.Category.PREFERENCE) {
+                    continue;
+                }
+                for (var trait : dev.friendai.features.social.Traits.Kind.values()) {
+                    if (fact.text().equals(rejectionText(trait))) {
+                        found.add(trait);
+                    }
+                }
+            }
+        });
+        return found;
+    }
+
+    private static String rejectionText(dev.friendai.features.social.Traits.Kind kind) {
+        return "dislikes a " + kind.name().toLowerCase(java.util.Locale.ROOT) + " manner";
+    }
+
+    private void rememberRejection(dev.friendai.features.social.Traits.Kind kind) {
+        if (ownerUuid == null || !(level() instanceof ServerLevel serverLevel)) {
+            return;
+        }
+        ServerRuntimeRegistry.find(serverLevel.getServer()).ifPresent(runtime -> {
+            var book = runtime.memory().book(ownerUuid);
+            try {
+                book.addFact(
+                        dev.friendai.features.memory.Subject.player(ownerUuid),
+                        dev.friendai.features.memory.Category.PREFERENCE,
+                        rejectionText(kind),
+                        ownerUuid,
+                        book.player(ownerUuid).map(p -> p.lastName()).orElse("owner"),
+                        level().getGameTime(),
+                        runtime.config().memory.limits());
+            } catch (RuntimeException ignored) {
+                // A full or refusing memory book must not undo the dropped manner.
+            }
+        });
     }
 
     /** A trait that annoyed the owner drops at once, back to neutral. */
