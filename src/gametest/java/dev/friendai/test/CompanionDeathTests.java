@@ -268,7 +268,7 @@ public class CompanionDeathTests {
         });
     }
 
-    @GameTest(maxTicks = 200)
+    @GameTest(maxTicks = 600)
     public void summonAfterDeathRestoresWhenAutoRespawnIsOff(GameTestHelper h) {
         ServerPlayer owner = ready(h);
         CompanionManager manager = CompanionManager.get(h.getLevel().getServer());
@@ -288,16 +288,15 @@ public class CompanionDeathTests {
             h.assertTrue(manager.find(owner.getUUID()).isEmpty(), "the dead body should be removed by now");
             CompanionEntity summoned = manager.summon(owner);
             h.assertTrue(!summoned.getUUID().equals(dead), "summoning after a death must create a new body");
-            h.assertValueEqual(
-                    summoned.inventory().countItem(Items.OAK_LOG),
-                    0,
-                    "a summon after a death must not restore what was dropped");
-            h.assertTrue(
-                    h.getLevel().getEntitiesOfClass(ItemEntity.class, area).stream()
-                            .anyMatch(item -> item.getItem().is(Items.OAK_LOG)
-                                    && item.getItem().getCount() == 4),
-                    "the summoned body must find its old logs where it died");
-            h.succeed();
+            h.succeedWhen(() -> {
+                int carried = summoned.inventory().countItem(Items.OAK_LOG);
+                int ground = h.getLevel().getEntitiesOfClass(ItemEntity.class, area).stream()
+                        .filter(item -> item.getItem().is(Items.OAK_LOG))
+                        .mapToInt(item -> item.getItem().getCount())
+                        .sum();
+                h.assertValueEqual(
+                        carried + ground, 4, "the four logs must be either fetched or still where the companion died");
+            });
         });
     }
 
@@ -354,6 +353,190 @@ public class CompanionDeathTests {
                 h.assertTrue(
                         back.get().getItemBySlot(slot).isEmpty(),
                         "the replacement body must not keep " + slot + " after dropping it");
+            }
+        });
+    }
+
+    @GameTest(maxTicks = 600)
+    public void recoveryWalksBackAndCollectsTheDrops(GameTestHelper h) {
+        ServerPlayer owner = ready(h);
+        CompanionManager manager = CompanionManager.get(h.getLevel().getServer());
+        CompanionEntity companion = manager.summon(owner);
+        companion.inventory().addItem(new ItemStack(Items.OAK_LOG, 6));
+        companion.setItemSlot(EquipmentSlot.FEET, new ItemStack(Items.IRON_BOOTS));
+        UUID dead = companion.getUUID();
+        CompanionCarryData store = CompanionCarryData.get(h.getLevel().getServer());
+
+        kill(companion, h);
+
+        h.succeedWhen(() -> {
+            Optional<CompanionEntity> back = replacement(manager, owner.getUUID(), dead);
+            h.assertTrue(back.isPresent(), "the companion should respawn automatically");
+            CompanionEntity revived = back.get();
+            h.assertTrue(
+                    revived.inventory().countItem(Items.OAK_LOG) >= 6,
+                    "the logs must be fetched back, carried="
+                            + revived.inventory().countItem(Items.OAK_LOG));
+            h.assertTrue(
+                    revived.inventory().countItem(Items.IRON_BOOTS) >= 1,
+                    "the boots must be fetched back, carried="
+                            + revived.inventory().countItem(Items.IRON_BOOTS));
+            h.assertTrue(store.openDrops(owner.getUUID()).isEmpty(), "a finished recovery clears the record");
+        });
+    }
+
+    @GameTest(maxTicks = 600)
+    public void aSummonedBodyFetchesTheDropsItLeftBehind(GameTestHelper h) {
+        ServerPlayer owner = ready(h);
+        CompanionManager manager = CompanionManager.get(h.getLevel().getServer());
+        ServerRuntime state = GameTestSupport.runtime(h.getLevel().getServer());
+        state.companionLife().setAutoRespawn(owner.getUUID(), false);
+        CompanionEntity companion = manager.summon(owner);
+        companion.inventory().addItem(new ItemStack(Items.OAK_LOG, 2));
+        UUID dead = companion.getUUID();
+
+        kill(companion, h);
+
+        h.runAfterDelay(40, () -> {
+            h.assertTrue(replacement(manager, owner.getUUID(), dead).isEmpty(), "auto-respawn is off here");
+            CompanionCarryData store = CompanionCarryData.get(h.getLevel().getServer());
+            h.assertTrue(store.openDrops(owner.getUUID()).isPresent(), "the death must leave a record to fetch");
+            CompanionEntity summoned = manager.summon(owner);
+            h.assertTrue(manager.find(owner.getUUID()).isPresent(), "the summoned body must be indexed");
+
+            var open = store.openDrops(owner.getUUID()).orElseThrow();
+            double away = summoned.position()
+                    .distanceTo(net.minecraft.world.phys.Vec3.atCenterOf(new BlockPos(open.x(), open.y(), open.z())));
+            h.assertTrue(away <= 24, "the drops must be within the detour radius, away=" + away);
+            h.succeedWhen(() -> h.assertTrue(
+                    summoned.inventory().countItem(Items.OAK_LOG) >= 2,
+                    "an idle body must fetch drops left nearby, carried="
+                            + summoned.inventory().countItem(Items.OAK_LOG)));
+        });
+    }
+
+    @GameTest(maxTicks = 200)
+    public void aRefusalLeavesTheDropsAlone(GameTestHelper h) {
+        ServerPlayer owner = ready(h);
+        CompanionManager manager = CompanionManager.get(h.getLevel().getServer());
+        CompanionEntity companion = manager.summon(owner);
+        companion.inventory().addItem(new ItemStack(Items.OAK_LOG, 3));
+        UUID dead = companion.getUUID();
+        CompanionCarryData store = CompanionCarryData.get(h.getLevel().getServer());
+
+        kill(companion, h);
+        store.setRefuseRecovery(owner.getUUID(), true);
+
+        h.runAfterDelay(100, () -> {
+            Optional<CompanionEntity> back = replacement(manager, owner.getUUID(), dead);
+            h.assertTrue(back.isPresent(), "the companion still respawns when the owner refuses the trip");
+            h.assertValueEqual(
+                    back.get().inventory().countItem(Items.OAK_LOG), 0, "a refused recovery must not fetch the logs");
+            h.assertTrue(
+                    store.refusedRecovery(owner.getUUID()), "the refusal must survive until the owner reverses it");
+            h.succeed();
+        });
+    }
+
+    @GameTest(maxTicks = 200)
+    public void aSecondDeathReplacesTheOpenRecovery(GameTestHelper h) {
+        ready(h);
+        CompanionCarryData store = CompanionCarryData.get(h.getLevel().getServer());
+        UUID owner = UUID.randomUUID();
+        CompoundTag body = new CompoundTag();
+        DeathRecord first = new DeathRecord(
+                "overworld",
+                1,
+                2,
+                3,
+                "lava",
+                "",
+                10,
+                new DeathRecord.Drops(List.of(UUID.randomUUID()), List.of("logs x2"), false),
+                null);
+        DeathRecord second = new DeathRecord(
+                "overworld",
+                4,
+                5,
+                6,
+                "fall",
+                "",
+                20,
+                new DeathRecord.Drops(List.of(UUID.randomUUID()), List.of("stone x1"), false),
+                null);
+
+        store.record(owner, body, first);
+        store.record(owner, body, second);
+
+        h.assertValueEqual(store.openDrops(owner).orElseThrow().x(), 4, "the newest death is the one that is fetched");
+        store.clearDrops(owner);
+        h.assertTrue(store.openDrops(owner).isEmpty(), "a finished recovery leaves nothing open");
+        h.assertTrue(store.lastDeath(owner).isPresent(), "the death itself stays in the log");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 600)
+    public void dropsTakenBeforeTheTripClearTheRecord(GameTestHelper h) {
+        ServerPlayer owner = ready(h);
+        CompanionManager manager = CompanionManager.get(h.getLevel().getServer());
+        CompanionEntity companion = manager.summon(owner);
+        companion.inventory().addItem(new ItemStack(Items.OAK_LOG, 2));
+        UUID dead = companion.getUUID();
+        CompanionCarryData store = CompanionCarryData.get(h.getLevel().getServer());
+
+        kill(companion, h);
+
+        int[] ticks = {0};
+        h.succeedWhen(() -> {
+            ticks[0]++;
+            if (ticks[0] == 40) {
+                for (ItemEntity item : h.getLevel()
+                        .getEntitiesOfClass(
+                                ItemEntity.class, companion.getBoundingBox().inflate(16))) {
+                    item.discard();
+                }
+                h.assertTrue(store.openDrops(owner.getUUID()).isPresent(), "the death still has an open record");
+                manager.summon(owner);
+            }
+            if (ticks[0] > 40) {
+                h.assertTrue(
+                        store.openDrops(owner.getUUID()).isEmpty(),
+                        "a trip to an empty spot clears the record instead of retrying forever");
+            }
+        });
+    }
+
+    @GameTest(maxTicks = 900)
+    public void aFullInventoryLeavesTheDropsOnTheGround(GameTestHelper h) {
+        ServerPlayer owner = ready(h);
+        CompanionManager manager = CompanionManager.get(h.getLevel().getServer());
+        CompanionEntity companion = manager.summon(owner);
+        companion.inventory().addItem(new ItemStack(Items.OAK_LOG, 2));
+        UUID dead = companion.getUUID();
+        CompanionCarryData store = CompanionCarryData.get(h.getLevel().getServer());
+
+        kill(companion, h);
+
+        int[] ticks = {0};
+        h.succeedWhen(() -> {
+            ticks[0]++;
+            if (ticks[0] == 40) {
+                CompanionEntity summoned = manager.summon(owner);
+                for (int slot = 0; slot < summoned.inventory().getContainerSize(); slot++) {
+                    summoned.inventory().setItem(slot, new ItemStack(Items.STONE, 64));
+                }
+            }
+            if (ticks[0] > 40) {
+                h.assertTrue(store.openDrops(owner.getUUID()).isEmpty(), "a trip with no room still ends and reports");
+                h.assertTrue(
+                        h
+                                .getLevel()
+                                .getEntitiesOfClass(
+                                        ItemEntity.class,
+                                        companion.getBoundingBox().inflate(24))
+                                .stream()
+                                .anyMatch(item -> item.getItem().is(Items.OAK_LOG)),
+                        "logs that did not fit stay on the ground");
             }
         });
     }

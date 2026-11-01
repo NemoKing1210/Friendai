@@ -81,7 +81,7 @@ public final class CompanionCarryData extends SavedData {
                             drops.orElse(DeathRecord.Drops.NONE),
                             respawn.orElse(null))));
 
-    private record OwnerCarry(CompoundTag body, List<DeathRecord> deaths) {
+    private record OwnerCarry(CompoundTag body, List<DeathRecord> deaths, boolean refusedRecovery) {
         private static final Codec<OwnerCarry> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                         CompoundTag.CODEC
                                 .optionalFieldOf("body", new CompoundTag())
@@ -89,12 +89,21 @@ public final class CompanionCarryData extends SavedData {
                         DEATH_RECORD_CODEC
                                 .listOf()
                                 .optionalFieldOf("deaths", List.of())
-                                .forGetter(OwnerCarry::deaths))
+                                .forGetter(OwnerCarry::deaths),
+                        Codec.BOOL.optionalFieldOf("refused_recovery", false).forGetter(OwnerCarry::refusedRecovery))
                 .apply(instance, OwnerCarry::new));
 
         private OwnerCarry {
             body = body == null ? new CompoundTag() : body;
             deaths = List.copyOf(deaths == null ? List.of() : deaths);
+        }
+
+        private OwnerCarry withBody(CompoundTag next) {
+            return new OwnerCarry(next, deaths, refusedRecovery);
+        }
+
+        private OwnerCarry withDeaths(List<DeathRecord> next) {
+            return new OwnerCarry(body, next, refusedRecovery);
         }
 
         private boolean hasBody() {
@@ -167,7 +176,7 @@ public final class CompanionCarryData extends SavedData {
                 deaths.removeFirst();
             }
         }
-        owners.put(owner, new OwnerCarry(body, deaths));
+        owners.put(owner, new OwnerCarry(body, deaths, false));
         setDirty();
     }
 
@@ -186,7 +195,7 @@ public final class CompanionCarryData extends SavedData {
         if (current == null || !current.hasBody()) {
             return;
         }
-        owners.put(owner, new OwnerCarry(new CompoundTag(), current.deaths()));
+        owners.put(owner, current.withBody(new CompoundTag()));
         setDirty();
     }
 
@@ -203,6 +212,60 @@ public final class CompanionCarryData extends SavedData {
             return Optional.empty();
         }
         return Optional.of(current.deaths().getLast());
+    }
+
+    /** The newest death that still has drops to fetch, empty when there is nothing to go back for. */
+    public Optional<DeathRecord> openDrops(UUID owner) {
+        return lastDeath(owner).filter(death -> !death.drops().empty());
+    }
+
+    /** Marks the drops as dealt with (collected, gone or forbidden) and keeps the death itself in the log. */
+    public void clearDrops(UUID owner) {
+        if (readOnly) {
+            return;
+        }
+        OwnerCarry current = owners.get(owner);
+        if (current == null || current.deaths().isEmpty()) {
+            return;
+        }
+        List<DeathRecord> deaths = new ArrayList<>(current.deaths());
+        DeathRecord newest = deaths.getLast();
+        deaths.set(
+                deaths.size() - 1,
+                new DeathRecord(
+                        newest.dimension(),
+                        newest.x(),
+                        newest.y(),
+                        newest.z(),
+                        newest.cause(),
+                        newest.killer(),
+                        newest.tick(),
+                        DeathRecord.Drops.NONE,
+                        newest.respawn()));
+        owners.put(owner, current.withDeaths(deaths));
+        setDirty();
+    }
+
+    /** Whether the owner told the companion not to go back for its last death. */
+    public boolean refusedRecovery(UUID owner) {
+        OwnerCarry current = owners.get(owner);
+        return current != null && current.refusedRecovery();
+    }
+
+    /** Sets or clears the owner's refusal; a later death clears it by itself. */
+    public void setRefuseRecovery(UUID owner, boolean refused) {
+        if (readOnly) {
+            return;
+        }
+        OwnerCarry current = owners.get(owner);
+        if (current == null) {
+            owners.put(owner, new OwnerCarry(new CompoundTag(), List.of(), refused));
+        } else if (current.refusedRecovery() != refused) {
+            owners.put(owner, new OwnerCarry(current.body(), current.deaths(), refused));
+        } else {
+            return;
+        }
+        setDirty();
     }
 
     /** One prompt line for the newest death, or an empty string when there is none. */

@@ -267,6 +267,7 @@ public final class CompanionManager {
         restoreCarry(companion, owner);
         return true;
     }
+
     /** Applies the pending body, furnaces and leases to a freshly created companion and clears the record. */
     private void restoreCarry(CompanionEntity companion, UUID owner) {
         CompanionCarryData.get(server).carry(owner).ifPresent(companion::restoreCarry);

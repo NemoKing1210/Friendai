@@ -4,21 +4,26 @@ import com.google.gson.JsonObject;
 import dev.friendai.agent.tools.Cost;
 import dev.friendai.agent.tools.ToolGroup;
 import dev.friendai.agent.tools.ToolMeta;
+import dev.friendai.entity.CompanionCarryData;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.SchemaBuilder;
 import dev.friendai.execution.tool.Tool;
 import dev.friendai.execution.tool.ToolResult;
+import dev.friendai.features.survival.DeathRecord;
 import dev.friendai.features.survival.minecraft.Food;
 import dev.friendai.features.survival.minecraft.task.EatTask;
 import dev.friendai.features.survival.minecraft.task.GetFoodTask;
+import dev.friendai.features.survival.minecraft.task.RecoverDropsTask;
 import dev.friendai.features.survival.minecraft.task.SleepTask;
 import dev.friendai.server.execution.tools.FeatureToolContributor;
 import dev.friendai.server.execution.tools.FeatureToolRegistry;
 import dev.friendai.server.execution.tools.TaskToolDefinition;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -72,6 +77,25 @@ public final class SurvivalTools implements FeatureToolContributor {
                 true,
                 metadata("sleep")));
 
+        registry.registerTask(new TaskToolDefinition(
+                "recover_drops",
+                "Go back to where I died and pick up what I dropped there. Refused when the owner said to leave it, when the place is dangerous, or when the drops are gone.",
+                SchemaBuilder.object().build(),
+                (c, a) -> new RecoverDropsTask(),
+                true,
+                metadata("recover_drops")));
+        registerInstant(
+                registry,
+                "dropped_items",
+                "Owner only. What is still lying where the companion died, and why it would or would not go back for it.",
+                SchemaBuilder.object().build(),
+                (c, a) -> describeDrops(c));
+        registerInstant(
+                registry,
+                "forget_drops",
+                "Owner only. Leave the last death's drops where they are: the companion stops planning to fetch them and does not mention them again.",
+                SchemaBuilder.object().build(),
+                (c, a) -> forgetDrops(c));
         registerInstant(
                 registry,
                 "allow_food",
@@ -139,10 +163,47 @@ public final class SurvivalTools implements FeatureToolContributor {
                 metadata(name));
     }
 
+    /** One line about the open drops, with the reason the trip is or is not possible. */
+    private static ToolResult describeDrops(CompanionEntity companion) {
+        UUID owner = companion.ownerUuid();
+        if (owner == null) {
+            return ToolResult.ok("I have no owner, so none of my deaths is recorded.");
+        }
+        CompanionCarryData store = CompanionCarryData.get(companion.level().getServer());
+        Optional<DeathRecord> open = store.openDrops(owner);
+        String refusal = store.refusedRecovery(owner) ? " You told me not to go back, and I will not." : "";
+        if (open.isEmpty()) {
+            return ToolResult.ok("I left nothing behind the last time I died." + refusal);
+        }
+        DeathRecord death = open.get();
+        String where = death.x() + " " + death.y() + " " + death.z() + " in " + death.dimension();
+        String state = death.drops().unrecoverable()
+                ? "the spot burnt or swallowed what I dropped"
+                : "I dropped "
+                        + Math.max(
+                                death.drops().stacks().size(),
+                                death.drops().entities().size()) + " stacks there";
+        return ToolResult.ok("I died at " + where + "; " + state + "." + refusal);
+    }
+
+    /** Forgets the open drops for good: the owner does not want them fetched. */
+    private static ToolResult forgetDrops(CompanionEntity companion) {
+        UUID owner = companion.ownerUuid();
+        if (owner == null) {
+            return ToolResult.error("I have no owner to remember that for.");
+        }
+        CompanionCarryData store = CompanionCarryData.get(companion.level().getServer());
+        store.setRefuseRecovery(owner, true);
+        store.clearDrops(owner);
+        return ToolResult.ok("Understood: I will leave that spot alone and stop planning to go back.");
+    }
+
     private static ToolMeta metadata(String name) {
-        String hint = name.equals("get_food")
-                ? "- When you are hungry with no food: if the owner is near, ask them; otherwise call get_food."
-                : "";
+        String hint = name.equals("recover_drops")
+                ? "- Only when the owner asks about the things you dropped; the trip is refused if they told you to leave them."
+                : name.equals("get_food")
+                        ? "- When you are hungry with no food: if the owner is near, ask them; otherwise call get_food."
+                        : "";
         return new ToolMeta(name, ToolGroup.SURVIVAL, false, hint, List.of(), Cost.MEDIUM);
     }
 

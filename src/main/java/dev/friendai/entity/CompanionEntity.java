@@ -161,6 +161,8 @@ public class CompanionEntity extends PathfinderMob {
     private final CombatController combatController = new CombatController(this);
     private final FireReflex fireReflex = new FireReflex(this);
     private final SelfCareReflex selfCare = new SelfCareReflex(this);
+    private final dev.friendai.features.survival.minecraft.RecoveryReflex recoveryReflex =
+            new dev.friendai.features.survival.minecraft.RecoveryReflex(this);
     private final FurnaceJobs furnaceJobs = new FurnaceJobs();
     private final HungerWatcher hungerWatcher =
             new HungerWatcher(this, HungerWatcher.DEFAULT_AUTO_DELAY_TICKS, HungerWatcher.DEFAULT_COOL_DOWN_TICKS);
@@ -371,6 +373,13 @@ public class CompanionEntity extends PathfinderMob {
     }
 
     /** The emergency items the companion spends on itself; ticked before the task runner. */
+    /**
+     * Goes back for the drops of the last death: nearby on its own, farther only with free time allowed.
+     */
+    public dev.friendai.features.survival.minecraft.RecoveryReflex recoveryReflex() {
+        return recoveryReflex;
+    }
+
     public SelfCareReflex selfCare() {
         return selfCare;
     }

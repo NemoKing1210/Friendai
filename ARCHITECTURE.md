@@ -189,13 +189,25 @@ Every server tick runs the reflexes before the queue: `CombatController` (fight,
 
 ### Death and respawn
 
-`CompanionEntity.die` captures the body before the superclass death path: `CompanionEntity.saveCarry`
-writes inventory, six equipment slots, hunger, XP, combat settings, pace and the bounded `SavedExecution`
-document parts, `CompanionManager` adds the dimension, position, cause, killer and game tick, and
-`CompanionCarryData` (world `SavedData` `friendai:companion_carry`) stores the body plus a capped
-death log under the owner UUID. Furnace jobs and station leases are not saved by the entity; the
-manager copies them in memory for a respawn in the same session. `dropCustomDeathLoot` does nothing:
-the companion keeps what it carries, so there is no death loot and no duplicate.
+`CompanionEntity.die` drops first and captures second. `dropEverythingAtDeath` empties the 27 inventory
+slots and the six equipment slots onto the ground at the death spot and clears them in the same pass, so
+neither the replacement body nor vanilla's own loot path can hand out a second copy; the
+`dropCustomDeathLoot` override stays empty for exactly that reason. `CompanionEntity.saveCarry` then
+writes what is still body state — hunger, XP, combat settings, pace and the bounded `SavedExecution`
+document parts — into an inventory that is now empty. `CompanionManager.deathOf` adds the dimension,
+position, cause, killer and game tick, the UUIDs of the item entities the death spawned, a stack list as
+a fallback and a `unrecoverable` flag for lava, fire and the void, and `CompanionCarryData` (world
+`SavedData` `friendai:companion_carry`) stores that record with a capped death log under the owner UUID.
+Furnace jobs and station leases are not saved by the entity; the manager copies them in memory for a
+respawn in the same session.
+
+Going back is `RecoveryReflex`, ticked beside the fire and self-care reflexes: an idle or following body
+fetches drops within 24 blocks on its own, and only with `autonomy.enabled` once they are farther away.
+It interrupts the runner the way a reflex does, and `RecoverDropsTask` re-checks the dimension, hazard and
+the 5,400-tick deadline (vanilla `ItemEntity` lifetime is 6,000), collects only the recorded entity ids
+through `DropCollector`, reports "recovered N of M stacks" and clears the record whatever the outcome.
+`recover_drops`, `dropped_items` and `forget_drops` expose the same state to the model; the last one sets
+the per-owner refusal that both paths honour until the owner reverses it or the next death clears it.
 
 `CompanionManager.tick` replaces the dead body after its unload callback, building the new entity
 with the owner, the stored name, the skin store and the bed/shared spawn. It registers the entity,
@@ -265,7 +277,7 @@ files remain read-only until explicit repair, which makes a fresh backup before 
 | Server config | `config/friendai-server.json` | Schema 19; explicit upgrades from 3–18, validated defaults and unique `.vN.*.bak` before atomic replacement. Unknown/future versions and failed upgrades remain read-only; API keys may be `env:NAME`. |
 | Client config | `config/friendai-client.json` | Schema 4: recognition (`voice.stt`), synthesis (`voice.tts`), provider maps and UI preferences. Explicit upgrades from 1–3 with unique `.vN.*.bak`; unknown/future versions remain untouched. |
 | Companion state | World save, `CompanionEntity` additional data | Owner, inventory, combat settings, pace mode, food/saturation/exhaustion, saved task. Equipment is in the superclass entity data. Hands, previews, station leases and furnace jobs are transient. |
-| Companion carry | World `SavedData` `friendai:companion_carry` | Version 1, per owner: the body captured at death (the fields above plus the six equipment slots) and the last five deaths (dimension, position, cause, killer, tick). Applied on respawn or the next summon; the death log outlives the applied body and feeds one prompt line. |
+| Companion carry | World `SavedData` `friendai:companion_carry` | Version 2, per owner: the body captured at death (body state only — the loot was already dropped and the inventory is empty) and the last five deaths (dimension, position, cause, killer, tick, the dropped item-entity UUIDs, a stack fallback, an `unrecoverable` flag and the respawn point), plus the owner's recovery refusal. Version 1 files read with no recovery facts. Applied on respawn or the next summon; the death log outlives the applied body, feeds one prompt line and is what `RecoverDropsTask` walks to. |
 | Companion anchors | World `SavedData` `friendai:companion_anchors` | Owner → dimension + chunk, used to load the companion on startup. The chunk ticket itself is runtime-only and never saved. |
 | Conversation transcript | `<world>/friendai/transcript/<owner-uuid>.json` | Format version 1, bounded by `memory.transcriptMaxEntries`, text length and `transcriptRetentionDays`; both sides of every conversation with the owner's companion, redacted before it is written and again when read. `TranscriptStore` borrows the runtime writer, flushes on the server tick at a 5 s debounce, and leaves unsupported, corrupt and oversized files untouched and read-only (the owner talks to an empty in-memory book). A `.bak` holds the same redacted text. |
 | Memory | `<world>/friendai/memory/<owner-uuid>.json` | One memory-only record per owner, format version 1: facts, player records/trust and learned language, food rules, next fact ID. Independent revision, periodic server-tick flush at a 5 s debounce; `.bak` on corruption, then the original stays read-only. Prior combined memory formats remain read-only. |
