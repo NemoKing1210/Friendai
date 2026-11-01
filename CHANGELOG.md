@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.146.0] - 2026-11-01
+
+### Changed
+
+- 46 more settings now explain themselves: each has a plain-language tooltip with its default, range and unit, whether it costs money, whether it touches the world or protection, and whether it applies when you press Save.
+
 ## [0.145.0] - 2026-11-01
 
 ### Security
