@@ -952,5 +952,12 @@
   "friendai.config.nav.import_missing": "Keine Einstellungsdatei unter %s",
   "friendai.config.nav.import_invalid": "%s ist kein Friendai-Einstellungsexport",
   "friendai.config.nav.import_version": "Dieser Build liest Exportversion %s, nicht %s",
-  "friendai.config.nav.transfer_failed": "Die Einstellungsdatei ist fehlgeschlagen: %s"
+  "friendai.config.nav.transfer_failed": "Die Einstellungsdatei ist fehlgeschlagen: %s",
+  "friendai.menu.tab.feeling": "Gefühl",
+  "friendai.menu.feeling.mood": "Stimmung: %s",
+  "friendai.menu.feeling.bond": "Bindung: %s",
+  "friendai.menu.feeling.goal": "Ziel: %s",
+  "friendai.menu.feeling.met": "erfüllt: %s",
+  "friendai.menu.feeling.not_proven": "nicht belegt: %s",
+  "friendai.menu.feeling.empty": "Hier gibt es noch nichts zu sehen."
 }

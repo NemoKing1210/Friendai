@@ -949,5 +949,12 @@
   "friendai.config.nav.import_missing": "Немає файлу налаштувань: %s",
   "friendai.config.nav.import_invalid": "%s не є експортом налаштувань Friendai",
   "friendai.config.nav.import_version": "Ця збірка читає версію експорту %s, а не %s",
-  "friendai.config.nav.transfer_failed": "Помилка файлу налаштувань: %s"
+  "friendai.config.nav.transfer_failed": "Помилка файлу налаштувань: %s",
+  "friendai.menu.tab.feeling": "Почуття",
+  "friendai.menu.feeling.mood": "Настрій: %s",
+  "friendai.menu.feeling.bond": "Зв'язок: %s",
+  "friendai.menu.feeling.goal": "Мета: %s",
+  "friendai.menu.feeling.met": "виконано: %s",
+  "friendai.menu.feeling.not_proven": "не підтверджено: %s",
+  "friendai.menu.feeling.empty": "Поки немає чого показати."
 }

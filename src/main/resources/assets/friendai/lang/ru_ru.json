@@ -949,5 +949,12 @@
   "friendai.config.nav.import_missing": "Файла настроек нет: %s",
   "friendai.config.nav.import_invalid": "%s не является экспортом настроек Friendai",
   "friendai.config.nav.import_version": "Эта сборка читает версию экспорта %s, а не %s",
-  "friendai.config.nav.transfer_failed": "Ошибка файла настроек: %s"
+  "friendai.config.nav.transfer_failed": "Ошибка файла настроек: %s",
+  "friendai.menu.tab.feeling": "Чувства",
+  "friendai.menu.feeling.mood": "Настроение: %s",
+  "friendai.menu.feeling.bond": "Связь: %s",
+  "friendai.menu.feeling.goal": "Цель: %s",
+  "friendai.menu.feeling.met": "выполнено: %s",
+  "friendai.menu.feeling.not_proven": "не подтверждено: %s",
+  "friendai.menu.feeling.empty": "Пока нечего показать."
 }

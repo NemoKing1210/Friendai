@@ -952,5 +952,12 @@
   "friendai.config.nav.import_missing": "Aucun fichier de réglages dans %s",
   "friendai.config.nav.import_invalid": "%s n'est pas un export de réglages Friendai",
   "friendai.config.nav.import_version": "Cette version lit la version d'export %s, pas %s",
-  "friendai.config.nav.transfer_failed": "Le fichier de réglages a échoué : %s"
+  "friendai.config.nav.transfer_failed": "Le fichier de réglages a échoué : %s",
+  "friendai.menu.tab.feeling": "Ressenti",
+  "friendai.menu.feeling.mood": "Humeur : %s",
+  "friendai.menu.feeling.bond": "Lien : %s",
+  "friendai.menu.feeling.goal": "Objectif : %s",
+  "friendai.menu.feeling.met": "rempli : %s",
+  "friendai.menu.feeling.not_proven": "non prouvé : %s",
+  "friendai.menu.feeling.empty": "Rien à montrer pour l'instant."
 }

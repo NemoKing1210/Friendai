@@ -952,5 +952,12 @@
   "friendai.config.nav.import_missing": "No settings file at %s",
   "friendai.config.nav.import_invalid": "%s is not a Friendai settings export",
   "friendai.config.nav.import_version": "This build reads export version %s, not %s",
-  "friendai.config.nav.transfer_failed": "The settings file failed: %s"
+  "friendai.config.nav.transfer_failed": "The settings file failed: %s",
+  "friendai.menu.tab.feeling": "Feeling",
+  "friendai.menu.feeling.mood": "Mood: %s",
+  "friendai.menu.feeling.bond": "Bond: %s",
+  "friendai.menu.feeling.goal": "Goal: %s",
+  "friendai.menu.feeling.met": "met: %s",
+  "friendai.menu.feeling.not_proven": "not proven: %s",
+  "friendai.menu.feeling.empty": "Nothing to show yet."
 }

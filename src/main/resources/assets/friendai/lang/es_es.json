@@ -949,5 +949,12 @@
   "friendai.config.nav.import_missing": "No hay ningún archivo de ajustes en %s",
   "friendai.config.nav.import_invalid": "%s no es una exportación de ajustes de Friendai",
   "friendai.config.nav.import_version": "Esta versión lee la versión de exportación %s, no %s",
-  "friendai.config.nav.transfer_failed": "El archivo de ajustes falló: %s"
+  "friendai.config.nav.transfer_failed": "El archivo de ajustes falló: %s",
+  "friendai.menu.tab.feeling": "Sentimiento",
+  "friendai.menu.feeling.mood": "Estado de ánimo: %s",
+  "friendai.menu.feeling.bond": "Vínculo: %s",
+  "friendai.menu.feeling.goal": "Objetivo: %s",
+  "friendai.menu.feeling.met": "cumplido: %s",
+  "friendai.menu.feeling.not_proven": "sin pruebas: %s",
+  "friendai.menu.feeling.empty": "Todavía no hay nada que mostrar."
 }
