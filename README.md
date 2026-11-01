@@ -25,6 +25,7 @@ An open-source Fabric mod that adds an AI companion to Minecraft. Talk to it in 
 - [Resource knowledge and search](#resource-knowledge-and-search)
 - [Languages](#languages)
 - [Configuration upgrades](#configuration-upgrades)
+- [Settings screen](#settings-screen)
 - [Creative mode](#creative-mode)
 - [Download and releases](#download-and-releases)
 - [Building](#building)
@@ -75,6 +76,14 @@ Supported older configuration files upgrade automatically: server schemas 3–15
 Before replacement, the mod validates the result and saves the exact original bytes beside the file as `<filename>.v<old-version>.<unique-id>.bak`. Backups are never overwritten by another upgrade. Writes use atomic replacement; configuration files are limited to 8 MiB. If an upgrade, backup or replacement fails, the original stays intact and read-only while defaults are used in memory. Correct the problem and reopen the server settings screen or restart the game/server to retry.
 
 Unknown, unversioned and future formats are never guessed or downgraded. Use the matching mod version, or keep a backup and deliberately replace the file. To restore an upgrade backup, stop the game/server first and use a mod version that understands that backup's schema. Backups contain the same credentials as the original; protect them as you protect the config. Owner records and world saves use their separate persistence rules.
+
+## Settings screen
+
+With [Mod Menu](https://modrinth.com/mod/modmenu) and [YACL](https://modrinth.com/mod/yacl) installed, **Mod Menu → Friendai** opens the settings screen. Both are optional: without them the mod runs the same, and every setting comes from `config/friendai-server.json` and `config/friendai-client.json`, which you edit by hand and apply with `/friendai reload` or a restart.
+
+The screen is split into tabs: Provider, Companion, Chat, Planning, Tasks, World, Trading, Resources, Free time, Memory, Mining and Voice. A client that may not edit the server settings gets a single Server tab reading "These settings are configured on the server." instead of the server tabs.
+
+Most options carry a tooltip with the default and the accepted range. Reset returns one option to its default; Cancel and Undo discard the whole edit. `architecture/settings-inventory.md` lists every field with its default, clamp, screen key and whether it has a tooltip.
 
 ## Creative mode
 

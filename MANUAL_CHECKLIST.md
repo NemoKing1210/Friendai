@@ -46,6 +46,16 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] The Settings tab's free-time switch toggles it and shows the current activity (or "choosing an activity" while the director decides), in both UI languages.
 - [ ] Tell the companion "don't follow me" while free time runs: it stops walking after you, keeps working, and the Toggles tab shows "Following: off" after a relog. "Follow me" switches it back on.
 
+## Settings screen
+
+- [ ] Open the screen in both UI languages: no tab, label, tooltip or button clips at GUI scale 4.
+- [ ] Visit every tab: Provider, Companion, Chat, Planning, Tasks, World, Trading, Resources, Free time, Memory, Mining and Voice each open and keep their values.
+- [ ] Trigger a validation error.
+- [ ] Reset one option and undo it.
+- [ ] Switch the profile dropdown and confirm its fields reload: provider, base URL, model, temperature and max tokens match the selected profile.
+- [ ] Open the screen as a non-operator client (read-only view): the only server tab says "These settings are configured on the server."
+- [ ] Open it with YACL absent and confirm the mod still runs from the config files: hand edits apply with `/friendai reload`.
+
 ## Movement debug work sets
 
 - [ ] Enable Debug as an operator; verify a large tree shows NEXT, pending and done logs, with totals that remain truthful when more than 256 cells are planned.
