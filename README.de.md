@@ -134,6 +134,7 @@ Der Gefährte kann seine Antworten auch vorlesen. Die Synthese ist standardmäß
 
 - **Lokal (kostenlos, offline)** — [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) betreibt eine Piper-Stimme auf deiner CPU. Es stehen fünf Stimmen zur Wahl: Irina und Dmitri (Russisch), Lessac und LibriTTS-R (Englisch) und Alba (Britisches Englisch). Wähle eine und drücke **Stimme herunterladen**; Stimmen werden in `<game dir>/friendai/models/tts/` gespeichert (je etwa 67–82 MB). Russische Systeme bekommen Irina, alle anderen Lessac. Jede Stimme hat ihre eigene Lizenz, die unter dem Dropdown angezeigt wird: Die Modelldateien sind überwiegend MIT, die Stimme LibriTTS-R steht unter CC BY 4.0, und die Bedingungen der Trainingsdaten unterscheiden sich.
 - **OpenAI (kostenpflichtig)** — die OpenAI-Sprach-API mit einem Schlüssel, einer Stimme und einer Geschwindigkeit. Die Basis-URL kann auf jeden OpenAI-kompatiblen Server zeigen, auch auf einen lokalen, der keinen Schlüssel braucht.
+- **Google Cloud Text-to-Speech (kostenpflichtig)** — ein Schlüssel, eine Stimme, eine Sprache und eine Geschwindigkeit; Audio kommt als LINEAR16.
 - **ElevenLabs (kostenpflichtig)** — die ElevenLabs-Text-to-Speech-API; ein Schlüssel, eine Stimm-ID und eine Geschwindigkeit.
 - **Yandex SpeechKit (kostenpflichtig)** — ein API-Schlüssel, die Cloud-Ordner-ID, eine Stimme, ein Sprach-Tag, eine Geschwindigkeit und 16-kHz-PCM-Ausgabe.
 

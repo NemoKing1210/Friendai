@@ -134,6 +134,7 @@ O companheiro também pode falar suas respostas. A síntese vem desativada por p
 
 - **Local (grátis, offline)** — o [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) executa uma voz Piper na sua CPU. Cinco vozes são oferecidas: Irina e Dmitri (russo), Lessac e LibriTTS-R (inglês) e Alba (inglês britânico). Escolha uma e pressione **Baixar voz**; as vozes ficam em `<game dir>/friendai/models/tts/` (cerca de 67–82 MB cada). Sistemas em russo recebem Irina, todos os outros recebem Lessac. Cada voz traz sua própria licença, exibida abaixo da lista: os arquivos dos modelos são em grande parte MIT, a voz LibriTTS-R é CC BY 4.0, e os termos dos dados de treinamento variam.
 - **OpenAI (pago)** — a API de fala da OpenAI com uma chave, uma voz e uma velocidade. A URL base pode apontar para qualquer servidor compatível com OpenAI, inclusive um local, que não precisa de chave.
+- **Google Cloud Text-to-Speech (pago)** — uma chave, uma voz, um idioma e uma velocidade; o áudio chega como LINEAR16.
 - **ElevenLabs (pago)** — a API de text-to-speech da ElevenLabs; uma chave, um id de voz e uma velocidade.
 - **Yandex SpeechKit (pago)** — uma chave de API, o id da pasta na nuvem, uma voz, uma tag de idioma, uma velocidade e saída PCM de 16 kHz.
 

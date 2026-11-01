@@ -4,6 +4,7 @@ import dev.friendai.features.speech.PcmAudio;
 import dev.friendai.features.speech.PreparedRequest;
 import dev.friendai.features.speech.ResolvedTts;
 import dev.friendai.features.speech.tts.ElevenLabsTtsProtocol;
+import dev.friendai.features.speech.tts.GoogleTtsProtocol;
 import dev.friendai.features.speech.tts.OpenAiTtsProtocol;
 import dev.friendai.features.speech.tts.TtsProtocol;
 import dev.friendai.features.speech.tts.YandexTtsProtocol;
@@ -28,6 +29,7 @@ public final class TtsClient {
                 Map.of(
                         OpenAiTtsProtocol.ID, new OpenAiTtsProtocol(),
                         ElevenLabsTtsProtocol.ID, new ElevenLabsTtsProtocol(),
+                        GoogleTtsProtocol.ID, new GoogleTtsProtocol(),
                         YandexTtsProtocol.ID, new YandexTtsProtocol()));
     }
 
