@@ -81,11 +81,13 @@ Unknown, unversioned and future formats are never guessed or downgraded. Use the
 
 With [Mod Menu](https://modrinth.com/mod/modmenu) and [YACL](https://modrinth.com/mod/yacl) installed, **Mod Menu → Friendai** opens the settings screen. Both are optional: without them the mod runs the same, and every setting comes from `config/friendai-server.json` and `config/friendai-client.json`, which you edit by hand and apply with `/friendai reload` or a restart.
 
-The screen is split into tabs: Provider, Companion, Chat, Planning, Tasks, World, Trading, Resources, Free time, Memory, Mining and Voice. A client that may not edit the server settings gets a single Server tab reading "These settings are configured on the server." instead of the server tabs.
+The screen is split into tabs: Provider, Companion, Chat, Planning, Tasks, World, Trading, Resources, Free time, Memory, Mining, Display and Voice, with a **Search and profiles** tab first. A client that may not edit the server settings gets a single Server tab reading "These settings are configured on the server." instead of the server tabs.
 
 The screen is reachable with the keyboard alone: Tab and Shift+Tab walk the search field, the Basic/Advanced switch, the tab rail and every option, and Enter activates the focused control. Layouts are checked in all eight interface languages at the largest GUI scale; if a tooltip is cut on a very small window, the same text is in `architecture/settings-inventory.md`.
 
 Most options carry a tooltip with the default and the accepted range. Reset returns one option to its default; Cancel and Undo discard the whole edit. `architecture/settings-inventory.md` lists every field with its default, clamp, screen key and whether it has a tooltip.
+
+The **Search and profiles** tab holds the search field, the Basic/Advanced switch and the profile and import/export controls, so clearing a filter is always one click away. Search narrows each settings tab to the options whose label, tooltip or key contains every word you typed, in the interface language you are using, ignoring case and accents; Basic hides keys, URLs, budgets, radii and internals, and Advanced shows everything. Three resets exist and each one only changes the draft until you press Save: the reset button on a row returns that one option, **Reset this category** at the top of a tab returns every setting in that tab, and **Reset everything** at the top of the first settings tab returns every setting in the screen.
 
 ## Creative mode
 

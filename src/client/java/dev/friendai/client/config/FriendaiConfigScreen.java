@@ -22,6 +22,7 @@ import dev.friendai.client.voice.SpeechToText;
 import dev.friendai.client.voice.VoiceRuntime;
 import dev.friendai.common.Components;
 import dev.friendai.features.mining.MiningRuntimeSettings;
+import dev.friendai.features.settings.SettingsModel;
 import dev.friendai.features.speech.CloudField;
 import dev.friendai.features.speech.PcmConverter;
 import dev.friendai.features.speech.ResolvedTts;
@@ -36,7 +37,6 @@ import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.infrastructure.config.ClientConfig;
 import dev.friendai.infrastructure.config.SecretResolver;
 import dev.friendai.infrastructure.config.ServerConfig;
-import dev.friendai.infrastructure.config.SettingsModel;
 import dev.friendai.infrastructure.config.SettingsSession;
 import dev.friendai.infrastructure.config.VoiceConfig;
 import dev.friendai.infrastructure.config.VoiceDraft;
@@ -460,8 +460,7 @@ public final class FriendaiConfigScreen {
         List<Option<?>> targets = new ArrayList<>();
         for (OptionGroup group : category.groups()) {
             for (Option<?> option : group.options()) {
-                if (option instanceof LabelOption || option instanceof ButtonOption) continue;
-                targets.add(option);
+                if (row(option).resetsOnCategoryReset()) targets.add(option);
             }
         }
         return targets;
@@ -534,12 +533,31 @@ public final class FriendaiConfigScreen {
 
     /**
      * True when the option survives the current Basic/Advanced mode and query. Labels and buttons are named
-     * with translation keys too, so they follow their category and match on their own words.
+     * with translation keys too, so they follow their category and match on their own words; the visible
+     * label and the tooltip add the words a player actually reads.
      */
     private static boolean visible(Option<?> option) {
-        String key = translationKey(option.name());
-        if (key == null) return false;
-        return SettingsModel.show(key, advancedOptions) && SettingsModel.matches(searchQuery, key);
+        return SettingsModel.visible(row(option), searchQuery, advancedOptions);
+    }
+
+    /** The screen adapter: a YACL widget and its translated texts become the pure row the model decides on. */
+    private static SettingsModel.Row row(Option<?> option) {
+        Component name = option.name();
+        String label = name == null ? "" : name.getString();
+        return new SettingsModel.Row(translationKey(name), label, descriptionText(option), kindOf(option));
+    }
+
+    private static SettingsModel.Kind kindOf(Option<?> option) {
+        if (option instanceof LabelOption) return SettingsModel.Kind.LABEL;
+        if (option instanceof ButtonOption) return SettingsModel.Kind.BUTTON;
+        return SettingsModel.Kind.SETTING;
+    }
+
+    /** The tooltip is translated when the screen is built, so a search can reach its words too. */
+    private static String descriptionText(Option<?> option) {
+        OptionDescription description = option.description();
+        if (description == null || description.text() == null) return "";
+        return description.text().getString();
     }
 
     private static String translationKey(Component name) {
@@ -550,8 +568,7 @@ public final class FriendaiConfigScreen {
     private static String firstProblem(SettingsSession current) {
         ServerConfig draft = current.serverDraft();
         if (draft == null) return null;
-        List<String> problems = draft.validate();
-        return problems.isEmpty() ? null : problems.getFirst();
+        return SettingsModel.firstProblem(draft.validate());
     }
 
     private static void createProfile(ServerConfig server, Runnable reopen) {

@@ -1,9 +1,11 @@
-package dev.friendai.infrastructure.config;
+package dev.friendai.features.settings;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -167,5 +169,114 @@ class SettingsModelTest {
         SettingsModel.Entry apiKey = SettingsModel.entry(API_KEY).orElseThrow();
         assertTrue(apiKey.advanced());
         assertEquals(apiKey.searchTerms().stream().map(String::toLowerCase).toList(), apiKey.searchTerms());
+    }
+
+    @Test
+    void labelTextMatches() {
+        SettingsModel.Row hearing = new SettingsModel.Row(HEARING, "Hearing radius", "", SettingsModel.Kind.SETTING);
+        assertTrue(SettingsModel.matches("hearing", hearing));
+        assertTrue(SettingsModel.matches("RADIUS", hearing));
+        assertFalse(SettingsModel.matches("volume", hearing));
+    }
+
+    @Test
+    void descriptionTextMatches() {
+        SettingsModel.Row volume =
+                new SettingsModel.Row("", "Volume", "How loud the companion's reply is", SettingsModel.Kind.SETTING);
+        assertTrue(SettingsModel.matches("loud", volume));
+        assertTrue(SettingsModel.matches("companion reply", volume));
+        assertFalse(SettingsModel.matches("microphone", volume));
+    }
+
+    @Test
+    void multiWordQuerySpansLabelAndDescription() {
+        SettingsModel.Row hearing = new SettingsModel.Row(
+                null, "Hearing radius", "How far a player's chat reaches the companion", SettingsModel.Kind.SETTING);
+        assertTrue(SettingsModel.matches("hearing reaches", hearing));
+        assertTrue(SettingsModel.matches("reaches hearing", hearing));
+        assertFalse(SettingsModel.matches("hearing volume", hearing));
+    }
+
+    @Test
+    void matchingIgnoresAccents() {
+        SettingsModel.Row accented =
+                new SettingsModel.Row(null, "Caf\u00e9 cr\u00e8me", "", SettingsModel.Kind.SETTING);
+        assertTrue(SettingsModel.matches("cafe", accented));
+        assertTrue(SettingsModel.matches("creme", accented));
+        SettingsModel.Row plain = new SettingsModel.Row(null, "Cafe creme", "", SettingsModel.Kind.LABEL);
+        assertTrue(SettingsModel.matches("caf\u00e9", plain));
+    }
+
+    @Test
+    void textWithoutAKeyStillMatches() {
+        SettingsModel.Row row = new SettingsModel.Row(null, "", "Speech output device", SettingsModel.Kind.LABEL);
+        assertTrue(SettingsModel.matches("output", row));
+        assertTrue(SettingsModel.matches("", row));
+        assertFalse(SettingsModel.matches("input", row));
+    }
+
+    @Test
+    void advancedRowStaysHiddenInBasicModeEvenWhenTheQueryMatches() {
+        SettingsModel.Row secret =
+                new SettingsModel.Row(API_KEY, "API key", "Stored on this computer", SettingsModel.Kind.SETTING);
+        assertFalse(SettingsModel.visible(secret, "", false));
+        assertFalse(SettingsModel.visible(secret, "secret", false));
+        assertTrue(SettingsModel.visible(secret, "secret", true));
+        assertFalse(SettingsModel.visible(secret, "microphone", true));
+    }
+
+    @Test
+    void rowWithoutAKeyIsVisibleInBasicMode() {
+        SettingsModel.Row future = new SettingsModel.Row(
+                "friendai.config.some_future_option", "Future option", "", SettingsModel.Kind.SETTING);
+        assertTrue(SettingsModel.visible(future, "", false));
+        assertTrue(SettingsModel.visible(future, "future", false));
+    }
+
+    @Test
+    void onlySettingsAreResetTargets() {
+        assertTrue(row(SettingsModel.Kind.SETTING).resetsOnCategoryReset());
+        assertFalse(row(SettingsModel.Kind.LABEL).resetsOnCategoryReset());
+        assertFalse(row(SettingsModel.Kind.BUTTON).resetsOnCategoryReset());
+    }
+
+    @Test
+    void groupedSettingIsAResetTarget() {
+        // Grouping is presentation only: an option inside a group is an ordinary setting row.
+        SettingsModel.Row grouped =
+                new SettingsModel.Row("friendai.config.provider", "Provider", "", SettingsModel.Kind.SETTING);
+        assertTrue(grouped.resetsOnCategoryReset());
+    }
+
+    @Test
+    void firstProblemIsTheFirstReportedLine() {
+        assertEquals(
+                "hearing radius clamped to 32",
+                SettingsModel.firstProblem(List.of("hearing radius clamped to 32", "temperature clamped to 2.0")));
+    }
+
+    @Test
+    void firstProblemSkipsBlankLines() {
+        assertEquals("value clamped", SettingsModel.firstProblem(Arrays.asList("", "   ", "value clamped")));
+    }
+
+    @Test
+    void firstProblemIsNullWhenClean() {
+        assertNull(SettingsModel.firstProblem(List.of()));
+        assertNull(SettingsModel.firstProblem(null));
+    }
+
+    @Test
+    void searchOrderFollowsTheCatalogue() {
+        List<String> expected = SettingsModel.catalogue().stream()
+                .map(SettingsModel.Entry::key)
+                .filter(key -> SettingsModel.matches("voice", key))
+                .toList();
+        assertTrue(expected.size() > 1);
+        assertEquals(expected, List.copyOf(SettingsModel.search("voice")));
+    }
+
+    private static SettingsModel.Row row(SettingsModel.Kind kind) {
+        return new SettingsModel.Row(null, "", "", kind);
     }
 }

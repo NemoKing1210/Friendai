@@ -57,11 +57,22 @@ message rules in `ProtocolSupport`. Test routing and serialization with the prov
 
 ### Add a config option
 
-Add the default and validation to `engine/.../infrastructure/config/ServerConfig` or `ClientConfig`. Bump the persisted
-schema version when its shape changes; older and future versions are unsupported and remain untouched. This project
-does not migrate config files. Server startup uses in-memory defaults for unsupported server config and does not write
-to the old file. Add editable UI in `src/client/.../config/` when appropriate, keeping YACL and Mod Menu optional. Add
-matching language keys and focused validation and unsupported-version tests.
+1. Add the field and default to `engine/.../infrastructure/config/ServerConfig` or `ClientConfig`; enforce valid ranges
+   in that config's validation path.
+2. When the persisted shape changes, bump its schema and add an explicit adjacent `ConfigMigration` step with tests for
+   existing values and defaults for new fields. The migration chain is the source of truth for supported versions;
+   validate before writing, preserve unknown fields, back up uniquely and replace atomically. These migrations apply to
+   configuration, not owner or world records.
+3. Classify the option in `engine/.../features/settings/SettingsModel`: add a catalogue entry with its tab id, `basic`
+   or `advanced`, and the synonyms a player may type. Search, the Basic/Advanced split and the reset scope come from
+   that model; an uncatalogued option stays visible and matches only on its own key words.
+4. Build the widget in `src/client/.../config/` and give it a tooltip with
+   `.description(OptionDescription.of(Component.translatable("<key>.tooltip")))` stating what it changes, the default,
+   unit and range, any cost, world or protection side effects, and whether it applies live or after `/friendai reload`.
+   Keep YACL and Mod Menu optional.
+5. Add the label and tooltip keys to every locale (`en_us.json` first, then `ru_ru`, `de_de`, `fr_fr`, `es_es`,
+   `pt_br`, `zh_cn`, `uk_ua`) with identical placeholders. Add focused validation and migration tests, cover the new
+   search or mode classification in `SettingsModelTest`, and run `LangFilesTest` for the two keys.
 
 ### Add a network payload
 

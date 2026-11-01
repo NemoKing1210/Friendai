@@ -1,5 +1,6 @@
-package dev.friendai.infrastructure.config;
+package dev.friendai.features.settings;
 
+import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -8,17 +9,45 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * Navigation model of the settings screen: which option lives in which category, which options are
- * advanced, and how a search query matches them.
+ * The settings screen's brain: which option lives in which tab, which options are advanced, how a search
+ * query narrows the list, which rows a reset touches and which validation line is reported.
  *
- * <p>Pure data so it can be unit-tested without a game. The keys are the very translation keys the screen
+ * <p>Pure, so it can be unit-tested without a game. The keys are the very translation keys the screen
  * already uses, which keeps the catalogue and the widgets from drifting apart: a key that is not in the
- * catalogue still shows, it is simply never hidden and matches only on its own words.
+ * catalogue still shows, it is simply never hidden and matches only on its own words. Labels and tooltips
+ * are translated by the screen and passed in as plain text, so nothing here depends on YACL or Minecraft.
  *
  * <p>Categories are the screen's tabs and are reported in the order they appear; the screen never reorders
  * them, it only hides the ones a query leaves empty.
  */
 public final class SettingsModel {
+    /**
+     * What a row of the screen does. Only a setting holds a value, so only a setting is a reset target: a
+     * label or a button would forget nothing.
+     */
+    public enum Kind {
+        SETTING,
+        LABEL,
+        BUTTON
+    }
+
+    /**
+     * One row of the screen in the form the pure layer reasons about. {@code key} is the translation key the
+     * screen names the row with, or {@code null} for a component without one; {@code label} and
+     * {@code description} are the texts the player sees, already translated; {@code kind} says whether a
+     * reset touches the row.
+     */
+    public record Row(String key, String label, String description, Kind kind) {
+        public Row {
+            if (kind == null) throw new IllegalArgumentException("kind must not be null");
+        }
+
+        /** True when a category reset and the reset-everything button include this row. */
+        public boolean resetsOnCategoryReset() {
+            return kind == Kind.SETTING;
+        }
+    }
+
     /**
      * One editable option. {@code key} is the translation key the screen names the option with,
      * {@code labelKey} is the key whose text is the label (the same key today), {@code category} is the tab
@@ -69,19 +98,32 @@ public final class SettingsModel {
 
     /**
      * True when a query leaves the option visible. A blank query matches everything; every whitespace
-     * separated word must match the label, a synonym or a word of the key, ignoring case. An unknown key
-     * matches only on its own words, so buttons and labels stay with their category.
+     * separated word must match the label, a synonym or a word of the key, ignoring case and accents. An
+     * unknown key matches only on its own words, so buttons and labels stay with their category.
      */
     public static boolean matches(String query, String key) {
-        String needle = query == null ? "" : query.strip().toLowerCase(Locale.ROOT);
+        return matches(query, key, "", "");
+    }
+
+    /**
+     * True when every word of the query appears in the option's key words, one of its synonyms, its visible
+     * label or its tooltip. The screen passes the label and the tooltip already translated, so a search
+     * reaches the words the player reads instead of only the key. A row without a key still matches on its
+     * text; a row with neither key nor text matches only a blank query.
+     */
+    public static boolean matches(String query, String key, String label, String description) {
+        String needle = folded(query);
         if (needle.isEmpty()) return true;
-        if (key == null || key.isBlank()) return false;
-        List<String> terms = termsOf(key);
+        List<String> texts = new ArrayList<>();
+        if (key != null && !key.isBlank()) texts.addAll(termsOf(key));
+        if (label != null && !label.isBlank()) texts.add(folded(label));
+        if (description != null && !description.isBlank()) texts.add(folded(description));
+        if (texts.isEmpty()) return false;
         for (String word : needle.split("\\s+")) {
             if (word.isEmpty()) continue;
             boolean found = false;
-            for (String term : terms) {
-                if (term.contains(word)) {
+            for (String text : texts) {
+                if (text.contains(word)) {
                     found = true;
                     break;
                 }
@@ -89,6 +131,35 @@ public final class SettingsModel {
             if (!found) return false;
         }
         return true;
+    }
+
+    /**
+     * True when every word of the query is found in the row's key, label or tooltip. The row's kind never
+     * decides whether it is shown; it only decides whether a reset touches it.
+     */
+    public static boolean matches(String query, Row row) {
+        return matches(query, row.key(), row.label(), row.description());
+    }
+
+    /**
+     * True when the current mode and query leave the row visible. This is the whole narrowing rule: an
+     * advanced row survives only in Advanced mode, then every query word must be found in its key, label or
+     * tooltip.
+     */
+    public static boolean visible(Row row, String query, boolean advancedOn) {
+        return show(row.key(), advancedOn) && matches(query, row);
+    }
+
+    /**
+     * The first non-blank line of a validation report, or {@code null} when the draft validated clean. The
+     * screen shows that one line next to the search field; the rest of the report is the caller's business.
+     */
+    public static String firstProblem(List<String> problems) {
+        if (problems == null) return null;
+        for (String problem : problems) {
+            if (problem != null && !problem.isBlank()) return problem.strip();
+        }
+        return null;
     }
 
     /** The keys a query leaves visible, in catalogue order. A blank query returns every known key. */
@@ -111,19 +182,45 @@ public final class SettingsModel {
     private static List<String> termsOf(String key) {
         List<String> terms = new ArrayList<>();
         entry(key).ifPresent(entry -> terms.addAll(entry.searchTerms()));
-        terms.add(key.toLowerCase(Locale.ROOT));
+        terms.add(folded(key));
         StringBuilder word = new StringBuilder();
         for (int i = 0; i < key.length(); i++) {
             char c = key.charAt(i);
             if (Character.isLetterOrDigit(c)) {
                 word.append(Character.toLowerCase(c));
             } else if (!word.isEmpty()) {
-                if (!terms.contains(word.toString())) terms.add(word.toString());
+                addTerm(terms, folded(word.toString()));
                 word.setLength(0);
             }
         }
-        if (!word.isEmpty() && !terms.contains(word.toString())) terms.add(word.toString());
+        if (!word.isEmpty()) addTerm(terms, folded(word.toString()));
         return terms;
+    }
+
+    private static void addTerm(List<String> terms, String term) {
+        if (!term.isEmpty() && !terms.contains(term)) terms.add(term);
+    }
+
+    /**
+     * Lower-cases text and strips combining marks, so a query typed without accents still finds a translated
+     * label that has them, and case never decides whether a setting is found.
+     */
+    private static String folded(String text) {
+        if (text == null) return "";
+        String lower = Normalizer.normalize(text, Normalizer.Form.NFD).toLowerCase(Locale.ROOT);
+        StringBuilder plain = new StringBuilder(lower.length());
+        for (int i = 0; i < lower.length(); i++) {
+            char c = lower.charAt(i);
+            if (!isMark(c)) plain.append(c);
+        }
+        return plain.toString().strip();
+    }
+
+    private static boolean isMark(char c) {
+        int type = Character.getType(c);
+        return type == Character.NON_SPACING_MARK
+                || type == Character.ENCLOSING_MARK
+                || type == Character.COMBINING_SPACING_MARK;
     }
 
     private static List<Entry> catalogueEntries() {
