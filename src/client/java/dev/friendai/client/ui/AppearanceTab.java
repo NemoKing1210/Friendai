@@ -17,6 +17,11 @@ final class AppearanceTab extends StatefulMenuTab {
     private static final int GAP = 6;
     private static final int HEADING = 12;
     private static final int APPLY_WIDTH = 64;
+    /** The column is 192 px tall; below that the gaps tighten instead of the last button running past the page. */
+    private static final int TIGHT_BELOW = 192;
+
+    private static final int TIGHT_GAP = 2;
+    private static final int TIGHT_HEADING = 10;
     private static final String SKIN_SITE = "https://www.minecraftskins.com/";
 
     // Kept across tab switches and screen rebuilds.
@@ -37,15 +42,20 @@ final class AppearanceTab extends StatefulMenuTab {
     private FlatButton slimButton;
     private FlatButton reset;
     private int statusY;
+    private int heading = HEADING;
+    private int gap = GAP;
 
     @Override
     public void init(Host host, int left, int top, int width, int height) {
-        int y = top + HEADING;
+        boolean tight = height < TIGHT_BELOW;
+        heading = tight ? TIGHT_HEADING : HEADING;
+        gap = tight ? TIGHT_GAP : GAP;
+        int y = top + heading;
         name = host.add(new EditBox(
                 host.font(),
                 left,
                 y,
-                width - APPLY_WIDTH - GAP,
+                width - APPLY_WIDTH - gap,
                 FIELD,
                 Component.translatable("friendai.menu.appearance.name_hint")));
         name.setMaxLength(32);
@@ -61,7 +71,7 @@ final class AppearanceTab extends StatefulMenuTab {
                 Ui.GOOD,
                 () -> CompanionRequests.rename(name.getValue())));
 
-        y += FIELD + GAP + HEADING;
+        y += FIELD + gap + heading;
         file = host.add(new FlatButton(
                 left,
                 y,
@@ -71,12 +81,12 @@ final class AppearanceTab extends StatefulMenuTab {
                 Ui.ACCENT,
                 () -> run(SkinSources::fromFile)));
 
-        y += FIELD + GAP;
+        y += FIELD + gap;
         EditBox user = host.add(new EditBox(
                 host.font(),
                 left,
                 y,
-                width - APPLY_WIDTH - GAP,
+                width - APPLY_WIDTH - gap,
                 FIELD,
                 Component.translatable("friendai.menu.appearance.username_hint")));
         user.setMaxLength(16);
@@ -92,12 +102,12 @@ final class AppearanceTab extends StatefulMenuTab {
                 Ui.ACCENT,
                 () -> run(callback -> SkinSources.fromUsername(user.getValue(), callback))));
 
-        y += FIELD + GAP;
+        y += FIELD + gap;
         EditBox url = host.add(new EditBox(
                 host.font(),
                 left,
                 y,
-                width - APPLY_WIDTH - GAP,
+                width - APPLY_WIDTH - gap,
                 FIELD,
                 Component.translatable("friendai.menu.appearance.url_hint")));
         url.setMaxLength(500);
@@ -113,7 +123,7 @@ final class AppearanceTab extends StatefulMenuTab {
                 Ui.ACCENT,
                 () -> run(callback -> SkinSources.fromUrl(url.getValue(), callback))));
 
-        y += FIELD + GAP;
+        y += FIELD + gap;
         int third = (width - 2 * GAP) / 3;
         wide = host.add(new FlatButton(
                 left,
@@ -139,10 +149,10 @@ final class AppearanceTab extends StatefulMenuTab {
                 Component.translatable("friendai.menu.appearance.reset"),
                 Ui.WARN,
                 AppearanceTab::resetSkin));
-        statusY = y + FIELD + GAP;
+        statusY = y + FIELD + gap;
         host.add(new FlatButton(
                 left,
-                statusY + HEADING + GAP,
+                statusY + heading + gap,
                 width,
                 FIELD,
                 Component.translatable("friendai.menu.appearance.find_skins"),
@@ -223,7 +233,7 @@ final class AppearanceTab extends StatefulMenuTab {
                 font,
                 Component.translatable("friendai.menu.appearance.skin"),
                 left,
-                top + HEADING + FIELD + GAP,
+                top + heading + FIELD + gap,
                 width);
         Ui.text(g, font, Ui.clip(font, status.getString(), width), left, statusY, statusColor);
     }

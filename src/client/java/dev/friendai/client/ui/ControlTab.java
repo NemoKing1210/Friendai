@@ -30,7 +30,7 @@ final class ControlTab extends StatefulMenuTab {
 
     @Override
     public void init(Host host, int left, int top, int width, int height) {
-        // Five buttons, laid out by how many fit side by side: never narrower than 70 pixels each.
+        // Six buttons, laid out by how many fit side by side: never narrower than 70 pixels each.
         int buttons = 6;
         int columns = width >= buttons * 70 + (buttons - 1) * GAP ? buttons : 2;
         int rows = (buttons + columns - 1) / columns;
@@ -77,9 +77,10 @@ final class ControlTab extends StatefulMenuTab {
                 Ui.BAD,
                 left,
                 index++);
+        int pauseIndex = index++;
         pause = host.add(new FlatButton(
-                x(left, buttonWidth, columns, index),
-                y(index, columns),
+                x(left, buttonWidth, columns, pauseIndex),
+                y(pauseIndex, columns),
                 buttonWidth,
                 BUTTON_HEIGHT,
                 workLabel(),

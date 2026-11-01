@@ -14,6 +14,7 @@ final class FlatButton extends Button.Plain {
     private int status;
     private boolean selected;
     private boolean hitTest = true;
+    private Component narration;
 
     FlatButton(int x, int y, int width, int height, Component label, int status, Runnable action) {
         super(x, y, width, height, label, button -> action.run(), DEFAULT_NARRATION);
@@ -24,6 +25,15 @@ final class FlatButton extends Button.Plain {
     FlatButton asTab(boolean selected) {
         this.selected = selected;
         setOverrideRenderHighlightedSprite(() -> this.selected);
+        return this;
+    }
+
+    /**
+     * The name a screen reader says before the label. A button whose visible label does not say what it belongs to
+     * (a switch labelled only "On"/"Off") would otherwise be one of several indistinguishable controls.
+     */
+    FlatButton narrated(Component label) {
+        this.narration = label;
         return this;
     }
 
@@ -55,7 +65,9 @@ final class FlatButton extends Button.Plain {
 
     @Override
     protected MutableComponent createNarrationMessage() {
-        MutableComponent message = super.createNarrationMessage();
+        MutableComponent message = narration == null
+                ? super.createNarrationMessage()
+                : narration.copy().append(", ").append(getMessage());
         if (selected) {
             message.append(", ").append(Component.translatable("friendai.menu.selected"));
         }

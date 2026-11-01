@@ -53,6 +53,7 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
     private final List<Entry> operatorTabs = List.of(log, debug);
     private final List<Entry> lastTabs = List.of(settings);
     private final List<FlatButton> railButtons = new ArrayList<>();
+    private FlatButton done;
 
     private Entry selected = overview;
     private String builtFor = "";
@@ -124,6 +125,11 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
     @Override
     public net.minecraft.client.gui.Font font() {
         return font;
+    }
+
+    @Override
+    public GuiEventListener focused() {
+        return getFocused();
     }
 
     private boolean operator() {
@@ -220,7 +226,7 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
         SideNavLayout.Rect content = layout.content();
         selected.tab().init(this, content.x(), content.y(), content.width(), content.height());
         SideNavLayout.Rect window = layout.window();
-        addRenderableWidget(new FlatButton(
+        done = addRenderableWidget(new FlatButton(
                 window.x() + window.width() / 2 - DONE_WIDTH / 2,
                 height - DONE_HEIGHT - 8,
                 DONE_WIDTH,
@@ -322,7 +328,12 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float partialTick) {
-        // Only the rail is clipped to its column; the tab's widgets and Done draw outside it, unclipped.
+        // The tab paints its own surfaces (cards, wells, rows) first and its widgets above them, so a switch or a
+        // field is never buried under the card it belongs to. The rail is clipped to its column and a tab's widgets
+        // to the content column, so a page that overflows cannot paint over the rest of the menu; Done sits outside
+        // both rectangles and draws as is.
+        SideNavLayout.Rect content = layout.content();
+        selected.tab().render(g, font, content.x(), content.y(), content.width(), content.height(), mouseX, mouseY);
         SideNavLayout.Rail rail = layout.rail();
         for (GuiEventListener child : children()) {
             if (!(child instanceof Renderable renderable)) {
@@ -336,12 +347,14 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
                         rail.box().bottom());
                 renderable.extractRenderState(g, mouseX, mouseY, partialTick);
                 g.disableScissor();
-            } else {
+            } else if (renderable == done) {
                 renderable.extractRenderState(g, mouseX, mouseY, partialTick);
+            } else {
+                g.enableScissor(content.x(), content.y(), content.right(), content.bottom());
+                renderable.extractRenderState(g, mouseX, mouseY, partialTick);
+                g.disableScissor();
             }
         }
-        SideNavLayout.Rect content = layout.content();
-        selected.tab().render(g, font, content.x(), content.y(), content.width(), content.height(), mouseX, mouseY);
     }
 
     private void drawConnection(GuiGraphicsExtractor g, SideNavLayout.Rect window) {
