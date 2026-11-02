@@ -11,7 +11,7 @@ public enum ProtocolFamily {
     INSTRUCTIONS(4, 65_536, 65_536, Set.of(1, 2, 3, 4, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26), Set.of(128)),
     TRADING(5, 16_384, 65_536, Set.of(1, 2, 3, 4, 5, 6, 7, 8, 9, 10), Set.of(128)),
     DEBUG(6, 1_024, 65_536, Set.of(1, 2), Set.of(128, 129)),
-    SPEECH(7, 2_048, 16_384, Set.of(1), Set.of(128));
+    SPEECH(7, 2_048, 16_384, Set.of(1), Set.of(128, 129));
 
     private final int id;
     private final int clientToServerMaxFrameBytes;

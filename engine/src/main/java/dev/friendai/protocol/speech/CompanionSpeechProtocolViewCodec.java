@@ -14,6 +14,8 @@ public final class CompanionSpeechProtocolViewCodec {
     public static final int MAX_COMPANION_BYTES = 64;
     public static final int MAX_TEXT_BYTES = 2_000;
     public static final int MAX_AUDIBLE_RANGE = 128;
+    /** The operation id of a streamed speech sentence, distinct from the complete view's 128. */
+    public static final int STREAM_OPERATION = 129;
 
     private CompanionSpeechProtocolViewCodec() {}
 
@@ -32,9 +34,48 @@ public final class CompanionSpeechProtocolViewCodec {
         return ProtocolViewBodies.encode(ProtocolFamily.SPEECH, 128, requestId, body.toByteArray());
     }
 
+    public static byte[] encodeStream(CompanionSpeechStreamView view) {
+        return encodeStream(view, 0);
+    }
+
+    public static byte[] encodeStream(CompanionSpeechStreamView view, long requestId) {
+        if (view.audibleRange() > MAX_AUDIBLE_RANGE) throw new ProtocolDataException(DecodeResult.Reason.INVALID_FIELD);
+        ProtocolBodyWriter body = new ProtocolBodyWriter(MAX_FRAME_BYTES - 15);
+        body.writeString(view.companion(), MAX_COMPANION_BYTES);
+        body.writeString(view.text(), MAX_TEXT_BYTES);
+        body.writeUuid(view.addressee());
+        body.writeUuid(view.companionId());
+        body.writeInt(view.audibleRange());
+        body.writeLong(view.streamId());
+        body.writeLong(view.sessionId());
+        body.writeLong(view.sequence());
+        body.writeBoolean(view.last());
+        return ProtocolViewBodies.encode(ProtocolFamily.SPEECH, STREAM_OPERATION, requestId, body.toByteArray());
+    }
+
+    public static DecodeResult<ProtocolView<CompanionSpeechStreamView>> decodeStream(byte[] encoded) {
+        return ProtocolViewBodies.decode(
+                encoded, ProtocolFamily.SPEECH, STREAM_OPERATION, CompanionSpeechProtocolViewCodec::decodeStreamBody);
+    }
+
     public static DecodeResult<ProtocolView<CompanionSpeechView>> decode(byte[] encoded) {
         return ProtocolViewBodies.decode(
                 encoded, ProtocolFamily.SPEECH, 128, CompanionSpeechProtocolViewCodec::decodeBody);
+    }
+
+    private static CompanionSpeechStreamView decodeStreamBody(ProtocolBodyReader body) {
+        String companion = body.readString(MAX_COMPANION_BYTES);
+        String text = body.readString(MAX_TEXT_BYTES);
+        var addressee = body.readUuid();
+        var companionId = body.readUuid();
+        int range = body.readInt();
+        if (range < 0 || range > MAX_AUDIBLE_RANGE) throw new ProtocolDataException(DecodeResult.Reason.INVALID_FIELD);
+        long streamId = body.readLong();
+        long sessionId = body.readLong();
+        long sequence = body.readLong();
+        boolean last = body.readBoolean();
+        return new CompanionSpeechStreamView(
+                companion, text, addressee, companionId, range, streamId, sessionId, sequence, last);
     }
 
     private static CompanionSpeechView decodeBody(ProtocolBodyReader body) {
