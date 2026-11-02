@@ -93,6 +93,60 @@ public class CompanionCoordinationTests {
     }
 
     @GameTest(maxTicks = 40)
+    public void aPlanPatchCanTargetARepeatBody(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        var owner =
+                GameTestSupport.onlinePlayer(h, "repeat-owner", 2, 2, 2, true).player();
+        CompanionManager manager = CompanionManager.get(h.getLevel().getServer());
+        manager.summon(owner);
+        var companion = manager.find(owner.getUUID()).orElseThrow();
+        var one = new QueuedStep(
+                "wait", new JsonObject(), null, List.of(), GuardAction.WAIT, FailurePolicy.ASK, 1, List.of());
+        var repeat = new PlanNode.Repeat(List.of(new PlanNode.Action(one)), new Guard.OwnerOnline(), 2);
+        long planId = companion
+                .executionCoordinator()
+                .queue()
+                .addStructuredPlan("repeat plan", new PlanDefinition(List.of(repeat)), PlanOptions.DEFAULT);
+        JsonObject args = new JsonObject();
+        args.addProperty("plan", planId);
+        args.addProperty(
+                "expected", PlanFingerprint.of(companion.executionCoordinator().queue(), planId));
+        args.addProperty("route", "0,3");
+        args.addProperty("index", 0);
+        args.addProperty("remove", 1);
+        com.google.gson.JsonArray steps = new com.google.gson.JsonArray();
+        JsonObject replacement = new JsonObject();
+        replacement.addProperty("tool", "wait");
+        replacement.addProperty("args", "{\"seconds\":3}");
+        steps.add(replacement);
+        args.add("steps", steps);
+        var result = GameTestToolRegistry.create(companion, () -> 16, MemoryAccess.DISABLED)
+                .bind(companion)
+                .execute(
+                        new dev.friendai.agent.llm.model.ToolCall("test", "plan_patch", args, args.toString(), null),
+                        new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
+        h.assertFalse(result.error(), result.content());
+        var patched = (PlanNode.Repeat) companion
+                .executionCoordinator()
+                .queue()
+                .plan(planId)
+                .orElseThrow()
+                .definition()
+                .nodes()
+                .getFirst();
+        h.assertValueEqual(
+                ((PlanNode.Action) patched.body().getFirst())
+                        .step()
+                        .args()
+                        .get("seconds")
+                        .getAsInt(),
+                3,
+                "the repeat body was patched");
+        h.assertValueEqual(patched.maxIterations(), 2, "the repeat cap is preserved");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 40)
     public void aPlanPatchCanTargetAConditionalBranch(GameTestHelper h) {
         GameTestSupport.platform(h, 8);
         var owner =
