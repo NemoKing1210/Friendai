@@ -826,11 +826,11 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
             if (primary.isEmpty() || primary.get().status() != dev.friendai.agent.goal.GoalStatus.ACTIVE) {
                 return Optional.empty();
             }
-            return baseInput(caller, primary.get(), primary.get().planId(), failure);
+            return baseInput(caller, primary.get(), primary.get().planId(), failure, "");
         }
 
         private Optional<dev.friendai.agent.plan.PlannerInput> baseInput(
-                Caller caller, dev.friendai.agent.goal.Goal goal, long planId, String failure) {
+                Caller caller, dev.friendai.agent.goal.Goal goal, long planId, String failure, String pendingNodePath) {
             Map<String, JsonObject> schemas = new java.util.LinkedHashMap<>();
             StringBuilder digest = new StringBuilder();
             taskTools.forEach((name, def) -> {
@@ -864,7 +864,8 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                     planId == 0
                             ? ""
                             : dev.friendai.execution.queue.PlanFingerprint.of(
-                                    companion.executionCoordinator().queue(), planId)));
+                                    companion.executionCoordinator().queue(), planId),
+                    pendingNodePath));
         }
 
         @Override
@@ -882,7 +883,8 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                     0,
                     false,
                     0);
-            return baseInput(caller, synthetic, planId, failure);
+            String pendingPath = plan.cursor() == null ? "" : plan.cursor().pendingActionPath();
+            return baseInput(caller, synthetic, planId, failure, pendingPath);
         }
 
         @Override

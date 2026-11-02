@@ -32,7 +32,42 @@ public record PlannerInput(
         List<dev.friendai.agent.prompt.PromptSection> instructions,
         int promptBudget,
         long targetPlanId,
-        String targetFingerprint) {
+        String targetFingerprint,
+        String pendingNodePath) {
+    /** The target-plan shape without a pending path, preserving callers added before it. */
+    public PlannerInput(
+            Goal goal,
+            String world,
+            String toolDigest,
+            String knowledge,
+            Optional<String> queueState,
+            List<String> lessons,
+            String failure,
+            Map<String, JsonObject> schemas,
+            Set<String> allTools,
+            List<String> verified,
+            List<dev.friendai.agent.prompt.PromptSection> instructions,
+            int promptBudget,
+            long targetPlanId,
+            String targetFingerprint) {
+        this(
+                goal,
+                world,
+                toolDigest,
+                knowledge,
+                queueState,
+                lessons,
+                failure,
+                schemas,
+                allTools,
+                verified,
+                instructions,
+                promptBudget,
+                targetPlanId,
+                targetFingerprint,
+                "");
+    }
+
     /** The pre-target-plan shape, with no arbitrary-plan identity. */
     public PlannerInput(
             Goal goal,
@@ -61,6 +96,7 @@ public record PlannerInput(
                 instructions,
                 promptBudget,
                 0,
+                "",
                 "");
     }
 

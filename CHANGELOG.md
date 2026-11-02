@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.183.0] - 2026-11-02
+
+### Added
+
+- A replan for a structured plan tells the planner the pending action path, so a branch-aware proposal is prepared against the node it must repair.
+
 ## [0.182.0] - 2026-11-02
 
 ### Added

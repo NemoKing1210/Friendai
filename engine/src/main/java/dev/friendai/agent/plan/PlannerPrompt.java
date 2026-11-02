@@ -48,6 +48,9 @@ public final class PlannerPrompt {
     /** @param redact removes configured secrets from the text before it leaves the server */
     public static String user(PlannerInput in, UnaryOperator<String> redact) {
         StringBuilder out = new StringBuilder("Goal: ").append(in.goal().text()).append('\n');
+        if (!in.pendingNodePath().isBlank()) {
+            out.append("Pending action: ").append(in.pendingNodePath()).append('\n');
+        }
         if (!in.goal().criteria().isEmpty()) {
             out.append("Done when:\n");
             for (Criterion c : in.goal().criteria()) {
