@@ -14,7 +14,8 @@ import java.util.function.UnaryOperator;
 
 /**
  * The model-facing overview of a facts book: how full each book is, and on request every fact with its id,
- * category, subject, author and age. Ages of places and notes, whose claims can go stale, are plain words.
+ * category, subject, author, how it was established and age. A place or note, whose claim can go stale, also
+ * says whether a task verified it or it was only inferred, and whether it has expired; its age is plain words.
  * Access follows the prompt matrix: owner all, trusted world and self, guest self. Text is redacted on read,
  * because an old fact may predate redaction on write.
  */
@@ -172,8 +173,12 @@ public final class MemoryAudit {
         if (!author.isEmpty()) {
             line.append(" — ").append(author);
         }
-        boolean perishable = fact.category() == Category.PLACE || fact.category() == Category.NOTE;
-        line.append(", ").append(perishable ? staleAge(fact.createdAt(), now) : age(now - fact.createdAt()));
+        String marker = FactProvenance.marker(fact, owner, now);
+        line.append(", ");
+        if (!marker.isEmpty()) {
+            line.append(marker).append(", ");
+        }
+        line.append(FactProvenance.perishable(fact) ? staleAge(fact.createdAt(), now) : age(now - fact.createdAt()));
         return line.toString();
     }
 

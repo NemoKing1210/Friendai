@@ -53,8 +53,8 @@ class MemoryAuditTest {
         seed();
         String text = MemoryAudit.overview(book, O, owner, L, 90, NOW, "", 40, true, 6000, value -> value);
         assertTrue(text.contains("[1] PREFERENCE (owner): Likes redstone — owner, 2m"), text);
-        assertTrue(text.contains("[2] PLACE (owner): Base at 1 2 3 — owner, today"), text);
-        assertTrue(text.contains("[3] NOTE (world): Village to the north — Tia, today"), text);
+        assertTrue(text.contains("[2] PLACE (owner): Base at 1 2 3 — owner, inferred, today"), text);
+        assertTrue(text.contains("[3] NOTE (world): Village to the north — Tia, inferred, today"), text);
     }
 
     @Test
@@ -73,11 +73,29 @@ class MemoryAuditTest {
         aged.addFact(Subject.WORLD, Category.NOTE, "Village to the north", O, "Steve", NOW - 40 * DAY, BIG);
         aged.addFact(Subject.WORLD, Category.NOTE, "Chest by the river", O, "Steve", NOW + DAY, BIG);
         String text = MemoryAudit.overview(aged, O, owner, BIG, 90, NOW, "", 40, true, 6000, value -> value);
-        assertTrue(text.contains("PLACE (owner): Base at 1 2 3 — owner, today"), text);
-        assertTrue(text.contains("PLACE (owner): Mine at 4 5 6 — owner, 3 days ago"), text);
-        assertTrue(text.contains("PLACE (owner): Farm at 7 8 9 — owner, 2 weeks ago"), text);
-        assertTrue(text.contains("NOTE (world): Village to the north — owner, over a month ago"), text);
-        assertTrue(text.contains("NOTE (world): Chest by the river — owner, today"), text);
+        assertTrue(text.contains("PLACE (owner): Base at 1 2 3 — owner, inferred, today"), text);
+        assertTrue(text.contains("PLACE (owner): Mine at 4 5 6 — owner, inferred, 3 days ago"), text);
+        assertTrue(text.contains("PLACE (owner): Farm at 7 8 9 — owner, inferred, 2 weeks ago"), text);
+        assertTrue(text.contains("NOTE (world): Village to the north — owner, inferred stale, over a month ago"), text);
+        assertTrue(text.contains("NOTE (world): Chest by the river — owner, inferred, today"), text);
+    }
+
+    @Test
+    void verifiedGoalOutcomesSaySoAndExpiredClaimsReadStale() {
+        MemoryBook goals = new MemoryBook();
+        goals.ensurePlayer(O, "Steve");
+        String checked = GoalOutcomeFact.text(
+                "Collect 32 oak logs", GoalOutcomeFact.End.VERIFIED, "+32 minecraft:oak_log", 160);
+        String oldChecked = GoalOutcomeFact.text(
+                "Visit the village", GoalOutcomeFact.End.VERIFIED, "+1 minecraft:bread", 160);
+        String guessed = GoalOutcomeFact.text("Make a friend", GoalOutcomeFact.End.UNVERIFIED, null, 160);
+        goals.addFact(Subject.player(O), Category.NOTE, checked, O, "Steve", NOW - DAY, BIG);
+        goals.addFact(Subject.player(O), Category.PLACE, oldChecked, O, "Steve", NOW - 31 * DAY, BIG);
+        goals.addFact(Subject.player(O), Category.NOTE, guessed, O, "Steve", NOW - DAY, BIG);
+        String text = MemoryAudit.overview(goals, O, owner, BIG, 90, NOW, "", 40, true, 6000, value -> value);
+        assertTrue(text.contains("— owner, verified, 1 day ago"), text);
+        assertTrue(text.contains("— owner, verified stale, over a month ago"), text);
+        assertTrue(text.contains("— owner, inferred, 1 day ago"), text);
     }
 
     @Test
