@@ -6,7 +6,13 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
-## [0.156.0] - 2026-11-02
+## [0.157.0] - 2026-11-02
+
+### Changed
+
+- The subjects the companion has already raised, and what it learned about what you like talking about, now survive a server restart per owner instead of starting over.
+
+ - 2026-11-02
 
 ### Added
 

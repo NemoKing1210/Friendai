@@ -12,6 +12,7 @@ import dev.friendai.features.memory.MemoryViewers;
 import dev.friendai.features.memory.minecraft.tool.TrustAccess;
 import dev.friendai.features.placements.minecraft.PlacedService;
 import dev.friendai.features.places.minecraft.PlaceService;
+import dev.friendai.features.social.SocialMemoryRepository;
 import dev.friendai.features.trading.minecraft.tool.TradingToolAccess;
 import dev.friendai.features.trading.minecraft.trading.BarterDropTracker;
 import dev.friendai.features.trading.minecraft.trading.MerchantAdapter;
@@ -57,8 +58,7 @@ public final class ServerRuntime implements AutoCloseable {
     private final RuntimeResources resources;
     private final ServerProtocolConnections protocolConnections;
     private final CompanionManager companions;
-    private final dev.friendai.server.agent.social.SocialDirector socialDirector =
-            new dev.friendai.server.agent.social.SocialDirector();
+    private final dev.friendai.server.agent.social.SocialDirector socialDirector;
     private final DebugStream debugStream;
     private final MovementDebugStream movementDebugStream;
     private final MemoryViewStream memoryViewStream;
@@ -89,6 +89,8 @@ public final class ServerRuntime implements AutoCloseable {
         this.tickWork = tickWork;
         this.stopWork = stopWork;
         this.resources = resources;
+        this.socialDirector = new dev.friendai.server.agent.social.SocialDirector(
+                services == null ? SocialMemoryRepository.NONE : services.socialMemoryStore());
         this.protocolConnections = server == null ? null : new ServerProtocolConnections(server);
         this.companions = server == null ? null : CompanionManager.get(server);
         if (companions != null) companions.attachRuntime(this);

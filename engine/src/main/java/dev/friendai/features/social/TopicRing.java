@@ -1,6 +1,7 @@
 package dev.friendai.features.social;
 
 import java.util.ArrayDeque;
+import java.util.List;
 
 /**
  * The last few subjects the companion raised, so it does not open the same one twice.
@@ -34,6 +35,23 @@ public final class TopicRing {
 
     public int size() {
         return raised.size();
+    }
+
+    /** The remembered subjects, oldest first, as the save shape keeps them. */
+    public List<String> entries() {
+        return List.copyOf(raised);
+    }
+
+    /** A ring restored from {@link #entries()}; a missing list, repeats and overflow follow {@link #remember}. */
+    public static TopicRing of(List<String> saved) {
+        TopicRing ring = new TopicRing();
+        if (saved == null) {
+            return ring;
+        }
+        for (String topic : saved) {
+            ring.remember(topic);
+        }
+        return ring;
     }
 
     /** The comparison form: no leading or trailing space, one space between words, lower case. */

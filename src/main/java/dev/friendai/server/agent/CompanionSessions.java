@@ -21,6 +21,8 @@ import dev.friendai.debug.DebugService;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.execution.history.TaskRecord;
+import dev.friendai.execution.queue.PlanNode;
+import dev.friendai.execution.queue.PlanRecord;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolRegistry;
@@ -1048,6 +1050,28 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                 config.memory.enabled ? book.facts(Subject.player(owner)) : List.of());
     }
 
+    /** Every tool a queued plan can run, both branches of a condition and every repeat body included. */
+    private static List<String> toolsOf(PlanRecord plan) {
+        List<String> tools = new ArrayList<>();
+        if (plan.definition() != null) {
+            collectTools(plan.definition().nodes(), tools);
+        }
+        return tools;
+    }
+
+    private static void collectTools(List<PlanNode> nodes, List<String> tools) {
+        for (PlanNode node : nodes) {
+            if (node instanceof PlanNode.Action action) {
+                tools.add(action.step().tool());
+            } else if (node instanceof PlanNode.Conditional conditional) {
+                collectTools(conditional.thenNodes(), tools);
+                collectTools(conditional.elseNodes(), tools);
+            } else {
+                collectTools(((PlanNode.Repeat) node).body(), tools);
+            }
+        }
+    }
+
     /** The memory block, the continuity block and the tone line, each only when it has text. */
     private static String joinBlocks(String... blocks) {
         StringBuilder out = new StringBuilder();
@@ -1169,9 +1193,11 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
             captureGoalCheckability(owner, board);
             var primary = board.primary();
             String plan = "";
+            List<String> tools = List.of();
             if (primary.isPresent() && primary.get().planId() != 0) {
                 long planId = primary.get().planId();
-                plan = companion.executionCoordinator().queue().plan(planId).isPresent()
+                var queued = companion.executionCoordinator().queue().plan(planId);
+                plan = queued.isPresent()
                         ? "plan #" + planId + " "
                                 + companion
                                         .executionCoordinator()
@@ -1181,10 +1207,11 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                                         .toLowerCase(java.util.Locale.ROOT)
                                         .replace('_', ' ')
                         : "plan #" + planId + " is no longer queued";
+                tools = queued.map(CompanionSessions::toolsOf).orElse(List.of());
             }
             var facts = new dev.friendai.task.queue.CompanionGuardFacts(companion);
             facts.refresh();
-            return board.view(plan, facts);
+            return board.view(plan, facts, tools);
         });
         AgentEvents agent = new AgentEvents(owner, companion, session);
         companion.executionCoordinator().setEventSink(new TaskEventSink() {

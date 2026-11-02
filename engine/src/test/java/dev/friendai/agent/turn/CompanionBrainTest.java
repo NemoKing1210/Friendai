@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.JsonObject;
+import dev.friendai.agent.goal.RiskClass;
 import dev.friendai.agent.llm.model.LlmErrorKind;
 import dev.friendai.agent.llm.model.LlmException;
 import dev.friendai.agent.llm.model.LlmResponse;
@@ -70,8 +71,8 @@ class CompanionBrainTest {
 
     @Test
     void systemPromptCarriesTheMissionForTheOwner() {
-        brain.setGoalSource(caller ->
-                new dev.friendai.agent.goal.GoalView("gather 12 logs", List.of("12 logs"), "plan 4 running", ""));
+        brain.setGoalSource(caller -> new dev.friendai.agent.goal.GoalView(
+                "gather 12 logs", List.of("12 logs"), "plan 4 running", "", RiskClass.CAREFUL));
         gateway.enqueue(text("ok"));
         brain.post(said("hi"));
         String system = gateway.requests.get(0).system();

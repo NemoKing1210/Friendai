@@ -246,7 +246,11 @@ dimension, a return after half an hour, an announced advancement, each recorded 
 events the server already receives (the advancement rides a one-line mixin because Fabric has no such event) — and, when
 the owner is near enough to hear it, in the same dimension, not in a fight, not hurt and not holding an open container,
 posts one `BrainEvent.SocialOpening` for the newest entry nobody has spoken about yet. A line nobody could hear is held for 6,000 ticks and then
-dropped once; two lines never come closer than 1,200 ticks; a death already spoken about is never repeated.
+dropped once; two lines never come closer than 1,200 ticks; a death already spoken about is never repeated. When there
+is no fact to tell it may open a subject of its own: `TopicBank` supplies the openers in the owner's learned language,
+`TopicRing` refuses one already raised and `TopicTaste` prefers one the owner answered before. Both live in the
+owner's versioned `SocialMemorySave` record (`infrastructure/persistence/social/SocialMemoryStore`), loaded on first
+use and saved whenever they change, so a restart neither repeats a subject nor forgets a preference.
 
 A social batch carries no tools at all: `CompanionBrain` sends `List.of()` schemas and an empty tool-name set for the
 turn, so the model can only answer in words and the loop refuses anything it invents. `ReplyGuard` still strips the
@@ -391,8 +395,8 @@ Normal `flushAll` and five-second debounce flushes never wait for disk. Queue re
 with `QUEUE_FULL`, allowing the next ordinary flush to retry. Status contains no paths, values or exception text.
 
 `ServerServiceGraph` acquires one bounded, single-thread `OwnerStoreWriter` through `RuntimeResources`
-before acquiring stores. Memory, profiles, goals, free time, places, placements, knowledge, trading, and both
-instruction-skill scopes borrow it; reverse-order `ServerRuntime` teardown closes and flushes these stores
+before acquiring stores. Memory, profiles, goals, free time, social memory, places, placements, knowledge, trading,
+and both instruction-skill scopes borrow it; reverse-order `ServerRuntime` teardown closes and flushes these stores
 before closing the writer once. Standalone test stores may explicitly own a writer. Store close is idempotent
 and never closes a borrowed writer.
 
@@ -424,6 +428,7 @@ files remain read-only until explicit repair, which makes a fresh backup before 
 | Companion profile | `<world>/friendai/profiles/<owner-uuid>.json` | Format version 1: owner-selected companion name, description and owner language/address preferences. Independent revision; `OwnerRecordFlush` submits due snapshots on server ticks at a 5 s debounce. |
 | Goals | `<world>/friendai/goals/<owner-uuid>.json` | Format version 1: one primary goal and up to three background goals with criteria, queue-plan IDs, lessons and replan state. Independent revision; `OwnerRecordFlush` submits due snapshots on server ticks at a 5 s debounce. |
 | Free time | `<world>/friendai/free-time/<owner-uuid>.json` | Format version 1: shift state, linked execution-plan ID, history, lessons, cooldowns and away summaries. Independent revision; `OwnerRecordFlush` submits due snapshots on server ticks at a 5 s debounce. After execution restore, a shift is closed as failed if its plan was not restored. |
+| Social memory | `<world>/friendai/social/<owner-uuid>.json` | Format version 1: the last twelve raised subjects (oldest first) and the learned taste weights (at most 64 positive weights). `OwnerRecordFlush` submits due snapshots on server ticks at a 5 s debounce. A missing or corrupt record reads as empty; a newer version is left untouched and blocks writes. |
 | Instruction skills | `<world>/friendai/skills/<owner-uuid>.json`, `server.json` | Version 1; records, local builtin/server overrides, revisions and model-write ledger. ISO-8601 record timestamps, 5 s debounce, atomic replace, corruption backup; future versions are never overwritten. Builtin bodies and index are under `assets/friendai/skills/`. |
 | Places | `<world>/friendai/places/<owner-uuid>.json` | One book per owner, format version 1: id-keyed places with names, aliases, dimension, anchor, visits and author; 5 s debounced flush; `.bak` on corruption. |
 | Placed blocks | `<world>/friendai/placed/<owner-uuid>.json` | One ledger per owner, format version 1: dimension, cell, block id, game tick and source for every block the companion placed; cap 512 (oldest evicted), pruned lazily when a loaded chunk no longer holds the block; 5 s debounced flush; `.bak` on corruption. |

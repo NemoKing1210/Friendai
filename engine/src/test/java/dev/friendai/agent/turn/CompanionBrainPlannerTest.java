@@ -12,6 +12,7 @@ import com.google.gson.JsonObject;
 import dev.friendai.agent.goal.Goal;
 import dev.friendai.agent.goal.GoalStatus;
 import dev.friendai.agent.goal.GoalView;
+import dev.friendai.agent.goal.RiskClass;
 import dev.friendai.agent.llm.model.Message;
 import dev.friendai.agent.plan.PlanProposal;
 import dev.friendai.agent.plan.PlannerInput;
@@ -129,7 +130,7 @@ class CompanionBrainPlannerTest {
     }
 
     private void activeGoal() {
-        brain.setGoalSource(caller -> new GoalView("house", List.of(), "plan #5 active", ""));
+        brain.setGoalSource(caller -> new GoalView("house", List.of(), "plan #5 active", "", RiskClass.CAREFUL));
     }
 
     @Test

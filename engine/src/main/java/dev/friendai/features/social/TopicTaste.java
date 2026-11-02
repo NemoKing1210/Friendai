@@ -68,6 +68,29 @@ public final class TopicTaste {
         return weights.size();
     }
 
+    /** The learned weights, positive only; the answer streaks stay in the session. */
+    public Map<String, Integer> weights() {
+        return Map.copyOf(weights);
+    }
+
+    /** A taste restored from {@link #weights()}; non-positive weights are dropped and the cap still holds. */
+    public static TopicTaste of(Map<String, Integer> saved) {
+        TopicTaste taste = new TopicTaste();
+        if (saved == null) {
+            return taste;
+        }
+        for (Map.Entry<String, Integer> entry : saved.entrySet()) {
+            String key = key(entry.getKey());
+            Integer weight = entry.getValue();
+            if (key.isEmpty() || weight == null || weight <= 0) {
+                continue;
+            }
+            taste.weights.put(key, Math.min(weight, SocialMemorySave.MAX_WEIGHT));
+        }
+        taste.evict();
+        return taste;
+    }
+
     private void evict() {
         while (weights.size() > MAX_TOPICS) {
             String weakest = null;

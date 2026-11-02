@@ -40,6 +40,7 @@ import dev.friendai.infrastructure.persistence.memory.CompanionProfileStore;
 import dev.friendai.infrastructure.persistence.memory.MemoryStore;
 import dev.friendai.infrastructure.persistence.placements.PlacedStore;
 import dev.friendai.infrastructure.persistence.places.PlaceStore;
+import dev.friendai.infrastructure.persistence.social.SocialMemoryStore;
 import dev.friendai.infrastructure.persistence.trading.TradeStore;
 import dev.friendai.infrastructure.persistence.transcript.TranscriptStore;
 import dev.friendai.perception.resource.ObservationScheduler;
@@ -69,6 +70,7 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
     private final CompanionProfileStore profiles;
     private final GoalStore goalStore;
     private final FreeTimeStore freeTimeStore;
+    private final SocialMemoryStore socialMemoryStore;
     private final SkillService skills;
     private final GoalService goals;
     private final dev.friendai.agent.autonomy.FreeTimeService freeTime;
@@ -125,6 +127,8 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
                 server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("goals"), writer));
         this.freeTimeStore = resources.own(new FreeTimeStore(
                 server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("free-time"), writer));
+        this.socialMemoryStore = resources.own(new SocialMemoryStore(
+                server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("social"), writer));
         this.goals = new GoalService(goalStore, () -> this.config.agent.maxReplans);
         this.freeTime = new dev.friendai.agent.autonomy.FreeTimeService(freeTimeStore);
         this.skins = new SkinStore(
@@ -242,6 +246,11 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
 
     public FreeTimeStore freeTimeStore() {
         return freeTimeStore;
+    }
+
+    /** Per-owner raised subjects and learned taste, backed by their own versioned record. */
+    public SocialMemoryStore socialMemoryStore() {
+        return socialMemoryStore;
     }
 
     /** Instruction skills stored for each companion and for the server. */

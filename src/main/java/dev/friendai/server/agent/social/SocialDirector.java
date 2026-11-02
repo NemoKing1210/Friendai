@@ -6,8 +6,11 @@ import dev.friendai.entity.CompanionCarryData;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.social.ConversationCadence;
 import dev.friendai.features.social.SocialActivity;
+import dev.friendai.features.social.SocialMemoryRepository;
+import dev.friendai.features.social.SocialMemorySave;
 import dev.friendai.features.social.TopicBank;
 import dev.friendai.features.social.TopicRing;
+import dev.friendai.features.social.TopicTaste;
 import dev.friendai.features.survival.DeathRecord;
 import dev.friendai.foundation.diagnostics.LogKind;
 import dev.friendai.server.runtime.ServerRuntime;
@@ -29,7 +32,9 @@ import net.minecraft.server.level.ServerPlayer;
  * <p>A happening always wins: when there is none to tell and the pace allows a line, the companion may instead open a
  * subject of its own, taken from {@link TopicBank} in the owner's learned language and never one it already raised
  * ({@link TopicRing}). That line is {@code ORDINARY} and carries an empty happenings list, so a topic and a fact are
- * never spoken together.
+ * never spoken together. The raised subjects and the taste learned from answers are {@link SocialMemorySave}d by their
+ * own owner record, loaded on first use and saved whenever they change, so a restart does not repeat a subject or
+ * forget a preference.
  *
  * <p>Every twenty minutes each owner's {@link SocialActivity} counters — spoken, held, dropped lines, owner messages
  * and happenings seen — are written as one line to that owner's debug log and then cleared. The same window writes
@@ -53,14 +58,20 @@ public final class SocialDirector {
     private final Map<UUID, Held> held = new HashMap<>();
     /** The pace of unprompted lines, per owner. */
     private final Map<UUID, ConversationCadence> cadence = new HashMap<>();
-    /** The subjects already raised, per owner, so an opener is not repeated. Kept for the session, never cleared. */
+    /** The subjects already raised, per owner, so an opener is not repeated. Loaded from the record on first use. */
     private final Map<UUID, TopicRing> topics = new HashMap<>();
     /** What the owner seems to like talking about, learned only from whether they answered. */
-    private final Map<UUID, dev.friendai.features.social.TopicTaste> taste = new HashMap<>();
+    private final Map<UUID, TopicTaste> taste = new HashMap<>();
+    /** The owner record that carries the ring and the taste across a restart. */
+    private final SocialMemoryRepository memory;
     /** The subject raised last, and when, so an answer or a silence can be counted once. */
     private final Map<UUID, PendingTopic> pendingTopic = new HashMap<>();
     /** What happened in the current window, per owner: logged and then cleared, never player-facing. */
     private final Map<UUID, SocialActivity> activity = new HashMap<>();
+
+    public SocialDirector(SocialMemoryRepository memory) {
+        this.memory = memory;
+    }
 
     private record PendingTopic(String topic, long raisedAt) {}
 
@@ -73,8 +84,8 @@ public final class SocialDirector {
         PendingTopic pending = pendingTopic.remove(owner);
         if (pending != null && gameTime - pending.raisedAt() <= ANSWER_WINDOW_TICKS) {
             // The owner came back to the subject we raised: that is what a preference is made of.
-            taste.computeIfAbsent(owner, ignored -> new dev.friendai.features.social.TopicTaste())
-                    .answered(pending.topic());
+            tasteOf(owner).answered(pending.topic());
+            persist(owner);
         }
     }
 
@@ -185,15 +196,15 @@ public final class SocialDirector {
         for (var entry : new java.util.ArrayList<>(pendingTopic.entrySet())) {
             if (now - entry.getValue().raisedAt() > ANSWER_WINDOW_TICKS) {
                 pendingTopic.remove(entry.getKey());
-                taste.computeIfAbsent(entry.getKey(), ignored -> new dev.friendai.features.social.TopicTaste())
-                        .ignored(entry.getValue().topic());
+                tasteOf(entry.getKey()).ignored(entry.getValue().topic());
+                persist(entry.getKey());
             }
         }
     }
 
     private String nextTopic(ServerRuntime runtime, UUID owner) {
         String language = runtime.memory().book(owner).ownerLanguage(owner).orElse(null);
-        TopicRing ring = topics.computeIfAbsent(owner, ignored -> new TopicRing());
+        TopicRing ring = topicRing(owner);
         java.util.List<String> allowed = new java.util.ArrayList<>();
         for (String opener : TopicBank.forLanguage(language)) {
             if (ring.allows(opener) && !dev.friendai.features.social.BannedTopics.banned(opener, language)) {
@@ -203,13 +214,41 @@ public final class SocialDirector {
         if (allowed.isEmpty()) {
             return null;
         }
-        var learned = taste.computeIfAbsent(owner, ignored -> new dev.friendai.features.social.TopicTaste());
+        TopicTaste learned = tasteOf(owner);
         String chosen = learned.best(allowed);
         if (chosen == null) {
             chosen = allowed.getFirst();
         }
         ring.remember(chosen);
+        persist(owner);
         return chosen;
+    }
+
+    /** The owner's ring, loaded from their record the first time it is needed; the map stays the fast path. */
+    private TopicRing topicRing(UUID owner) {
+        TopicRing saved = topics.get(owner);
+        if (saved == null) {
+            saved = TopicRing.of(memory.state(owner).raised());
+            topics.put(owner, saved);
+        }
+        return saved;
+    }
+
+    /** The owner's taste, loaded from their record the first time it is needed. */
+    private TopicTaste tasteOf(UUID owner) {
+        TopicTaste saved = taste.get(owner);
+        if (saved == null) {
+            saved = TopicTaste.of(memory.state(owner).taste());
+            taste.put(owner, saved);
+        }
+        return saved;
+    }
+
+    /** Hands the current ring and taste to the owner record; the shared flush writes them on its next tick. */
+    private void persist(UUID owner) {
+        memory.save(
+                owner,
+                new SocialMemorySave(topicRing(owner).entries(), tasteOf(owner).weights()));
     }
 
     private void hold(UUID owner, String text, long now) {

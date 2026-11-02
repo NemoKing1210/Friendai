@@ -17,8 +17,8 @@ public final class ServerTickPipeline {
         this.server = server;
         this.services = services;
         this.traderRefresh = traderRefresh;
-        this.ownerRecordFlush =
-                new OwnerRecordFlush(services.profileStore(), services.goalStore(), services.freeTimeStore());
+        this.ownerRecordFlush = new OwnerRecordFlush(
+                services.profileStore(), services.goalStore(), services.freeTimeStore(), services.socialMemoryStore());
     }
 
     public void tick(ServerRuntime runtime) {
