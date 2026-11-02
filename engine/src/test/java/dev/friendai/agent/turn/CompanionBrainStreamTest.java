@@ -160,6 +160,38 @@ class CompanionBrainStreamTest {
     }
 
     @Test
+    void cancelDropsLaterEarlySentences() {
+        CompletableFuture<LlmResponse> pending = new CompletableFuture<>();
+        List<Consumer<StreamDelta>> late = new ArrayList<>();
+        StreamingLlmGateway gateway = new StreamingLlmGateway() {
+            @Override
+            public CompletableFuture<LlmResponse> complete(
+                    String system, List<Message> messages, List<ToolSpec> tools) {
+                throw new UnsupportedOperationException("streaming only");
+            }
+
+            @Override
+            public CompletableFuture<LlmResponse> completeStreaming(
+                    String system, List<Message> messages, List<ToolSpec> tools, Consumer<StreamDelta> onDelta) {
+                late.add(onDelta);
+                onDelta.accept(new StreamDelta.Text("First. Second."));
+                return pending;
+            }
+        };
+        RecordingSpeaker speaker = new RecordingSpeaker();
+        CompanionBrain brain = brain(gateway, new FakeToolExecutor(), speaker);
+        brain.post(new BrainEvent.PlayerSaid(OWNER, "Steve", "hi", BrainEvent.Source.CHAT));
+        assertEquals(1, speaker.streamed.size());
+        brain.cancel();
+        late.getFirst().accept(new StreamDelta.Text("Third."));
+        pending.complete(new LlmResponse("First. Second. Third.", List.of(), StopReason.END, null));
+
+        assertEquals(
+                "First.",
+                speaker.streamed.stream().map(RecordingSpeaker.Streamed::text).reduce("", String::concat));
+    }
+
+    @Test
     void toolFragmentsExecuteOnceOnlyAfterTheCompleteResponse() {
         StreamingGateway gateway = new StreamingGateway();
         gateway.steps.add(new Step(

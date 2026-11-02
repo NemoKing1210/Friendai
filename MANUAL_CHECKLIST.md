@@ -134,6 +134,7 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] Settings → Voice → Synthesis → a local voice → **Download voice**: progress toasts every 10%, then "Voice installed"; the license line matches the voice.
 - [ ] Every catalog voice (Irina, Dmitri, Lessac, LibriTTS-R, Alba) downloads and speaks.
 - [ ] **Test voice** plays the sample through the selected output device; the volume slider changes how loud it is.
+- [ ] With "Speak while the reply is arriving" on, a long reply starts its first sentence before the rest arrives; turn it off and the whole reply is spoken after it completes.
 - [ ] In a world, a chat reply is spoken once (not once per chat line); the output device and speed settings take effect.
 - [ ] With "Speak replies addressed to other players" off, a reply to another player stays silent; on, it is spoken too.
 - [ ] OpenAI with a valid key speaks a reply. A wrong key shows one error toast and no storm; speech stays idle until the settings change.
