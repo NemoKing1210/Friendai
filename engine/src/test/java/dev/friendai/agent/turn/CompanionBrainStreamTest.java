@@ -130,8 +130,8 @@ class CompanionBrainStreamTest {
         brain.post(new BrainEvent.PlayerSaid(OWNER, "Steve", "hi", BrainEvent.Source.CHAT));
 
         assertEquals(
-                List.of("Hello."),
-                speaker.streamed.stream().map(RecordingSpeaker.Streamed::text).toList());
+                "Hello. There.",
+                speaker.streamed.stream().map(RecordingSpeaker.Streamed::text).reduce("", String::concat));
         pending.complete(new LlmResponse("Hello. There.", List.of(), StopReason.END, null));
         assertEquals(
                 "Hello. There.",
@@ -157,6 +157,21 @@ class CompanionBrainStreamTest {
                 speaker.streamed.stream().map(RecordingSpeaker.Streamed::text).reduce("", String::concat));
         assertEquals(1, speaker.said.size(), "the full reply reaches chat once");
         assertTrue(speaker.said.getFirst().contains("Hello there. Second."));
+    }
+
+    @Test
+    void unsafeEarlyTextIsNotStreamed() {
+        StreamingGateway gateway = new StreamingGateway();
+        gateway.steps.add(new Step(
+                List.of(new StreamDelta.Text("The hive is at 10 20 30."), new StreamDelta.Done()),
+                new LlmResponse("The hive is at 10 20 30.", List.of(), StopReason.END, null)));
+        RecordingSpeaker speaker = new RecordingSpeaker();
+
+        brain(gateway, new FakeToolExecutor(), speaker)
+                .post(new BrainEvent.PlayerSaid(OWNER, "Steve", "hi", BrainEvent.Source.CHAT));
+
+        assertTrue(speaker.streamed.isEmpty(), speaker.streamed.toString());
+        assertTrue(speaker.said.stream().noneMatch(line -> line.contains("10 20 30")), speaker.said.toString());
     }
 
     @Test
@@ -187,7 +202,7 @@ class CompanionBrainStreamTest {
         pending.complete(new LlmResponse("First. Second. Third.", List.of(), StopReason.END, null));
 
         assertEquals(
-                "First.",
+                "First. Second.",
                 speaker.streamed.stream().map(RecordingSpeaker.Streamed::text).reduce("", String::concat));
     }
 

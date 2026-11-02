@@ -88,7 +88,7 @@ public final class CompanionSpeaker implements Speaker {
     @Override
     public void streamSentence(
             long streamId, long sessionId, long sequence, String text, boolean last, UUID addressee) {
-        if (text.isBlank()) {
+        if (text.isBlank() && !last) {
             return;
         }
         CompanionSpeechStreamView view = new CompanionSpeechStreamView(

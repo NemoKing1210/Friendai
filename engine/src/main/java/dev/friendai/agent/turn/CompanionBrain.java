@@ -284,13 +284,11 @@ public final class CompanionBrain {
 
     private boolean skillFreeTimeTurn;
     private boolean streamedTurn;
-    /** Streaming speech releases only complete, guard-accepted sentences; the last one waits for the full reply. */
-    private StreamAccumulator earlyAccumulator;
+    /** Releases only whole, guard-parity fragments while the rest of the reply is still arriving. */
+    private StreamSpeechPolicy speechPolicy;
 
-    private boolean earlyAllowed;
     private int earlySequence;
-    private final java.util.List<String> earlyPending = new java.util.ArrayList<>();
-    private final java.util.List<String> earlySentences = new java.util.ArrayList<>();
+    private boolean earlyIncomplete;
 
     public boolean isSkillFreeTimeTurn() {
         return skillFreeTimeTurn;
@@ -608,17 +606,13 @@ public final class CompanionBrain {
             if (active instanceof StreamingLlmGateway streaming) {
                 streamedTurn = true;
                 StreamAccumulator accumulator = new StreamAccumulator();
-                earlyAccumulator = accumulator;
-                earlyAllowed = true;
+                speechPolicy = StreamSpeechPolicy.create();
                 earlySequence = 0;
-                earlyPending.clear();
-                earlySentences.clear();
+                earlyIncomplete = false;
                 future = streaming
                         .completeStreaming(system, history, sent, delta -> {
                             accumulator.accept(delta);
-                            if (earlyAllowed) {
-                                scheduler.execute(() -> releaseEarly(gen, accumulator));
-                            }
+                            scheduler.execute(() -> releaseEarly(gen, accumulator));
                         })
                         .thenApply(response -> completeFromStream(accumulator, response));
             } else {
@@ -636,22 +630,31 @@ public final class CompanionBrain {
      * stream is complete, never from an increment.
      */
     private void releaseEarly(int gen, StreamAccumulator accumulator) {
-        if (gen != generation || accumulator != earlyAccumulator || !streamedTurn || turnCaller == null) {
+        if (gen != generation || speechPolicy == null || !streamedTurn || turnCaller == null) {
             return;
         }
-        for (String sentence : accumulator.releaseSentences(this::earlySafe)) {
-            earlyPending.add(sentence);
-        }
-        while (earlyPending.size() > 1) {
-            String sentence = earlyPending.removeFirst();
-            speaker.streamSentence(gen, gen, earlySequence++, sentence, false, turnCaller.uuid());
-            earlySentences.add(sentence);
+        String text = accumulator.text();
+        offerEarly(gen, speechPolicy.offer(text, guardParity(text)));
+    }
+
+    private void offerEarly(int gen, StreamSpeechPolicy.Decision decision) {
+        switch (decision) {
+            case StreamSpeechPolicy.Speak speak -> {
+                if (!speak.text().isBlank() || speak.last()) {
+                    String text = earlySequence == 0 || speak.text().isBlank() ? speak.text() : " " + speak.text();
+                    speaker.streamSentence(gen, gen, earlySequence++, text, speak.last(), turnCaller.uuid());
+                }
+            }
+            case StreamSpeechPolicy.StopIncomplete ignored -> earlyIncomplete = true;
+            case StreamSpeechPolicy.Hold ignored -> {}
         }
     }
 
-    private boolean earlySafe(String sentence) {
-        return ReplyGuard.filter(sentence, coordinatesAllowed(), recentSpeech(), turnToolNames)
-                .isPresent();
+    private boolean guardParity(String text) {
+        String raw = text == null ? "" : text;
+        return ReplyGuard.filter(raw, coordinatesAllowed(), recentSpeech(), turnToolNames)
+                .map(raw.strip()::equals)
+                .orElse(false);
     }
 
     private static LlmResponse completeFromStream(StreamAccumulator accumulator, LlmResponse response) {
@@ -671,10 +674,6 @@ public final class CompanionBrain {
             observe(o -> o.onUsage(response.usage()));
         if (gen != generation) {
             return;
-        }
-        if (earlyAccumulator != null && gen == generation) {
-            earlyAccumulator = null;
-            earlyAllowed = false;
         }
         if (response != null) {
             observe(o -> o.onResponse(response));
@@ -697,14 +696,9 @@ public final class CompanionBrain {
                 spoken = guarded.get();
                 if (streamedTurn) {
                     speaker.say(spoken);
-                    String prefix = String.join(" ", earlySentences);
-                    if (!earlySentences.isEmpty() && spoken.startsWith(prefix)) {
-                        String tail = spoken.substring(prefix.length());
-                        if (!tail.isBlank()) {
-                            speaker.streamSentence(
-                                    generation, generation, earlySequence++, tail, true, turnCaller.uuid());
-                        }
-                    } else {
+                    if (speechPolicy != null && !earlyIncomplete) {
+                        offerEarly(generation, speechPolicy.finish(raw, guardParity(raw)));
+                    } else if (speechPolicy == null) {
                         List<String> sentences = dev.friendai.features.speech.tts.SpeechText.cleanAndSplit(spoken, 300);
                         for (int i = 0; i < sentences.size(); i++) {
                             speaker.streamSentence(

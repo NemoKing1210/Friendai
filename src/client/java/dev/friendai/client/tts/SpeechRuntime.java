@@ -268,6 +268,9 @@ public final class SpeechRuntime {
                 payload.streamId(), payload.sessionId(), payload.sequence(), payload.text(), payload.last()));
         boolean streaming = streamReplies();
         for (SpeechStreamBuffer.Sentence sentence : result.ready()) {
+            if (sentence.text().isBlank()) {
+                continue;
+            }
             if (streaming) {
                 speak(
                         payload.companion(),

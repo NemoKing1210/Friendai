@@ -12,6 +12,7 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 - Streaming replies can speak their first guard-accepted sentence before the provider finishes; the complete reply remains authoritative and tool calls still wait for the whole response.
 - A Voice setting can turn early streamed speech off and wait for the full reply. The first sentence is also withheld when safety cannot be decided.
+- Early streamed speech now uses the full reply guard: coordinates, internal names, code fences, line breaks and unfinished numbers are held or reported incomplete instead of being spoken.
 
 ## [0.189.0] - 2026-11-02
 
