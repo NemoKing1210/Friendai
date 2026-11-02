@@ -287,6 +287,69 @@ public final class JobQueue {
         return job;
     }
 
+    /**
+     * Inserts one prerequisite as a direct job with an explicit dependency: the blocked job cannot start until the
+     * prerequisite finishes, and the prerequisite inherits the blocked job's existing dependencies. The blocked job
+     * stays pending with its cursor/identity intact; a running or terminal job is never rewritten.
+     */
+    public Result insertPrerequisite(long beforeId, QueuedStep step) {
+        if (step == null) return Result.error("prerequisite step is required");
+        Job target = jobs.get(beforeId);
+        if (target == null) return Result.error("unknown job #" + beforeId);
+        if (target.state() != JobState.PENDING) {
+            return Result.error("#" + beforeId + " is " + target.state().name().toLowerCase() + ", not pending");
+        }
+        if (!step.afterSteps().isEmpty()) return Result.error("a prerequisite cannot have plan dependencies");
+        ensureJobCapacity(1);
+        validateBudget(List.of(step));
+        long id = nextJob++;
+        Job remedy = new Job(
+                id,
+                0,
+                step.tool(),
+                step.args(),
+                step.priority() == null ? target.priority() : step.priority(),
+                step.priority() != null,
+                nextOrder,
+                JobState.PENDING,
+                step.guards(),
+                step.onUnmet(),
+                step.onFailure() == null ? FailurePolicy.ASK : step.onFailure(),
+                step.maxAttempts(),
+                0,
+                target.after(),
+                "",
+                0,
+                step.principal(),
+                step.creativeSensitive());
+        nextOrder += 100;
+        jobs.put(id, remedy);
+        List<Long> deps = new ArrayList<>(target.after());
+        deps.add(id);
+        jobs.put(
+                beforeId,
+                new Job(
+                        target.id(),
+                        target.planId(),
+                        target.tool(),
+                        target.args(),
+                        target.priority(),
+                        target.priorityExplicit(),
+                        target.order(),
+                        target.state(),
+                        target.guards(),
+                        target.onUnmet(),
+                        target.onFailure(),
+                        target.maxAttempts(),
+                        target.attempts(),
+                        deps,
+                        target.result(),
+                        target.retryAtTick(),
+                        target.principal(),
+                        target.creativeSensitive()));
+        return Result.ok("inserted prerequisite #" + id + " before #" + beforeId);
+    }
+
     public Job addJob(long planId, QueuedStep step) {
         PlanRecord plan = plans.get(planId);
         if (plan == null
