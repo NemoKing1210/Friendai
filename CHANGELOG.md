@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.169.0] - 2026-11-02
+
+### Added
+
+- `plan_validate` now reports the declared prerequisites of the actions it would run (`smelt_items`, `brew_potion`, `place_block`), the evidence for each, and bounded proposed remedies, without changing the queue.
+
 ## [0.168.0] - 2026-11-02
 
 ### Added

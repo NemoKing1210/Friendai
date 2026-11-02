@@ -94,7 +94,14 @@ public final class QueueTools implements FeatureToolContributor {
                                 .required("steps")
                                 .build(),
                         AccessLevel.TRUSTED,
-                        (c, caller, args) -> validateTool(c, args.getAsJsonArray("steps"), caller, all)),
+                        (c, caller, args) -> validateTool(
+                                c,
+                                args.getAsJsonArray("steps"),
+                                caller,
+                                all,
+                                !args.has("auto_repair")
+                                        || args.get("auto_repair").isJsonNull()
+                                        || args.get("auto_repair").getAsBoolean())),
                 metadata("plan_validate"));
         registry.registerTool(
                 instantTool(
@@ -330,12 +337,32 @@ public final class QueueTools implements FeatureToolContributor {
     }
 
     private static ToolResult validateTool(
-            CompanionEntity companion, JsonArray steps, Caller caller, Map<String, TaskToolDefinition> all) {
+            CompanionEntity companion,
+            JsonArray steps,
+            Caller caller,
+            Map<String, TaskToolDefinition> all,
+            boolean autoRepair) {
         return validatePlan(
-                steps, caller, all, companion.serverSettings().tasks().queueMaxStepsPerAdd());
+                companion,
+                steps,
+                caller,
+                all,
+                companion.serverSettings().tasks().queueMaxStepsPerAdd(),
+                autoRepair);
     }
 
+    /** Structure-only validation for tests and callers without a world companion. */
     static ToolResult validatePlan(JsonArray steps, Caller caller, Map<String, TaskToolDefinition> all, int maxSteps) {
+        return validatePlan(null, steps, caller, all, maxSteps, false);
+    }
+
+    static ToolResult validatePlan(
+            CompanionEntity companion,
+            JsonArray steps,
+            Caller caller,
+            Map<String, TaskToolDefinition> all,
+            int maxSteps,
+            boolean autoRepair) {
         Map<String, TaskToolDefinition> allowed = allowed(caller, all);
         Map<String, JsonObject> schemas = new LinkedHashMap<>();
         allowed.forEach((n, d) -> schemas.put(n, d.schema()));
@@ -345,7 +372,58 @@ public final class QueueTools implements FeatureToolContributor {
             return ToolResult.error("Invalid plan:\n- " + String.join("\n- ", parsed.errors()) + "\nSubmitted plan:\n"
                     + normalizeForDisplay(steps));
         return ToolResult.ok("Valid plan (worst-case actions: " + parsed.plan().worstCaseActions() + "):\n"
-                + PlanCodec.toJson(parsed.plan()));
+                + PlanCodec.toJson(parsed.plan())
+                + repairAdvice(companion, parsed.plan(), allowed.keySet(), autoRepair));
+    }
+
+    /** A side-effect-free prerequisite report for the actions a plan would run; never mutates the queue. */
+    private static String repairAdvice(
+            CompanionEntity companion, PlanDefinition plan, Set<String> availableTools, boolean autoRepair) {
+        if (companion == null) return "";
+        java.util.List<dev.friendai.execution.queue.PlanRepair.Prerequisite> prerequisites = new ArrayList<>();
+        collectPrerequisites(plan.nodes(), prerequisites);
+        if (prerequisites.isEmpty()) return "";
+        try {
+            CompanionGuardFacts facts = new CompanionGuardFacts(companion);
+            facts.refresh();
+            var advice = dev.friendai.execution.queue.PlanRepair.advise(
+                    prerequisites, facts, availableTools, autoRepair, (int) Math.min(plan.worstCaseActions(), 64));
+            if (advice.findings().isEmpty()) return "";
+            StringBuilder text = new StringBuilder("\nPrerequisites:");
+            for (var finding : advice.findings()) {
+                text.append("\n- ")
+                        .append(finding.prerequisite().describe())
+                        .append(": ")
+                        .append(finding.outcome().name().toLowerCase(java.util.Locale.ROOT));
+                if (!finding.reason().isBlank())
+                    text.append(" (").append(finding.reason()).append(")");
+            }
+            for (var step : advice.steps()) {
+                text.append("\n  proposed ").append(step.tool()).append(" ").append(step.args());
+            }
+            for (String blocker : advice.blockers())
+                text.append("\n  blocked: ").append(blocker);
+            if (advice.truncated()) text.append("\n  repair is bounded and was truncated");
+            return text.toString();
+        } catch (RuntimeException unavailable) {
+            return "\nPrerequisite check unavailable: " + unavailable.getMessage();
+        }
+    }
+
+    private static void collectPrerequisites(
+            List<PlanNode> nodes, java.util.List<dev.friendai.execution.queue.PlanRepair.Prerequisite> out) {
+        for (PlanNode node : nodes) {
+            switch (node) {
+                case PlanNode.Action action ->
+                    out.addAll(dev.friendai.execution.queue.PrerequisiteCatalog.forAction(
+                            action.step().tool(), action.step().args()));
+                case PlanNode.Conditional conditional ->
+                    // The taken branch is the else only when the condition is currently false; a dry run is not
+                    // evidence for an untaken branch's resources.
+                    collectPrerequisites(conditional.thenNodes(), out);
+                case PlanNode.Repeat repeat -> collectPrerequisites(repeat.body(), out);
+            }
+        }
     }
 
     private static JsonArray normalizeForDisplay(JsonArray input) {
