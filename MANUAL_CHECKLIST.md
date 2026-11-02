@@ -56,6 +56,7 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] Keep ambient speech on and stay near and silent for twenty minutes: one `social activity:` line appears with ordinary, urgent, held, dropped and owner-message counts, and an ignored question is not asked again within the backoff.
 - [ ] Fresh world, no journal entries: the companion's first self-raised line is a neutral question about plans, preferences or work. It never mentions a cave, a river, a chest or any past trip the two did not make; a Russian owner gets the Russian bank.
 - [ ] Ask for one multi-item outcome in one sentence ("mine 32 iron ore", "milk three cows", "store two stacks of cobblestone"): the companion issues one tool call carrying the count and reports the partial or complete result, not one call per item.
+- [ ] Carry water bottles, nether wart and blaze powder to a brewing stand and ask for a strength potion: the companion brews it, reports one potion and the ingredients spent; asking again at a stand that already holds an awkward potion skips the first step instead of repeating it.
 - [ ] Repeat the quantity request in Russian and open the menu in both UI languages: the reply and the labels follow the language, the log evidence stays English, and the criterion is still checkable by its guard.
 - [ ] With a goal open and a task running, the Overview, Tasks and Feeling tabs agree with the log: the task line, the history entry and the criterion (not proven → met) are the same state after Done and after a relaunch.
 

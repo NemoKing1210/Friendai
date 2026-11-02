@@ -137,6 +137,8 @@ const RU = {
   "Use an enchanting table.": "Использовать стол зачарования.",
   "Repair or combine at an anvil.": "Починить или объединить на наковальне.",
   "Strip enchantments at a grindstone.": "Снять зачарования на точиле.",
+  "Brew a supported potion at a brewing stand.": "Сварить поддерживаемое зелье на варочной стойке.",
+  "Show the brewing steps without doing them.": "Показать шаги варки, ничего не делая.",
   "Craft planner": "Планировщик крафта",
   "Turns a goal item into ordered steps.": "Превращает целевой предмет в упорядоченные шаги.",
   "Station leases": "Аренда станций",

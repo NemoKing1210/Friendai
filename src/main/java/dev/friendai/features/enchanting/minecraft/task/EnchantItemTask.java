@@ -47,7 +47,7 @@ public final class EnchantItemTask extends MenuBlockTask {
     }
 
     @Override
-    TaskStatus operate(TaskContext c, BlockPos pos) {
+    protected TaskStatus operate(TaskContext c, BlockPos pos) {
         var companion = c.companion();
         if (InventoryOps.count(companion.inventory(), item) < 1) {
             summary = "I don't have " + item.label();

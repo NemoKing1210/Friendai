@@ -46,6 +46,7 @@ const CATS = [
       "craft_item|Craft an item, placing a table if needed.", "get_recipe|Look up how something is made.", "smelt_items|Smelt up to 256 items in one call with fuel.",
       "cook_food|Cook raw food.", "collect_smelted|Pick up finished furnace output.", "enchant_item|Use an enchanting table.",
       "anvil_item|Repair or combine at an anvil.", "grindstone_item|Strip enchantments at a grindstone.",
+      "brew_potion|Brew a supported potion at a brewing stand.", "plan_brew|Show the brewing steps without doing them.",
       "~Craft planner|Turns a goal item into ordered steps.", "~Station leases|Remembers a table it placed for 600 ticks." ] },
   { id: "combat", domain: "hands", name: "Combat", icon: "⚔️", color: COLORS.redstone,
     desc: "Reflex combat ticked before everything else, with a single arbiter for movement, shields, bow, potions and retreat.",

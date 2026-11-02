@@ -47,7 +47,7 @@ public final class AnvilItemTask extends MenuBlockTask {
     }
 
     @Override
-    TaskStatus operate(TaskContext c, BlockPos pos) {
+    protected TaskStatus operate(TaskContext c, BlockPos pos) {
         var companion = c.companion();
         int needLeft = 1;
         if (right != null && right.label().equals(left.label())) {

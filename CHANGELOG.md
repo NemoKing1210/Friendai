@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.161.0] - 2026-11-02
+
+### Added
+
+- The companion can brew potions: `brew_potion` walks to a brewing stand, uses your water bottles, the recipe ingredient and blaze powder, keeps a half-finished stand resumable and reports the potion count and what it spent. `plan_brew` shows the same steps, operations and fuel without doing anything, and a missing bottle, ingredient, fuel or stand is one clear refusal.
+
 ## [0.160.0] - 2026-11-02
 
 ### Changed

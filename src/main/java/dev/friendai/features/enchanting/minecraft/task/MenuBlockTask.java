@@ -17,7 +17,7 @@ import org.jetbrains.annotations.Nullable;
  * A task that works a vanilla menu block (enchanting table, anvil, grindstone): it finds the block, walks up to it,
  * checks protection, runs {@link #operate} in one tick and always closes the menu so nothing stays inside it.
  */
-abstract class MenuBlockTask implements Task {
+public abstract class MenuBlockTask implements Task {
     /** How far the nearest matching block is looked for when no coordinates are given. */
     private static final int SEARCH_RADIUS = 24;
 
@@ -29,19 +29,19 @@ abstract class MenuBlockTask implements Task {
     private Approach approach;
     protected String summary = "";
 
-    MenuBlockTask(Block block, String noun, @Nullable BlockPos given) {
+    public MenuBlockTask(Block block, String noun, @Nullable BlockPos given) {
         this(state -> state.is(block), noun, given);
     }
 
     /** A vanilla block family, such as every anvil state, is one menu block for discovery and revalidation. */
-    MenuBlockTask(Predicate<BlockState> block, String noun, @Nullable BlockPos given) {
+    public MenuBlockTask(Predicate<BlockState> block, String noun, @Nullable BlockPos given) {
         this.block = block;
         this.noun = noun;
         this.given = given;
     }
 
     /** Works the menu at pos: returns SUCCESS or FAILED and sets {@link #summary}. */
-    abstract TaskStatus operate(TaskContext c, BlockPos pos);
+    protected abstract TaskStatus operate(TaskContext c, BlockPos pos);
 
     @Override
     public void start(TaskContext c) {}

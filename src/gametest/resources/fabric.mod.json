@@ -53,6 +53,7 @@
 			"dev.friendai.test.LocalOrderTests",
 			"dev.friendai.test.CraftingTests",
 			"dev.friendai.test.CookingTests",
+			"dev.friendai.test.BrewingTests",
 			"dev.friendai.test.CombatTests",
 			"dev.friendai.test.ThreatClassificationTests",
 			"dev.friendai.test.CombatMechanicsTests",

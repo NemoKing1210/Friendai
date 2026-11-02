@@ -5,6 +5,7 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.tool.ToolRegistry;
 import dev.friendai.features.acquisition.minecraft.tool.ObtainTools;
 import dev.friendai.features.animals.minecraft.tool.AnimalTools;
+import dev.friendai.features.brewing.minecraft.tool.BrewTools;
 import dev.friendai.features.combat.minecraft.tool.CombatTools;
 import dev.friendai.features.construction.minecraft.tool.ConstructionTools;
 import dev.friendai.features.cooking.minecraft.tool.CookingTools;
@@ -125,6 +126,7 @@ public final class FriendaiTools {
                 new ResourceTools(obtainSubtasks),
                 new ConstructionTools(obtainSubtasks::createForBuild, dependencies.placed()),
                 new CookingTools(obtainSubtasks),
+                new BrewTools(),
                 new FarmingTools(dependencies.places()),
                 new EnchantTools(),
                 new CombatTools(),

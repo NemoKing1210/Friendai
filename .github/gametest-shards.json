@@ -35,6 +35,7 @@
 				"StorageTests",
 				"CraftingTests",
 				"CookingTests",
+				"BrewingTests",
 				"StructureTests",
 				"DropPickupTests",
 				"LightAreaTests",

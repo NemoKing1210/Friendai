@@ -47,7 +47,7 @@ public final class GrindstoneItemTask extends MenuBlockTask {
     }
 
     @Override
-    TaskStatus operate(TaskContext c, BlockPos pos) {
+    protected TaskStatus operate(TaskContext c, BlockPos pos) {
         var companion = c.companion();
         int needFirst = second != null && second.label().equals(item.label()) ? 2 : 1;
         if (InventoryOps.count(companion.inventory(), item) < needFirst) {
