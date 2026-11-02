@@ -386,6 +386,19 @@ public final class SettingsModel {
         entries.add(advanced("friendai.config.voice.field.key", "voice", "key", "token", "secret", "cloud"));
         entries.add(advanced("friendai.config.voice.field.base_url", "voice", "url", "endpoint", "cloud"));
         entries.add(advanced("friendai.config.voice.field.folder_id", "voice", "folder", "id", "cloud"));
+
+        // Logs: what the durable log records and how much of it is kept.
+        entries.add(basic("friendai.config.logs.level", "logs", "level", "detail", "logs", "diagnostics"));
+        for (String category :
+                List.of("brain", "tool", "task", "queue", "net", "speech", "world", "config", "client", "server")) {
+            entries.add(advanced(
+                    "friendai.config.logs.category." + category, "logs", "category", category, "logs", "diagnostics"));
+        }
+        entries.add(advanced("friendai.config.logs.max_file_bytes", "logs", "size", "file", "logs", "retention"));
+        entries.add(advanced("friendai.config.logs.max_total_bytes", "logs", "size", "total", "logs", "retention"));
+        entries.add(advanced("friendai.config.logs.retention_days", "logs", "days", "retention", "logs"));
+        entries.add(advanced("friendai.config.logs.max_sessions", "logs", "sessions", "retention", "logs"));
+        entries.add(advanced("friendai.config.logs.digest", "logs", "digest", "summary", "logs"));
         return entries;
     }
 

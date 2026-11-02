@@ -138,7 +138,8 @@ class SettingsModelTest {
                                     "memory",
                                     "mining",
                                     "display",
-                                    "voice")
+                                    "voice",
+                                    "logs")
                             .contains(entry.category()),
                     entry.category());
         }
@@ -160,7 +161,8 @@ class SettingsModelTest {
                         "memory",
                         "mining",
                         "display",
-                        "voice"),
+                        "voice",
+                        "logs"),
                 SettingsModel.categories());
     }
 

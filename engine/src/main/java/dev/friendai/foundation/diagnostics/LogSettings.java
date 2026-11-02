@@ -28,6 +28,25 @@ public record LogSettings(
         return categories.isEmpty() || categories.contains(record.category());
     }
 
+    /** True at `detailed` and `trace`: records may carry prompt, reply and tool-result bodies. */
+    public boolean includesBodies() {
+        return level != null && level.ordinal() <= LogLevel.DEBUG.ordinal();
+    }
+
+    /**
+     * Maps the user-facing level name to the severity the sinks filter on: `normal` is INFO, `detailed` is DEBUG,
+     * `trace` is TRACE; `off` and an unknown name mean no file output.
+     */
+    public static LogLevel severity(String name) {
+        if (name == null) return null;
+        return switch (name.strip().toLowerCase(java.util.Locale.ROOT)) {
+            case "normal" -> LogLevel.INFO;
+            case "detailed" -> LogLevel.DEBUG;
+            case "trace" -> LogLevel.TRACE;
+            default -> null;
+        };
+    }
+
     public static LogSettings off() {
         return new LogSettings(null, Set.of(), 8_388_608L, 52_428_800L, 7, 20, true);
     }

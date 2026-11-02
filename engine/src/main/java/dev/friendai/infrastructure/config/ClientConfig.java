@@ -4,6 +4,8 @@ import dev.friendai.features.speech.VoicePreset;
 import dev.friendai.features.speech.stt.SttPresets;
 import dev.friendai.features.speech.tts.TtsPresets;
 import dev.friendai.features.speech.tts.VoiceModels;
+import dev.friendai.foundation.diagnostics.LogCategory;
+import dev.friendai.foundation.diagnostics.LogSettings;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.slf4j.Logger;
@@ -11,12 +13,29 @@ import org.slf4j.LoggerFactory;
 
 /** friendai-client.json. */
 public class ClientConfig {
-    public static final int CURRENT_VERSION = 7;
+    public static final int CURRENT_VERSION = 8;
 
     private static final Logger LOGGER = LoggerFactory.getLogger("friendai/config");
     public int version = CURRENT_VERSION;
     public VoiceSection voice = new VoiceSection();
     public SocialSection social = new SocialSection();
+    public LoggingSection logging = new LoggingSection();
+
+    /** How much the client-side log writes; one axis, like the server. */
+    public static class LoggingSection {
+        public String level = "normal";
+
+        public LogSettings toSettings() {
+            return new LogSettings(
+                    LogSettings.severity(level),
+                    java.util.Set.of(LogCategory.CLIENT, LogCategory.SPEECH),
+                    8_388_608L,
+                    52_428_800L,
+                    7,
+                    20,
+                    true);
+        }
+    }
 
     /** How the owner's companion is shown: the outline through walls and the mood mark above the head. */
     public static class SocialSection {
@@ -89,6 +108,14 @@ public class ClientConfig {
 
     /** Fills missing or invalid sections and clamps ranges. */
     public void validate() {
+        if (logging == null) {
+            logging = new LoggingSection();
+        }
+        String level = logging.level == null ? "" : logging.level.strip().toLowerCase(java.util.Locale.ROOT);
+        if (!java.util.List.of("off", "normal", "detailed").contains(level)) {
+            level = "normal";
+        }
+        logging.level = level;
         if (voice == null) {
             voice = new VoiceSection();
         }

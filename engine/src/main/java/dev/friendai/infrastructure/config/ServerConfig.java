@@ -8,8 +8,11 @@ import dev.friendai.features.mining.MiningRuntimeSettings;
 import dev.friendai.features.navigation.pathing.PathingConfig;
 import dev.friendai.features.social.InteractionStyle;
 import dev.friendai.foundation.diagnostics.ConfigException;
+import dev.friendai.foundation.diagnostics.LogCategory;
+import dev.friendai.foundation.diagnostics.LogSettings;
 import dev.friendai.foundation.text.UserMessage;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -17,7 +20,7 @@ import java.util.function.Function;
 
 /** friendai-server.json. */
 public class ServerConfig {
-    public static final int VERSION = 20;
+    public static final int VERSION = 21;
 
     public int version = VERSION;
     public String activeProfile = "main";
@@ -34,6 +37,45 @@ public class ServerConfig {
     public AgentSection agent = new AgentSection();
     public AutonomySection autonomy = new AutonomySection();
     public SkillsSection skills = new SkillsSection();
+    public LoggingSection logging = new LoggingSection();
+
+    /** What the durable log records and how much of it the server keeps. */
+    public static class LoggingSection {
+        public String level = "normal";
+        public boolean brain = true;
+        public boolean tool = true;
+        public boolean task = true;
+        public boolean queue = true;
+        public boolean net = true;
+        public boolean speech = true;
+        public boolean world = true;
+        public boolean config = true;
+        public boolean client = true;
+        public boolean server = true;
+        public long maxFileBytes = 8_388_608L;
+        public long maxTotalBytes = 52_428_800L;
+        public int retentionDays = 7;
+        public int maxSessionsPerOwner = 20;
+        public boolean digest = true;
+
+        public LogSettings toSettings() {
+            EnumSet<LogCategory> categories = EnumSet.noneOf(LogCategory.class);
+            if (brain) categories.add(LogCategory.BRAIN);
+            if (tool) categories.add(LogCategory.TOOL);
+            if (task) categories.add(LogCategory.TASK);
+            if (queue) categories.add(LogCategory.QUEUE);
+            if (net) categories.add(LogCategory.NET);
+            if (speech) categories.add(LogCategory.SPEECH);
+            if (world) categories.add(LogCategory.WORLD);
+            if (config) categories.add(LogCategory.CONFIG);
+            if (client) categories.add(LogCategory.CLIENT);
+            if (server) categories.add(LogCategory.SERVER);
+            long file = Math.max(1_048_576L, Math.min(268_435_456L, maxFileBytes));
+            long total = Math.max(file, Math.min(2_147_483_648L, maxTotalBytes));
+            return new LogSettings(
+                    LogSettings.severity(level), categories, file, total, retentionDays, maxSessionsPerOwner, digest);
+        }
+    }
 
     public static class SkillsSection {
         public boolean enabled = true;
@@ -280,6 +322,27 @@ public class ServerConfig {
     /** Fills missing sections and clamps ranges. Returns English descriptions of what was fixed, for the log. */
     public List<String> validate() {
         List<String> problems = new ArrayList<>();
+        if (logging == null) {
+            logging = new LoggingSection();
+            problems.add("logging was missing");
+        }
+        String level = logging.level == null ? "" : logging.level.strip().toLowerCase(java.util.Locale.ROOT);
+        if (!List.of("off", "normal", "detailed", "trace").contains(level)) {
+            problems.add("logging.level must be off|normal|detailed|trace, using normal");
+            level = "normal";
+        }
+        logging.level = level;
+        logging.maxFileBytes =
+                clampLong(problems, "logging.maxFileBytes", logging.maxFileBytes, 1_048_576L, 268_435_456L);
+        logging.maxTotalBytes =
+                clampLong(problems, "logging.maxTotalBytes", logging.maxTotalBytes, 1_048_576L, 2_147_483_648L);
+        if (logging.maxTotalBytes < logging.maxFileBytes) {
+            problems.add("logging.maxTotalBytes is below logging.maxFileBytes, using " + logging.maxFileBytes);
+            logging.maxTotalBytes = logging.maxFileBytes;
+        }
+        logging.retentionDays = clamp(problems, "logging.retentionDays", logging.retentionDays, 1, 90);
+        logging.maxSessionsPerOwner =
+                clamp(problems, "logging.maxSessionsPerOwner", logging.maxSessionsPerOwner, 1, 200);
         if (skills == null) skills = new SkillsSection();
         skills.promptBudget = clamp(problems, "skills.promptBudget", skills.promptBudget, 200, 6000);
         skills.modelWritesPerHour = clamp(problems, "skills.modelWritesPerHour", skills.modelWritesPerHour, 0, 60);
@@ -527,6 +590,14 @@ public class ServerConfig {
 
     private static int clamp(List<String> problems, String name, int value, int min, int max) {
         int clamped = Math.max(min, Math.min(max, value));
+        if (clamped != value) {
+            problems.add(name + " " + value + " is outside " + min + ".." + max + ", using " + clamped);
+        }
+        return clamped;
+    }
+
+    private static long clampLong(List<String> problems, String name, long value, long min, long max) {
+        long clamped = Math.max(min, Math.min(max, value));
         if (clamped != value) {
             problems.add(name + " " + value + " is outside " + min + ".." + max + ", using " + clamped);
         }

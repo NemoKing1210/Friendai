@@ -29,7 +29,8 @@ public final class ConfigStores {
                     ADDITIVE, // 16 -> 17: build pace
                     ADDITIVE, // 17 -> 18: mining drop protection
                     ADDITIVE, // 18 -> 19: transcript retention and memory compaction
-                    ADDITIVE)); // 19 -> 20: ambient speech, enabled by default
+                    ADDITIVE, // 19 -> 20: ambient speech, enabled by default
+                    ADDITIVE)); // 20 -> 21: logging, normal by default
     private static final ConfigMigration CLIENT = new ConfigMigration(
             1,
             List.of(
@@ -38,7 +39,8 @@ public final class ConfigStores {
                     ADDITIVE, // 3 -> 4: movement overlay, disabled by default
                     ADDITIVE, // 4 -> 5: companion outline and mood mark, enabled by default
                     ADDITIVE, // 5 -> 6: streamed replies, enabled by default
-                    ConfigStores::disableOutlineByDefault)); // 6 -> 7: the outline is off unless asked for
+                    ConfigStores::disableOutlineByDefault, // 6 -> 7: the outline is off unless asked for
+                    ADDITIVE)); // 7 -> 8: client logging, normal by default
 
     private ConfigStores() {}
 
