@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.193.1] - 2026-11-03
+
+### Fixed
+
+- The game no longer crashes when the companion menu is open while the companion's log holds provider request or reply entries: the menu snapshot now carries those entries instead of failing to encode.
+
 ## [0.193.0] - 2026-11-03
 
 ### Added

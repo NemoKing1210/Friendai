@@ -13,6 +13,8 @@ import dev.friendai.protocol.ProtocolVersion;
 import dev.friendai.protocol.ProtocolView;
 import dev.friendai.protocol.ProtocolViewCodec;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -141,7 +143,35 @@ final class CompanionSnapshotProtocolCodecTest {
         assertEquals(List.of("put the roof on"), view.goalUnmet());
     }
 
+    @Test
+    void everyLogKindSurvivesTheSnapshotRoundTrip() {
+        List<LogEntry> entries = new ArrayList<>();
+        long id = 1;
+        for (LogKind kind : LogKind.values()) {
+            entries.add(new LogEntry(id++, 2, kind, "entry " + kind));
+        }
+
+        byte[] encoded = CompanionSnapshotProtocolCodec.encodeForRecipient(snapshotWithLog(entries), true, 5);
+        DecodeResult.Valid<ProtocolView<CompanionSnapshotView>> decoded =
+                assertInstanceOf(DecodeResult.Valid.class, CompanionSnapshotProtocolCodec.decode(encoded));
+        assertEquals(
+                Arrays.asList(LogKind.values()),
+                decoded.value().value().newLog().stream().map(LogEntry::kind).toList());
+
+        String json = new String(
+                encoded,
+                ProtocolVersion.HEADER_BYTES,
+                encoded.length - ProtocolVersion.HEADER_BYTES,
+                StandardCharsets.UTF_8);
+        assertTrue(json.contains("\"kind\":9"));
+        assertTrue(json.contains("\"kind\":10"));
+    }
+
     private static CompanionSnapshotView snapshot() {
+        return snapshotWithLog(List.of(new LogEntry(1, 2, LogKind.ERROR, "private log")));
+    }
+
+    private static CompanionSnapshotView snapshotWithLog(List<LogEntry> log) {
         return new CompanionSnapshotView(
                 true,
                 true,
@@ -151,7 +181,7 @@ final class CompanionSnapshotProtocolCodecTest {
                 false,
                 "idle",
                 List.of(),
-                List.of(new LogEntry(1, 2, LogKind.ERROR, "private log")),
+                log,
                 "private perception",
                 List.of("private tool"),
                 new CompanionSnapshotView.Vitals(0, 0, 0, 0, 0, "", "", "none", "none", "", 0, 0),

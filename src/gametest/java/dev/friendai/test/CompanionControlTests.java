@@ -447,6 +447,8 @@ public class CompanionControlTests {
         try {
             CompanionManager.get(server).summon(player);
             brains.debug().logOf(player.getUUID()).add(LogKind.USER, "hello");
+            brains.debug().logOf(player.getUUID()).add(LogKind.REQUEST, "request");
+            brains.debug().logOf(player.getUUID()).add(LogKind.RESPONSE, "reply");
             CompanionSnapshot snapshot = SnapshotBuilder.build(runtime(player), player, 0);
             h.assertTrue(snapshot.present() && snapshot.operator(), "present operator snapshot expected");
             h.assertTrue(!snapshot.newLog().isEmpty(), "operators get the log");
@@ -456,6 +458,15 @@ public class CompanionControlTests {
                     CompanionSnapshotProtocolAdapter.toProtocol(snapshot), true, 1);
             DecodeResult<ProtocolView<CompanionSnapshotView>> decoded = CompanionSnapshotProtocolCodec.decode(encoded);
             h.assertTrue(decoded instanceof DecodeResult.Valid<?>, "snapshot frame must decode");
+            CompanionSnapshotView view = ((DecodeResult.Valid<ProtocolView<CompanionSnapshotView>>) decoded)
+                    .value()
+                    .value();
+            h.assertTrue(
+                    view.newLog().stream().anyMatch(e -> e.kind() == LogKind.REQUEST),
+                    "utterance request entry must survive the frame: " + view.newLog());
+            h.assertTrue(
+                    view.newLog().stream().anyMatch(e -> e.kind() == LogKind.RESPONSE),
+                    "utterance reply entry must survive the frame: " + view.newLog());
         } finally {
             deop(player);
         }

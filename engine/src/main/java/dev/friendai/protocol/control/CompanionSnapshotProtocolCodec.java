@@ -46,7 +46,11 @@ public final class CompanionSnapshotProtocolCodec {
                                             LogKind.MANUAL,
                                             7,
                                             LogKind.PLANNER,
-                                            8),
+                                            8,
+                                            LogKind.REQUEST,
+                                            9,
+                                            LogKind.RESPONSE,
+                                            10),
                                     id -> switch (id) {
                                         case 1 -> LogKind.USER;
                                         case 2 -> LogKind.ASSISTANT;
@@ -56,6 +60,8 @@ public final class CompanionSnapshotProtocolCodec {
                                         case 6 -> LogKind.TASK;
                                         case 7 -> LogKind.MANUAL;
                                         case 8 -> LogKind.PLANNER;
+                                        case 9 -> LogKind.REQUEST;
+                                        case 10 -> LogKind.RESPONSE;
                                         default -> null;
                                     })
                             .nullSafe())
