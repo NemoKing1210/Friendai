@@ -11,7 +11,7 @@ import org.slf4j.LoggerFactory;
 
 /** friendai-client.json. */
 public class ClientConfig {
-    public static final int CURRENT_VERSION = 5;
+    public static final int CURRENT_VERSION = 6;
 
     private static final Logger LOGGER = LoggerFactory.getLogger("friendai/config");
     public int version = CURRENT_VERSION;
@@ -30,6 +30,8 @@ public class ClientConfig {
     public static class VoiceSection {
         public SttSection stt = new SttSection();
         public TtsSection tts = new TtsSection();
+        /** Ask the server for streamed replies; off buffers the complete response before anything is spoken. */
+        public boolean streamReplies = true;
     }
 
     /** Speech recognition: one local Whisper model or one cloud preset at a time. */

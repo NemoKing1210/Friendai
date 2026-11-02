@@ -242,6 +242,23 @@ class ConfigStoresTest {
     }
 
     @Test
+    void clientV5GetsStreamedRepliesByDefaultAndKeepsAnExplicitChoice() throws IOException {
+        Path path = dir.resolve("client-v5.json");
+        Files.writeString(path, """
+                {"version":5,"voice":{"stt":{"enabled":false},"tts":{"enabled":true}}}
+                """);
+        ClientConfig config = ConfigStores.client(path).load();
+        assertTrue(config.voice.streamReplies, "old clients opt in to streamed replies on upgrade");
+        assertTrue(config.voice.tts.enabled, "an existing TTS choice survives");
+        assertEquals(ClientConfig.CURRENT_VERSION, config.version);
+
+        Files.writeString(path, """
+                {"version":6,"voice":{"streamReplies":false}}
+                """);
+        assertFalse(ConfigStores.client(path).load().voice.streamReplies, "an explicit opt-out stays off");
+    }
+
+    @Test
     void clientV4GetsTheSocialDefaultsWithoutLosingVoiceSettings() throws IOException {
         Path path = dir.resolve("client-v4.json");
         Files.writeString(path, """

@@ -36,7 +36,8 @@ public final class ConfigStores {
                     ADDITIVE, // 1 -> 2: optional synthesis, disabled by default
                     ConfigStores::unifyVoice, // 2 -> 3: both historical speech shapes
                     ADDITIVE, // 3 -> 4: movement overlay, disabled by default
-                    ADDITIVE)); // 4 -> 5: companion outline and mood mark, enabled by default
+                    ADDITIVE, // 4 -> 5: companion outline and mood mark, enabled by default
+                    ADDITIVE)); // 5 -> 6: streamed replies, enabled by default
 
     private ConfigStores() {}
 
