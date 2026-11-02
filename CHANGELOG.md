@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.175.0] - 2026-11-02
+
+### Fixed
+
+- `queue_edit replace` refuses to rewrite a step inside an active structured plan frame, so the interpreter cursor, branch choice and repeat counters cannot drift from the edited tree.
+
 ## [0.174.0] - 2026-11-02
 
 ### Added

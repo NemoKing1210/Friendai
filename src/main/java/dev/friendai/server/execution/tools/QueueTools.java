@@ -687,6 +687,8 @@ public final class QueueTools implements FeatureToolContributor {
                 case "replace" -> {
                     if (!args.has("steps")) return error("queue_edit requires steps");
                     long id = required(args, "job");
+                    var patchReject = dev.friendai.execution.queue.PlanPatchPolicy.reject(q, id);
+                    if (patchReject.isPresent()) return error(patchReject.get());
                     var old = q.job(id).orElse(null);
                     JobData.validateTool(old, all, caller);
                     Map<String, TaskToolDefinition> allowed = allowed(caller, all);
