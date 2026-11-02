@@ -1,13 +1,16 @@
 {
   "modmenu.nameTranslation.friendai": "Friendai",
   "modmenu.descriptionTranslation.friendai": "可以一起玩、也能聊天的 AI 伙伴——支持文字或语音。",
+
   "friendai.error.config.unknown_provider": "未知的提供方：%s",
   "friendai.error.access": "你无权访问该内容。",
   "friendai.error.config.needs_base_url": "提供方 %s 需要设置 base URL",
   "friendai.error.config.no_route": "模型 %s 没有路由规则",
   "friendai.config.test.ok_tools": "已连接：工具调用正常",
   "friendai.config.test.ok_text": "已连接，但模型用文字回复，没有调用工具",
+
   "friendai.error.config.profile_missing": "配置档“%s”不存在",
+
   "friendai.error.llm.auth": "无法连接提供方：API 密钥无效。",
   "friendai.error.llm.rate_limit": "提供方正在限制请求频率，请稍后再试。",
   "friendai.error.llm.timeout": "提供方未及时响应。",
@@ -18,6 +21,7 @@
   "friendai.error.config": "设置错误：%s",
   "friendai.error.unknown": "出了点问题，详情请查看日志。",
   "friendai.protocol.version_mismatch": "Friendai 协议版本不匹配。服务端和客户端需要使用相同的模组版本。",
+
   "entity.friendai.companion": "伙伴",
   "friendai.command.summoned": "%s 来了。",
   "friendai.command.summon_other_dimension": "你的伙伴在另一个维度。可在伙伴菜单中使用“传送到我身边”把它带过来。",
@@ -27,6 +31,7 @@
   "friendai.inventory.unavailable": "现在无法打开伙伴的物品栏。",
   "friendai.companion.died": "%s 死了。再次召唤：/friendai summon",
   "friendai.companion.too_far": "你的伙伴离得太远，听不到你说话。",
+
   "friendai.command.stopped": "已停止。",
   "friendai.local_order.follow": "正在跟随你。",
   "friendai.local_order.stay": "就待在这里。",
@@ -109,6 +114,7 @@
   "friendai.command.place.source.structure": "结构",
   "friendai.command.place.source.farm": "农田",
   "friendai.command.place.source.mine": "矿洞",
+
   "friendai.config.title": "Friendai 设置",
   "friendai.config.category.provider": "提供方",
   "friendai.config.category.companion": "伙伴",
@@ -159,12 +165,13 @@
   "friendai.config.voice.language": "语音语言",
   "friendai.config.voice.device": "麦克风",
   "friendai.config.voice.device.default": "系统默认",
+
   "key.category.friendai.main": "Friendai",
   "key.friendai.push_to_talk": "按键说话",
   "friendai.voice.hud.recording": "录音中…",
   "friendai.voice.hud.transcribing": "转写中…",
-  "friendai.voice.stream_incomplete": "回复中断，后面的内容没有收到。",
-  "friendai.voice.error.no_model": "语音模型尚未下载 — 设置 → 语音",
+
+  "friendai.voice.stream_incomplete": "回复中断，后面的内容没有收到。",  "friendai.voice.error.no_model": "语音模型尚未下载 — 设置 → 语音",
   "friendai.voice.error.no_key": "尚未为语音识别设置 API 密钥。",
   "friendai.voice.error.no_folder": "尚未为语音识别设置 Yandex 文件夹 ID。",
   "friendai.voice.error.unsupported_language": "所选语音提供方不支持此语言。",
@@ -173,6 +180,7 @@
   "friendai.voice.error.auth": "语音服务拒绝了该 API 密钥。",
   "friendai.voice.error.quota": "语音服务繁忙或配额已用尽，请稍后再试。",
   "friendai.voice.error.network": "无法连接到语音服务。",
+
   "friendai.voice.chat_line": "[🎤 %s] %s",
   "friendai.voice.need_companion": "请先召唤你的伙伴：/friendai summon",
   "friendai.voice.error.model_corrupt": "模型文件已损坏，请重试。",
@@ -218,6 +226,7 @@
   "friendai.config.voice.field.language": "语言",
   "friendai.config.voice.field.language.tooltip": "留空则跟随游戏语言。",
   "friendai.config.voice.tts.enabled": "朗读回复",
+  "friendai.config.voice.tts.stream": "Speak while the reply is arriving",
   "friendai.config.voice.tts.provider": "提供方",
   "friendai.config.voice.tts.provider.local": "本地（免费，离线）",
   "friendai.config.voice.tts.provider.openai": "OpenAI（付费）",
@@ -269,10 +278,10 @@
   "friendai.menu.tab.tasks": "任务",
   "friendai.menu.tab.memory": "记忆",
   "friendai.menu.tab.places": "地点",
+
   "friendai.menu.tab.map": "地图",
   "friendai.menu.map.empty": "尚未探索地形。",
-  "friendai.menu.map.count": "%s 格 · %s 地点 · %s 道路",
-  "friendai.menu.tab.log": "日志",
+  "friendai.menu.map.count": "%s 格 · %s 地点 · %s 道路",  "friendai.menu.tab.log": "日志",
   "friendai.menu.tab.debug": "调试",
   "friendai.menu.tab.appearance": "外观",
   "friendai.menu.appearance.name": "名称",
@@ -584,6 +593,7 @@
   "friendai.menu.places.error.ambiguous": "有多个地点与 %s 匹配：%s。",
   "friendai.menu.places.error.name_taken": "“%s”已被另一个地点使用。",
   "friendai.menu.places.error.name_invalid": "地点名称长度必须为 1-%s 个字符。",
+
   "friendai.mining.unsafe_support": "我不能挖掉支撑着我或路线的方块。",
   "friendai.mining.lava_below": "我不会破坏 %s：它正下方就是岩浆。",
   "friendai.mining.server_protected": "%s 受服务器保护（出生点保护或世界规则）。",
@@ -1007,6 +1017,7 @@
   "friendai.config.voice.device.tooltip": "按住说话使用哪个麦克风；“系统默认”跟随操作系统设置。保存后生效。",
   "friendai.config.voice.model.tooltip": "本地运行的 Whisper 模型：tiny、base 或 small。tiny 最快但最不准确，small 最慢但最准确。默认 base；离线且免费。",
   "friendai.config.voice.tts.enabled.tooltip": "是否朗读聊天回复。关闭则静音；云提供商按字符计费，本地语音免费。默认关闭。保存后生效。",
+  "friendai.config.voice.tts.stream.tooltip": "When on, the first safe sentence is spoken before the model finishes. Turn it off to wait for the full reply; early speech is also withheld when safety cannot be decided. Default on. Applies on Save.",
   "friendai.config.voice.tts.local.voice.tooltip": "由哪个本地语音朗读回复；第一项跟随游戏语言。语音离线运行且免费。保存后生效。",
   "friendai.config.voice.tts.speed.tooltip": "本地语音的语速（0.5–2.0，默认 1.0）。1.0 为正常速度。保存后生效。",
   "friendai.config.voice.tts.volume.tooltip": "朗读回复的音量（0.0–1.0，默认 1.0）。0.0 为静音。保存后生效。",
@@ -1016,7 +1027,5 @@
   "friendai.config.voice.field.model.tooltip": "此提供商使用的模型名，已填入其默认值。云端语音按请求或字符计费；本地端点免费。保存后生效。",
   "friendai.config.voice.field.voice.tooltip": "此提供商列表中的语音；默认值已预先选中。云端语音按字符计费。保存后生效。",
   "friendai.config.voice.field.voice_id.tooltip": "提供商控制台中的语音 ID。ElevenLabs 必填；自由文本。云端语音按字符计费。保存后生效。",
-  "friendai.config.voice.tts.speed.cloud.tooltip": "云端语音的语速。滑块范围随提供商而定：0.5–2.0、ElevenLabs 0.7–1.2、Yandex 0.1–3.0。默认 1.0。",
-  "friendai.config.voice.tts.stream": "Speak while the reply is arriving",
-  "friendai.config.voice.tts.stream.tooltip": "When on, the first safe sentence is spoken before the model finishes. Turn it off to wait for the full reply; early speech is also withheld when safety cannot be decided. Default on. Applies on Save."
+  "friendai.config.voice.tts.speed.cloud.tooltip": "云端语音的语速。滑块范围随提供商而定：0.5–2.0、ElevenLabs 0.7–1.2、Yandex 0.1–3.0。默认 1.0。"
 }

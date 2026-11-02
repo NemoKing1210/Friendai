@@ -1,13 +1,16 @@
 {
   "modmenu.nameTranslation.friendai": "Friendai",
   "modmenu.descriptionTranslation.friendai": "ИИ-компаньон, с которым можно играть и разговаривать — в чате или голосом.",
+
   "friendai.error.config.unknown_provider": "Неизвестный провайдер: %s",
   "friendai.error.access": "У вас нет доступа к этому.",
   "friendai.error.config.needs_base_url": "Для провайдера %s нужен base URL",
   "friendai.error.config.no_route": "Нет правила маршрутизации для модели %s",
   "friendai.config.test.ok_tools": "Соединение есть: вызов инструментов работает",
   "friendai.config.test.ok_text": "Соединение есть, но модель ответила текстом вместо вызова инструмента",
+
   "friendai.error.config.profile_missing": "Профиль «%s» не найден",
+
   "friendai.error.llm.auth": "Не могу подключиться к провайдеру: неверный API-ключ.",
   "friendai.error.llm.rate_limit": "Провайдер ограничил частоту запросов, попробуй чуть позже.",
   "friendai.error.llm.timeout": "Провайдер не ответил вовремя.",
@@ -18,6 +21,7 @@
   "friendai.error.config": "Ошибка настроек: %s",
   "friendai.error.unknown": "Что-то пошло не так, подробности в логе.",
   "friendai.protocol.version_mismatch": "Версии протокола Friendai не совпадают. На клиенте и сервере должна быть одна версия мода.",
+
   "entity.friendai.companion": "Компаньон",
   "friendai.command.summoned": "%s рядом.",
   "friendai.command.summon_other_dimension": "Ваш компаньон в другом измерении. Используйте «Телепортировать ко мне» в меню компаньона, чтобы перенести его сюда.",
@@ -27,6 +31,7 @@
   "friendai.inventory.unavailable": "Сейчас нельзя открыть инвентарь компаньона.",
   "friendai.companion.died": "%s погиб. Призови снова: /friendai summon",
   "friendai.companion.too_far": "Компаньон слишком далеко, чтобы вас услышать.",
+
   "friendai.command.stopped": "Остановился.",
   "friendai.local_order.follow": "Иду за тобой.",
   "friendai.local_order.stay": "Остаюсь здесь.",
@@ -109,6 +114,7 @@
   "friendai.command.place.source.structure": "структура",
   "friendai.command.place.source.farm": "ферма",
   "friendai.command.place.source.mine": "шахта",
+
   "friendai.config.title": "Настройки Friendai",
   "friendai.config.category.provider": "Провайдер",
   "friendai.config.category.companion": "Компаньон",
@@ -159,12 +165,13 @@
   "friendai.config.voice.language": "Язык речи",
   "friendai.config.voice.device": "Микрофон",
   "friendai.config.voice.device.default": "По умолчанию",
+
   "key.category.friendai.main": "Friendai",
   "key.friendai.push_to_talk": "Говорить (удерживать)",
   "friendai.voice.hud.recording": "Запись…",
   "friendai.voice.hud.transcribing": "Распознаю…",
-  "friendai.voice.stream_incomplete": "Ответ оборвался; продолжение не пришло.",
-  "friendai.voice.error.no_model": "Модель распознавания не скачана — Настройки → Голос",
+
+  "friendai.voice.stream_incomplete": "Ответ оборвался; продолжение не пришло.",  "friendai.voice.error.no_model": "Модель распознавания не скачана — Настройки → Голос",
   "friendai.voice.error.no_key": "Для распознавания речи не задан API-ключ.",
   "friendai.voice.error.no_folder": "Для распознавания речи не задан идентификатор каталога Yandex.",
   "friendai.voice.error.unsupported_language": "Выбранный сервис распознавания не поддерживает этот язык.",
@@ -173,6 +180,7 @@
   "friendai.voice.error.auth": "Сервис речи отклонил API-ключ.",
   "friendai.voice.error.quota": "Сервис речи занят или лимит исчерпан. Попробуй позже.",
   "friendai.voice.error.network": "Не удалось связаться с сервисом речи.",
+
   "friendai.voice.chat_line": "[🎤 %s] %s",
   "friendai.voice.need_companion": "Сначала призови компаньона: /friendai summon",
   "friendai.voice.error.model_corrupt": "Файл модели повреждён, попробуй ещё раз.",
@@ -218,6 +226,7 @@
   "friendai.config.voice.field.language": "Язык",
   "friendai.config.voice.field.language.tooltip": "Пусто — как язык игры.",
   "friendai.config.voice.tts.enabled": "Озвучивать ответы",
+  "friendai.config.voice.tts.stream": "Speak while the reply is arriving",
   "friendai.config.voice.tts.provider": "Провайдер",
   "friendai.config.voice.tts.provider.local": "Локальный (бесплатно, офлайн)",
   "friendai.config.voice.tts.provider.openai": "OpenAI (платно)",
@@ -269,10 +278,10 @@
   "friendai.menu.tab.tasks": "Задачи",
   "friendai.menu.tab.memory": "Память",
   "friendai.menu.tab.places": "Места",
+
   "friendai.menu.tab.map": "Карта",
   "friendai.menu.map.empty": "Исследованной местности пока нет.",
-  "friendai.menu.map.count": "%s клеток · %s мест · %s дорог",
-  "friendai.menu.tab.log": "Лог",
+  "friendai.menu.map.count": "%s клеток · %s мест · %s дорог",  "friendai.menu.tab.log": "Лог",
   "friendai.menu.tab.debug": "Отладка",
   "friendai.menu.tab.appearance": "Вид",
   "friendai.menu.appearance.name": "Имя",
@@ -584,6 +593,7 @@
   "friendai.menu.places.error.ambiguous": "Под %s подходит несколько мест: %s.",
   "friendai.menu.places.error.name_taken": "«%s» уже называет другое место.",
   "friendai.menu.places.error.name_invalid": "Название места должно быть длиной 1-%s символов.",
+
   "friendai.mining.unsafe_support": "Не могу добывать блок, который поддерживает меня или путь.",
   "friendai.mining.lava_below": "Не буду ломать %s: прямо под ним лава.",
   "friendai.mining.server_protected": "%s защищён сервером (защита спавна или правило мира).",
@@ -1007,6 +1017,7 @@
   "friendai.config.voice.device.tooltip": "С какого микрофона пишет push-to-talk; «Системный по умолчанию» следует настройке ОС. Применяется при сохранении.",
   "friendai.config.voice.model.tooltip": "Модель Whisper, работающая локально: tiny, base или small. Tiny быстрее и менее точна, small медленнее и точнее. По умолчанию base; офлайн и бесплатно.",
   "friendai.config.voice.tts.enabled.tooltip": "Озвучиваются ли ответы в чате. Выключено — тишина; облачные провайдеры берут плату за символы, локальные голоса бесплатны. По умолчанию выключено. Применяется при сохранении.",
+  "friendai.config.voice.tts.stream.tooltip": "When on, the first safe sentence is spoken before the model finishes. Turn it off to wait for the full reply; early speech is also withheld when safety cannot be decided. Default on. Applies on Save.",
   "friendai.config.voice.tts.local.voice.tooltip": "Какой локальный голос читает ответы; первый пункт следует языку игры. Голоса работают офлайн и бесплатны. Применяется при сохранении.",
   "friendai.config.voice.tts.speed.tooltip": "Как быстро говорит локальный голос (0.5–2.0, по умолчанию 1.0). 1.0 — обычная скорость. Применяется при сохранении.",
   "friendai.config.voice.tts.volume.tooltip": "Громкость озвученных ответов (0.0–1.0, по умолчанию 1.0). 0.0 — без звука. Применяется при сохранении.",
@@ -1016,7 +1027,5 @@
   "friendai.config.voice.field.model.tooltip": "Имя модели этого провайдера, заполнено его значением по умолчанию. Облачная речь оплачивается по запросам или символам; локальная конечная точка бесплатна. Применяется при сохранении.",
   "friendai.config.voice.field.voice.tooltip": "Голос этого провайдера из его списка; значение по умолчанию выбрано заранее. Облачные голоса оплачиваются за символы. Применяется при сохранении.",
   "friendai.config.voice.field.voice_id.tooltip": "Идентификатор голоса из панели провайдера. Обязателен для ElevenLabs; свободный текст. Облачные голоса оплачиваются за символы. Применяется при сохранении.",
-  "friendai.config.voice.tts.speed.cloud.tooltip": "Как быстро говорит облачный голос. Пределы ползунка зависят от провайдера: 0.5–2.0, ElevenLabs 0.7–1.2, Yandex 0.1–3.0. По умолчанию 1.0.",
-  "friendai.config.voice.tts.stream": "Speak while the reply is arriving",
-  "friendai.config.voice.tts.stream.tooltip": "When on, the first safe sentence is spoken before the model finishes. Turn it off to wait for the full reply; early speech is also withheld when safety cannot be decided. Default on. Applies on Save."
+  "friendai.config.voice.tts.speed.cloud.tooltip": "Как быстро говорит облачный голос. Пределы ползунка зависят от провайдера: 0.5–2.0, ElevenLabs 0.7–1.2, Yandex 0.1–3.0. По умолчанию 1.0."
 }

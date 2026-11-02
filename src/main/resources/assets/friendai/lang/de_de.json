@@ -1,13 +1,16 @@
 {
   "modmenu.nameTranslation.friendai": "Friendai",
   "modmenu.descriptionTranslation.friendai": "Ein KI-Gefährte zum Spielen und Reden – per Chat oder Sprache.",
+
   "friendai.error.config.unknown_provider": "Unbekannter Anbieter: %s",
   "friendai.error.access": "Du hast darauf keinen Zugriff.",
   "friendai.error.config.needs_base_url": "Anbieter %s benötigt eine Basis-URL",
   "friendai.error.config.no_route": "Keine Weiterleitungsregel für Modell %s",
   "friendai.config.test.ok_tools": "Verbunden: Tool-Aufrufe funktionieren",
   "friendai.config.test.ok_text": "Verbunden, aber das Modell hat mit Text statt mit einem Tool-Aufruf geantwortet",
+
   "friendai.error.config.profile_missing": "Profil „%s“ nicht gefunden",
+
   "friendai.error.llm.auth": "Keine Verbindung zum Anbieter möglich: ungültiger API-Schlüssel.",
   "friendai.error.llm.rate_limit": "Der Anbieter begrenzt gerade die Anfragen, versuch es etwas später noch einmal.",
   "friendai.error.llm.timeout": "Der Anbieter hat nicht rechtzeitig geantwortet.",
@@ -18,6 +21,7 @@
   "friendai.error.config": "Einstellungsfehler: %s",
   "friendai.error.unknown": "Etwas ist schiefgelaufen, Details stehen im Log.",
   "friendai.protocol.version_mismatch": "Die Friendai-Protokollversionen stimmen nicht überein. Server und Client brauchen dieselbe Mod-Version.",
+
   "entity.friendai.companion": "Gefährte",
   "friendai.command.summoned": "%s ist hier.",
   "friendai.command.summon_other_dimension": "Dein Gefährte ist in einer anderen Dimension. Nutze „Zu mir teleportieren“ im Gefährtenmenü, um ihn herzuholen.",
@@ -27,6 +31,7 @@
   "friendai.inventory.unavailable": "Das Inventar des Gefährten kann gerade nicht geöffnet werden.",
   "friendai.companion.died": "%s ist gestorben. Erneut beschwören: /friendai summon",
   "friendai.companion.too_far": "Dein Gefährte ist zu weit weg, um dich zu hören.",
+
   "friendai.command.stopped": "Gestoppt.",
   "friendai.local_order.follow": "Ich folge dir.",
   "friendai.local_order.stay": "Ich bleibe hier.",
@@ -109,6 +114,7 @@
   "friendai.command.place.source.structure": "Struktur",
   "friendai.command.place.source.farm": "Farm",
   "friendai.command.place.source.mine": "Mine",
+
   "friendai.config.title": "Friendai-Einstellungen",
   "friendai.config.category.provider": "Anbieter",
   "friendai.config.category.companion": "Gefährte",
@@ -159,12 +165,13 @@
   "friendai.config.voice.language": "Sprache der Aufnahme",
   "friendai.config.voice.device": "Mikrofon",
   "friendai.config.voice.device.default": "Systemstandard",
+
   "key.category.friendai.main": "Friendai",
   "key.friendai.push_to_talk": "Push-to-Talk",
   "friendai.voice.hud.recording": "Aufnahme läuft…",
   "friendai.voice.hud.transcribing": "Wird transkribiert…",
-  "friendai.voice.stream_incomplete": "Die Antwort wurde unterbrochen; der Rest kam nicht an.",
-  "friendai.voice.error.no_model": "Sprachmodell nicht heruntergeladen – Einstellungen → Sprache",
+
+  "friendai.voice.stream_incomplete": "Die Antwort wurde unterbrochen; der Rest kam nicht an.",  "friendai.voice.error.no_model": "Sprachmodell nicht heruntergeladen – Einstellungen → Sprache",
   "friendai.voice.error.no_key": "Für die Spracherkennung ist kein API-Schlüssel gesetzt.",
   "friendai.voice.error.no_folder": "Für die Spracherkennung ist keine Yandex-Ordner-ID gesetzt.",
   "friendai.voice.error.unsupported_language": "Diese Sprache wird vom gewählten Sprachanbieter nicht unterstützt.",
@@ -173,6 +180,7 @@
   "friendai.voice.error.auth": "Der Sprachdienst hat den API-Schlüssel abgelehnt.",
   "friendai.voice.error.quota": "Der Sprachdienst ist ausgelastet oder das Kontingent ist erschöpft. Versuch es später noch einmal.",
   "friendai.voice.error.network": "Der Sprachdienst war nicht erreichbar.",
+
   "friendai.voice.chat_line": "[🎤 %s] %s",
   "friendai.voice.need_companion": "Beschwöre zuerst deinen Gefährten: /friendai summon",
   "friendai.voice.error.model_corrupt": "Die Modelldatei ist beschädigt, versuch es noch einmal.",
@@ -218,6 +226,7 @@
   "friendai.config.voice.field.language": "Sprache",
   "friendai.config.voice.field.language.tooltip": "Leer lassen, um der Spielsprache zu folgen.",
   "friendai.config.voice.tts.enabled": "Antworten vorlesen",
+  "friendai.config.voice.tts.stream": "Speak while the reply is arriving",
   "friendai.config.voice.tts.provider": "Anbieter",
   "friendai.config.voice.tts.provider.local": "Lokal (kostenlos, offline)",
   "friendai.config.voice.tts.provider.openai": "OpenAI (kostenpflichtig)",
@@ -269,10 +278,10 @@
   "friendai.menu.tab.tasks": "Aufgaben",
   "friendai.menu.tab.memory": "Erinnerung",
   "friendai.menu.tab.places": "Orte",
+
   "friendai.menu.tab.map": "Karte",
   "friendai.menu.map.empty": "Noch kein erkundetes Gelände.",
-  "friendai.menu.map.count": "%s Zellen · %s Orte · %s Wege",
-  "friendai.menu.tab.log": "Log",
+  "friendai.menu.map.count": "%s Zellen · %s Orte · %s Wege",  "friendai.menu.tab.log": "Log",
   "friendai.menu.tab.debug": "Debug",
   "friendai.menu.tab.appearance": "Aussehen",
   "friendai.menu.appearance.name": "Name",
@@ -584,6 +593,7 @@
   "friendai.menu.places.error.ambiguous": "Mehrere Orte passen zu %s: %s.",
   "friendai.menu.places.error.name_taken": "„%s“ ist bereits der Name eines anderen Ortes.",
   "friendai.menu.places.error.name_invalid": "Ein Ortsname muss 1-%s Zeichen lang sein.",
+
   "friendai.mining.unsafe_support": "Ich kann keinen Block abbauen, der mich oder den Weg trägt.",
   "friendai.mining.lava_below": "Ich baue %s nicht ab: direkt darunter ist Lava.",
   "friendai.mining.server_protected": "%s ist durch den Server geschützt (Spawnschutz oder eine Weltregel).",
@@ -620,6 +630,9 @@
   "friendai.menu.traders.submit": "Absenden",
   "friendai.menu.traders.wait": "Warten",
   "friendai.menu.traders.barter": "Tauschen",
+  "friendai.menu.skills.saved": "Skill gespeichert.",
+  "friendai.menu.skills.invalid": "Diese Änderung kann nicht übernommen werden. Prüfe Rechte, Limits und die aktuelle Version.",
+  "friendai.menu.skills.exported": "Skill exportiert.",
   "friendai.menu.skills.saved": "Skill gespeichert.",
   "friendai.menu.skills.invalid": "Diese Änderung kann nicht übernommen werden. Prüfe Rechte, Limits und die aktuelle Version.",
   "friendai.menu.skills.exported": "Skill exportiert.",
@@ -1007,6 +1020,7 @@
   "friendai.config.voice.device.tooltip": "Welches Mikrofon Push-to-talk nutzt; Systemstandard folgt deinem Betriebssystem. Wird beim Speichern übernommen.",
   "friendai.config.voice.model.tooltip": "Lokal laufendes Whisper-Modell: tiny, base oder small. Tiny ist am schnellsten und ungenauesten, small am langsamsten und genauesten. Standard base; offline und kostenlos.",
   "friendai.config.voice.tts.enabled.tooltip": "Ob Chat-Antworten vorgelesen werden. Aus bleibt stumm; Cloud-Anbieter berechnen Zeichen, lokale Stimmen sind kostenlos. Standard aus. Wird beim Speichern übernommen.",
+  "friendai.config.voice.tts.stream.tooltip": "When on, the first safe sentence is spoken before the model finishes. Turn it off to wait for the full reply; early speech is also withheld when safety cannot be decided. Default on. Applies on Save.",
   "friendai.config.voice.tts.local.voice.tooltip": "Welche lokale Stimme Antworten liest; der erste Eintrag folgt der Spielsprache. Stimmen laufen offline und kosten nichts. Wird beim Speichern übernommen.",
   "friendai.config.voice.tts.speed.tooltip": "Wie schnell die lokale Stimme spricht (0.5–2.0, Standard 1.0). 1.0 ist normale Geschwindigkeit. Wird beim Speichern übernommen.",
   "friendai.config.voice.tts.volume.tooltip": "Lautstärke vorgelesener Antworten (0.0–1.0, Standard 1.0). 0.0 ist stumm. Wird beim Speichern übernommen.",
@@ -1016,7 +1030,5 @@
   "friendai.config.voice.field.model.tooltip": "Modellname dieses Anbieters, mit seinem Standard vorbelegt. Cloud-Sprache kostet pro Anfrage oder Zeichen; ein lokaler Endpunkt ist kostenlos. Wird beim Speichern übernommen.",
   "friendai.config.voice.field.voice.tooltip": "Stimme dieses Anbieters aus seiner Liste; der Standard ist vorausgewählt. Cloud-Stimmen kosten pro Zeichen. Wird beim Speichern übernommen.",
   "friendai.config.voice.field.voice_id.tooltip": "Stimm-ID aus dem Anbieter-Dashboard. Für ElevenLabs erforderlich; Freitext. Cloud-Stimmen kosten pro Zeichen. Wird beim Speichern übernommen.",
-  "friendai.config.voice.tts.speed.cloud.tooltip": "Wie schnell die Cloud-Stimme spricht. Die Reglergrenzen folgen dem Anbieter: 0.5–2.0, ElevenLabs 0.7–1.2, Yandex 0.1–3.0. Standard 1.0.",
-  "friendai.config.voice.tts.stream": "Speak while the reply is arriving",
-  "friendai.config.voice.tts.stream.tooltip": "When on, the first safe sentence is spoken before the model finishes. Turn it off to wait for the full reply; early speech is also withheld when safety cannot be decided. Default on. Applies on Save."
+  "friendai.config.voice.tts.speed.cloud.tooltip": "Wie schnell die Cloud-Stimme spricht. Die Reglergrenzen folgen dem Anbieter: 0.5–2.0, ElevenLabs 0.7–1.2, Yandex 0.1–3.0. Standard 1.0."
 }

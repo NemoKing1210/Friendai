@@ -1,13 +1,16 @@
 {
   "modmenu.nameTranslation.friendai": "Friendai",
   "modmenu.descriptionTranslation.friendai": "An AI companion you can play with and talk to вЂ” by chat or voice.",
+
   "friendai.error.config.unknown_provider": "Unknown provider: %s",
   "friendai.error.access": "You do not have access to that.",
   "friendai.error.config.needs_base_url": "Provider %s needs a base URL",
   "friendai.error.config.no_route": "No routing rule for model %s",
   "friendai.config.test.ok_tools": "Connected: tool calling works",
   "friendai.config.test.ok_text": "Connected, but the model replied with text instead of calling the tool",
+
   "friendai.error.config.profile_missing": "Profile '%s' not found",
+
   "friendai.error.llm.auth": "Can't connect to the provider: invalid API key.",
   "friendai.error.llm.rate_limit": "The provider is rate limiting requests, try again a bit later.",
   "friendai.error.llm.timeout": "The provider didn't respond in time.",
@@ -18,6 +21,7 @@
   "friendai.error.config": "Settings error: %s",
   "friendai.error.unknown": "Something went wrong, see the log for details.",
   "friendai.protocol.version_mismatch": "Friendai protocol versions do not match. The server and client need the same mod version.",
+
   "entity.friendai.companion": "Companion",
   "friendai.command.summoned": "%s is here.",
   "friendai.command.summon_other_dimension": "Your companion is in another dimension. Use \"Teleport to me\" in the companion menu to bring it here.",
@@ -27,6 +31,7 @@
   "friendai.inventory.unavailable": "The companion's inventory can't be opened right now.",
   "friendai.companion.died": "%s died. Summon again: /friendai summon",
   "friendai.companion.too_far": "Your companion is too far away to hear you.",
+
   "friendai.command.stopped": "Stopped.",
   "friendai.local_order.follow": "Following you.",
   "friendai.local_order.stay": "Staying here.",
@@ -109,6 +114,7 @@
   "friendai.command.place.source.structure": "structure",
   "friendai.command.place.source.farm": "farm",
   "friendai.command.place.source.mine": "mine",
+
   "friendai.config.title": "Friendai Settings",
   "friendai.config.category.provider": "Provider",
   "friendai.config.category.companion": "Companion",
@@ -159,12 +165,13 @@
   "friendai.config.voice.language": "Speech language",
   "friendai.config.voice.device": "Microphone",
   "friendai.config.voice.device.default": "System default",
+
   "key.category.friendai.main": "Friendai",
   "key.friendai.push_to_talk": "Push to talk",
   "friendai.voice.hud.recording": "RecordingвЂ¦",
   "friendai.voice.hud.transcribing": "TranscribingвЂ¦",
-  "friendai.voice.stream_incomplete": "The reply was cut off; the rest did not arrive.",
-  "friendai.voice.error.no_model": "Speech model not downloaded вЂ” Settings в†’ Voice",
+
+  "friendai.voice.stream_incomplete": "The reply was cut off; the rest did not arrive.",  "friendai.voice.error.no_model": "Speech model not downloaded вЂ” Settings в†’ Voice",
   "friendai.voice.error.no_key": "No API key is set for speech recognition.",
   "friendai.voice.error.no_folder": "No Yandex folder ID is set for speech recognition.",
   "friendai.voice.error.unsupported_language": "This language is not supported by the selected speech provider.",
@@ -173,6 +180,7 @@
   "friendai.voice.error.auth": "The speech service rejected the API key.",
   "friendai.voice.error.quota": "The speech service is busy or the quota is exhausted. Try again later.",
   "friendai.voice.error.network": "Could not reach the speech service.",
+
   "friendai.voice.chat_line": "[рџЋ¤ %s] %s",
   "friendai.voice.need_companion": "Summon your companion first: /friendai summon",
   "friendai.voice.error.model_corrupt": "The model file is corrupted, try again.",
@@ -218,6 +226,7 @@
   "friendai.config.voice.field.language": "Language",
   "friendai.config.voice.field.language.tooltip": "Leave blank to follow the game language.",
   "friendai.config.voice.tts.enabled": "Speak replies",
+  "friendai.config.voice.tts.stream": "Speak while the reply is arriving",
   "friendai.config.voice.tts.provider": "Provider",
   "friendai.config.voice.tts.provider.local": "Local (free, offline)",
   "friendai.config.voice.tts.provider.openai": "OpenAI (paid)",
@@ -269,10 +278,10 @@
   "friendai.menu.tab.tasks": "Tasks",
   "friendai.menu.tab.memory": "Memory",
   "friendai.menu.tab.places": "Places",
+
   "friendai.menu.tab.map": "Map",
   "friendai.menu.map.empty": "No explored terrain yet.",
-  "friendai.menu.map.count": "%s cells · %s sites · %s roads",
-  "friendai.menu.tab.log": "Log",
+  "friendai.menu.map.count": "%s cells · %s sites · %s roads",  "friendai.menu.tab.log": "Log",
   "friendai.menu.tab.debug": "Debug",
   "friendai.menu.tab.appearance": "Appearance",
   "friendai.menu.appearance.name": "Name",
@@ -584,6 +593,7 @@
   "friendai.menu.places.error.ambiguous": "Several places match %s: %s.",
   "friendai.menu.places.error.name_taken": "\"%s\" already names another place.",
   "friendai.menu.places.error.name_invalid": "A place name must be 1-%s characters.",
+
   "friendai.mining.unsafe_support": "I can't mine a block that supports me or the route.",
   "friendai.mining.lava_below": "I won't break %s: there is lava directly below it.",
   "friendai.mining.server_protected": "%s is protected by the server (spawn protection or a world rule).",
@@ -620,6 +630,9 @@
   "friendai.menu.traders.submit": "Submit",
   "friendai.menu.traders.wait": "Wait",
   "friendai.menu.traders.barter": "Barter",
+  "friendai.menu.skills.saved": "Skill saved.",
+  "friendai.menu.skills.invalid": "Cannot apply this change. Check permissions, limits and the current version.",
+  "friendai.menu.skills.exported": "Skill exported.",
   "friendai.menu.skills.saved": "Skill saved.",
   "friendai.menu.skills.invalid": "Cannot apply this change. Check permissions, limits and the current version.",
   "friendai.menu.skills.exported": "Skill exported.",
@@ -1007,6 +1020,7 @@
   "friendai.config.voice.device.tooltip": "Which microphone push-to-talk records from; System default follows your operating system. Applies on Save.",
   "friendai.config.voice.model.tooltip": "Whisper model run locally: tiny, base or small. Tiny is fastest and least accurate, small slowest and most accurate. Default base; offline and free.",
   "friendai.config.voice.tts.enabled.tooltip": "Whether chat replies are spoken aloud. Off is silent; cloud providers bill per character and local voices are free. Default off. Applies on Save.",
+  "friendai.config.voice.tts.stream.tooltip": "When on, the first safe sentence is spoken before the model finishes. Turn it off to wait for the full reply; early speech is also withheld when safety cannot be decided. Default on. Applies on Save.",
   "friendai.config.voice.tts.local.voice.tooltip": "Which local voice reads replies; the first entry follows the game language. Voices run offline and cost nothing. Applies on Save.",
   "friendai.config.voice.tts.speed.tooltip": "How fast the local voice speaks (0.5–2.0, default 1.0). 1.0 is normal speed. Applies on Save.",
   "friendai.config.voice.tts.volume.tooltip": "Playback volume of spoken replies (0.0–1.0, default 1.0). 0.0 is mute. Applies on Save.",
@@ -1016,7 +1030,5 @@
   "friendai.config.voice.field.model.tooltip": "Model name this provider uses, pre-filled with its default. Cloud speech bills per request or character; a local endpoint is free. Applies on Save.",
   "friendai.config.voice.field.voice.tooltip": "Voice this provider uses, from its own list; the default is pre-selected. Cloud voices bill per character. Applies on Save.",
   "friendai.config.voice.field.voice_id.tooltip": "Voice id from the provider's dashboard. Required for ElevenLabs; free text. Cloud voices bill per character. Applies on Save.",
-  "friendai.config.voice.tts.speed.cloud.tooltip": "How fast the cloud voice speaks. Slider limits follow the provider: 0.5–2.0, ElevenLabs 0.7–1.2, Yandex 0.1–3.0. Default 1.0.",
-  "friendai.config.voice.tts.stream": "Speak while the reply is arriving",
-  "friendai.config.voice.tts.stream.tooltip": "When on, the first safe sentence is spoken before the model finishes. Turn it off to wait for the full reply; early speech is also withheld when safety cannot be decided. Default on. Applies on Save."
+  "friendai.config.voice.tts.speed.cloud.tooltip": "How fast the cloud voice speaks. Slider limits follow the provider: 0.5–2.0, ElevenLabs 0.7–1.2, Yandex 0.1–3.0. Default 1.0."
 }
