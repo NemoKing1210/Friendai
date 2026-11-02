@@ -2,6 +2,7 @@ package dev.friendai.features.social;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class MoodModelTest {
@@ -63,5 +64,29 @@ class MoodModelTest {
         assertEquals(Mood.DISPLEASED, model.cue(SpeechCue.of("sorry, my bad"), 0));
         MoodModel quiet = new MoodModel();
         assertEquals(Mood.CALM, quiet.cue(SpeechCue.of("bring me 3 logs"), 0));
+    }
+
+    @Test
+    void aCueCannotPaintOverWorryAndTheFaceCalmsAfterItsWindow() {
+        MoodModel model = new MoodModel();
+        for (int tick = 0; tick < MoodModel.DANGER_ENTER_TICKS; tick++) {
+            model.update(true, false, false, false, false, tick);
+        }
+        assertEquals(Mood.WORRIED, model.mood());
+
+        assertEquals(Mood.WORRIED, model.cue(SpeechCue.GREETING, MoodModel.DANGER_ENTER_TICKS));
+        assertEquals(Mood.WORRIED, model.mood(), "danger outranks a friendly cue");
+
+        int lastWorriedTick = MoodModel.DANGER_ENTER_TICKS + MoodModel.DANGER_EXIT_TICKS - 2;
+        assertEquals(Mood.WORRIED, model.update(false, false, false, false, false, lastWorriedTick));
+        assertEquals(Mood.CALM, model.update(false, false, false, false, false, lastWorriedTick + 2));
+    }
+
+    @Test
+    void theExpressionsAreTheClosedSetTheAccessorAndRendererExpect() {
+        assertEquals(
+                List.of(Mood.CALM, Mood.FOCUSED, Mood.WORRIED, Mood.PLEASED, Mood.DISPLEASED, Mood.COMBAT),
+                List.of(Mood.values()),
+                "the synced ordinal and the renderer both depend on this order");
     }
 }

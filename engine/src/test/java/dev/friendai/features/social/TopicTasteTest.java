@@ -63,4 +63,14 @@ class TopicTasteTest {
         taste.answered("fishing");
         assertEquals(2, taste.weight("fishing"), "two fresh answers earn the point back");
     }
+
+    @Test
+    void theSameSubjectSpeltDifferentlyIsOnePreference() {
+        TopicTaste taste = new TopicTaste();
+        taste.answered("Fishing");
+        taste.answered("  fishing  ");
+        assertEquals(1, taste.weight("fishing"), "case and padding do not make a second subject");
+        assertEquals(1, taste.size());
+        assertEquals("fishing", taste.best(List.of("fishing")));
+    }
 }

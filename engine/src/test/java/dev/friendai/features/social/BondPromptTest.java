@@ -28,8 +28,7 @@ class BondPromptTest {
 
     @Test
     void theDriftedMannerJoinsTheLineWithoutNumbers() {
-        String line = BondPrompt.line(
-                BondLedger.Tier.FRIEND, Mood.CALM, List.of(), new Traits(1, 0, 0, 0, 0), true);
+        String line = BondPrompt.line(BondLedger.Tier.FRIEND, Mood.CALM, List.of(), new Traits(1, 0, 0, 0, 0), true);
         assertTrue(line.contains("humour"), line);
         assertTrue(line.chars().noneMatch(Character::isDigit), line);
     }
@@ -42,5 +41,14 @@ class BondPromptTest {
                 List.of("owner hit with a long explanation that goes on and on and on and on and on"),
                 true);
         assertTrue(line.length() <= BondPrompt.MAX_CHARS, "line=" + line.length());
+    }
+
+    @Test
+    void anAbsurdReasonCannotMakeTheLineUnbounded() {
+        String line = BondPrompt.line(BondLedger.Tier.CLOSE, Mood.DISPLEASED, List.of("x".repeat(4_000)), true);
+        assertTrue(
+                line.length() <= BondPrompt.MAX_CHARS + 80,
+                "the drifted-manner allowance is the only extra room, so the clip bounds every line: line="
+                        + line.length());
     }
 }
