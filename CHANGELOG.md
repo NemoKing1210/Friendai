@@ -6,7 +6,14 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
-## [0.155.1] - 2026-11-02
+## [0.156.0] - 2026-11-02
+
+### Added
+
+- A remembered place or note now says how it was established — verified by a task, told by you, or inferred — and marks itself stale after a month, so the companion stops treating old guesses as current facts.
+- A goal now carries a risk class worked out from the tools its work needs: the companion sees `risk: careful`, and `risk: destructive; ask owner first` before it plans anything that fights, clears an area or runs commands.
+
+ - 2026-11-02
 
 ### Fixed
 
