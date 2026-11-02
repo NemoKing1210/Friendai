@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.171.0] - 2026-11-02
+
+### Added
+
+- A plan blocked on a missing guarded item gets one bounded `obtain_item` prerequisite inserted before the blocked step; the plan resumes when it finishes, and a repeated poll never enqueues the same remedy again.
+
 ## [0.170.0] - 2026-11-02
 
 ### Added

@@ -1214,6 +1214,11 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
             return board.view(plan, facts, tools, companion.level().getGameTime());
         });
         AgentEvents agent = new AgentEvents(owner, companion, session);
+        companion.executionCoordinator().setRepairFactory((context, args) -> {
+            var definition = taskTools.get("obtain_item");
+            if (definition == null) throw new IllegalStateException("obtain_item is unavailable");
+            return definition.factory().create(context.companion(), args.deepCopy());
+        });
         companion.executionCoordinator().setEventSink(new TaskEventSink() {
             @Override
             public void onFinished(int id, String toolName, TaskStatus status, String summary) {

@@ -1,7 +1,13 @@
 package dev.friendai.test;
 
+import com.google.gson.JsonObject;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.execution.queue.FailurePolicy;
+import dev.friendai.execution.queue.Guard;
+import dev.friendai.execution.queue.GuardAction;
+import dev.friendai.execution.queue.PlanOptions;
+import dev.friendai.execution.queue.QueuedStep;
 import dev.friendai.features.navigation.minecraft.task.StayTask;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.execution.TaskEventSink;
@@ -61,6 +67,64 @@ public class ActiveTaskLifecycleTests {
         public String resultSummary() {
             return "finished";
         }
+    }
+
+    private static final class NoopTask implements Task {
+        @Override
+        public String type() {
+            return "noop_repair";
+        }
+
+        @Override
+        public void start(TaskContext context) {}
+
+        @Override
+        public TaskStatus tick(TaskContext context) {
+            return TaskStatus.SUCCESS;
+        }
+
+        @Override
+        public String resultSummary() {
+            return "repaired";
+        }
+
+        @Override
+        public String describe() {
+            return "repairing";
+        }
+
+        @Override
+        public void stop(TaskContext context) {}
+    }
+
+    @GameTest(maxTicks = 40)
+    public void aMissingItemGuardGetsOneIdlePrerequisite(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 300, () -> false);
+        runner.setRepairFactory((context, args) -> new NoopTask());
+        JsonObject args = new JsonObject();
+        args.addProperty("block", "minecraft:oak_planks");
+        QueuedStep blocked = new QueuedStep(
+                "place_block",
+                args,
+                null,
+                List.of(new Guard.HasItem("minecraft:oak_planks", 1)),
+                GuardAction.WAIT,
+                FailurePolicy.ASK,
+                1,
+                List.of(),
+                null,
+                false);
+        runner.enqueuePlan("place planks", List.of(blocked), List.of(context -> new NoopTask()), PlanOptions.DEFAULT);
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertValueEqual(
+                    runner.idleRepairInserted(),
+                    1,
+                    "exactly one idle remedy; attempts=" + runner.idleRepairAttempts() + " jobs="
+                            + runner.queue().jobs());
+        });
     }
 
     @GameTest

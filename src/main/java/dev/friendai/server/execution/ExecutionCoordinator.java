@@ -1,5 +1,6 @@
 package dev.friendai.server.execution;
 
+import com.google.gson.JsonObject;
 import dev.friendai.agent.verify.LoopMetrics;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.queue.GuardFacts;
@@ -68,6 +69,11 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     /** Queue plans that free time started; their jobs are autonomous work. */
     private TaskEventSink eventSink;
 
+    private java.util.function.BiFunction<TaskContext, JsonObject, Task> repairFactory;
+    private final java.util.Set<String> repairRequests = new java.util.HashSet<>();
+    private int idleRepairAttempts;
+    private int idleRepairInserted;
+
     /** The last direct job the companion started, kept so the owner can retry it once it stopped or failed. */
     private Started lastStarted;
 
@@ -120,6 +126,18 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
 
     private void syncSettings() {
         applySettings(settingsSupplier.get());
+    }
+
+    public void setRepairFactory(java.util.function.BiFunction<TaskContext, JsonObject, Task> factory) {
+        this.repairFactory = factory;
+    }
+
+    public int idleRepairAttempts() {
+        return idleRepairAttempts;
+    }
+
+    public int idleRepairInserted() {
+        return idleRepairInserted;
     }
 
     public void setEventSink(TaskEventSink eventSink) {
@@ -911,6 +929,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         expireDeadlines();
         Optional<Job> candidate = queueDriver.nextReady();
         if (candidate.isEmpty()) {
+            if (tryIdleRepair()) return startNextQueued();
             maybeNoticeBlocked();
             return false;
         }
@@ -1061,6 +1080,51 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
                         new PlanEntry("scaffold_cleanup", ctx -> first),
                         new PlanEntry("scaffold_cleanup", ctx -> second)),
                 () -> timeoutSec.getAsInt() * 20);
+    }
+
+    private boolean tryIdleRepair() {
+        if (repairFactory == null) return false;
+        idleRepairAttempts++;
+        var jobs = queueDriver.queue().jobs();
+        java.util.Set<Long> consent = new java.util.HashSet<>();
+        for (Job job : jobs) {
+            if (job.planId() > 0) {
+                queueDriver
+                        .queue()
+                        .plan(job.planId())
+                        .filter(plan -> plan.autoRepair())
+                        .ifPresent(plan -> consent.add(plan.id()));
+            }
+        }
+        var selected = dev.friendai.execution.queue.IdleRepairPolicy.select(
+                jobs, facts(), java.util.Set.of("obtain_item"), consent);
+        if (selected.isEmpty()) return false;
+        var repair = selected.get();
+        if (!(repair.prerequisite() instanceof dev.friendai.execution.queue.PlanRepair.Item item)) return false;
+        if (!repairRequests.add(repair.blocked().id() + ":" + item.item())) return false;
+        JsonObject args = new JsonObject();
+        args.addProperty("item", item.item());
+        args.addProperty("count", item.count());
+        var step = new dev.friendai.execution.queue.QueuedStep(
+                "obtain_item",
+                args,
+                repair.blocked().priority(),
+                java.util.List.of(),
+                dev.friendai.execution.queue.GuardAction.WAIT,
+                dev.friendai.execution.queue.FailurePolicy.ASK,
+                1,
+                java.util.List.of());
+        var result = queueDriver.queue().insertPrerequisite(repair.blocked().id(), step);
+        if (!result.ok()) return false;
+        long id = queueDriver.queue().jobs().stream()
+                .filter(job -> job.planId() == 0 && job.tool().equals("obtain_item"))
+                .mapToLong(Job::id)
+                .max()
+                .orElse(-1);
+        if (id < 0) return false;
+        queueDriver.addFactory(id, context -> repairFactory.apply(context, args));
+        idleRepairInserted++;
+        return true;
     }
 
     private void startDefault() {
