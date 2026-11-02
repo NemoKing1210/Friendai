@@ -160,6 +160,39 @@ class CompanionBrainStreamTest {
     }
 
     @Test
+    void anIncompleteEarlyStreamReportsOneNotice() {
+        CompletableFuture<LlmResponse> pending = new CompletableFuture<>();
+        List<Consumer<StreamDelta>> late = new ArrayList<>();
+        StreamingLlmGateway gateway = new StreamingLlmGateway() {
+            @Override
+            public CompletableFuture<LlmResponse> complete(
+                    String system, List<Message> messages, List<ToolSpec> tools) {
+                throw new UnsupportedOperationException("streaming only");
+            }
+
+            @Override
+            public CompletableFuture<LlmResponse> completeStreaming(
+                    String system, List<Message> messages, List<ToolSpec> tools, Consumer<StreamDelta> onDelta) {
+                late.add(onDelta);
+                onDelta.accept(new StreamDelta.Text("Hello."));
+                return pending;
+            }
+        };
+        RecordingSpeaker speaker = new RecordingSpeaker();
+        CompanionBrain brain = brain(gateway, new FakeToolExecutor(), speaker);
+        brain.post(new BrainEvent.PlayerSaid(OWNER, "Steve", "hi", BrainEvent.Source.CHAT));
+        late.getFirst().accept(new StreamDelta.Text("```unfinished"));
+        pending.complete(new LlmResponse("Hello. ```unfinished", List.of(), StopReason.END, null));
+
+        assertEquals(
+                1,
+                speaker.errors.stream()
+                        .filter(m -> m.key().equals("friendai.voice.stream_incomplete"))
+                        .count(),
+                "errors=" + speaker.errors + " streamed=" + speaker.streamed);
+    }
+
+    @Test
     void unsafeEarlyTextIsNotStreamed() {
         StreamingGateway gateway = new StreamingGateway();
         gateway.steps.add(new Step(

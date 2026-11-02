@@ -289,6 +289,7 @@ public final class CompanionBrain {
 
     private int earlySequence;
     private boolean earlyIncomplete;
+    private String earlyText = "";
 
     public boolean isSkillFreeTimeTurn() {
         return skillFreeTimeTurn;
@@ -609,6 +610,7 @@ public final class CompanionBrain {
                 speechPolicy = StreamSpeechPolicy.create();
                 earlySequence = 0;
                 earlyIncomplete = false;
+                earlyText = "";
                 future = streaming
                         .completeStreaming(system, history, sent, delta -> {
                             accumulator.accept(delta);
@@ -634,6 +636,7 @@ public final class CompanionBrain {
             return;
         }
         String text = accumulator.text();
+        earlyText = text;
         offerEarly(gen, speechPolicy.offer(text, guardParity(text)));
     }
 
@@ -645,7 +648,12 @@ public final class CompanionBrain {
                     speaker.streamSentence(gen, gen, earlySequence++, text, speak.last(), turnCaller.uuid());
                 }
             }
-            case StreamSpeechPolicy.StopIncomplete ignored -> earlyIncomplete = true;
+            case StreamSpeechPolicy.StopIncomplete ignored -> {
+                earlyIncomplete = true;
+                if (earlySequence > 0) {
+                    speaker.error(dev.friendai.foundation.text.UserMessage.of("friendai.voice.stream_incomplete"));
+                }
+            }
             case StreamSpeechPolicy.Hold ignored -> {}
         }
     }
@@ -697,7 +705,7 @@ public final class CompanionBrain {
                 if (streamedTurn) {
                     speaker.say(spoken);
                     if (speechPolicy != null && !earlyIncomplete) {
-                        offerEarly(generation, speechPolicy.finish(raw, guardParity(raw)));
+                        offerEarly(generation, speechPolicy.finish(earlyText.isBlank() ? raw : "", guardParity(raw)));
                     } else if (speechPolicy == null) {
                         List<String> sentences = dev.friendai.features.speech.tts.SpeechText.cleanAndSplit(spoken, 300);
                         for (int i = 0; i < sentences.size(); i++) {
