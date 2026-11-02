@@ -165,7 +165,7 @@ public sealed interface TargetKind
 
         @Override
         public Set<String> dimensions() {
-            return Set.of();
+            return StructurePolicy.dimensions(id);
         }
 
         @Override
@@ -234,7 +234,7 @@ public sealed interface TargetKind
 
         @Override
         public Set<String> dimensions() {
-            return Set.of();
+            return StructurePolicy.dimensions(id);
         }
 
         @Override
@@ -281,7 +281,7 @@ public sealed interface TargetKind
 
         @Override
         public Set<String> dimensions() {
-            return Set.of();
+            return StructurePolicy.dimensions(id);
         }
 
         @Override
