@@ -1,5 +1,6 @@
 package dev.friendai.debug;
 
+import dev.friendai.FriendaiMod;
 import dev.friendai.foundation.diagnostics.LogCategory;
 import dev.friendai.foundation.diagnostics.LogDigest;
 import dev.friendai.foundation.diagnostics.LogEvents;
@@ -83,7 +84,7 @@ public final class LogWriterService implements LogSink, AutoCloseable {
     private final String modVersion;
     private final String minecraftVersion;
     private final Function<UUID, String> ownerNames;
-    private final UnaryOperator<String> redactor;
+    private volatile UnaryOperator<String> redactor;
     private final LongSupplier clock;
     private final long startedMillis;
     private final BlockingQueue<Object> queue;
@@ -173,6 +174,11 @@ public final class LogWriterService implements LogSink, AutoCloseable {
         if (settings != null) this.settings = settings;
     }
 
+    /** Installs the runtime secret redactor once the gateway knows the configured keys. */
+    public void updateRedactor(UnaryOperator<String> redactor) {
+        if (redactor != null) this.redactor = redactor;
+    }
+
     public LogWriterStats stats() {
         return new LogWriterStats(accepted.get(), dropped.get(), written.get(), errors.get(), currentFile);
     }
@@ -218,6 +224,10 @@ public final class LogWriterService implements LogSink, AutoCloseable {
             } else if (item instanceof Flush flush) {
                 flush();
                 flush.done().complete(currentFile);
+            } else if (item instanceof Prune prune) {
+                int removed = prune();
+                flush();
+                prune.done().complete(removed);
             } else {
                 flushIfDue();
             }
@@ -234,11 +244,12 @@ public final class LogWriterService implements LogSink, AutoCloseable {
             errors.incrementAndGet();
             failed = true;
             closeQuietly();
+            FriendaiMod.LOGGER.warn("File log disabled: {}", failure.toString());
         }
     }
 
     private void write(LogRecord record) throws IOException {
-        if (settings.level() == null) return;
+        if (!settings.allows(record)) return;
         Path path = pathFor(record);
         if (path == null) return;
         OpenFile file = open.get(path);
@@ -255,7 +266,7 @@ public final class LogWriterService implements LogSink, AutoCloseable {
         file.writer.write('\n');
         file.bytes += bytes;
         file.pending++;
-        currentFile = path;
+        currentFile = file.path;
         if (file.bytes >= settings.maxFileBytes()) {
             rotate(path, file, record.owner());
         }
@@ -299,7 +310,7 @@ public final class LogWriterService implements LogSink, AutoCloseable {
     private Path pathFor(LogRecord record) {
         String day = LogNames.dayDir(clock.getAsLong());
         if (scope == LogWriterScope.CLIENT) {
-            if (record.category() != LogCategory.CLIENT) return null;
+            if (record.category() != LogCategory.CLIENT && record.category() != LogCategory.SPEECH) return null;
             return root.resolve("client")
                     .resolve(day)
                     .resolve(LogNames.file(LogFileKind.CLIENT, null, boot, startedMillis));
@@ -361,7 +372,11 @@ public final class LogWriterService implements LogSink, AutoCloseable {
         do {
             next = path.resolveSibling(LogNames.part(path.getFileName().toString(), part++));
         } while (Files.exists(next));
-        return open(next, owner);
+        OpenFile opened = open(next, owner);
+        if (opened == null) return file;
+        open.remove(next);
+        open.put(path, opened);
+        return opened;
     }
 
     private void flushIfDue() {
@@ -424,9 +439,13 @@ public final class LogWriterService implements LogSink, AutoCloseable {
     }
 
     public int pruneNow() {
-        int removed = prune();
-        flush();
-        return removed;
+        CompletableFuture<Integer> done = new CompletableFuture<>();
+        if (!queue.offer(new Prune(done))) return 0;
+        try {
+            return done.get(5, TimeUnit.SECONDS);
+        } catch (Exception failure) {
+            return 0;
+        }
     }
 
     private int prune() {
@@ -460,7 +479,10 @@ public final class LogWriterService implements LogSink, AutoCloseable {
                 // Pruning is best effort.
             }
         }
-        Set<Path> active = new HashSet<>(open.keySet());
+        Set<Path> active = new HashSet<>();
+        for (OpenFile file : open.values()) {
+            active.add(file.path);
+        }
         List<Path> remove = LogRetention.plan(
                 files,
                 new LogRetention.Limits(
@@ -550,9 +572,9 @@ public final class LogWriterService implements LogSink, AutoCloseable {
     }
 
     private void closeAll() {
-        List<Path> paths = new ArrayList<>(open.keySet());
-        for (Path path : paths) {
-            OpenFile file = open.remove(path);
+        List<Path> keys = new ArrayList<>(open.keySet());
+        for (Path key : keys) {
+            OpenFile file = open.remove(key);
             if (file == null) continue;
             flush(file);
             try {
@@ -560,7 +582,7 @@ public final class LogWriterService implements LogSink, AutoCloseable {
             } catch (IOException ignored) {
                 errors.incrementAndGet();
             }
-            if (settings.digest()) writeDigest(path);
+            if (settings.digest()) writeDigest(file.path);
         }
     }
 
@@ -580,4 +602,7 @@ public final class LogWriterService implements LogSink, AutoCloseable {
 
     /** A queue barrier that completes after every earlier record has been written and flushed. */
     private record Flush(CompletableFuture<Path> done) {}
+
+    /** A queue barrier that runs retention on the writer thread and returns how many files it removed. */
+    private record Prune(CompletableFuture<Integer> done) {}
 }

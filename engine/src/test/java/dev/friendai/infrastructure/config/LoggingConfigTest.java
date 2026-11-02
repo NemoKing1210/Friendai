@@ -75,6 +75,22 @@ class LoggingConfigTest {
     }
 
     @Test
+    void uncheckingEveryCategoryTurnsFileLoggingOff() {
+        ServerConfig config = ServerConfig.defaults();
+        config.logging.brain = false;
+        config.logging.tool = false;
+        config.logging.task = false;
+        config.logging.queue = false;
+        config.logging.net = false;
+        config.logging.speech = false;
+        config.logging.world = false;
+        config.logging.config = false;
+        config.logging.client = false;
+        config.logging.server = false;
+        assertNull(config.logging.toSettings().level());
+    }
+
+    @Test
     void levelsMapToSeverityAndBodies() {
         ServerConfig config = ServerConfig.defaults();
         assertEquals(LogLevel.INFO, config.logging.toSettings().level());

@@ -211,6 +211,7 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
                 this,
                 searchHints,
                 fileLog));
+        fileLog.updateRedactor(sessions.redactor());
         this.taskPersistence = new TaskPersistenceCoordinator(
                 this::settings,
                 sessions.taskRestoreRegistry(),
@@ -230,6 +231,19 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
 
     public ServerConfig config() {
         return config;
+    }
+
+    List<String> applyLoggingLevel(String level) {
+        ServerConfig cfg = config;
+        cfg.logging.level = level;
+        List<String> problems = cfg.validate();
+        store.save(cfg);
+        applyConfig(cfg);
+        return problems;
+    }
+
+    int pruneLogs() {
+        return fileLog.pruneNow();
     }
 
     public ServerSettings settings() {

@@ -23,6 +23,7 @@ class TaskLogEventsTest {
         assertEquals(LogKind.TASK, record.kind());
         assertEquals(LogLevel.INFO, record.level());
         assertEquals(7L, record.task());
+        assertEquals(0L, record.turn());
         assertEquals(3L, record.plan());
         assertEquals(9L, record.job());
         assertEquals("mine_block_at", record.toolCall());

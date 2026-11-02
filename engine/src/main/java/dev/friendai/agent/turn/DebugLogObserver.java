@@ -93,7 +93,7 @@ public final class DebugLogObserver implements BrainObserver {
                 LogEvents.EVENT_POSTED,
                 turnStartSeq,
                 "",
-                e.toPromptLine(),
+                includesBodies() ? e.toPromptLine() : e.getClass().getSimpleName(),
                 Map.of(),
                 null);
     }
@@ -114,7 +114,8 @@ public final class DebugLogObserver implements BrainObserver {
                 LogEvents.EVENT_DROPPED,
                 turnStartSeq,
                 "",
-                "dropped (" + reason + "): " + e.toPromptLine(),
+                "dropped (" + reason + "): "
+                        + (includesBodies() ? e.toPromptLine() : e.getClass().getSimpleName()),
                 Map.of("reason", reason == null ? "" : reason),
                 null);
     }

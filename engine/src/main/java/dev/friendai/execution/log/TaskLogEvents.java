@@ -35,7 +35,7 @@ public final class TaskLogEvents {
                 owner,
                 companion,
                 session,
-                task,
+                0L,
                 plan,
                 job,
                 task,

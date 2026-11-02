@@ -170,10 +170,25 @@ class LogSearchTest {
     }
 
     @Test
+    void oldestOrderTruncationDoesNotOfferAnUnusableContinuation(@TempDir Path dir) throws IOException {
+        Path root = dir.resolve("owners").resolve(OWNER.toString());
+        day(
+                root,
+                NOW,
+                List.of(
+                        record(1, LogLevel.INFO, 1, "one"),
+                        record(2, LogLevel.INFO, 1, "two"),
+                        record(3, LogLevel.INFO, 1, "three")));
+        String text = search(root, LogFilter.all(), 0L, 2, false, 100_000);
+        assertTrue(text.contains("truncated: true"));
+        assertFalse(text.contains("continuation:"));
+    }
+
+    @Test
     void maxCharsCutsTheBodyAndKeepsTheContinuation(@TempDir Path dir) throws IOException {
         Path root = dir.resolve("owners").resolve(OWNER.toString());
         day(root, NOW, List.of(record(1, LogLevel.INFO, 1, "x".repeat(300))));
-        String text = search(root, LogFilter.all(), 0L, 10, false, 120);
+        String text = search(root, LogFilter.all(), 0L, 10, true, 120);
         assertTrue(text.length() <= 120);
         assertTrue(text.contains("continuation: logs_search before=1"));
     }

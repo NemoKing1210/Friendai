@@ -120,7 +120,9 @@ public final class LogSearch {
         }
         if (cut || truncated) {
             text.append("\ntruncated: ").append(true);
-            text.append("\ncontinuation: logs_search before=").append(oldest);
+            if (newestFirst) {
+                text.append("\ncontinuation: logs_search before=").append(oldest);
+            }
         }
         return text.toString();
     }

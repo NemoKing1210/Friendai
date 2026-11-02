@@ -227,6 +227,10 @@ public final class ServerRuntime implements AutoCloseable {
         return services.diagnostics();
     }
 
+    public dev.friendai.debug.LogWriterService fileLog() {
+        return services.fileLog();
+    }
+
     public CompanionLifeData companionLife() {
         return services.companionLife();
     }
@@ -361,6 +365,16 @@ public final class ServerRuntime implements AutoCloseable {
     public List<String> reloadConfig() {
         if (!acceptingWork) return List.of();
         return services.applyConfig(services.store().load());
+    }
+
+    public List<String> applyLoggingLevel(String level) {
+        if (!acceptingWork) return List.of();
+        return services.applyLoggingLevel(level);
+    }
+
+    public int pruneLogs() {
+        if (!acceptingWork) return 0;
+        return services.pruneLogs();
     }
 
     /** Rejects future runtime work and cancels server-owned activity before stores are closed. */

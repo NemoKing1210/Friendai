@@ -9,6 +9,7 @@ import dev.friendai.features.navigation.pathing.PathingConfig;
 import dev.friendai.features.social.InteractionStyle;
 import dev.friendai.foundation.diagnostics.ConfigException;
 import dev.friendai.foundation.diagnostics.LogCategory;
+import dev.friendai.foundation.diagnostics.LogLevel;
 import dev.friendai.foundation.diagnostics.LogSettings;
 import dev.friendai.foundation.text.UserMessage;
 import java.util.ArrayList;
@@ -72,8 +73,8 @@ public class ServerConfig {
             if (server) categories.add(LogCategory.SERVER);
             long file = Math.max(1_048_576L, Math.min(268_435_456L, maxFileBytes));
             long total = Math.max(file, Math.min(2_147_483_648L, maxTotalBytes));
-            return new LogSettings(
-                    LogSettings.severity(level), categories, file, total, retentionDays, maxSessionsPerOwner, digest);
+            LogLevel severity = categories.isEmpty() ? null : LogSettings.severity(level);
+            return new LogSettings(severity, categories, file, total, retentionDays, maxSessionsPerOwner, digest);
         }
     }
 

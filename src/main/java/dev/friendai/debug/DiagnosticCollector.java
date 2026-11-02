@@ -51,6 +51,17 @@ public final class DiagnosticCollector {
         summary.append("fabric loader: ").append(version("fabricloader")).append('\n');
         summary.append("java: ").append(System.getProperty("java.version")).append('\n');
         summary.append("active profile: ").append(config.activeProfile).append('\n');
+        summary.append("logs: ")
+                .append(FabricLoader.getInstance().getGameDir().resolve("logs").resolve("friendai"))
+                .append('\n');
+        var logStats = runtime.fileLog().stats();
+        summary.append("log records: accepted ")
+                .append(logStats.accepted())
+                .append(" dropped ")
+                .append(logStats.dropped())
+                .append(" errors ")
+                .append(logStats.errors())
+                .append('\n');
         ServerConfig.ProfileConfig profile = config.profiles.get(config.activeProfile);
         if (profile != null) {
             summary.append("provider: ")

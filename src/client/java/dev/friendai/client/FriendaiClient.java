@@ -38,6 +38,15 @@ public class FriendaiClient implements ClientModInitializer {
     private static void startFileLog() {
         try {
             dev.friendai.infrastructure.config.ClientConfig config = clientConfig();
+            java.util.List<String> secrets = new java.util.ArrayList<>();
+            for (dev.friendai.infrastructure.config.ClientConfig.CloudSettings cloud :
+                    config.voice.stt.cloud.values()) {
+                if (cloud.apiKey != null && !cloud.apiKey.isBlank()) secrets.add(cloud.apiKey);
+            }
+            for (dev.friendai.infrastructure.config.ClientConfig.CloudSettings cloud :
+                    config.voice.tts.cloud.values()) {
+                if (cloud.apiKey != null && !cloud.apiKey.isBlank()) secrets.add(cloud.apiKey);
+            }
             fileLog = new dev.friendai.debug.LogWriterService(
                     net.fabricmc.loader.api.FabricLoader.getInstance()
                             .getGameDir()
@@ -49,7 +58,7 @@ public class FriendaiClient implements ClientModInitializer {
                     modVersion("minecraft"),
                     uuid -> "",
                     config.logging.toSettings(),
-                    text -> text,
+                    dev.friendai.foundation.diagnostics.SecretRedactor.of(() -> secrets),
                     System::currentTimeMillis);
             dev.friendai.debug.LogSinkHub.add(fileLog);
         } catch (RuntimeException ignored) {

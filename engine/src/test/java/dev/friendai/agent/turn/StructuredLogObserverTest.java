@@ -48,6 +48,16 @@ class StructuredLogObserverTest {
     }
 
     @Test
+    void aNormalEventHidesThePlayerText() {
+        Recall sink = new Recall();
+        DebugLogObserver observer = new DebugLogObserver(OWNER, COMPANION, "s1", pipeline(sink, LogLevel.INFO));
+        observer.onEvent(new BrainEvent.PlayerSaid(OWNER, "Alex", "my secret plans", BrainEvent.Source.CHAT));
+        LogRecord posted = sink.records.get(0);
+        assertFalse(posted.message().contains("my secret plans"));
+        assertTrue(posted.message().contains("PlayerSaid"));
+    }
+
+    @Test
     void aTurnStartsThenToolsChainThroughCauses() {
         Recall sink = new Recall();
         DebugLogObserver observer = new DebugLogObserver(OWNER, COMPANION, "s1", pipeline(sink, LogLevel.INFO));

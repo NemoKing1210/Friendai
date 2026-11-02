@@ -132,6 +132,15 @@ class LogWriterServiceTest {
         List<Path> files = jsonl(root.resolve("server").resolve(DAY));
         assertTrue(files.size() >= 2);
         assertTrue(files.stream().anyMatch(path -> path.getFileName().toString().contains("-2")));
+        for (Path file : files) {
+            List<String> lines = Files.readAllLines(file, StandardCharsets.UTF_8);
+            assertTrue(lines.get(0).contains("\"kind\":\"header\""), "a part must start with its header");
+            long headers = lines.stream()
+                    .filter(line -> line.contains("\"kind\":\"header\""))
+                    .count();
+            assertEquals(1, headers, "only the first line of " + file + " may be a header");
+            assertTrue(Files.size(file) <= 1024L, "a part must stay near the cap: " + file);
+        }
     }
 
     @Test
