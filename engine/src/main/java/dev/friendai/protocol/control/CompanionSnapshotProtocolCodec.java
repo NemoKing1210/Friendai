@@ -13,9 +13,13 @@ import dev.friendai.protocol.ProtocolJsonViewCodec;
 import dev.friendai.protocol.ProtocolVersion;
 import dev.friendai.protocol.ProtocolView;
 import dev.friendai.protocol.ProtocolViewCodec;
+import dev.friendai.task.TaskPhase;
 import java.lang.reflect.Type;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /** Bounded control snapshot codec with final operator-field projection. */
 public final class CompanionSnapshotProtocolCodec {
@@ -57,6 +61,9 @@ public final class CompanionSnapshotProtocolCodec {
                             .nullSafe())
             .create();
     private static final Type TYPE = CompanionSnapshotView.class;
+    /** The only lifecycle names a snapshot may carry; empty means no task runs. */
+    private static final Set<String> PHASES =
+            Arrays.stream(TaskPhase.values()).map(Enum::name).collect(Collectors.toUnmodifiableSet());
 
     private CompanionSnapshotProtocolCodec() {}
 
@@ -107,7 +114,8 @@ public final class CompanionSnapshotProtocolCodec {
                 snapshot.goalCriteria(),
                 snapshot.goalUnmet(),
                 snapshot.workPaused(),
-                snapshot.goalId());
+                snapshot.goalId(),
+                snapshot.currentPhase());
     }
 
     private static void validate(CompanionSnapshotView snapshot) {
@@ -176,6 +184,9 @@ public final class CompanionSnapshotProtocolCodec {
         text(snapshot.goalText(), 640);
         for (String criterion : snapshot.goalCriteria()) text(criterion, 640);
         for (String criterion : snapshot.goalUnmet()) text(criterion, 640);
+        if (!snapshot.currentPhase().isEmpty() && !PHASES.contains(snapshot.currentPhase()))
+            throw new ProtocolDataException(DecodeResult.Reason.INVALID_FIELD);
+        text(snapshot.currentPhase(), 16);
     }
 
     private static void text(String value, int maxBytes) {

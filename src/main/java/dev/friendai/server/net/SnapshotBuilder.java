@@ -13,6 +13,7 @@ import dev.friendai.server.agent.CompanionSessions;
 import dev.friendai.server.agent.perception.PerceptionBuilder;
 import dev.friendai.server.agent.perception.PerceptionContext;
 import dev.friendai.server.runtime.ServerRuntime;
+import dev.friendai.task.TaskPhase;
 import dev.friendai.task.queue.CompanionGuardFacts;
 import java.util.List;
 import java.util.Locale;
@@ -113,7 +114,19 @@ public final class SnapshotBuilder {
                 companion
                         .map(entity -> entity.executionCoordinator().manualPause())
                         .orElse(false),
-                feeling.goalId());
+                feeling.goalId(),
+                phaseOf(c));
+    }
+
+    /**
+     * The running task's lifecycle phase, empty when nothing runs. By the time the menu asks, the task is already
+     * working or blocked, so only those two phases are observable here; the task's progress percent stays out of the
+     * menu payload.
+     */
+    private static String phaseOf(CompanionEntity companion) {
+        var task = companion.executionCoordinator().current().orElse(null);
+        if (task == null) return "";
+        return (task.waitingTicks() >= 0 ? TaskPhase.WAITING : TaskPhase.PROGRESS).name();
     }
 
     /** What the companion feels and is working on, already in the shape the snapshot wants. */

@@ -427,8 +427,23 @@ final class ControlTab extends StatefulMenuTab {
             g.fill(left + PAD, y, left + width - PAD, y + 1, Ui.BORDER);
             y += 5;
         }
-        QueuePanel.draw(g, font, s.present() ? s.currentTask() : "", left + PAD, y, innerWidth);
+        QueuePanel.draw(g, font, currentTaskText(s), left + PAD, y, innerWidth);
         g.disableScissor();
+    }
+
+    /**
+     * The current work text with the running task's phase appended. A queue summary keeps its running line first, so
+     * the panel still parses it into counters and rows; a single task simply gains the word.
+     */
+    private static String currentTaskText(CompanionSnapshot s) {
+        String text = s.present() ? s.currentTask() : "";
+        String phase = s.currentPhase();
+        if (text.isBlank() || phase.isBlank()) return text;
+        int running = text.indexOf("Running: ");
+        if (running < 0) return text + " (" + phase + ")";
+        int end = text.indexOf('\n', running);
+        String suffix = " (" + phase + ")";
+        return end < 0 ? text + suffix : text.substring(0, end) + suffix + text.substring(end);
     }
 
     private record Row(String key, int color, String text) {}

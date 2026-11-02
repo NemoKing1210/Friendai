@@ -22,6 +22,7 @@ import java.util.List;
  * @param goalCriteria every criterion of that goal, one line each
  * @param goalUnmet the subset of {@code goalCriteria} the world does not confirm yet
  * @param goalId the primary goal's id, or 0 when there is none; the menu edits that goal by id
+ * @param currentPhase the running task's lifecycle phase name (see {@code TaskPhase}), empty when nothing runs
  */
 public record CompanionSnapshot(
         boolean present,
@@ -55,12 +56,16 @@ public record CompanionSnapshot(
         List<String> goalCriteria,
         List<String> goalUnmet,
         boolean workPaused,
-        long goalId) {
+        long goalId,
+        String currentPhase) {
     public static final int MAX_ACTIVITY = 200;
     public static final int MAX_NEXT = 160;
     public static final int MAX_BUDGET = 80;
     public static final int MAX_MODEL = 120;
     public static final int MAX_BOND_TIER = 24;
+    /** Longest lifecycle phase name; the enum's names are all shorter. */
+    public static final int MAX_PHASE = 16;
+
     public static final int MAX_LIST_ENTRIES = 6;
     public static final int MAX_LIST_TEXT = 160;
 
@@ -199,6 +204,76 @@ public record CompanionSnapshot(
                 0);
     }
 
+    /** The shape before the phase, so a caller that does not report a running phase stays unchanged. */
+    public CompanionSnapshot(
+            boolean present,
+            boolean operator,
+            String companionName,
+            String provider,
+            String model,
+            boolean thinking,
+            String currentTask,
+            List<TaskRecord> history,
+            List<LogEntry> newLog,
+            String perception,
+            List<String> toolNames,
+            CompanionVitals vitals,
+            List<QueueRow> queue,
+            boolean autoRespawn,
+            boolean autoRespawnAvailable,
+            boolean creativeMode,
+            boolean creativeModeAvailable,
+            boolean freeTimeOn,
+            String freeTimeActivity,
+            boolean freeTimeWaiting,
+            boolean followMode,
+            String freeTimeNext,
+            String freeTimeBudget,
+            String freeTimeLast,
+            String freeTimePlannerModel,
+            String bondTier,
+            List<String> bondReasons,
+            String goalText,
+            List<String> goalCriteria,
+            List<String> goalUnmet,
+            boolean workPaused,
+            long goalId) {
+        this(
+                present,
+                operator,
+                companionName,
+                provider,
+                model,
+                thinking,
+                currentTask,
+                history,
+                newLog,
+                perception,
+                toolNames,
+                vitals,
+                queue,
+                autoRespawn,
+                autoRespawnAvailable,
+                creativeMode,
+                creativeModeAvailable,
+                freeTimeOn,
+                freeTimeActivity,
+                freeTimeWaiting,
+                followMode,
+                freeTimeNext,
+                freeTimeBudget,
+                freeTimeLast,
+                freeTimePlannerModel,
+                bondTier,
+                bondReasons,
+                goalText,
+                goalCriteria,
+                goalUnmet,
+                workPaused,
+                goalId,
+                "");
+    }
+
     public CompanionSnapshot {
         freeTimeActivity = cut(freeTimeActivity, MAX_ACTIVITY);
         freeTimeNext = cut(freeTimeNext, MAX_NEXT);
@@ -210,6 +285,7 @@ public record CompanionSnapshot(
         goalText = cut(goalText, MAX_LIST_TEXT);
         goalCriteria = cut(goalCriteria);
         goalUnmet = cut(goalUnmet);
+        currentPhase = cut(currentPhase, MAX_PHASE);
     }
 
     /** Every shorter constructor ends here, so a caller that knows nothing about the feelings block stays unchanged. */
