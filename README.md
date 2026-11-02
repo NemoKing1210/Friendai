@@ -156,6 +156,8 @@ Both typed chat and push-to-talk only reach a companion in the same dimension wi
 
 The companion can also speak its replies. Synthesis is off by default; turn on **Speak replies** in **Settings → Voice → Synthesis** and choose a provider:
 
+**Speak while the reply is arriving** (on by default) lets the first safe sentence play before the model finishes. Turn it off to hear the whole reply after it completes; the first sentence is also held when the guard cannot decide it safely.
+
 - **Local (free, offline)** — [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) runs a Piper voice on your CPU. Five voices are offered: Irina and Dmitri (Russian), Lessac and LibriTTS-R (English) and Alba (British English). Pick one and press **Download voice**; voices are stored in `<game dir>/friendai/models/tts/` (about 67–82 MB each). Russian systems get Irina, everything else Lessac. Each voice carries its own license, shown under the dropdown: the model files are mostly MIT, the LibriTTS-R voice is CC BY 4.0, and the training-data terms vary.
 - **OpenAI (paid)** — the OpenAI speech API with a key, a voice and a speed. The base URL can point at any OpenAI-compatible server, including a local one, which needs no key.
 - **Google Cloud Text-to-Speech (paid)** — a key, a voice, a language and a speed; audio comes back as LINEAR16.
