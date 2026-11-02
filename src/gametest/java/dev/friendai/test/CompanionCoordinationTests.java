@@ -4,6 +4,7 @@ import com.google.gson.JsonObject;
 import dev.friendai.agent.coordination.HelpRequest;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.execution.queue.FailurePolicy;
+import dev.friendai.execution.queue.Guard;
 import dev.friendai.execution.queue.GuardAction;
 import dev.friendai.execution.queue.Job;
 import dev.friendai.execution.queue.JobState;
@@ -88,6 +89,62 @@ public class CompanionCoordinationTests {
         h.assertValueEqual(runtime.coordination().openFor(a.getUUID(), now).size(), 1, "A sees one request");
         h.assertTrue(runtime.coordination().declineHelp(b.getUUID(), a.getUUID()), "decline removes it");
         h.assertTrue(runtime.coordination().openFor(a.getUUID(), now).isEmpty(), "no action after decline");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 40)
+    public void aPlanPatchCanTargetAConditionalBranch(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        var owner =
+                GameTestSupport.onlinePlayer(h, "branch-owner", 2, 2, 2, true).player();
+        CompanionManager manager = CompanionManager.get(h.getLevel().getServer());
+        manager.summon(owner);
+        var companion = manager.find(owner.getUUID()).orElseThrow();
+        var one = new QueuedStep(
+                "wait", new JsonObject(), null, List.of(), GuardAction.WAIT, FailurePolicy.ASK, 1, List.of());
+        var two = new QueuedStep(
+                "wait", new JsonObject(), null, List.of(), GuardAction.WAIT, FailurePolicy.ASK, 1, List.of());
+        var conditional = new PlanNode.Conditional(
+                new Guard.OwnerOnline(), List.of(new PlanNode.Action(one)), List.of(new PlanNode.Action(two)));
+        long planId = companion
+                .executionCoordinator()
+                .queue()
+                .addStructuredPlan("branch plan", new PlanDefinition(List.of(conditional)), PlanOptions.DEFAULT);
+        JsonObject args = new JsonObject();
+        args.addProperty("plan", planId);
+        args.addProperty(
+                "expected", PlanFingerprint.of(companion.executionCoordinator().queue(), planId));
+        args.addProperty("route", "0,1");
+        args.addProperty("index", 0);
+        args.addProperty("remove", 1);
+        com.google.gson.JsonArray steps = new com.google.gson.JsonArray();
+        JsonObject replacement = new JsonObject();
+        replacement.addProperty("tool", "wait");
+        replacement.addProperty("args", "{\"seconds\":2}");
+        steps.add(replacement);
+        args.add("steps", steps);
+        var result = GameTestToolRegistry.create(companion, () -> 16, MemoryAccess.DISABLED)
+                .bind(companion)
+                .execute(
+                        new dev.friendai.agent.llm.model.ToolCall("test", "plan_patch", args, args.toString(), null),
+                        new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
+        h.assertFalse(result.error(), result.content());
+        var patched = (PlanNode.Conditional) companion
+                .executionCoordinator()
+                .queue()
+                .plan(planId)
+                .orElseThrow()
+                .definition()
+                .nodes()
+                .getFirst();
+        h.assertValueEqual(
+                ((PlanNode.Action) patched.thenNodes().getFirst())
+                        .step()
+                        .args()
+                        .get("seconds")
+                        .getAsInt(),
+                2,
+                "the then branch was patched");
         h.succeed();
     }
 
