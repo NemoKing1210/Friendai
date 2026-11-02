@@ -36,6 +36,9 @@ final class Ui {
 
     static final int[] PALETTE = MenuTheme.PALETTE;
 
+    /** An off indicator dot on a vanilla button sprite, whose mid-grey face swallows {@link #DIM}. */
+    static final int WIDGET_DOT = MenuTheme.WIDGET_DOT;
+
     static final int BADGE_HEIGHT = MenuTheme.BADGE_HEIGHT;
 
     private Ui() {}

@@ -35,8 +35,9 @@ public final class CompanionInventoryScreen extends AbstractContainerScreen<Comp
     private static final int HIGHLIGHT = MenuTheme.WINDOW_HIGHLIGHT;
     private static final int SHADOW = MenuTheme.WINDOW_SHADOW;
     private static final int OUTLINE = MenuTheme.WINDOW_OUTLINE;
-    private static final int XP_GREEN = 0xFF80FF20;
-    private static final int XP_BAR_BACK = 0xFF555555;
+    private static final int XP_BAR = MenuTheme.XP_BAR;
+    private static final int XP_TEXT = MenuTheme.XP_TEXT;
+    private static final int XP_BAR_BACK = MenuTheme.WINDOW_SHADOW;
 
     public CompanionInventoryScreen(CompanionInventoryMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title, CompanionInventoryLayout.WIDTH, CompanionInventoryLayout.HEIGHT);
@@ -125,7 +126,7 @@ public final class CompanionInventoryScreen extends AbstractContainerScreen<Comp
         }
     }
 
-    /** A thin bar under the vitals, and the level beside the portrait, in the vanilla XP green. */
+    /** A thin bar under the vitals, and the level beside the portrait: vanilla's XP green, darkened for the label. */
     private void drawExperience(GuiGraphicsExtractor graphics, CompanionEntity companion) {
         int x0 = leftPos + CompanionInventoryLayout.heartsX();
         int x1 = leftPos + CompanionInventoryLayout.foodRight();
@@ -133,12 +134,12 @@ public final class CompanionInventoryScreen extends AbstractContainerScreen<Comp
         int height = CompanionInventoryLayout.XP_HEIGHT;
         graphics.fill(x0, y, x1, y + height, XP_BAR_BACK);
         int filled = Math.round((x1 - x0) * Math.max(0.0f, Math.min(1.0f, companion.syncedXpProgress())));
-        graphics.fill(x0, y, x0 + filled, y + height, XP_GREEN);
+        graphics.fill(x0, y, x0 + filled, y + height, XP_BAR);
         graphics.text(
                 font,
                 Component.translatable("friendai.menu.vital.level", companion.syncedXpLevel()),
                 leftPos + CompanionInventoryLayout.LEVEL_X,
                 topPos + CompanionInventoryLayout.LEVEL_Y,
-                XP_GREEN);
+                XP_TEXT);
     }
 }

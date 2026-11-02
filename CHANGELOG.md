@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.159.0] - 2026-11-02
+
+### Fixed
+
+- Text the companion screens drew too close to its own background is readable again: the inventory's XP level, the `Y` in a task's coordinates and the grey "off" dot on a button now clear the WCAG contrast minimum, and a new test measures every colour pair the menu draws, including the surfaces a wash or a vanilla sprite puts behind it.
+
 ## [0.158.0] - 2026-11-02
 
 ### Added

@@ -3,6 +3,7 @@ package dev.friendai.client.ui;
 import dev.friendai.presentation.companion.TaskArgs;
 import dev.friendai.presentation.companion.TaskArgs.Chip;
 import dev.friendai.presentation.companion.TaskArgs.Kind;
+import dev.friendai.presentation.layout.MenuTheme;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -26,10 +27,6 @@ final class TaskChips {
     private static final int PAD = 4;
     private static final int ICON = 16;
     private static final Pattern ID = Pattern.compile("\\b[a-z0-9_.-]+:[a-z0-9_./-]+");
-
-    private static final int X_COLOR = 0xFFB03030;
-    private static final int Y_COLOR = 0xFF2F7D32;
-    private static final int Z_COLOR = 0xFF2A5DA8;
 
     private final List<Placed> placed = new ArrayList<>();
     private final int height;
@@ -138,7 +135,7 @@ final class TaskChips {
     }
 
     private static final String[] AXES = {"X", "Y", "Z"};
-    private static final int[] AXIS_COLORS = {X_COLOR, Y_COLOR, Z_COLOR};
+    private static final int[] AXIS_COLORS = {MenuTheme.AXIS_X, MenuTheme.AXIS_Y, MenuTheme.AXIS_Z};
 
     private static void paintPosition(GuiGraphicsExtractor g, Font font, String text, int x, int y) {
         String[] parts = text.split(" ");

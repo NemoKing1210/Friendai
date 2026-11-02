@@ -1,5 +1,7 @@
 package dev.friendai.presentation.layout;
 
+import dev.friendai.presentation.UiContrast;
+
 /**
  * The companion menu's one palette and one widget set, borrowed from the game itself: the vanilla window bevel,
  * the vanilla button sprites, a light face with dark labels and a dark list surface for long text, like the
@@ -49,6 +51,27 @@ public final class MenuTheme {
     /** Fixed colours for things that come in a handful of kinds (fact categories, log kinds). */
     public static final int[] PALETTE = {ACCENT, GOOD, WARN, PURPLE, BAD, 0xFF155654, 0xFF6B4A1F};
 
+    /**
+     * The three position-key hues on a task chip's position ("X 12 Y 64 Z -8"). Measured on the chip's own row
+     * wash, the lightest surface they are drawn on: X 4.62:1, Y 4.56:1, Z 4.74:1. Y was 0xFF2F7D32 at 3.74:1.
+     */
+    public static final int AXIS_X = 0xFFB03030;
+
+    public static final int AXIS_Y = 0xFF296E2C;
+    public static final int AXIS_Z = 0xFF2A5DA8;
+
+    /** Vanilla's experience-bar green, kept for the bar itself: 5.77:1 on {@link #WINDOW_SHADOW}. */
+    public static final int XP_BAR = 0xFF80FF20;
+
+    /** The same green darkened for the level label, which sits on the light face: 4.64:1 there. */
+    public static final int XP_TEXT = 0xFF2E5C0C;
+
+    /**
+     * An off-state indicator dot on a vanilla button sprite, whose face is a mid grey (#6F6F6F): 3.26:1 on that
+     * face and 9.05:1 on the disabled sprite's (#2C2C2C). {@link #DIM} is a text colour and vanishes there at 1.6:1.
+     */
+    public static final int WIDGET_DOT = 0xFFD0D0D0;
+
     public static final int BADGE_HEIGHT = 12;
 
     private MenuTheme() {}
@@ -59,38 +82,20 @@ public final class MenuTheme {
 
     /** {@code color} composited over {@code background}, so a translucent wash can be measured as a real pixel. */
     public static int over(int color, int background) {
-        int a = (color >>> 24) & 0xFF;
-        int r = blend((color >> 16) & 0xFF, (background >> 16) & 0xFF, a);
-        int g = blend((color >> 8) & 0xFF, (background >> 8) & 0xFF, a);
-        int b = blend(color & 0xFF, background & 0xFF, a);
-        return 0xFF000000 | (r << 16) | (g << 8) | b;
-    }
-
-    private static int blend(int top, int bottom, int alpha) {
-        return (top * alpha + bottom * (255 - alpha)) / 255;
+        return UiContrast.over(color, background);
     }
 
     /** WCAG relative luminance of an opaque colour (alpha is ignored). */
     public static double luminance(int color) {
-        double r = linear((color >> 16) & 0xFF);
-        double g = linear((color >> 8) & 0xFF);
-        double b = linear(color & 0xFF);
-        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-    }
-
-    private static double linear(int channel) {
-        double c = channel / 255.0;
-        return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+        return UiContrast.luminance(color);
     }
 
     /** WCAG contrast ratio between two opaque colours, from 1:1 to 21:1. */
     public static double contrast(int a, int b) {
-        double high = Math.max(luminance(a), luminance(b));
-        double low = Math.min(luminance(a), luminance(b));
-        return (high + 0.05) / (low + 0.05);
+        return UiContrast.contrast(a, b);
     }
 
     public static boolean readable(int foreground, int background, double minimum) {
-        return contrast(foreground, background) >= minimum;
+        return UiContrast.readable(foreground, background, minimum);
     }
 }

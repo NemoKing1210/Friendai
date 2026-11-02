@@ -59,7 +59,7 @@ final class FlatButton extends Button.Plain {
     protected void extractContents(GuiGraphicsExtractor g, int mouseX, int mouseY, float partialTick) {
         super.extractContents(g, mouseX, mouseY, partialTick);
         if (status != 0) {
-            Ui.dot(g, getX() + getWidth() - 6, getY() + 2, 4, active ? status : Ui.DIM);
+            Ui.dot(g, getX() + getWidth() - 6, getY() + 3, 4, active ? status : Ui.WIDGET_DOT);
         }
     }
 
