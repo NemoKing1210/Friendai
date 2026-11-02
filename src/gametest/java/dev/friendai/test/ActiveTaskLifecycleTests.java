@@ -173,6 +173,31 @@ public class ActiveTaskLifecycleTests {
     }
 
     @GameTest(maxTicks = 40)
+    public void aToolGuardGetsOnePickaxePrerequisite(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 300, () -> false);
+        runner.setRepairFactory((context, args) -> new NoopTask());
+        QueuedStep blocked = new QueuedStep(
+                "mine_blocks",
+                new JsonObject(),
+                null,
+                List.of(new Guard.ToolAtLeast("minecraft:iron_ore")),
+                GuardAction.WAIT,
+                FailurePolicy.ASK,
+                1,
+                List.of());
+        runner.enqueuePlan("mine iron", List.of(blocked), List.of(context -> new NoopTask()), PlanOptions.DEFAULT);
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertValueEqual(
+                    runner.idleRepairInserted(),
+                    1,
+                    "one pickaxe prerequisite; jobs=" + runner.queue().jobs());
+        });
+    }
+
+    @GameTest(maxTicks = 40)
     public void aPausedPlanWaitsForResume(GameTestHelper h) {
         GameTestSupport.platform(h, 8);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);

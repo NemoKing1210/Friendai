@@ -21,6 +21,15 @@ public final class IdleRepairPolicy {
 
     public static Optional<Repair> select(
             List<Job> jobs, GuardFacts facts, Set<String> availableTools, Set<Long> repairConsentPlans) {
+        return select(jobs, facts, availableTools, repairConsentPlans, null);
+    }
+
+    public static Optional<Repair> select(
+            List<Job> jobs,
+            GuardFacts facts,
+            Set<String> availableTools,
+            Set<Long> repairConsentPlans,
+            ToolRepairRule tools) {
         if (jobs == null || facts == null || availableTools == null || !availableTools.contains(REMEDY_TOOL)) {
             return Optional.empty();
         }
@@ -34,23 +43,33 @@ public final class IdleRepairPolicy {
                 .toList();
         for (Job job : ordered) {
             for (Guard guard : job.guards()) {
-                if (guard instanceof Guard.HasItem item && !item.holds(facts) && !alreadyRepairing(jobs, item)) {
+                if (guard instanceof Guard.HasItem item && !item.holds(facts) && !alreadyRepairing(jobs, item.item())) {
                     return Optional.of(new Repair(
                             job,
                             new PlanRepair.Item(item.item(), item.count(), REMEDY_TOOL),
                             REMEDY_TOOL,
                             "job #" + job.id() + " needs " + item.count() + " " + item.item()));
                 }
+                if (guard instanceof Guard.ToolAtLeast tool && !tool.holds(facts) && tools != null) {
+                    String item = tools.itemFor(tool.block()).orElse(null);
+                    if (item != null && !alreadyRepairing(jobs, item)) {
+                        return Optional.of(new Repair(
+                                job,
+                                new PlanRepair.Item(item, 1, REMEDY_TOOL),
+                                REMEDY_TOOL,
+                                "job #" + job.id() + " needs a tool for " + tool.block()));
+                    }
+                }
             }
         }
         return Optional.empty();
     }
 
-    private static boolean alreadyRepairing(List<Job> jobs, Guard.HasItem item) {
+    private static boolean alreadyRepairing(List<Job> jobs, String item) {
         return jobs.stream()
                 .filter(job -> !JobQueue.terminal(job))
                 .anyMatch(job -> job.tool().equals(REMEDY_TOOL)
                         && job.args().has("item")
-                        && item.item().equals(job.args().get("item").getAsString()));
+                        && item.equals(job.args().get("item").getAsString()));
     }
 }

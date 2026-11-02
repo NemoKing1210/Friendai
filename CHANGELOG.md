@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.181.0] - 2026-11-02
+
+### Added
+
+- A plan blocked on a `tool_at_least` block now gets the smallest vanilla pickaxe from an explicit block-to-tool table, inserted once as an `obtain_item` prerequisite.
+
 ## [0.180.0] - 2026-11-02
 
 ### Added

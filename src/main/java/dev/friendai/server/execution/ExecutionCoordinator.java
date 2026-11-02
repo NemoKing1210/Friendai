@@ -1097,7 +1097,11 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
             }
         }
         var selected = dev.friendai.execution.queue.IdleRepairPolicy.select(
-                jobs, facts(), java.util.Set.of("obtain_item"), consent);
+                jobs,
+                facts(),
+                java.util.Set.of("obtain_item"),
+                consent,
+                dev.friendai.execution.queue.ToolRepairRule.vanillaPickaxes());
         if (selected.isEmpty()) return false;
         var repair = selected.get();
         if (!(repair.prerequisite() instanceof dev.friendai.execution.queue.PlanRepair.Item item)) return false;

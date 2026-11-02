@@ -41,6 +41,15 @@ class IdleRepairPolicyTest {
     }
 
     @Test
+    void aToolGuardSelectsTheMappedPickaxe() {
+        Job blocked = job(2, "mine_blocks", new Guard.ToolAtLeast("minecraft:iron_ore"), JobState.PENDING, 7);
+        var repair = IdleRepairPolicy.select(
+                        List.of(blocked), FACTS, Set.of("obtain_item"), Set.of(7L), ToolRepairRule.vanillaPickaxes())
+                .orElseThrow();
+        assertEquals("1 minecraft:stone_pickaxe", repair.prerequisite().describe());
+    }
+
+    @Test
     void anExistingRemedyIsNotDuplicated() {
         Job blocked = job(2, "place_block", new Guard.HasItem("minecraft:oak_planks", 4), JobState.PENDING, 7);
         JsonObject remedyArgs = new JsonObject();
