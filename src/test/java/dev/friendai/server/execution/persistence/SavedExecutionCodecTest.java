@@ -56,6 +56,10 @@ class SavedExecutionCodecTest {
         assertTrue(SavedExecutionCodec.decode("{", QueueLimits.DEFAULTS).isEmpty());
         assertTrue(SavedExecutionCodec.decode("{\"version\":99}", QueueLimits.DEFAULTS)
                 .isEmpty());
+        assertTrue(
+                SavedExecutionCodec.decode("{\"version\":0}", QueueLimits.DEFAULTS)
+                        .isEmpty(),
+                "an older execution document is rejected, not replayed");
         assertTrue(SavedExecutionCodec.decode("{}", QueueLimits.DEFAULTS).isEmpty());
     }
 
