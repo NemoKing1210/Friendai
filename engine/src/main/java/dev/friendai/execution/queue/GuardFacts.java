@@ -42,4 +42,14 @@ public interface GuardFacts {
     default boolean hasBlocks(String idOrTag, int radius, int count) {
         return countBlocks(idOrTag, radius) >= count;
     }
+
+    /** Items of this kind in the owner's inventory, or 0 when the owner cannot be read. */
+    default int ownerCountItems(String idOrTag) {
+        return 0;
+    }
+
+    /** Whether the named block sits at exactly this position, or false when the position cannot be read. */
+    default boolean blockAt(String idOrTag, int x, int y, int z) {
+        return false;
+    }
 }

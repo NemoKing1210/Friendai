@@ -6,7 +6,14 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
-## [0.154.0] - 2026-11-02
+## [0.155.0] - 2026-11-02
+
+### Added
+
+- A goal can now ask for outcomes the world can actually check beyond "have it in the bag": that the owner **received** the items, or that a named block stands at a position. Both are refused honestly when the world says no.
+- Remembered places and notes now say how old they are in plain words (today, 3 days ago, over a month ago), so a stale memory reads as history instead of a promise.
+
+ - 2026-11-02
 
 ### Changed
 

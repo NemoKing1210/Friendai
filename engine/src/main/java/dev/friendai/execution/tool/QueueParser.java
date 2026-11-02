@@ -370,6 +370,8 @@ public final class QueueParser {
             case "fluid_ahead" -> new String[] {"type"};
             case "distance_travelled" -> new String[] {"type", "blocks"};
             case "time_elapsed" -> new String[] {"type", "ticks"};
+            case "delivered" -> new String[] {"type", "item", "count"};
+            case "block_at" -> new String[] {"type", "block", "x", "y", "z"};
             default -> null;
         };
         if (keys == null || !onlyKeys(json, keys)) return false;
@@ -379,15 +381,21 @@ public final class QueueParser {
             case "dimension" -> "dimension";
             case "block_in_front" -> "block";
             case "biome" -> "biome";
+            case "delivered" -> "item";
+            case "block_at" -> "block";
             default -> null;
         };
         if (requiredString != null && strictString(json, requiredString) == null) return false;
-        String requiredInteger = switch (type) {
-            case "distance_travelled" -> "blocks";
-            case "time_elapsed" -> "ticks";
-            default -> null;
+        String[] requiredIntegers = switch (type) {
+            case "distance_travelled" -> new String[] {"blocks"};
+            case "time_elapsed" -> new String[] {"ticks"};
+            case "delivered" -> new String[] {"count"};
+            case "block_at" -> new String[] {"x", "y", "z"};
+            default -> new String[0];
         };
-        if (requiredInteger != null && integer(json.get(requiredInteger)) == null) return false;
+        for (String key : requiredIntegers) {
+            if (integer(json.get(key)) == null) return false;
+        }
         for (String key : new String[] {"count", "slots", "percent", "blocks", "radius", "distance"}) {
             if (json.has(key) && integer(json.get(key)) == null) return false;
         }

@@ -75,7 +75,9 @@ class GuardTest {
                 "{\"type\":\"health_at_least\",\"percent\":50}",
                 "{\"type\":\"owner_within\",\"blocks\":16}",
                 "{\"type\":\"block_within\",\"block\":\"minecraft:oak_log\",\"radius\":8,\"count\":4}",
-                "{\"type\":\"dimension\",\"dimension\":\"minecraft:the_nether\"}")) {
+                "{\"type\":\"dimension\",\"dimension\":\"minecraft:the_nether\"}",
+                "{\"type\":\"delivered\",\"item\":\"minecraft:iron_ingot\",\"count\":3}",
+                "{\"type\":\"block_at\",\"block\":\"minecraft:oak_planks\",\"x\":10,\"y\":64,\"z\":-3}")) {
             Guard guard = Guard.parse(json(text)).orElseThrow();
             assertEquals(guard, Guard.parse(guard.toJson()).orElseThrow());
         }

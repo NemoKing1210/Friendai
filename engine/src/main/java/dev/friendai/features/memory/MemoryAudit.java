@@ -14,8 +14,9 @@ import java.util.function.UnaryOperator;
 
 /**
  * The model-facing overview of a facts book: how full each book is, and on request every fact with its id,
- * category, subject, author and age. Access follows the prompt matrix: owner all, trusted world and self,
- * guest self. Text is redacted on read, because an old fact may predate redaction on write.
+ * category, subject, author and age. Ages of places and notes, whose claims can go stale, are plain words.
+ * Access follows the prompt matrix: owner all, trusted world and self, guest self. Text is redacted on read,
+ * because an old fact may predate redaction on write.
  */
 public final class MemoryAudit {
     private MemoryAudit() {}
@@ -171,7 +172,8 @@ public final class MemoryAudit {
         if (!author.isEmpty()) {
             line.append(" — ").append(author);
         }
-        line.append(", ").append(age(now - fact.createdAt()));
+        boolean perishable = fact.category() == Category.PLACE || fact.category() == Category.NOTE;
+        line.append(", ").append(perishable ? staleAge(fact.createdAt(), now) : age(now - fact.createdAt()));
         return line.toString();
     }
 
@@ -230,5 +232,23 @@ public final class MemoryAudit {
             return hours + "h";
         }
         return (hours / 24) + "d";
+    }
+
+    /**
+     * How old a fact is in plain words, for the categories whose claims can go stale: a remembered place or a
+     * resource location. A fact stamped in the future counts as today.
+     */
+    public static String staleAge(long createdAt, long now) {
+        long days = (now - createdAt) / 86_400_000L;
+        if (days < 1) {
+            return "today";
+        }
+        if (days < 14) {
+            return days + (days == 1 ? " day ago" : " days ago");
+        }
+        if (days < 30) {
+            return (days / 7) + " weeks ago";
+        }
+        return "over a month ago";
     }
 }

@@ -14,6 +14,7 @@ import net.minecraft.world.item.ItemStack;
 public final class CompanionGuardFacts implements GuardFacts {
     private final CompanionEntity companion;
     private final Map<String, Integer> itemCounts = new HashMap<>();
+    private final Map<String, Integer> ownerItemCounts = new HashMap<>();
     private final Map<String, Boolean> blockFacts = new HashMap<>();
     private Integer emptySlots, ownerDistance;
     private Float healthFraction;
@@ -38,6 +39,7 @@ public final class CompanionGuardFacts implements GuardFacts {
     /** Refreshes a pass and exposes distance/time relative to one stored plan baseline. */
     public void refresh(long startTick, long startDistance) {
         itemCounts.clear();
+        ownerItemCounts.clear();
         emptySlots = null;
         ownerDistance = null;
         healthFraction = null;
@@ -88,6 +90,22 @@ public final class CompanionGuardFacts implements GuardFacts {
             if (matcher.test(stack)) count += stack.getCount();
         }
         itemCounts.put(id, count);
+        return count;
+    }
+
+    @Override
+    public int ownerCountItems(String id) {
+        if (ownerItemCounts.containsKey(id)) return ownerItemCounts.get(id);
+        ServerPlayer owner = companion.owner().orElse(null);
+        var matcher = owner == null ? null : ItemMatcher.parse(id).orElse(null);
+        if (matcher == null) return 0;
+        var inventory = owner.getInventory();
+        int count = 0;
+        for (int i = 0; i < inventory.getContainerSize(); i++) {
+            ItemStack stack = inventory.getItem(i);
+            if (matcher.test(stack)) count += stack.getCount();
+        }
+        ownerItemCounts.put(id, count);
         return count;
     }
 
@@ -156,6 +174,15 @@ public final class CompanionGuardFacts implements GuardFacts {
         return matcher.test(companion.level().getBlockState(feet))
                 || (companion.level().hasChunkAt(feet.above())
                         && matcher.test(companion.level().getBlockState(feet.above())));
+    }
+
+    @Override
+    public boolean blockAt(String id, int x, int y, int z) {
+        var matcher = BlockMatcher.parse(id).orElse(null);
+        if (matcher == null) return false;
+        BlockPos pos = new BlockPos(x, y, z);
+        if (!companion.level().hasChunkAt(pos)) return false;
+        return matcher.test(companion.level().getBlockState(pos));
     }
 
     @Override

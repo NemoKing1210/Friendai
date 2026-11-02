@@ -22,7 +22,9 @@ public sealed interface Guard
                 Guard.InBiome,
                 Guard.FluidAhead,
                 Guard.DistanceTravelled,
-                Guard.TimeElapsed {
+                Guard.TimeElapsed,
+                Guard.OwnerHasAtLeast,
+                Guard.BlockAt {
     int MAX_CHILDREN = 8;
     int MAX_DEPTH = 8;
 
@@ -76,6 +78,14 @@ public sealed interface Guard
                     if (!onlyKeys(json, "type", "ticks")) yield Optional.empty();
                     yield Optional.of(new TimeElapsed(strictLong(json, "ticks")));
                 }
+                case "delivered" ->
+                    Optional.of(new OwnerHasAtLeast(strictString(json, "item"), strictInteger(json, "count")));
+                case "block_at" ->
+                    Optional.of(new BlockAt(
+                            strictString(json, "block"),
+                            strictInteger(json, "x"),
+                            strictInteger(json, "y"),
+                            strictInteger(json, "z")));
                 default -> Optional.empty();
             };
         } catch (RuntimeException ignored) {
@@ -523,6 +533,64 @@ public sealed interface Guard
             JsonObject j = json("time_elapsed");
             j.addProperty("ticks", ticks);
             return j;
+        }
+    }
+
+    record OwnerHasAtLeast(String item, int count) implements Guard {
+        public OwnerHasAtLeast {
+            item = id(item);
+            if (count < 1) throw new IllegalArgumentException("count");
+        }
+
+        @Override
+        public boolean holds(GuardFacts facts) {
+            return facts.ownerCountItems(item) >= count;
+        }
+
+        @Override
+        public String describe() {
+            return "deliver " + count + " " + item + " to the owner";
+        }
+
+        @Override
+        public JsonObject toJson() {
+            JsonObject j = json("delivered");
+            j.addProperty("item", item);
+            j.addProperty("count", count);
+            return j;
+        }
+    }
+
+    record BlockAt(String block, int x, int y, int z) implements Guard {
+        public BlockAt {
+            block = id(block);
+            coordinates(x, y, z);
+        }
+
+        @Override
+        public boolean holds(GuardFacts facts) {
+            return facts.blockAt(block, x, y, z);
+        }
+
+        @Override
+        public String describe() {
+            return block + " at " + x + " " + y + " " + z;
+        }
+
+        @Override
+        public JsonObject toJson() {
+            JsonObject j = json("block_at");
+            j.addProperty("block", block);
+            j.addProperty("x", x);
+            j.addProperty("y", y);
+            j.addProperty("z", z);
+            return j;
+        }
+    }
+
+    private static void coordinates(int x, int y, int z) {
+        for (int value : new int[] {x, y, z}) {
+            if (value < -30_000_000 || value > 30_000_000) throw new IllegalArgumentException("position");
         }
     }
 

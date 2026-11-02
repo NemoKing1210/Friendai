@@ -49,7 +49,9 @@ public final class GoalTools implements FeatureToolContributor {
                 SET_GOAL,
                 "Record what you are working toward so it survives plans, failures and restarts. Use it for a "
                         + "multi-step objective, not for a single action. Each criterion has a short text; add a "
-                        + "type with its fields (for example type has_item, item minecraft:oak_log, count 12) when "
+                        + "type with its fields (for example type has_item, item minecraft:oak_log, count 12, or "
+                        + "type delivered, item minecraft:oak_log, count 12 for items the owner now holds, or "
+                        + "type block_at, block minecraft:oak_planks, x 10, y 64, z -3 for one exact position) when "
                         + "the world can check it by itself. One primary goal at a time; background:true adds one "
                         + "of at most three side goals.",
                 SchemaBuilder.object()
@@ -206,7 +208,7 @@ public final class GoalTools implements FeatureToolContributor {
             property.addProperty("type", "string");
             props.add(name, property);
         }
-        for (String name : List.of("count", "slots", "percent", "blocks", "radius")) {
+        for (String name : List.of("count", "slots", "percent", "blocks", "radius", "x", "y", "z")) {
             JsonObject property = new JsonObject();
             property.addProperty("type", "integer");
             props.add(name, property);
