@@ -1,6 +1,7 @@
 package dev.friendai.test.client;
 
 import com.google.gson.JsonParser;
+import com.mojang.blaze3d.platform.InputConstants;
 import dev.friendai.client.FriendaiClient;
 import dev.friendai.client.companion.session.CompanionClientSession;
 import dev.friendai.client.config.FriendaiConfigScreen;
@@ -27,6 +28,9 @@ import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.AbstractButton;
+import net.minecraft.client.gui.components.TabButton;
+import net.minecraft.client.gui.components.events.ContainerEventHandler;
+import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.ConfirmLinkScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.TitleScreen;
@@ -36,6 +40,9 @@ import net.minecraft.network.chat.contents.TranslatableContents;
 
 /** Real YACL screens in the isolated client-GameTest directory; never calls a paid service. */
 public final class SettingsScreenTests implements FabricClientGameTest {
+    /** Upper bound on the Tab presses one scenario may spend, so a focus bug fails instead of looping. */
+    private static final int KEYBOARD_TAB_LIMIT = 32;
+
     private final List<String> failures = new ArrayList<>();
     private int passed;
 
@@ -679,6 +686,41 @@ public final class SettingsScreenTests implements FabricClientGameTest {
                 });
             });
         }
+        check(context, "keyboard navigation without a mouse", c -> {
+            c.waitForScreen(YACLScreen.class);
+            require(
+                    c.computeOnClient(mc -> screen().config.categories().size()) >= 2,
+                    "the settings need two categories to prove a keyboard switch");
+            // Tab must reach a new widget on every press and must never drop focus while widgets remain.
+            GuiEventListener focused = c.computeOnClient(mc -> deepestFocus(screen()));
+            List<GuiEventListener> visited = new ArrayList<>();
+            for (int press = 1; press <= KEYBOARD_TAB_LIMIT; press++) {
+                focused = pressTab(c, press, focused);
+                if (visited.contains(focused)) {
+                    require(
+                            focused == visited.getFirst(),
+                            "Tab press " + press + " repeated " + describe(focused) + " before the cycle ended");
+                    break;
+                }
+                visited.add(focused);
+            }
+            require(visited.size() >= 3, "Tab visited only " + visited.size() + " settings widgets");
+            // The tab bar is one of those stops, so the same key must reach it from anywhere in the body.
+            for (int press = 1; press <= KEYBOARD_TAB_LIMIT && !(focused instanceof TabButton); press++) {
+                focused = pressTab(c, press, focused);
+            }
+            require(focused instanceof TabButton, "Tab never reached the settings tab bar");
+            // The bar selects the category of the tab button it focuses, so an arrow key switches it.
+            int before = c.computeOnClient(mc -> selectedCategory());
+            c.getInput().pressKey(InputConstants.KEY_RIGHT);
+            int after = c.computeOnClient(mc -> selectedCategory());
+            require(after != before, "Right arrow left category " + before + " selected");
+            // Escape leaves the editor and returns to the screen that opened it.
+            c.getInput().pressKey(InputConstants.KEY_ESCAPE);
+            c.waitForScreen(TitleScreen.class);
+            c.runOnClient(mc ->
+                    require(mc.gui.screen() instanceof TitleScreen, "Escape left the settings on " + mc.gui.screen()));
+        });
     }
 
     private void check(ClientGameTestContext context, String name, Consumer<ClientGameTestContext> test) {
@@ -745,6 +787,44 @@ public final class SettingsScreenTests implements FabricClientGameTest {
             set("friendai.config.model", "pending-llm-model");
         });
         context.waitTicks(2);
+    }
+
+    /** Deepest widget holding keyboard focus on the screen, or null when nothing is focused. */
+    private static GuiEventListener deepestFocus(Screen screen) {
+        GuiEventListener focused = screen.getFocused();
+        for (int depth = 0; depth < 16; depth++) {
+            if (!(focused instanceof ContainerEventHandler container)) {
+                return focused;
+            }
+            GuiEventListener child = container.getFocused();
+            if (child == null) {
+                return focused;
+            }
+            focused = child;
+        }
+        return focused;
+    }
+
+    /**
+     * Sends one Tab through the real keyboard handler and returns the widget that holds focus afterwards. Fails
+     * when focus vanished or did not move, which is what a keyboard-only player would notice.
+     */
+    private static GuiEventListener pressTab(ClientGameTestContext context, int press, GuiEventListener before) {
+        context.getInput().pressKey(InputConstants.KEY_TAB);
+        GuiEventListener after = context.computeOnClient(mc -> deepestFocus(screen()));
+        require(after != null, "Tab press " + press + " left the settings without a focused widget");
+        require(after != before, "Tab press " + press + " kept focus on " + describe(before));
+        return after;
+    }
+
+    private static String describe(GuiEventListener widget) {
+        return widget == null ? "nothing" : widget.getClass().getSimpleName();
+    }
+
+    /** Index of the category the tab bar has selected, or -1 when the bar does not own the current tab. */
+    private static int selectedCategory() {
+        YACLScreen yacl = screen();
+        return yacl.tabNavigationBar.getTabs().indexOf(yacl.tabManager.getCurrentTab());
     }
 
     private static void require(boolean condition, String message) {
