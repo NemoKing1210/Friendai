@@ -626,6 +626,42 @@ public class PathingTests {
                 "still " + c.position().distanceTo(owner.position()) + " blocks away"));
     }
 
+    @GameTest(maxTicks = 3000)
+    public void goToCrossesThreeHundredBlocksWithoutTeleporting(GameTestHelper h) {
+        int floor = 200;
+        GameTestSupport.platformAt(h, floor, 312);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2.0, floor + 1, 4.5);
+        owner.setOnGround(true);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, floor + 1, 4);
+        c.setOwner(owner.getUUID());
+        Vec3 target = h.absoluteVec(new Vec3(302.5, floor + 1, 4.5));
+        Outcome out = new Outcome();
+        c.executionCoordinator().setEventSink(out);
+        c.executionCoordinator().start(new GoToTask(target), "go_to");
+        double[] last = {c.getX(), c.getY(), c.getZ()};
+        double[] biggest = {0};
+        h.onEachTick(() -> {
+            double step = Math.sqrt(Math.pow(c.getX() - last[0], 2)
+                    + Math.pow(c.getY() - last[1], 2)
+                    + Math.pow(c.getZ() - last[2], 2));
+            biggest[0] = Math.max(biggest[0], step);
+            last[0] = c.getX();
+            last[1] = c.getY();
+            last[2] = c.getZ();
+            h.assertTrue(biggest[0] < 16.0, "the companion jumped " + biggest[0] + " blocks in one tick");
+        });
+        h.succeedWhen(() -> {
+            var active = c.executionCoordinator().current().orElse(null);
+            h.assertTrue(
+                    active != null && active.type().equals("go_to"),
+                    "the go_to task must stay active; status=" + out.status + " summary=" + out.summary + " at "
+                            + c.position() + " target " + target);
+            h.assertTrue(
+                    c.position().distanceTo(target) <= 2.0,
+                    "still " + c.position().distanceTo(target) + " blocks from the 300-block target");
+        });
+    }
+
     @GameTest(maxTicks = 900)
     public void followsAMovingOwnerWithoutTeleporting(GameTestHelper h) {
         int floor = 280;

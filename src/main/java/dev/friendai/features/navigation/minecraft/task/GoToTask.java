@@ -1,6 +1,8 @@
 package dev.friendai.features.navigation.minecraft.task;
 
 import dev.friendai.features.navigation.minecraft.nav.MoveHelper;
+import dev.friendai.features.navigation.minecraft.nav.ResourceJourney;
+import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
@@ -9,7 +11,10 @@ import net.minecraft.world.phys.Vec3;
 
 public final class GoToTask implements Task {
     private final Vec3 target;
+    private static final double JOURNEY_DISTANCE = 64.0;
+
     private final MoveHelper mover = new MoveHelper(1.0, 1.5);
+    private ResourceJourney journey;
     private final SneakScope sneak;
     private String summary = "";
 
@@ -34,12 +39,36 @@ public final class GoToTask implements Task {
 
     @Override
     public void start(TaskContext c) {
-        mover.reset(c);
         sneak.enter(c);
+        if (c.companion().position().distanceTo(target) <= JOURNEY_DISTANCE) {
+            mover.reset(c);
+            return;
+        }
+        var settings = c.resourceSearchSettings();
+        journey = new ResourceJourney(
+                c,
+                c.level().dimension().identifier().toString(),
+                new Pos((int) Math.floor(target.x), (int) Math.floor(target.y), (int) Math.floor(target.z)),
+                null,
+                c.ownerKnowledge().trails(),
+                settings.allowExpeditions() && settings.chunkLoadingEnabled());
     }
 
     @Override
     public TaskStatus tick(TaskContext c) {
+        if (journey != null) {
+            return switch (journey.tick(c)) {
+                case ARRIVED -> {
+                    summary = "reached " + coords();
+                    yield TaskStatus.SUCCESS;
+                }
+                case BLOCKED, CANCELLED -> {
+                    summary = "can't reach " + coords() + " across the loaded edge";
+                    yield TaskStatus.FAILED;
+                }
+                case WAITING_FOR_CHUNK, WORKING -> TaskStatus.RUNNING;
+            };
+        }
         switch (mover.tick(c, target)) {
             case ARRIVED -> {
                 summary = "reached " + coords();
@@ -57,6 +86,7 @@ public final class GoToTask implements Task {
 
     @Override
     public void stop(TaskContext c) {
+        if (journey != null) journey.stop(c);
         mover.stop(c);
         c.companion().getNavigation().stop();
         sneak.exit(c);
@@ -64,6 +94,7 @@ public final class GoToTask implements Task {
 
     @Override
     public void onTerminal(TaskContext c) {
+        if (journey != null) journey.stop(c);
         mover.stop(c);
         sneak.exit(c);
     }
