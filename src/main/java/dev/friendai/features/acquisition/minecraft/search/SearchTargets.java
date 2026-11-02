@@ -59,7 +59,7 @@ public final class SearchTargets {
         if (requested.isEmpty()) return Resolution.fail("the target is missing");
         return switch (kind == null ? "resource" : kind.toLowerCase(Locale.ROOT)) {
             case "resource", "block", "blocks" -> resolveBlock(level, dimension, requested);
-            case "structure" -> resolveStructure(requested, dimension);
+            case "structure" -> resolveStructure(context, requested, dimension);
             case "biome" -> resolveBiome(level, requested);
             case "entity" -> resolveEntity(requested);
             case "place" -> resolvePlace(context, dimension, requested);
@@ -78,7 +78,7 @@ public final class SearchTargets {
         return Resolution.ok(new TargetKind.BlockFamily(resolved.family(), resolved.blockIds(), profile));
     }
 
-    private static Resolution resolveStructure(String target, String dimension) {
+    private static Resolution resolveStructure(TaskContext context, String target, String dimension) {
         Optional<StructureMarkers.Entry> entry = StructureMarkers.get(target);
         if (entry.isEmpty()) {
             return Resolution.fail(
@@ -88,6 +88,11 @@ public final class SearchTargets {
         if (!dev.friendai.features.knowledge.search.StructurePolicy.eligible(id, dimension)) {
             return Resolution.fail("no " + id + " in " + dimension + "; it can be found in "
                     + String.join(", ", dev.friendai.features.knowledge.search.StructurePolicy.dimensions(id)));
+        }
+        String shortId = id.substring(id.indexOf(':') + 1);
+        var remembered = context.placeService().book(context.companion()).find("structure " + shortId, dimension);
+        if (remembered.isPresent()) {
+            return Resolution.ok(new TargetKind.Place(remembered.get().name(), dimension, 64));
         }
         return Resolution.ok(
                 new TargetKind.Structure(id, entry.get().markers(), entry.get().minimum(), 64));

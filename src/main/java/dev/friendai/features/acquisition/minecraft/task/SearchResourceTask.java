@@ -44,6 +44,7 @@ public final class SearchResourceTask implements Task {
     private UUID ownerId;
     private int radius;
     private boolean ownerWasNear;
+    private boolean rememberedStructure;
 
     public SearchResourceTask(String resource, String requestedStrategy, String scope, String heading, Caller caller) {
         this(null, resource, requestedStrategy, scope, heading, caller, ExploreTaskFactory.UNAVAILABLE);
@@ -269,12 +270,47 @@ public final class SearchResourceTask implements Task {
                 || (ownerOnline && ownerDistance <= escort.config().sightRadius());
         TaskStatus status = driver.tick(context);
         summary = driver.resultSummary();
+        if (status == TaskStatus.SUCCESS && target instanceof TargetKind.Structure structure && !rememberedStructure) {
+            rememberedStructure = true;
+            remember(structure, context);
+        }
         return status;
     }
 
     @Override
     public java.util.List<WorkSet> debugWorkSets() {
         return driver == null ? java.util.List.of() : driver.debugWorkSets();
+    }
+
+    /** A structure seen by its markers becomes one landmark place, so a later search can travel to it. */
+    private void remember(TargetKind.Structure structure, TaskContext context) {
+        if (caller == null || context.companion().ownerUuid() == null) return;
+        String dimension = context.level().dimension().identifier().toString();
+        String shortId = structure.id().substring(structure.id().indexOf(':') + 1);
+        String name = "structure " + shortId;
+        try {
+            var book = context.placeService().book(context.companion());
+            if (book.find(name, dimension).isPresent()) return;
+            var at = context.companion().blockPosition();
+            context.placeService()
+                    .remember(
+                            context.companion(),
+                            caller,
+                            new dev.friendai.features.places.PlaceValues(
+                                    name,
+                                    dev.friendai.features.places.PlaceKind.LANDMARK,
+                                    "",
+                                    dimension,
+                                    new dev.friendai.features.navigation.pathing.Pos(at.getX(), at.getY(), at.getZ()),
+                                    64,
+                                    java.util.Set.of(),
+                                    dev.friendai.features.places.PlaceSource.STRUCTURE,
+                                    caller.uuid(),
+                                    "seen by its marker blocks"),
+                            context.level().getGameTime());
+        } catch (RuntimeException fullOrInvalid) {
+            // A full place book must not turn a successful search into a failure.
+        }
     }
 
     private void resume() {

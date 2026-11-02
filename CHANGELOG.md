@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.166.0] - 2026-11-02
+
+### Added
+
+- A structure found by its marker blocks is remembered once as a landmark place, so a later structure search can travel to the verified instance instead of searching again.
+
 ## [0.165.0] - 2026-11-02
 
 ### Added

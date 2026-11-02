@@ -248,6 +248,15 @@ public final class TargetSearchTests {
                                         .toList());
                 h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
                 h.assertTrue(result.summary.contains("found"), result.summary);
+                h.assertTrue(
+                        GameTestSupport.runtime(h.getLevel().getServer())
+                                .placeService()
+                                .book(companion)
+                                .find(
+                                        "structure village",
+                                        h.getLevel().dimension().identifier().toString())
+                                .isPresent(),
+                        "a found structure becomes one landmark place");
                 biomeStarted[0] = true;
                 companion.executionCoordinator().setEventSink(biomeResult);
                 var biomeStart = GameTestToolRegistry.create(companion, () -> 16, MemoryAccess.DISABLED)
