@@ -36,6 +36,7 @@
 				"CraftingTests",
 				"CookingTests",
 				"BrewingTests",
+				"TerrainMapTests",
 				"StructureTests",
 				"DropPickupTests",
 				"LightAreaTests",

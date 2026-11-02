@@ -18,7 +18,11 @@ public final class ServerTickPipeline {
         this.services = services;
         this.traderRefresh = traderRefresh;
         this.ownerRecordFlush = new OwnerRecordFlush(
-                services.profileStore(), services.goalStore(), services.freeTimeStore(), services.socialMemoryStore());
+                services.profileStore(),
+                services.goalStore(),
+                services.freeTimeStore(),
+                services.socialMemoryStore(),
+                services.terrainStore());
     }
 
     public void tick(ServerRuntime runtime) {
@@ -29,6 +33,7 @@ public final class ServerTickPipeline {
         services.observations().tick(server, gameTime);
         services.sessions().tick();
         runtime.socialDirector().tick(runtime);
+        services.terrainSampler().tick(runtime);
         services.chunkLoader().tick();
         CompanionManager.get(server).tick();
         services.tick(System.currentTimeMillis());

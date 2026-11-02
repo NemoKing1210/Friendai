@@ -183,6 +183,14 @@ public final class ServerRuntime implements AutoCloseable {
         return services.freeTime();
     }
 
+    public dev.friendai.features.cartography.minecraft.TerrainSamplerService terrainSampler() {
+        return services.terrainSampler();
+    }
+
+    public dev.friendai.infrastructure.persistence.cartography.TerrainStore terrainStore() {
+        return services.terrainStore();
+    }
+
     public ResourceCandidates resourceCandidates() {
         return services.resources();
     }

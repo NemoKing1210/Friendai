@@ -1,6 +1,7 @@
 package dev.friendai.server.runtime;
 
 import dev.friendai.infrastructure.persistence.autonomy.FreeTimeStore;
+import dev.friendai.infrastructure.persistence.cartography.TerrainStore;
 import dev.friendai.infrastructure.persistence.goals.GoalStore;
 import dev.friendai.infrastructure.persistence.memory.CompanionProfileStore;
 import dev.friendai.infrastructure.persistence.social.SocialMemoryStore;
@@ -11,13 +12,19 @@ public final class OwnerRecordFlush {
     private final GoalStore goals;
     private final FreeTimeStore freeTime;
     private final SocialMemoryStore social;
+    private final TerrainStore terrain;
 
     public OwnerRecordFlush(
-            CompanionProfileStore profiles, GoalStore goals, FreeTimeStore freeTime, SocialMemoryStore social) {
+            CompanionProfileStore profiles,
+            GoalStore goals,
+            FreeTimeStore freeTime,
+            SocialMemoryStore social,
+            TerrainStore terrain) {
         this.profiles = profiles;
         this.goals = goals;
         this.freeTime = freeTime;
         this.social = social;
+        this.terrain = terrain;
     }
 
     public void tick() {
@@ -25,5 +32,6 @@ public final class OwnerRecordFlush {
         goals.flushIfDue();
         freeTime.flushIfDue();
         social.flushIfDue();
+        terrain.flushIfDue();
     }
 }

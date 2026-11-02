@@ -6,6 +6,7 @@ import dev.friendai.entity.CompanionChunkLoader;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionLifeData;
 import dev.friendai.entity.CompanionManager;
+import dev.friendai.features.cartography.minecraft.TerrainSamplerService;
 import dev.friendai.features.knowledge.KnowledgeLimits;
 import dev.friendai.features.memory.CompanionProfileRepository;
 import dev.friendai.features.memory.MemoryViewers;
@@ -34,6 +35,7 @@ import dev.friendai.infrastructure.config.ServerConfig;
 import dev.friendai.infrastructure.persistence.OwnerStoreWriter;
 import dev.friendai.infrastructure.persistence.appearance.SkinStore;
 import dev.friendai.infrastructure.persistence.autonomy.FreeTimeStore;
+import dev.friendai.infrastructure.persistence.cartography.TerrainStore;
 import dev.friendai.infrastructure.persistence.goals.GoalStore;
 import dev.friendai.infrastructure.persistence.knowledge.KnowledgeStore;
 import dev.friendai.infrastructure.persistence.memory.CompanionProfileStore;
@@ -71,6 +73,8 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
     private final GoalStore goalStore;
     private final FreeTimeStore freeTimeStore;
     private final SocialMemoryStore socialMemoryStore;
+    private final TerrainStore terrainStore;
+    private final TerrainSamplerService terrainSampler;
     private final SkillService skills;
     private final GoalService goals;
     private final dev.friendai.agent.autonomy.FreeTimeService freeTime;
@@ -129,6 +133,9 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
                 server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("free-time"), writer));
         this.socialMemoryStore = resources.own(new SocialMemoryStore(
                 server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("social"), writer));
+        this.terrainStore = resources.own(new TerrainStore(
+                server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("terrain"), writer));
+        this.terrainSampler = new TerrainSamplerService(terrainStore);
         this.goals = new GoalService(goalStore, () -> this.config.agent.maxReplans);
         this.freeTime = new dev.friendai.agent.autonomy.FreeTimeService(freeTimeStore);
         this.skins = new SkinStore(
@@ -246,6 +253,14 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
 
     public FreeTimeStore freeTimeStore() {
         return freeTimeStore;
+    }
+
+    public TerrainStore terrainStore() {
+        return terrainStore;
+    }
+
+    public TerrainSamplerService terrainSampler() {
+        return terrainSampler;
     }
 
     /** Per-owner raised subjects and learned taste, backed by their own versioned record. */
