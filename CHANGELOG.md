@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.170.0] - 2026-11-02
+
+### Added
+
+- `queue_show plan <id>` prints a short plan fingerprint and `queue_edit` accepts it as `expected`: an edit computed against older work is refused with a request to re-read the plan.
+
 ## [0.169.0] - 2026-11-02
 
 ### Added

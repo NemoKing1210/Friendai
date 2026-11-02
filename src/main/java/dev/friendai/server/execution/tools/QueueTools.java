@@ -13,6 +13,7 @@ import dev.friendai.execution.queue.Guard;
 import dev.friendai.execution.queue.JobQueue;
 import dev.friendai.execution.queue.PlanCodec;
 import dev.friendai.execution.queue.PlanDefinition;
+import dev.friendai.execution.queue.PlanFingerprint;
 import dev.friendai.execution.queue.PlanNode;
 import dev.friendai.execution.queue.PlanOptions;
 import dev.friendai.execution.queue.QueueHold;
@@ -113,13 +114,24 @@ public final class QueueTools implements FeatureToolContributor {
                                 .bool("include_done", "Include terminal jobs")
                                 .build(),
                         AccessLevel.TRUSTED,
-                        (c, args) -> ToolResult.ok(QueueText.show(
-                                c.executionCoordinator().queue(),
-                                new CompanionGuardFacts(c),
-                                args.has("plan") ? args.get("plan").getAsLong() : null,
-                                args.has("limit") ? args.get("limit").getAsInt() : 20,
-                                args.has("include_done")
-                                        && args.get("include_done").getAsBoolean()))),
+                        (c, args) -> {
+                            Long plan = args.has("plan") ? args.get("plan").getAsLong() : null;
+                            String text = QueueText.show(
+                                    c.executionCoordinator().queue(),
+                                    new CompanionGuardFacts(c),
+                                    plan,
+                                    args.has("limit") ? args.get("limit").getAsInt() : 20,
+                                    args.has("include_done")
+                                            && args.get("include_done").getAsBoolean());
+                            return ToolResult.ok(
+                                    plan == null
+                                            ? text
+                                            : text + "\nfingerprint "
+                                                    + PlanFingerprint.of(
+                                                            c.executionCoordinator()
+                                                                    .queue(),
+                                                            plan));
+                        }),
                 metadata("queue_show"));
         registry.registerTool(
                 callerTool(
@@ -149,6 +161,7 @@ public final class QueueTools implements FeatureToolContributor {
                                 .string("reason", "Optional reason for pause or defer")
                                 .integer("delay", "Deferral in queue ticks", 1, (int) QueueHold.MAX_DELAY_TICKS)
                                 .array("steps", "Replacement steps", stepSchema, 1, 64)
+                                .string("expected", "Fingerprint from queue_show; rejects a stale patch")
                                 .required("action")
                                 .build(),
                         AccessLevel.TRUSTED,
@@ -600,6 +613,21 @@ public final class QueueTools implements FeatureToolContributor {
         String action = args.get("action").getAsString();
         var runner = c.executionCoordinator();
         var q = runner.queue();
+        if (args.has("expected") && !args.get("expected").isJsonNull()) {
+            String expected = args.get("expected").getAsString().strip();
+            Long planId = args.has("plan")
+                    ? args.get("plan").getAsLong()
+                    : args.has("job")
+                            ? q.job(args.get("job").getAsLong())
+                                    .map(job -> job.planId() > 0 ? job.planId() : null)
+                                    .orElse(null)
+                            : null;
+            if (planId == null) return error("expected requires a plan id, or a job that belongs to a plan");
+            String actual = PlanFingerprint.of(q, planId);
+            if (!actual.equals(expected)) {
+                return error("the plan changed since that fingerprint; run queue_show plan " + planId + " again");
+            }
+        }
         try {
             switch (action) {
                 case "clear" -> {
