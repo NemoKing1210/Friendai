@@ -18,7 +18,8 @@
 				"ConditionalPlansTests",
 				"PaceTests",
 				"SessionLifecycleTests",
-				"TaskFaceTests"
+				"TaskFaceTests",
+				"LoggingTests"
 			]
 		},
 		{

@@ -246,7 +246,7 @@ public final class LogWriterService implements LogSink, AutoCloseable {
             file = open(path, record.owner());
             if (file == null) return;
         }
-        String line = LogJson.encode(record);
+        String line = LogJson.encode(redact(record));
         int bytes = line.getBytes(StandardCharsets.UTF_8).length + 1;
         if (file.bytes > file.headerBytes && file.bytes + bytes > settings.maxFileBytes()) {
             file = rotate(path, file, record.owner());
@@ -259,6 +259,41 @@ public final class LogWriterService implements LogSink, AutoCloseable {
         if (file.bytes >= settings.maxFileBytes()) {
             rotate(path, file, record.owner());
         }
+    }
+
+    private LogRecord redact(LogRecord record) {
+        Map<String, String> data = new java.util.LinkedHashMap<>();
+        for (Map.Entry<String, String> entry : record.data().entrySet()) {
+            data.put(redactor.apply(entry.getKey()), redactor.apply(entry.getValue()));
+        }
+        dev.friendai.foundation.diagnostics.LogError error = record.error();
+        if (error != null) {
+            error = new dev.friendai.foundation.diagnostics.LogError(
+                    redactor.apply(error.type()),
+                    redactor.apply(error.message()),
+                    redactor.apply(error.stack()),
+                    error.frames());
+        }
+        return new LogRecord(
+                record.seq(),
+                record.timeMillis(),
+                record.level(),
+                record.category(),
+                record.kind(),
+                record.event(),
+                record.owner(),
+                record.companion(),
+                record.session(),
+                record.turn(),
+                record.plan(),
+                record.job(),
+                record.task(),
+                redactor.apply(record.toolCall()),
+                record.cause(),
+                record.durationMs(),
+                redactor.apply(record.message()),
+                data,
+                error);
     }
 
     private Path pathFor(LogRecord record) {
@@ -388,7 +423,13 @@ public final class LogWriterService implements LogSink, AutoCloseable {
         }
     }
 
-    private void prune() {
+    public int pruneNow() {
+        int removed = prune();
+        flush();
+        return removed;
+    }
+
+    private int prune() {
         List<Path> roots = new ArrayList<>();
         if (scope == LogWriterScope.SERVER) {
             roots.add(root.resolve("server"));
@@ -426,13 +467,15 @@ public final class LogWriterService implements LogSink, AutoCloseable {
                         settings.maxTotalBytes(), settings.retentionDays(), settings.maxSessionsPerOwner()),
                 clock.getAsLong(),
                 active);
+        int removed = 0;
         for (Path path : remove) {
             try {
-                Files.deleteIfExists(path);
+                if (Files.deleteIfExists(path)) removed++;
             } catch (IOException ignored) {
                 // A locked or in-use file is retried next time.
             }
         }
+        return removed;
     }
 
     private static boolean underOwners(Path path) {
