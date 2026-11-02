@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.184.0] - 2026-11-02
+
+### Changed
+
+- A route is now trimmed by projecting the companion onto nearby legs, not only by an exact node match, so a walked leg is dropped without stepping back when the body is between grid nodes.
+
 ## [0.183.0] - 2026-11-02
 
 ### Added

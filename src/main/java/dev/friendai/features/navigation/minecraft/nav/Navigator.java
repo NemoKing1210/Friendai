@@ -416,7 +416,7 @@ public final class Navigator {
         if (executor != null) {
             executor.stop(c);
         }
-        Path trimmed = path.afterNode(node(), TRIM_LOOKAHEAD);
+        Path trimmed = path.afterPosition(node().pos(), TRIM_LOOKAHEAD);
         plan = PathSmoother.simplify(trimmed, new LevelCellView(companion, config(), CostModel.DEFAULTS, breakList));
         executor = new PathExecutor(plan, materials(config()), config(), PathExecutionGuard.DEFAULT, ledger, breakList);
         state = State.MOVING;
