@@ -227,7 +227,9 @@ public final class ToolCatalog {
                 "untrust_player",
                 "request_help",
                 "accept_help",
-                "decline_help");
+                "decline_help",
+                "offer_handoff",
+                "accept_handoff");
         group(metas, ToolGroup.CONTROL, Cost.LOW, "set_name", "create_item", "fly_to", "execute_command");
         group(
                 metas,
@@ -277,6 +279,14 @@ public final class ToolCatalog {
                 "find_target",
                 "- Use find_target when the player asks to find something that is not a material: a village or other structure, a biome, a villager or animal, or a place you know.\n"
                         + "- A structure is found by seeing its marker blocks, never by assuming where one is; the result names the budget spent and why it stopped.");
+        hint(
+                metas,
+                "offer_handoff",
+                "- Use offer_handoff only when the owner asks to give an exact item quantity to another owner at a named meeting point. Both owners must accept.");
+        hint(
+                metas,
+                "accept_handoff",
+                "- Use accept_handoff only when both companions are at the meeting point and both owners accepted. The exact quantity moves once.");
         hint(
                 metas,
                 "request_help",

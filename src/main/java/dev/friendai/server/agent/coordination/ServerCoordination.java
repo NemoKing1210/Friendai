@@ -1,6 +1,8 @@
 package dev.friendai.server.agent.coordination;
 
 import dev.friendai.agent.coordination.CompanionClaim;
+import dev.friendai.agent.coordination.HandoffBook;
+import dev.friendai.agent.coordination.HandoffRequest;
 import dev.friendai.agent.coordination.HelpRequest;
 import dev.friendai.agent.coordination.HelpRequestBook;
 import dev.friendai.entity.CompanionEntity;
@@ -17,6 +19,7 @@ import java.util.UUID;
 public final class ServerCoordination {
     private final ServerRuntime runtime;
     private final HelpRequestBook requests = new HelpRequestBook();
+    private final HandoffBook handoffs = new HandoffBook();
 
     public ServerCoordination(ServerRuntime runtime) {
         this.runtime = java.util.Objects.requireNonNull(runtime);
@@ -57,6 +60,26 @@ public final class ServerCoordination {
 
     public int expire(long now) {
         return requests.expire(now);
+    }
+
+    public boolean offerHandoff(HandoffRequest request) {
+        return handoffs.offer(request);
+    }
+
+    public Optional<HandoffRequest> takeHandoff(UUID fromOwner, UUID toOwner, long now) {
+        return handoffs.take(fromOwner, toOwner, now);
+    }
+
+    public boolean declineHandoff(UUID fromOwner, UUID toOwner) {
+        return handoffs.decline(fromOwner, toOwner);
+    }
+
+    public List<HandoffRequest> openHandoffsFor(UUID toOwner, long now) {
+        return handoffs.openFor(toOwner, now);
+    }
+
+    public int openHandoffCount() {
+        return handoffs.size();
     }
 
     public int openCount() {

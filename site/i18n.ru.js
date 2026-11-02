@@ -335,6 +335,8 @@ const RU = {
   "Ask another owner's companion for bounded help.": "Попросить компаньона другого владельца о помощи.",
   "Accept the named help only.": "Принять только названную помощь.",
   "Decline with no transfer.": "Отклонить без передачи.",
+  "Offer an exact item quantity at a meeting point.": "Предложить точное количество предметов в точке встречи.",
+  "Accept only the named transfer.": "Принять только названную передачу.",
   "Lower trust.": "Понизить доверие.",
   "Rename the companion.": "Переименовать компаньона.",
   "Load an instruction skill once.": "Один раз загрузить инструктивный навык.",

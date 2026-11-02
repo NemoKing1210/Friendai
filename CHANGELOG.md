@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.167.0] - 2026-11-02
+
+### Added
+
+- Two owners can agree on a bounded item handoff at a meeting point: both companions must be there, the source inventory is re-read, and the exact quantity moves once; a declined, interrupted or replayed offer moves nothing again.
+
 ## [0.166.0] - 2026-11-02
 
 ### Added
