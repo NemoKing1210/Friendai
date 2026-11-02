@@ -1,6 +1,7 @@
 package dev.friendai.client.voice;
 
 import dev.friendai.features.speech.AudioLevel;
+import dev.friendai.features.speech.PcmRingBuffer;
 import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
 import java.util.List;
@@ -21,6 +22,8 @@ public final class MicCapture implements AutoCloseable {
     private TargetDataLine line;
     private Thread reader;
     private ByteArrayOutputStream buffer;
+    /** Two seconds of 16 kHz mono 16-bit audio, never uploaded, overwritten oldest-first. */
+    private final PcmRingBuffer preRoll = new PcmRingBuffer(64_000);
 
     /** Names of the audio inputs that can record in our format. */
     public static List<String> devices() {
@@ -72,6 +75,7 @@ public final class MicCapture implements AutoCloseable {
                                 break;
                             }
                             level = AudioLevel.of(chunk, n);
+                            preRoll.write(chunk, n);
                             synchronized (sink) {
                                 sink.write(chunk, 0, n);
                             }
@@ -125,6 +129,11 @@ public final class MicCapture implements AutoCloseable {
     @Override
     public void close() {
         stop();
+    }
+
+    /** A copy of the volatile pre-roll; empty before any recording and never persisted. */
+    public byte[] preRoll() {
+        return preRoll.snapshot();
     }
 
     public boolean isRecording() {
