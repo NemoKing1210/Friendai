@@ -626,6 +626,38 @@ public class PathingTests {
                 "still " + c.position().distanceTo(owner.position()) + " blocks away"));
     }
 
+    @GameTest(maxTicks = 900)
+    public void followsAMovingOwnerWithoutTeleporting(GameTestHelper h) {
+        int floor = 280;
+        GameTestSupport.platformAt(h, floor, 96);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 20.0, floor + 1, 40.5);
+        owner.setOnGround(true);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, floor + 1, 40);
+        c.setOwner(owner.getUUID());
+        c.executionCoordinator().start(new FollowTask(true), "follow");
+        double[] last = {c.getX(), c.getY(), c.getZ()};
+        double[] biggest = {0};
+        int[] tick = {0};
+        h.onEachTick(() -> {
+            tick[0]++;
+            if (tick[0] <= 120) {
+                Vec3 at = h.absoluteVec(new Vec3(20.0 + tick[0] * 0.4, floor + 1, 40.5));
+                owner.teleportTo(at.x, at.y, at.z);
+            }
+            double step = Math.sqrt(Math.pow(c.getX() - last[0], 2)
+                    + Math.pow(c.getY() - last[1], 2)
+                    + Math.pow(c.getZ() - last[2], 2));
+            biggest[0] = Math.max(biggest[0], step);
+            last[0] = c.getX();
+            last[1] = c.getY();
+            last[2] = c.getZ();
+            h.assertTrue(biggest[0] < 1.5, "the companion jumped " + biggest[0] + " blocks in one tick");
+        });
+        h.succeedWhen(() -> h.assertTrue(
+                c.position().distanceTo(owner.position()) <= 5.0,
+                "still " + c.position().distanceTo(owner.position()) + " blocks from a moving owner"));
+    }
+
     @GameTest(maxTicks = 3000)
     public void followsThreeHundredBlocksWithoutTeleporting(GameTestHelper h) {
         int floor = 300;
