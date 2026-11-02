@@ -37,6 +37,7 @@
 				"CookingTests",
 				"BrewingTests",
 				"TerrainMapTests",
+				"CompanionCoordinationTests",
 				"StructureTests",
 				"DropPickupTests",
 				"LightAreaTests",

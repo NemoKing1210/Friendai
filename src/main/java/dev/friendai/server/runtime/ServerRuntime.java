@@ -31,6 +31,7 @@ import dev.friendai.infrastructure.persistence.trading.TradeStore;
 import dev.friendai.perception.resource.ObservationScheduler;
 import dev.friendai.perception.resource.ResourceCandidates;
 import dev.friendai.server.agent.CompanionSessions;
+import dev.friendai.server.agent.coordination.ServerCoordination;
 import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.server.execution.persistence.TaskPersistenceCoordinator;
 import dev.friendai.server.memory.TrustConfirmations;
@@ -58,6 +59,7 @@ public final class ServerRuntime implements AutoCloseable {
     private final RuntimeResources resources;
     private final ServerProtocolConnections protocolConnections;
     private final CompanionManager companions;
+    private final ServerCoordination coordination;
     private final dev.friendai.server.agent.social.SocialDirector socialDirector;
     private final DebugStream debugStream;
     private final MovementDebugStream movementDebugStream;
@@ -94,6 +96,7 @@ public final class ServerRuntime implements AutoCloseable {
         this.protocolConnections = server == null ? null : new ServerProtocolConnections(server);
         this.companions = server == null ? null : CompanionManager.get(server);
         if (companions != null) companions.attachRuntime(this);
+        this.coordination = companions == null ? null : new ServerCoordination(this);
         this.debugStream = new DebugStream();
         this.movementDebugStream = new MovementDebugStream();
         this.memoryViewStream = new MemoryViewStream();
@@ -168,6 +171,11 @@ public final class ServerRuntime implements AutoCloseable {
     public CompanionManager companions() {
         if (companions == null) throw new IllegalStateException("runtime has no companion manager");
         return companions;
+    }
+
+    public ServerCoordination coordination() {
+        if (coordination == null) throw new IllegalStateException("runtime has no coordination");
+        return coordination;
     }
 
     public String companionName(UUID owner) {
