@@ -41,6 +41,24 @@ public final class WorkConflict {
         return Optional.empty();
     }
 
+    /**
+     * A step the owner's queue does not hold but another companion's queue does. Owners never share a queue, so this
+     * is the cross-companion half of the duplicate guard: the same tree, place or build is not worked twice.
+     */
+    public static Optional<String> duplicateAcross(List<Job> own, List<List<Job>> otherQueues, List<ReflexStep> steps) {
+        Optional<String> ownHeld = duplicate(own, steps);
+        if (ownHeld.isPresent()) {
+            return ownHeld;
+        }
+        for (List<Job> queue : otherQueues) {
+            Optional<String> held = duplicate(queue, steps);
+            if (held.isPresent()) {
+                return held;
+            }
+        }
+        return Optional.empty();
+    }
+
     /** What a step's arguments point at, or empty when the tool works on nothing nameable. */
     public static String target(JsonObject args) {
         if (args == null) {

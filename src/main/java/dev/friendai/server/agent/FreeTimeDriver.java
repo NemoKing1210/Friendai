@@ -646,7 +646,13 @@ public final class FreeTimeDriver {
         } else if (ownerGoalActive || runner.busyWithOther() || runner.ownerWorkQueued()) {
             reason = "the owner's work comes first";
         } else {
-            Optional<String> held = WorkConflict.duplicate(runner.queue().jobs(), steps);
+            java.util.List<java.util.List<dev.friendai.execution.queue.Job>> otherQueues = new java.util.ArrayList<>();
+            for (CompanionEntity other : CompanionManager.get(server).all()) {
+                if (!other.ownerUuid().equals(owner)) {
+                    otherQueues.add(other.executionCoordinator().queue().jobs());
+                }
+            }
+            Optional<String> held = WorkConflict.duplicateAcross(runner.queue().jobs(), otherQueues, steps);
             if (held.isPresent()) {
                 runner.loopMetrics().duplicateWorkRefused();
                 reason = "the queue already holds " + held.get();

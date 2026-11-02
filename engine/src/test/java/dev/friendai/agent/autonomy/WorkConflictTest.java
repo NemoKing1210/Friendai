@@ -35,11 +35,29 @@ class WorkConflictTest {
     @Test
     void anotherTargetOrToolIsNotADuplicate() {
         List<Job> queued = List.of(job(1, "go_to_place", args("name", "home"), JobState.PENDING));
-        assertTrue(
-                WorkConflict.duplicate(queued, List.of(new ReflexStep("go_to_place", args("name", "mine"))))
-                        .isEmpty());
+        assertTrue(WorkConflict.duplicate(queued, List.of(new ReflexStep("go_to_place", args("name", "mine"))))
+                .isEmpty());
         assertTrue(WorkConflict.duplicate(queued, List.of(new ReflexStep("sleep", new JsonObject())))
                 .isEmpty());
+    }
+
+    @Test
+    void anotherCompanionsLiveQueueAlsoHoldsTheStep() {
+        List<Job> other = List.of(job(1, "mine_block", args("name", "oak_log"), JobState.RUNNING));
+        assertEquals(
+                "mine_block oak_log",
+                WorkConflict.duplicateAcross(
+                                List.of(),
+                                List.of(other),
+                                List.of(new ReflexStep("mine_block", args("name", "oak_log"))))
+                        .orElseThrow());
+        assertTrue(
+                WorkConflict.duplicateAcross(
+                                List.of(),
+                                List.of(other),
+                                List.of(new ReflexStep("mine_block", args("name", "birch_log"))))
+                        .isEmpty(),
+                "different targets never conflict");
     }
 
     @Test
