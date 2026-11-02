@@ -428,8 +428,69 @@ tasks.register('exportTestJar', Sync) {
 	into(layout.projectDirectory.dir('test-builds'))
 }
 
+// Optional local drop-in target: when TEST_BUILD_PATH is set, in the process environment or in a
+// git-ignored .env at the repository root, deployTestJar removes older Friendai jars from that
+// directory and copies the freshly built one there. Runs after every `assemble`/`build`.
+def dotenvFile = layout.projectDirectory.file('.env').asFile
+
+def deployTestTarget = { ->
+	def value = System.getenv('TEST_BUILD_PATH')
+	if (value == null || value.trim().isEmpty()) {
+		value = null
+		if (dotenvFile.isFile()) {
+			dotenvFile.eachLine('UTF-8') { raw ->
+				def line = raw.trim()
+				if (line.startsWith('export ')) line = line.substring('export '.length()).trim()
+				if (value != null || line.isEmpty() || line.startsWith('#')) return
+				int separator = line.indexOf('=')
+				if (separator <= 0) return
+				if (line.substring(0, separator).trim() != 'TEST_BUILD_PATH') return
+				def found = line.substring(separator + 1).trim()
+				boolean quoted = found.length() >= 2
+						&& ((found.startsWith('"') && found.endsWith('"'))
+								|| (found.startsWith("'") && found.endsWith("'")))
+				if (quoted) found = found.substring(1, found.length() - 1)
+				value = found.trim().isEmpty() ? null : found.trim()
+			}
+		}
+	}
+	return value == null || value.trim().isEmpty() ? null : value.trim()
+}
+
+tasks.register('deployTestJar') {
+	group = 'build'
+	description = 'Removes older Friendai jars from TEST_BUILD_PATH (environment or .env) and copies the built jar there.'
+	dependsOn tasks.named('jar')
+	def modJar = tasks.named('jar').flatMap { it.archiveFile }
+	def fs = project.services.get(org.gradle.api.file.FileSystemOperations)
+	inputs.file(modJar)
+	inputs.files(dotenvFile).optional()
+	onlyIf { deployTestTarget() != null }
+	doLast {
+		def target = new File(deployTestTarget()).canonicalFile
+		if (!target.isDirectory() && !target.mkdirs() && !target.isDirectory()) {
+			throw new GradleException("TEST_BUILD_PATH ${target} does not exist and cannot be created")
+		}
+		def builtName = modJar.get().asFile.name
+		def stale = (target.listFiles() ?: new File[0]).findAll {
+			it.isFile() && it.name != builtName && it.name ==~ /friendai-.*\.jar(\.sha256)?/
+		}
+		stale.each { old ->
+			if (!old.delete()) {
+				throw new GradleException("Cannot delete ${old}; close Minecraft if it has the mod loaded and run again")
+			}
+		}
+		fs.copy {
+			from(modJar)
+			into(target)
+		}
+		logger.lifecycle("Deployed ${builtName} to ${target} (removed ${stale.size()} older file(s))")
+	}
+}
+
 tasks.named('assemble') {
 	finalizedBy 'exportTestJar'
+	finalizedBy 'deployTestJar'
 }
 
 jar {

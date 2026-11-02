@@ -58,6 +58,7 @@ Thumbs.db
 desktop.ini
 
 # Local tooling and planning files (never committed)
+/.env
 /.claude/
 /.codex/
 /.opencode/
