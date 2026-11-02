@@ -63,6 +63,31 @@ class TerrainGridTest {
     }
 
     @Test
+    void sitesAndRoadsAreBoundedAndSurviveACopy() {
+        TerrainGrid grid = new TerrainGrid();
+        for (int i = 0; i < TerrainGrid.MAX_SITES + 10; i++) {
+            grid.addSite(new TerrainSite("minecraft:overworld", i, 0, "village", "v" + i, 1));
+        }
+        for (int i = 0; i < TerrainGrid.MAX_ROADS + 10; i++) {
+            grid.addRoad(new TerrainRoad("minecraft:overworld", i, 0, i, 10, "path", 1));
+        }
+        grid.setGeneration(9);
+        assertEquals(TerrainGrid.MAX_SITES, grid.sites().size());
+        assertEquals(TerrainGrid.MAX_ROADS, grid.roads().size());
+        TerrainGrid copy = grid.copy();
+        assertEquals(9, copy.generation());
+        assertEquals(grid.sites(), copy.sites());
+        assertEquals(grid.roads(), copy.roads());
+    }
+
+    @Test
+    void aRoadHasTheSameIdentityFromEitherEnd() {
+        TerrainRoad forward = new TerrainRoad("minecraft:overworld", 1, 2, 30, 40, "path", 1);
+        TerrainRoad reverse = new TerrainRoad("minecraft:overworld", 30, 40, 1, 2, "path", 2);
+        assertEquals(forward.id(), reverse.id());
+    }
+
+    @Test
     void freshnessIsAGameTickWindow() {
         TerrainCell c = cell("minecraft:overworld", 0, 0, 100);
         assertTrue(c.fresh(150, 60));

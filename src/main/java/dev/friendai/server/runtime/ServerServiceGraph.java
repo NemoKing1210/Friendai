@@ -152,7 +152,19 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
                 server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("placed"),
                 PlacedLimits.DEFAULTS,
                 writer));
-        this.placeService = new PlaceService(places::book, this::placeSettings);
+        this.placeService = new PlaceService(places::book, this::placeSettings).onRemembered((companion, place) -> {
+            UUID owner = companion.ownerUuid();
+            if (owner == null) return;
+            var grid = terrainSampler.grid(owner);
+            grid.addSite(new dev.friendai.features.cartography.TerrainSite(
+                    place.dimension(),
+                    place.anchor().x(),
+                    place.anchor().z(),
+                    place.kind().name().toLowerCase(java.util.Locale.ROOT),
+                    place.name(),
+                    place.updatedTick()));
+            terrainStore.save(owner, grid);
+        });
         this.placedService = new PlacedService(placed::book);
         this.trading = resources.own(new TradeStore(
                 server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("trading"), writer));

@@ -23,7 +23,14 @@ public final class TerrainSamplerService {
     private final TerrainRepository repository;
     private final Map<UUID, TerrainGrid> grids = new HashMap<>();
     private final Map<UUID, TerrainSampler.Cursor> cursors = new HashMap<>();
+    private final Map<UUID, WalkedPoint> lastPoints = new HashMap<>();
     private long lastTick = Long.MIN_VALUE;
+
+    /** Where an owner's companion was when the map last recorded a route end. */
+    private record WalkedPoint(String dimension, int x, int z) {}
+
+    /** Two samples closer than this are one place, not a route. */
+    private static final int ROAD_MIN_DISTANCE = 16;
 
     public TerrainSamplerService(TerrainRepository repository) {
         this.repository = java.util.Objects.requireNonNull(repository);
@@ -40,12 +47,21 @@ public final class TerrainSamplerService {
             if (owner == null || !(companion.level() instanceof ServerLevel level)) {
                 continue;
             }
-            sample(
-                    owner,
-                    level,
-                    companion.blockPosition().getX(),
-                    companion.blockPosition().getZ(),
-                    level.getGameTime());
+            int x = companion.blockPosition().getX();
+            int z = companion.blockPosition().getZ();
+            String dimension = level.dimension().identifier().toString();
+            TerrainGrid grid = grid(owner);
+            WalkedPoint previous = lastPoints.get(owner);
+            if (previous != null
+                    && previous.dimension().equals(dimension)
+                    && (long) (previous.x() - x) * (previous.x() - x) + (long) (previous.z() - z) * (previous.z() - z)
+                            >= (long) ROAD_MIN_DISTANCE * ROAD_MIN_DISTANCE) {
+                grid.addRoad(new dev.friendai.features.cartography.TerrainRoad(
+                        dimension, previous.x(), previous.z(), x, z, "walked", level.getGameTime()));
+                repository.save(owner, grid);
+            }
+            lastPoints.put(owner, new WalkedPoint(dimension, x, z));
+            sample(owner, level, x, z, level.getGameTime());
         }
     }
 
@@ -71,5 +87,6 @@ public final class TerrainSamplerService {
     public void forget(UUID owner) {
         grids.remove(owner);
         cursors.remove(owner);
+        lastPoints.remove(owner);
     }
 }

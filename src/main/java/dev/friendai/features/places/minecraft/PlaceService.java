@@ -34,10 +34,17 @@ public final class PlaceService {
 
     private final Function<UUID, PlaceRegistry> books;
     private final Supplier<PlaceSettings> settings;
+    private java.util.function.BiConsumer<CompanionEntity, Place> onRemembered = (companion, place) -> {};
 
     public PlaceService(Function<UUID, PlaceRegistry> books, Supplier<PlaceSettings> settings) {
         this.books = Objects.requireNonNull(books, "books");
         this.settings = Objects.requireNonNull(settings, "settings");
+    }
+
+    /** Observes a remembered place, used to copy it onto the owner's terrain map. */
+    public PlaceService onRemembered(java.util.function.BiConsumer<CompanionEntity, Place> listener) {
+        this.onRemembered = Objects.requireNonNull(listener, "listener");
+        return this;
     }
 
     /** Isolated registry used by catalog-only tool registries that have no server persistence. */
@@ -81,7 +88,9 @@ public final class PlaceService {
                 values.note(),
                 values.below(),
                 values.above());
-        return book.remember(stored, tick);
+        Place remembered = book.remember(stored, tick);
+        onRemembered.accept(companion, remembered);
+        return remembered;
     }
 
     /** Answers "which places do I know?" from the companion's own position and dimension. */
