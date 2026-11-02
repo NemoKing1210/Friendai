@@ -124,6 +124,7 @@ public final class ToolCatalog {
                 "skill_help",
                 "manage_skill",
                 "read_log",
+                "logs_search",
                 "recent_chat",
                 "memory_overview",
                 "compress_memory",

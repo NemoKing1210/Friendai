@@ -5,6 +5,7 @@ import dev.friendai.features.memory.MemoryLimits;
 import dev.friendai.features.memory.transcript.TranscriptBook;
 import dev.friendai.features.memory.transcript.TranscriptLimits;
 import dev.friendai.foundation.diagnostics.DebugLog;
+import java.nio.file.Path;
 import java.util.UUID;
 import java.util.function.UnaryOperator;
 
@@ -18,6 +19,11 @@ public interface SelfAccess {
     }
 
     DebugLog log(UUID owner);
+
+    /** The owner's durable log directory, or null when file logging is not available. */
+    default Path logRoot(UUID owner) {
+        return null;
+    }
 
     TranscriptBook transcript(UUID owner);
 

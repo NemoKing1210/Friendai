@@ -205,6 +205,16 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
             }
 
             @Override
+            public java.nio.file.Path logRoot(UUID owner) {
+                return net.fabricmc.loader.api.FabricLoader.getInstance()
+                        .getGameDir()
+                        .resolve("logs")
+                        .resolve("friendai")
+                        .resolve("owners")
+                        .resolve(owner.toString());
+            }
+
+            @Override
             public TranscriptBook transcript(UUID owner) {
                 return transcripts.book(owner);
             }

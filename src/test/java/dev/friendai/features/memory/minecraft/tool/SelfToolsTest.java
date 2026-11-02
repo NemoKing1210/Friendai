@@ -51,7 +51,7 @@ class SelfToolsTest {
     @Test
     void theToolsAreOfferedByRoleAndHiddenWhenMemoryIsDisabled() {
         assertEquals(
-                Set.of("read_log", "recent_chat", "memory_overview", "compress_memory", "reset_manner"),
+                Set.of("read_log", "logs_search", "recent_chat", "memory_overview", "compress_memory", "reset_manner"),
                 names(tools.specs(AccessLevel.OWNER)));
         assertEquals(Set.of("recent_chat", "memory_overview"), names(tools.specs(AccessLevel.TRUSTED)));
         assertEquals(Set.of("memory_overview"), names(tools.specs(AccessLevel.GUEST)));
@@ -67,7 +67,7 @@ class SelfToolsTest {
         });
         new SelfTools(access).register(contributions);
         dev.friendai.agent.tools.ToolCatalog catalog = dev.friendai.agent.tools.ToolCatalog.defaults();
-        assertEquals(5, contributions.catalogMetadata().size());
+        assertEquals(6, contributions.catalogMetadata().size());
         contributions
                 .catalogMetadata()
                 .forEach(meta -> assertEquals(catalog.meta(meta.name()).orElseThrow(), meta));
@@ -90,6 +90,15 @@ class SelfToolsTest {
         ToolResult result = call("read_log", new JsonObject(), TRUSTED_CALLER);
         assertTrue(result.error());
         assertFalse(result.content().contains("private"));
+    }
+
+    @Test
+    void logsSearchAnswersWithTheRootStateAndRefusesNonOwners() {
+        ToolResult owner = call("logs_search", new JsonObject(), OWNER_CALLER);
+        assertFalse(owner.error());
+        assertTrue(owner.content().contains("No files yet"));
+        ToolResult guest = call("logs_search", new JsonObject(), TRUSTED_CALLER);
+        assertTrue(guest.error());
     }
 
     @Test

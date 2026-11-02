@@ -5,6 +5,7 @@ import dev.friendai.agent.tools.Cost;
 import dev.friendai.agent.tools.ToolGroup;
 import dev.friendai.agent.tools.ToolMeta;
 import dev.friendai.agent.turn.LogActions;
+import dev.friendai.agent.turn.LogSearch;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
@@ -18,7 +19,10 @@ import dev.friendai.features.memory.MemoryLimits;
 import dev.friendai.features.memory.PlayerRecord;
 import dev.friendai.features.memory.Subject;
 import dev.friendai.features.memory.transcript.TranscriptActions;
+import dev.friendai.foundation.diagnostics.LogCategory;
+import dev.friendai.foundation.diagnostics.LogFilter;
 import dev.friendai.foundation.diagnostics.LogKind;
+import dev.friendai.foundation.diagnostics.LogLevel;
 import dev.friendai.foundation.text.TextBudget;
 import dev.friendai.server.execution.tools.FeatureToolContributor;
 import dev.friendai.server.execution.tools.FeatureToolRegistry;
@@ -67,6 +71,40 @@ public final class SelfTools implements FeatureToolContributor {
                         AccessLevel.OWNER,
                         this::readLog),
                 meta("read_log"));
+        registry.registerTool(
+                callerTool(
+                        "logs_search",
+                        "Search your durable log files: the structured record of turns, tool calls, task events, queue "
+                                + "states and errors, with sequence ids and cause links. Levels are trace, debug, info, warn, "
+                                + "error; categories are brain, tool, task, queue, net, speech, world, config, client, "
+                                + "server. Continue with before=<first id shown>.",
+                        SchemaBuilder.object()
+                                .enumeration("level", "Minimum level", "ALL", "warn", "error")
+                                .enumeration(
+                                        "category",
+                                        "Only this category",
+                                        "ALL",
+                                        "brain",
+                                        "tool",
+                                        "task",
+                                        "queue",
+                                        "net",
+                                        "speech",
+                                        "world",
+                                        "config",
+                                        "client",
+                                        "server")
+                                .string("event", "Only this event name, for example tool.call")
+                                .integer("turn", "Only records of this turn", 0, Integer.MAX_VALUE)
+                                .integer("task", "Only records of this task", 0, Integer.MAX_VALUE)
+                                .integer("before", "Only records with an id smaller than this", 0, Integer.MAX_VALUE)
+                                .string("query", "Case-insensitive text in the message or a data value")
+                                .integer("limit", "How many records to return", 1, 200)
+                                .enumeration("order", "Newest or oldest first", "newest", "oldest")
+                                .build(),
+                        AccessLevel.OWNER,
+                        this::searchLogs),
+                meta("logs_search"));
         registry.registerTool(
                 callerTool(
                         "recent_chat",
@@ -255,6 +293,54 @@ public final class SelfTools implements FeatureToolContributor {
     /** Guidance on when to look lives in the role-aware prompt section, so a guest never sees an owner-only tool. */
     private static ToolMeta meta(String name) {
         return new ToolMeta(name, ToolGroup.MEMORY, true, "", List.of(), Cost.LOW);
+    }
+
+    private ToolResult searchLogs(CompanionEntity companion, Caller caller, JsonObject args) {
+        try {
+            UUID owner = self.owner(companion);
+            LogLevel level = null;
+            if (args.has("level") && !args.get("level").isJsonNull()) {
+                String raw = args.get("level").getAsString();
+                if (!raw.equalsIgnoreCase("ALL")) {
+                    level = LogLevel.parse(raw)
+                            .orElseThrow(() -> new IllegalArgumentException("Unknown level: " + raw));
+                }
+            }
+            LogCategory category = null;
+            if (args.has("category") && !args.get("category").isJsonNull()) {
+                String raw = args.get("category").getAsString();
+                if (!raw.equalsIgnoreCase("ALL")) {
+                    category = LogCategory.parse(raw)
+                            .orElseThrow(() -> new IllegalArgumentException("Unknown category: " + raw));
+                }
+            }
+            String event = args.has("event") && !args.get("event").isJsonNull()
+                    ? args.get("event").getAsString()
+                    : "";
+            long turn = args.has("turn") ? args.get("turn").getAsLong() : 0L;
+            long task = args.has("task") ? args.get("task").getAsLong() : 0L;
+            long before = args.has("before") ? args.get("before").getAsLong() : 0L;
+            String query = args.has("query") && !args.get("query").isJsonNull()
+                    ? args.get("query").getAsString()
+                    : "";
+            int limit = args.has("limit") ? args.get("limit").getAsInt() : 50;
+            boolean newest =
+                    !args.has("order") || args.get("order").getAsString().equalsIgnoreCase("newest");
+            return ToolResult.ok(LogSearch.request(
+                    caller,
+                    owner,
+                    self.logRoot(owner),
+                    new LogFilter(level, category == null ? Set.of() : Set.of(category), event, turn, task, query),
+                    before,
+                    limit,
+                    newest,
+                    self.resultBudget(),
+                    self.redactor(),
+                    self.now()));
+        } catch (RuntimeException failure) {
+            return ToolResult.error(
+                    failure.getMessage() == null ? "Could not search the log files." : failure.getMessage());
+        }
     }
 
     private ToolResult readLog(CompanionEntity companion, Caller caller, JsonObject args) {
