@@ -6,6 +6,7 @@ import dev.friendai.agent.llm.provider.RoutingRule;
 import dev.friendai.features.memory.MemoryLimits;
 import dev.friendai.features.mining.MiningRuntimeSettings;
 import dev.friendai.features.navigation.pathing.PathingConfig;
+import dev.friendai.features.social.InteractionStyle;
 import dev.friendai.foundation.diagnostics.ConfigException;
 import dev.friendai.foundation.text.UserMessage;
 import java.util.ArrayList;
@@ -59,6 +60,9 @@ public class ServerConfig {
         public String name = "Friendai";
         public String description = "A friendly and resourceful Minecraft companion. Keeps answers short and helpful.";
         public String language = "auto";
+        /** concise, balanced or expressive: how the companion talks, never what it may say or do. */
+        public String interactionStyle = InteractionStyle.BALANCED.configValue();
+
         public ChunkLoadingSection chunkLoading = new ChunkLoadingSection();
     }
 
@@ -297,6 +301,14 @@ public class ServerConfig {
         }
         companion.chunkLoading.radius =
                 clamp(problems, "companion.chunkLoading.radius", companion.chunkLoading.radius, 0, 4);
+        InteractionStyle interactionStyle = InteractionStyle.fromName(companion.interactionStyle);
+        if (interactionStyle == null) {
+            problems.add("companion.interactionStyle " + companion.interactionStyle
+                    + " is not concise, balanced or expressive, using balanced");
+            companion.interactionStyle = InteractionStyle.BALANCED.configValue();
+        } else {
+            companion.interactionStyle = interactionStyle.configValue();
+        }
         if (chat == null) {
             chat = new ChatSection();
             problems.add("chat was missing");

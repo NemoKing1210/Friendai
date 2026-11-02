@@ -145,6 +145,8 @@
   "friendai.config.companion.description": "Описание",
   "friendai.config.companion.language": "Язык ответов",
   "friendai.config.companion.language.tooltip": "«auto» — язык, на котором пишет игрок.",
+  "friendai.config.companion.interaction_style": "Стиль общения",
+  "friendai.config.companion.interaction_style.tooltip": "Как компаньон говорит: «Кратко» — короткие ответы без непрошеных реплик, «Сбалансированно» — естественная речь и рассказ только о важном, «Выразительно» — больше деталей, небольшие реакции и лёгкая болтовня. По умолчанию: сбалансированно. Применяется при сохранении; не меняет права, факты, инструменты и правила безопасности.",
   "friendai.config.chat.prefix": "Префикс",
   "friendai.config.chat.respond_to_name": "Откликаться на имя",
   "friendai.config.chat.listen_all": "Слушать все сообщения",

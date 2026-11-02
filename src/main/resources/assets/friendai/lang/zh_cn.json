@@ -145,6 +145,8 @@
   "friendai.config.companion.description": "描述",
   "friendai.config.companion.language": "回复语言",
   "friendai.config.companion.language.tooltip": "“auto”表示使用玩家书写的语言。",
+  "friendai.config.companion.interaction_style": "互动风格",
+  "friendai.config.companion.interaction_style.tooltip": "同伴的说话方式：简洁——回答简短，不主动闲聊；平衡——自然表达，只在重要时主动讲述；丰富——更多细节、细微反应和轻松闲聊。默认：平衡。保存后生效；绝不改变权限、事实、工具或安全规则。",
   "friendai.config.chat.prefix": "前缀",
   "friendai.config.chat.respond_to_name": "响应它的名字",
   "friendai.config.chat.listen_all": "监听所有消息",

@@ -42,6 +42,7 @@ import dev.friendai.features.placements.minecraft.PlacedService;
 import dev.friendai.features.places.PlaceCandidate;
 import dev.friendai.features.places.PlaceText;
 import dev.friendai.features.places.minecraft.PlaceService;
+import dev.friendai.features.social.InteractionStyle;
 import dev.friendai.features.trading.TradeAuthority;
 import dev.friendai.features.trading.TradePromptSummary;
 import dev.friendai.foundation.diagnostics.DebugLog;
@@ -958,13 +959,15 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                                     config.memory.compactAtPercent,
                                     gateways.redactor())
                             : "";
-                    String social = dev.friendai.features.social.BondPrompt.line(
-                            companion.bondTier(),
-                            companion.syncedMood(),
-                            companion.bondReasons(),
-                            companion.traits(),
-                            caller.access() == AccessLevel.OWNER && owner.equals(caller.uuid()));
-                    return social.isEmpty() ? memoryText : (memoryText.isBlank() ? social : memoryText + "\n" + social);
+                    String social = InteractionStyle.appendTo(
+                            config.companion.interactionStyle,
+                            dev.friendai.features.social.BondPrompt.line(
+                                    companion.bondTier(),
+                                    companion.syncedMood(),
+                                    companion.bondReasons(),
+                                    companion.traits(),
+                                    caller.access() == AccessLevel.OWNER && owner.equals(caller.uuid())));
+                    return memoryText.isBlank() ? social : memoryText + "\n" + social;
                 },
                 toolCatalog);
         brain.setTradingTurnPort(session.tradingAuthority());

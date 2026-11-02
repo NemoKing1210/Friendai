@@ -145,6 +145,8 @@
   "friendai.config.companion.description": "Descripción",
   "friendai.config.companion.language": "Idioma de respuesta",
   "friendai.config.companion.language.tooltip": "«auto» significa el idioma en el que escribe el jugador.",
+  "friendai.config.companion.interaction_style": "Estilo de conversación",
+  "friendai.config.companion.interaction_style.tooltip": "Cómo habla el compañero: Conciso mantiene respuestas cortas y evita comentarios no pedidos, Equilibrado habla con naturalidad y solo narra cuando algo importa, Expresivo añade detalle, pequeñas reacciones y charla ligera. Predeterminado: Equilibrado. Se aplica al guardar; nunca cambia permisos, hechos, herramientas ni reglas de seguridad.",
   "friendai.config.chat.prefix": "Prefijo",
   "friendai.config.chat.respond_to_name": "Responder a su nombre",
   "friendai.config.chat.listen_all": "Escuchar todos los mensajes",

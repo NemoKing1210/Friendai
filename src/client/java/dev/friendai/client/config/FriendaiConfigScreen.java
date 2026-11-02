@@ -1106,6 +1106,16 @@ public final class FriendaiConfigScreen {
                         .binding("auto", () -> c.language, v -> c.language = v.isBlank() ? "auto" : v.strip())
                         .controller(StringControllerBuilder::create)
                         .build())
+                .option(Option.<String>createBuilder()
+                        .name(tr("friendai.config.companion.interaction_style"))
+                        .description(OptionDescription.of(tr("friendai.config.companion.interaction_style.tooltip")))
+                        .binding(
+                                dev.friendai.features.social.InteractionStyle.BALANCED.configValue(),
+                                () -> c.interactionStyle,
+                                v -> c.interactionStyle = dev.friendai.features.social.InteractionStyle.parse(v)
+                                        .configValue())
+                        .controller(StringControllerBuilder::create)
+                        .build())
                 .option(booleanOption(
                         "friendai.config.skills.enabled",
                         "friendai.config.skills.enabled.tooltip",

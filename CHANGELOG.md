@@ -6,7 +6,13 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
-## [0.149.0] - 2026-11-02
+## [0.150.0] - 2026-11-02
+
+### Added
+
+- An **Interaction style** setting (Concise, Balanced, Expressive) that changes how much the companion says and narrates — never its permissions, facts, tools or safety rules. Default is Balanced.
+
+ - 2026-11-02
 
 ### Added
 

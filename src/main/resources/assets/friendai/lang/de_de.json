@@ -145,6 +145,8 @@
   "friendai.config.companion.description": "Beschreibung",
   "friendai.config.companion.language": "Antwortsprache",
   "friendai.config.companion.language.tooltip": "„auto“ bedeutet die Sprache, in der der Spieler schreibt.",
+  "friendai.config.companion.interaction_style": "Gesprächsstil",
+  "friendai.config.companion.interaction_style.tooltip": "Wie der Begleiter spricht: Kurz hält Antworten knapp und verzichtet auf unaufgeforderte Bemerkungen, Ausgeglichen spricht natürlich und erzählt nur, wenn etwas wichtig ist, Ausdrucksstark ergänzt Details, kleine Reaktionen und leichte Plauderei. Standard: Ausgeglichen. Wird beim Speichern übernommen; ändert nie Rechte, Fakten, Werkzeuge oder Sicherheitsregeln.",
   "friendai.config.chat.prefix": "Präfix",
   "friendai.config.chat.respond_to_name": "Auf den eigenen Namen hören",
   "friendai.config.chat.listen_all": "Alle Nachrichten mitlesen",

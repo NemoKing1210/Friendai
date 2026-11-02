@@ -145,6 +145,8 @@
   "friendai.config.companion.description": "Description",
   "friendai.config.companion.language": "Reply language",
   "friendai.config.companion.language.tooltip": "\"auto\" means the language the player writes in.",
+  "friendai.config.companion.interaction_style": "Interaction style",
+  "friendai.config.companion.interaction_style.tooltip": "How the companion talks: Concise keeps replies short and skips unprompted chatter, Balanced speaks naturally and narrates only when something matters, Expressive adds detail, small reactions and light chatter. Default: Balanced. Applies on Save; never changes permissions, facts, tools or safety rules.",
   "friendai.config.chat.prefix": "Prefix",
   "friendai.config.chat.respond_to_name": "Respond to its name",
   "friendai.config.chat.listen_all": "Listen to all messages",

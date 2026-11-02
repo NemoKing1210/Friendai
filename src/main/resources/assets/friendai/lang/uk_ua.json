@@ -145,6 +145,8 @@
   "friendai.config.companion.description": "Опис",
   "friendai.config.companion.language": "Мова відповідей",
   "friendai.config.companion.language.tooltip": "«auto» означає мову, якою пише гравець.",
+  "friendai.config.companion.interaction_style": "Стиль спілкування",
+  "friendai.config.companion.interaction_style.tooltip": "Як помічник говорить: «Стисло» — короткі відповіді без непроханих реплік, «Збалансовано» — природна мова й розповідь лише про важливе, «Виразно» — більше деталей, невеликі реакції та легка балачка. Типово: збалансовано. Застосовується при збереженні; не змінює права, факти, інструменти чи правила безпеки.",
   "friendai.config.chat.prefix": "Префікс",
   "friendai.config.chat.respond_to_name": "Відповідати на своє ім'я",
   "friendai.config.chat.listen_all": "Слухати всі повідомлення",

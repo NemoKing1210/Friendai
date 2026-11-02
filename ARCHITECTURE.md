@@ -196,7 +196,7 @@ Every server tick runs the reflexes before the queue: `CombatController` (fight,
 
 ### Mood, bond and the outline
 
-`features/social/` is pure and holds the affect model. `MoodModel` turns observed facts into one of six faces with
+`features/social/` is pure and holds the affect model. `InteractionStyle` is the owner's choice of how much the companion says (CONCISE/BALANCED/EXPRESSIVE, one bounded clause appended to the tone line, never a permission). `MoodModel` turns observed facts into one of six faces with
 hysteresis — ten ticks of danger before it turns `WORRIED` and twenty quiet ticks before it lets go — while `pulse`
 and `cue(SpeechCue)` add a bounded eighty-tick reaction to a deed or to something the owner explicitly said. The face
 is the only synced value: `DATA_MOOD` (`CompanionEntity.syncedMood`) reaches every tracking client, and
