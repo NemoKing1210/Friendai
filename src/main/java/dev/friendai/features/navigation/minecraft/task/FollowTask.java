@@ -3,7 +3,9 @@ package dev.friendai.features.navigation.minecraft.task;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.navigation.minecraft.nav.LevelCellView;
 import dev.friendai.features.navigation.minecraft.nav.MoveHelper;
+import dev.friendai.features.navigation.minecraft.nav.ResourceJourney;
 import dev.friendai.features.navigation.pathing.GoalPoint;
+import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
@@ -26,6 +28,10 @@ public final class FollowTask implements Task {
     private int retryCooldown;
     private LevelCellView terrain;
     private int terrainTick = Integer.MIN_VALUE;
+    private static final double JOURNEY_DISTANCE = 64.0;
+    private static final double JOURNEY_TARGET_MARGIN = 16.0;
+    private ResourceJourney journey;
+    private Pos journeyTarget;
 
     /** @param quiet true when started as the default activity, so the brain hears nothing about it */
     public FollowTask(boolean quiet) {
@@ -79,7 +85,49 @@ public final class FollowTask implements Task {
             moving = true;
         }
         if (!moving) {
+            if (journey != null) journey.stop(c);
+            journey = null;
+            journeyTarget = null;
             return TaskStatus.RUNNING;
+        }
+        if (distance > JOURNEY_DISTANCE) {
+            if (journey == null || journeyTarget == null || journeyTargetDistance(target) > JOURNEY_TARGET_MARGIN) {
+                if (journey != null) journey.stop(c);
+                Pos destination =
+                        new Pos((int) Math.floor(target.x), (int) Math.floor(target.y), (int) Math.floor(target.z));
+                var settings = c.resourceSearchSettings();
+                journey = new ResourceJourney(
+                        c,
+                        c.level().dimension().identifier().toString(),
+                        destination,
+                        null,
+                        c.ownerKnowledge().trails(),
+                        settings.allowExpeditions() && settings.chunkLoadingEnabled());
+                journeyTarget = destination;
+            }
+            switch (journey.tick(c)) {
+                case ARRIVED -> {
+                    journey.stop(c);
+                    journey = null;
+                    journeyTarget = null;
+                    moving = false;
+                }
+                case BLOCKED, CANCELLED -> {
+                    journey.stop(c);
+                    journey = null;
+                    journeyTarget = null;
+                    retryCooldown = RETRY_TICKS;
+                }
+                case WAITING_FOR_CHUNK, WORKING -> {
+                    // The journey owns movement and the lease for this leg.
+                }
+            }
+            return TaskStatus.RUNNING;
+        }
+        if (journey != null) {
+            journey.stop(c);
+            journey = null;
+            journeyTarget = null;
         }
         mover.following(distance);
         switch (mover.tick(c, target)) {
@@ -95,6 +143,14 @@ public final class FollowTask implements Task {
             default -> {}
         }
         return TaskStatus.RUNNING;
+    }
+
+    private double journeyTargetDistance(Vec3 target) {
+        if (journeyTarget == null) return Double.MAX_VALUE;
+        double dx = target.x - journeyTarget.x();
+        double dy = target.y - journeyTarget.y();
+        double dz = target.z - journeyTarget.z();
+        return Math.sqrt(dx * dx + dy * dy + dz * dz);
     }
 
     /** The owner's feet when grounded; otherwise the highest standable cell beneath the owner. */
@@ -134,6 +190,9 @@ public final class FollowTask implements Task {
 
     @Override
     public void stop(TaskContext c) {
+        if (journey != null) journey.stop(c);
+        journey = null;
+        journeyTarget = null;
         if (mover != null) {
             mover.stop(c);
         }
