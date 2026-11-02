@@ -80,7 +80,7 @@ const CATS = [
     desc: "Ask for an item and it works out how: inventory, chests, craft, smelt, mine, hunt, harvest, shear, milk or explore.",
     items: [
       "obtain_item|Get an item by any means.", "plan_obtain|Show the plan without doing it.", "search_resource|Explore to find a resource.",
-      "known_resources|What it already knows about.", "search_hint|Give it a hint where to look.", "find_target|Resolve a search target.",
+      "known_resources|What it already knows about.", "search_hint|Give it a hint where to look.", "find_target|Resolve a search target.", "find_structure|Find a village, fortress or stronghold by markers.", "search_structure|Travel to a verified structure instance.",
       "~Obtain planner|Depth up to 8, nine step kinds.", "~Frontier search|Biome edges, water, hazards and trails.", "~Search budget|Gives up sensibly." ] },
   { id: "trading", domain: "hands", name: "Trading", icon: "💎", color: COLORS.lapis,
     desc: "Villager and piglin trading with a pure policy and an authority check on spending.",
@@ -248,6 +248,8 @@ const CODE = {
   "known_resources": ["src/main/java/dev/friendai/features/knowledge/minecraft/tool/ResourceTools.java"],
   "search_hint": ["src/main/java/dev/friendai/features/knowledge/minecraft/tool/ResourceTools.java"],
   "find_target": ["src/main/java/dev/friendai/features/knowledge/minecraft/tool/ResourceTools.java"],
+  "find_structure": ["src/main/java/dev/friendai/features/knowledge/minecraft/tool/ResourceTools.java"],
+  "search_structure": ["src/main/java/dev/friendai/features/knowledge/minecraft/tool/ResourceTools.java"],
   "find_traders": ["src/main/java/dev/friendai/features/trading/minecraft/tool/TradingTools.java"],
   "inspect_trader": ["src/main/java/dev/friendai/features/trading/minecraft/tool/TradingTools.java", "src/main/java/dev/friendai/features/trading/minecraft/task/InspectTraderTask.java"],
   "refresh_trades": ["src/main/java/dev/friendai/features/trading/minecraft/tool/TradingTools.java", "src/main/java/dev/friendai/features/trading/minecraft/task/RefreshTradesTask.java"],

@@ -208,6 +208,7 @@ public final class TargetSearchTests {
         var owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         companion.setOwner(owner.getUUID());
+        companion.setFollowMode(false);
         h.setBlock(6, 2, 2, Blocks.BELL);
         BlockPos bell = h.absolutePos(new BlockPos(6, 2, 2));
         h.assertTrue(GameTestSupport.observeVisible(h, companion, bell), "the bell must be in sight");
@@ -216,7 +217,7 @@ public final class TargetSearchTests {
         var started = GameTestToolRegistry.create(companion, () -> 16, MemoryAccess.DISABLED)
                 .bind(companion)
                 .execute(
-                        targetCall("structure", "village"),
+                        structureCall("village"),
                         new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
         h.assertTrue(!started.error(), started.content());
         String biome = h.getLevel()
@@ -228,7 +229,23 @@ public final class TargetSearchTests {
         boolean[] biomeStarted = {false};
         h.succeedWhen(() -> {
             if (!biomeStarted[0]) {
-                h.assertTrue(result.status != null, "structure search should finish");
+                h.assertTrue(
+                        result.status != null,
+                        "structure search should finish; active="
+                                + companion
+                                        .executionCoordinator()
+                                        .current()
+                                        .map(dev.friendai.task.Task::type)
+                                        .orElse("none")
+                                + " queued="
+                                + companion
+                                        .executionCoordinator()
+                                        .queue()
+                                        .jobs()
+                                        .size() + " state="
+                                + companion.executionCoordinator().queue().jobs().stream()
+                                        .map(j -> j.tool() + ":" + j.state() + ":" + j.result())
+                                        .toList());
                 h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
                 h.assertTrue(result.summary.contains("found"), result.summary);
                 biomeStarted[0] = true;
@@ -284,6 +301,13 @@ public final class TargetSearchTests {
             h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
             h.assertTrue(result.summary.contains("found"), result.summary);
         });
+    }
+
+    private static ToolCall structureCall(String structure) {
+        JsonObject args = new JsonObject();
+        args.addProperty("structure", structure);
+        args.addProperty("scope", "local");
+        return new ToolCall("test", "find_structure", args, args.toString(), null);
     }
 
     private static ToolCall targetCall(String kind, String target) {

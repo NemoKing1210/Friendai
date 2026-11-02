@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.165.0] - 2026-11-02
+
+### Added
+
+- `find_structure` and `search_structure` search for a village, pillager outpost, stronghold, nether fortress, bastion, ancient city or trial chamber through visible marker evidence; an unseen structure is never reported as found.
+
 ## [0.164.0] - 2026-11-02
 
 ### Added

@@ -215,6 +215,8 @@ public final class ToolCatalog {
                 "describe_block",
                 "survey_area",
                 "find_target",
+                "find_structure",
+                "search_structure",
                 "search_hint");
         group(metas, ToolGroup.PLACE, Cost.LOW, "remember_place", "go_to_place", "rename_place", "forget_place");
         group(
@@ -287,6 +289,14 @@ public final class ToolCatalog {
                 metas,
                 "decline_help",
                 "- Use decline_help when the owner declines a request. No work or transfer happens.");
+        hint(
+                metas,
+                "find_structure",
+                "- Use find_structure when the player asks for a village, fortress, stronghold, bastion, ancient city or trial chamber. A structure is found by seeing its marker blocks, never by assuming where one is.");
+        hint(
+                metas,
+                "search_structure",
+                "- Use search_structure when the player asks for a village, fortress, stronghold, bastion, ancient city or trial chamber. A structure is found by seeing its marker blocks, never by assuming where one is.");
         hint(
                 metas,
                 "search_hint",

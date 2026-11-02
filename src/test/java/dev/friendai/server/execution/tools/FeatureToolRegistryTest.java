@@ -195,6 +195,8 @@ class FeatureToolRegistryTest {
                 "plan_obtain",
                 "search_resource",
                 "find_target",
+                "find_structure",
+                "search_structure",
                 "search_hint",
                 "known_resources",
                 "place_block",

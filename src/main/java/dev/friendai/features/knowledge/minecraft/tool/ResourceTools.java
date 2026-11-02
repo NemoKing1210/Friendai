@@ -100,6 +100,33 @@ public final class ResourceTools implements FeatureToolContributor {
                 },
                 (companion, caller, args) -> callerFindTarget(companion, caller, args, taskFactory));
 
+        JsonObject structureSchema = SchemaBuilder.object()
+                .string(
+                        "structure",
+                        "Structure id, such as village, pillager_outpost, stronghold, "
+                                + "nether_fortress, bastion_remnant, ancient_city or trial_chambers")
+                .enumeration("scope", "Search budget", "local", "expedition")
+                .enumeration("heading", "Initial compass heading", "north", "east", "south", "west")
+                .required("structure")
+                .build();
+        registerSearchTask(
+                registry,
+                "find_structure",
+                "Find a generated structure by its visible marker blocks: village, pillager outpost, stronghold, "
+                        + "nether fortress, bastion, ancient city or trial chamber. The result names the evidence and "
+                        + "the budget spent; an unseen structure is never reported as found.",
+                structureSchema,
+                (companion, args) -> structureTask(companion, null, args, taskFactory),
+                (companion, caller, args) -> callerStructure(companion, caller, args, taskFactory));
+        registerSearchTask(
+                registry,
+                "search_structure",
+                "Travel to a verified structure instance after find_structure, or start the same bounded search "
+                        + "when the instance is not yet known. It never assumes an unseen location.",
+                structureSchema,
+                (companion, args) -> structureTask(companion, null, args, taskFactory),
+                (companion, caller, args) -> callerStructure(companion, caller, args, taskFactory));
+
         registerTool(
                 registry,
                 "search_hint",
@@ -133,6 +160,38 @@ public final class ResourceTools implements FeatureToolContributor {
                         .build(),
                 AccessLevel.TRUSTED,
                 (companion, caller, args) -> query(companion, args));
+    }
+
+    private static Task structureTask(
+            CompanionEntity companion, Caller caller, JsonObject args, ResourceSearchTaskFactory taskFactory) {
+        String scope = args.has("scope") && !args.get("scope").isJsonNull()
+                ? args.get("scope").getAsString()
+                : "local";
+        SearchTargets.Resolution resolved = SearchTargets.resolve(
+                context(companion), "structure", args.get("structure").getAsString());
+        if (!resolved.ok()) throw new IllegalArgumentException(resolved.error());
+        return taskFactory.create(
+                resolved.kind(),
+                null,
+                "auto",
+                scope,
+                args.has("heading") ? args.get("heading").getAsString() : null,
+                caller);
+    }
+
+    private static Task callerStructure(
+            CompanionEntity companion, Caller caller, JsonObject args, ResourceSearchTaskFactory taskFactory) {
+        String scope = args.has("scope") && !args.get("scope").isJsonNull()
+                ? args.get("scope").getAsString()
+                : "local";
+        if (!scope.equals("local") && !scope.equals("expedition"))
+            throw new IllegalArgumentException("scope must be local or expedition");
+        if (scope.equals("expedition")) {
+            var config = context(companion).resourceSearchSettings();
+            if (caller.access() != AccessLevel.OWNER || !config.allowExpeditions() || !config.chunkLoadingEnabled())
+                throw new IllegalArgumentException("expeditions are disabled or owner-only");
+        }
+        return structureTask(companion, caller, args, taskFactory);
     }
 
     private static Task callerFindTarget(
@@ -423,6 +482,15 @@ public final class ResourceTools implements FeatureToolContributor {
                         false,
                         "- Use find_target when the player asks to find something that is not a material: a village or other structure, a biome, a villager or animal, or a place you know.\n"
                                 + "- A structure is found by seeing its marker blocks, never by assuming where one is; the result names the budget spent and why it stopped.",
+                        java.util.List.of(),
+                        Cost.LOW);
+            case "find_structure", "search_structure" ->
+                new ToolMeta(
+                        name,
+                        ToolGroup.INFO,
+                        false,
+                        "- Use " + name
+                                + " when the player asks for a village, fortress, stronghold, bastion, ancient city or trial chamber. A structure is found by seeing its marker blocks, never by assuming where one is.",
                         java.util.List.of(),
                         Cost.LOW);
             case "search_hint" ->

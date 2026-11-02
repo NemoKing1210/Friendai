@@ -182,7 +182,10 @@ public final class TaskRestoreRegistry {
     }
 
     public boolean interruptedSearch(Job job) {
-        if (job.tool().equals("search_resource") || job.tool().equals("find_target")) return true;
+        if (job.tool().equals("search_resource")
+                || job.tool().equals("find_target")
+                || job.tool().equals("find_structure")
+                || job.tool().equals("search_structure")) return true;
         return job.tool().equals("obtain_item")
                 && job.args().has("explore")
                 && job.args().get("explore").getAsBoolean();

@@ -231,6 +231,8 @@ const RU = {
   "What it already knows about.": "Что ему уже известно.",
   "Give it a hint where to look.": "Подсказать, где искать.",
   "Resolve a search target.": "Определить цель поиска.",
+  "Find a village, fortress or stronghold by markers.": "Найти деревню, крепость или твердыню по маркерам.",
+  "Travel to a verified structure instance.": "Дойти до проверенного экземпляра структуры.",
   "Obtain planner": "Планировщик добычи",
   "Depth up to 8, nine step kinds.": "Глубина до 8, девять видов шагов.",
   "Frontier search": "Поиск по границе",
