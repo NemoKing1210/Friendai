@@ -43,13 +43,14 @@ public final class CompanionControlScreen extends Screen implements MenuTab.Host
     private final Entry memory = new Entry("friendai.menu.tab.memory", new MemoryTab());
     private final Entry skills = new Entry("friendai.menu.tab.skills", new SkillsTab());
     private final Entry places = new Entry("friendai.menu.tab.places", new PlacesTab());
+    private final Entry map = new Entry("friendai.menu.tab.map", new MapTab());
     private final Entry appearance = new Entry("friendai.menu.tab.appearance", new AppearanceTab());
     private final Entry traders = new Entry("friendai.menu.tab.traders", new TradersTab());
     private final Entry log = new Entry("friendai.menu.tab.log", new LogTab());
     private final Entry debug = new Entry("friendai.menu.tab.debug", new DebugTab());
 
     private final List<Entry> ownerTabs =
-            List.of(overview, feeling, tasks, memory, skills, places, appearance, traders);
+            List.of(overview, feeling, tasks, memory, skills, places, map, appearance, traders);
     private final List<Entry> operatorTabs = List.of(log, debug);
     private final List<Entry> lastTabs = List.of(settings);
     private final List<FlatButton> railButtons = new ArrayList<>();

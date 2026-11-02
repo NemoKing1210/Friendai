@@ -277,7 +277,10 @@
   "friendai.menu.tab.tasks": "Tâches",
   "friendai.menu.tab.memory": "Mémoire",
   "friendai.menu.tab.places": "Lieux",
-  "friendai.menu.tab.log": "Journal",
+
+  "friendai.menu.tab.map": "Carte",
+  "friendai.menu.map.empty": "Aucun terrain exploré pour l'instant.",
+  "friendai.menu.map.count": "%s cases · %s lieux · %s chemins",  "friendai.menu.tab.log": "Journal",
   "friendai.menu.tab.debug": "Débogage",
   "friendai.menu.tab.appearance": "Apparence",
   "friendai.menu.appearance.name": "Nom",

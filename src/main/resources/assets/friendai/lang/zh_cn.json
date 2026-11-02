@@ -277,7 +277,10 @@
   "friendai.menu.tab.tasks": "任务",
   "friendai.menu.tab.memory": "记忆",
   "friendai.menu.tab.places": "地点",
-  "friendai.menu.tab.log": "日志",
+
+  "friendai.menu.tab.map": "地图",
+  "friendai.menu.map.empty": "尚未探索地形。",
+  "friendai.menu.map.count": "%s 格 · %s 地点 · %s 道路",  "friendai.menu.tab.log": "日志",
   "friendai.menu.tab.debug": "调试",
   "friendai.menu.tab.appearance": "外观",
   "friendai.menu.appearance.name": "名称",

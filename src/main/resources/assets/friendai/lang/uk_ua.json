@@ -277,7 +277,10 @@
   "friendai.menu.tab.tasks": "Завдання",
   "friendai.menu.tab.memory": "Пам'ять",
   "friendai.menu.tab.places": "Місця",
-  "friendai.menu.tab.log": "Журнал",
+
+  "friendai.menu.tab.map": "Карта",
+  "friendai.menu.map.empty": "Дослідженої місцевості ще немає.",
+  "friendai.menu.map.count": "%s клітинок · %s місць · %s доріг",  "friendai.menu.tab.log": "Журнал",
   "friendai.menu.tab.debug": "Налагодження",
   "friendai.menu.tab.appearance": "Вигляд",
   "friendai.menu.appearance.name": "Ім'я",

@@ -435,6 +435,7 @@ const RU = {
   "Skills": "Навыки",
   "Instruction skills.": "Инструктивные навыки.",
   "Rename or forget places.": "Переименовать или забыть места.",
+  "Explored cells, sites and roads, never the full grid.": "Исследованные клетки, места и дороги; не вся карта.",
   "Appearance": "Внешний вид",
   "Name and custom skin.": "Имя и свой скин.",
   "Traders": "Торговцы",

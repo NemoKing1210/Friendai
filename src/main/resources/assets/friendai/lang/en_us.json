@@ -277,7 +277,10 @@
   "friendai.menu.tab.tasks": "Tasks",
   "friendai.menu.tab.memory": "Memory",
   "friendai.menu.tab.places": "Places",
-  "friendai.menu.tab.log": "Log",
+
+  "friendai.menu.tab.map": "Map",
+  "friendai.menu.map.empty": "No explored terrain yet.",
+  "friendai.menu.map.count": "%s cells · %s sites · %s roads",  "friendai.menu.tab.log": "Log",
   "friendai.menu.tab.debug": "Debug",
   "friendai.menu.tab.appearance": "Appearance",
   "friendai.menu.appearance.name": "Name",

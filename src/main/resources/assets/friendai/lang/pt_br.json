@@ -277,7 +277,10 @@
   "friendai.menu.tab.tasks": "Tarefas",
   "friendai.menu.tab.memory": "Memória",
   "friendai.menu.tab.places": "Lugares",
-  "friendai.menu.tab.log": "Registro",
+
+  "friendai.menu.tab.map": "Mapa",
+  "friendai.menu.map.empty": "Nenhum terreno explorado ainda.",
+  "friendai.menu.map.count": "%s células · %s locais · %s caminhos",  "friendai.menu.tab.log": "Registro",
   "friendai.menu.tab.debug": "Depuração",
   "friendai.menu.tab.appearance": "Aparência",
   "friendai.menu.appearance.name": "Nome",

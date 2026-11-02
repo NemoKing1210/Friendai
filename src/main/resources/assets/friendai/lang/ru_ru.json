@@ -277,7 +277,10 @@
   "friendai.menu.tab.tasks": "Задачи",
   "friendai.menu.tab.memory": "Память",
   "friendai.menu.tab.places": "Места",
-  "friendai.menu.tab.log": "Лог",
+
+  "friendai.menu.tab.map": "Карта",
+  "friendai.menu.map.empty": "Исследованной местности пока нет.",
+  "friendai.menu.map.count": "%s клеток · %s мест · %s дорог",  "friendai.menu.tab.log": "Лог",
   "friendai.menu.tab.debug": "Отладка",
   "friendai.menu.tab.appearance": "Вид",
   "friendai.menu.appearance.name": "Имя",

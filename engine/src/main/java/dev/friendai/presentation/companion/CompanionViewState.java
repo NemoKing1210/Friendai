@@ -1,5 +1,6 @@
 package dev.friendai.presentation.companion;
 
+import dev.friendai.features.cartography.TerrainMapView;
 import dev.friendai.features.instructions.SkillView;
 import dev.friendai.features.memory.MemoryView;
 import dev.friendai.features.places.PlaceView;
@@ -25,6 +26,7 @@ public final class CompanionViewState {
     private TradeView tradeView;
     private SkillView skillsView;
     private SkillView skillsResponse;
+    private TerrainMapView terrainMap = TerrainMapView.EMPTY;
 
     public CompanionViewState(ClientSessionId sessionId) {
         this.sessionId = Objects.requireNonNull(sessionId, "sessionId");
@@ -33,6 +35,17 @@ public final class CompanionViewState {
     /** True only while this state is live and the response belongs to its connection. */
     public boolean accepts(ClientSessionId responseSession) {
         return active && sessionId.equals(responseSession);
+    }
+
+    /** The compact map is a separate control frame; a stale connection never replaces it. */
+    public boolean onTerrainMap(ClientSessionId source, TerrainMapView map) {
+        if (!accepts(source)) return false;
+        terrainMap = map == null ? TerrainMapView.EMPTY : map;
+        return true;
+    }
+
+    public TerrainMapView terrainMap() {
+        return terrainMap;
     }
 
     public boolean onSnapshot(ClientSessionId source, CompanionSnapshot received, long receivedAtMillis) {

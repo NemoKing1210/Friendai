@@ -15,6 +15,7 @@ import dev.friendai.protocol.ProtocolFrame;
 import dev.friendai.protocol.ProtocolView;
 import dev.friendai.protocol.ProtocolViewCodec;
 import dev.friendai.protocol.control.CompanionSnapshotProtocolCodec;
+import dev.friendai.protocol.control.TerrainMapProtocolCodec;
 import dev.friendai.protocol.debug.MovementDebugProtocolViewCodec;
 import dev.friendai.protocol.debug.PromptProtocolViewCodec;
 import dev.friendai.protocol.instructions.SkillProtocolViewCodec;
@@ -85,15 +86,22 @@ public final class ClientProtocolNetworking {
         byte[] bytes = payload.data();
         switch (family) {
             case CONTROL -> {
-                var decoded = CompanionSnapshotProtocolCodec.decode(bytes);
-                var view = decodedView(decoded);
-                if (view != null) {
-                    session.viewState()
-                            .onSnapshot(
-                                    sessionId,
-                                    CompanionSnapshotProtocolAdapter.fromProtocol(view.value()),
-                                    System.currentTimeMillis());
-                } else warnView("control", decoded);
+                if (frame.operationId() == TerrainMapProtocolCodec.OPERATION) {
+                    var decoded = TerrainMapProtocolCodec.decode(bytes);
+                    var view = decodedView(decoded);
+                    if (view != null) session.viewState().onTerrainMap(sessionId, view.value());
+                    else warnView("terrain map", decoded);
+                } else {
+                    var decoded = CompanionSnapshotProtocolCodec.decode(bytes);
+                    var view = decodedView(decoded);
+                    if (view != null) {
+                        session.viewState()
+                                .onSnapshot(
+                                        sessionId,
+                                        CompanionSnapshotProtocolAdapter.fromProtocol(view.value()),
+                                        System.currentTimeMillis());
+                    } else warnView("control", decoded);
+                }
             }
             case MEMORY -> {
                 var decoded = MemoryProtocolViewCodec.decode(bytes);

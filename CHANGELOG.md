@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.164.0] - 2026-11-02
+
+### Added
+
+- The companion menu has a **Map** tab: explored cells of the current dimension, remembered sites and walked roads, drawn from a bounded view rather than the full terrain record.
+
 ## [0.163.0] - 2026-11-02
 
 ### Added

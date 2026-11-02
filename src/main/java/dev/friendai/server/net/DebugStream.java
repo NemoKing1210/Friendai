@@ -1,10 +1,12 @@
 package dev.friendai.server.net;
 
 import dev.friendai.debug.DebugService;
+import dev.friendai.features.cartography.TerrainMapView;
 import dev.friendai.foundation.diagnostics.LogEntry;
 import dev.friendai.presentation.companion.CompanionSnapshot;
 import dev.friendai.protocol.ProtocolFamily;
 import dev.friendai.protocol.control.CompanionSnapshotProtocolCodec;
+import dev.friendai.protocol.control.TerrainMapProtocolCodec;
 import dev.friendai.server.runtime.ServerRuntime;
 import dev.friendai.transport.protocol.CompanionSnapshotProtocolAdapter;
 import java.util.List;
@@ -87,5 +89,17 @@ public final class DebugStream {
                                 CompanionSnapshotProtocolAdapter.toProtocol(snapshot),
                                 Operators.isOperator(player),
                                 requestId));
+
+        String dimension = player.level().dimension().identifier().toString();
+        TerrainMapView map = TerrainMapView.from(
+                runtime.terrainSampler().grid(owner),
+                dimension,
+                owner.getMostSignificantBits()
+                        ^ runtime.terrainSampler().grid(owner).generation(),
+                player.level().getGameTime(),
+                20L * 60L * 5L,
+                TerrainMapView.MAX_CELLS);
+        runtime.protocolConnections()
+                .sendView(player, ProtocolFamily.CONTROL, TerrainMapProtocolCodec.encode(map, requestId));
     }
 }
