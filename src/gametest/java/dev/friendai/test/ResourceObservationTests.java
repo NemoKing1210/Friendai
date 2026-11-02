@@ -249,6 +249,34 @@ public class ResourceObservationTests {
         h.succeed();
     }
 
+    @GameTest(maxTicks = 40)
+    public void terrainSamplerNeverReadsAnUnloadedColumn(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        var owner =
+                GameTestSupport.onlinePlayer(h, "terrain-owner", 2, 2, 2, true).player();
+        CompanionManager manager = CompanionManager.get(h.getLevel().getServer());
+        manager.summon(owner);
+        h.assertTrue(manager.find(owner.getUUID()).isPresent(), "the companion was summoned");
+        BlockPos far = h.absolutePos(new BlockPos(512, 3, 512));
+        boolean loadedBefore = h.getLevel().hasChunkAt(far);
+        var result = GameTestSupport.runtime(h.getLevel().getServer())
+                .terrainSampler()
+                .sample(
+                        owner.getUUID(),
+                        h.getLevel(),
+                        far.getX(),
+                        far.getZ(),
+                        h.getLevel().getGameTime());
+        h.assertTrue(!loadedBefore && !h.getLevel().hasChunkAt(far), "the sampler loaded an unloaded chunk");
+        h.assertTrue(
+                result.grid()
+                        .cell(new dev.friendai.features.cartography.TerrainCell.CellKey(
+                                h.getLevel().dimension().identifier().toString(), far.getX(), far.getZ()))
+                        .isEmpty(),
+                "an unloaded column must not be stored as observed");
+        h.succeed();
+    }
+
     @GameTest(maxTicks = 20)
     public void unloadedRayDoesNotLoadChunk(GameTestHelper h) {
         GameTestSupport.platform(h, 8);
