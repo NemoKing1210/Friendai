@@ -337,6 +337,7 @@ const RU = {
   "Decline with no transfer.": "Отклонить без передачи.",
   "Offer an exact item quantity at a meeting point.": "Предложить точное количество предметов в точке встречи.",
   "Accept only the named transfer.": "Принять только названную передачу.",
+  "Ask the planner to repair one stalled plan.": "Попросить планировщика починить один застрявший план.",
   "Lower trust.": "Понизить доверие.",
   "Rename the companion.": "Переименовать компаньона.",
   "Load an instruction skill once.": "Один раз загрузить инструктивный навык.",

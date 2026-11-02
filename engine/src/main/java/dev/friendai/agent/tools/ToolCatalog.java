@@ -229,7 +229,8 @@ public final class ToolCatalog {
                 "accept_help",
                 "decline_help",
                 "offer_handoff",
-                "accept_handoff");
+                "accept_handoff",
+                "replan_plan");
         group(metas, ToolGroup.CONTROL, Cost.LOW, "set_name", "create_item", "fly_to", "execute_command");
         group(
                 metas,
@@ -279,6 +280,10 @@ public final class ToolCatalog {
                 "find_target",
                 "- Use find_target when the player asks to find something that is not a material: a village or other structure, a biome, a villager or animal, or a place you know.\n"
                         + "- A structure is found by seeing its marker blocks, never by assuming where one is; the result names the budget spent and why it stopped.");
+        hint(
+                metas,
+                "replan_plan",
+                "- Use replan_plan only for a stalled queued plan whose remaining cause the plan cannot obtain; it keeps completed work and patches the pending step.");
         hint(
                 metas,
                 "offer_handoff",

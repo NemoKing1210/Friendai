@@ -88,6 +88,43 @@ public class CompanionCoordinationTests {
         h.succeed();
     }
 
+    @GameTest(maxTicks = 40)
+    public void aReplanToolNamesAnExistingPlan(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        var owner =
+                GameTestSupport.onlinePlayer(h, "replan-owner", 2, 2, 2, true).player();
+        CompanionManager manager = CompanionManager.get(h.getLevel().getServer());
+        manager.summon(owner);
+        var companion = manager.find(owner.getUUID()).orElseThrow();
+        long planId = companion
+                .executionCoordinator()
+                .queue()
+                .addPlan(
+                        "stalled plan",
+                        List.of(new QueuedStep(
+                                "wait",
+                                new JsonObject(),
+                                0,
+                                List.of(),
+                                GuardAction.WAIT,
+                                FailurePolicy.ASK,
+                                1,
+                                List.of())),
+                        PlanOptions.DEFAULT)
+                .planId();
+        JsonObject args = new JsonObject();
+        args.addProperty("plan", planId);
+        args.addProperty("reason", "missing pickaxe");
+        ToolResult result = GameTestToolRegistry.create(companion, () -> 16, MemoryAccess.DISABLED)
+                .bind(companion)
+                .execute(
+                        new dev.friendai.agent.llm.model.ToolCall("test", "replan_plan", args, args.toString(), null),
+                        new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
+        h.assertFalse(result.error(), result.content());
+        h.assertTrue(result.content().contains("plan #" + planId), result.content());
+        h.succeed();
+    }
+
     @GameTest(maxTicks = 80)
     public void aConsentedHandoffMovesTheExactQuantityOnce(GameTestHelper h) {
         GameTestSupport.platform(h, 16);

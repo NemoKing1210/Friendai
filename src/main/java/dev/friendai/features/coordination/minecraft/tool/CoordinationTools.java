@@ -6,6 +6,7 @@ import dev.friendai.agent.coordination.HelpRequest;
 import dev.friendai.agent.tools.Cost;
 import dev.friendai.agent.tools.ToolGroup;
 import dev.friendai.agent.tools.ToolMeta;
+import dev.friendai.agent.turn.BrainEvent;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.SchemaBuilder;
@@ -98,6 +99,18 @@ public final class CoordinationTools implements FeatureToolContributor {
                                 .build(),
                         CoordinationTools::acceptHandoff),
                 metadata("accept_handoff"));
+        registry.registerTool(
+                tool(
+                        "replan_plan",
+                        "Ask the planner to repair one stalled queued plan, keeping its completed work. Use it when "
+                                + "the plan is waiting on a cause the plan itself cannot obtain.",
+                        SchemaBuilder.object()
+                                .integer("plan", "Queued plan id")
+                                .string("reason", "One short reason for the repair")
+                                .required("plan")
+                                .build(),
+                        CoordinationTools::replan),
+                metadata("replan_plan"));
     }
 
     private static Tool<CompanionEntity> tool(String name, String description, JsonObject schema, Action action) {
@@ -160,6 +173,20 @@ public final class CoordinationTools implements FeatureToolContributor {
                 context.runtime.coordination().acceptHelp(from.get().getUUID(), context.owner, context.now);
         return accepted.map(request -> ToolResult.ok("accepted help: " + request.help()))
                 .orElseGet(() -> ToolResult.error("there is no open request from that owner"));
+    }
+
+    private static ToolResult replan(CompanionEntity companion, JsonObject args) {
+        Context context = context(companion);
+        if (context.error != null) return ToolResult.error(context.error);
+        long planId = args.get("plan").getAsLong();
+        if (context.runtime.companions().find(context.owner).isEmpty()) {
+            return ToolResult.error("I don't have a companion to plan for");
+        }
+        String reason = args.has("reason") && !args.get("reason").isJsonNull()
+                ? args.get("reason").getAsString()
+                : "";
+        context.runtime.sessions().post(context.owner, new BrainEvent.Replan(planId, reason));
+        return ToolResult.ok("asked the planner to repair plan #" + planId);
     }
 
     private static ToolResult offerHandoff(CompanionEntity companion, JsonObject args) {
@@ -278,6 +305,14 @@ public final class CoordinationTools implements FeatureToolContributor {
                         "- Use offer_handoff only when the owner asks to give an exact item quantity to another owner at a named meeting point. Both owners must accept.",
                         java.util.List.of(),
                         Cost.LOW);
+            case "replan_plan" ->
+                new ToolMeta(
+                        name,
+                        ToolGroup.INFO,
+                        false,
+                        "- Use replan_plan only for a stalled queued plan whose remaining cause the plan cannot obtain; it keeps completed work and patches the pending step.",
+                        java.util.List.of(),
+                        Cost.MEDIUM);
             case "accept_handoff" ->
                 new ToolMeta(
                         name,

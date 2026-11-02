@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.177.0] - 2026-11-02
+
+### Added
+
+- `replan_plan` asks the planner to repair one stalled queued plan; the planner sees that plan, keeps its completed work, and patches its first pending flat step behind the fingerprint check.
+
 ## [0.176.0] - 2026-11-02
 
 ### Added
