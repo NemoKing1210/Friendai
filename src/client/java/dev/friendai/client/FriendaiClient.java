@@ -33,6 +33,44 @@ public class FriendaiClient implements ClientModInitializer {
         return RUNTIME;
     }
 
+    private static dev.friendai.debug.LogWriterService fileLog;
+
+    private static void startFileLog() {
+        try {
+            dev.friendai.infrastructure.config.ClientConfig config = clientConfig();
+            fileLog = new dev.friendai.debug.LogWriterService(
+                    net.fabricmc.loader.api.FabricLoader.getInstance()
+                            .getGameDir()
+                            .resolve("logs")
+                            .resolve("friendai"),
+                    dev.friendai.debug.LogWriterScope.CLIENT,
+                    dev.friendai.foundation.diagnostics.LogNames.bootId(),
+                    modVersion("friendai"),
+                    modVersion("minecraft"),
+                    uuid -> "",
+                    config.logging.toSettings(),
+                    text -> text,
+                    System::currentTimeMillis);
+            dev.friendai.debug.LogSinkHub.add(fileLog);
+        } catch (RuntimeException ignored) {
+            // The client keeps working without a file log.
+        }
+    }
+
+    private static void stopFileLog() {
+        if (fileLog == null) return;
+        dev.friendai.debug.LogSinkHub.remove(fileLog);
+        fileLog.close();
+        fileLog = null;
+    }
+
+    private static String modVersion(String id) {
+        return net.fabricmc.loader.api.FabricLoader.getInstance()
+                .getModContainer(id)
+                .map(container -> container.getMetadata().getVersion().getFriendlyString())
+                .orElse("unknown");
+    }
+
     public static dev.friendai.infrastructure.config.ClientConfig clientConfig() {
         return RUNTIME.configuration().load();
     }
@@ -44,6 +82,8 @@ public class FriendaiClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
+        dev.friendai.debug.FriendaiLogAppender.install();
+        startFileLog();
         EntityRenderers.register(FriendaiEntities.COMPANION, CompanionRenderer::new);
         MenuScreens.register(FriendaiMenus.TYPE, CompanionInventoryScreen::new);
         clientConfig();
@@ -56,7 +96,10 @@ public class FriendaiClient implements ClientModInitializer {
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) ->
                 RUNTIME.onConnect(ClientPlayNetworking.canSend(ProtocolAcceptC2SPayload.TYPE)));
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> RUNTIME.onDisconnect());
-        ClientLifecycleEvents.CLIENT_STOPPING.register(client -> RUNTIME.close());
+        ClientLifecycleEvents.CLIENT_STOPPING.register(client -> {
+            stopFileLog();
+            RUNTIME.close();
+        });
         ClientProtocolNetworking.register(RUNTIME);
 
         PushToTalkHandler pushToTalk = new PushToTalkHandler(

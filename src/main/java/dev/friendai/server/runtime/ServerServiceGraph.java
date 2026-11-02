@@ -125,6 +125,7 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
                 config.logging.toSettings(),
                 text -> text,
                 System::currentTimeMillis));
+        dev.friendai.debug.LogSinkHub.add(fileLog);
         this.memory = resources.own(new MemoryStore(
                 server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("memory"), writer));
         this.transcripts = resources.own(new TranscriptStore(

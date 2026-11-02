@@ -26,6 +26,7 @@ public class FriendaiMod implements ModInitializer {
 
     @Override
     public void onInitialize() {
+        dev.friendai.debug.FriendaiLogAppender.install();
         FriendaiEntities.register();
         FriendaiMenus.register();
         FriendaiCommands.register();

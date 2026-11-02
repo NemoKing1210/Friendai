@@ -190,6 +190,7 @@ public final class LogWriterService implements LogSink, AutoCloseable {
     public void close() {
         if (closed) return;
         closed = true;
+        LogSinkHub.remove(this);
         try {
             flushNow().get(5, TimeUnit.SECONDS);
         } catch (Exception ignored) {

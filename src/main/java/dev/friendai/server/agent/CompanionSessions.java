@@ -1271,9 +1271,9 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                 false,
                 companion.combatController().state()
                         != dev.friendai.features.combat.minecraft.CombatController.State.IDLE));
+        String logSession = Long.toString(System.currentTimeMillis(), 36);
         brain.setObserver(BrainObservers.of(
-                new DebugLogObserver(
-                        owner, companion.getUUID(), Long.toString(System.currentTimeMillis(), 36), debug.pipeline()),
+                new DebugLogObserver(owner, companion.getUUID(), logSession, debug.pipeline()),
                 new dev.friendai.agent.turn.BrainObserver() {
                     @Override
                     public void onReply(Caller caller, String text) {
@@ -1343,6 +1343,16 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
             @Override
             public void onFinished(int id, long planId, String toolName, TaskStatus status, String summary) {
                 if (!isCurrent(session, companion)) return;
+                emitTask(dev.friendai.execution.log.TaskLogEvents.finish(
+                        owner,
+                        companion.getUUID(),
+                        logSession,
+                        id,
+                        planId,
+                        0L,
+                        toolName,
+                        status == TaskStatus.SUCCESS,
+                        summary));
                 debug.historyOf(owner)
                         .add(new TaskRecord(
                                 id, toolName, status == TaskStatus.SUCCESS ? "SUCCESS" : "FAILED", summary));
@@ -1370,6 +1380,8 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
             @Override
             public void onCancelled(int id, String toolName, String reason) {
                 if (!isCurrent(session, companion)) return;
+                emitTask(dev.friendai.execution.log.TaskLogEvents.cancel(
+                        owner, companion.getUUID(), logSession, id, toolName, reason));
                 debug.historyOf(owner).add(new TaskRecord(id, toolName, "CANCELLED", reason));
                 postFromSession(session, companion, owner, new BrainEvent.TaskCancelled(id, toolName, reason));
             }
@@ -1406,6 +1418,8 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
             public void onPlanBlocked(
                     long planId, String goal, long jobId, String toolName, String reason, int remaining) {
                 if (!isCurrent(session, companion)) return;
+                emitTask(dev.friendai.execution.log.TaskLogEvents.queueBlock(
+                        owner, companion.getUUID(), logSession, planId, jobId, toolName, reason, remaining));
                 if (session.replacedPlans().contains(planId)
                         || freeTime.onPlanEnded(owner, companion, planId, false, reason)) {
                     return;
@@ -1440,6 +1454,8 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
             @Override
             public void onDebug(String text) {
                 if (!isCurrent(session, companion)) return;
+                emitTask(dev.friendai.execution.log.TaskLogEvents.progress(
+                        owner, companion.getUUID(), logSession, 0L, text));
                 debug.logOf(owner).add(LogKind.TASK, text);
             }
         });
@@ -1450,6 +1466,10 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
 
     private void postFromSession(CompanionSession session, CompanionEntity companion, UUID owner, BrainEvent event) {
         if (isCurrent(session, companion)) post(owner, event);
+    }
+
+    private void emitTask(dev.friendai.foundation.diagnostics.LogRecord record) {
+        debug.pipeline().emit(record);
     }
 
     private boolean isCurrent(CompanionSession session, CompanionEntity companion) {
