@@ -7,6 +7,7 @@ import dev.friendai.FriendaiMod;
 import dev.friendai.agent.goal.GoalService;
 import dev.friendai.agent.llm.model.ToolCall;
 import dev.friendai.agent.llm.model.ToolSpec;
+import dev.friendai.agent.prompt.ContinuityPrompt;
 import dev.friendai.agent.turn.AccessResolver;
 import dev.friendai.agent.turn.BrainEvent;
 import dev.friendai.agent.turn.BrainObservers;
@@ -32,6 +33,7 @@ import dev.friendai.features.memory.MemoryLimits;
 import dev.friendai.features.memory.MemoryPromptRenderer;
 import dev.friendai.features.memory.PlayerRecord;
 import dev.friendai.features.memory.PlayerRef;
+import dev.friendai.features.memory.Subject;
 import dev.friendai.features.memory.minecraft.tool.MemoryAccess;
 import dev.friendai.features.memory.minecraft.tool.SelfAccess;
 import dev.friendai.features.memory.minecraft.tool.TrustAccess;
@@ -916,6 +918,42 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
         };
     }
 
+    /**
+     * The continuity block for one owner turn: a milestone, the active project, a known place, the last verified
+     * outcome and a remembered preference, each only when it already exists. Empty for anyone but the owner, so a
+     * trusted player or guest never reads the owner's history.
+     */
+    private String continuity(UUID owner, CompanionSession session, Caller caller) {
+        if (caller.access() != AccessLevel.OWNER || !owner.equals(caller.uuid())) {
+            return "";
+        }
+        MemoryBook book = memory.book(owner);
+        return ContinuityPrompt.render(
+                book.journal(owner),
+                goals.board(owner)
+                        .primary()
+                        .map(dev.friendai.agent.goal.Goal::text)
+                        .orElse(""),
+                config.places.enabled ? places.book(owner).all() : List.of(),
+                session.verifiedFacts(),
+                config.memory.enabled ? book.facts(Subject.player(owner)) : List.of());
+    }
+
+    /** The memory block, the continuity block and the tone line, each only when it has text. */
+    private static String joinBlocks(String... blocks) {
+        StringBuilder out = new StringBuilder();
+        for (String block : blocks) {
+            if (block == null || block.isBlank()) {
+                continue;
+            }
+            if (out.length() > 0) {
+                out.append('\n');
+            }
+            out.append(block);
+        }
+        return out.toString();
+    }
+
     private CompanionSession create(CompanionSession session, CompanionEntity companion) {
         UUID owner = session.owner();
         CompanionSpeaker speaker = new CompanionSpeaker(
@@ -959,6 +997,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                                     config.memory.compactAtPercent,
                                     gateways.redactor())
                             : "";
+                    String continuity = continuity(owner, session, caller);
                     String social = InteractionStyle.appendTo(
                             config.companion.interactionStyle,
                             dev.friendai.features.social.BondPrompt.line(
@@ -967,7 +1006,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                                     companion.bondReasons(),
                                     companion.traits(),
                                     caller.access() == AccessLevel.OWNER && owner.equals(caller.uuid())));
-                    return memoryText.isBlank() ? social : memoryText + "\n" + social;
+                    return joinBlocks(memoryText, continuity, social);
                 },
                 toolCatalog);
         brain.setTradingTurnPort(session.tradingAuthority());
