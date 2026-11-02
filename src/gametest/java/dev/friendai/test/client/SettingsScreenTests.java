@@ -1,16 +1,20 @@
 package dev.friendai.test.client;
 
 import com.google.gson.JsonParser;
+import com.mojang.authlib.GameProfile;
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.friendai.client.FriendaiClient;
 import dev.friendai.client.companion.session.CompanionClientSession;
 import dev.friendai.client.config.FriendaiConfigScreen;
 import dev.friendai.client.config.ModelCache;
 import dev.friendai.client.ui.CompanionControlScreen;
+import dev.friendai.client.ui.CompanionRequests;
 import dev.friendai.features.speech.stt.SttPresets;
 import dev.friendai.features.speech.tts.TtsPresets;
 import dev.friendai.infrastructure.config.ClientConfig;
 import dev.friendai.infrastructure.config.ServerConfig;
+import dev.friendai.presentation.companion.CompanionSnapshot;
+import dev.friendai.server.net.Operators;
 import dev.friendai.testutil.MockHttpServer;
 import dev.isxander.yacl3.api.ButtonOption;
 import dev.isxander.yacl3.api.Option;
@@ -24,9 +28,12 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.function.Consumer;
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
+import net.fabricmc.fabric.api.client.gametest.v1.context.TestServerContext;
+import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.fabricmc.fabric.api.client.gametest.v1.screenshot.TestScreenshotOptions;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.AbstractButton;
@@ -38,13 +45,20 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.input.MouseButtonInfo;
+import net.minecraft.commands.Commands;
+import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.players.NameAndId;
 
 /** Real YACL screens in the isolated client-GameTest directory; never calls a paid service. */
 public final class SettingsScreenTests implements FabricClientGameTest {
     /** Upper bound on the Tab presses one scenario may spend, so a focus bug fails instead of looping. */
     private static final int KEYBOARD_TAB_LIMIT = 32;
+
+    /** The server-side access state the non-operator scenario must put back before its world closes. */
+    private record AccessState(boolean operator, GameProfile singleplayerProfile, NameAndId player) {}
 
     private final List<String> failures = new ArrayList<>();
     private int passed;
@@ -138,8 +152,94 @@ public final class SettingsScreenTests implements FabricClientGameTest {
             context.setScreen(TitleScreen::new);
         }
         context.runOnClient(mc -> mc.options.guiScale().set(originalScale));
+        // TODO 49.6: the operator-only rail is a server decision, so prove it over a real connection.
+        check(context, "companion menu hides the operator rail from a non-operator", c -> {
+            try (TestSingleplayerContext world = c.worldBuilder().create()) {
+                TestServerContext server = world.getServer();
+                AccessState original = server.computeOnServer(s -> {
+                    ServerPlayer player = world.getConnection().getServerPlayer();
+                    return new AccessState(
+                            s.getPlayerList().isOp(player.nameAndId()), s.getSingleplayerProfile(), player.nameAndId());
+                });
+                try {
+                    server.runOnServer(s -> {
+                        ServerPlayer player = world.getConnection().getServerPlayer();
+                        s.getPlayerList().op(player.nameAndId());
+                        require(Operators.isOperator(player), "operator precondition failed");
+                    });
+                    c.waitFor(mc -> CompanionRequests.serverSupported(), 400);
+                    c.runOnClient(mc -> mc.setScreenAndShow(
+                            new CompanionControlScreen(new TitleScreen(), FriendaiClient.companionSession())));
+                    c.waitFor(mc -> clientSnapshot() != null && clientSnapshot().operator(), 200);
+                    c.waitTicks(3);
+                    c.runOnClient(mc -> {
+                        Screen menu = mc.gui.screen();
+                        require(menu instanceof CompanionControlScreen, "operator menu closed: " + menu);
+                        require(showsButton(menu, "friendai.menu.tab.log"), "operator rail is missing Log");
+                        require(showsButton(menu, "friendai.menu.tab.debug"), "operator rail is missing Debug");
+                    });
+                    // A LAN guest is not in the ops list and is not the singleplayer owner, so the
+                    // server must answer with a snapshot that hides the operator group.
+                    server.runOnServer(s -> {
+                        ServerPlayer player = world.getConnection().getServerPlayer();
+                        s.getPlayerList().deop(player.nameAndId());
+                        s.setSingleplayerProfile(new GameProfile(UUID.randomUUID(), "friendai-non-operator"));
+                        require(
+                                !Commands.LEVEL_GAMEMASTERS.check(player.permissions()),
+                                "permission level was not cleared");
+                        require(!Operators.isOperator(player), "player still counts as an operator");
+                    });
+                    c.runOnClient(mc -> mc.setScreenAndShow(new TitleScreen()));
+                    c.runOnClient(mc -> mc.setScreenAndShow(
+                            new CompanionControlScreen(new TitleScreen(), FriendaiClient.companionSession())));
+                    c.waitFor(
+                            mc -> clientSnapshot() != null && !clientSnapshot().operator(), 200);
+                    c.waitTicks(3);
+                    c.runOnClient(mc -> {
+                        Screen menu = mc.gui.screen();
+                        require(menu instanceof CompanionControlScreen, "non-operator menu closed: " + menu);
+                        require(!showsButton(menu, "friendai.menu.tab.log"), "Log is still on the non-operator rail");
+                        require(
+                                !showsButton(menu, "friendai.menu.tab.debug"),
+                                "Debug is still on the non-operator rail");
+                        require(
+                                showsButton(menu, "friendai.menu.tab.feeling"),
+                                "Feeling is missing from the non-operator rail");
+                        require(
+                                showsButtonLabel(menu, CommonComponents.GUI_DONE.getString()),
+                                "Done is missing from the non-operator menu");
+                        for (var child : menu.children()) {
+                            if (child instanceof AbstractButton button && button.visible) {
+                                int width = mc.font.width(button.getMessage());
+                                require(
+                                        width <= button.getWidth() - 4,
+                                        "non-operator button clipped: \""
+                                                + button.getMessage().getString() + "\" needs " + width + "px, has "
+                                                + button.getWidth());
+                            }
+                        }
+                        CompanionSnapshot snapshot = clientSnapshot();
+                        require(snapshot != null, "the non-operator menu received no snapshot");
+                        require(!snapshot.operator(), "snapshot still marks the client an operator");
+                        require(snapshot.newLog().isEmpty(), "non-operator snapshot carries the log");
+                        require(snapshot.perception().isEmpty(), "non-operator snapshot carries perception");
+                        require(snapshot.toolNames().isEmpty(), "non-operator snapshot carries tool names");
+                    });
+                    capture(c, "companion_menu_non_operator");
+                    require(c.tryClickScreenButton("gui.done"), "non-operator Done did not respond");
+                    c.waitForScreen(TitleScreen.class);
+                } finally {
+                    server.runOnServer(s -> {
+                        s.setSingleplayerProfile(original.singleplayerProfile());
+                        if (original.operator()) s.getPlayerList().op(original.player());
+                        else s.getPlayerList().deop(original.player());
+                    });
+                }
+            }
+        });
         if (!failures.isEmpty()) throw new AssertionError(String.join("\n", failures));
-        System.out.println("FRIENDAI_SETTINGS: all " + passed + " scenarios passed (8 languages, GUI scale 4)");
+        System.out.println("FRIENDAI_SETTINGS: all " + passed
+                + " scenarios passed (8 languages, GUI scale 4, non-operator menu in a real world)");
     }
 
     private void runCases(ClientGameTestContext context) {
@@ -842,6 +942,27 @@ public final class SettingsScreenTests implements FabricClientGameTest {
             set("friendai.config.model", "pending-llm-model");
         });
         context.waitTicks(2);
+    }
+
+    /** The snapshot the connected client accepted last, or null before the first one arrives. */
+    private static CompanionSnapshot clientSnapshot() {
+        return FriendaiClient.companionSession().viewState().snapshot().orElse(null);
+    }
+
+    /** Whether a visible button on the screen shows the text for this translation key. */
+    private static boolean showsButton(Screen screen, String translationKey) {
+        return showsButtonLabel(screen, Component.translatable(translationKey).getString());
+    }
+
+    private static boolean showsButtonLabel(Screen screen, String label) {
+        for (GuiEventListener child : screen.children()) {
+            if (child instanceof AbstractButton button
+                    && button.visible
+                    && button.getMessage().getString().equals(label)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Deepest widget holding keyboard focus on the screen, or null when nothing is focused. */
