@@ -16,6 +16,7 @@ import dev.friendai.execution.queue.PlanDefinition;
 import dev.friendai.execution.queue.PlanFingerprint;
 import dev.friendai.execution.queue.PlanNode;
 import dev.friendai.execution.queue.PlanOptions;
+import dev.friendai.execution.queue.PlanPatch;
 import dev.friendai.execution.queue.QueueHold;
 import dev.friendai.execution.queue.QueueOptimizer;
 import dev.friendai.execution.queue.QueueText;
@@ -167,6 +168,23 @@ public final class QueueTools implements FeatureToolContributor {
                         AccessLevel.TRUSTED,
                         (c, caller, args) -> edit(c, caller, args, all)),
                 metadata("queue_edit"));
+        registry.registerTool(
+                callerTool(
+                        "plan_patch",
+                        "Patch an unstarted structured plan at a node range, keeping its id and cursor. "
+                                + "A started plan or an active frame is refused; the fingerprint must match.",
+                        SchemaBuilder.object()
+                                .integer("plan", "Queued plan id")
+                                .string("expected", "Fingerprint from queue_show")
+                                .string("route", "Parent route as comma-separated indices, empty for the root")
+                                .integer("index", "First node index in the sequence", 0, 64)
+                                .integer("remove", "How many nodes to remove", 0, 64)
+                                .array("steps", "Replacement flat actions", stepSchema, 1, 64)
+                                .required("plan", "steps")
+                                .build(),
+                        AccessLevel.TRUSTED,
+                        (c, caller, args) -> patch(c, caller, args, all)),
+                metadata("plan_patch"));
     }
 
     private static JsonObject stepSchema(Map<String, TaskToolDefinition> tools) {
@@ -347,6 +365,48 @@ public final class QueueTools implements FeatureToolContributor {
         if (linkGoal) access.linkPlan(c, id);
         return ToolResult.ok("plan #" + id + (goal.isBlank() ? "" : " \"" + goal + "\"") + " added: "
                 + bound.worstCaseActions() + " worst-case actions");
+    }
+
+    private static ToolResult patch(
+            CompanionEntity companion, Caller caller, JsonObject args, Map<String, TaskToolDefinition> all) {
+        long planId = required(args, "plan");
+        String expected = args.has("expected") && !args.get("expected").isJsonNull()
+                ? args.get("expected").getAsString()
+                : "";
+        java.util.List<Integer> route = new java.util.ArrayList<>();
+        if (args.has("route") && !args.get("route").isJsonNull()) {
+            String text = args.get("route").getAsString().strip();
+            if (!text.isEmpty()) {
+                for (String part : text.split(",")) {
+                    try {
+                        route.add(Integer.parseInt(part.strip()));
+                    } catch (NumberFormatException invalid) {
+                        return error("route must be comma-separated integers");
+                    }
+                }
+            }
+        }
+        int index = args.has("index") ? args.get("index").getAsInt() : 0;
+        int remove = args.has("remove") ? args.get("remove").getAsInt() : 0;
+        Map<String, TaskToolDefinition> allowed = allowed(caller, all);
+        Map<String, JsonObject> schemas = new LinkedHashMap<>();
+        allowed.forEach((n, d) -> schemas.put(n, d.schema()));
+        var parsed = QueueParser.parseFlatActions(
+                args.getAsJsonArray("steps"),
+                schemas,
+                all.keySet(),
+                companion.serverSettings().tasks().queueMaxStepsPerAdd(),
+                LIMITS.maxArgsChars(),
+                LIMITS.maxAddChars());
+        if (!parsed.ok()) return error("Invalid patch: " + String.join("; ", parsed.errors()));
+        String invalidGuard = validateGuards(parsed.steps());
+        if (invalidGuard != null) return error("Invalid patch: " + invalidGuard);
+        List<PlanNode> nodes = parsed.steps().stream()
+                .map(step -> (PlanNode) new PlanNode.Action(bindCaller(step, allowed.get(step.tool()), caller)))
+                .toList();
+        var result = PlanPatch.apply(
+                companion.executionCoordinator().queue(), planId, expected, route, index, remove, nodes);
+        return result.ok() ? ToolResult.ok(result.text()) : error(result.text());
     }
 
     private static ToolResult validateTool(
@@ -854,7 +914,7 @@ public final class QueueTools implements FeatureToolContributor {
 
     private static ToolMeta metadata(String name) {
         return switch (name) {
-            case "queue_add", "plan_help", "plan_validate", "queue_show", "queue_edit" ->
+            case "queue_add", "plan_help", "plan_validate", "queue_show", "queue_edit", "plan_patch" ->
                 new ToolMeta(name, ToolGroup.CORE, true, "", List.of(), Cost.LOW);
             default -> throw new IllegalArgumentException("No metadata declared for queue tool: " + name);
         };

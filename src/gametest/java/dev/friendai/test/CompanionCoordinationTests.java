@@ -7,6 +7,9 @@ import dev.friendai.execution.queue.FailurePolicy;
 import dev.friendai.execution.queue.GuardAction;
 import dev.friendai.execution.queue.Job;
 import dev.friendai.execution.queue.JobState;
+import dev.friendai.execution.queue.PlanDefinition;
+import dev.friendai.execution.queue.PlanFingerprint;
+import dev.friendai.execution.queue.PlanNode;
 import dev.friendai.execution.queue.PlanOptions;
 import dev.friendai.execution.queue.QueuedStep;
 import dev.friendai.execution.tool.AccessLevel;
@@ -85,6 +88,52 @@ public class CompanionCoordinationTests {
         h.assertValueEqual(runtime.coordination().openFor(a.getUUID(), now).size(), 1, "A sees one request");
         h.assertTrue(runtime.coordination().declineHelp(b.getUUID(), a.getUUID()), "decline removes it");
         h.assertTrue(runtime.coordination().openFor(a.getUUID(), now).isEmpty(), "no action after decline");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 40)
+    public void aPlanPatchNamesAnUnstartedStructuredPlan(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        var owner =
+                GameTestSupport.onlinePlayer(h, "patch-owner", 2, 2, 2, true).player();
+        CompanionManager manager = CompanionManager.get(h.getLevel().getServer());
+        manager.summon(owner);
+        var companion = manager.find(owner.getUUID()).orElseThrow();
+        var step = new QueuedStep(
+                "wait", new JsonObject(), null, List.of(), GuardAction.WAIT, FailurePolicy.ASK, 1, List.of());
+        long planId = companion
+                .executionCoordinator()
+                .queue()
+                .addStructuredPlan(
+                        "patch plan", new PlanDefinition(List.of(new PlanNode.Action(step))), PlanOptions.DEFAULT);
+        JsonObject args = new JsonObject();
+        args.addProperty("plan", planId);
+        args.addProperty(
+                "expected", PlanFingerprint.of(companion.executionCoordinator().queue(), planId));
+        args.addProperty("route", "");
+        args.addProperty("index", 0);
+        args.addProperty("remove", 1);
+        com.google.gson.JsonArray steps = new com.google.gson.JsonArray();
+        JsonObject replacement = new JsonObject();
+        replacement.addProperty("tool", "wait");
+        replacement.addProperty("args", "{\"seconds\":1}");
+        steps.add(replacement);
+        args.add("steps", steps);
+        var result = GameTestToolRegistry.create(companion, () -> 16, MemoryAccess.DISABLED)
+                .bind(companion)
+                .execute(
+                        new dev.friendai.agent.llm.model.ToolCall("test", "plan_patch", args, args.toString(), null),
+                        new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
+        h.assertFalse(result.error(), result.content());
+        h.assertTrue(
+                companion
+                                .executionCoordinator()
+                                .queue()
+                                .plan(planId)
+                                .orElseThrow()
+                                .definition()
+                        != null,
+                "the structured plan keeps its definition");
         h.succeed();
     }
 

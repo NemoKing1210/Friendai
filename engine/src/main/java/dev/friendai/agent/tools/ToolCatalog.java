@@ -105,6 +105,7 @@ public final class ToolCatalog {
                 "plan_validate",
                 "queue_show",
                 "queue_edit",
+                "plan_patch",
                 "look_around",
                 "get_inventory",
                 "set_goal",
@@ -280,6 +281,10 @@ public final class ToolCatalog {
                 "find_target",
                 "- Use find_target when the player asks to find something that is not a material: a village or other structure, a biome, a villager or animal, or a place you know.\n"
                         + "- A structure is found by seeing its marker blocks, never by assuming where one is; the result names the budget spent and why it stopped.");
+        hint(
+                metas,
+                "plan_patch",
+                "- Use plan_patch only on an unstarted structured plan: name its route/index/remove and flat replacement steps, with the fingerprint from queue_show. A started plan is refused.");
         hint(
                 metas,
                 "replan_plan",

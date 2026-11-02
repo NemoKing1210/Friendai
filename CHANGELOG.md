@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.179.0] - 2026-11-02
+
+### Added
+
+- `plan_patch` applies a fingerprinted node-range patch to an unstarted structured plan, keeping its id and cursor; a started plan or a mismatched fingerprint is refused.
+
 ## [0.178.0] - 2026-11-02
 
 ### Added
