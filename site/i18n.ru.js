@@ -314,6 +314,8 @@ const RU = {
   "Compares before and after snapshots.": "Сравнивает снимки до и после.",
   "Recovery advisor": "Советник по восстановлению",
   "Classifies a failure and suggests a new remedy.": "Классифицирует сбой и предлагает новое средство.",
+  "Quiet outcomes": "Тихие итоги",
+  "Learns without narrating repeated status.": "Обучается без повторных сообщений о ходе работы.",
 
   /* ---- Memory ---- */
   "Memory & Trust": "Память и доверие",

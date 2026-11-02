@@ -39,6 +39,10 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] Cancel a build with `queue_edit cancel`: scaffold cleanup finishes before the next job starts.
 - [ ] "Friendai, do your own thing" (and "займись своими делами"): free time starts, the companion names an activity within a minute and works on it.
 - [ ] Over one in-game day of free time with a real provider, the chosen activities are sensible (food when hungry, better tools, smelting, farm tending) and do not repeat a failed one right away.
+- [ ] At night with no home in the current dimension, free time starts the shelter reflex: it builds from carried materials or lights a safe spot and waits; it does not repeat an exposed resource search.
+- [ ] With a repeated free-time blocker, the owner hears one concise translated report, the status/history still names the blocker, and the same failure does not produce a report burst; a different blocker is reported once.
+- [ ] A blocked queued step remains visible after its question is coalesced; the same blocker is asked about again only after five minutes, while a new blocker can be raised immediately.
+- [ ] In a Russian owner session, free-time reports and the away summary use the owner's locale; language-profile metadata does not become an ambient small-talk topic, and a direct owner question still gets a reply during social quiet time.
 - [ ] With a storage place and a full bag, the companion unloads like with like and keeps its tools and food.
 - [ ] An owner order during free time runs first; free time resumes about a minute after the owner goes quiet.
 - [ ] Leave the companion idle for five minutes: it says it will get on with its own things and starts free time.
@@ -54,6 +58,7 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] Leave and rejoin mid-plan: the job resumes, the result is reported once on return, and the server log prints an `Execution restore:` line only for what was rejected.
 - [ ] `/friendai freetime on`, stay within hearing and quiet for a recorded hour: `/friendai freetime status` shows the shifts, and the log records how many repeat a recent activity and whether a failed shift was retried.
 - [ ] Keep ambient speech on and stay near and silent for twenty minutes: one `social activity:` line appears with ordinary, urgent, held, dropped and owner-message counts, and an ignored question is not asked again within the backoff.
+- [ ] With free-time autonomy enabled and no urgent journal entry, ambient speech does not open a neutral “what next?” turn; a new urgent journal fact can still be delivered.
 - [ ] Fresh world, no journal entries: the companion's first self-raised line is a neutral question about plans, preferences or work. It never mentions a cave, a river, a chest or any past trip the two did not make; a Russian owner gets the Russian bank.
 - [ ] Ask for one multi-item outcome in one sentence ("mine 32 iron ore", "milk three cows", "store two stacks of cobblestone"): the companion issues one tool call carrying the count and reports the partial or complete result, not one call per item.
 - [ ] Carry water bottles, nether wart and blaze powder to a brewing stand and ask for a strength potion: the companion brews it, reports one potion and the ingredients spent; asking again at a stand that already holds an awkward potion skips the first step instead of repeating it.

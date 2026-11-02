@@ -1,5 +1,6 @@
 package dev.friendai.features.social;
 
+import dev.friendai.features.memory.AutoProfile;
 import dev.friendai.features.memory.Category;
 import dev.friendai.features.memory.Fact;
 import java.util.ArrayList;
@@ -47,6 +48,7 @@ public final class SocialTopics {
             return false;
         }
         Category category = fact.category();
-        return category == Category.PROFILE || category == Category.PREFERENCE || category == Category.PROMISE;
+        return (category == Category.PROFILE || category == Category.PREFERENCE || category == Category.PROMISE)
+                && !AutoProfile.isLanguageFact(fact.text());
     }
 }

@@ -21,6 +21,32 @@ class RecoveryAdvisorTest {
     }
 
     @Test
+    void missingTreeScaffoldNamesBothSafeMaterialChoices() {
+        Diagnosis d = advisor.diagnose(
+                "fell_tree",
+                "I need 1 blocks of dirt or cobblestone to climb the oak tree, I have 0 in 1 ticks",
+                Set.of());
+
+        assertEquals(FailureKind.MISSING_ITEM, d.kind());
+        assertEquals("missing scaffold blocks: 1", d.detail());
+        assertEquals(List.of("obtain_item minecraft:dirt", "obtain_item minecraft:cobblestone"), d.remedies());
+        assertFalse(d.needsPlayer());
+    }
+
+    @Test
+    void exhaustedLocalFoodSearchDoesNotClaimFoodIsUnavailableEverywhere() {
+        Diagnosis d = advisor.diagnose(
+                "obtain_item",
+                "I can't find any food here: no food in chests, no crops, no animals and no way to fish",
+                Set.of());
+
+        assertEquals(FailureKind.RESOURCE_NOT_FOUND, d.kind());
+        assertEquals("no food source in the local search area", d.detail());
+        assertTrue(d.remedies().isEmpty());
+        assertFalse(d.needsPlayer());
+    }
+
+    @Test
     void noPathIsUnreachable() {
         Diagnosis d = advisor.diagnose("go_to", "can't reach 10 64 -3", Set.of());
         assertEquals(FailureKind.UNREACHABLE, d.kind());
@@ -63,8 +89,7 @@ class RecoveryAdvisorTest {
 
     @Test
     void aTriedRemedyIsCountedAsRepeatedAndAFreshOneIsNot() {
-        Diagnosis fresh =
-                advisor.diagnose("build_structure", "missing materials: 3 × minecraft:iron_ingot", Set.of());
+        Diagnosis fresh = advisor.diagnose("build_structure", "missing materials: 3 × minecraft:iron_ingot", Set.of());
         assertEquals(0, fresh.repeatedRemedies(), "nothing was tried, so nothing repeated");
 
         Diagnosis repeated = advisor.diagnose(

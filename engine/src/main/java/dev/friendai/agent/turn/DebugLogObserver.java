@@ -21,12 +21,18 @@ public final class DebugLogObserver implements BrainObserver {
 
     @Override
     public void onEventDropped(BrainEvent e, String reason) {
-        log.add(LogKind.USER, "dropped (" + reason + "): " + e.toPromptLine());
+        LogKind kind = e instanceof BrainEvent.PlayerSaid ? LogKind.USER : LogKind.TASK;
+        log.add(kind, "dropped (" + reason + "): " + e.toPromptLine());
     }
 
     @Override
     public void onAssistantText(String text) {
         log.add(LogKind.ASSISTANT, text);
+    }
+
+    @Override
+    public void onReply(dev.friendai.execution.tool.Caller caller, String text) {
+        log.add(LogKind.ASSISTANT, "delivered: " + text);
     }
 
     @Override

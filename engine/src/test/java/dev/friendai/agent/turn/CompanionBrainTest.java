@@ -81,6 +81,75 @@ class CompanionBrainTest {
     }
 
     @Test
+    void queuedCooldownCountsAsPendingWork() {
+        cooldown = 100;
+        CompletableFuture<LlmResponse> first = gateway.enqueuePending();
+        gateway.enqueue(text("second"));
+
+        brain.post(said("hi"));
+        brain.post(said("another turn"));
+        first.complete(text("ok"));
+
+        assertFalse(brain.isThinking());
+        assertTrue(brain.hasPendingWork());
+        scheduler.advance(100);
+        assertFalse(brain.hasPendingWork());
+    }
+
+    @Test
+    void cancelledTaskIsLoggedWithoutCallingTheModel() {
+        List<String> dropped = new ArrayList<>();
+        brain.setObserver(new BrainObserver() {
+            @Override
+            public void onEventDropped(BrainEvent event, String reason) {
+                dropped.add(reason);
+            }
+        });
+
+        brain.post(new BrainEvent.TaskCancelled(7, "mine_blocks", "owner stopped it"));
+
+        assertTrue(gateway.requests.isEmpty());
+        assertFalse(brain.hasPendingWork());
+        assertEquals(List.of("cancellation retained in task history"), dropped);
+    }
+
+    @Test
+    void repeatedAuthorityBlockerIsLoggedAndAskedAgainAfterCooldown() {
+        List<String> dropped = new ArrayList<>();
+        brain.setObserver(new BrainObserver() {
+            @Override
+            public void onEventDropped(BrainEvent event, String reason) {
+                dropped.add(reason);
+            }
+        });
+        BrainEvent.PlanBlocked blocker = new BrainEvent.PlanBlocked(8, "shelter", 2, "build", "missing materials", 3);
+        gateway.enqueue(text("I need your decision."));
+        gateway.enqueue(text("I'll answer your question."));
+        gateway.enqueue(text("A new blocker needs attention."));
+        gateway.enqueue(text("I still need your decision."));
+
+        brain.post(blocker);
+        scheduler.advance(1_000);
+        brain.post(new BrainEvent.PlanBlocked(9, "another plan", 4, " BUILD ", " MISSING  MATERIALS ", 1));
+
+        assertEquals(1, gateway.requests.size());
+        assertEquals(List.of("authority blocker is still pending; question cooldown"), dropped);
+
+        brain.post(said("Please help me with this."));
+        assertEquals(2, gateway.requests.size(), "an owed player reply bypasses the blocker cooldown");
+
+        brain.post(new BrainEvent.PlanBlocked(9, "another plan", 4, "build", "protection denied", 1));
+        assertEquals(3, gateway.requests.size(), "a new hard blocker is not hidden by the previous cooldown");
+
+        scheduler.advance(CompanionSpeechPolicy.AUTHORITY_QUESTION_COOLDOWN_MILLIS - 1_000);
+        brain.post(new BrainEvent.PlanBlocked(10, "shelter", 5, "build", "missing materials", 2));
+
+        assertEquals(4, gateway.requests.size());
+        assertEquals(
+                4, speaker.said.size(), "the repeat is quiet while new blockers and the player reply remain audible");
+    }
+
+    @Test
     void systemPromptCarriesKnownPlaces() {
         brain.setPlaceSource(caller -> "Known places: home at 1 2 3");
         gateway.enqueue(text("ok"));

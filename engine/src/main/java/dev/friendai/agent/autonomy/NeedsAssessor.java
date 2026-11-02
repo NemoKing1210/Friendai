@@ -52,6 +52,13 @@ public final class NeedsAssessor {
                     Executor.REFLEX,
                     "it is dark; go home to " + home.get().name() + " until morning"));
         }
+        if (f.dark() && home.isEmpty()) {
+            needs.add(new Need(
+                    NeedKind.SHELTER,
+                    90,
+                    Executor.REFLEX,
+                    "it is dark and there is no known home; build a shelter if materials allow, otherwise stay safe"));
+        }
         if (f.dark() && home.isPresent() && f.self().bedAtHome()) {
             needs.add(new Need(
                     NeedKind.SLEEP,
@@ -192,7 +199,7 @@ public final class NeedsAssessor {
         needs.add(new Need(
                 NeedKind.EXPLORE, 10, Executor.DIRECTOR, "nothing urgent; explore, gather or improve the base"));
         return needs.stream()
-                .filter(need -> !coolingDown(state, need.kind(), f.nowMillis()))
+                .filter(need -> !isCoolingDown(state, need.kind(), f.nowMillis()))
                 .sorted(Comparator.comparingInt(Need::urgency)
                         .reversed()
                         .thenComparingInt(need -> need.kind().ordinal()))
@@ -226,7 +233,8 @@ public final class NeedsAssessor {
                 .orElse(NeedKind.EXPLORE);
     }
 
-    private static boolean coolingDown(FreeTime state, NeedKind kind, long now) {
+    /** Whether a recently failed need is still cooling down at the supplied wall-clock time. */
+    public static boolean isCoolingDown(FreeTime state, NeedKind kind, long now) {
         Long until = state.cooldownUntil().get(kind);
         return until != null && until > now;
     }

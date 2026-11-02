@@ -6,6 +6,17 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.191.0] - 2026-11-02
+
+### Fixed
+
+- Free-time planning keeps recent failure evidence, respects the need cooldown, and gives concise translated reports for newly encountered blockers without repeating the same recent failure or plan-blocker question within five minutes.
+- Independent targetless actions are no longer treated as duplicate work across companions.
+- Learning-only skill outcome turns can still use their permitted tools without narrating routine results; task cancellations remain in diagnostics without an unnecessary model turn.
+- Language metadata is no longer offered as an ambient small-talk topic, and away summaries preserve translation keys and arguments until the owner returns.
+- Planner guidance now shows the queue parser's condition shape and valid remembered-place semantics, reducing retries that discard intended guards.
+- Nighttime autonomy now starts a shelter reflex when no local home is known; it builds when stocked, otherwise it lights the area and waits safely. Planner schemas no longer advertise a duplicate `local` search scope, and crafting docs clarify that `station` means a keep-or-take policy.
+
 ## [0.190.0] - 2026-11-02
 
 ### Added

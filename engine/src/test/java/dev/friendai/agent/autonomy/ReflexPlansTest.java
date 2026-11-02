@@ -67,6 +67,17 @@ class ReflexPlansTest {
     }
 
     @Test
+    void nightShelterBuildsIfMaterialsAreAvailable() {
+        var steps = ReflexPlans.plan(
+                        need(NeedKind.SHELTER),
+                        Facts.base().dark().stock(StockKind.LOGS, 8).build(),
+                        S)
+                .orElseThrow();
+        assertEquals(List.of("build_structure"), tools(steps));
+        assertTrue(steps.get(0).args().get("generator").getAsString().contains("\"type\":\"house\""));
+    }
+
+    @Test
     void hungerEatsCarriedFoodOrGetsSome() {
         assertEquals(
                 List.of("eat"),

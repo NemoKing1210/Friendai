@@ -61,6 +61,8 @@ public final class CompanionBrain {
     private static final int RECENT_SPEECH_LINES = 4;
     /** At most this many principal histories; the owner and the active turn are never evicted. */
     private static final int MAX_HISTORIES = 32;
+    /** Old plan blockers are evicted so repeated queue notifications cannot grow this cooldown map forever. */
+    private static final int MAX_AUTHORITY_QUESTION_KEYS = 64;
 
     private final Supplier<Persona> persona;
     private final Supplier<BrainSettings> settings;
@@ -74,6 +76,8 @@ public final class CompanionBrain {
     private final int historyMessages;
     /** Principal-scoped conversations, least recently used first; the map access order is the LRU order. */
     private final Map<UUID, PrincipalHistory> histories = new LinkedHashMap<>(16, 0.75f, true);
+    /** Last model-turn attempt for a blocked action, bounded and keyed by blocker rather than transient job id. */
+    private final LinkedHashMap<String, Long> authorityQuestionAt = new LinkedHashMap<>(16, 0.75f, true);
 
     private ConversationMemory memory;
     private UUID activePrincipal;
@@ -92,6 +96,8 @@ public final class CompanionBrain {
     private long plannerPlanId;
     /** A social batch answers with words only: no schema is sent and no tool call is accepted. */
     private boolean socialTurn;
+
+    private boolean turnSpeechAllowed = true;
 
     private Supplier<AgentSettings> agentSettings = () -> AgentSettings.DEFAULTS;
     private BiFunction<Caller, String, String> tradingPromptSource = (caller, text) -> "";
@@ -203,11 +209,33 @@ public final class CompanionBrain {
     }
 
     public void post(BrainEvent e) {
+        if (!CompanionSpeechPolicy.needsModelTurn(e)) {
+            observe(o -> o.onEventDropped(e, "cancellation retained in task history"));
+            return;
+        }
         if (shouldDrop(e)) {
+            return;
+        }
+        if (e instanceof BrainEvent.PlanBlocked blocked && !mayAskAuthorityQuestion(blocked)) {
+            observe(o -> o.onEventDropped(e, "authority blocker is still pending; question cooldown"));
             return;
         }
         queue.addLast(e);
         maybeStartTurn();
+    }
+
+    private boolean mayAskAuthorityQuestion(BrainEvent.PlanBlocked event) {
+        String key = CompanionSpeechPolicy.authorityQuestionKey(event);
+        long now = scheduler.nowMillis();
+        long last = authorityQuestionAt.getOrDefault(key, Long.MIN_VALUE);
+        if (!CompanionSpeechPolicy.mayAskAuthorityQuestion(event, now, last)) {
+            return false;
+        }
+        authorityQuestionAt.put(key, now);
+        while (authorityQuestionAt.size() > MAX_AUTHORITY_QUESTION_KEYS) {
+            authorityQuestionAt.remove(authorityQuestionAt.keySet().iterator().next());
+        }
+        return true;
     }
 
     /**
@@ -254,6 +282,11 @@ public final class CompanionBrain {
 
     public boolean isThinking() {
         return thinking;
+    }
+
+    /** A turn is pending while a request runs, events wait, or the post-turn cooldown has not elapsed. */
+    public boolean hasPendingWork() {
+        return thinking || !queue.isEmpty() || cooldownScheduled;
     }
 
     public void setObserver(BrainObserver observer) {
@@ -496,6 +529,7 @@ public final class CompanionBrain {
                             access.owner(), e.outcomeId(), generation, e.kind()));
         }
         socialTurn = batch.stream().anyMatch(event -> event instanceof BrainEvent.SocialOpening);
+        turnSpeechAllowed = CompanionSpeechPolicy.maySpeak(batch, !turnPlayerTexts.isEmpty());
         visibleGroups.clear();
         visibleGroups.addAll(decision.groups());
         thinking = true;
@@ -632,7 +666,7 @@ public final class CompanionBrain {
      * stream is complete, never from an increment.
      */
     private void releaseEarly(int gen, StreamAccumulator accumulator) {
-        if (gen != generation || speechPolicy == null || !streamedTurn || turnCaller == null) {
+        if (gen != generation || !turnSpeechAllowed || speechPolicy == null || !streamedTurn || turnCaller == null) {
             return;
         }
         String text = accumulator.text();
@@ -698,7 +732,7 @@ public final class CompanionBrain {
             observe(o -> o.onAssistantText(raw));
         }
         String spoken = null;
-        if (!raw.isBlank()) {
+        if (!raw.isBlank() && turnSpeechAllowed) {
             Optional<String> guarded = ReplyGuard.filter(raw, coordinatesAllowed(), recentSpeech(), turnToolNames);
             if (guarded.isPresent()) {
                 spoken = guarded.get();

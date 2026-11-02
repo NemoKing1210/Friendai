@@ -61,6 +61,17 @@ class WorkConflictTest {
     }
 
     @Test
+    void targetlessActionsInAnotherCompanionsQueueAreIndependent() {
+        List<Job> other = List.of(job(1, "jump", new JsonObject(), JobState.RUNNING));
+
+        assertTrue(
+                WorkConflict.duplicateAcross(
+                                List.of(), List.of(other), List.of(new ReflexStep("jump", new JsonObject())))
+                        .isEmpty(),
+                "an unscoped action in another owner's queue has no shared target");
+    }
+
+    @Test
     void finishedWorkIsNotAReasonToHoldBack() {
         for (JobState state : List.of(JobState.DONE, JobState.FAILED, JobState.SKIPPED, JobState.CANCELLED)) {
             List<Job> queued = List.of(job(1, "stay", new JsonObject(), state));

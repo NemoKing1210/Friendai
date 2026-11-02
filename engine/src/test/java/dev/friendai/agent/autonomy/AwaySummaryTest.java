@@ -3,6 +3,7 @@ package dev.friendai.agent.autonomy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.friendai.foundation.text.UserMessage;
 import org.junit.jupiter.api.Test;
 
 class AwaySummaryTest {
@@ -13,7 +14,10 @@ class AwaySummaryTest {
             state = AwaySummary.add(state, "line " + i);
         }
         assertEquals(FreeTime.MAX_AWAY, state.away().size());
-        assertEquals("line 2", state.away().get(0));
+        assertEquals(
+                "friendai.freetime.away_older_omitted",
+                AwaySummary.translationKey(state.away().getFirst()).orElseThrow());
+        assertEquals("line 3", state.away().get(1));
         assertEquals("line 9", state.away().getLast());
     }
 
@@ -33,5 +37,40 @@ class AwaySummaryTest {
     @Test
     void takeEmptyIsEmpty() {
         assertEquals("", AwaySummary.take(FreeTime.OFF).text());
+    }
+
+    @Test
+    void translatedAwayLinesKeepTheirKeyUntilTheOwnerReturns() {
+        FreeTime state = AwaySummary.addMessage(FreeTime.OFF, UserMessage.of("friendai.freetime.shift_report.failed"));
+
+        AwaySummary.Taken taken = AwaySummary.take(state);
+
+        assertEquals(1, taken.lines().size());
+        assertEquals(
+                "friendai.freetime.shift_report.failed",
+                AwaySummary.translationKey(taken.lines().getFirst()).orElseThrow());
+        assertTrue(taken.state().away().isEmpty());
+
+        FreeTime restored = FreeTimeSave.decode(FreeTimeSave.encode(state)).orElseThrow();
+        assertEquals(
+                "friendai.freetime.shift_report.failed",
+                AwaySummary.translationKey(restored.away().getFirst()).orElseThrow());
+    }
+
+    @Test
+    void translatedAwayLinesKeepTheirArgumentsUntilTheOwnerReturns() {
+        FreeTime state =
+                AwaySummary.addMessage(FreeTime.OFF, UserMessage.of("friendai.freetime.stage_reached", "diamond"));
+
+        AwaySummary.Taken taken = AwaySummary.take(state);
+
+        UserMessage message =
+                AwaySummary.translationMessage(taken.lines().getFirst()).orElseThrow();
+        assertEquals("friendai.freetime.stage_reached", message.key());
+        assertEquals(java.util.List.of("diamond"), message.args());
+        FreeTime restored = FreeTimeSave.decode(FreeTimeSave.encode(state)).orElseThrow();
+        assertEquals(
+                message,
+                AwaySummary.translationMessage(restored.away().getFirst()).orElseThrow());
     }
 }

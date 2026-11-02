@@ -35,7 +35,12 @@ class FreeTimeTextTest {
                 3,
                 List.of(
                         new ShiftRecord(
-                                2, "gather", NeedKind.FARM, false, "the owner paused the work", 9,
+                                2,
+                                "gather",
+                                NeedKind.FARM,
+                                false,
+                                "the owner paused the work",
+                                9,
                                 ShiftStopWhen.OWNER_PAUSED),
                         new ShiftRecord(1, "chop wood", NeedKind.STOCK, true, "16 logs", 5)),
                 List.of(),
@@ -81,6 +86,23 @@ class FreeTimeTextTest {
         assertEquals(
                 "Free time: gearing up — nothing came of it; the work finished.",
                 FreeTimeText.endReport(shift, false, "", ShiftStopWhen.DONE));
+    }
+
+    @Test
+    void knownFailureNoticesAreSpecificAndTranslated() {
+        assertEquals(
+                "friendai.freetime.shift_report.scaffold_needed",
+                FreeTimeText.shiftFailureMessage(
+                                "I need 1 blocks of dirt or cobblestone to climb the oak tree, I have 0 in 1 ticks")
+                        .key());
+        assertEquals(
+                "friendai.freetime.shift_report.food_not_found",
+                FreeTimeText.shiftFailureMessage("I can't find any food here: no food in chests, no crops, no animals "
+                                + "and no way to fish")
+                        .key());
+        assertEquals(
+                "friendai.freetime.shift_report.failed",
+                FreeTimeText.shiftFailureMessage("unrecognized failure").key());
     }
 
     @Test

@@ -715,8 +715,14 @@ public class FreeTimeTests {
                 h.assertTrue(false, "wait for the planner failure and the fallback");
             }
             h.assertTrue(
-                    state.shift() != null && state.shift().planId() != 0,
-                    "the deterministic template kept the shift: " + state);
+                    state.shift() == null || state.shift().planId() != 0,
+                    "a remaining shift has a linked plan: " + state);
+            if (state.shift() == null) {
+                h.assertTrue(
+                        !state.history().isEmpty()
+                                && state.history().getFirst().summary().startsWith("no plan:"),
+                        "an unavailable fallback ends the shift with its planner failure: " + state);
+            }
             h.assertTrue(
                     !state.cooldownUntil().containsKey(dev.friendai.agent.autonomy.NeedKind.GEAR),
                     "the need did not fail, so it is not cooling: " + state.cooldownUntil());

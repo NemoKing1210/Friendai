@@ -61,6 +61,14 @@ class NeedsAssessorTest {
     }
 
     @Test
+    void nightWithoutHomePrioritizesShelterOverRoutineWork() {
+        var agenda = needs(Facts.base().dark().stock(StockKind.LOGS, 8).foodPoints(19));
+        assertEquals(NeedKind.SHELTER, agenda.get(0).kind());
+        assertEquals(90, agenda.get(0).urgency());
+        assertEquals(Executor.REFLEX, agenda.get(0).executor());
+    }
+
+    @Test
     void readyFurnaceAtHomeIsCollect() {
         assertTrue(kinds(needs(Facts.base().home("home", 3).furnacesReady(1))).contains(NeedKind.COLLECT));
     }
@@ -204,6 +212,26 @@ class NeedsAssessorTest {
     }
 
     @Test
+    void aNamedNeedCannotBypassItsCooldownButCanBeRetriedAfterExpiry() {
+        FreeTime cooling = new FreeTime(
+                false,
+                FreeTime.Origin.COMMAND,
+                "",
+                0,
+                null,
+                false,
+                1,
+                List.of(),
+                List.of(),
+                Map.of(NeedKind.STOCK, 1_000L),
+                List.of());
+
+        assertTrue(NeedsAssessor.isCoolingDown(cooling, NeedKind.STOCK, 999));
+        assertFalse(NeedsAssessor.isCoolingDown(cooling, NeedKind.STOCK, 1_000));
+        assertFalse(NeedsAssessor.isCoolingDown(cooling, NeedKind.GEAR, 999));
+    }
+
+    @Test
     void atMostSixSorted() {
         List<Need> needs = needs(Facts.base()
                 .health(5)
@@ -278,7 +306,7 @@ class NeedsAssessorTest {
                         .otherDimension()
                         .storageFreeSlots(27)))
                 .contains(NeedKind.UNLOAD));
-        assertFalse(kinds(needs(Facts.base().dark().home("home", 40).otherDimension()))
+        assertTrue(kinds(needs(Facts.base().dark().home("home", 40).otherDimension()))
                 .contains(NeedKind.SHELTER));
         assertFalse(kinds(needs(Facts.base().farm("f", "wheat", 5, 3_600_000).otherDimension()))
                 .contains(NeedKind.FARM));

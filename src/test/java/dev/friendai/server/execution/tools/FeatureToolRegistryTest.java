@@ -244,6 +244,19 @@ class FeatureToolRegistryTest {
         assertEquals(
                 AccessLevel.TRUSTED,
                 registry.taskDefinitions().get("obtain_item").minAccess());
+        assertEquals(
+                List.of("local", "expedition"),
+                registry
+                        .taskDefinitions()
+                        .get("obtain_item")
+                        .schema()
+                        .getAsJsonObject("properties")
+                        .getAsJsonObject("scope")
+                        .getAsJsonArray("enum")
+                        .asList()
+                        .stream()
+                        .map(value -> value.getAsString())
+                        .toList());
 
         ToolCatalog catalog = ToolCatalog.defaults();
         for (var metadata : registry.catalogMetadata()) {

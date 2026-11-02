@@ -54,7 +54,16 @@ public final class ShiftOutcome {
         if (shift.reflex()) {
             return new Result(record, Optional.empty(), cooldown, notable);
         }
-        String why = diagnosis == null || diagnosis.isBlank() ? text : diagnosis;
+        boolean unknown = diagnosis == null
+                || diagnosis.isBlank()
+                || diagnosis.startsWith("UNKNOWN ")
+                || diagnosis.startsWith("diagnosis: UNKNOWN ");
+        String evidence = FreeTime.cut(text, unknown ? FreeTime.MAX_LESSON : 80);
+        String why = unknown
+                ? evidence
+                : evidence.isBlank()
+                        ? FreeTime.cut(diagnosis, FreeTime.MAX_LESSON)
+                        : "observed: " + evidence + "; " + FreeTime.cut(diagnosis, 64);
         return new Result(
                 record, Optional.of(FreeTime.cut(shift.goal() + ": " + why, FreeTime.MAX_LESSON)), cooldown, notable);
     }

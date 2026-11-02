@@ -266,7 +266,7 @@ public final class FreeTimeDriver {
         facts.invalidate(owner);
     }
 
-    /** One short English line when a shift ends; an absent owner hears it when they come back. */
+    /** One short translated line when a shift ends; an absent owner hears it when they come back. */
     private void reportShiftEnd(
             UUID owner,
             CompanionEntity companion,
@@ -277,7 +277,11 @@ public final class FreeTimeDriver {
         if (shift == null) {
             return;
         }
-        say(owner, companion, FreeTimeText.endReport(shift, success, summary, stopWhen));
+        if (!success
+                && dev.friendai.agent.turn.CompanionSpeechPolicy.shouldReportShiftFailure(
+                        shift, summary, stopWhen, service().state(owner).history())) {
+            tell(owner, companion, FreeTimeText.shiftFailureMessage(summary));
+        }
     }
 
     /** Cancels a free-time plan on purpose, so its end is not reported as news. */
@@ -370,9 +374,6 @@ public final class FreeTimeDriver {
         }
         outcome.notable()
                 .ifPresent(stage -> tell(owner, companion, UserMessage.of("friendai.freetime.stage_reached", stage)));
-        if (!success && summary != null && summary.contains("storage is full")) {
-            tell(owner, companion, UserMessage.of("friendai.freetime.storage_full"));
-        }
         return true;
     }
 
@@ -393,7 +394,7 @@ public final class FreeTimeDriver {
         Autonomy ceiling = Autonomy.parse(cfg.agent.autonomy);
         FreeTimeService service = service();
         // A shift that could not be resumed is reported once the body is back, before the next decision.
-        service.takePendingReport(owner).ifPresent(line -> say(owner, companion, line));
+        service.takePendingReport(owner).ifPresent(line -> tell(owner, companion, line));
         FreeTime state = service.state(owner);
         var runner = companion.executionCoordinator();
         boolean online = companion.owner().isPresent();
@@ -735,15 +736,16 @@ public final class FreeTimeDriver {
         AutonomySettings s = config.get().autonomy.toSettings();
         int length = Math.max(3, Math.min(minutes, s.shiftMinutes()));
         AutonomyFacts f = facts.build(companion, owner, now, placeService);
-        NeedKind need = NeedsAssessor.kindNamed(needName, NeedsAssessor.assess(f, state, s));
+        List<Need> agenda = NeedsAssessor.assess(f, state, s);
+        NeedKind need = NeedsAssessor.kindNamed(needName, agenda);
+        if (NeedsAssessor.isCoolingDown(state, need, now)) {
+            return ToolResult.error("that need is cooling down after a recent failure; choose from the current agenda");
+        }
         markStart(owner, f);
         Shift shift = service()
                 .beginShift(owner, goal, criteria, why, need, false, now, now + length * 60_000L)
                 .shift();
         awaitingSince.remove(owner);
-        if (!why.isBlank()) {
-            say(owner, companion, why);
-        }
         requestPlan(owner, companion, shift.id(), length, false);
         return ToolResult.ok("activity chosen; planning a plan for \"" + goal + "\"");
     }
@@ -845,6 +847,15 @@ public final class FreeTimeDriver {
     private dev.friendai.agent.plan.PlannerInput plannerInput(UUID owner, CompanionEntity companion, Caller caller) {
         FreeTime state = service().state(owner);
         Shift shift = state.shift();
+        List<String> plannerLessons = new java.util.ArrayList<>(state.lessons());
+        state.history().stream()
+                .filter(record -> !record.success())
+                .filter(record -> record.stopWhen() != ShiftStopWhen.OWNER_BACK
+                        && record.stopWhen() != ShiftStopWhen.OWNER_SPOKE
+                        && record.stopWhen() != ShiftStopWhen.OWNER_PAUSED)
+                .findFirst()
+                .ifPresent(record ->
+                        plannerLessons.add("Most recent failed activity: " + record.goal() + ": " + record.summary()));
         var goal = new dev.friendai.agent.goal.Goal(
                 shift.id(),
                 shift.goal(),
@@ -854,7 +865,7 @@ public final class FreeTimeDriver {
                 dev.friendai.agent.goal.GoalStatus.ACTIVE,
                 0,
                 0,
-                state.lessons(),
+                plannerLessons,
                 0,
                 false);
         Map<String, JsonObject> schemas = new java.util.LinkedHashMap<>();
@@ -876,7 +887,7 @@ public final class FreeTimeDriver {
                         cfg.places.enabled ? places.book(owner).all() : List.of(), cfg.places.plannerLimit),
                 Optional.of(dev.friendai.execution.queue.QueueText.show(
                         companion.executionCoordinator().queue(), guard, null, 20, false)),
-                state.lessons(),
+                plannerLessons,
                 "",
                 schemas,
                 planTools.keySet());
@@ -1006,44 +1017,59 @@ public final class FreeTimeDriver {
 
     /** The owner joined or came back online: end the shift it found running, then say what happened while away. */
     void onOwnerBack(UUID owner, CompanionEntity companion) {
+        var player = companion.owner();
+        if (player.isEmpty()) {
+            return;
+        }
         lastOwnerActivity.put(owner, now()); // their return starts the quiet spell over
         endShift(owner, companion, "the owner came back", ShiftStopWhen.OWNER_BACK);
         AwaySummary.Taken taken = AwaySummary.take(service().state(owner));
-        if (taken.text().isBlank()) {
+        if (taken.lines().isEmpty()) {
             return;
         }
         service().update(owner, s -> taken.state());
-        tell(owner, companion, UserMessage.of("friendai.freetime.away", taken.text()));
-    }
-
-    /** The director's own words to the owner, or saved for when they come back. */
-    void say(UUID owner, CompanionEntity companion, String text) {
-        var player = companion.owner();
-        if (player.isPresent()) {
-            player.get()
-                    .sendSystemMessage(dev.friendai.server.agent.chat.CompanionSpeaker.chatLine(
-                            companion.getName().getString(), text));
-        } else {
-            service().update(owner, s -> AwaySummary.add(s, text));
+        var summary = net.minecraft.network.chat.Component.empty();
+        for (int i = 0; i < taken.lines().size(); i++) {
+            if (i > 0) {
+                summary.append(net.minecraft.network.chat.Component.literal("; "));
+            }
+            String line = taken.lines().get(i);
+            summary.append(AwaySummary.translationMessage(line)
+                    .map(dev.friendai.common.Components::of)
+                    .orElseGet(() -> net.minecraft.network.chat.Component.literal(line)));
         }
+        noteCompanionSpeech(owner);
+        player.get()
+                .sendSystemMessage(net.minecraft.network.chat.Component.literal("<")
+                        .append(dev.friendai.server.companion.CompanionNames.styled(
+                                companion.getName().getString()))
+                        .append(net.minecraft.network.chat.Component.literal("> "))
+                        .append(net.minecraft.network.chat.Component.translatable("friendai.freetime.away", summary)));
+        brains.logDirectDelivery(
+                owner, "friendai.freetime.away; lines=" + taken.lines().size());
     }
 
     /** A fixed line to the owner when they can hear it, otherwise saved for when they come back. */
     void tell(UUID owner, CompanionEntity companion, UserMessage message) {
         var player = companion.owner();
         if (player.isPresent()) {
+            noteCompanionSpeech(owner);
             player.get()
                     .sendSystemMessage(net.minecraft.network.chat.Component.literal("<")
                             .append(dev.friendai.server.companion.CompanionNames.styled(
                                     companion.getName().getString()))
                             .append(net.minecraft.network.chat.Component.literal("> "))
                             .append(Components.of(message)));
+            brains.logDirectDelivery(owner, message.key());
         } else {
-            service()
-                    .update(
-                            owner,
-                            s -> AwaySummary.add(s, Components.of(message).getString()));
+            service().update(owner, s -> AwaySummary.addMessage(s, message));
         }
+    }
+
+    private void noteCompanionSpeech(UUID owner) {
+        dev.friendai.server.runtime.ServerRuntimeRegistry.find(server)
+                .ifPresent(runtime -> runtime.socialDirector()
+                        .companionSpoke(owner, runtime.server().overworld().getGameTime()));
     }
 
     /** Wall-clock time: cooldowns and the idle spell are saved and must mean the same after a restart. */

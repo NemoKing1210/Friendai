@@ -338,6 +338,29 @@ public class SocialOpeningTests {
         });
     }
 
+    @GameTest(maxTicks = 300)
+    public void ordinarySmallTalkDoesNotCompeteWithFreeTimePlanning(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        ServerRuntime runtime = GameTestSupport.runtime(h.getLevel().getServer());
+        Script script = new Script();
+        runtime.sessions().setGatewayOverride(owner.getUUID(), script);
+        CompanionManager.get(h.getLevel().getServer()).summon(owner);
+        runtime.freeTime()
+                .start(
+                        owner.getUUID(),
+                        dev.friendai.agent.autonomy.FreeTime.Origin.IDLE,
+                        "",
+                        System.currentTimeMillis());
+
+        h.runAfterDelay(160, () -> {
+            h.assertTrue(
+                    socialOpenings(script).isEmpty(),
+                    "autonomy should select useful work instead of opening a neutral small-talk turn");
+            h.succeed();
+        });
+    }
+
     /**
      * A fact the owner stated is said back with its source named. The companion may repeat what it was told; it may
      * not present that as something it witnessed.

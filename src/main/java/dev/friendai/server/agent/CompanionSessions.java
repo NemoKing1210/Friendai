@@ -276,6 +276,11 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
         return freeTime;
     }
 
+    /** Records a direct, translated chat line in the same bounded log as brain deliveries. */
+    void logDirectDelivery(UUID owner, String translationKey) {
+        debug.logOf(owner).add(LogKind.ASSISTANT, "direct delivery: " + translationKey);
+    }
+
     Supplier<PerceptionContext> perceptionContext() {
         return perceptionContext;
     }
@@ -718,7 +723,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                 freeTime.tick(
                         owner,
                         companion,
-                        brain != null && brain.isThinking(),
+                        brain != null && brain.hasPendingWork(),
                         primary.isPresent() && primary.get().status() == dev.friendai.agent.goal.GoalStatus.ACTIVE,
                         wall);
             } catch (RuntimeException e) {
@@ -1261,6 +1266,16 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                         != dev.friendai.features.combat.minecraft.CombatController.State.IDLE));
         brain.setObserver(BrainObservers.of(
                 new DebugLogObserver(debug.logOf(owner)),
+                new dev.friendai.agent.turn.BrainObserver() {
+                    @Override
+                    public void onReply(Caller caller, String text) {
+                        dev.friendai.server.runtime.ServerRuntimeRegistry.find(server)
+                                .ifPresent(runtime -> runtime.socialDirector()
+                                        .companionSpoke(
+                                                owner,
+                                                runtime.server().overworld().getGameTime()));
+                    }
+                },
                 new TranscriptObserver(
                         transcripts.book(owner),
                         owner,

@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.gson.JsonObject;
 import dev.friendai.agent.llm.model.ToolCall;
+import dev.friendai.execution.tool.AccessLevel;
+import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.foundation.diagnostics.DebugLog;
 import dev.friendai.foundation.diagnostics.LogEntry;
@@ -26,6 +28,32 @@ class DebugLogObserverTest {
         assertEquals(1, entries.size());
         assertEquals(LogKind.USER, entries.get(0).kind());
         assertEquals("dropped (guest cooldown): [Bob]: hi", entries.get(0).text());
+    }
+
+    @Test
+    void actualDeliveryIsMarkedSeparatelyFromRawAssistantText() {
+        DebugLog log = new DebugLog(50, 500, UnaryOperator.identity(), () -> 0L);
+        DebugLogObserver observer = new DebugLogObserver(log);
+        observer.onAssistantText("I might say this.");
+        observer.onReply(new Caller(UUID.randomUUID(), "Alex", AccessLevel.OWNER), "I might say this.");
+
+        List<LogEntry> entries = log.after(0, 50);
+        assertEquals(
+                List.of(LogKind.ASSISTANT, LogKind.ASSISTANT),
+                entries.stream().map(LogEntry::kind).toList());
+        assertEquals("I might say this.", entries.get(0).text());
+        assertEquals("delivered: I might say this.", entries.get(1).text());
+    }
+
+    @Test
+    void aDroppedTaskEventKeepsItsTaskLogKind() {
+        DebugLog log = new DebugLog(50, 500, UnaryOperator.identity(), () -> 0L);
+        DebugLogObserver observer = new DebugLogObserver(log);
+        observer.onEventDropped(new BrainEvent.TaskCancelled(3, "mine_blocks", "stopped"), "no model turn needed");
+
+        LogEntry entry = log.after(0, 50).getFirst();
+        assertEquals(LogKind.TASK, entry.kind());
+        assertEquals("dropped (no model turn needed): [event] task #3 mine_blocks cancelled: stopped", entry.text());
     }
 
     @Test

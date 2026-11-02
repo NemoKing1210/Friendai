@@ -27,6 +27,21 @@ public final class RecoveryAdvisor {
 
     private static final List<Rule> RULES = List.of(
             new Rule(
+                    Pattern.compile("i need (\\d+) blocks? of dirt or cobblestone to climb the ([a-z0-9_:./-]+) tree"),
+                    FailureKind.MISSING_ITEM,
+                    1,
+                    "missing scaffold blocks: ",
+                    List.of("obtain_item minecraft:dirt", "obtain_item minecraft:cobblestone"),
+                    false),
+            new Rule(
+                    Pattern.compile("can't find any food here: no food in chests, no crops, no animals "
+                            + "and no way to fish"),
+                    FailureKind.RESOURCE_NOT_FOUND,
+                    0,
+                    "no food source in the local search area",
+                    List.of(),
+                    false),
+            new Rule(
                     Pattern.compile("missing materials: (?:(\\d+) " + TIMES + " )?([a-z0-9_:./-]+)"),
                     FailureKind.MISSING_ITEM,
                     0,

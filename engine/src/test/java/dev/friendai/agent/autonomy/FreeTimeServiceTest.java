@@ -152,7 +152,9 @@ class FreeTimeServiceTest {
         service.linkPlan(OWNER, 42);
 
         FreeTimeService restarted = new FreeTimeService(repository);
-        Shift restored = restarted.reconcileRestoredPlan(OWNER, Set.of(42L)::contains, 840_000).shift();
+        Shift restored = restarted
+                .reconcileRestoredPlan(OWNER, Set.of(42L)::contains, 840_000)
+                .shift();
 
         assertNotNull(restored, "a shift whose plan came back is resumed, not dropped");
         assertEquals(42, restored.planId());
@@ -177,10 +179,9 @@ class FreeTimeServiceTest {
         ShiftRecord record = ended.history().getFirst();
         assertEquals(ShiftStopWhen.WORK_CONFLICTS, record.stopWhen());
         assertEquals(FreeTimeService.ORPHANED_SHIFT, record.summary());
-        assertEquals(
-                "Free time: gearing up — the saved work plan was not restored;"
-                        + " the work no longer fitted the queue.",
-                restarted.takePendingReport(OWNER).orElseThrow());
+        var report = restarted.takePendingReport(OWNER).orElseThrow();
+        assertEquals("friendai.freetime.shift_report.failed", report.key());
+        assertTrue(report.args().isEmpty());
         assertTrue(restarted.takePendingReport(OWNER).isEmpty(), "the report is said once");
     }
 
@@ -198,7 +199,8 @@ class FreeTimeServiceTest {
     void theStopConditionIsRecordedInHistory() {
         service.start(OWNER, FreeTime.Origin.COMMAND, "", 0);
         service.beginShift(OWNER, "a", List.of(), "", NeedKind.STOCK, false, 1, 2);
-        FreeTime finished = service.finishShift(OWNER, false, "the owner paused the work", 3, ShiftStopWhen.OWNER_PAUSED);
+        FreeTime finished =
+                service.finishShift(OWNER, false, "the owner paused the work", 3, ShiftStopWhen.OWNER_PAUSED);
         assertEquals(ShiftStopWhen.OWNER_PAUSED, finished.history().get(0).stopWhen());
 
         service.beginShift(OWNER, "b", List.of(), "", NeedKind.FARM, false, 4, 5);

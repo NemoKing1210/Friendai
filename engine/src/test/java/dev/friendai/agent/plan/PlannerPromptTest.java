@@ -3,12 +3,17 @@ package dev.friendai.agent.plan;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.google.gson.JsonParser;
 import dev.friendai.agent.goal.Criterion;
 import dev.friendai.agent.goal.Goal;
 import dev.friendai.agent.goal.GoalStatus;
+import dev.friendai.execution.tool.QueueParser;
+import dev.friendai.execution.tool.SchemaBuilder;
 import dev.friendai.foundation.diagnostics.SecretRedactor;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class PlannerPromptTest {
@@ -73,6 +78,42 @@ class PlannerPromptTest {
         String system = PlannerPrompt.system();
         assertTrue(system.contains("one JSON object"));
         assertTrue(system.contains("do not repeat an approach that failed"));
+        assertTrue(system.contains("\"type\":\"not\",\"condition\":{\"type\":\"has_item\""));
+        assertTrue(system.contains("Never use a block or item id for near."));
+        assertTrue(system.contains("Enum values are closed"));
+        assertTrue(system.contains("slot is mainhand, offhand, head, chest, legs or feet"));
+        assertTrue(system.contains("local or expedition"));
+        assertTrue(system.contains("not a station type"));
+    }
+
+    @Test
+    void theAdvertisedNotConditionMatchesTheQueueParserContract() {
+        String guarded = "[{\"when\":{\"type\":\"not\",\"condition\":"
+                + "{\"type\":\"has_item\",\"item\":\"minecraft:oak_log\",\"count\":16}},"
+                + "\"then\":[{\"tool\":\"go_to\",\"args\":\"{}\"}]}]";
+        var parsed = QueueParser.parsePlan(
+                JsonParser.parseString(guarded).getAsJsonArray(),
+                Map.of("go_to", SchemaBuilder.object().build()),
+                Set.of("go_to"),
+                1,
+                8192,
+                49152);
+
+        assertTrue(parsed.ok(), parsed.errors().toString());
+
+        var invalid = QueueParser.parsePlan(
+                JsonParser.parseString("[{\"when\":{\"not\":{\"has_item\":{\"item\":\"minecraft:oak_log\","
+                                + "\"count\":16}}},\"then\":[{\"tool\":\"go_to\",\"args\":\"{}\"}]}]")
+                        .getAsJsonArray(),
+                Map.of("go_to", SchemaBuilder.object().build()),
+                Set.of("go_to"),
+                1,
+                8192,
+                49152);
+        assertFalse(invalid.ok());
+        assertTrue(
+                invalid.errors().stream().anyMatch(error -> error.contains("condition type")),
+                invalid.errors().toString());
     }
 
     @Test

@@ -50,8 +50,13 @@ public final class WorkConflict {
         if (ownHeld.isPresent()) {
             return ownHeld;
         }
+        List<ReflexStep> namedTargets =
+                steps.stream().filter(step -> !target(step.args()).isBlank()).toList();
+        if (namedTargets.isEmpty()) {
+            return Optional.empty();
+        }
         for (List<Job> queue : otherQueues) {
-            Optional<String> held = duplicate(queue, steps);
+            Optional<String> held = duplicate(queue, namedTargets);
             if (held.isPresent()) {
                 return held;
             }

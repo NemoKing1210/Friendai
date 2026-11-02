@@ -42,7 +42,7 @@ public final class CraftingTools implements FeatureToolContributor {
     public void register(FeatureToolRegistry registry) {
         registry.registerTask(new TaskToolDefinition(
                 "craft_item",
-                "Craft an item from the companion's inventory, crafting intermediate items (planks, sticks, a crafting table) as needed. Uses a nearby crafting table, stonecutter or smithing table, or places its own. Call get_recipe first for anything complex.",
+                "Craft an item from the companion's inventory, crafting intermediate items (planks, sticks, a crafting table) as needed. Uses a nearby crafting table, stonecutter or smithing table, or places its own. The optional station argument is only the policy for a station it places itself (keep or take), never a station type; omit it to use the default. Call get_recipe first for anything complex.",
                 SchemaBuilder.object()
                         .string("item", "Item id like minecraft:stick; tags are not accepted")
                         .integer("count", "How many to craft; ones already carried do not count", 1, 64)

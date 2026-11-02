@@ -49,7 +49,7 @@ public final class ObtainTools implements FeatureToolContributor {
                 .integer("count", "How many to get", 1, 64)
                 .bool("use_containers", "Allow taking items from nearby chests and barrels")
                 .bool("explore", "Allow searching further away and digging down when a resource is not nearby")
-                .enumeration("scope", "Search budget", "local", "local", "expedition")
+                .enumeration("scope", "Search budget", "local", "expedition")
                 .required("item", "count")
                 .build();
         TaskToolDefinition obtain = new TaskToolDefinition(
@@ -91,7 +91,7 @@ public final class ObtainTools implements FeatureToolContributor {
                                 .bool(
                                         "explore",
                                         "Allow searching further away and digging down when a resource is not nearby")
-                                .enumeration("scope", "Search budget", "local", "local", "expedition")
+                                .enumeration("scope", "Search budget", "local", "expedition")
                                 .required("item")
                                 .build();
                     }

@@ -44,6 +44,18 @@ class SocialTopicsTest {
     }
 
     @Test
+    void learnedLanguageMetadataIsNotSmallTalkButProfileStatementsRemainEligible() {
+        List<TopicCandidate> candidates = SocialTopics.fromFacts(
+                List.of(
+                        fact(6, Category.PROFILE, "Writes in Russian.", OWNER),
+                        fact(7, Category.PROFILE, "I am a builder", OWNER)),
+                OWNER);
+
+        assertEquals(1, candidates.size());
+        assertEquals("fact:7", candidates.getFirst().id());
+    }
+
+    @Test
     void aForgottenFactIsSimplyAbsent() {
         assertEquals(List.of(), SocialTopics.fromFacts(List.of(), OWNER));
         assertEquals(List.of(), SocialTopics.fromFacts(null, OWNER));

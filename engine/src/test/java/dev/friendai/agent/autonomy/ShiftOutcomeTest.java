@@ -33,7 +33,7 @@ class ShiftOutcomeTest {
                 SHIFT, false, "no pickaxe", "STONE", "STONE", "missing tool: craft a stone pickaxe first", 1000, S);
         assertFalse(r.record().success());
         assertEquals(
-                "mine iron: missing tool: craft a stone pickaxe first",
+                "mine iron: observed: no pickaxe; missing tool: craft a stone pickaxe first",
                 r.lesson().orElseThrow());
         assertEquals(1000 + 10 * 60_000L, r.cooldownUntil().orElseThrow());
     }
@@ -42,6 +42,37 @@ class ShiftOutcomeTest {
     void failureWithoutDiagnosisUsesTheSummary() {
         ShiftOutcome.Result r = ShiftOutcome.of(SHIFT, false, "storage is full", "STONE", "STONE", "", 0, S);
         assertEquals("mine iron: storage is full", r.lesson().orElseThrow());
+    }
+
+    @Test
+    void unknownDiagnosisDoesNotEraseTheFailureSummary() {
+        ShiftOutcome.Result r = ShiftOutcome.of(
+                SHIFT,
+                false,
+                "I need 1 block of dirt or cobblestone to climb the oak tree",
+                "WOOD",
+                "WOOD",
+                "diagnosis: UNKNOWN unclear cause",
+                0,
+                S);
+
+        assertTrue(r.lesson().orElseThrow().contains("I need 1 block of dirt or cobblestone"));
+    }
+
+    @Test
+    void knownDiagnosisRetainsBoundedOriginalEvidence() {
+        ShiftOutcome.Result r = ShiftOutcome.of(
+                SHIFT,
+                false,
+                "I need 1 block of dirt or cobblestone to climb the oak tree",
+                "WOOD",
+                "WOOD",
+                "diagnosis: MISSING_ITEM missing scaffold blocks: 1; try: obtain_item minecraft:dirt",
+                0,
+                S);
+
+        assertTrue(r.lesson().orElseThrow().contains("diagnosis: MISSING_ITEM"));
+        assertTrue(r.lesson().orElseThrow().contains("observed: I need 1 block of dirt or cobblestone"));
     }
 
     @Test

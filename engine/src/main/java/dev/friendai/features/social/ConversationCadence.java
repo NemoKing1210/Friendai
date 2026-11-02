@@ -40,6 +40,11 @@ public final class ConversationCadence {
         awaitingAnswer = false;
     }
 
+    /** Keeps ambient conversation quiet after the companion itself delivered a line. */
+    public void companionSpoke(int tick) {
+        lastOwnerAt = tick;
+    }
+
     public void recordLine(Scene scene, int tick, boolean question, boolean gotAnswer) {
         int gap = BASE_GAP[scene.ordinal()] + jitter(scene, tick);
         if (backoff > 0) {

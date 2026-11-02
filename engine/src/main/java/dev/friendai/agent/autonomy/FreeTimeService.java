@@ -1,5 +1,6 @@
 package dev.friendai.agent.autonomy;
 
+import dev.friendai.foundation.text.UserMessage;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -22,7 +23,7 @@ public final class FreeTimeService {
     private final Map<UUID, FreeTime> states = new HashMap<>();
     private final Map<UUID, Long> lastEnd = new HashMap<>();
     /** End reports the driver has not said yet, written when a restored shift could not be resumed. */
-    private final Map<UUID, String> pendingReports = new HashMap<>();
+    private final Map<UUID, UserMessage> pendingReports = new HashMap<>();
 
     public FreeTimeService(FreeTimeRepository repository) {
         this.repository = repository;
@@ -238,16 +239,15 @@ public final class FreeTimeService {
         if (current.shift() == null
                 || current.shift().planId() != 0
                         && restoredPlanExists.test(current.shift().planId())) return current;
-        Shift orphan = current.shift();
         String summary = ORPHANED_SHIFT;
         FreeTime ended = finishShift(owner, false, summary, nowMillis, ShiftStopWhen.WORK_CONFLICTS);
         // The driver says this once the companion is loaded, so a restart still reports what it gave up on.
-        pendingReports.put(owner, FreeTimeText.endReport(orphan, false, summary, ShiftStopWhen.WORK_CONFLICTS));
+        pendingReports.put(owner, UserMessage.of("friendai.freetime.shift_report.failed"));
         return ended;
     }
 
     /** The report for a shift ended during restore, taken once so it is said at most once. */
-    public Optional<String> takePendingReport(UUID owner) {
+    public Optional<UserMessage> takePendingReport(UUID owner) {
         return Optional.ofNullable(pendingReports.remove(owner));
     }
 

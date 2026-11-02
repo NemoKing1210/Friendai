@@ -25,7 +25,9 @@ public final class ReflexPlans {
             case SHELTER ->
                 Optional.of(f.homeHere()
                         .map(home -> List.of(step("go_to_place", "name", home.name()), step("stay")))
-                        .orElseGet(() -> List.of(step("light_area"), step("stay"))));
+                        .orElseGet(() -> s.allowBuilding() && hasShelterMaterial(f)
+                                ? List.of(buildShelterStep())
+                                : List.of(step("light_area"), step("stay"))));
             case SURVIVE -> Optional.of(survivePlan(f));
             case COLLECT ->
                 f.homeHere().map(home -> List.of(step("go_to_place", "name", home.name()), step("collect_smelted")));

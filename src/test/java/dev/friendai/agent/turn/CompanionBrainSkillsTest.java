@@ -12,6 +12,32 @@ import org.junit.jupiter.api.Test;
 
 class CompanionBrainSkillsTest {
     @Test
+    void teachingOutcomeMayUseToolsButItsNarrationIsNotSpoken() {
+        UUID owner = UUID.randomUUID();
+        var gateway = new FakeGateway();
+        var reply = gateway.enqueuePending();
+        var speaker = new RecordingSpeaker();
+        var scheduler = new ManualScheduler();
+        var brain = new CompanionBrain(
+                () -> new Persona("Friendai", "Guide", "auto"),
+                () -> new BrainSettings(8, 30, 0, 0),
+                () -> gateway,
+                new FakeToolExecutor(),
+                () -> "state",
+                speaker,
+                scheduler,
+                AccessResolver.of(owner, id -> false));
+
+        brain.post(new BrainEvent.SkillOutcome("shift:1", TeachingContext.OutcomeKind.SHIFT_FAILURE, "No materials"));
+        scheduler.advance(0);
+        reply.complete(FakeGateway.text("I tried, but there were no materials."));
+        scheduler.advance(0);
+
+        assertTrue(speaker.said.isEmpty());
+        assertEquals(1, gateway.requests.size());
+    }
+
+    @Test
     void aDirectorChoiceCannotBorrowTeachingAuthorityFromABatchedOutcome() {
         UUID owner = UUID.randomUUID();
         var gateway = new FakeGateway();

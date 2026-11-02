@@ -96,7 +96,7 @@ public final class FreeTimeTools implements FeatureToolContributor {
                                                 .build(),
                                         0,
                                         6)
-                                .string("why", "One short sentence to tell the owner why")
+                                .string("why", "Why this activity serves the need; planning context, not narration")
                                 .enumeration("need", "The agenda need this activity serves", agendaNames())
                                 .integer("minutes", "How long it may take", 3, 120)
                                 .required("goal", "why")

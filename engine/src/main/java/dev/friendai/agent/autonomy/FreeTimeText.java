@@ -1,6 +1,10 @@
 package dev.friendai.agent.autonomy;
 
+import dev.friendai.agent.recover.FailureKind;
+import dev.friendai.agent.recover.RecoveryAdvisor;
+import dev.friendai.foundation.text.UserMessage;
 import java.util.List;
+import java.util.Set;
 
 /** The model-facing lines about free time. */
 public final class FreeTimeText {
@@ -28,10 +32,23 @@ public final class FreeTimeText {
                 : " [" + record.stopWhen().name() + "]";
     }
 
-    /**
-     * One short English line for the owner when a shift ends: what it was for, what it got done and which stop
-     * condition fired. The driver says it through the free-time speech path, so an absent owner hears it on return.
-     */
+    /** A concise translated owner line for known failures; diagnostics stay in free-time history. */
+    public static UserMessage shiftFailureMessage(String summary) {
+        if (summary != null && summary.contains("storage is full")) {
+            return UserMessage.of("friendai.freetime.storage_full");
+        }
+        var diagnosis = new RecoveryAdvisor().diagnose("", summary, Set.of());
+        if (diagnosis.kind() == FailureKind.MISSING_ITEM && diagnosis.detail().startsWith("missing scaffold blocks:")) {
+            return UserMessage.of("friendai.freetime.shift_report.scaffold_needed");
+        }
+        if (diagnosis.kind() == FailureKind.RESOURCE_NOT_FOUND
+                && diagnosis.detail().equals("no food source in the local search area")) {
+            return UserMessage.of("friendai.freetime.shift_report.food_not_found");
+        }
+        return UserMessage.of("friendai.freetime.shift_report.failed");
+    }
+
+    /** An English diagnostic for tests and internal views; player-facing shift reports use translation keys. */
     public static String endReport(Shift shift, boolean success, String summary, ShiftStopWhen stopWhen) {
         ShiftStopWhen stop = stopWhen == null ? ShiftStopWhen.DONE : stopWhen;
         String purpose = shift == null ? ShiftContract.UNNAMED : shift.purpose();

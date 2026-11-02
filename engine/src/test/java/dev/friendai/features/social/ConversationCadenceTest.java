@@ -45,6 +45,18 @@ class ConversationCadenceTest {
     }
 
     @Test
+    void aCompanionLineStartsQuietWindowWithoutCountingAsAnOwnerAnswer() {
+        ConversationCadence cadence = new ConversationCadence();
+        cadence.recordLine(ConversationCadence.Scene.FREE, 0, true, false);
+
+        cadence.companionSpoke(10_000);
+
+        assertFalse(cadence.maySpeak(ConversationCadence.Scene.FREE, 10_050));
+        assertTrue(cadence.maySpeak(ConversationCadence.Scene.FREE, 10_101));
+        assertTrue(cadence.awaitingAnswer());
+    }
+
+    @Test
     void anUnansweredQuestionBlocksAnotherAndBacksOff() {
         ConversationCadence cadence = new ConversationCadence();
         cadence.recordLine(ConversationCadence.Scene.REST, 0, true, false);

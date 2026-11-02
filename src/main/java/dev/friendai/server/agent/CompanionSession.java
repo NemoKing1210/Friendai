@@ -45,6 +45,10 @@ public final class CompanionSession {
         return brain != null && brain.isThinking();
     }
 
+    public boolean hasPendingWork() {
+        return brain != null && brain.hasPendingWork();
+    }
+
     public SkillTurnSession skillSession() {
         return brain == null ? SkillTurnSession.NONE : brain.skillSession();
     }

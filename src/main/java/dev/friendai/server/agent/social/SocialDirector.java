@@ -94,6 +94,11 @@ public final class SocialDirector {
         }
     }
 
+    /** A delivered companion line starts the same quiet window without counting as an owner answer. */
+    public void companionSpoke(UUID owner, long gameTime) {
+        cadence.computeIfAbsent(owner, ignored -> new ConversationCadence()).companionSpoke((int) gameTime);
+    }
+
     public void tick(ServerRuntime runtime) {
         long ticks = runtime.server().getTickCount();
         if (ticks > 0 && ticks % REPORT_EVERY_TICKS == 0) {
@@ -143,6 +148,11 @@ public final class SocialDirector {
                 // A statement, not a question: nothing waits for an answer.
                 pace.recordLine(scene, (int) now, false, false);
                 activityOf(owner).line(true);
+                continue;
+            }
+            // Free time has its own director choosing the next useful activity; a neutral "what next?" opening only
+            // competes with that decision and invites narration instead of action.
+            if (runtime.freeTime().state(owner).on()) {
                 continue;
             }
             // Nothing to report: the companion may open a subject of its own, in the owner's own language.
