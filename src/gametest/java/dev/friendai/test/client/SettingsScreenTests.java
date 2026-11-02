@@ -66,7 +66,9 @@ public final class SettingsScreenTests implements FabricClientGameTest {
                 context.waitTicks(2);
                 capture(context, "settings_tab_en_us");
             }
-            if (locale.equals("en_us") || locale.equals("ru_ru")) {
+            if (locale.equals("en_us")) {
+                // Functional checks address options by translation key, so they do not depend on the
+                // language; the per-locale loop above already covers every translation's layout.
                 runCases(context);
             }
             check(context, "settings fit " + locale, c -> {

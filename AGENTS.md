@@ -117,7 +117,7 @@ JAVA_HOME="/path/to/jdk-25" ./gradlew build
 | `./gradlew :engine:test --tests 'dev.friendai.<package>.*'` | Tests only the selected pure engine package. |
 | `./gradlew test --tests '*SomeTest'` | One unit test class; root `test` also aggregates `:engine:test`. |
 | `./gradlew compileGametestJava` | Compiles GameTest sources without booting Minecraft. |
-| `./gradlew runClientGameTest` | Opens an isolated Minecraft client and checks the YACL settings fields, transitions, save/cancel/reset and local HTTP previews in English and Russian. Requires a display; does not call paid providers. |
+| `./gradlew runClientGameTest` | Opens an isolated Minecraft client and checks the YACL settings fields, transitions, save/cancel/reset and local HTTP previews in English, then checks that the settings screen and the companion menu fit in all eight shipped languages. Requires a display; does not call paid providers. |
 | `./gradlew runGameTest` | In-game tests only. Boots a Minecraft server and runs the whole suite (several minutes). |
 | `./gradlew runGameTest -Dfabric-api.gametest.filter='friendai-gametest:<class>_tests_*'` | One GameTest class (or one test by its full id) in under a minute. The filter is a single glob with `*` wildcards; it cannot exclude tests or list several patterns. |
 | `./gradlew updatePromptGolden` | Rewrites `engine/src/test/resources/prompt-golden/` from the current `PromptBuilder` output. Run it after a deliberate system-prompt change, review the diff as a prompt diff, and commit the goldens with the change; `PromptGoldenTest` fails with the case name and the first differing lines otherwise. |
