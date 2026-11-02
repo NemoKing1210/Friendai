@@ -23,7 +23,7 @@ public final class StorageTools implements FeatureToolContributor {
     public void register(FeatureToolRegistry registry) {
         registry.registerTask(task(
                 "store_items",
-                "Put items from the companion's inventory into a chest, barrel or other storage container. Without item, stores everything.",
+                "Put items from the companion's inventory into a chest, barrel or other storage container. Without item, stores everything. One call stores up to 2304 items: give item and count for two stacks instead of calling once per stack.",
                 SchemaBuilder.object()
                         .string("item", "Item id like minecraft:cobblestone, or a tag like #minecraft:planks")
                         .integer("count", "How many items to store", 1, 2304)

@@ -52,7 +52,7 @@ public final class AnimalTools implements FeatureToolContributor {
                 (c, a) -> shear(a, a.get("count").getAsInt())));
         registry.registerTask(task(
                 "milk",
-                "Fill empty buckets with milk from cows or goats.",
+                "Fill empty buckets with milk from cows or goats. One call fills up to 16 buckets; give count for three cows instead of calling once per cow.",
                 SchemaBuilder.object()
                         .integer("count", "How many buckets to fill", 1, 16)
                         .enumeration("from", "Which animal to milk", "cow", "goat")

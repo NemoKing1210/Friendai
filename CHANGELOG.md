@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.160.0] - 2026-11-02
+
+### Changed
+
+- A multi-item request is now clearly one action: the companion's own tool descriptions say that mining, smelting, farming, storing, milking, picking up drops and clearing an area each cover the whole batch in one call, and a small floor points at the blueprint builder instead of one block at a time.
+
 ## [0.159.1] - 2026-11-02
 
 ### Fixed

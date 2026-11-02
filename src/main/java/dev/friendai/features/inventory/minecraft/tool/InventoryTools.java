@@ -63,7 +63,7 @@ public final class InventoryTools implements FeatureToolContributor {
                         matcher(a.get("item").getAsString()), a.get("count").getAsInt())));
         registry.registerTask(task(
                 "pickup_items",
-                "Pick up dropped items within the given radius.",
+                "Pick up dropped items within the given radius. One call collects every matching drop inside that area; widen the radius instead of repeating the call.",
                 SchemaBuilder.object()
                         .integer("radius", "Search radius in blocks", 1, 16)
                         .string("item", "Item id like minecraft:egg, or a tag; only these are picked up")

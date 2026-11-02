@@ -56,6 +56,7 @@ public final class DefaultSections {
                     + "- Do not repeat an approach that already failed; the Mission block lists what was tried."
                     + (acts
                             ? "\n- When the goal is met, call finish_goal; when it cannot be met, abandon it with a reason."
+                                    + "\n- One call covers a multi-item request: put the whole count or radius in the tool call instead of repeating it per item."
                             : "");
         });
     }

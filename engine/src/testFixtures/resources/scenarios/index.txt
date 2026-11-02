@@ -21,3 +21,4 @@ free_time_hour.json
 silence.json
 second_language.json
 menu_agreement.json
+one_call_multi_item.json

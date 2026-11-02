@@ -46,7 +46,7 @@ public final class CookingTools implements FeatureToolContributor {
     public void register(FeatureToolRegistry registry) {
         registry.registerTask(new TaskToolDefinition(
                 "smelt_items",
-                "Smelt or cook items in a furnace, blast furnace, smoker or campfire, with fuel from the inventory. Short jobs are waited out and collected; long jobs are loaded and you get an event when they are done. Use wait=true in plans that need the result right away.",
+                "Smelt or cook items in a furnace, blast furnace, smoker or campfire, with fuel from the inventory. One call smelts up to 256 items; give count for the whole batch instead of repeating. Short jobs are waited out and collected; long jobs are loaded and you get an event when they are done. Use wait=true in plans that need the result right away.",
                 SchemaBuilder.object()
                         .string("item", "Item id like minecraft:raw_iron, or a tag like #minecraft:iron_ores")
                         .integer("count", "How many to smelt", 1, MAX_COUNT)

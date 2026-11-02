@@ -52,7 +52,9 @@ public final class FarmingTools implements FeatureToolContributor {
         registry.registerTask(new TaskToolDefinition(
                 "farm",
                 "Harvest ripe crops around the companion, a point or a remembered place, replant them and sow "
-                        + "empty farmland. With till=true also tills soil next to water.",
+                        + "empty farmland. One pass covers the whole radius (up to 16 blocks, so a 9x9 field is one "
+                        + "call); give the centre and radius instead of harvesting block by block. With till=true also "
+                        + "tills soil next to water.",
                 SchemaBuilder.object()
                         .integer("radius", "Farm radius in blocks", 1, 16)
                         .integer("x", "Farm X coordinate")

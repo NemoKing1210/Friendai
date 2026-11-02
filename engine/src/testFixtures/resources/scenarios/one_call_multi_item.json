@@ -1,0 +1,10 @@
+{
+  "name": "one_call_multi_item",
+  "access": "owner",
+  "playerSays": "Store two stacks of cobblestone in the chest.",
+  "replies": [
+    {"text": "", "tools": ["store_items"]},
+    {"text": "Stored 128 cobblestone.", "tools": []}
+  ],
+  "expect": {"maxRequests": 2, "toolsCalled": ["store_items"], "maxRepeatedToolCalls": 0, "spokenContains": ["128"]}
+}
