@@ -28,7 +28,7 @@ public final class StreamAccumulator {
     private boolean stopped;
 
     /** Applies one increment; terminal increments close the accumulation. */
-    public void accept(StreamDelta delta) {
+    public synchronized void accept(StreamDelta delta) {
         if (delta == null || done || stopped) {
             return;
         }
@@ -44,20 +44,20 @@ public final class StreamAccumulator {
         }
     }
 
-    public String text() {
+    public synchronized String text() {
         return text.toString();
     }
 
-    public boolean done() {
+    public synchronized boolean done() {
         return done;
     }
 
-    public boolean stopped() {
+    public synchronized boolean stopped() {
         return stopped;
     }
 
     /** Assembles tool calls in provider index order; malformed JSON keeps the raw text and a null arguments object. */
-    public List<ToolCall> toolCalls() {
+    public synchronized List<ToolCall> toolCalls() {
         List<ToolCall> assembled = new ArrayList<>(calls.size());
         for (Map.Entry<Integer, Builder> entry : calls.entrySet()) {
             Builder builder = entry.getValue();
@@ -79,7 +79,7 @@ public final class StreamAccumulator {
     }
 
     /** The complete response; a tool call wins over the caller's fallback stop reason. */
-    public LlmResponse response(StopReason fallback) {
+    public synchronized LlmResponse response(StopReason fallback) {
         List<ToolCall> toolCalls = toolCalls();
         StopReason reason = toolCalls.isEmpty() ? fallback : StopReason.TOOL_USE;
         Usage usage = inputTokens < 0 && outputTokens < 0
@@ -92,7 +92,7 @@ public final class StreamAccumulator {
      * Releases complete sentences that the guard accepts. The unterminated tail stays buffered, so a guard never sees
      * half a sentence. At the end of the stream the caller may call {@link #flushRemaining(Predicate)}.
      */
-    public List<String> releaseSentences(Predicate<String> safe) {
+    public synchronized List<String> releaseSentences(Predicate<String> safe) {
         if (stopped || done) {
             return List.of();
         }
@@ -109,7 +109,7 @@ public final class StreamAccumulator {
     }
 
     /** Offers the final unterminated sentence once at end of stream; afterwards nothing is released. */
-    public List<String> flushRemaining(Predicate<String> safe) {
+    public synchronized List<String> flushRemaining(Predicate<String> safe) {
         if (stopped) {
             return List.of();
         }
@@ -122,7 +122,7 @@ public final class StreamAccumulator {
     }
 
     /** Stops releasing text and tool calls; a late increment is dropped. */
-    public void stop() {
+    public synchronized void stop() {
         stopped = true;
     }
 

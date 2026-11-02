@@ -284,6 +284,13 @@ public final class CompanionBrain {
 
     private boolean skillFreeTimeTurn;
     private boolean streamedTurn;
+    /** Streaming speech releases only complete, guard-accepted sentences; the last one waits for the full reply. */
+    private StreamAccumulator earlyAccumulator;
+
+    private boolean earlyAllowed;
+    private int earlySequence;
+    private final java.util.List<String> earlyPending = new java.util.ArrayList<>();
+    private final java.util.List<String> earlySentences = new java.util.ArrayList<>();
 
     public boolean isSkillFreeTimeTurn() {
         return skillFreeTimeTurn;
@@ -601,8 +608,18 @@ public final class CompanionBrain {
             if (active instanceof StreamingLlmGateway streaming) {
                 streamedTurn = true;
                 StreamAccumulator accumulator = new StreamAccumulator();
+                earlyAccumulator = accumulator;
+                earlyAllowed = true;
+                earlySequence = 0;
+                earlyPending.clear();
+                earlySentences.clear();
                 future = streaming
-                        .completeStreaming(system, history, sent, accumulator::accept)
+                        .completeStreaming(system, history, sent, delta -> {
+                            accumulator.accept(delta);
+                            if (earlyAllowed) {
+                                scheduler.execute(() -> releaseEarly(gen, accumulator));
+                            }
+                        })
                         .thenApply(response -> completeFromStream(accumulator, response));
             } else {
                 future = active.complete(system, history, sent);
@@ -618,6 +635,25 @@ public final class CompanionBrain {
      * increments carried text or tool calls, the accumulator reconstructs it. Tool calls still execute only after the
      * stream is complete, never from an increment.
      */
+    private void releaseEarly(int gen, StreamAccumulator accumulator) {
+        if (gen != generation || accumulator != earlyAccumulator || !streamedTurn || turnCaller == null) {
+            return;
+        }
+        for (String sentence : accumulator.releaseSentences(this::earlySafe)) {
+            earlyPending.add(sentence);
+        }
+        while (earlyPending.size() > 1) {
+            String sentence = earlyPending.removeFirst();
+            speaker.streamSentence(gen, gen, earlySequence++, sentence, false, turnCaller.uuid());
+            earlySentences.add(sentence);
+        }
+    }
+
+    private boolean earlySafe(String sentence) {
+        return ReplyGuard.filter(sentence, coordinatesAllowed(), recentSpeech(), turnToolNames)
+                .isPresent();
+    }
+
     private static LlmResponse completeFromStream(StreamAccumulator accumulator, LlmResponse response) {
         if (response == null) {
             return accumulator.response(StopReason.END);
@@ -635,6 +671,10 @@ public final class CompanionBrain {
             observe(o -> o.onUsage(response.usage()));
         if (gen != generation) {
             return;
+        }
+        if (earlyAccumulator != null && gen == generation) {
+            earlyAccumulator = null;
+            earlyAllowed = false;
         }
         if (response != null) {
             observe(o -> o.onResponse(response));
@@ -657,15 +697,24 @@ public final class CompanionBrain {
                 spoken = guarded.get();
                 if (streamedTurn) {
                     speaker.say(spoken);
-                    List<String> sentences = dev.friendai.features.speech.tts.SpeechText.cleanAndSplit(spoken, 300);
-                    for (int i = 0; i < sentences.size(); i++) {
-                        speaker.streamSentence(
-                                generation,
-                                generation,
-                                i,
-                                sentences.get(i),
-                                i == sentences.size() - 1,
-                                turnCaller.uuid());
+                    String prefix = String.join(" ", earlySentences);
+                    if (!earlySentences.isEmpty() && spoken.startsWith(prefix)) {
+                        String tail = spoken.substring(prefix.length());
+                        if (!tail.isBlank()) {
+                            speaker.streamSentence(
+                                    generation, generation, earlySequence++, tail, true, turnCaller.uuid());
+                        }
+                    } else {
+                        List<String> sentences = dev.friendai.features.speech.tts.SpeechText.cleanAndSplit(spoken, 300);
+                        for (int i = 0; i < sentences.size(); i++) {
+                            speaker.streamSentence(
+                                    generation,
+                                    generation,
+                                    earlySequence++,
+                                    sentences.get(i),
+                                    i == sentences.size() - 1,
+                                    turnCaller.uuid());
+                        }
                     }
                 } else {
                     speaker.say(spoken, turnCaller.uuid());

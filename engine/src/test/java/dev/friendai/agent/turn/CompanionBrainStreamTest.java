@@ -108,6 +108,38 @@ class CompanionBrainStreamTest {
     }
 
     @Test
+    void theFirstSafeSentenceSpeaksBeforeTheStreamCompletes() {
+        CompletableFuture<LlmResponse> pending = new CompletableFuture<>();
+        StreamingLlmGateway gateway = new StreamingLlmGateway() {
+            @Override
+            public CompletableFuture<LlmResponse> complete(
+                    String system, List<Message> messages, List<ToolSpec> tools) {
+                throw new UnsupportedOperationException("streaming only");
+            }
+
+            @Override
+            public CompletableFuture<LlmResponse> completeStreaming(
+                    String system, List<Message> messages, List<ToolSpec> tools, Consumer<StreamDelta> onDelta) {
+                onDelta.accept(new StreamDelta.Text("Hello. There."));
+                return pending;
+            }
+        };
+        RecordingSpeaker speaker = new RecordingSpeaker();
+        CompanionBrain brain = brain(gateway, new FakeToolExecutor(), speaker);
+
+        brain.post(new BrainEvent.PlayerSaid(OWNER, "Steve", "hi", BrainEvent.Source.CHAT));
+
+        assertEquals(
+                List.of("Hello."),
+                speaker.streamed.stream().map(RecordingSpeaker.Streamed::text).toList());
+        pending.complete(new LlmResponse("Hello. There.", List.of(), StopReason.END, null));
+        assertEquals(
+                "Hello. There.",
+                speaker.streamed.stream().map(RecordingSpeaker.Streamed::text).reduce("", String::concat));
+        assertTrue(speaker.streamed.getLast().last());
+    }
+
+    @Test
     void streamedSpeechIsOrderedAndTheFullReplyIsRecordedOnce() {
         StreamingGateway gateway = new StreamingGateway();
         gateway.steps.add(new Step(
