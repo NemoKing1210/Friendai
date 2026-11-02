@@ -11,6 +11,7 @@ import dev.friendai.agent.goal.GoalStatus;
 import dev.friendai.agent.tools.Cost;
 import dev.friendai.agent.tools.ToolGroup;
 import dev.friendai.agent.tools.ToolMeta;
+import dev.friendai.agent.verify.LoopMetrics;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.queue.Guard;
 import dev.friendai.execution.tool.AccessLevel;
@@ -102,15 +103,21 @@ public final class GoalTools implements FeatureToolContributor {
                         .build(),
                 (companion, args) -> withBoard(companion, (owner, goals, board) -> {
                     boolean done = args.get("done").getAsBoolean();
+                    LoopMetrics metrics = companion.executionCoordinator().loopMetrics();
+                    boolean worldCheckable = false;
                     // A completion claim is checked against the world first: a criterion the world can test must
                     // hold, or the goal stays active and the model is told exactly what is still missing.
                     if (done) {
                         long id = args.get("id").getAsLong();
-                        if (board.find(id).isPresent()) {
+                        Optional<Goal> found = board.find(id);
+                        if (found.isPresent()) {
+                            worldCheckable = found.get().criteria().stream()
+                                    .anyMatch(criterion -> criterion.check().isPresent());
                             var facts = new dev.friendai.task.queue.CompanionGuardFacts(companion);
                             facts.refresh();
                             var unmet = board.unmet(id, facts);
                             if (!unmet.isEmpty()) {
+                                metrics.completionRefused();
                                 return ToolResult.error("Not done yet: "
                                         + String.join(
                                                 "; ",
@@ -124,6 +131,15 @@ public final class GoalTools implements FeatureToolContributor {
                             args.get("id").getAsLong(),
                             done,
                             args.has("reason") ? args.get("reason").getAsString() : "");
+                    if (result.ok() && done) {
+                        // Verified means the world could check the goal and did; a goal with nothing checkable
+                        // ended on the model's word alone.
+                        if (worldCheckable) {
+                            metrics.goalVerified();
+                        } else {
+                            metrics.goalUnverified();
+                        }
+                    }
                     if (result.ok() && companion.level() instanceof ServerLevel level) {
                         access.skillOutcome(
                                 level,

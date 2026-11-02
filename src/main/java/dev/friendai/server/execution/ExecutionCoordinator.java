@@ -1,5 +1,6 @@
 package dev.friendai.server.execution;
 
+import dev.friendai.agent.verify.LoopMetrics;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.queue.GuardFacts;
 import dev.friendai.execution.queue.Job;
@@ -54,6 +55,10 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     private final Supplier<ServerSettings> settingsSupplier;
     private final ActiveTaskController activeTasks;
     private final QueueDriver queueDriver;
+    /** What this companion's loop decided in the current window; written to the debug log and then reset. */
+    private final LoopMetrics loopMetrics = new LoopMetrics();
+    /** Game time an issued interrupt is still waiting to clear at, or -1 when none is pending. */
+    private long interruptIssuedAt = -1;
     /** Whether the idle fallback may walk to the owner; free time narrows it (see DefaultActivityPolicy). */
     private final BooleanSupplier mayFollowOwner;
     /** A movement order is a task without a job behind it, so waiting in place never pins the queue. */
@@ -307,6 +312,11 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
                 || (activeTask() != null && !activeTask().defaultActivity());
     }
 
+    /** This companion's loop counters; the debug log writes {@link LoopMetrics#summary()} every twenty minutes. */
+    public LoopMetrics loopMetrics() {
+        return loopMetrics;
+    }
+
     public java.util.List<dev.friendai.presentation.companion.QueueRow> queueRows() {
         return queueDriver.queue().jobCount() == 0
                         && queueDriver.queue().plans().stream().noneMatch(p -> p.cursor() != null)
@@ -480,7 +490,17 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     }
 
     public void stop(String reason) {
-        inTransition(() -> stopActive(reason));
+        inTransition(() -> {
+            ActiveTask active = activeTask();
+            if (active == null || active.defaultActivity()) {
+                stopActive(reason);
+                return;
+            }
+            // Something was running, so the owner's stop is an interrupt: count it now and its wait when idle.
+            interruptIssuedAt = companion.level().getGameTime();
+            loopMetrics.interruptIssued();
+            stopActive(reason);
+        });
     }
 
     private void stopActive(String reason) {
@@ -682,6 +702,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     private void tickActive() {
         syncSettings();
         revalidateCreativeHover();
+        clearIssuedInterrupt();
         if (paused || suspended || held()) return;
         if (activeTask() != null && activeTask().defaultActivity() && !mayFollowOwner.getAsBoolean())
             clearCurrentSilently();
@@ -720,6 +741,17 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
             ActiveTaskController.Completion result = completion.get();
             completeActive(result.active(), result.status(), result.summary());
         } else if (activeTask() == active) maybeNoticeBlocked();
+    }
+
+    /**
+     * Records how long an issued interrupt waited once nothing is running or queued. Runs every tick, so it moves a
+     * long-blocked stop onto the interrupt counter only when the wait really ended; no allocation either way.
+     */
+    private void clearIssuedInterrupt() {
+        if (interruptIssuedAt < 0 || hasWork()) return;
+        long waited = companion.level().getGameTime() - interruptIssuedAt;
+        loopMetrics.interruptCleared((int) Math.min(Integer.MAX_VALUE, Math.max(0L, waited)));
+        interruptIssuedAt = -1;
     }
 
     private void revalidateCreativeHover() {

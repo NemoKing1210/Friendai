@@ -611,9 +611,13 @@ public final class FreeTimeDriver {
         } else if (ownerGoalActive || runner.busyWithOther() || runner.ownerWorkQueued()) {
             reason = "the owner's work comes first";
         } else {
-            reason = WorkConflict.duplicate(runner.queue().jobs(), steps)
-                    .map(held -> "the queue already holds " + held)
-                    .orElse(null);
+            Optional<String> held = WorkConflict.duplicate(runner.queue().jobs(), steps);
+            if (held.isPresent()) {
+                runner.loopMetrics().duplicateWorkRefused();
+                reason = "the queue already holds " + held.get();
+            } else {
+                reason = null;
+            }
         }
         if (reason == null) {
             return Optional.empty();

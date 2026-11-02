@@ -1,6 +1,7 @@
 package dev.friendai.server.agent.social;
 
 import dev.friendai.agent.turn.BrainEvent;
+import dev.friendai.agent.verify.LoopMetrics;
 import dev.friendai.entity.CompanionCarryData;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.social.ConversationCadence;
@@ -31,8 +32,10 @@ import net.minecraft.server.level.ServerPlayer;
  * never spoken together.
  *
  * <p>Every twenty minutes each owner's {@link SocialActivity} counters — spoken, held, dropped lines, owner messages
- * and happenings seen — are written as one line to that owner's debug log and then cleared. This changes nothing about
- * when a line is spoken: it only makes the companion's silence or noise measurable on a running server.
+ * and happenings seen — are written as one line to that owner's debug log and then cleared. The same window writes
+ * the owner's {@link LoopMetrics} line, which counts verified and refused goals, duplicate refusals and interrupts.
+ * This changes nothing about when a line is spoken: it only makes the companion's silence or noise measurable on a
+ * running server.
  */
 public final class SocialDirector {
     /** One look per second is plenty for a line that happens at most every couple of minutes. */
@@ -76,10 +79,13 @@ public final class SocialDirector {
     }
 
     public void tick(ServerRuntime runtime) {
+        long ticks = runtime.server().getTickCount();
+        if (ticks > 0 && ticks % REPORT_EVERY_TICKS == 0) {
+            reportLoops(runtime);
+        }
         if (!runtime.config().chat.ambientSpeech) {
             return;
         }
-        long ticks = runtime.server().getTickCount();
         if (ticks % LOOK_EVERY_TICKS != 0) {
             return;
         }
@@ -220,6 +226,23 @@ public final class SocialDirector {
      */
     public SocialActivity activityOf(UUID owner) {
         return activity.computeIfAbsent(owner, ignored -> new SocialActivity());
+    }
+
+    /**
+     * Writes each loaded owner's {@link LoopMetrics#summary()} into that owner's debug log and starts a fresh window.
+     * Shares {@link #reportActivity}'s twenty-minute cadence but runs whether or not ambient speech is on: the loop
+     * works either way, and these counters are about refusals and interruptions, not about lines.
+     */
+    private void reportLoops(ServerRuntime runtime) {
+        for (CompanionEntity companion : runtime.companions().all()) {
+            UUID owner = companion.ownerUuid();
+            if (owner == null) {
+                continue;
+            }
+            LoopMetrics loops = companion.executionCoordinator().loopMetrics();
+            runtime.sessions().debug().logOf(owner).add(LogKind.MANUAL, loops.summary());
+            loops.reset();
+        }
     }
 
     /**
