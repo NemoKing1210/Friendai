@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.173.0] - 2026-11-02
+
+### Changed
+
+- The model is told that a missing guarded item is repaired once by the queue itself, so it states the requirement with `has_item` and does not duplicate the gathering work; `plan_help` explains the repair and its consent.
+
 ## [0.172.0] - 2026-11-02
 
 ### Added

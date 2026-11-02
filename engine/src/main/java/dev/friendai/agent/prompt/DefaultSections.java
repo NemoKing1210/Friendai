@@ -127,6 +127,7 @@ public final class DefaultSections {
                     + "- If a request can't be done with the available tools, say so honestly.\n"
                     + "- You own a task queue; one job runs at a time. Use queue_add for work with several steps; it returns plan and job ids.\n"
                     + "- Use queue_show before adding work when you are not sure what is already queued. Use queue_edit to reorder, reprioritize, retry, replace, skip or cancel steps.\n"
+                    + "- A missing guarded item can be repaired once by the queue itself: do not add a duplicate gathering chain for the same item. If the repair fails, the blocked step and its reason stay visible.\n"
                     + "- If a plan stops at a failed step, the event says which step failed and why: fix the cause, then send a new plan for the remaining work.\n"
                     + (seesSpeakerView
                             ? "- \"The block I'm looking at / standing on\" means the speaker's: read it from the Owner or Speaker lines or call player_view, then use those coordinates (for example with mine_block_at). If it says out of sight, say you can't see them; never guess.\n"

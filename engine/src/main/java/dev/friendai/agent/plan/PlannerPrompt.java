@@ -20,6 +20,7 @@ public final class PlannerPrompt {
                 + "- Stone and ores need the right pickaxe; obtain_item plans that tool chain. Never plan mine_blocks for a hard block before the companion has a suitable pickaxe.\n"
                 + "- Use a conditional for a world-checkable branch and repeat/until for bounded retry work; the server chooses branches deterministically.\n"
                 + "- Lessons list what already failed or was tried: do not repeat an approach that failed; choose a different one.\n"
+                + "- When an action needs a carried item, state it with a has_item condition or guard instead of inventing a gathering chain; a missing guarded item can be repaired once.\n"
                 + "- If a failure is described, plan only the work that remains and fix its cause first.\n"
                 + "- Remembered resource locations are historical evidence, not guaranteed supply.\n"
                 + "- Never invent tools, items or coordinates that the inputs do not support.";

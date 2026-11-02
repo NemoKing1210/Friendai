@@ -469,7 +469,7 @@ public final class QueueTools implements FeatureToolContributor {
                 + "A repeat is {\"repeat\": {\"steps\": [nodes], \"until\": condition, \"max_iterations\": 1..64}}. "
                 + "Conditions support all_of/any_of (1..8 conditions), not, and the existing guards plus block_in_front, biome, fluid_ahead, distance_travelled, time_elapsed, owner_online, owner_offline, daytime, nighttime, weather (clear|rain|thunder), food_at_least, xp_at_least, station_within, tool_at_least, plan_done and goal_met. Unknown world evidence never satisfies a guard; only explicit false satisfies owner_offline or nighttime. "
                 + "A local pause or defer (queue_edit actions pause, resume, defer) applies to one job or one plan; a defer needs a delay in queue ticks or an until guard, and both must hold before normal guards are checked. Condition and plan nesting is limited to 8; worst-case actions must fit the queue limit (currently 32), each args object is at most 8192 characters, and normalized plan JSON is at most 49152 characters. "
-                + "An action when array waits until every listed guard is satisfied. Use plan_validate to check a tree without queue changes.";
+                + "An action when array waits until every listed guard is satisfied. A missing has_item guard is eligible for one bounded obtain_item repair when the plan was added with auto_repair on; the blocked action keeps its place and resumes after the remedy. Use plan_validate to check a tree and its declared prerequisites without queue changes.";
     }
 
     private static PlanDefinition bindPlan(
