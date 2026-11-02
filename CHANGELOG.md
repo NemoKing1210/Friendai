@@ -6,7 +6,13 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
-## [0.151.0] - 2026-11-02
+## [0.152.0] - 2026-11-02
+
+### Added
+
+- The companion can now mention its shared history on its own — a recent achievement, the project you are on, a place it knows, the last thing a task verified, a remembered preference — at most three short items, only from facts it actually has, and only when they fit.
+
+ - 2026-11-02
 
 ### Changed
 
