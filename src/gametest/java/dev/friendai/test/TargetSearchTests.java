@@ -19,12 +19,16 @@ import dev.friendai.features.places.PlaceValues;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.task.inventory.InventoryOps;
+import dev.friendai.task.inventory.ItemMatcher;
 import java.util.OptionalInt;
 import java.util.Set;
 import java.util.UUID;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
 
@@ -353,6 +357,27 @@ public final class TargetSearchTests {
                     result.summary.contains("the place structure village") || result.summary.contains("found"),
                     result.summary);
         });
+    }
+
+    @GameTest(maxTicks = 80)
+    public void aStrongholdSearchSpendsOneEyeAsAHint(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        var owner = GameTestSupport.onlinePlayer(h, "stronghold-owner", 2, 2, 2, true)
+                .player();
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.setOwner(owner.getUUID());
+        companion.setFollowMode(false);
+        companion.inventory().addItem(new ItemStack(Items.ENDER_EYE, 2));
+        companion.executionCoordinator().setEventSink(new Result());
+        var started = GameTestToolRegistry.create(companion, () -> 16, MemoryAccess.DISABLED)
+                .bind(companion)
+                .execute(
+                        structureCall("stronghold"),
+                        new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
+        h.assertTrue(!started.error(), started.content());
+        ItemMatcher eyes = ItemMatcher.parse("minecraft:ender_eye").orElseThrow();
+        h.succeedWhen(() ->
+                h.assertValueEqual(InventoryOps.count(companion.inventory(), eyes), 1, "one eye is spent on the clue"));
     }
 
     private static ToolCall structureCall(String structure) {

@@ -8,6 +8,7 @@ import dev.friendai.features.knowledge.search.AbandonPolicy;
 import dev.friendai.features.knowledge.search.EscortPolicy;
 import dev.friendai.features.knowledge.search.ResourceSearchProfile;
 import dev.friendai.features.knowledge.search.SearchHint;
+import dev.friendai.features.knowledge.search.SearchPlanner;
 import dev.friendai.features.knowledge.search.SearchSession;
 import dev.friendai.features.knowledge.search.TargetKind;
 import dev.friendai.features.navigation.pathing.Pos;
@@ -15,6 +16,8 @@ import dev.friendai.perception.resource.CaveEntranceObservation;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.task.inventory.InventoryOps;
+import dev.friendai.task.inventory.ItemMatcher;
 import java.util.OptionalInt;
 import java.util.Set;
 import java.util.UUID;
@@ -22,6 +25,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.ItemTags;
+import net.minecraft.tags.StructureTags;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
@@ -107,6 +111,7 @@ public final class SearchResourceTask implements Task {
         var owner = context.companion().ownerUuid();
         if (owner == null || caller == null || caller.access().ordinal() < AccessLevel.TRUSTED.ordinal())
             throw new IllegalArgumentException("resource search is unavailable to this caller");
+        useStrongholdClue(context, owner);
         var policy = context.resourceSearchSettings();
         var ledger = context.ownerKnowledge().searchLedger();
         if (!scope.equals("local") && !scope.equals("expedition"))
@@ -311,6 +316,38 @@ public final class SearchResourceTask implements Task {
         } catch (RuntimeException fullOrInvalid) {
             // A full place book must not turn a successful search into a failure.
         }
+    }
+
+    /**
+     * An eye of ender is a clue, not a find: it is consumed once to steer the search toward the stronghold, and its
+     * direction is stored as a short-lived hint. No coordinate is returned or reported as a structure.
+     */
+    private void useStrongholdClue(TaskContext context, UUID owner) {
+        if (!(fixedTarget instanceof TargetKind.Structure structure)
+                || !structure.id().equals("minecraft:stronghold")) {
+            return;
+        }
+        var matcher = ItemMatcher.parse("minecraft:ender_eye").orElse(null);
+        if (matcher == null || InventoryOps.count(context.companion().inventory(), matcher) < 1) return;
+        var level = (net.minecraft.server.level.ServerLevel) context.level();
+        var at = context.companion().blockPosition();
+        InventoryOps.remove(context.companion().inventory(), matcher, 1);
+        var found = level.findNearestMapStructure(StructureTags.EYE_OF_ENDER_LOCATED, at, 1_000, true);
+        if (found == null) return;
+        SearchPlanner.Heading direction = dev.friendai.features.knowledge.search.StrongholdClue.heading(
+                new dev.friendai.features.navigation.pathing.Pos(at.getX(), at.getY(), at.getZ()),
+                new dev.friendai.features.navigation.pathing.Pos(found.getX(), found.getY(), found.getZ()));
+        context.searchHints()
+                .put(
+                        owner,
+                        SearchHint.create(
+                                direction,
+                                "",
+                                "",
+                                null,
+                                0,
+                                "the eye of ender points this way",
+                                context.level().getGameTime()));
     }
 
     private void resume() {

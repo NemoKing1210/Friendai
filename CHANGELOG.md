@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.168.0] - 2026-11-02
+
+### Added
+
+- A stronghold search with an eye of ender spends one eye into a bounded compass hint; the eye guides the search but never reports the stronghold position as a find.
+
 ## [0.167.0] - 2026-11-02
 
 ### Added
