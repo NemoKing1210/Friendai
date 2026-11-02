@@ -100,6 +100,79 @@ public class ActiveTaskLifecycleTests {
     }
 
     @GameTest(maxTicks = 40)
+    public void aPrerequisiteFinishesBeforeTheDependentStep(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 300, () -> false);
+        List<String> order = new ArrayList<>();
+        runner.setEventSink(new TaskEventSink() {
+            @Override
+            public void onFinished(int id, String toolName, TaskStatus status, String summary) {
+                order.add(toolName);
+            }
+
+            @Override
+            public void onCancelled(int id, String toolName, String reason) {}
+        });
+        QueuedStep dependent = new QueuedStep(
+                "wait", new JsonObject(), null, List.of(), GuardAction.WAIT, FailurePolicy.ASK, 1, List.of());
+        long planId = runner.enqueuePlan(
+                "dependency test",
+                List.of(dependent),
+                List.of(context -> new WaitTask(1)),
+                PlanOptions.DEFAULT,
+                id -> runner.queue().setHold(id, QueueHold.pause("test setup")));
+        long jobId = runner.queue().jobsOfPlan(planId).getFirst().id();
+        var inserted = runner.queue().insertPrerequisite(jobId, dependent);
+        h.assertTrue(inserted.ok(), inserted.text());
+        long remedy = runner.queue().jobs().stream()
+                .filter(job -> job.planId() == 0 && job.tool().equals("wait"))
+                .mapToLong(job -> job.id())
+                .max()
+                .orElseThrow();
+        runner.registerFactory(remedy, context -> new WaitTask(1));
+        runner.queue().release(planId);
+        h.succeedWhen(() -> {
+            runner.tick();
+            if (order.size() < 2) return;
+            h.assertValueEqual(order, List.of("wait", "wait"), "the prerequisite finishes first: " + order);
+            h.assertValueEqual(
+                    runner.queue().job(remedy).orElseThrow().state(),
+                    dev.friendai.execution.queue.JobState.DONE,
+                    "remedy done");
+            runner.stop("test cleanup");
+        });
+    }
+
+    @GameTest(maxTicks = 40)
+    public void aDeferredPlanDoesNotWakeBeforeItsTick(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 300, () -> false);
+        QueuedStep wait = new QueuedStep(
+                "wait", new JsonObject(), null, List.of(), GuardAction.WAIT, FailurePolicy.ASK, 1, List.of());
+        long planId = runner.enqueuePlan(
+                "defer test",
+                List.of(wait),
+                List.of(context -> new WaitTask(20)),
+                PlanOptions.DEFAULT,
+                id -> runner.queue()
+                        .setHold(id, QueueHold.defer("later", runner.queue().clock() + 5, null)));
+        int[] tick = {0};
+        h.succeedWhen(() -> {
+            tick[0]++;
+            if (tick[0] < 5) {
+                runner.tick();
+                h.assertTrue(runner.current().isEmpty(), "a deferred plan woke early at tick " + tick[0]);
+                return;
+            }
+            runner.tick();
+            h.assertTrue(runner.current().isPresent(), "the deferred plan starts when its tick arrives");
+            runner.stop("test cleanup");
+        });
+    }
+
+    @GameTest(maxTicks = 40)
     public void aPausedPlanWaitsForResume(GameTestHelper h) {
         GameTestSupport.platform(h, 8);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);

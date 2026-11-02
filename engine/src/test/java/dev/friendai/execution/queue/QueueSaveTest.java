@@ -38,6 +38,26 @@ class QueueSaveTest {
     }
 
     @Test
+    void aRelativeDeferralSurvivesReloadWithItsAbsoluteTick() {
+        JobQueue queue = new JobQueue(QueueLimits.DEFAULTS);
+        long planId = queue.addPlan(
+                        "p",
+                        List.of(new QueuedStep(
+                                "wait", new JsonObject(), null, List.of(), GuardAction.WAIT, null, 1, List.of())),
+                        PlanOptions.DEFAULT)
+                .planId();
+        queue.setHold(planId, QueueHold.defer("later", queue.clock() + 20, null));
+        long wakeAt = queue.hold(planId).orElseThrow().wakeTick();
+        QueueHold restored = QueueSave.decode(QueueSave.encode(queue, 0), QueueLimits.DEFAULTS)
+                .orElseThrow()
+                .queue()
+                .hold(planId)
+                .orElseThrow();
+        assertEquals(wakeAt, restored.wakeTick());
+        assertEquals("later", restored.reason());
+    }
+
+    @Test
     void rejectsMalformedQueueShapes() {
         assertTrue(QueueSave.decode(null, QueueLimits.DEFAULTS).isEmpty());
         assertTrue(QueueSave.decode(new JsonObject(), QueueLimits.DEFAULTS).isEmpty());
