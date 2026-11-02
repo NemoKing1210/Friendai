@@ -2,8 +2,11 @@ package dev.friendai.agent.turn;
 
 import dev.friendai.agent.llm.model.LlmResponse;
 import dev.friendai.agent.llm.model.Message;
+import dev.friendai.agent.llm.model.StopReason;
 import dev.friendai.agent.llm.model.ToolCall;
 import dev.friendai.agent.llm.model.ToolSpec;
+import dev.friendai.agent.llm.stream.StreamAccumulator;
+import dev.friendai.agent.llm.stream.StreamingLlmGateway;
 import dev.friendai.agent.plan.PlanProposal;
 import dev.friendai.agent.plan.PlannerInput;
 import dev.friendai.agent.recover.FailureHandler;
@@ -583,11 +586,36 @@ public final class CompanionBrain {
             plannerNote = "";
             java.util.List<dev.friendai.agent.llm.model.Message> history = memory.snapshot();
             observe(o -> o.onRequest(system, history, sent));
-            future = gateway.get().complete(system, history, sent);
+            LlmGateway active = gateway.get();
+            if (active instanceof StreamingLlmGateway streaming) {
+                StreamAccumulator accumulator = new StreamAccumulator();
+                future = streaming
+                        .completeStreaming(system, history, sent, accumulator::accept)
+                        .thenApply(response -> completeFromStream(accumulator, response));
+            } else {
+                future = active.complete(system, history, sent);
+            }
         } catch (RuntimeException e) {
             future = CompletableFuture.failedFuture(e);
         }
         future.whenComplete((response, error) -> scheduler.execute(() -> onResponse(gen, response, error)));
+    }
+
+    /**
+     * The provider's full response is authoritative; if a streaming provider returns an empty envelope while its
+     * increments carried text or tool calls, the accumulator reconstructs it. Tool calls still execute only after the
+     * stream is complete, never from an increment.
+     */
+    private static LlmResponse completeFromStream(StreamAccumulator accumulator, LlmResponse response) {
+        if (response == null) {
+            return accumulator.response(StopReason.END);
+        }
+        if (response.text().isBlank()
+                && response.toolCalls().isEmpty()
+                && (!accumulator.text().isBlank() || !accumulator.toolCalls().isEmpty())) {
+            return accumulator.response(response.stopReason());
+        }
+        return response;
     }
 
     private void onResponse(int gen, LlmResponse response, Throwable error) {
