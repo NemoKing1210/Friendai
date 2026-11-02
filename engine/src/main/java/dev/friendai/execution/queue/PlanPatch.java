@@ -22,6 +22,33 @@ public final class PlanPatch {
         return new PlanDefinition(replaceNested(plan.nodes(), parentRoute, 0, index, removeCount, replacement));
     }
 
+    /** Applies one validated tree edit to an unstarted structured plan, behind its fingerprint. */
+    public static JobQueue.Result apply(
+            JobQueue queue,
+            long planId,
+            String expectedFingerprint,
+            List<Integer> parentRoute,
+            int index,
+            int removeCount,
+            List<PlanNode> replacement) {
+        if (queue == null) return JobQueue.Result.error("queue is unavailable");
+        PlanRecord plan = queue.plan(planId).orElse(null);
+        if (plan == null || plan.definition() == null || plan.cursor() == null) {
+            return JobQueue.Result.error("plan is not a structured plan");
+        }
+        if (expectedFingerprint != null
+                && !expectedFingerprint.isBlank()
+                && !expectedFingerprint.equals(PlanFingerprint.of(queue, planId))) {
+            return JobQueue.Result.error("the plan changed since that fingerprint");
+        }
+        try {
+            PlanDefinition patched = replace(plan.definition(), parentRoute, index, removeCount, replacement);
+            return queue.updatePlanDefinition(planId, patched, plan.cursor());
+        } catch (IllegalArgumentException invalid) {
+            return JobQueue.Result.error(invalid.getMessage());
+        }
+    }
+
     private static List<PlanNode> replaceNested(
             List<PlanNode> nodes,
             List<Integer> route,

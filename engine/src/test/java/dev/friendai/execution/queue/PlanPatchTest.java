@@ -41,6 +41,35 @@ class PlanPatchTest {
     }
 
     @Test
+    void anUnstartedStructuredPlanIsPatchedBehindItsFingerprint() {
+        JobQueue queue = new JobQueue(QueueLimits.DEFAULTS);
+        PlanDefinition plan = new PlanDefinition(
+                List.of(new PlanNode.Conditional(new Guard.OwnerOnline(), List.of(action("a")), List.of(action("b")))));
+        long id = queue.addStructuredPlan("p", plan, PlanOptions.DEFAULT);
+        String fingerprint = PlanFingerprint.of(queue, id);
+        var result = PlanPatch.apply(queue, id, fingerprint, List.of(0, 1), 0, 1, List.of(action("x")));
+        assertEquals(true, result.ok(), result.text());
+        var conditional = (PlanNode.Conditional)
+                queue.plan(id).orElseThrow().definition().nodes().getFirst();
+        assertEquals(
+                "x",
+                ((PlanNode.Action) conditional.thenNodes().getFirst()).step().tool());
+        assertEquals(false, fingerprint.equals(PlanFingerprint.of(queue, id)));
+    }
+
+    @Test
+    void aStartedStructuredPlanCannotBeRewritten() {
+        JobQueue queue = new JobQueue(QueueLimits.DEFAULTS);
+        PlanDefinition plan = new PlanDefinition(List.of(action("a")));
+        long id = queue.addStructuredPlan("p", plan, PlanOptions.DEFAULT);
+        queue.addJob(id, step("wait"));
+        assertEquals(
+                false,
+                PlanPatch.apply(queue, id, "", List.of(), 0, 1, List.of(action("x")))
+                        .ok());
+    }
+
+    @Test
     void aRepeatBodyIsPatched() {
         PlanDefinition plan =
                 new PlanDefinition(List.of(new PlanNode.Repeat(List.of(action("a")), new Guard.OwnerOnline(), 2)));

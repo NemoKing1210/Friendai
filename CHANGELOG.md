@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.178.0] - 2026-11-02
+
+### Added
+
+- Plan fingerprints now cover the plan tree and cursor, and an unstarted structured plan can receive a bounded node-range patch behind its fingerprint; a started structured plan is refused.
+
 ## [0.177.0] - 2026-11-02
 
 ### Added

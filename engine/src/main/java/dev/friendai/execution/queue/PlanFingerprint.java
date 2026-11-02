@@ -21,6 +21,9 @@ public final class PlanFingerprint {
         StringBuilder text = new StringBuilder();
         var plan = queue.plan(planId).orElse(null);
         text.append(plan == null ? "missing" : plan.goal()).append('\n');
+        if (plan != null) {
+            text.append(plan.definition()).append('\n').append(plan.cursor()).append('\n');
+        }
         queue.jobs().stream()
                 .filter(job -> job.planId() == planId)
                 .sorted(Comparator.comparingLong(Job::id))

@@ -386,6 +386,33 @@ public final class JobQueue {
         return job;
     }
 
+    /** Replaces an unstarted structured plan's tree and cursor after a validated patch. */
+    public Result updatePlanDefinition(long planId, PlanDefinition definition, PlanCursor cursor) {
+        PlanRecord plan = plans.get(planId);
+        if (plan == null || plan.definition() == null || plan.cursor() == null) {
+            return Result.error("plan is not a structured plan");
+        }
+        if (definition == null || definition.nodes().isEmpty() || cursor == null) {
+            return Result.error("patched plan is invalid");
+        }
+        if (!jobsOfPlan(planId).isEmpty()) {
+            return Result.error("a started structured plan cannot be rewritten");
+        }
+        plans.put(
+                planId,
+                new PlanRecord(
+                        plan.id(),
+                        plan.goal(),
+                        plan.priority(),
+                        plan.addedTick(),
+                        plan.deadlineTick(),
+                        plan.onFailure(),
+                        definition,
+                        cursor,
+                        plan.autoRepair()));
+        return Result.ok("patched plan #" + planId);
+    }
+
     public void updatePlanCursor(long planId, PlanCursor cursor) {
         PlanRecord plan = plans.get(planId);
         if (plan == null || plan.definition() == null || cursor == null)
