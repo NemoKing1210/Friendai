@@ -26,7 +26,9 @@ import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolRegistry;
 import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.features.instructions.minecraft.tool.SkillToolAccess;
+import dev.friendai.features.memory.Category;
 import dev.friendai.features.memory.CompanionProfileRepository;
+import dev.friendai.features.memory.GoalOutcomeFact;
 import dev.friendai.features.memory.MemoryActions;
 import dev.friendai.features.memory.MemoryBook;
 import dev.friendai.features.memory.MemoryLimits;
@@ -81,6 +83,9 @@ import net.minecraft.server.level.ServerLevel;
 
 /** Owns one {@link CompanionBrain} per player and the LLM client they share. All methods run on the server thread. */
 public final class CompanionSessions implements AutoCloseable, QueueToolAccess, GoalToolAccess, SkillToolAccess {
+    /** The outcome source a persistent goal ends under: {@code goal:<id>}. */
+    private static final String GOAL_OUTCOME = "goal:";
+
     private final MinecraftServer server;
     private final ServerBrainScheduler scheduler;
     private final MemoryStore memory;
@@ -96,6 +101,11 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
     private final Supplier<PerceptionContext> perceptionContext;
     private final dev.friendai.features.knowledge.search.SearchHintStore searchHints;
     private final Map<UUID, CompanionSession> sessions = new HashMap<>();
+    /** Per owner, which goals the world could check when the board was last shown to the model. */
+    private final Map<UUID, Map<Long, Boolean>> goalCheckable = new HashMap<>();
+    /** Per owner, the shortest fact each live goal's own work proved, so its outcome can cite it. */
+    private final Map<UUID, Map<Long, String>> goalFacts = new HashMap<>();
+
     private boolean acceptingWork = true;
     private final ToolRegistry<CompanionEntity> tools;
     private final dev.friendai.agent.tools.ToolCatalog toolCatalog;
@@ -458,6 +468,94 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
     public void skillOutcome(
             UUID owner, String id, dev.friendai.foundation.teaching.TeachingContext.OutcomeKind kind, String summary) {
         if (config.skills.enabled) post(owner, new BrainEvent.SkillOutcome(id, kind, summary));
+        rememberGoalOutcome(owner, id, kind, summary);
+    }
+
+    /**
+     * Leaves the one memory fact an ended goal earns: what it was, whether the world checked every checkable
+     * criterion, and the shortest verified fact. An abandoned goal the world verified nothing about is not
+     * remembered; the book itself replaces an identical line instead of adding a second one.
+     */
+    private void rememberGoalOutcome(
+            UUID owner,
+            String source,
+            dev.friendai.foundation.teaching.TeachingContext.OutcomeKind kind,
+            String summary) {
+        if (config == null || !config.memory.enabled || source == null || !source.startsWith(GOAL_OUTCOME)) {
+            return;
+        }
+        long goalId;
+        try {
+            goalId = Long.parseLong(source.substring(GOAL_OUTCOME.length()));
+        } catch (NumberFormatException e) {
+            return;
+        }
+        Map<Long, Boolean> checkable = goalCheckable.get(owner);
+        Boolean worldChecked = checkable == null ? null : checkable.remove(goalId);
+        boolean verified = kind == dev.friendai.foundation.teaching.TeachingContext.OutcomeKind.GOAL_SUCCESS
+                && Boolean.TRUE.equals(worldChecked);
+        GoalOutcomeFact.End end;
+        if (kind == dev.friendai.foundation.teaching.TeachingContext.OutcomeKind.GOAL_FAILURE) {
+            end = GoalOutcomeFact.End.ABANDONED;
+        } else {
+            end = verified ? GoalOutcomeFact.End.VERIFIED : GoalOutcomeFact.End.UNVERIFIED;
+        }
+        MemoryLimits limits = config.memory.limits();
+        String text = GoalOutcomeFact.text(summary, end, goalFact(owner, goalId), limits.maxFactChars());
+        if (text == null) {
+            return;
+        }
+        MemoryBook book = memory.book(owner);
+        try {
+            book.addFact(
+                    Subject.player(owner),
+                    Category.NOTE,
+                    text,
+                    owner,
+                    book.player(owner).map(PlayerRecord::lastName).orElse("owner"),
+                    System.currentTimeMillis(),
+                    limits);
+        } catch (RuntimeException ignored) {
+            // A full or refusing book must not undo the goal outcome.
+        }
+    }
+
+    /** The shortest fact this goal's own work proved, if the world proved anything; read once per outcome. */
+    private String goalFact(UUID owner, long goalId) {
+        Map<Long, String> facts = goalFacts.get(owner);
+        return facts == null ? null : facts.remove(goalId);
+    }
+
+    /** Keeps the shortest fact a task of this goal actually proved, so the goal's memory line can cite it. */
+    private void noteGoalFacts(UUID owner, long goalId, List<dev.friendai.agent.verify.Fact> facts) {
+        String shortest = null;
+        for (var fact : facts) {
+            String text = fact == null ? null : fact.text();
+            if (text != null && !text.isBlank() && (shortest == null || text.length() < shortest.length())) {
+                shortest = text;
+            }
+        }
+        if (shortest == null) {
+            return;
+        }
+        goalFacts
+                .computeIfAbsent(owner, id -> new HashMap<>())
+                .merge(goalId, shortest, (held, fresh) -> fresh.length() < held.length() ? fresh : held);
+    }
+
+    /**
+     * Records which goals the world can check when the model is about to see them, so a goal's memory fact
+     * never claims a world check that never happened. A goal created and finished in one turn stays unverified.
+     */
+    private void captureGoalCheckability(UUID owner, dev.friendai.agent.goal.GoalBoard board) {
+        Map<Long, Boolean> checkable = new HashMap<>();
+        for (var goal : board.all()) {
+            checkable.put(
+                    goal.id(),
+                    goal.criteria().stream()
+                            .anyMatch(criterion -> criterion.check().isPresent()));
+        }
+        goalCheckable.put(owner, checkable);
     }
 
     @Override
@@ -853,6 +951,13 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                 session.noteVerified(outcome.facts().stream()
                         .map(dev.friendai.agent.verify.Fact::text)
                         .toList());
+                if (planId != 0) {
+                    // Only the goal that owns this plan inherited this task, so only it may cite these facts.
+                    board.all().stream()
+                            .filter(goal -> goal.planId() == planId)
+                            .findFirst()
+                            .ifPresent(goal -> noteGoalFacts(owner, goal.id(), outcome.facts()));
+                }
                 String factsLine = outcome.factsLine();
                 if (!outcome.unmetCriteria().isEmpty()) {
                     // A criterion the world cannot show is not a completion, and the model must be told so.
@@ -1057,6 +1162,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
         brain.setPlacedSource(caller -> config.places.enabled ? placedService.promptBlock(companion, caller) : "");
         brain.setGoalSource(caller -> {
             var board = goals.board(owner);
+            captureGoalCheckability(owner, board);
             var primary = board.primary();
             String plan = "";
             if (primary.isPresent() && primary.get().planId() != 0) {
