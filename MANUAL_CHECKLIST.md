@@ -500,3 +500,13 @@ These checks need a real provider and the GUI; the automated tests use a scripte
 ## Interface languages (TODO 47)
 
 - [ ] Switch the game to each of `de_de`, `fr_fr`, `es_es`, `pt_br`, `zh_cn` and `uk_ua`; open the companion menu, the YACL settings screen and the HUD at GUI scale 4. Confirm no button, tab, tooltip or toast clips, the language switcher READMEs open, and the companion still answers in the owner's language.
+
+## Structured logs (0.193.0)
+
+- [ ] Open the **Logs** category in all eight languages: the level dropdown has four values, the limits accept a value, Save writes the file, Cancel discards and Reset restores defaults.
+- [ ] Press **Open log folder** on Windows, Linux and macOS: the folder opens and contains `README.md`; without a desktop the button does nothing and the game keeps running.
+- [ ] In the companion menu's Log tab press **Pause**, let the companion work, then **Resume**: the frozen list does not change while paused and new lines appear after resume.
+- [ ] On a dedicated server run `/friendai logs path` as the owner and as an operator: the owner gets their own subtree, the operator the root; `/friendai logs level detailed` changes the file content and survives a restart.
+- [ ] `/friendai logs prune` removes old files and never the active one; `/friendai logs export` writes a bundle whose `summary.txt` contains the `logs:` path.
+- [ ] Set the level to `normal`, let a turn and a task run, and confirm the files contain no prompt, reply or tool-result bodies; switch to `detailed` and confirm they appear; check that configured API keys are `***` in both.
+- [ ] After a failed task ask "what happened?": the companion uses `logs_search` and reports ids and causes instead of guessing.

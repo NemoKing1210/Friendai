@@ -321,6 +321,7 @@ const RU = {
   "Memory & Trust": "Память и доверие",
   "Per-owner memory with strict visibility: guests only see facts about themselves, and trust changes need the owner's confirmation.": "Память по владельцам со строгой видимостью: гости видят только факты о себе, а смена доверия требует подтверждения владельца.",
   "Read your recent activity log (owner only).": "Прочитать свой недавний журнал действий (только владелец).",
+  "Search the durable log files by level, category, event, turn or task (owner only).": "Искать в файлах логов по уровню, категории, событию, ходу или задаче (только владелец).",
   "Read recent conversations with a player.": "Прочитать недавние разговоры с игроком.",
   "See facts with ids and how full each book is.": "Факты с id и заполненность каждой книги.",
   "Merge duplicate facts safely, dry run first (owner only).": "Безопасно слить дубликаты фактов, сначала пробный запуск (только владелец).",

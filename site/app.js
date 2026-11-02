@@ -113,7 +113,7 @@ const CATS = [
     items: [
       "remember|Store a fact.", "recall|Read facts back.", "forget|Delete a fact.", "trust_player|Raise a player to trusted (needs confirmation).", "request_help|Ask another owner's companion for bounded help.", "accept_help|Accept the named help only.", "decline_help|Decline with no transfer.", "offer_handoff|Offer an exact item quantity at a meeting point.", "accept_handoff|Accept only the named transfer.", "replan_plan|Ask the planner to repair one stalled plan.",
       "untrust_player|Lower trust.", "set_name|Rename the companion.", "use_skill|Load an instruction skill once.", "list_skills|List the owner's skills with ids, versions and on/off state.", "skill_help|Read the skill-authoring checklist and its limits.", "manage_skill|Propose a skill after a finished goal.",
-      "read_log|Read your recent activity log (owner only).", "recent_chat|Read recent conversations with a player.", "memory_overview|See facts with ids and how full each book is.", "compress_memory|Merge duplicate facts safely, dry run first (owner only).", "reset_manner|Drop a manner the owner dislikes and never drift back into it (owner only).",
+      "read_log|Read your recent activity log (owner only).", "logs_search|Search the durable log files by level, category, event, turn or task (owner only).", "recent_chat|Read recent conversations with a player.", "memory_overview|See facts with ids and how full each book is.", "compress_memory|Merge duplicate facts safely, dry run first (owner only).", "reset_manner|Drop a manner the owner dislikes and never drift back into it (owner only).",
       "~Access levels|GUEST < TRUSTED < OWNER on every tool.", "~Language learning|Learns your language after a few samples.", "~Skills advise only|They never change permissions." ] },
   { id: "places", domain: "mind", name: "Places", icon: "📍", color: COLORS.diamond,
     desc: "A book of named places. Autonomous work never breaks inside a known place and takes only from containers in one.",
@@ -305,6 +305,7 @@ const CODE = {
   "skill_help": ["src/main/java/dev/friendai/features/instructions/minecraft/tool/SkillTools.java"],
   "manage_skill": ["src/main/java/dev/friendai/features/instructions/minecraft/tool/SkillTools.java"],
   "read_log": ["src/main/java/dev/friendai/features/memory/minecraft/tool/SelfTools.java"],
+  "logs_search": ["engine/src/main/java/dev/friendai/agent/turn/LogSearch.java", "src/main/java/dev/friendai/features/memory/minecraft/tool/SelfTools.java"],
   "recent_chat": ["src/main/java/dev/friendai/features/memory/minecraft/tool/SelfTools.java"],
   "memory_overview": ["src/main/java/dev/friendai/features/memory/minecraft/tool/SelfTools.java"],
   "compress_memory": ["src/main/java/dev/friendai/features/memory/minecraft/tool/SelfTools.java"],

@@ -6,6 +6,18 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.193.0] - 2026-11-03
+
+### Added
+
+- Structured logging: the server writes JSONL records with levels, categories, sequence ids and cause links under `logs/friendai/`, beside a readable Markdown digest, and the companion can search them with `logs_search` (owner only).
+- A **Logs** settings category controls the detail level, categories, file sizes, retention and digests, and opens the folder from the screen; the Log tab has open-folder, copy-path and pause buttons.
+- `/friendai logs path|level|prune|export` prints the folder, changes the level live, prunes old files and writes a diagnostic bundle.
+
+### Changed
+
+- `normal` writes metadata only; `detailed` adds prompt, reply and tool-result bodies after redaction, and `off` writes no files.
+
 ## [0.192.0] - 2026-11-03
 
 ### Changed
