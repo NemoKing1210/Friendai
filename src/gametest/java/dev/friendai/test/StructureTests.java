@@ -281,6 +281,39 @@ public class StructureTests {
         });
     }
 
+    @GameTest(maxTicks = 5000)
+    public void a_nether_portal_at_an_edge_site_transits(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 10, 2, 10);
+        c.inventory().addItem(new ItemStack(Items.OBSIDIAN, 10));
+        c.inventory().addItem(new ItemStack(Items.COBBLESTONE, 16));
+        c.inventory().addItem(new ItemStack(Items.FLINT_AND_STEEL, 1));
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(task(h, "nether_portal", 12, 2, 12), "build_special");
+        boolean[] entered = {false};
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
+            BlockPos portal = null;
+            for (BlockPos p : BlockPos.betweenClosed(new BlockPos(12, 3, 12), new BlockPos(15, 7, 15))) {
+                if (h.getBlockState(p).is(Blocks.NETHER_PORTAL)) {
+                    portal = h.absolutePos(p);
+                    break;
+                }
+            }
+            h.assertTrue(portal != null, "the built portal should exist");
+            if (!entered[0]) {
+                c.teleportTo(portal.getX() + 0.5, portal.getY(), portal.getZ() + 0.5);
+                entered[0] = true;
+                return;
+            }
+            h.assertTrue(
+                    c.level().dimension().identifier().toString().equals("minecraft:the_nether"),
+                    "still in " + c.level().dimension().identifier());
+        });
+    }
+
     @GameTest(maxTicks = 4000)
     public void a_lit_portal_transits_a_companion(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
