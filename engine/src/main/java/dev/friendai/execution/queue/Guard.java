@@ -24,7 +24,18 @@ public sealed interface Guard
                 Guard.DistanceTravelled,
                 Guard.TimeElapsed,
                 Guard.OwnerHasAtLeast,
-                Guard.BlockAt {
+                Guard.BlockAt,
+                Guard.OwnerOnline,
+                Guard.OwnerOffline,
+                Guard.Daytime,
+                Guard.Nighttime,
+                Guard.WeatherIs,
+                Guard.FoodAtLeast,
+                Guard.XpAtLeast,
+                Guard.StationWithin,
+                Guard.ToolAtLeast,
+                Guard.PlanDone,
+                Guard.GoalMet {
     int MAX_CHILDREN = 8;
     int MAX_DEPTH = 8;
 
@@ -86,6 +97,39 @@ public sealed interface Guard
                             strictInteger(json, "x"),
                             strictInteger(json, "y"),
                             strictInteger(json, "z")));
+                case "owner_online" -> onlyKeys(json, "type") ? Optional.of(new OwnerOnline()) : Optional.empty();
+                case "owner_offline" -> onlyKeys(json, "type") ? Optional.of(new OwnerOffline()) : Optional.empty();
+                case "daytime" -> onlyKeys(json, "type") ? Optional.of(new Daytime()) : Optional.empty();
+                case "nighttime" -> onlyKeys(json, "type") ? Optional.of(new Nighttime()) : Optional.empty();
+                case "weather" ->
+                    onlyKeys(json, "type", "weather")
+                            ? Optional.of(new WeatherIs(strictString(json, "weather")))
+                            : Optional.empty();
+                case "food_at_least" ->
+                    onlyKeys(json, "type", "points")
+                            ? Optional.of(new FoodAtLeast(strictInteger(json, "points")))
+                            : Optional.empty();
+                case "xp_at_least" ->
+                    onlyKeys(json, "type", "levels")
+                            ? Optional.of(new XpAtLeast(strictInteger(json, "levels")))
+                            : Optional.empty();
+                case "station_within" ->
+                    onlyKeys(json, "type", "station", "radius")
+                            ? Optional.of(
+                                    new StationWithin(strictString(json, "station"), strictInteger(json, "radius")))
+                            : Optional.empty();
+                case "tool_at_least" ->
+                    onlyKeys(json, "type", "block")
+                            ? Optional.of(new ToolAtLeast(strictString(json, "block")))
+                            : Optional.empty();
+                case "plan_done" ->
+                    onlyKeys(json, "type", "plan")
+                            ? Optional.of(new PlanDone(strictLong(json, "plan")))
+                            : Optional.empty();
+                case "goal_met" ->
+                    onlyKeys(json, "type", "goal")
+                            ? Optional.of(new GoalMet(strictLong(json, "goal")))
+                            : Optional.empty();
                 default -> Optional.empty();
             };
         } catch (RuntimeException ignored) {
@@ -584,6 +628,242 @@ public sealed interface Guard
             j.addProperty("x", x);
             j.addProperty("y", y);
             j.addProperty("z", z);
+            return j;
+        }
+    }
+
+    record OwnerOnline() implements Guard {
+        @Override
+        public boolean holds(GuardFacts facts) {
+            return Boolean.TRUE.equals(facts.ownerOnline());
+        }
+
+        @Override
+        public String describe() {
+            return "owner online";
+        }
+
+        @Override
+        public JsonObject toJson() {
+            return json("owner_online");
+        }
+    }
+
+    record OwnerOffline() implements Guard {
+        @Override
+        public boolean holds(GuardFacts facts) {
+            // Unknown is not offline: only an explicit false satisfies the guard.
+            return Boolean.FALSE.equals(facts.ownerOnline());
+        }
+
+        @Override
+        public String describe() {
+            return "owner offline";
+        }
+
+        @Override
+        public JsonObject toJson() {
+            return json("owner_offline");
+        }
+    }
+
+    record Daytime() implements Guard {
+        @Override
+        public boolean holds(GuardFacts facts) {
+            return Boolean.TRUE.equals(facts.daytime());
+        }
+
+        @Override
+        public String describe() {
+            return "daytime";
+        }
+
+        @Override
+        public JsonObject toJson() {
+            return json("daytime");
+        }
+    }
+
+    record Nighttime() implements Guard {
+        @Override
+        public boolean holds(GuardFacts facts) {
+            return Boolean.FALSE.equals(facts.daytime());
+        }
+
+        @Override
+        public String describe() {
+            return "nighttime";
+        }
+
+        @Override
+        public JsonObject toJson() {
+            return json("nighttime");
+        }
+    }
+
+    record WeatherIs(String weather) implements Guard {
+        /** The bounded weather vocabulary; an unknown value is a parse error, not a silent false. */
+        public static final List<String> WEATHER = List.of("clear", "rain", "thunder");
+
+        public WeatherIs {
+            weather = id(weather);
+            if (!WEATHER.contains(weather)) throw new IllegalArgumentException("weather");
+        }
+
+        @Override
+        public boolean holds(GuardFacts facts) {
+            return weather.equals(facts.weather());
+        }
+
+        @Override
+        public String describe() {
+            return "weather " + weather;
+        }
+
+        @Override
+        public JsonObject toJson() {
+            JsonObject j = json("weather");
+            j.addProperty("weather", weather);
+            return j;
+        }
+    }
+
+    record FoodAtLeast(int points) implements Guard {
+        public FoodAtLeast {
+            if (points < 0 || points > 20) throw new IllegalArgumentException("points");
+        }
+
+        @Override
+        public boolean holds(GuardFacts facts) {
+            return facts.foodLevel() >= points;
+        }
+
+        @Override
+        public String describe() {
+            return "food at least " + points;
+        }
+
+        @Override
+        public JsonObject toJson() {
+            JsonObject j = json("food_at_least");
+            j.addProperty("points", points);
+            return j;
+        }
+    }
+
+    record XpAtLeast(int levels) implements Guard {
+        public XpAtLeast {
+            if (levels < 0 || levels > 10_000) throw new IllegalArgumentException("levels");
+        }
+
+        @Override
+        public boolean holds(GuardFacts facts) {
+            return facts.xpLevel() >= levels;
+        }
+
+        @Override
+        public String describe() {
+            return "xp at least " + levels;
+        }
+
+        @Override
+        public JsonObject toJson() {
+            JsonObject j = json("xp_at_least");
+            j.addProperty("levels", levels);
+            return j;
+        }
+    }
+
+    record StationWithin(String station, int radius) implements Guard {
+        public StationWithin {
+            station = id(station);
+            if (radius < 1 || radius > 32) throw new IllegalArgumentException("radius");
+        }
+
+        @Override
+        public boolean holds(GuardFacts facts) {
+            return Boolean.TRUE.equals(facts.stationWithin(station, radius));
+        }
+
+        @Override
+        public String describe() {
+            return station + " within " + radius + " blocks";
+        }
+
+        @Override
+        public JsonObject toJson() {
+            JsonObject j = json("station_within");
+            j.addProperty("station", station);
+            j.addProperty("radius", radius);
+            return j;
+        }
+    }
+
+    record ToolAtLeast(String block) implements Guard {
+        public ToolAtLeast {
+            block = id(block);
+        }
+
+        @Override
+        public boolean holds(GuardFacts facts) {
+            return Boolean.TRUE.equals(facts.canHarvest(block));
+        }
+
+        @Override
+        public String describe() {
+            return "tool able to harvest " + block;
+        }
+
+        @Override
+        public JsonObject toJson() {
+            JsonObject j = json("tool_at_least");
+            j.addProperty("block", block);
+            return j;
+        }
+    }
+
+    record PlanDone(long planId) implements Guard {
+        public PlanDone {
+            if (planId < 1) throw new IllegalArgumentException("plan");
+        }
+
+        @Override
+        public boolean holds(GuardFacts facts) {
+            return Boolean.TRUE.equals(facts.planDone(planId));
+        }
+
+        @Override
+        public String describe() {
+            return "plan #" + planId + " done";
+        }
+
+        @Override
+        public JsonObject toJson() {
+            JsonObject j = json("plan_done");
+            j.addProperty("plan", planId);
+            return j;
+        }
+    }
+
+    record GoalMet(long goalId) implements Guard {
+        public GoalMet {
+            if (goalId < 1) throw new IllegalArgumentException("goal");
+        }
+
+        @Override
+        public boolean holds(GuardFacts facts) {
+            return Boolean.TRUE.equals(facts.goalMet(goalId));
+        }
+
+        @Override
+        public String describe() {
+            return "goal #" + goalId + " met";
+        }
+
+        @Override
+        public JsonObject toJson() {
+            JsonObject j = json("goal_met");
+            j.addProperty("goal", goalId);
             return j;
         }
     }

@@ -1,12 +1,20 @@
 package dev.friendai.task.queue;
 
+import dev.friendai.agent.goal.GoalStatus;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.queue.GuardFacts;
+import dev.friendai.execution.queue.PlanStatus;
 import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
+import dev.friendai.features.mining.minecraft.mining.BlockSearch;
+import dev.friendai.server.runtime.ServerRuntime;
+import dev.friendai.server.runtime.ServerRuntimeRegistry;
 import dev.friendai.task.inventory.ItemMatcher;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 
@@ -208,6 +216,82 @@ public final class CompanionGuardFacts implements GuardFacts {
                                 .getBlockState(feet.above())
                                 .getFluidState()
                                 .isEmpty());
+    }
+
+    @Override
+    public Boolean ownerOnline() {
+        return companion.owner().isPresent();
+    }
+
+    @Override
+    public Boolean daytime() {
+        // The vanilla 0..24000 clock; day starts at sunrise and night at sunset.
+        return Math.floorMod(companion.level().getDefaultClockTime(), 24_000L) < 12_000L;
+    }
+
+    @Override
+    public String weather() {
+        return companion.level().isThundering() ? "thunder" : companion.level().isRaining() ? "rain" : "clear";
+    }
+
+    @Override
+    public int xpLevel() {
+        return companion.syncedXpLevel();
+    }
+
+    @Override
+    public Boolean stationWithin(String station, int radius) {
+        BlockMatcher matcher = BlockMatcher.parse(station).orElse(null);
+        if (matcher == null || !(companion.level() instanceof net.minecraft.server.level.ServerLevel level)) {
+            return null;
+        }
+        return BlockSearch.nearest(level, companion.blockPosition(), radius, matcher, Set.of())
+                .isPresent();
+    }
+
+    @Override
+    public Boolean canHarvest(String block) {
+        Identifier id = Identifier.tryParse(block);
+        if (id == null || !BuiltInRegistries.BLOCK.containsKey(id)) {
+            return null;
+        }
+        var state = BuiltInRegistries.BLOCK.getValue(id).defaultBlockState();
+        if (companion.getMainHandItem().isCorrectToolForDrops(state)) {
+            return true;
+        }
+        for (int i = 0; i < companion.inventory().getContainerSize(); i++) {
+            ItemStack stack = companion.inventory().getItem(i);
+            if (!stack.isEmpty() && stack.isCorrectToolForDrops(state)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public Boolean planDone(long planId) {
+        var queue = companion.executionCoordinator().queue();
+        if (queue.plan(planId).isEmpty()) {
+            return null;
+        }
+        return queue.planStatus(planId) == PlanStatus.DONE;
+    }
+
+    @Override
+    public Boolean goalMet(long goalId) {
+        if (companion.ownerUuid() == null) {
+            return null;
+        }
+        ServerRuntime runtime =
+                ServerRuntimeRegistry.find(companion.level().getServer()).orElse(null);
+        if (runtime == null) {
+            return null;
+        }
+        return runtime.goals().board(companion.ownerUuid()).all().stream()
+                .filter(goal -> goal.id() == goalId)
+                .findFirst()
+                .map(goal -> goal.status() == GoalStatus.DONE)
+                .orElse(null);
     }
 
     @Override

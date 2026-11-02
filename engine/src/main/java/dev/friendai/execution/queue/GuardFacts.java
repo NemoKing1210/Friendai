@@ -52,4 +52,47 @@ public interface GuardFacts {
     default boolean blockAt(String idOrTag, int x, int y, int z) {
         return false;
     }
+
+    /**
+     * Whether the owner is online, or {@code null} when a pure caller cannot know. A guard must not treat unknown as
+     * offline; only an explicit false satisfies {@code owner_offline}.
+     */
+    default Boolean ownerOnline() {
+        return null;
+    }
+
+    /** Whether it is daytime, or {@code null} when the clock cannot be read. */
+    default Boolean daytime() {
+        return null;
+    }
+
+    /** {@code clear}, {@code rain} or {@code thunder}; empty when the weather cannot be read. */
+    default String weather() {
+        return "";
+    }
+
+    /** Experience levels, or a negative value when the caller cannot know them. */
+    default int xpLevel() {
+        return -1;
+    }
+
+    /** Whether a usable station of this kind is within the radius, or {@code null} when unknown. */
+    default Boolean stationWithin(String station, int radius) {
+        return null;
+    }
+
+    /** Whether a carried tool satisfies the vanilla harvest requirement for this block, or {@code null} when unknown. */
+    default Boolean canHarvest(String block) {
+        return null;
+    }
+
+    /** Whether the plan reached a terminal successful status, or {@code null} when the record is unavailable. */
+    default Boolean planDone(long planId) {
+        return null;
+    }
+
+    /** Whether the goal is recorded as met, or {@code null} when the record is unavailable. */
+    default Boolean goalMet(long goalId) {
+        return null;
+    }
 }

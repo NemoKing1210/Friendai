@@ -153,12 +153,26 @@ public final class QueueTools implements FeatureToolContributor {
         JsonObject guard = new JsonObject();
         guard.addProperty("type", "object");
         JsonObject gp = new JsonObject();
-        for (String n : List.of("type", "item", "block", "dimension")) {
+        for (String n : List.of("type", "item", "block", "dimension", "weather", "station")) {
             JsonObject p = new JsonObject();
             p.addProperty("type", "string");
             gp.add(n, p);
         }
-        for (String n : List.of("count", "slots", "percent", "blocks", "radius")) {
+        for (String n : List.of(
+                "count",
+                "slots",
+                "percent",
+                "blocks",
+                "radius",
+                "points",
+                "levels",
+                "plan",
+                "goal",
+                "ticks",
+                "distance",
+                "x",
+                "y",
+                "z")) {
             JsonObject p = new JsonObject();
             p.addProperty("type", "integer");
             gp.add(n, p);
@@ -343,7 +357,7 @@ public final class QueueTools implements FeatureToolContributor {
     private static String planHelp() {
         return "Plan nodes are actions, conditionals, or repeats. A conditional is {\"when\": condition, \"then\": [nodes], \"else\": [nodes]}; else may be omitted. "
                 + "A repeat is {\"repeat\": {\"steps\": [nodes], \"until\": condition, \"max_iterations\": 1..64}}. "
-                + "Conditions support all_of/any_of (1..8 conditions), not, and the existing guards plus block_in_front, biome, fluid_ahead, distance_travelled, and time_elapsed. "
+                + "Conditions support all_of/any_of (1..8 conditions), not, and the existing guards plus block_in_front, biome, fluid_ahead, distance_travelled, time_elapsed, owner_online, owner_offline, daytime, nighttime, weather (clear|rain|thunder), food_at_least, xp_at_least, station_within, tool_at_least, plan_done and goal_met. Unknown world evidence never satisfies a guard; only explicit false satisfies owner_offline or nighttime. "
                 + "Condition and plan nesting is limited to 8; worst-case actions must fit the queue limit (currently 32), each args object is at most 8192 characters, and normalized plan JSON is at most 49152 characters. "
                 + "An action when array waits until every listed guard is satisfied. Use plan_validate to check a tree without queue changes.";
     }
