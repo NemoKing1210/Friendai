@@ -131,6 +131,18 @@ class PortalRoutePolicyTest {
     }
 
     @Test
+    void aBuildWithoutMaterialsAndATripWithoutAReturnAnchorRefuse() {
+        var noMaterials = new RouteFacts(
+                OVERWORLD, NETHER, PortalLink.MISSING, PortalLink.MISSING, true, true, true, false, true);
+        assertEquals(
+                new Decision.Refuse(PortalRoutePolicy.Reason.MISSING_MATERIAL), PortalRoutePolicy.decide(noMaterials));
+        var noReturn =
+                new RouteFacts(OVERWORLD, NETHER, PortalLink.LINKED, PortalLink.LINKED, true, true, true, true, false);
+        assertEquals(
+                new Decision.Refuse(PortalRoutePolicy.Reason.NO_RETURN_ANCHOR), PortalRoutePolicy.decide(noReturn));
+    }
+
+    @Test
     void malformedFactsAreRejected() {
         assertThrows(
                 IllegalArgumentException.class,

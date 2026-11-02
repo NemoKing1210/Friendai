@@ -59,7 +59,11 @@ public final class PortalRoutePolicy {
         /** Expedition travel or destination chunk loading is off. */
         EXPEDITION_DISABLED,
         /** No safe, loadable landing exists at the destination. */
-        UNSAFE_LANDING
+        UNSAFE_LANDING,
+        /** A frame must be built but the companion does not carry obsidian and flint. */
+        MISSING_MATERIAL,
+        /** The trip would leave no durable recorded return anchor. */
+        NO_RETURN_ANCHOR
     }
 
     /**
@@ -74,13 +78,36 @@ public final class PortalRoutePolicy {
             PortalLink targetPortal,
             boolean landingSafe,
             boolean ownerConsent,
-            boolean expeditionEnabled) {
+            boolean expeditionEnabled,
+            boolean portalMaterials,
+            boolean returnAnchor) {
 
         public RouteFacts {
             sourceDimension = normalize(sourceDimension);
             targetDimension = normalize(targetDimension);
             if (sourcePortal == null) throw new IllegalArgumentException("sourcePortal");
             if (targetPortal == null) throw new IllegalArgumentException("targetPortal");
+        }
+
+        /** Facts from an adapter that has not yet checked the build materials and return anchor. */
+        public RouteFacts(
+                String sourceDimension,
+                String targetDimension,
+                PortalLink sourcePortal,
+                PortalLink targetPortal,
+                boolean landingSafe,
+                boolean ownerConsent,
+                boolean expeditionEnabled) {
+            this(
+                    sourceDimension,
+                    targetDimension,
+                    sourcePortal,
+                    targetPortal,
+                    landingSafe,
+                    ownerConsent,
+                    expeditionEnabled,
+                    true,
+                    true);
         }
     }
 
@@ -132,8 +159,13 @@ public final class PortalRoutePolicy {
         if (!facts.landingSafe()) {
             return new Decision.Refuse(Reason.UNSAFE_LANDING);
         }
+        if (!facts.returnAnchor()) {
+            return new Decision.Refuse(Reason.NO_RETURN_ANCHOR);
+        }
         if (facts.sourcePortal() != PortalLink.LINKED || facts.targetPortal() != PortalLink.LINKED) {
-            return new Decision.BuildAndLight();
+            return facts.portalMaterials()
+                    ? new Decision.BuildAndLight()
+                    : new Decision.Refuse(Reason.MISSING_MATERIAL);
         }
         return new Decision.Travel(kind);
     }
