@@ -131,7 +131,8 @@
 				"SettingsCommandTests",
 				"SoakTests",
 				"SocialBondTests",
-				"SocialOpeningTests"
+				"SocialOpeningTests",
+				"MetricsSoakTests"
 			]
 		}
 	]
