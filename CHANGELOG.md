@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.188.0] - 2026-11-02
+
+### Fixed
+
+- An unknown local speech model id no longer silently loads Whisper `base`; recognition reports not-ready until a supported model is selected.
+
 ## [0.187.0] - 2026-11-02
 
 ### Changed

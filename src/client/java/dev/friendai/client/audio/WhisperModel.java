@@ -35,13 +35,18 @@ public enum WhisperModel {
         return spec;
     }
 
-    /** The model with the given id; BASE when the id is unknown. */
-    public static WhisperModel byId(String id) {
+    /** The model with the given id, or empty for one this build does not support. */
+    public static java.util.Optional<WhisperModel> find(String id) {
         for (WhisperModel m : values()) {
             if (m.id.equalsIgnoreCase(id)) {
-                return m;
+                return java.util.Optional.of(m);
             }
         }
-        return BASE;
+        return java.util.Optional.empty();
+    }
+
+    /** Legacy lookup used by the settings dropdown; an unknown id still shows BASE. */
+    public static WhisperModel byId(String id) {
+        return find(id).orElse(BASE);
     }
 }

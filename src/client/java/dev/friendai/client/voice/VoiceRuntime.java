@@ -77,7 +77,8 @@ public final class VoiceRuntime {
         if (!resolved.local()) {
             return cloudStt(resolved);
         }
-        WhisperModel wanted = WhisperModel.byId(settings.local.model);
+        WhisperModel wanted = WhisperModel.find(settings.local.model).orElse(null);
+        if (wanted == null) return NOT_READY;
         if (current != null && wanted.id().equals(currentModel)) {
             return current;
         }
@@ -110,7 +111,9 @@ public final class VoiceRuntime {
     public static synchronized SttStatus sttStatus(ClientConfig.SttSection settings) {
         ResolvedStt resolved = resolveStt(settings);
         boolean installed = resolved.local()
-                && MANAGER.isInstalled(WhisperModel.byId(settings.local.model).spec());
+                && WhisperModel.find(settings.local.model)
+                        .map(model -> MANAGER.isInstalled(model.spec()))
+                        .orElse(false);
         UserMessage problem = VoiceReadiness.stt(resolved, installed);
         if (problem != null) {
             return new SttStatus(false, problem);
