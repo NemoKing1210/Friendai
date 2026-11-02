@@ -147,6 +147,248 @@ const CATS = [
       "~Places|Rename or forget places.", "~Appearance|Name and custom skin.", "~Traders|Known trades.", "~Log and Debug|Operator-only brain log and prompt.", "~Settings screen|YACL, optional." ] }
 ];
 
+/* ================= CODE LOCATIONS ================= */
+// Where a skill lives in the repository, keyed by tool name, "~trait" or a category id.
+// Shown in the hover tooltip; paths are relative to the repository root.
+const CODE = {
+  "movement": ["src/main/java/dev/friendai/features/navigation/minecraft/tool/MovementTools.java", "src/main/java/dev/friendai/features/navigation/minecraft/nav/Navigator.java"],
+  "mining": ["src/main/java/dev/friendai/features/mining/minecraft/tool/GatheringTools.java"],
+  "building": ["src/main/java/dev/friendai/features/construction/minecraft/tool/BuildingTools.java"],
+  "crafting": ["src/main/java/dev/friendai/features/crafting/minecraft/tool/CraftingTools.java", "src/main/java/dev/friendai/features/cooking/minecraft/tool/CookingTools.java"],
+  "combat": ["src/main/java/dev/friendai/features/combat/minecraft/CombatController.java", "src/main/java/dev/friendai/features/combat/minecraft/tool/CombatTools.java"],
+  "survival": ["src/main/java/dev/friendai/features/survival/minecraft/tool/SurvivalTools.java", "engine/src/main/java/dev/friendai/features/survival/HungerModel.java"],
+  "farming": ["src/main/java/dev/friendai/features/farming/minecraft/tool/FarmingTools.java"],
+  "inventory": ["src/main/java/dev/friendai/features/inventory/minecraft/tool/InventoryTools.java", "src/main/java/dev/friendai/features/inventory/minecraft/tool/StorageTools.java"],
+  "acquire": ["src/main/java/dev/friendai/features/acquisition/minecraft/tool/ObtainTools.java", "engine/src/main/java/dev/friendai/features/acquisition/ObtainPlanner.java"],
+  "trading": ["src/main/java/dev/friendai/features/trading/minecraft/tool/TradingTools.java"],
+  "body": ["src/main/java/dev/friendai/features/interaction/minecraft/tool/BodyTools.java"],
+  "creative": ["src/main/java/dev/friendai/features/creative/minecraft/tool/CreativeTools.java"],
+  "planning": ["engine/src/main/java/dev/friendai/agent/plan/LlmPlanner.java", "src/main/java/dev/friendai/server/execution/tools/QueueTools.java"],
+  "memory": ["src/main/java/dev/friendai/features/memory/minecraft/tool/MemoryTools.java"],
+  "places": ["src/main/java/dev/friendai/features/places/minecraft/tool/PlaceTools.java"],
+  "perception": ["src/main/java/dev/friendai/server/agent/tools/PerceptionTools.java"],
+  "chat": ["src/main/java/dev/friendai/server/agent/chat/ChatRouter.java"],
+  "voicein": ["src/client/java/dev/friendai/client/voice/VoiceRuntime.java"],
+  "voiceout": ["src/client/java/dev/friendai/client/tts/SpeechRuntime.java"],
+  "menu": ["src/client/java/dev/friendai/client/ui/CompanionControlScreen.java"],
+  "follow_player": ["src/main/java/dev/friendai/features/navigation/minecraft/tool/MovementTools.java", "src/main/java/dev/friendai/features/navigation/minecraft/task/FollowTask.java"],
+  "stay": ["src/main/java/dev/friendai/features/navigation/minecraft/tool/MovementTools.java", "src/main/java/dev/friendai/features/navigation/minecraft/task/StayTask.java"],
+  "go_to": ["src/main/java/dev/friendai/features/navigation/minecraft/tool/MovementTools.java", "src/main/java/dev/friendai/features/navigation/minecraft/task/GoToTask.java"],
+  "jump": ["src/main/java/dev/friendai/features/navigation/minecraft/tool/MovementTools.java", "src/main/java/dev/friendai/features/navigation/minecraft/task/JumpTask.java"],
+  "set_pace": ["src/main/java/dev/friendai/features/navigation/minecraft/tool/MovementTools.java"],
+  "set_follow_mode": ["src/main/java/dev/friendai/server/execution/tools/ControlTools.java"],
+  "step": ["src/main/java/dev/friendai/features/navigation/minecraft/tool/RelativeMovementTools.java", "src/main/java/dev/friendai/features/navigation/minecraft/task/RelativeMoveTask.java"],
+  "back_away": ["src/main/java/dev/friendai/features/navigation/minecraft/tool/RelativeMovementTools.java", "src/main/java/dev/friendai/features/navigation/minecraft/task/RelativeMoveTask.java"],
+  "approach": ["src/main/java/dev/friendai/features/navigation/minecraft/tool/RelativeMovementTools.java", "src/main/java/dev/friendai/features/navigation/minecraft/task/ApproachEntityTask.java"],
+  "circle": ["src/main/java/dev/friendai/features/navigation/minecraft/tool/RelativeMovementTools.java", "src/main/java/dev/friendai/features/navigation/minecraft/task/CircleTask.java"],
+  "set_follow_distance": ["src/main/java/dev/friendai/features/interaction/minecraft/tool/BodyTools.java"],
+  "fell_tree": ["src/main/java/dev/friendai/features/mining/minecraft/tool/GatheringTools.java", "src/main/java/dev/friendai/features/mining/minecraft/task/FellTreeTask.java"],
+  "mine_blocks": ["src/main/java/dev/friendai/features/mining/minecraft/tool/GatheringTools.java", "src/main/java/dev/friendai/features/mining/minecraft/task/MineBlocksTask.java"],
+  "mine_block_at": ["src/main/java/dev/friendai/features/mining/minecraft/tool/GatheringTools.java", "src/main/java/dev/friendai/features/mining/minecraft/task/MineBlockAtTask.java"],
+  "pickup_items": ["src/main/java/dev/friendai/features/inventory/minecraft/tool/InventoryTools.java", "src/main/java/dev/friendai/features/inventory/minecraft/task/PickupItemsTask.java"],
+  "find_trees": ["src/main/java/dev/friendai/features/mining/minecraft/tool/BlockInfoTools.java"],
+  "find_blocks": ["src/main/java/dev/friendai/features/mining/minecraft/tool/BlockInfoTools.java"],
+  "find_placed": ["src/main/java/dev/friendai/features/placements/minecraft/tool/PlacedTools.java"],
+  "place_block": ["src/main/java/dev/friendai/features/construction/minecraft/tool/BuildingTools.java", "src/main/java/dev/friendai/features/construction/minecraft/task/PlaceBlockTask.java"],
+  "use_block": ["src/main/java/dev/friendai/features/interaction/minecraft/tool/InteractionTools.java", "src/main/java/dev/friendai/features/interaction/minecraft/task/UseBlockTask.java"],
+  "light_area": ["src/main/java/dev/friendai/features/construction/minecraft/tool/BuildingTools.java", "src/main/java/dev/friendai/features/construction/minecraft/task/LightAreaTask.java"],
+  "clear_area": ["src/main/java/dev/friendai/features/construction/minecraft/tool/BuildingTools.java", "src/main/java/dev/friendai/features/construction/minecraft/task/ClearAreaTask.java"],
+  "preview_structure": ["src/main/java/dev/friendai/features/construction/minecraft/tool/BuildTools.java"],
+  "build_structure": ["src/main/java/dev/friendai/features/construction/minecraft/tool/BuildTools.java", "src/main/java/dev/friendai/features/construction/minecraft/task/BuildTask.java"],
+  "save_blueprint": ["src/main/java/dev/friendai/features/construction/minecraft/tool/BuildTools.java"],
+  "list_blueprints": ["src/main/java/dev/friendai/features/construction/minecraft/tool/BuildTools.java"],
+  "blueprint_help": ["src/main/java/dev/friendai/features/construction/minecraft/tool/BuildTools.java"],
+  "build_special": ["src/main/java/dev/friendai/features/construction/minecraft/tool/StructureTools.java", "src/main/java/dev/friendai/features/construction/minecraft/task/SpecialStructureTask.java"],
+  "plan_special": ["src/main/java/dev/friendai/features/construction/minecraft/tool/StructureTools.java"],
+  "craft_item": ["src/main/java/dev/friendai/features/crafting/minecraft/tool/CraftingTools.java", "src/main/java/dev/friendai/features/crafting/minecraft/task/CraftTask.java"],
+  "get_recipe": ["src/main/java/dev/friendai/features/crafting/minecraft/tool/CraftingTools.java"],
+  "smelt_items": ["src/main/java/dev/friendai/features/cooking/minecraft/tool/CookingTools.java", "src/main/java/dev/friendai/features/cooking/minecraft/task/SmeltTask.java"],
+  "cook_food": ["src/main/java/dev/friendai/features/cooking/minecraft/tool/CookingTools.java", "src/main/java/dev/friendai/features/cooking/minecraft/task/CookFoodTask.java"],
+  "collect_smelted": ["src/main/java/dev/friendai/features/cooking/minecraft/tool/CookingTools.java", "src/main/java/dev/friendai/features/cooking/minecraft/task/CollectSmeltedTask.java"],
+  "enchant_item": ["src/main/java/dev/friendai/features/enchanting/minecraft/tool/EnchantTools.java", "src/main/java/dev/friendai/features/enchanting/minecraft/task/EnchantItemTask.java"],
+  "anvil_item": ["src/main/java/dev/friendai/features/enchanting/minecraft/tool/EnchantTools.java", "src/main/java/dev/friendai/features/enchanting/minecraft/task/AnvilItemTask.java"],
+  "grindstone_item": ["src/main/java/dev/friendai/features/enchanting/minecraft/tool/EnchantTools.java", "src/main/java/dev/friendai/features/enchanting/minecraft/task/GrindstoneItemTask.java"],
+  "attack": ["src/main/java/dev/friendai/features/combat/minecraft/tool/CombatTools.java", "src/main/java/dev/friendai/features/combat/minecraft/task/HuntTask.java"],
+  "attack_player": ["src/main/java/dev/friendai/features/combat/minecraft/tool/CombatTools.java", "src/main/java/dev/friendai/features/combat/minecraft/task/AttackPlayerTask.java"],
+  "get_combat_settings": ["src/main/java/dev/friendai/features/combat/minecraft/tool/CombatTools.java"],
+  "set_combat_settings": ["src/main/java/dev/friendai/features/combat/minecraft/tool/CombatTools.java"],
+  "eat": ["src/main/java/dev/friendai/features/survival/minecraft/tool/SurvivalTools.java", "src/main/java/dev/friendai/features/survival/minecraft/task/EatTask.java"],
+  "get_food": ["src/main/java/dev/friendai/features/survival/minecraft/tool/SurvivalTools.java", "src/main/java/dev/friendai/features/survival/minecraft/task/GetFoodTask.java"],
+  "allow_food": ["src/main/java/dev/friendai/features/survival/minecraft/tool/SurvivalTools.java"],
+  "forbid_food": ["src/main/java/dev/friendai/features/survival/minecraft/tool/SurvivalTools.java"],
+  "reset_food_rule": ["src/main/java/dev/friendai/features/survival/minecraft/tool/SurvivalTools.java"],
+  "get_food_rules": ["src/main/java/dev/friendai/features/survival/minecraft/tool/SurvivalTools.java"],
+  "sleep": ["src/main/java/dev/friendai/features/survival/minecraft/tool/SurvivalTools.java", "src/main/java/dev/friendai/features/survival/minecraft/task/SleepTask.java"],
+  "extinguish_fire": ["src/main/java/dev/friendai/features/fire/minecraft/tool/FireTools.java", "src/main/java/dev/friendai/features/fire/minecraft/task/ExtinguishFireTask.java"],
+  "farm": ["src/main/java/dev/friendai/features/farming/minecraft/tool/FarmingTools.java", "src/main/java/dev/friendai/features/farming/minecraft/task/FarmTask.java"],
+  "plan_farm": ["src/main/java/dev/friendai/features/farming/minecraft/tool/FarmingTools.java"],
+  "tend_farm": ["src/main/java/dev/friendai/features/farming/minecraft/tool/FarmingTools.java", "src/main/java/dev/friendai/features/farming/minecraft/task/TendFarmTask.java"],
+  "use_bonemeal": ["src/main/java/dev/friendai/features/farming/minecraft/tool/FarmingTools.java", "src/main/java/dev/friendai/features/farming/minecraft/task/BonemealTask.java"],
+  "breed_animals": ["src/main/java/dev/friendai/features/animals/minecraft/tool/AnimalTools.java", "src/main/java/dev/friendai/features/animals/minecraft/task/BreedTask.java"],
+  "shear": ["src/main/java/dev/friendai/features/animals/minecraft/tool/AnimalTools.java", "src/main/java/dev/friendai/features/animals/minecraft/task/ShearTask.java"],
+  "milk": ["src/main/java/dev/friendai/features/animals/minecraft/tool/AnimalTools.java", "src/main/java/dev/friendai/features/animals/minecraft/task/MilkTask.java"],
+  "tame_animal": ["src/main/java/dev/friendai/features/animals/minecraft/tool/AnimalTools.java", "src/main/java/dev/friendai/features/animals/minecraft/task/TameTask.java"],
+  "lead_animals": ["src/main/java/dev/friendai/features/animals/minecraft/tool/AnimalTools.java", "src/main/java/dev/friendai/features/animals/minecraft/task/LeadTask.java"],
+  "harvest_honey": ["src/main/java/dev/friendai/features/animals/minecraft/tool/AnimalTools.java", "src/main/java/dev/friendai/features/animals/minecraft/task/HoneyTask.java"],
+  "fish": ["src/main/java/dev/friendai/features/animals/minecraft/tool/AnimalTools.java", "src/main/java/dev/friendai/features/animals/minecraft/task/FishTask.java"],
+  "get_inventory": ["src/main/java/dev/friendai/features/inventory/minecraft/tool/InventoryTools.java"],
+  "show_inventory": ["src/main/java/dev/friendai/server/execution/tools/ControlTools.java"],
+  "equip_item": ["src/main/java/dev/friendai/features/inventory/minecraft/tool/InventoryTools.java", "src/main/java/dev/friendai/features/inventory/minecraft/task/EquipTask.java"],
+  "give_items": ["src/main/java/dev/friendai/features/inventory/minecraft/tool/InventoryTools.java", "src/main/java/dev/friendai/features/inventory/minecraft/task/GiveItemsTask.java"],
+  "drop_items": ["src/main/java/dev/friendai/features/inventory/minecraft/tool/InventoryTools.java", "src/main/java/dev/friendai/features/inventory/minecraft/task/DropItemsTask.java"],
+  "throw_item": ["src/main/java/dev/friendai/features/inventory/minecraft/tool/InventoryTools.java", "src/main/java/dev/friendai/features/inventory/minecraft/task/ThrowItemTask.java"],
+  "store_items": ["src/main/java/dev/friendai/features/inventory/minecraft/tool/StorageTools.java", "src/main/java/dev/friendai/features/inventory/minecraft/task/StoreItemsTask.java"],
+  "take_items": ["src/main/java/dev/friendai/features/inventory/minecraft/tool/StorageTools.java", "src/main/java/dev/friendai/features/inventory/minecraft/task/TakeItemsTask.java"],
+  "check_container": ["src/main/java/dev/friendai/features/inventory/minecraft/tool/StorageTools.java", "src/main/java/dev/friendai/features/inventory/minecraft/task/CheckContainerTask.java"],
+  "deposit_items": ["src/main/java/dev/friendai/features/inventory/minecraft/tool/StorageTools.java", "src/main/java/dev/friendai/features/inventory/minecraft/task/DepositTask.java"],
+  "obtain_item": ["src/main/java/dev/friendai/features/acquisition/minecraft/tool/ObtainTools.java", "src/main/java/dev/friendai/features/acquisition/minecraft/task/ObtainTask.java"],
+  "plan_obtain": ["src/main/java/dev/friendai/features/acquisition/minecraft/tool/ObtainTools.java"],
+  "search_resource": ["src/main/java/dev/friendai/features/knowledge/minecraft/tool/ResourceTools.java", "src/main/java/dev/friendai/features/acquisition/minecraft/task/SearchResourceTask.java"],
+  "known_resources": ["src/main/java/dev/friendai/features/knowledge/minecraft/tool/ResourceTools.java"],
+  "search_hint": ["src/main/java/dev/friendai/features/knowledge/minecraft/tool/ResourceTools.java"],
+  "find_target": ["src/main/java/dev/friendai/features/knowledge/minecraft/tool/ResourceTools.java"],
+  "find_traders": ["src/main/java/dev/friendai/features/trading/minecraft/tool/TradingTools.java"],
+  "inspect_trader": ["src/main/java/dev/friendai/features/trading/minecraft/tool/TradingTools.java", "src/main/java/dev/friendai/features/trading/minecraft/task/InspectTraderTask.java"],
+  "refresh_trades": ["src/main/java/dev/friendai/features/trading/minecraft/tool/TradingTools.java", "src/main/java/dev/friendai/features/trading/minecraft/task/RefreshTradesTask.java"],
+  "wait_for_restock": ["src/main/java/dev/friendai/features/trading/minecraft/tool/TradingTools.java", "src/main/java/dev/friendai/features/trading/minecraft/task/WaitForRestockTask.java"],
+  "known_trades": ["src/main/java/dev/friendai/features/trading/minecraft/tool/TradingTools.java"],
+  "plan_trade": ["src/main/java/dev/friendai/features/trading/minecraft/tool/TradingTools.java"],
+  "trade_item": ["src/main/java/dev/friendai/features/trading/minecraft/tool/TradingTools.java", "src/main/java/dev/friendai/features/trading/minecraft/task/TradeTask.java"],
+  "level_trader": ["src/main/java/dev/friendai/features/trading/minecraft/tool/TradingTools.java", "src/main/java/dev/friendai/features/trading/minecraft/task/LevelTraderTask.java"],
+  "barter": ["src/main/java/dev/friendai/features/trading/minecraft/tool/TradingTools.java", "src/main/java/dev/friendai/features/trading/minecraft/task/BarterTask.java"],
+  "look_at": ["src/main/java/dev/friendai/features/interaction/minecraft/tool/BodyTools.java"],
+  "point_at": ["src/main/java/dev/friendai/features/interaction/minecraft/tool/BodyTools.java"],
+  "turn": ["src/main/java/dev/friendai/features/interaction/minecraft/tool/BodyTools.java", "src/main/java/dev/friendai/features/interaction/minecraft/task/TurnTask.java"],
+  "sneak": ["src/main/java/dev/friendai/features/interaction/minecraft/tool/BodyTools.java"],
+  "emote": ["src/main/java/dev/friendai/features/interaction/minecraft/tool/BodyTools.java", "src/main/java/dev/friendai/features/interaction/minecraft/task/EmoteTask.java"],
+  "sit": ["src/main/java/dev/friendai/features/interaction/minecraft/tool/BodyTools.java", "src/main/java/dev/friendai/features/interaction/minecraft/task/SitTask.java"],
+  "stand": ["src/main/java/dev/friendai/features/interaction/minecraft/tool/BodyTools.java"],
+  "wait": ["src/main/java/dev/friendai/features/interaction/minecraft/tool/BodyTools.java", "src/main/java/dev/friendai/features/interaction/minecraft/task/WaitTask.java"],
+  "swap_hands": ["src/main/java/dev/friendai/features/interaction/minecraft/tool/BodyTools.java"],
+  "interact_entity": ["src/main/java/dev/friendai/features/interaction/minecraft/tool/InteractionTools.java", "src/main/java/dev/friendai/features/interaction/minecraft/task/InteractEntityTask.java"],
+  "mount": ["src/main/java/dev/friendai/features/interaction/minecraft/tool/InteractionTools.java", "src/main/java/dev/friendai/features/interaction/minecraft/task/MountTask.java"],
+  "dismount": ["src/main/java/dev/friendai/features/interaction/minecraft/tool/InteractionTools.java"],
+  "set_idle_behavior": ["src/main/java/dev/friendai/features/interaction/minecraft/tool/BodyTools.java"],
+  "create_item": ["src/main/java/dev/friendai/features/creative/minecraft/tool/CreativeTools.java", "src/main/java/dev/friendai/features/creative/minecraft/task/CreateItemsTask.java"],
+  "fly_to": ["src/main/java/dev/friendai/features/navigation/minecraft/tool/FlightTools.java", "src/main/java/dev/friendai/features/navigation/minecraft/task/FlyToTask.java"],
+  "execute_command": ["src/main/java/dev/friendai/features/interaction/minecraft/tool/CommandTools.java", "src/main/java/dev/friendai/features/interaction/minecraft/task/ExecuteCommandTask.java"],
+  "set_goal": ["src/main/java/dev/friendai/server/agent/tools/GoalTools.java"],
+  "update_goal": ["src/main/java/dev/friendai/server/agent/tools/GoalTools.java"],
+  "finish_goal": ["src/main/java/dev/friendai/server/agent/tools/GoalTools.java"],
+  "queue_add": ["src/main/java/dev/friendai/server/execution/tools/QueueTools.java"],
+  "queue_show": ["src/main/java/dev/friendai/server/execution/tools/QueueTools.java"],
+  "queue_edit": ["src/main/java/dev/friendai/server/execution/tools/QueueTools.java"],
+  "plan_help": ["src/main/java/dev/friendai/server/execution/tools/QueueTools.java"],
+  "plan_validate": ["src/main/java/dev/friendai/server/execution/tools/QueueTools.java"],
+  "request_tools": ["src/main/java/dev/friendai/server/agent/tools/RoutingTools.java"],
+  "stop": ["src/main/java/dev/friendai/server/execution/tools/ControlTools.java"],
+  "start_free_time": ["src/main/java/dev/friendai/server/agent/tools/FreeTimeTools.java"],
+  "end_free_time": ["src/main/java/dev/friendai/server/agent/tools/FreeTimeTools.java"],
+  "choose_activity": ["src/main/java/dev/friendai/server/agent/tools/FreeTimeTools.java"],
+  "remember": ["src/main/java/dev/friendai/features/memory/minecraft/tool/MemoryTools.java"],
+  "recall": ["src/main/java/dev/friendai/features/memory/minecraft/tool/MemoryTools.java"],
+  "forget": ["src/main/java/dev/friendai/features/memory/minecraft/tool/MemoryTools.java"],
+  "trust_player": ["src/main/java/dev/friendai/features/memory/minecraft/tool/TrustTools.java"],
+  "untrust_player": ["src/main/java/dev/friendai/features/memory/minecraft/tool/TrustTools.java"],
+  "set_name": ["src/main/java/dev/friendai/server/execution/tools/ControlTools.java"],
+  "use_skill": ["src/main/java/dev/friendai/features/instructions/minecraft/tool/SkillTools.java"],
+  "list_skills": ["src/main/java/dev/friendai/features/instructions/minecraft/tool/SkillTools.java"],
+  "skill_help": ["src/main/java/dev/friendai/features/instructions/minecraft/tool/SkillTools.java"],
+  "manage_skill": ["src/main/java/dev/friendai/features/instructions/minecraft/tool/SkillTools.java"],
+  "read_log": ["src/main/java/dev/friendai/features/memory/minecraft/tool/SelfTools.java"],
+  "recent_chat": ["src/main/java/dev/friendai/features/memory/minecraft/tool/SelfTools.java"],
+  "memory_overview": ["src/main/java/dev/friendai/features/memory/minecraft/tool/SelfTools.java"],
+  "compress_memory": ["src/main/java/dev/friendai/features/memory/minecraft/tool/SelfTools.java"],
+  "reset_manner": ["src/main/java/dev/friendai/features/memory/minecraft/tool/SelfTools.java"],
+  "remember_place": ["src/main/java/dev/friendai/features/places/minecraft/tool/PlaceTools.java"],
+  "go_to_place": ["src/main/java/dev/friendai/features/places/minecraft/tool/PlaceTools.java", "src/main/java/dev/friendai/features/places/minecraft/task/GoToPlaceTask.java"],
+  "rename_place": ["src/main/java/dev/friendai/features/places/minecraft/tool/PlaceTools.java"],
+  "forget_place": ["src/main/java/dev/friendai/features/places/minecraft/tool/PlaceTools.java"],
+  "find_place": ["src/main/java/dev/friendai/features/places/minecraft/tool/PlaceTools.java"],
+  "look_around": ["src/main/java/dev/friendai/server/agent/tools/PerceptionTools.java"],
+  "player_view": ["src/main/java/dev/friendai/server/agent/tools/PerceptionTools.java"],
+  "describe_block": ["src/main/java/dev/friendai/features/mining/minecraft/tool/BlockInfoTools.java"],
+  "survey_area": ["src/main/java/dev/friendai/server/agent/tools/PerceptionTools.java"],
+  "~A* pathfinder": ["engine/src/main/java/dev/friendai/features/navigation/pathing/PathSearch.java"],
+  "~Dig, pillar, bridge": ["engine/src/main/java/dev/friendai/features/navigation/pathing/MoveGenerator.java"],
+  "~Stuck recovery": ["src/main/java/dev/friendai/features/navigation/minecraft/nav/PathExecutor.java"],
+  "~Vein follower": ["engine/src/main/java/dev/friendai/features/mining/ClusterFill.java", "src/main/java/dev/friendai/features/mining/minecraft/task/MineBlockAtTask.java"],
+  "~Tool selection": ["src/main/java/dev/friendai/features/mining/minecraft/mining/MiningToolView.java"],
+  "~Safe digging": ["engine/src/main/java/dev/friendai/features/mining/MiningSafety.java"],
+  "~Catch platform": ["src/main/java/dev/friendai/features/mining/minecraft/mining/CatchPlatform.java"],
+  "~Blueprint parser": ["engine/src/main/java/dev/friendai/features/construction/blueprint/BlueprintParser.java"],
+  "~Resumable builds": ["src/main/java/dev/friendai/features/construction/minecraft/task/BuildTask.java"],
+  "~Fake-player hands": ["src/main/java/dev/friendai/task/interact/CompanionHands.java"],
+  "~Craft planner": ["engine/src/main/java/dev/friendai/features/crafting/CraftPlanner.java"],
+  "~Station leases": ["engine/src/main/java/dev/friendai/features/crafting/StationLease.java"],
+  "~Shield timing": ["engine/src/main/java/dev/friendai/features/combat/ShieldPolicy.java"],
+  "~Bow aim with lead": ["engine/src/main/java/dev/friendai/features/combat/CombatPolicy.java"],
+  "~Potion use": ["engine/src/main/java/dev/friendai/features/combat/PotionPolicy.java"],
+  "~Weapon choice": ["engine/src/main/java/dev/friendai/features/combat/WeaponPolicy.java"],
+  "~Group pressure": ["engine/src/main/java/dev/friendai/features/combat/GroupPressure.java"],
+  "~Hostiles target it": ["src/main/java/dev/friendai/mixin/NearestAttackableTargetGoalMixin.java"],
+  "~Hunger model": ["engine/src/main/java/dev/friendai/features/survival/HungerModel.java"],
+  "~Fire reflex": ["src/main/java/dev/friendai/features/fire/minecraft/FireReflex.java"],
+  "~Self-care reflex": ["src/main/java/dev/friendai/features/survival/minecraft/selfcare/SelfCareReflex.java"],
+  "~Death and respawn": ["src/main/java/dev/friendai/entity/CompanionManager.java"],
+  "~Farm planner": ["engine/src/main/java/dev/friendai/features/farming/FarmPlanner.java"],
+  "~Re-plans on mismatch": ["src/main/java/dev/friendai/features/farming/minecraft/FarmPass.java"],
+  "~Equipment picker": ["src/main/java/dev/friendai/features/inventory/minecraft/Equipment.java"],
+  "~Owner-only window": ["src/main/java/dev/friendai/menu/FriendaiMenus.java"],
+  "~Obtain planner": ["engine/src/main/java/dev/friendai/features/acquisition/ObtainPlanner.java"],
+  "~Frontier search": ["src/main/java/dev/friendai/features/acquisition/minecraft/search/SearchFrontierFacts.java"],
+  "~Search budget": ["src/main/java/dev/friendai/features/acquisition/minecraft/task/ResourceSearchDriver.java"],
+  "~Spend authority": ["engine/src/main/java/dev/friendai/features/trading/TradeAuthority.java"],
+  "~Idle refresh": ["src/main/java/dev/friendai/server/trading/TraderRefreshService.java"],
+  "~Single facing policy": ["engine/src/main/java/dev/friendai/features/navigation/movement/Facing.java", "src/main/java/dev/friendai/entity/CompanionFacing.java"],
+  "~Command allowlist": ["engine/src/main/java/dev/friendai/features/creative/CreativeCommandPolicy.java"],
+  "~Owner-gated": ["engine/src/main/java/dev/friendai/features/creative/CreativePolicy.java"],
+  "~Bounded counts": ["engine/src/main/java/dev/friendai/features/creative/CreativeItemCount.java"],
+  "~LLM planner": ["engine/src/main/java/dev/friendai/agent/plan/LlmPlanner.java"],
+  "~Conditional plans": ["engine/src/main/java/dev/friendai/execution/queue/PlanInterpreter.java"],
+  "~Outcome checker": ["engine/src/main/java/dev/friendai/agent/verify/OutcomeChecker.java"],
+  "~Recovery advisor": ["engine/src/main/java/dev/friendai/agent/recover/RecoveryAdvisor.java"],
+  "~Access levels": ["engine/src/main/java/dev/friendai/execution/tool/AccessLevel.java"],
+  "~Language learning": ["engine/src/main/java/dev/friendai/foundation/text/LanguageMemory.java"],
+  "~Skills advise only": ["src/main/java/dev/friendai/server/instructions/SkillService.java"],
+  "~Auto registration": ["engine/src/main/java/dev/friendai/features/places/PlaceAutoRegistration.java"],
+  "~Place guard": ["src/main/java/dev/friendai/task/autonomy/PlaceGuard.java"],
+  "~Same dimension": ["src/main/java/dev/friendai/features/places/minecraft/task/GoToPlaceTask.java"],
+  "~Brief radius 8": ["src/main/java/dev/friendai/server/agent/perception/PerceptionBuilder.java"],
+  "~Detailed radius 16": ["src/main/java/dev/friendai/server/agent/perception/PerceptionBuilder.java"],
+  "~Owner focus": ["src/main/java/dev/friendai/server/agent/perception/OwnerFocusBuilder.java"],
+  "~Landmarks and area map": ["src/main/java/dev/friendai/server/agent/perception/AreaMapBuilder.java", "src/main/java/dev/friendai/features/knowledge/minecraft/LandmarkScanner.java"],
+  "~Address detection": ["engine/src/main/java/dev/friendai/features/conversation/AddressDetector.java"],
+  "~Companion picker": ["engine/src/main/java/dev/friendai/features/conversation/CompanionPicker.java"],
+  "~Reply splitter": ["engine/src/main/java/dev/friendai/features/conversation/ReplySplitter.java"],
+  "~Trust confirmations": ["src/main/java/dev/friendai/server/memory/TrustConfirmations.java"],
+  "~/friendai commands": ["src/main/java/dev/friendai/command/FriendaiCommands.java"],
+  "~English and Russian": ["engine/src/main/resources/agent/intents_en.json", "engine/src/main/resources/agent/intents_ru.json"],
+  "~Push-to-talk": ["src/client/java/dev/friendai/client/voice/PushToTalkHandler.java"],
+  "~Local Whisper": ["src/client/java/dev/friendai/client/voice/WhisperLocalStt.java"],
+  "~OpenAI STT": ["engine/src/main/java/dev/friendai/features/speech/stt/OpenAiSttProtocol.java"],
+  "~Groq STT": ["engine/src/main/java/dev/friendai/features/speech/stt/SttPresets.java"],
+  "~Yandex STT": ["engine/src/main/java/dev/friendai/features/speech/stt/YandexSttProtocol.java"],
+  "~Key in headers": ["engine/src/main/java/dev/friendai/features/speech/PreparedRequest.java", "engine/src/main/java/dev/friendai/infrastructure/speech/VoiceHttp.java"],
+  "~Local Piper voices": ["src/client/java/dev/friendai/client/audio/LocalTtsEngine.java"],
+  "~OpenAI TTS": ["engine/src/main/java/dev/friendai/features/speech/tts/OpenAiTtsProtocol.java"],
+  "~ElevenLabs": ["engine/src/main/java/dev/friendai/features/speech/tts/ElevenLabsTtsProtocol.java"],
+  "~Yandex SpeechKit": ["engine/src/main/java/dev/friendai/features/speech/tts/YandexTtsProtocol.java"],
+  "~Spatial audio": ["engine/src/main/java/dev/friendai/features/speech/SpatialAudio.java"],
+  "~Stop speaking key": ["src/client/java/dev/friendai/client/tts/SpeechKeybind.java"],
+  "~Off by default": ["engine/src/main/java/dev/friendai/infrastructure/config/ClientConfig.java"],
+  "~Overview": ["src/client/java/dev/friendai/client/ui/ControlTab.java"],
+  "~Toggles": ["src/client/java/dev/friendai/client/ui/SettingsTab.java"],
+  "~Tasks": ["src/client/java/dev/friendai/client/ui/TasksTab.java"],
+  "~Memory": ["src/client/java/dev/friendai/client/ui/MemoryTab.java"],
+  "~Skills": ["src/client/java/dev/friendai/client/ui/SkillsTab.java"],
+  "~Places": ["src/client/java/dev/friendai/client/ui/PlacesTab.java"],
+  "~Appearance": ["src/client/java/dev/friendai/client/ui/AppearanceTab.java"],
+  "~Traders": ["src/client/java/dev/friendai/client/ui/TradersTab.java"],
+  "~Log and Debug": ["src/client/java/dev/friendai/client/ui/LogTab.java", "src/client/java/dev/friendai/client/ui/DebugTab.java"],
+  "~Settings screen": ["src/client/java/dev/friendai/client/config/FriendaiConfigScreen.java"],
+};
+
 /* ---- turn flow (manual layout) ---- */
 const FLOW = {
   w: 1160, h: 600,
@@ -261,12 +503,13 @@ const count = (n, key) => {
   return n + " " + (m10 === 1 && m100 !== 11 ? f[0] : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? f[1] : f[2]);
 };
 
-const parseItem = (s) => {
+const parseItem = (s, withCode = true) => {
   const trait = s.startsWith("~");
   const raw = trait ? s.slice(1) : s;
   const i = raw.indexOf("|");
   const label = raw.slice(0, i);
-  return { label: trait ? t(label) : label, desc: t(raw.slice(i + 1)), kind: trait ? "trait" : "tool" };
+  const key = trait ? "~" + label : label;
+  return { label: trait ? t(label) : label, desc: t(raw.slice(i + 1)), code: withCode ? CODE[key] : undefined, kind: trait ? "trait" : "tool" };
 };
 
 
@@ -284,6 +527,13 @@ function showTip(ev, n) {
   const s = document.createElement("small"); s.textContent = n.typeLabel || "";
   const p = document.createElement("p"); p.textContent = n.desc || "";
   tip.append(b, s, p);
+  if (n.code && n.code.length) {
+    const src = document.createElement("div"); src.className = "src";
+    const cap = document.createElement("span"); cap.textContent = t("Source code");
+    src.append(cap);
+    n.code.forEach((path) => { const line = document.createElement("code"); line.textContent = path; src.append(line); });
+    tip.append(src);
+  }
   tip.classList.add("show");
   moveTip(ev);
 }
@@ -435,7 +685,7 @@ function renderGraph(box, g) {
 function radialGraph(hub, items, color, w, h, hubKind = "cat") {
   const nodes = [], edges = [];
   const cx = w / 2, cy = h / 2;
-  nodes.push({ id: "hub", x: cx, y: cy, kind: "hub", label: t(hub.label), icon: hub.icon, color: hub.color || color, desc: t(hub.desc), typeLabel: t(hub.typeLabel || "Category") });
+  nodes.push({ id: "hub", x: cx, y: cy, kind: "hub", label: t(hub.label), icon: hub.icon, color: hub.color || color, desc: t(hub.desc), code: hub.code, typeLabel: t(hub.typeLabel || "Category") });
   const n = items.length;
   const rx = w / 2 - 95, ry = h / 2 - 40;
   const crowded = n > 8;
@@ -444,7 +694,7 @@ function radialGraph(hub, items, color, w, h, hubKind = "cat") {
     const k = crowded && i % 2 ? 0.62 : 1;
     nodes.push({
       id: "n" + i, x: cx + Math.cos(ang) * rx * k, y: cy + Math.sin(ang) * ry * k,
-      kind: it.kind, label: it.label, desc: it.desc, color, typeLabel: t(it.kind === "tool" ? "Tool - the LLM can call it" : "Built-in behaviour")
+      kind: it.kind, label: it.label, desc: it.desc, code: it.code, color, typeLabel: t(it.kind === "tool" ? "Tool - the LLM can call it" : "Built-in behaviour")
     });
     edges.push({ a: "hub", b: "n" + i, color });
   });
@@ -489,7 +739,7 @@ function overviewGraph() {
       const k = list.length > 5 && i % 2 ? 0.8 : 1;
       nodes.push({
         id: c.id, x: cx + Math.cos(a) * rx * k, y: cy + Math.sin(a) * ry * k, kind: "cat", label: t(c.name), sub: toolCount(c) ? count(toolCount(c), "tools") : count(c.items.length, "features"),
-        icon: c.icon, color: c.color, typeLabel: t("Category - click to open"), desc: t(c.desc), onclick: () => openCategory(c.id)
+        icon: c.icon, color: c.color, typeLabel: t("Category - click to open"), desc: t(c.desc), code: CODE[c.id], onclick: () => openCategory(c.id)
       });
       edges.push({ a: hubId, b: c.id, color: d.color });
     });
@@ -518,9 +768,9 @@ function renderCategory() {
   $("#cat-title").textContent = c.icon + "  " + t(c.name);
   $("#cat-desc").textContent = t(c.desc);
   document.querySelectorAll(".chip").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.id === c.id)));
-  const items = c.items.map(parseItem);
+  const items = c.items.map((s) => parseItem(s));
   const h = items.length > 14 ? 780 : items.length > 10 ? 700 : 620;
-  const g = radialGraph({ label: c.name, icon: c.icon, color: c.color, desc: c.desc }, items, c.color, 1120, h);
+  const g = radialGraph({ label: c.name, icon: c.icon, color: c.color, desc: c.desc, code: CODE[c.id] }, items, c.color, 1120, h);
   renderGraph($("#g-cat"), g);
 }
 function buildChips() {
@@ -552,7 +802,7 @@ function buildCards(containerId, cards, prefix) {
 function renderCards(cards) {
   cards.forEach((c) => {
     const w = c.wide ? 1100 : 640, h = c.wide ? 640 : 520;
-    renderGraph(c._box, radialGraph({ ...c.hub, typeLabel: "Store" }, c.items.map(parseItem), c.color, w, h));
+    renderGraph(c._box, radialGraph({ ...c.hub, typeLabel: "Store" }, c.items.map((s) => parseItem(s, false)), c.color, w, h));
   });
 }
 

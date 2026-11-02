@@ -92,7 +92,7 @@ nav.tabs { position: sticky; top: 0; z-index: 20; display: flex; flex-wrap: wrap
 
 /* tooltip */
 #tip {
-  position: fixed; z-index: 50; pointer-events: none; max-width: 340px; padding: 8px 12px;
+  position: fixed; z-index: 50; pointer-events: none; max-width: 460px; padding: 8px 12px;
   background: var(--tip-bg); color: #fff; border: 3px solid var(--tip-edge);
   box-shadow: 0 0 0 3px #000, inset 0 0 0 2px #5c18bd;
   font-size: 22px; opacity: 0; transition: opacity .08s;
@@ -101,6 +101,9 @@ nav.tabs { position: sticky; top: 0; z-index: 20; display: flex; flex-wrap: wrap
 #tip b { display: block; font-family: var(--pixel); font-size: 11px; line-height: 1.6; color: #fff; margin-bottom: 4px; word-break: break-word; }
 #tip small { display: block; color: #a8a8a8; font-size: 18px; margin-bottom: 2px; }
 #tip p { margin: 0; color: #cfcfcf; }
+#tip .src { margin-top: 7px; padding-top: 6px; border-top: 2px dashed #4a2a7a; }
+#tip .src span { display: block; font-family: var(--pixel); font-size: 8px; line-height: 1.6; color: #9a8ab8; margin-bottom: 3px; }
+#tip code { display: block; font-family: "Courier New", monospace; font-size: 15px; line-height: 1.35; color: #9be07a; word-break: break-all; }
 
 footer { text-align: center; font-family: var(--pixel); font-size: 9px; line-height: 2; color: #e8d3b3; text-shadow: 2px 2px 0 #3a2410; padding: 18px 0 0; }
 .hidden { display: none; }

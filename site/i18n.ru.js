@@ -47,6 +47,7 @@ const RU = {
   "Category - click to open": "Категория — клик, чтобы открыть",
   "Tool - the LLM can call it": "Инструмент — его вызывает LLM",
   "Built-in behaviour": "Встроенное поведение",
+  "Source code": "Код",
   "Stage": "Этап",
   "Store": "Хранилище",
   "Companion": "Компаньон",
