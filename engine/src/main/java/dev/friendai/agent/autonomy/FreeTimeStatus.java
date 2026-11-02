@@ -54,7 +54,8 @@ public record FreeTimeStatus(
 
     private static String lastLine(ShiftRecord record) {
         return record.goal() + ": " + (record.success() ? "ok" : "failed")
-                + (record.summary().isBlank() ? "" : " (" + record.summary() + ")");
+                + (record.summary().isBlank() ? "" : " (" + record.summary() + ")")
+                + FreeTimeText.stopNote(record);
     }
 
     private static String cut(String text, int max) {

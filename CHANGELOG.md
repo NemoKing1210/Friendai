@@ -6,7 +6,13 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
-## [0.150.0] - 2026-11-02
+## [0.151.0] - 2026-11-02
+
+### Changed
+
+- Free time now states what a shift is for, what it may spend and why it ended (owner back, owner spoke, budget spent, work conflict, done), and it refuses to start work that duplicates a queued job or an owner order.
+
+ - 2026-11-02
 
 ### Added
 

@@ -36,6 +36,7 @@ public final class FreeTimeSave {
             o.addProperty("success", r.success());
             o.addProperty("summary", r.summary());
             o.addProperty("ended", r.endedMillis());
+            o.addProperty("stops", r.stopWhen().name());
             history.add(o);
         }
         root.add("history", history);
@@ -63,7 +64,8 @@ public final class FreeTimeSave {
                         NeedKind.valueOf(o.get("need").getAsString()),
                         o.get("success").getAsBoolean(),
                         o.get("summary").getAsString(),
-                        o.get("ended").getAsLong()));
+                        o.get("ended").getAsLong(),
+                        o.has("stops") ? ShiftStopWhen.valueOf(o.get("stops").getAsString()) : ShiftStopWhen.DONE));
             }
             Map<NeedKind, Long> cooldowns = new EnumMap<>(NeedKind.class);
             for (Map.Entry<String, JsonElement> e :
@@ -98,20 +100,29 @@ public final class FreeTimeSave {
         o.addProperty("deadline", s.deadlineMillis());
         o.addProperty("reflex", s.reflex());
         o.addProperty("need", s.need().name());
+        o.addProperty("purpose", s.purpose());
+        o.addProperty("budget", s.budget());
+        o.addProperty("stops", s.stopWhen().name());
         return o;
     }
 
     private static Shift shift(JsonObject o) {
+        NeedKind need = NeedKind.valueOf(o.get("need").getAsString());
+        long started = o.get("started").getAsLong();
+        long deadline = o.get("deadline").getAsLong();
         return new Shift(
                 o.get("id").getAsLong(),
                 o.get("goal").getAsString(),
                 strings(o.getAsJsonArray("criteria")),
                 o.get("why").getAsString(),
                 o.get("plan").getAsLong(),
-                o.get("started").getAsLong(),
-                o.get("deadline").getAsLong(),
+                started,
+                deadline,
                 o.get("reflex").getAsBoolean(),
-                NeedKind.valueOf(o.get("need").getAsString()));
+                need,
+                o.has("purpose") ? o.get("purpose").getAsString() : ShiftContract.purpose(need),
+                o.has("budget") ? o.get("budget").getAsString() : ShiftContract.budget(started, deadline),
+                o.has("stops") ? ShiftStopWhen.valueOf(o.get("stops").getAsString()) : ShiftStopWhen.DONE);
     }
 
     private static JsonArray strings(List<String> values) {

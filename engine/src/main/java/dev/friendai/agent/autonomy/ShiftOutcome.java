@@ -29,8 +29,23 @@ public final class ShiftOutcome {
             String diagnosis,
             long nowMillis,
             AutonomySettings s) {
+        return of(shift, success, summary, stageBefore, stageAfter, diagnosis, nowMillis, s, ShiftStopWhen.DONE);
+    }
+
+    /** As above, recording which stop condition ended the shift. */
+    public static Result of(
+            Shift shift,
+            boolean success,
+            String summary,
+            String stageBefore,
+            String stageAfter,
+            String diagnosis,
+            long nowMillis,
+            AutonomySettings s,
+            ShiftStopWhen stopWhen) {
         String text = summary == null ? "" : summary;
-        ShiftRecord record = new ShiftRecord(shift.id(), shift.goal(), shift.need(), success, text, nowMillis);
+        ShiftRecord record =
+                new ShiftRecord(shift.id(), shift.goal(), shift.need(), success, text, nowMillis, stopWhen);
         Optional<String> notable = !stageAfter.equals(stageBefore) ? Optional.of(stageAfter) : Optional.empty();
         if (success || text.contains(TIME_UP)) {
             return new Result(record, Optional.empty(), Optional.empty(), notable);

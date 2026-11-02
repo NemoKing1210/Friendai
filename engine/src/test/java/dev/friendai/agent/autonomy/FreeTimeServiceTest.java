@@ -142,4 +142,38 @@ class FreeTimeServiceTest {
                 reconciled.history().get(0).summary());
         assertEquals(200, reconciled.history().get(0).endedMillis());
     }
+
+    @Test
+    void beginShiftStatesPurposeBudgetAndStopCondition() {
+        service.start(OWNER, FreeTime.Origin.COMMAND, "", 0);
+        Shift shift = service.beginShift(OWNER, "tend the wheat", List.of(), "", NeedKind.FARM, true, 600_000, 900_000)
+                .shift();
+        assertEquals("tending the farm", shift.purpose());
+        assertEquals("5 min", shift.budget());
+        assertEquals(ShiftStopWhen.DONE, shift.stopWhen());
+    }
+
+    @Test
+    void theStopConditionIsRecordedInHistory() {
+        service.start(OWNER, FreeTime.Origin.COMMAND, "", 0);
+        service.beginShift(OWNER, "a", List.of(), "", NeedKind.STOCK, false, 1, 2);
+        FreeTime finished = service.finishShift(OWNER, false, "the owner paused the work", 3, ShiftStopWhen.OWNER_PAUSED);
+        assertEquals(ShiftStopWhen.OWNER_PAUSED, finished.history().get(0).stopWhen());
+
+        service.beginShift(OWNER, "b", List.of(), "", NeedKind.FARM, false, 4, 5);
+        FreeTime stopped = service.stop(OWNER, "stopped by command", 6);
+        assertEquals(
+                ShiftStopWhen.OWNER_SPOKE,
+                stopped.history().get(0).stopWhen(),
+                "ending free time is the owner speaking");
+
+        service.start(OWNER, FreeTime.Origin.COMMAND, "", 7);
+        service.beginShift(OWNER, "c", List.of(), "", NeedKind.GEAR, false, 8, 9);
+        assertEquals(
+                ShiftStopWhen.BUDGET_SPENT,
+                service.finishShift(OWNER, false, ShiftOutcome.TIME_UP, 10, ShiftStopWhen.BUDGET_SPENT)
+                        .history()
+                        .get(0)
+                        .stopWhen());
+    }
 }

@@ -249,7 +249,9 @@ final class FreeTimeAuditHarness {
         shiftSummary = canPlan ? "done" : "no plan: capability missing";
         shifts++;
         table.compute(need, (kind, tally) -> tally.plusChosen());
-        events.add("shift " + shift.id() + " " + need + " at " + seconds(now) + " s, stage " + stage);
+        events.add("shift " + shift.id() + " " + need + " at " + seconds(now) + " s, stage " + stage
+                + ", purpose " + shift.purpose() + ", budget " + shift.budget() + ", stops on "
+                + shift.stopWhen().name());
         state = new FreeTime(
                 state.on(),
                 state.origin(),
@@ -308,7 +310,8 @@ final class FreeTimeAuditHarness {
                     state.away());
         }
         events.add("end " + shift.id() + " " + shift.need() + ": " + (success ? "ok" : "failed")
-                + (summary.isBlank() ? "" : " (" + summary + ")"));
+                + (summary.isBlank() ? "" : " (" + summary + ")") + " ["
+                + result.record().stopWhen().name() + "]");
         shift = null;
         planEndsAt = 0;
     }

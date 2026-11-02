@@ -357,6 +357,72 @@ public class FreeTimeTests {
         });
     }
 
+    /** A shift states its purpose, budget and stop condition while it runs, and the audit records how it ended. */
+    @GameTest(maxTicks = 400)
+    public void ownerPauseStopsTheShift(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        UUID owner = mockOwner(h).player().getUUID();
+        CompanionEntity c = registered(h, owner);
+        driver(h).start(c, dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, "");
+        long plan = shiftPlan(h, c, "[{\"tool\":\"stay\"}]");
+        var shift = driver(h).state(owner).shift();
+        h.assertTrue(shift != null && shift.planId() == plan, "the shift is open: " + shift);
+        h.assertValueEqual(shift.purpose(), "exploring", "the shift states what it is for");
+        h.assertTrue(!shift.budget().isBlank(), "the shift states its budget: " + shift.budget());
+        h.assertValueEqual(
+                shift.stopWhen(),
+                dev.friendai.agent.autonomy.ShiftStopWhen.DONE,
+                "the shift states what ends it by itself");
+        c.executionCoordinator().setManualPause(true);
+        h.succeedWhen(() -> {
+            var state = driver(h).state(owner);
+            h.assertTrue(state.shift() == null, "the owner's pause ends the shift: " + state.shift());
+            h.assertTrue(state.on(), "free time stays on until the owner says otherwise");
+            h.assertValueEqual(
+                    state.history().get(0).stopWhen(),
+                    dev.friendai.agent.autonomy.ShiftStopWhen.OWNER_PAUSED,
+                    "the audit records why it stopped");
+            h.assertTrue(
+                    c.executionCoordinator().queue().plan(plan).isEmpty()
+                            || c.executionCoordinator().queue().planStatus(plan)
+                                    != dev.friendai.execution.queue.PlanStatus.ACTIVE,
+                    "the shift plan is released");
+            driver(h).stop(owner, "test over");
+        });
+    }
+
+    /** Work the queue already holds is not started again: the guard refuses it and records the reason. */
+    @GameTest(maxTicks = 200)
+    public void queuedWorkIsNotStartedTwice(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        UUID owner = mockOwner(h).player().getUUID();
+        CompanionEntity c = registered(h, owner);
+        driver(h).start(c, dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, "");
+        shiftPlan(h, c, "[{\"tool\":\"stay\"}]");
+        var held = driver(h)
+                .refusalToStart(
+                        c,
+                        false,
+                        java.util.List.of(
+                                new dev.friendai.agent.autonomy.ReflexStep("stay", new com.google.gson.JsonObject())));
+        h.assertTrue(held.isPresent(), "a queued stay is not started again");
+        h.assertTrue(held.get().contains("stay"), held.get());
+        h.assertTrue(
+                driver(h).status(owner).next().startsWith("held: "),
+                "the refusal reason is recorded: " + driver(h).status(owner).next());
+        h.assertTrue(
+                driver(h)
+                        .refusalToStart(
+                                c,
+                                false,
+                                java.util.List.of(new dev.friendai.agent.autonomy.ReflexStep(
+                                        "jump", new com.google.gson.JsonObject())))
+                        .isEmpty(),
+                "unrelated work may start");
+        driver(h).stop(owner, "test over");
+        h.succeed();
+    }
+
     /**
      * The owner coming back does not stop a shift by itself: free time has no distance leash and keeps working with
      * the owner standing next to the companion. The owner's return order does stop it: the brain's {@code stop} call

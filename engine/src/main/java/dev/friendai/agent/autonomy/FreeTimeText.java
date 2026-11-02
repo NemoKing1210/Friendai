@@ -12,17 +12,24 @@ public final class FreeTimeText {
             return "";
         }
         long minutes = Math.max(0, nowMillis - state.sinceMillis()) / 60_000;
+        Shift shift = state.shift();
         return "Free time: on for " + minutes + " min; "
-                + (state.shift() == null
+                + (shift == null
                         ? "between activities"
-                        : "current activity: " + state.shift().goal());
+                        : "current activity: " + shift.goal() + " (purpose: " + shift.purpose() + "; budget: "
+                                + shift.budget() + "; stops when " + shift.stopWhen().phrase() + ")");
+    }
+
+    /** The audit's note for a shift that ended for a reason other than its own work finishing, or empty. */
+    public static String stopNote(ShiftRecord record) {
+        return record.stopWhen() == ShiftStopWhen.DONE ? "" : " [" + record.stopWhen().name() + "]";
     }
 
     /** The last shifts, newest first, one short line each. */
     public static List<String> recent(FreeTime state) {
         return state.history().stream()
                 .map(r -> r.goal() + ": " + (r.success() ? "ok" : "failed")
-                        + (r.summary().isBlank() ? "" : ", " + FreeTime.cut(r.summary(), 120)))
+                        + (r.summary().isBlank() ? "" : ", " + FreeTime.cut(r.summary(), 120)) + stopNote(r))
                 .toList();
     }
 

@@ -18,8 +18,32 @@ class FreeTimeTextTest {
         var state = new FreeTime(
                 true, FreeTime.Origin.COMMAND, "", 60_000, shift, false, 2, List.of(), List.of(), Map.of(), List.of());
         assertEquals(
-                "Free time: on for 12 min; current activity: get iron",
+                "Free time: on for 12 min; current activity: get iron"
+                        + " (purpose: gearing up; budget: 1 min; stops when the work finished)",
                 FreeTimeText.stateLine(state, 60_000 + 12 * 60_000));
+    }
+
+    @Test
+    void aShiftThatTheOwnerEndedNamesTheStop() {
+        var state = new FreeTime(
+                true,
+                FreeTime.Origin.IDLE,
+                "",
+                0,
+                null,
+                false,
+                3,
+                List.of(
+                        new ShiftRecord(
+                                2, "gather", NeedKind.FARM, false, "the owner paused the work", 9,
+                                ShiftStopWhen.OWNER_PAUSED),
+                        new ShiftRecord(1, "chop wood", NeedKind.STOCK, true, "16 logs", 5)),
+                List.of(),
+                Map.of(),
+                List.of());
+        assertEquals(
+                List.of("gather: failed, the owner paused the work [OWNER_PAUSED]", "chop wood: ok, 16 logs"),
+                FreeTimeText.recent(state));
     }
 
     @Test

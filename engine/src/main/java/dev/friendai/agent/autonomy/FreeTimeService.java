@@ -58,9 +58,15 @@ public final class FreeTimeService {
 
     /** Turns free time off, closing a shift in progress as failed with {@code reason}. */
     public FreeTime stop(UUID owner, String reason, long now) {
+        return stop(owner, reason, now, ShiftStopWhen.OWNER_SPOKE);
+    }
+
+    /** As above, recording the stop condition the audit keeps for the closed shift. */
+    public FreeTime stop(UUID owner, String reason, long now, ShiftStopWhen stopWhen) {
         lastEnd.put(owner, now);
         return update(owner, s -> {
-            List<ShiftRecord> history = s.shift() == null ? s.history() : withRecord(s, false, reason, now);
+            List<ShiftRecord> history =
+                    s.shift() == null ? s.history() : withRecord(s, false, reason, now, stopWhen);
             return copy(s, false, s.origin(), "", 0, null, false, s.nextShiftId(), history, s.cooldownUntil());
         });
     }
@@ -147,8 +153,13 @@ public final class FreeTimeService {
                                 s.cooldownUntil()));
     }
 
-    /** Ends the current shift and records how it went. */
+    /** Ends the current shift and records how it went; the work finished unless a caller says otherwise. */
     public FreeTime finishShift(UUID owner, boolean success, String summary, long now) {
+        return finishShift(owner, success, summary, now, ShiftStopWhen.DONE);
+    }
+
+    /** As above, recording which stop condition ended the shift. */
+    public FreeTime finishShift(UUID owner, boolean success, String summary, long now, ShiftStopWhen stopWhen) {
         return update(
                 owner,
                 s -> s.shift() == null
@@ -162,7 +173,7 @@ public final class FreeTimeService {
                                 null,
                                 s.awaitingChoice(),
                                 s.nextShiftId(),
-                                withRecord(s, success, summary, now),
+                                withRecord(s, success, summary, now, stopWhen),
                                 s.cooldownUntil()));
     }
 
@@ -222,12 +233,15 @@ public final class FreeTimeService {
         if (current.shift() == null
                 || current.shift().planId() != 0
                         && restoredPlanExists.test(current.shift().planId())) return current;
-        return finishShift(owner, false, "the saved work plan was not restored", nowMillis);
+        return finishShift(
+                owner, false, "the saved work plan was not restored", nowMillis, ShiftStopWhen.WORK_CONFLICTS);
     }
 
-    private static List<ShiftRecord> withRecord(FreeTime s, boolean success, String summary, long now) {
+    private static List<ShiftRecord> withRecord(
+            FreeTime s, boolean success, String summary, long now, ShiftStopWhen stopWhen) {
         List<ShiftRecord> history = new ArrayList<>();
-        history.add(new ShiftRecord(s.shift().id(), s.shift().goal(), s.shift().need(), success, summary, now));
+        Shift shift = s.shift();
+        history.add(new ShiftRecord(shift.id(), shift.goal(), shift.need(), success, summary, now, stopWhen));
         history.addAll(s.history());
         return history;
     }

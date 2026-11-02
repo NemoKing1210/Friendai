@@ -86,6 +86,20 @@ class FreeTimeSaveTest {
     }
 
     @Test
+    void aSaveFromBeforeTheContractStillDecodes() {
+        String saved = "{\"on\":true,\"origin\":\"COMMAND\",\"wish\":\"\",\"since\":0,\"awaiting\":false,"
+                + "\"nextShift\":2,\"shift\":{\"id\":1,\"goal\":\"gather\",\"criteria\":[],\"why\":\"\",\"plan\":0,"
+                + "\"started\":1000,\"deadline\":301000,\"reflex\":false,\"need\":\"FARM\"},"
+                + "\"history\":[{\"id\":1,\"goal\":\"a\",\"need\":\"STOCK\",\"success\":true,\"summary\":\"ok\","
+                + "\"ended\":5}],\"lessons\":[],\"cooldowns\":{},\"away\":[]}";
+        FreeTime state = FreeTimeSave.decode(saved).orElseThrow();
+        assertEquals(ShiftContract.purpose(NeedKind.FARM), state.shift().purpose());
+        assertEquals(ShiftContract.budget(1000, 301000), state.shift().budget());
+        assertEquals(ShiftStopWhen.DONE, state.shift().stopWhen());
+        assertEquals(ShiftStopWhen.DONE, state.history().get(0).stopWhen());
+    }
+
+    @Test
     void defaultsMatchTheSpec() {
         AutonomySettings d = AutonomySettings.DEFAULTS;
         assertTrue(d.enabled() && d.idleStart() && d.whileOffline() && d.protectPlaces() && d.allowBuilding());

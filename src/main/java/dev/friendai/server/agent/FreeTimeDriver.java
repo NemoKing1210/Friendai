@@ -1,7 +1,9 @@
 package dev.friendai.server.agent;
 
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import dev.friendai.FriendaiMod;
 import dev.friendai.agent.autonomy.AutonomyFacts;
 import dev.friendai.agent.autonomy.AutonomySettings;
@@ -24,6 +26,8 @@ import dev.friendai.agent.autonomy.ShiftBudget;
 import dev.friendai.agent.autonomy.ShiftInputs;
 import dev.friendai.agent.autonomy.ShiftOutcome;
 import dev.friendai.agent.autonomy.ShiftPolicy;
+import dev.friendai.agent.autonomy.ShiftStopWhen;
+import dev.friendai.agent.autonomy.WorkConflict;
 import dev.friendai.agent.turn.AgentSettings.Autonomy;
 import dev.friendai.common.Components;
 import dev.friendai.entity.CompanionEntity;
@@ -227,17 +231,36 @@ public final class FreeTimeDriver {
 
     /** Ends free time and cancels only free time's own plan. */
     public void stop(UUID owner, String reason) {
+        stop(owner, reason, ShiftStopWhen.OWNER_SPOKE);
+    }
+
+    /** As above, recording which stop condition the owner's action was. */
+    public void stop(UUID owner, String reason, ShiftStopWhen stopWhen) {
         FreeTime state = service().state(owner);
         if (!state.on()) {
             return;
         }
         Shift shift = state.shift();
-        service().stop(owner, reason, now());
+        service().stop(owner, reason, now(), stopWhen);
         CompanionManager.get(server).find(owner).ifPresent(companion -> {
             if (shift != null) {
                 release(companion, shift.planId(), reason);
             }
         });
+    }
+
+    /**
+     * Ends the running shift but leaves free time on: the owner came back, spoke or paused, so this stretch of work
+     * stops now and the next one waits for its own quiet spell. Records the condition the audit keeps.
+     */
+    private void endShift(UUID owner, CompanionEntity companion, String reason, ShiftStopWhen stopWhen) {
+        Shift shift = service().state(owner).shift();
+        if (shift == null) {
+            return;
+        }
+        service().finishShift(owner, false, reason, now(), stopWhen);
+        release(companion, shift.planId(), reason);
+        facts.invalidate(owner);
     }
 
     /** Cancels a free-time plan on purpose, so its end is not reported as news. */
@@ -297,7 +320,7 @@ public final class FreeTimeDriver {
                 now,
                 config.get().autonomy.toSettings());
         service()
-                .finishShift(owner, outcome.record().success(), outcome.record().summary(), now);
+                .finishShift(owner, outcome.record().success(), outcome.record().summary(), now, ShiftStopWhen.DONE);
         outcome.lesson().ifPresent(lesson -> service().addLesson(owner, lesson));
         brains.skillOutcome(
                 owner,
@@ -356,6 +379,8 @@ public final class FreeTimeDriver {
         Boolean before = wasOnline.put(owner, online);
         if (Boolean.FALSE.equals(before) && online) {
             onOwnerBack(owner, companion);
+            state = service.state(owner); // the owner's return ends the shift it found running
+            lastOwner = lastOwnerActivity.getOrDefault(owner, nowMillis);
         }
         if (!state.on()) {
             // An idle start means the owner left the companion without work: they must have been here this run.
@@ -374,6 +399,11 @@ public final class FreeTimeDriver {
                 service.start(owner, FreeTime.Origin.IDLE, "", nowMillis);
                 tell(owner, companion, UserMessage.of("friendai.freetime.idle_start"));
             }
+            return;
+        }
+        if (runner.manualPause()) {
+            // The owner holds the companion still: the shift stops now and nothing new starts until they release it.
+            endShift(owner, companion, "the owner paused the work", ShiftStopWhen.OWNER_PAUSED);
             return;
         }
         long savedPlan = state.shift() == null ? 0 : state.shift().planId();
@@ -403,7 +433,7 @@ public final class FreeTimeDriver {
             // do not leave the hour empty, start the first deterministic template the agenda offers
             state = service.clearChoice(owner);
             budget(owner).failed();
-            if (queueFirstTemplate(owner, companion, f, s, nowMillis)) {
+            if (queueFirstTemplate(owner, companion, f, s, nowMillis, ownerGoalActive)) {
                 state = service.state(owner);
             }
         }
@@ -423,12 +453,13 @@ public final class FreeTimeDriver {
         ShiftPolicy.Decision decision = ShiftPolicy.decide(in, budget(owner));
         lastDecision.put(owner, FreeTimeText.decisionLabel(decision));
         switch (decision) {
-            case ShiftPolicy.CloseStale ignored -> service().finishShift(owner, false, "plan is gone", nowMillis);
+            case ShiftPolicy.CloseStale ignored ->
+                service().finishShift(owner, false, "plan is gone", nowMillis, ShiftStopWhen.WORK_CONFLICTS);
             case ShiftPolicy.Expired ignored -> {
                 Shift shift = state.shift();
                 if (shift != null) {
                     release(companion, shift.planId(), "ran out of time");
-                    service().finishShift(owner, false, ShiftOutcome.TIME_UP, nowMillis);
+                    service().finishShift(owner, false, ShiftOutcome.TIME_UP, nowMillis, ShiftStopWhen.BUDGET_SPENT);
                     budget(owner).succeeded(); // the plan ran; a timeout is not an unanswered director
                 }
             }
@@ -436,16 +467,29 @@ public final class FreeTimeDriver {
                 if (state.shift() != null) {
                     interrupt(owner, companion, state.shift(), reflex.need(), nowMillis);
                 }
-                queueTemplate(owner, companion, reflex.need(), ReflexPlans.plan(reflex.need(), f, s), s, nowMillis);
+                queueTemplate(
+                        owner,
+                        companion,
+                        reflex.need(),
+                        ReflexPlans.plan(reflex.need(), f, s),
+                        s,
+                        nowMillis,
+                        ownerGoalActive);
             }
             case ShiftPolicy.Fallback fallback ->
                 queueTemplate(
-                        owner, companion, fallback.need(), ReflexPlans.fallback(fallback.need(), f), s, nowMillis);
+                        owner,
+                        companion,
+                        fallback.need(),
+                        ReflexPlans.fallback(fallback.need(), f),
+                        s,
+                        nowMillis,
+                        ownerGoalActive);
             case ShiftPolicy.Director ignored -> askDirector(owner, companion, f, nowMillis);
             case ShiftPolicy.None ignored -> {}
             case ShiftPolicy.WaitBudget ignored -> {}
         }
-        watchdog(owner, companion, f, s, brainThinking, nowMillis);
+        watchdog(owner, companion, f, s, brainThinking, nowMillis, ownerGoalActive);
     }
 
     /**
@@ -459,7 +503,8 @@ public final class FreeTimeDriver {
             AutonomyFacts f,
             AutonomySettings s,
             boolean brainThinking,
-            long nowMillis) {
+            long nowMillis,
+            boolean ownerGoalActive) {
         var runner = companion.executionCoordinator();
         FreeTime state = service().state(owner);
         boolean movementOrder = runner.movementOrderActive();
@@ -488,7 +533,7 @@ public final class FreeTimeDriver {
             askDirector(owner, companion, f, nowMillis);
             return;
         }
-        if (queueFirstTemplate(owner, companion, f, s, nowMillis)) {
+        if (queueFirstTemplate(owner, companion, f, s, nowMillis, ownerGoalActive)) {
             return;
         }
         if (nowMillis - stallSaidAt.getOrDefault(owner, 0L) >= watchdogSeconds * 1000L) {
@@ -553,6 +598,58 @@ public final class FreeTimeDriver {
         return planning.contains(owner);
     }
 
+    /**
+     * Why free time must not start this work now, or empty when it may. The owner's own work comes first, and work
+     * the queue already holds would only be repeated; a refusal is recorded so the status line can say why.
+     */
+    public Optional<String> refusalToStart(CompanionEntity companion, boolean ownerGoalActive, List<ReflexStep> steps) {
+        UUID owner = companion.ownerUuid();
+        var runner = companion.executionCoordinator();
+        String reason;
+        if (runner.manualPause()) {
+            reason = "the owner paused the work";
+        } else if (ownerGoalActive || runner.busyWithOther() || runner.ownerWorkQueued()) {
+            reason = "the owner's work comes first";
+        } else {
+            reason = WorkConflict.duplicate(runner.queue().jobs(), steps)
+                    .map(held -> "the queue already holds " + held)
+                    .orElse(null);
+        }
+        if (reason == null) {
+            return Optional.empty();
+        }
+        lastDecision.put(owner, "held: " + reason);
+        FriendaiMod.LOGGER.debug("Free time held for {}: {}", owner, reason);
+        return Optional.of(reason);
+    }
+
+    /** A planner proposal's steps in the shape the duplicate guard reads: a tool and its named arguments. */
+    private static List<ReflexStep> stepsOf(JsonArray steps) {
+        List<ReflexStep> out = new java.util.ArrayList<>();
+        for (JsonElement element : steps) {
+            if (!element.isJsonObject()) {
+                continue;
+            }
+            JsonObject step = element.getAsJsonObject();
+            if (!step.has("tool") || step.get("tool").isJsonNull()) {
+                continue;
+            }
+            JsonObject args = new JsonObject();
+            JsonElement raw = step.get("args");
+            if (raw != null && raw.isJsonObject()) {
+                args = raw.getAsJsonObject();
+            } else if (raw != null && raw.isJsonPrimitive()) {
+                try {
+                    args = JsonParser.parseString(raw.getAsString()).getAsJsonObject();
+                } catch (RuntimeException ignored) {
+                    args = new JsonObject();
+                }
+            }
+            out.add(new ReflexStep(step.get("tool").getAsString(), args));
+        }
+        return out;
+    }
+
     /** Asks the director, through one brain event, to choose the next activity. */
     void askDirector(UUID owner, CompanionEntity companion, AutonomyFacts f, long nowMillis) {
         FreeTime state = service().state(owner);
@@ -585,6 +682,10 @@ public final class FreeTimeDriver {
         if (!state.on() || !state.awaitingChoice()) {
             return ToolResult.error("no free-time shift is waiting for a choice");
         }
+        Optional<String> refused = refusalToStart(companion, false, List.of());
+        if (refused.isPresent()) {
+            return ToolResult.error(refused.get());
+        }
         long now = now();
         AutonomySettings s = config.get().autonomy.toSettings();
         int length = Math.max(3, Math.min(minutes, s.shiftMinutes()));
@@ -612,6 +713,20 @@ public final class FreeTimeDriver {
                     FreeTime state = service().state(owner);
                     if (!state.on() || state.shift() == null || state.shift().id() != shiftId) {
                         return; // stopped or replaced while the planner was thinking
+                    }
+                    Optional<String> refused = error == null && proposal != null
+                            ? refusalToStart(companion, false, stepsOf(proposal.stepsJson()))
+                            : Optional.empty();
+                    if (refused.isPresent()) {
+                        service()
+                                .finishShift(
+                                        owner,
+                                        false,
+                                        "the queue already holds this work",
+                                        now(),
+                                        ShiftStopWhen.WORK_CONFLICTS);
+                        brains.plannerDebug(owner, "planner disposition=refused: " + refused.get());
+                        return;
                     }
                     Optional<Long> plan = error != null || proposal == null
                             ? Optional.empty()
@@ -641,7 +756,9 @@ public final class FreeTimeDriver {
                         Optional<List<ReflexStep>> template = speakFailure
                                 ? Optional.empty()
                                 : ReflexPlans.fallback(state.shift().need(), f);
-                        if (template.isPresent()) {
+                        if (template.isPresent()
+                                && refusalToStart(companion, false, template.get())
+                                        .isEmpty()) {
                             Optional<Long> fallback =
                                     queue(owner, companion, state.shift().goal(), template.get(), minutes, taskTools);
                             if (fallback.isPresent()) {
@@ -653,7 +770,7 @@ public final class FreeTimeDriver {
                             }
                         }
                         // The need did not fail, the planner could not draft work for it: only the director backs off.
-                        service().finishShift(owner, false, "no plan: " + reason, now);
+                        service().finishShift(owner, false, "no plan: " + reason, now, ShiftStopWhen.WORK_CONFLICTS);
                         budget(owner).failed();
                         if (speakFailure) {
                             // The owner asked for this one: the sentence "I'll do that" must not be left hanging.
@@ -713,7 +830,8 @@ public final class FreeTimeDriver {
                         owner,
                         false,
                         "interrupted by " + need.kind().name().toLowerCase(java.util.Locale.ROOT),
-                        nowMillis);
+                        nowMillis,
+                        ShiftStopWhen.WORK_CONFLICTS);
         release(companion, shift.planId(), "interrupted by free time");
     }
 
@@ -723,10 +841,14 @@ public final class FreeTimeDriver {
             Need need,
             Optional<List<ReflexStep>> steps,
             AutonomySettings s,
-            long nowMillis) {
+            long nowMillis,
+            boolean ownerGoalActive) {
         if (steps.isEmpty()) {
             service().cooldown(owner, need.kind(), nowMillis + s.failCooldownMin() * 60_000L);
             return false;
+        }
+        if (refusalToStart(companion, ownerGoalActive, steps.get()).isPresent()) {
+            return false; // the queue already has this work, or the owner's work comes first
         }
         boolean shelter = need.kind() == NeedKind.SHELTER || need.kind() == NeedKind.SURVIVE;
         int minutes = shelter ? SHELTER_MINUTES : s.shiftMinutes();
@@ -749,7 +871,12 @@ public final class FreeTimeDriver {
      * silent, the planner failed, the budget is spent or the watchdog fired: the hour must keep moving.
      */
     private boolean queueFirstTemplate(
-            UUID owner, CompanionEntity companion, AutonomyFacts f, AutonomySettings s, long nowMillis) {
+            UUID owner,
+            CompanionEntity companion,
+            AutonomyFacts f,
+            AutonomySettings s,
+            long nowMillis,
+            boolean ownerGoalActive) {
         FreeTime state = service().state(owner);
         List<Need> needs = NeedsAssessor.assess(f, state, s);
         for (Need need : needs) {
@@ -757,7 +884,7 @@ public final class FreeTimeDriver {
                 continue;
             }
             Optional<List<ReflexStep>> steps = ReflexPlans.plan(need, f, s);
-            if (steps.isPresent() && queueTemplate(owner, companion, need, steps, s, nowMillis)) {
+            if (steps.isPresent() && queueTemplate(owner, companion, need, steps, s, nowMillis, ownerGoalActive)) {
                 return true;
             }
         }
@@ -767,7 +894,7 @@ public final class FreeTimeDriver {
                     continue;
                 }
                 Optional<List<ReflexStep>> steps = ReflexPlans.fallback(need, f);
-                if (steps.isPresent() && queueTemplate(owner, companion, need, steps, s, nowMillis)) {
+                if (steps.isPresent() && queueTemplate(owner, companion, need, steps, s, nowMillis, ownerGoalActive)) {
                     return true;
                 }
             }
@@ -823,8 +950,10 @@ public final class FreeTimeDriver {
         return new Caller(owner, "", AccessLevel.OWNER);
     }
 
-    /** The owner joined or came back online: say what happened while they were away. */
+    /** The owner joined or came back online: end the shift it found running, then say what happened while away. */
     void onOwnerBack(UUID owner, CompanionEntity companion) {
+        lastOwnerActivity.put(owner, now()); // their return starts the quiet spell over
+        endShift(owner, companion, "the owner came back", ShiftStopWhen.OWNER_BACK);
         AwaySummary.Taken taken = AwaySummary.take(service().state(owner));
         if (taken.text().isBlank()) {
             return;
