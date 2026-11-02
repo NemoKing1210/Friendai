@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.192.0] - 2026-11-03
+
+### Changed
+
+- The companion highlight now traces the body instead of drawing a box around it, and it starts switched off: turn it on with the new **Outline** switch in the companion menu's Settings tab, the **Display** settings, or the unbound **Companion outline** key.
+
 ## [0.191.0] - 2026-11-02
 
 ### Fixed

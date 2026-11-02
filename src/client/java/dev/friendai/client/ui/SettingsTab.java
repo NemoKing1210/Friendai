@@ -1,10 +1,12 @@
 package dev.friendai.client.ui;
 
+import dev.friendai.client.FriendaiClient;
 import dev.friendai.client.debug.MovementDebugState;
 import dev.friendai.presentation.companion.CompanionSnapshot;
 import dev.friendai.protocol.control.ControlRequest;
 import dev.friendai.protocol.debug.DebugRequest;
 import java.util.List;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.events.GuiEventListener;
@@ -40,6 +42,7 @@ final class SettingsTab extends StatefulMenuTab {
     private Setting autoRespawn;
     private Setting freeTime;
     private Setting followMode;
+    private Setting outline;
     private Setting movementDebug;
     private List<Setting> all = List.of();
 
@@ -103,7 +106,13 @@ final class SettingsTab extends StatefulMenuTab {
                 "friendai.menu.settings.movement_debug.desc",
                 Ui.PURPLE,
                 SettingsTab::toggleMovementDebug);
-        all = List.of(creativeMode, autoRespawn, freeTime, followMode, movementDebug);
+        outline = setting(
+                host,
+                "friendai.menu.settings.outline.title",
+                "friendai.menu.settings.outline.desc",
+                Ui.ACCENT,
+                () -> OutlineKeybind.toggle(Minecraft.getInstance()));
+        all = List.of(creativeMode, autoRespawn, freeTime, followMode, outline, movementDebug);
         tick();
     }
 
@@ -178,6 +187,12 @@ final class SettingsTab extends StatefulMenuTab {
         followMode.visible = present;
         apply(followMode, snapshot.map(CompanionSnapshot::followMode).orElse(false), connected && present);
         followMode.status = null;
+
+        // A client-side display switch: it reads and writes the local config, so it works without a companion or a
+        // server that supports the menu.
+        outline.visible = true;
+        apply(outline, FriendaiClient.clientConfig().social.outline, true);
+        outline.status = null;
 
         boolean creative = snapshot.map(CompanionSnapshot::creativeMode).orElse(false);
         boolean creativeAvailable =

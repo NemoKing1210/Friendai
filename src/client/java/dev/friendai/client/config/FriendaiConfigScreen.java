@@ -1904,7 +1904,7 @@ public final class FriendaiConfigScreen {
                 .option(booleanOption(
                         "friendai.config.social.outline",
                         "friendai.config.social.outline.tooltip",
-                        true,
+                        false,
                         () -> social.outline,
                         value -> social.outline = value))
                 .option(booleanOption(

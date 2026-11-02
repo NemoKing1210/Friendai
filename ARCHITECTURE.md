@@ -230,9 +230,10 @@ Free-time speech uses the pure `CompanionSpeechPolicy` at the existing brain and
 hysteresis — ten ticks of danger before it turns `WORRIED` and twenty quiet ticks before it lets go — while `pulse`
 and `cue(SpeechCue)` add a bounded eighty-tick reaction to a deed or to something the owner explicitly said. The face
 is the only synced value: `DATA_MOOD` (`CompanionEntity.syncedMood`) reaches every tracking client, and
-`CompanionRenderer` draws one mark above the head while `client/render/CompanionOutlineRenderer` draws a box around
-the owner's own companion when it is farther than twelve blocks or out of sight, found through the synced owner id
-(`DATA_OWNER`) and gated by the client's Display switches; the decision itself is the pure
+`CompanionRenderer` draws one mark above the head and, for the owner's own companion farther than twelve blocks or out
+of sight, sets the render state's outline colour so the vanilla glow pass traces every model part; the owner is found
+through the synced owner id (`DATA_OWNER`) and the client's Display switches gate it, off by default and also reachable
+from the companion menu's Settings tab; the decision itself is the pure
 `presentation/companion/CompanionOutline.shouldDraw(...)`, so the rule is unit-tested without a frame.
 
 The bond is owner-private and never an accessor. `BondLedger` counts only deeds — shared work, a gift past its

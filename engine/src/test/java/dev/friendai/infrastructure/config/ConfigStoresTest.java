@@ -270,10 +270,23 @@ class ConfigStoresTest {
         assertTrue(config.voice.stt.enabled);
         assertEquals("groq", config.voice.stt.provider);
         assertTrue(config.voice.tts.enabled);
-        assertTrue(config.social.outline, "the outline is on until the player turns it off");
+        assertFalse(config.social.outline, "the outline is off until the player turns it on");
         assertTrue(config.social.moodMark, "the mood mark is on until the player turns it off");
         ConfigStores.client(path).save(config);
-        assertTrue(json(path).getAsJsonObject("social").get("outline").getAsBoolean());
+        assertFalse(json(path).getAsJsonObject("social").get("outline").getAsBoolean());
+    }
+
+    @Test
+    void clientV6TurnsTheCompanionOutlineOffAndKeepsTheMoodMark() throws IOException {
+        Path path = dir.resolve("client-v6.json");
+        Files.writeString(path, """
+                {"version":6,"social":{"outline":true,"moodMark":true}}
+                """);
+        ClientConfig config = ConfigStores.client(path).load();
+        assertEquals(ClientConfig.CURRENT_VERSION, config.version);
+        assertFalse(config.social.outline, "the file only held the old default");
+        assertTrue(config.social.moodMark, "the mood mark keeps its own switch");
+        assertFalse(json(path).getAsJsonObject("social").get("outline").getAsBoolean());
     }
 
     @Test

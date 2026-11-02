@@ -3,7 +3,6 @@ package dev.friendai.client;
 import dev.friendai.client.companion.session.CompanionClientSession;
 import dev.friendai.client.debug.MovementDebugRenderer;
 import dev.friendai.client.net.ClientProtocolNetworking;
-import dev.friendai.client.render.CompanionOutlineRenderer;
 import dev.friendai.client.render.CompanionRenderer;
 import dev.friendai.client.runtime.ClientRuntime;
 import dev.friendai.client.tts.SpeechKeybind;
@@ -50,7 +49,6 @@ public class FriendaiClient implements ClientModInitializer {
         clientConfig();
         VoiceHud.register();
         MovementDebugRenderer.register();
-        CompanionOutlineRenderer.register();
         SpeechKeybind.register();
         OutlineKeybind.register();
         ClientTickEvents.END_CLIENT_TICK.register(client -> SpeechRuntime.tick());

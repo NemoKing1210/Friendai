@@ -3,12 +3,16 @@ package dev.friendai.client.render;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import dev.friendai.FriendaiMod;
+import dev.friendai.client.FriendaiClient;
 import dev.friendai.client.skin.SkinCache;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.social.Mood;
+import dev.friendai.presentation.companion.CompanionOutline;
 import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.HumanoidModel;
 import net.minecraft.client.model.geom.ModelLayers;
+import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.entity.ArmorModelSet;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
@@ -32,6 +36,8 @@ public class CompanionRenderer
     private final HumanoidModel<CompanionRenderState> wideModel;
     private final HumanoidModel<CompanionRenderState> slimModel;
     private static final Identifier TEXTURE = FriendaiMod.id("textures/entity/companion.png");
+    /** The colour of the glow silhouette; the same cyan the old box used, drawn around every model part. */
+    private static final int OUTLINE_COLOR = 0xFF7FE0FF;
     /** How long one dot of the thinking animation stays on screen. */
     private static final float TICKS_PER_DOT = 8.0F;
 
@@ -65,6 +71,36 @@ public class CompanionRenderer
         showPlacedBlock(companion, state);
         // The model is only read while this entity is drawn, so picking the arm shape here is safe.
         this.model = state.skin != null && companion.isSlimSkin() ? slimModel : wideModel;
+        if (outlineVisible(companion)) {
+            // The render state's outline colour makes the vanilla pass draw the glow silhouette around the model's
+            // own parts, which is what the owner sees through terrain.
+            state.outlineColor = OUTLINE_COLOR;
+        }
+    }
+
+    /**
+     * Only when the Display option is on, this is the owner's own companion, and it is far away or out of sight. The
+     * same pure rule the old box used; the sight check is guarded so a failed raycast never breaks the frame.
+     */
+    private static boolean outlineVisible(CompanionEntity companion) {
+        Minecraft minecraft = Minecraft.getInstance();
+        LocalPlayer player = minecraft.player;
+        if (player == null) {
+            return false;
+        }
+        boolean enabled = FriendaiClient.clientConfig().social.outline;
+        boolean ownerViewing = player.getUUID().toString().equals(companion.syncedOwner());
+        if (!CompanionOutline.applies(enabled, ownerViewing)) {
+            return false;
+        }
+        double distanceSquared = player.distanceToSqr(companion);
+        try {
+            return CompanionOutline.shouldDraw(
+                    enabled, ownerViewing, distanceSquared, player.hasLineOfSight(companion));
+        } catch (RuntimeException failure) {
+            FriendaiMod.LOGGER.debug("Companion outline skipped after a sight check failed", failure);
+            return false;
+        }
     }
 
     /**

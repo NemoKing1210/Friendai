@@ -37,7 +37,8 @@ public final class ConfigStores {
                     ConfigStores::unifyVoice, // 2 -> 3: both historical speech shapes
                     ADDITIVE, // 3 -> 4: movement overlay, disabled by default
                     ADDITIVE, // 4 -> 5: companion outline and mood mark, enabled by default
-                    ADDITIVE)); // 5 -> 6: streamed replies, enabled by default
+                    ADDITIVE, // 5 -> 6: streamed replies, enabled by default
+                    ConfigStores::disableOutlineByDefault)); // 6 -> 7: the outline is off unless asked for
 
     private ConfigStores() {}
 
@@ -59,6 +60,14 @@ public final class ConfigStores {
     private static void renamePersona(JsonObject json) {
         JsonObject companion = object(json, "companion");
         move(companion, "persona", companion, "description");
+    }
+
+    /**
+     * Drops the stored outline so the new default applies. Version 5 introduced the switch already on, so an older
+     * file cannot tell a player's own choice from that old default; the mood mark keeps its own value.
+     */
+    private static void disableOutlineByDefault(JsonObject json) {
+        object(json, "social").remove("outline");
     }
 
     private static void unifyVoice(JsonObject json) {

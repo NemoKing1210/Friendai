@@ -25,7 +25,8 @@ public final class OutlineKeybind {
         });
     }
 
-    private static void toggle(net.minecraft.client.Minecraft minecraft) {
+    /** Flips the client option, saves it and confirms on the action bar; shared with the companion settings switch. */
+    static void toggle(net.minecraft.client.Minecraft minecraft) {
         ClientConfig config = FriendaiClient.clientConfig();
         config.social.outline = !config.social.outline;
         FriendaiClient.runtime().configuration().save(config);

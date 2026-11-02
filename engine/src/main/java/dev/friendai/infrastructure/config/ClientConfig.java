@@ -11,7 +11,7 @@ import org.slf4j.LoggerFactory;
 
 /** friendai-client.json. */
 public class ClientConfig {
-    public static final int CURRENT_VERSION = 6;
+    public static final int CURRENT_VERSION = 7;
 
     private static final Logger LOGGER = LoggerFactory.getLogger("friendai/config");
     public int version = CURRENT_VERSION;
@@ -20,8 +20,8 @@ public class ClientConfig {
 
     /** How the owner's companion is shown: the outline through walls and the mood mark above the head. */
     public static class SocialSection {
-        /** Draw a box around the owner's companion when it is far away or out of sight. */
-        public boolean outline = true;
+        /** Outline the owner's companion through walls when it is far away or out of sight; off until asked for. */
+        public boolean outline = false;
 
         /** Draw the mood mark above the companion's head. */
         public boolean moodMark = true;
