@@ -7,7 +7,9 @@ import dev.friendai.execution.queue.FailurePolicy;
 import dev.friendai.execution.queue.Guard;
 import dev.friendai.execution.queue.GuardAction;
 import dev.friendai.execution.queue.PlanOptions;
+import dev.friendai.execution.queue.QueueHold;
 import dev.friendai.execution.queue.QueuedStep;
+import dev.friendai.features.interaction.minecraft.task.WaitTask;
 import dev.friendai.features.navigation.minecraft.task.StayTask;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.execution.TaskEventSink;
@@ -95,6 +97,29 @@ public class ActiveTaskLifecycleTests {
 
         @Override
         public void stop(TaskContext context) {}
+    }
+
+    @GameTest(maxTicks = 40)
+    public void aPausedPlanWaitsForResume(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 300, () -> false);
+        QueuedStep wait = new QueuedStep(
+                "wait", new JsonObject(), null, List.of(), GuardAction.WAIT, FailurePolicy.ASK, 1, List.of());
+        long planId = runner.enqueuePlan(
+                "pause test",
+                List.of(wait),
+                List.of(context -> new WaitTask(20)),
+                PlanOptions.DEFAULT,
+                id -> runner.queue().setHold(id, QueueHold.pause("owner")));
+        runner.tick();
+        h.assertTrue(runner.current().isEmpty(), "a paused plan must not start");
+        runner.queue().release(planId);
+        runner.wakeQueue();
+        runner.tick();
+        h.assertTrue(runner.current().isPresent(), "a resumed plan starts");
+        runner.stop("test cleanup");
+        h.succeed();
     }
 
     @GameTest(maxTicks = 40)
