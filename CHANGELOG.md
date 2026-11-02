@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.176.0] - 2026-11-02
+
+### Added
+
+- A stalled plan can ask the planner for a repair through the new `Replan` event: the planner sees that plan instead of the primary goal, and the patch replaces its first pending step with the fingerprint check. Structured active frames remain refused.
+
 ## [0.175.0] - 2026-11-02
 
 ### Fixed

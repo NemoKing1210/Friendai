@@ -37,6 +37,11 @@ public interface PlannerPort {
     /** The planner input for the owner's primary goal, or empty when there is no goal or no planner. */
     Optional<PlannerInput> input(Caller caller, String failure);
 
+    /** The planner input for a specific queued plan, independent of the primary goal. */
+    default Optional<PlannerInput> inputForPlan(Caller caller, long planId, String failure) {
+        return Optional.empty();
+    }
+
     CompletableFuture<PlanProposal> propose(PlannerInput input);
 
     /**

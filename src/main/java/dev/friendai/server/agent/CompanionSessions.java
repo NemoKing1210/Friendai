@@ -826,6 +826,11 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
             if (primary.isEmpty() || primary.get().status() != dev.friendai.agent.goal.GoalStatus.ACTIVE) {
                 return Optional.empty();
             }
+            return baseInput(caller, primary.get(), primary.get().planId(), failure);
+        }
+
+        private Optional<dev.friendai.agent.plan.PlannerInput> baseInput(
+                Caller caller, dev.friendai.agent.goal.Goal goal, long planId, String failure) {
             Map<String, JsonObject> schemas = new java.util.LinkedHashMap<>();
             StringBuilder digest = new StringBuilder();
             taskTools.forEach((name, def) -> {
@@ -839,7 +844,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
             String queue = dev.friendai.execution.queue.QueueText.show(
                     companion.executionCoordinator().queue(), facts, null, 20, false);
             return Optional.of(new dev.friendai.agent.plan.PlannerInput(
-                    primary.get(),
+                    goal,
                     new CompanionPerception(companion, perceptionContext).describe(caller),
                     digest.toString(),
                     PlaceText.planner(
@@ -848,19 +853,36 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                                     : List.of(),
                             config.places.plannerLimit),
                     Optional.of(queue),
-                    primary.get().lessons(),
+                    goal.lessons(),
                     failure,
                     schemas,
                     taskTools.keySet(),
                     session.verifiedFacts(),
                     List.of(),
                     0,
-                    primary.get().planId(),
-                    primary.get().planId() == 0
+                    planId,
+                    planId == 0
                             ? ""
                             : dev.friendai.execution.queue.PlanFingerprint.of(
-                                    companion.executionCoordinator().queue(),
-                                    primary.get().planId())));
+                                    companion.executionCoordinator().queue(), planId)));
+        }
+
+        @Override
+        public Optional<dev.friendai.agent.plan.PlannerInput> inputForPlan(Caller caller, long planId, String failure) {
+            var plan = companion.executionCoordinator().queue().plan(planId).orElse(null);
+            if (plan == null) return Optional.empty();
+            var synthetic = new dev.friendai.agent.goal.Goal(
+                    planId,
+                    plan.goal(),
+                    List.of(),
+                    dev.friendai.agent.goal.GoalStatus.ACTIVE,
+                    planId,
+                    0,
+                    List.of(),
+                    0,
+                    false,
+                    0);
+            return baseInput(caller, synthetic, planId, failure);
         }
 
         @Override
@@ -885,6 +907,24 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                 if (dev.friendai.agent.plan.PlannerStaleCheck.stale(proposal.targetFingerprint(), current)) {
                     return ToolResult.error("the plan changed since the proposal; re-plan it");
                 }
+            }
+            if (proposal.targetPlanId() > 0) {
+                long planId = proposal.targetPlanId();
+                var pending = companion.executionCoordinator().queue().jobsOfPlan(planId).stream()
+                        .filter(job -> job.state() == dev.friendai.execution.queue.JobState.PENDING)
+                        .findFirst()
+                        .orElse(null);
+                if (pending == null) return ToolResult.error("plan #" + planId + " has no pending step to repair");
+                JsonObject edit = new JsonObject();
+                edit.addProperty("action", "replace");
+                edit.addProperty("job", pending.id());
+                edit.addProperty("expected", proposal.targetFingerprint());
+                edit.add("steps", proposal.stepsJson());
+                ToolResult result = tools.bind(companion)
+                        .execute(new ToolCall("planner", "queue_edit", edit, edit.toString(), null), caller);
+                plannerDebug(
+                        owner, result.error() ? "planner disposition=patch refused" : "planner disposition=patched");
+                return result;
             }
             var board = goals.board(owner);
             var primary = board.primary();

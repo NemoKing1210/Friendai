@@ -40,6 +40,21 @@ public sealed interface BrainEvent {
         }
     }
 
+    /** A stalled plan the owner or an adapter asks the planner to repair; the plan keeps its id and completed work. */
+    record Replan(long planId, String reason) implements BrainEvent {
+        public Replan {
+            if (planId <= 0) throw new IllegalArgumentException("a replan needs a plan id");
+            reason = reason == null ? "" : reason.strip();
+            if (reason.length() > 200) reason = reason.substring(0, 200);
+        }
+
+        @Override
+        public String toPromptLine() {
+            return "[event] replan stalled plan #" + planId + (reason.isBlank() ? "" : ": " + reason)
+                    + ". Keep the plan's completed work and repair only what remains.";
+        }
+    }
+
     record PlayerSaid(UUID playerUuid, String playerName, String text, Source source) implements BrainEvent {
         @Override
         public String toPromptLine() {

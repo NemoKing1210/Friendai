@@ -88,6 +88,8 @@ public final class CompanionBrain {
     private boolean ownsTroubledPlan;
     /** What the planner just did; shown once in the next request's Mission block. */
     private String plannerNote = "";
+
+    private long plannerPlanId;
     /** A social batch answers with words only: no schema is sent and no tool call is accepted. */
     private boolean socialTurn;
 
@@ -500,6 +502,11 @@ public final class CompanionBrain {
         step = 0;
         plannedThisTurn = false;
         plannerNote = "";
+        plannerPlanId = batch.stream()
+                .filter(event -> event instanceof BrainEvent.Replan)
+                .map(event -> ((BrainEvent.Replan) event).planId())
+                .findFirst()
+                .orElse(0L);
         // A failed plan that still has replans left is worked out by the planner before the model answers.
         if (decision.mode() == TurnMode.RECOVERY
                 && decision.wantPlanner()
@@ -520,7 +527,9 @@ public final class CompanionBrain {
         plannedThisTurn = true;
         Optional<PlannerInput> input;
         try {
-            input = plannerPort.input(turnCaller, failure);
+            input = plannerPlanId > 0
+                    ? plannerPort.inputForPlan(turnCaller, plannerPlanId, failure)
+                    : plannerPort.input(turnCaller, failure);
         } catch (RuntimeException e) {
             LOGGER.warn("Planner input failed", e);
             input = Optional.empty();
@@ -718,6 +727,9 @@ public final class CompanionBrain {
 
     /** The plan an event reports as failed or blocked, or -1 for anything else (a stop or cancel is not trouble). */
     private static long troubledPlanId(BrainEvent event) {
+        if (event instanceof BrainEvent.Replan replan) {
+            return replan.planId();
+        }
         if (event instanceof BrainEvent.PlanBlocked blocked) {
             return blocked.planId();
         }

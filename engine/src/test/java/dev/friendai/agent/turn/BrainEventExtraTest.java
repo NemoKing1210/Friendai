@@ -20,6 +20,15 @@ class BrainEventExtraTest {
     }
 
     @Test
+    void aReplanNamesThePlanAndItsReason() {
+        assertEquals(
+                "[event] replan stalled plan #2: missing pickaxe. Keep the plan's completed work and repair only what remains.",
+                new BrainEvent.Replan(2, "missing pickaxe").toPromptLine());
+        org.junit.jupiter.api.Assertions.assertThrows(
+                IllegalArgumentException.class, () -> new BrainEvent.Replan(0, "x"));
+    }
+
+    @Test
     void extraTextIsAppendedAfterTheLine() {
         assertEquals(
                 "[event] task #7 mine_blocks failed: no pickaxe facts: -3 minecraft:cobblestone",
