@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.174.0] - 2026-11-02
+
+### Added
+
+- The companion menu has plan controls: pause, resume or defer the first queued plan; the server checks the target and the owner, and the global pause stays separate.
+
 ## [0.173.0] - 2026-11-02
 
 ### Changed

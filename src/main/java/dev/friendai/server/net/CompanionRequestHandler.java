@@ -4,6 +4,7 @@ import com.google.gson.JsonObject;
 import dev.friendai.debug.DebugAccess;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.CompanionRenamer;
+import dev.friendai.execution.queue.QueueHold;
 import dev.friendai.features.memory.MemoryMenuActions;
 import dev.friendai.features.memory.MenuStatus;
 import dev.friendai.features.memory.PlayerRef;
@@ -145,6 +146,23 @@ public final class CompanionRequestHandler {
                             java.util.Optional.empty(),
                             java.util.Optional.empty(),
                             java.util.Optional.empty());
+        } else if (request instanceof ControlRequest.QueueEdit edit) {
+            companions.find(owner).ifPresent(c -> {
+                var q = c.executionCoordinator().queue();
+                long id = edit.planId() > 0 ? edit.planId() : edit.jobId();
+                boolean plan = edit.planId() > 0;
+                if (plan ? q.plan(id).isEmpty() : q.job(id).isEmpty()) return;
+                String by = "owner";
+                switch (edit.action()) {
+                    case "resume" -> q.release(id);
+                    case "pause" -> q.setHold(id, QueueHold.pause(by));
+                    case "defer" -> q.setHold(id, QueueHold.defer(by, q.clock() + Math.max(1, edit.delay()), null));
+                    default -> {
+                        return;
+                    }
+                }
+                c.executionCoordinator().wakeQueue();
+            });
         } else if (request instanceof ControlRequest.RetryLast) {
             companions.find(owner).ifPresent(c -> c.executionCoordinator().retryLast());
         } else if (request instanceof ControlRequest.Stop) {
@@ -196,7 +214,8 @@ public final class CompanionRequestHandler {
         if (request instanceof ControlRequest.Stop
                 || request instanceof ControlRequest.SetPaused
                 || request instanceof ControlRequest.RetryLast
-                || request instanceof ControlRequest.UpdateGoal) return DebugAccess.Action.STOP;
+                || request instanceof ControlRequest.UpdateGoal
+                || request instanceof ControlRequest.QueueEdit) return DebugAccess.Action.STOP;
         if (request instanceof ControlRequest.Teleport) return DebugAccess.Action.TELEPORT;
         if (request instanceof ControlRequest.Rename) return DebugAccess.Action.RENAME;
         if (request instanceof ControlRequest.SetAutoRespawn) return DebugAccess.Action.SET_AUTO_RESPAWN;

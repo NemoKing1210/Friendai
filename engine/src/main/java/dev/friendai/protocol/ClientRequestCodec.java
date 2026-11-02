@@ -457,7 +457,13 @@ public final class ClientRequestCodec {
             out.writeLong(goal.goalId());
             out.writeString(goal.text(), 200);
         } else if (request instanceof ControlRequest.SendChat chat) out.writeString(chat.text(), 500);
-        else if (request instanceof ControlRequest.InvokeTool tool) {
+        else if (request instanceof ControlRequest.QueueEdit edit) {
+            out.writeString(edit.action(), 8);
+            out.writeLong(edit.planId());
+            out.writeLong(edit.jobId());
+            out.writeLong(edit.delay());
+            out.writeString(edit.reason(), 160);
+        } else if (request instanceof ControlRequest.InvokeTool tool) {
             out.writeString(tool.name(), 500);
             out.writeString(tool.argumentsJson(), 2_000);
         } else if (!(request instanceof ControlRequest.Subscribe
@@ -467,7 +473,8 @@ public final class ClientRequestCodec {
                 || request instanceof ControlRequest.Stop
                 || request instanceof ControlRequest.Teleport
                 || request instanceof ControlRequest.FreeTimeToggle
-                || request instanceof ControlRequest.RetryLast)) {
+                || request instanceof ControlRequest.RetryLast
+                || request instanceof ControlRequest.QueueEdit)) {
             throw new IllegalArgumentException("unsupported control request");
         }
         return out.toByteArray();
@@ -492,6 +499,9 @@ public final class ClientRequestCodec {
             case 15 -> new ControlRequest.RetryLast();
             case 16 -> new ControlRequest.UpdateGoal(in.readLong(), in.readString(200));
             case 13 -> new ControlRequest.InvokeTool(in.readString(500), in.readString(2_000));
+            case 17 ->
+                new ControlRequest.QueueEdit(
+                        in.readString(8), in.readLong(), in.readLong(), in.readLong(), in.readString(160));
             default -> throw new ProtocolDataException(DecodeResult.Reason.UNKNOWN_OPERATION);
         };
         in.requireEnd();

@@ -6,6 +6,7 @@ import dev.friendai.presentation.companion.CompanionVitals;
 import dev.friendai.protocol.control.ControlRequest;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.OptionalLong;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.EditBox;
@@ -35,6 +36,9 @@ final class ControlTab extends StatefulMenuTab {
     private FlatButton stop;
     private FlatButton pause;
     private FlatButton retry;
+    private FlatButton planPause;
+    private FlatButton planResume;
+    private FlatButton planDefer;
     private EditBox goalBox;
     private FlatButton goalSave;
     private int buttonsTop;
@@ -127,6 +131,26 @@ final class ControlTab extends StatefulMenuTab {
                 Ui.ACCENT,
                 left,
                 index++);
+        planPause = host.add(new FlatButton(
+                x(left, buttonWidth, columns, index),
+                y(index, columns),
+                buttonWidth,
+                BUTTON_HEIGHT,
+                Component.translatable("friendai.menu.plan_pause"),
+                Ui.WARN,
+                () -> planId().ifPresent(
+                                id -> CompanionRequests.send(new ControlRequest.QueueEdit("pause", id, 0, 0, "")))));
+        index++;
+        planResume = host.add(new FlatButton(
+                x(left, buttonWidth, columns, index),
+                y(index, columns),
+                buttonWidth,
+                BUTTON_HEIGHT,
+                Component.translatable("friendai.menu.plan_resume"),
+                Ui.ACCENT,
+                () -> planId().ifPresent(
+                                id -> CompanionRequests.send(new ControlRequest.QueueEdit("resume", id, 0, 0, "")))));
+        index++;
         tick();
     }
 
@@ -158,6 +182,18 @@ final class ControlTab extends StatefulMenuTab {
         return buttonsTop + (index / columns) * (BUTTON_HEIGHT + GAP);
     }
 
+    private OptionalLong planId() {
+        return state.snapshot()
+                .map(snapshot -> snapshot.queue().stream()
+                        .mapToLong(row -> row.planId())
+                        .filter(id -> id > 0)
+                        .findFirst()
+                        .orElse(0L))
+                .filter(id -> id > 0)
+                .map(OptionalLong::of)
+                .orElse(OptionalLong.empty());
+    }
+
     private boolean pausedNow() {
         return state.snapshot().map(CompanionSnapshot::workPaused).orElse(false);
     }
@@ -183,6 +219,9 @@ final class ControlTab extends StatefulMenuTab {
         stop.active = connected && present;
         pause.active = connected && present;
         retry.active = connected && present;
+        if (planPause != null) planPause.active = connected && present && planId().isPresent();
+        if (planResume != null) planResume.active = connected && present && planId().isPresent();
+        if (planDefer != null) planDefer.active = connected && present && planId().isPresent();
         pause.setMessage(workLabel());
         syncGoal();
     }

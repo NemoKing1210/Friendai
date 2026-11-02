@@ -145,7 +145,7 @@ const CATS = [
     desc: "A tabbed control screen that pauses the companion while open. Operator-only tabs are filtered on the server.",
     items: [
       "~Overview|Status, health, hunger, task.", "~Toggles|Per-companion switches.", "~Tasks|Queue and history.", "~Memory|Browse and forget.", "~Skills|Instruction skills.",
-      "~Places|Rename or forget places.", "~Map|Explored cells, sites and roads, never the full grid.", "~Appearance|Name and custom skin.", "~Traders|Known trades.", "~Log and Debug|Operator-only brain log and prompt.", "~Settings screen|YACL, optional." ] }
+      "~Places|Rename or forget places.", "~Map|Explored cells, sites and roads, never the full grid.", "~Plan controls|Pause, resume or defer the first plan from the menu.", "~Appearance|Name and custom skin.", "~Traders|Known trades.", "~Log and Debug|Operator-only brain log and prompt.", "~Settings screen|YACL, optional." ] }
 ];
 
 /* ================= CODE LOCATIONS ================= */

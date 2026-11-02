@@ -19,7 +19,8 @@ public sealed interface ControlRequest extends ClientRequest
                 ControlRequest.InvokeTool,
                 ControlRequest.SetPaused,
                 ControlRequest.RetryLast,
-                ControlRequest.UpdateGoal {
+                ControlRequest.UpdateGoal,
+                ControlRequest.QueueEdit {
     @Override
     default ProtocolFamily family() {
         return ProtocolFamily.CONTROL;
@@ -133,6 +134,25 @@ public sealed interface ControlRequest extends ClientRequest
 
         public UpdateGoal {
             text = text == null ? "" : text;
+        }
+    }
+
+    /** The owner pauses, resumes or defers one plan or job from the menu. */
+    record QueueEdit(String action, long planId, long jobId, long delay, String reason) implements ControlRequest {
+        public QueueEdit {
+            action = action == null ? "" : action.strip();
+            if (!action.equals("pause") && !action.equals("resume") && !action.equals("defer")) {
+                throw new IllegalArgumentException("queue edit action");
+            }
+            if ((planId <= 0) == (jobId <= 0)) throw new IllegalArgumentException("name one plan or one job");
+            if (delay < 0 || delay > 72_000) throw new IllegalArgumentException("delay");
+            reason = reason == null ? "" : reason.strip();
+            if (reason.length() > 160) throw new IllegalArgumentException("reason is too long");
+        }
+
+        @Override
+        public int operationId() {
+            return 17;
         }
     }
 
