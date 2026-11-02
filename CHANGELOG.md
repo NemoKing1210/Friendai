@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.172.0] - 2026-11-02
+
+### Added
+
+- A planner proposal now carries the plan fingerprint it was prepared against; if that plan changed before the proposal is applied, the proposal is refused instead of replacing newer work.
+
 ## [0.171.0] - 2026-11-02
 
 ### Added

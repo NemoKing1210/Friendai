@@ -852,17 +852,40 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                     failure,
                     schemas,
                     taskTools.keySet(),
-                    session.verifiedFacts()));
+                    session.verifiedFacts(),
+                    List.of(),
+                    0,
+                    primary.get().planId(),
+                    primary.get().planId() == 0
+                            ? ""
+                            : dev.friendai.execution.queue.PlanFingerprint.of(
+                                    companion.executionCoordinator().queue(),
+                                    primary.get().planId())));
         }
 
         @Override
         public CompletableFuture<dev.friendai.agent.plan.PlanProposal> propose(
                 dev.friendai.agent.plan.PlannerInput input) {
-            return CompanionSessions.this.propose(owner, input);
+            return CompanionSessions.this
+                    .propose(owner, input)
+                    .thenApply(proposal -> new dev.friendai.agent.plan.PlanProposal(
+                            proposal.plan(),
+                            proposal.stepsJson(),
+                            proposal.rationale(),
+                            proposal.expectedOutcome(),
+                            input.targetPlanId(),
+                            input.targetFingerprint()));
         }
 
         @Override
         public ToolResult apply(Caller caller, dev.friendai.agent.plan.PlanProposal proposal) {
+            if (proposal.targetPlanId() > 0 && !proposal.targetFingerprint().isBlank()) {
+                String current = dev.friendai.execution.queue.PlanFingerprint.of(
+                        companion.executionCoordinator().queue(), proposal.targetPlanId());
+                if (dev.friendai.agent.plan.PlannerStaleCheck.stale(proposal.targetFingerprint(), current)) {
+                    return ToolResult.error("the plan changed since the proposal; re-plan it");
+                }
+            }
             var board = goals.board(owner);
             var primary = board.primary();
             var executor = tools.bind(companion);
