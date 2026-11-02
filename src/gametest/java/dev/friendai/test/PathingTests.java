@@ -11,6 +11,7 @@ import dev.friendai.features.navigation.minecraft.nav.MaterialPicker;
 import dev.friendai.features.navigation.minecraft.nav.MoveHelper;
 import dev.friendai.features.navigation.minecraft.nav.Navigator;
 import dev.friendai.features.navigation.minecraft.nav.PathExecutor;
+import dev.friendai.features.navigation.minecraft.task.ApproachEntityTask;
 import dev.friendai.features.navigation.minecraft.task.FollowTask;
 import dev.friendai.features.navigation.minecraft.task.GoToTask;
 import dev.friendai.features.navigation.movement.Facing;
@@ -624,6 +625,41 @@ public class PathingTests {
         h.succeedWhen(() -> h.assertTrue(
                 c.position().distanceTo(owner.position()) <= 5.0,
                 "still " + c.position().distanceTo(owner.position()) + " blocks away"));
+    }
+
+    @GameTest(maxTicks = 3000)
+    public void approachCrossesThreeHundredBlocksWithoutTeleporting(GameTestHelper h) {
+        int floor = 240;
+        GameTestSupport.platformAt(h, floor, 312);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2.0, floor + 1, 4.5);
+        owner.setOnGround(true);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, floor + 1, 4);
+        c.setOwner(owner.getUUID());
+        ServerPlayer target = GameTestSupport.mockPlayerAt(h, 302.0, floor + 1, 4.5);
+        Outcome out = new Outcome();
+        c.executionCoordinator().setEventSink(out);
+        c.executionCoordinator().start(new ApproachEntityTask(target, 2.0), "approach");
+        double[] last = {c.getX(), c.getY(), c.getZ()};
+        double[] biggest = {0};
+        h.onEachTick(() -> {
+            double step = Math.sqrt(Math.pow(c.getX() - last[0], 2)
+                    + Math.pow(c.getY() - last[1], 2)
+                    + Math.pow(c.getZ() - last[2], 2));
+            biggest[0] = Math.max(biggest[0], step);
+            last[0] = c.getX();
+            last[1] = c.getY();
+            last[2] = c.getZ();
+            h.assertTrue(biggest[0] < 16.0, "the companion jumped " + biggest[0] + " blocks in one tick");
+        });
+        h.succeedWhen(() -> {
+            var active = c.executionCoordinator().current().orElse(null);
+            h.assertTrue(
+                    active != null && active.type().equals("approach"),
+                    "the approach task must stay active; status=" + out.status + " summary=" + out.summary);
+            h.assertTrue(
+                    c.position().distanceTo(target.position()) <= 3.0,
+                    "still " + c.position().distanceTo(target.position()) + " blocks from the target");
+        });
     }
 
     @GameTest(maxTicks = 3000)

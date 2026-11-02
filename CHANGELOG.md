@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.187.0] - 2026-11-02
+
+### Changed
+
+- Approaching a distant entity now uses the resource-journey legs and chunk leases, recreating the journey when the target moves, before the final local approach.
+
 ## [0.186.0] - 2026-11-02
 
 ### Changed
