@@ -27,11 +27,11 @@ The mod is **not client-only**: the server owns the companion entity, the brain,
 
 ## Working from TODO.md
 
-`TODO.md` at the repo root is the list of work that was asked for but not started yet; finished work lives in `TODO_ARCHIVE.md`, so the open list stays readable. Picking an item from it is a different entry point than "do this now":
+`TODO.md` at the repo root is the one list of work, open and finished together: a finished item stays where it is, ticked `[x]`, and there is no archive to keep in step. Picking an item from it is a different entry point than "do this now":
 
 1. **Write a specification and then a plan before writing code**, unless the item is trivial (see below). The spec goes to `docs/superpowers/specs/`, the plan to `docs/superpowers/plans/` (both git-ignored); name the `TODO.md` item they belong to.
 2. Implement against that spec and plan, following "Test scope" and "Definition of done" like any other task.
-3. Close the loop: when the item is done, tick it `[x]` and move it to `TODO_ARCHIVE.md`, in the same commit that carries the change. Never renumber the remaining items — the maintainer refers to work by number ("do task 2"), so numbers are stable and finished items keep theirs. The archive is read-only history: never renumber an archived item and never reuse its number.
+3. Close the loop: when the item is done, tick it `[x]` and leave it where it is, in the same commit that carries the change. Never renumber an item, finished or open — the maintainer refers to work by number ("do task 2"), so numbers are stable, a finished item keeps its number in the list, and no number is ever reused.
 
 **Judge the item before you claim it.**
 
@@ -63,11 +63,11 @@ The mod is **not client-only**: the server owns the companion entity, the brain,
 
 **The claim is never a commit of its own.**
 
-- Mark the item `[~]` and leave `TODO.md` uncommitted: the marker waits and is committed only once the whole task is finished, together with the task's files (the commit that ticks the item `[x]` and moves it to `TODO_ARCHIVE.md`; for a task split into several commits, the final one).
+- Mark the item `[~]` and leave `TODO.md` uncommitted: the marker waits and is committed only once the whole task is finished, together with the task's files (the commit that ticks the item `[x]`; for a task split into several commits, the final one).
 - Do not make a `chore(todo): take task N` commit.
 - The trade-off is real — another checkout cannot see an uncommitted marker — so before you take an item check `grep -nE '^\s*- \[~\]' TODO.md`, `git status` and `git log`, and when two sessions share the file, coordinate instead of trusting the commit history.
 
-When the work ends: tick `[x]` and move the item to `TODO_ARCHIVE.md`, in the commit that carries the change. When you stop, abandon or skip it: restore `[ ]`, add the one-line skip note described above, and say why in your final message. Never delete or silently rewrite another session's marker; a `[~]` older than 24 hours whose session is visibly gone may be taken over by saying so.
+When the work ends: tick `[x]` in the commit that carries the change and leave the item where it is. When you stop, abandon or skip it: restore `[ ]`, add the one-line skip note described above, and say why in your final message. Never delete or silently rewrite another session's marker; a `[~]` older than 24 hours whose session is visibly gone may be taken over by saying so.
 
 **When the spec and the plan are not needed.**
 
@@ -163,7 +163,7 @@ The first build downloads Minecraft and takes minutes; later builds take seconds
 | `index.html`, `site/` | The interactive capability map (Minecraft-styled graphs of tools, memory, turn flow, architecture). `site/app.js` holds the data (`CATS`, `FLOW`, `MEM_CARDS`, `ARCH_CARDS`), `site/style.css` the look; graphs are drawn by `vis-network` (pinned CDN version in `index.html`), draggable and with physics. `site/i18n.ru.js` is the Russian translation (a second, deliberate exception to "everything in the repository is English", like `ru_ru.json`). Keep it current: see "Definition of done", item 10. |
 | `AGENTS.md`, `ARCHITECTURE.md` | The two halves of this guide: the rules every session loads, and the reference (packages, flows, persistence, protocol). See "Code map and flows". |
 | `CHANGELOG.md` | The player-facing history of the shipped mod, one section per `mod_version`, newest first, in [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) form. Update it with every shipped change; see "Changelog". |
-| `README.md`, `CONTRIBUTING.md`, `MANUAL_CHECKLIST.md`, `TODO.md`, `TODO_ARCHIVE.md`, `commitlint.config.mjs` | User docs, contributor rules, manual test checklist, the open backlog and its finished-item archive (see "Working from TODO.md"), commit rules. |
+| `README.md`, `CONTRIBUTING.md`, `MANUAL_CHECKLIST.md`, `TODO.md`, `commitlint.config.mjs` | User docs, contributor rules, manual test checklist, the backlog with its finished items (see "Working from TODO.md"), commit rules. |
 
 ### Code map and flows
 

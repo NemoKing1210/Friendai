@@ -13,7 +13,7 @@ An item in `TODO.md` is a contract with an evidence trail: its anchors (`File.ja
 
 One invocation of this skill executes **exactly one numbered item**, its sub-items included, and then the run ends.
 
-- When the item is ticked, archived and committed — or restored to `[ ]` with a stated reason — report and **stop**. Do not start the next item in the same run, even when the request named several: the maintainer invokes the skill again for that one.
+- When the item is ticked and committed — or restored to `[ ]` with a stated reason — report and **stop**. Do not start the next item in the same run, even when the request named several: the maintainer invokes the skill again for that one.
 - A request that lists several items is a queue. Take the first, say in the report which ones are still untouched, and let the maintainer choose the next run.
 - Never claim two items, never plan or execute two in parallel, never dispatch a subagent per item, and never fold in "a quick one" because it sits in the same file.
 - A bug or idea you notice outside the item goes into the report (or `TODO.md`, when asked), never into this run's code.
@@ -30,9 +30,9 @@ One invocation of this skill executes **exactly one numbered item**, its sub-ite
 Produce a table in the plan: **anchor → what the code says today → verdict (missing / partial / done)**.
 
 - Read every `path:line` the item names, but find the symbol, not the line number (`find`, `xd://lsp` hover/references). Items are often stale by tens of lines.
-- Search history and prior attempts: `git log --oneline -S'<symbol>' --all`, `git log --oneline -- <paths>`, `TODO_ARCHIVE.md`, `docs/superpowers/{specs,plans}/`.
+- Search history and prior attempts: `git log --oneline -S'<symbol>' --all`, `git log --oneline -- <paths>`, the finished items in `TODO.md`, `docs/superpowers/{specs,plans}/`.
 - Test the actual behavior, not the wording: the default value, the missing tool, the absent field, the refusal path. Reading the file that should contain the behavior is the minimum; running the smallest scenario that shows it is better.
-- **Done already**: stop, report the evidence (`path:line`, commit), and get the maintainer's word before ticking and archiving.
+- **Done already**: stop, report the evidence (`path:line`, commit), and get the maintainer's word before ticking it done.
 - **Partly done**: narrow the item in the plan and state what remains, or stop if the remainder no longer matches the item.
 - A user report quoted in the item is ground truth **for the bug at report time**, not for the current code.
 
@@ -95,7 +95,7 @@ The plan is a list of slices, and every slice carries: the files it touches, its
 
 In the commit that carries the change:
 
-- tick `[x]` and move the item (number intact, sub-items with it) to `TODO_ARCHIVE.md`; never renumber anything;
+- tick `[x]` and leave the item where it is in `TODO.md` (number intact, sub-items with it); never renumber anything;
 - bump `mod_version` by the change size, or say why no bump is needed;
 - `ARCHITECTURE.md` / `AGENTS.md` when a package, tool, config or recipe changed; both language files for player-facing text (`LangFilesTest`); `site/app.js` plus `site/i18n.ru.js` when the capability map shows the thing; `MANUAL_CHECKLIST.md` for what automation cannot cover;
 - stage only your paths (`git add <path>…`), never `-A`, and name foreign dirty files in the final message instead of committing them.
