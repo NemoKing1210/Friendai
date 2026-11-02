@@ -24,7 +24,7 @@ public final class MockHttpServer implements AutoCloseable {
         }
     }
 
-    private record Canned(int status, byte[] body, long delayMillis) {}
+    private record Canned(int status, byte[] body, long delayMillis, List<byte[]> chunks) {}
 
     private final HttpServer server;
     private final Queue<Canned> queue = new ArrayDeque<>();
@@ -47,7 +47,26 @@ public final class MockHttpServer implements AutoCloseable {
                 canned = queue.poll();
             }
             if (canned == null) {
-                canned = new Canned(500, "{\"error\":\"mock queue empty\"}".getBytes(StandardCharsets.UTF_8), 0);
+                canned = new Canned(500, "{\"error\":\"mock queue empty\"}".getBytes(StandardCharsets.UTF_8), 0, null);
+            }
+            if (canned.chunks() != null) {
+                exchange.getResponseHeaders().add("Content-Type", "text/event-stream");
+                exchange.sendResponseHeaders(canned.status(), 0);
+                try (OutputStream os = exchange.getResponseBody()) {
+                    for (byte[] chunk : canned.chunks()) {
+                        os.write(chunk);
+                        os.flush();
+                        if (canned.delayMillis() > 0) {
+                            try {
+                                Thread.sleep(canned.delayMillis());
+                            } catch (InterruptedException interrupted) {
+                                Thread.currentThread().interrupt();
+                            }
+                        }
+                    }
+                }
+                exchange.close();
+                return;
             }
             byte[] out = canned.body();
             if (canned.delayMillis() > 0) {
@@ -89,7 +108,22 @@ public final class MockHttpServer implements AutoCloseable {
     public void enqueueDelayed(int status, byte[] body, long delayMillis) {
         if (delayMillis < 0) throw new IllegalArgumentException("negative delay");
         synchronized (queue) {
-            queue.add(new Canned(status, body.clone(), delayMillis));
+            queue.add(new Canned(status, body.clone(), delayMillis, null));
+        }
+    }
+
+    /** Serves a chunked response, flushing each chunk so a streaming client sees the boundaries. */
+    public void enqueueStream(int status, List<String> chunks) {
+        enqueueStreamDelayed(status, chunks, 0);
+    }
+
+    public void enqueueStreamDelayed(int status, List<String> chunks, long delayMillis) {
+        if (delayMillis < 0) throw new IllegalArgumentException("negative delay");
+        List<byte[]> bytes = chunks.stream()
+                .map(chunk -> chunk.getBytes(StandardCharsets.UTF_8))
+                .toList();
+        synchronized (queue) {
+            queue.add(new Canned(status, null, delayMillis, bytes));
         }
     }
 
