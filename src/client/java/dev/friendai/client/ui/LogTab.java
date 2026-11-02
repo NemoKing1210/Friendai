@@ -35,6 +35,8 @@ final class LogTab extends StatefulMenuTab {
     private boolean paused;
     private List<LogEntry> frozen = List.of();
     private FlatButton pauseButton;
+    private int chipTop;
+    private int chipWidth;
 
     private record Chip(LogKind kind, int x, int y, int w) {}
 
@@ -91,27 +93,27 @@ final class LogTab extends StatefulMenuTab {
 
     @Override
     public void init(Host host, int left, int top, int width, int height) {
-        int copyWidth = 52;
-        int openWidth = 72;
-        int pathWidth = 64;
-        int pauseWidth = 52;
+        Font font = host.font();
+        int pad = 12;
+        Component copy = Component.translatable("friendai.menu.log.copy");
+        Component copyPath = Component.translatable("friendai.menu.log.copy_path");
+        Component openFolder = Component.translatable("friendai.menu.log.open_folder");
+        Component pause = Component.translatable("friendai.menu.log.pause");
+        Component resume = Component.translatable("friendai.menu.log.resume");
+        int copyWidth = font.width(copy) + pad;
+        int pathWidth = font.width(copyPath) + pad;
+        int openWidth = font.width(openFolder) + pad;
+        int pauseWidth = Math.max(font.width(pause), font.width(resume)) + pad;
         int x = left + width;
         x -= copyWidth;
-        host.add(new FlatButton(
-                x,
-                top,
-                copyWidth,
-                CHIP_HEIGHT,
-                Component.translatable("friendai.menu.log.copy"),
-                Ui.ACCENT,
-                this::copy));
+        host.add(new FlatButton(x, top, copyWidth, CHIP_HEIGHT, copy, Ui.ACCENT, this::copy));
         x -= GAP + pathWidth;
         host.add(new FlatButton(
                 x,
                 top,
                 pathWidth,
                 CHIP_HEIGHT,
-                Component.translatable("friendai.menu.log.copy_path"),
+                copyPath,
                 Ui.DIM,
                 () -> dev.friendai.client.ui.LogFolder.copy(dev.friendai.client.ui.LogFolder.localRoot())));
         x -= GAP + openWidth;
@@ -120,22 +122,16 @@ final class LogTab extends StatefulMenuTab {
                 top,
                 openWidth,
                 CHIP_HEIGHT,
-                Component.translatable("friendai.menu.log.open_folder"),
+                openFolder,
                 Ui.DIM,
                 () -> dev.friendai.client.ui.LogFolder.open(dev.friendai.client.ui.LogFolder.localRoot())));
         x -= GAP + pauseWidth;
-        pauseButton = host.add(new FlatButton(
-                x,
-                top,
-                pauseWidth,
-                CHIP_HEIGHT,
-                Component.translatable("friendai.menu.log.pause"),
-                Ui.WARN,
-                this::togglePause));
-        int chipsWidth = Math.max(120, x - left - GAP);
-        int chipsHeight = layoutChips(host.font(), left, top, chipsWidth);
-        host.add(new HitArea(left, top, chipsWidth, chipsHeight, this::clickChip));
-        int areaTop = top + chipsHeight + GAP + 2;
+        pauseButton = host.add(new FlatButton(x, top, pauseWidth, CHIP_HEIGHT, pause, Ui.WARN, this::togglePause));
+        chipTop = top;
+        chipWidth = Math.max(80, x - left - GAP);
+        int chipsHeight = layoutChips(font, left, chipTop, chipWidth);
+        host.add(new HitArea(left, chipTop, chipWidth, chipsHeight, this::clickChip));
+        int areaTop = chipTop + chipsHeight + GAP + 2;
         host.add(new SelectArea(left, areaTop, width, top + height - areaTop, new SelectArea.Handler() {
             @Override
             public void press(double x, double y, boolean doubleClick) {
@@ -291,10 +287,10 @@ final class LogTab extends StatefulMenuTab {
         Minecraft.getInstance().keyboardHandler.setClipboard(String.join("\n", lines));
     }
 
-    /** Places the chips left to right, wrapping before the Copy button; returns the height they take. */
+    /** Places the chips left to right inside the area left of the action buttons; returns the height they take. */
     private int layoutChips(Font font, int left, int top, int width) {
         chips.clear();
-        int right = left + width - 52 - GAP;
+        int right = left + Math.max(1, width);
         int x = left;
         int y = top;
         for (LogKind kind : LogKind.values()) {
@@ -367,9 +363,9 @@ final class LogTab extends StatefulMenuTab {
     @Override
     public void render(
             GuiGraphicsExtractor g, Font font, int left, int top, int width, int height, int mouseX, int mouseY) {
-        int headerHeight = layoutChips(font, left, top, width);
+        int headerHeight = layoutChips(font, left, chipTop, chipWidth > 0 ? chipWidth : width);
         drawChips(g, font, mouseX, mouseY);
-        int listTop = top + headerHeight + GAP + 2;
+        int listTop = chipTop + headerHeight + GAP + 2;
         int listHeight = top + height - listTop;
         Ui.well(g, left, listTop, width, listHeight);
         List<LogEntry> entries = visibleEntries();
