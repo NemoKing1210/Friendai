@@ -42,7 +42,7 @@ public final class WorkConflict {
     }
 
     /** What a step's arguments point at, or empty when the tool works on nothing nameable. */
-    static String target(JsonObject args) {
+    public static String target(JsonObject args) {
         if (args == null) {
             return "";
         }
