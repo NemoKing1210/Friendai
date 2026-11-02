@@ -77,6 +77,18 @@ public final class QueueSave {
             archives.add(o);
         }
         root.add("archives", archives);
+        JsonArray holds = new JsonArray();
+        for (Map.Entry<Long, QueueHold> entry : queue.holds().entrySet()) {
+            QueueHold hold = entry.getValue();
+            JsonObject o = new JsonObject();
+            o.addProperty("id", entry.getKey());
+            o.addProperty("kind", hold.kind().name());
+            o.addProperty("reason", bounded(hold.reason(), QueueHold.MAX_REASON));
+            o.addProperty("remaining", Math.min(hold.remaining(queue.clock()), QueueHold.MAX_DELAY_TICKS));
+            if (hold.until() != null) o.add("until", hold.until().toJson());
+            holds.add(o);
+        }
+        root.add("holds", holds);
         root.addProperty("active", activeJobId);
         String result = root.toString();
         if (result.getBytes(StandardCharsets.UTF_8).length > MAX_SAVE_CHARS)
@@ -150,6 +162,26 @@ public final class QueueSave {
                     || argumentChars > limits.maxQueueArgsChars()
                     || jobs.stream().anyMatch(j -> j.args().toString().length() > limits.maxArgsChars()))
                 return Optional.empty();
+            long clock = root.get("clock").getAsLong();
+            Map<Long, QueueHold> holds = new java.util.LinkedHashMap<>();
+            if (root.has("holds")) {
+                for (var e : root.getAsJsonArray("holds")) {
+                    JsonObject h = e.getAsJsonObject();
+                    long id = h.get("id").getAsLong();
+                    long remaining = Math.max(0, h.get("remaining").getAsLong());
+                    Guard until = h.has("until")
+                            ? Guard.parse(h.getAsJsonObject("until")).orElseThrow()
+                            : null;
+                    holds.put(
+                            id,
+                            new QueueHold(
+                                    QueueHold.Kind.valueOf(h.get("kind").getAsString()),
+                                    field(h, "reason"),
+                                    clock + Math.min(remaining, QueueHold.MAX_DELAY_TICKS),
+                                    until));
+                }
+            }
+            if (holds.size() > JobQueue.MAX_HOLDS) return Optional.empty();
             long active = root.get("active").getAsLong();
             long runningCount =
                     jobs.stream().filter(j -> j.state() == JobState.RUNNING).count();
@@ -166,7 +198,8 @@ public final class QueueSave {
                     root.get("nextOrder").getAsLong(),
                     plans,
                     jobs,
-                    archives);
+                    archives,
+                    holds);
             return Optional.of(new Decoded(q, active));
         } catch (RuntimeException ignored) {
             return Optional.empty();

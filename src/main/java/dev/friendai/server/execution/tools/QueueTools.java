@@ -10,10 +10,12 @@ import dev.friendai.agent.tools.ToolMeta;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.queue.FailurePolicy;
 import dev.friendai.execution.queue.Guard;
+import dev.friendai.execution.queue.JobQueue;
 import dev.friendai.execution.queue.PlanCodec;
 import dev.friendai.execution.queue.PlanDefinition;
 import dev.friendai.execution.queue.PlanNode;
 import dev.friendai.execution.queue.PlanOptions;
+import dev.friendai.execution.queue.QueueHold;
 import dev.friendai.execution.queue.QueueOptimizer;
 import dev.friendai.execution.queue.QueueText;
 import dev.friendai.execution.queue.QueueTradeScope;
@@ -126,12 +128,17 @@ public final class QueueTools implements FeatureToolContributor {
                                         "skip",
                                         "replace",
                                         "optimize",
-                                        "clear")
+                                        "clear",
+                                        "pause",
+                                        "resume",
+                                        "defer")
                                 .integer("job", "Job id")
                                 .integer("plan", "Plan id")
                                 .integer("before", "Move before this job id")
                                 .integer("priority", "Priority", -10, 10)
                                 .string("args", "Replacement JSON arguments")
+                                .string("reason", "Optional reason for pause or defer")
+                                .integer("delay", "Deferral in queue ticks", 1, (int) QueueHold.MAX_DELAY_TICKS)
                                 .array("steps", "Replacement steps", stepSchema, 1, 64)
                                 .required("action")
                                 .build(),
@@ -358,7 +365,7 @@ public final class QueueTools implements FeatureToolContributor {
         return "Plan nodes are actions, conditionals, or repeats. A conditional is {\"when\": condition, \"then\": [nodes], \"else\": [nodes]}; else may be omitted. "
                 + "A repeat is {\"repeat\": {\"steps\": [nodes], \"until\": condition, \"max_iterations\": 1..64}}. "
                 + "Conditions support all_of/any_of (1..8 conditions), not, and the existing guards plus block_in_front, biome, fluid_ahead, distance_travelled, time_elapsed, owner_online, owner_offline, daytime, nighttime, weather (clear|rain|thunder), food_at_least, xp_at_least, station_within, tool_at_least, plan_done and goal_met. Unknown world evidence never satisfies a guard; only explicit false satisfies owner_offline or nighttime. "
-                + "Condition and plan nesting is limited to 8; worst-case actions must fit the queue limit (currently 32), each args object is at most 8192 characters, and normalized plan JSON is at most 49152 characters. "
+                + "A local pause or defer (queue_edit actions pause, resume, defer) applies to one job or one plan; a defer needs a delay in queue ticks or an until guard, and both must hold before normal guards are checked. Condition and plan nesting is limited to 8; worst-case actions must fit the queue limit (currently 32), each args object is at most 8192 characters, and normalized plan JSON is at most 49152 characters. "
                 + "An action when array waits until every listed guard is satisfied. Use plan_validate to check a tree without queue changes.";
     }
 
@@ -590,6 +597,50 @@ public final class QueueTools implements FeatureToolContributor {
                     List<Long> replaced = new ArrayList<>();
                     for (int i = 0; i < steps.size(); i++) replaced.add(firstNewId + i);
                     registerFactories(access, c, replaced, all);
+                }
+                case "pause", "resume", "defer" -> {
+                    Long plan = args.has("plan") ? args.get("plan").getAsLong() : null;
+                    Long job = args.has("job") ? args.get("job").getAsLong() : null;
+                    if ((plan == null) == (job == null)) {
+                        return error("name exactly one of job or plan");
+                    }
+                    long id = plan != null ? plan : job;
+                    if (plan != null) {
+                        if (q.plan(id).isEmpty()) return error("unknown plan #" + id);
+                    } else {
+                        var target = q.job(id).orElse(null);
+                        if (target == null) return error("unknown job #" + id);
+                        if (JobQueue.terminal(target)) return error("#" + id + " is already terminal");
+                    }
+                    String reason = args.has("reason") ? args.get("reason").getAsString() : "";
+                    String actor = caller.access().name().toLowerCase(java.util.Locale.ROOT);
+                    String heldBy = reason.isBlank() ? actor : actor + ": " + reason;
+                    if (action.equals("resume")) {
+                        q.release(id);
+                        runner.wakeQueue();
+                        return ToolResult.ok("resumed " + (plan != null ? "plan" : "job") + " #" + id);
+                    }
+                    if (action.equals("pause")) {
+                        q.setHold(id, QueueHold.pause(heldBy));
+                        runner.wakeQueue();
+                        return ToolResult.ok("paused " + (plan != null ? "plan" : "job") + " #" + id);
+                    }
+                    long delay = args.has("delay") ? args.get("delay").getAsLong() : 0;
+                    if (delay < 0 || delay > QueueHold.MAX_DELAY_TICKS) {
+                        return error("delay must be 1.." + QueueHold.MAX_DELAY_TICKS + " ticks");
+                    }
+                    Guard until = null;
+                    if (args.has("until") && !args.get("until").isJsonNull()) {
+                        if (!args.get("until").isJsonObject()) return error("until must be a guard object");
+                        until = Guard.parse(args.getAsJsonObject("until")).orElse(null);
+                        if (until == null) return error("until is not a valid guard");
+                    }
+                    if (delay == 0 && until == null) {
+                        return error("defer needs a delay or an until condition");
+                    }
+                    q.setHold(id, QueueHold.defer(heldBy, q.clock() + delay, until));
+                    runner.wakeQueue();
+                    return ToolResult.ok("deferred " + (plan != null ? "plan" : "job") + " #" + id);
                 }
                 case "optimize" -> {
                     Long plan = args.has("plan") ? args.get("plan").getAsLong() : null;

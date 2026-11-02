@@ -38,6 +38,9 @@ public final class QueueText {
                     .append(truncate(plan.goal(), 80))
                     .append("\": ")
                     .append(planProgress(plan));
+            q.hold(plan.id())
+                    .ifPresent(hold ->
+                            out.append(" [").append(hold.describe(q.clock())).append(']'));
             out.append("\ntree: ").append(planTree(plan));
         }
         List<Job> jobs = q.jobs().stream()
@@ -237,9 +240,13 @@ public final class QueueText {
     }
 
     private static String line(JobQueue q, Job j, String reason) {
-        String suffix = reason == null
-                ? (JobQueue.terminal(j) && !j.result().isBlank() ? ": " + truncate(j.result(), MAX_RESULT) : "")
-                : ": " + truncate(reason, MAX_SUMMARY_REASON);
+        QueueHold hold = j.planId() == 0 ? null : q.hold(j.planId()).orElse(null);
+        if (hold == null) hold = q.hold(j.id()).orElse(null);
+        String suffix = hold != null
+                ? ": " + truncate(hold.describe(q.clock()), MAX_SUMMARY_REASON)
+                : reason == null
+                        ? (JobQueue.terminal(j) && !j.result().isBlank() ? ": " + truncate(j.result(), MAX_RESULT) : "")
+                        : ": " + truncate(reason, MAX_SUMMARY_REASON);
         return "#" + j.id() + " " + j.state().name().toLowerCase() + " " + planPart(q, j) + " " + j.tool() + suffix;
     }
 

@@ -22,6 +22,8 @@ public final class QueuePolicy {
     private static boolean ready(JobQueue queue, Job job, GuardFacts facts, Map<Long, PlanStatus> statuses) {
         if (job.state() != JobState.PENDING) return false;
         if (job.planId() != 0 && statuses.get(job.planId()) == PlanStatus.NEEDS_DECISION) return false;
+        if (!holdPasses(queue, job.planId(), facts)) return false;
+        if (!holdPasses(queue, job.id(), facts)) return false;
         if (job.retryAtTick() > queue.clock()) return false;
         if (!dependenciesDone(queue, job)) return false;
         for (Guard guard : job.guards()) if (!guard.holds(facts)) return false;
@@ -106,6 +108,10 @@ public final class QueuePolicy {
     public static String notReadyReason(JobQueue queue, Job job, GuardFacts facts) {
         if (job.planId() != 0 && planStatus(queue, job.planId()) == PlanStatus.NEEDS_DECISION)
             return "plan waits for your decision";
+        QueueHold planHold = job.planId() == 0 ? null : queue.hold(job.planId()).orElse(null);
+        if (planHold != null) return "plan " + planHold.describe(queue.clock());
+        QueueHold jobHold = queue.hold(job.id()).orElse(null);
+        if (jobHold != null) return jobHold.describe(queue.clock());
         if (job.retryAtTick() > queue.clock()) return "retries in " + (job.retryAtTick() - queue.clock()) + " ticks";
         for (long id : job.after()) {
             Job other = queue.job(id).orElse(null);
@@ -117,6 +123,12 @@ public final class QueuePolicy {
                 .findFirst()
                 .map(g -> "waits for " + g.describe())
                 .orElse("pending");
+    }
+
+    private static boolean holdPasses(JobQueue queue, long id, GuardFacts facts) {
+        if (id == 0) return true;
+        QueueHold hold = queue.hold(id).orElse(null);
+        return hold == null || hold.satisfied(queue.clock(), facts);
     }
 
     private static String stateWord(Job job) {

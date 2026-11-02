@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /** Mutable owner of immutable queue records; deliberately independent of Minecraft. */
@@ -31,6 +32,10 @@ public final class JobQueue {
     private final LinkedHashMap<Long, Job> jobs = new LinkedHashMap<>();
     private final LinkedHashMap<Long, PlanRecord> plans = new LinkedHashMap<>();
     private final List<PlanArchive> archives = new ArrayList<>();
+    private final Map<Long, QueueHold> holds = new LinkedHashMap<>();
+    /** Most local pauses/deferrals one queue may hold; each is tiny but the map is bounded. */
+    public static final int MAX_HOLDS = 256;
+
     private static final int MAX_STORED_RESULT = 300;
     private long nextJob = 1, nextPlan = 1, nextOrder = 100, clock;
 
@@ -46,12 +51,14 @@ public final class JobQueue {
             long nextOrder,
             List<PlanRecord> savedPlans,
             List<Job> savedJobs,
-            List<PlanArchive> savedArchives) {
+            List<PlanArchive> savedArchives,
+            Map<Long, QueueHold> savedHolds) {
         JobQueue queue = new JobQueue(limits);
         queue.clock = Math.max(0, clock);
         for (PlanRecord plan : savedPlans) queue.plans.put(plan.id(), plan);
         for (Job job : savedJobs) queue.jobs.put(job.id(), job);
         queue.archives.addAll(savedArchives);
+        if (savedHolds != null) queue.holds.putAll(savedHolds);
         queue.nextJob = Math.max(
                 nextJob,
                 queue.jobs.keySet().stream().mapToLong(Long::longValue).max().orElse(0) + 1);
@@ -63,6 +70,33 @@ public final class JobQueue {
                 queue.jobs.values().stream().mapToLong(Job::order).max().orElse(0) + 100);
         while (queue.archives.size() > queue.limits.maxArchives()) queue.archives.removeFirst();
         return queue;
+    }
+
+    /** The local hold on one job or plan, if any. */
+    public Optional<QueueHold> hold(long id) {
+        return Optional.ofNullable(holds.get(id));
+    }
+
+    /** Sets or replaces a local hold; the map is bounded. */
+    public void setHold(long id, QueueHold hold) {
+        if (hold == null) {
+            holds.remove(id);
+            return;
+        }
+        if (!holds.containsKey(id) && holds.size() >= MAX_HOLDS) {
+            throw new IllegalArgumentException("too many local holds");
+        }
+        holds.put(id, hold);
+    }
+
+    /** Removes a hold, used by resume and by a terminal transition. */
+    public boolean release(long id) {
+        return holds.remove(id) != null;
+    }
+
+    /** Every local hold, for rendering and persistence. */
+    public Map<Long, QueueHold> holds() {
+        return Map.copyOf(holds);
     }
 
     public long nextJobId() {
@@ -378,6 +412,7 @@ public final class JobQueue {
     public void finish(long id, String summary) {
         Job job = require(id);
         replace(job, JobState.DONE, bound(summary), job.attempts(), 0);
+        holds.remove(id);
     }
 
     public FailureOutcome fail(long id, String reason) {
@@ -389,6 +424,7 @@ public final class JobQueue {
         }
         JobState state = job.onFailure() == FailurePolicy.SKIP ? JobState.SKIPPED : JobState.FAILED;
         replace(job, state, bound(reason), attempts, 0);
+        holds.remove(id);
         if (job.onFailure() == FailurePolicy.STOP_PLAN && job.planId() != 0) cancelPlan(job.planId());
         return new FailureOutcome(jobs.get(id), false);
     }
@@ -403,6 +439,7 @@ public final class JobQueue {
         if (terminal(job))
             return Result.error("#" + id + " is already " + job.state().name().toLowerCase());
         replace(job, JobState.CANCELLED, bound(reason), job.attempts(), 0);
+        holds.remove(id);
         return Result.ok("cancelled #" + id);
     }
 
@@ -697,6 +734,7 @@ public final class JobQueue {
     public Result cancelPlan(long planId) {
         PlanRecord plan = plans.get(planId);
         if (plan == null) return Result.error("unknown plan #" + planId);
+        holds.remove(planId);
         for (Job j : jobsOfPlan(planId)) if (!terminal(j)) replace(j, JobState.CANCELLED, "cancelled", j.attempts(), 0);
         if (plan.definition() != null && plan.cursor() != null)
             plans.put(
@@ -713,6 +751,7 @@ public final class JobQueue {
     }
 
     public Result remove(long id) {
+        holds.remove(id);
         return jobs.remove(id) == null ? Result.error("unknown job #" + id) : Result.ok("removed #" + id);
     }
 
@@ -721,6 +760,7 @@ public final class JobQueue {
         if (jc == 0 && pc == 0) return Result.ok("queue is already empty");
         plans.clear();
         jobs.clear();
+        holds.clear();
         return Result.ok(
                 "cleared " + pc + (pc == 1 ? " plan and " : " plans and ") + jc + (jc == 1 ? " job" : " jobs"));
     }
