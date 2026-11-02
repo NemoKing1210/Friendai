@@ -1,0 +1,9 @@
+{
+  "name": "reload",
+  "access": "owner",
+  "event": "restored plan #4 from the saved queue: steps 1-3 completed, continue at step 4 of 7",
+  "replies": [
+    {"text": "Continuing at step 4 of 7; the first three are already done.", "tools": []}
+  ],
+  "expect": {"maxRequests": 1, "spokenContains": ["step 4"], "maxRepeatedToolCalls": 0, "maxClarifications": 0}
+}

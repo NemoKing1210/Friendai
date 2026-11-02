@@ -1,0 +1,9 @@
+{
+  "name": "menu_agreement",
+  "access": "owner",
+  "event": "verified task #9 craft_item finished: crafted 1 iron pickaxe; the task log and the menu show the same result",
+  "replies": [
+    {"text": "The task log and the menu agree: one iron pickaxe is finished.", "tools": []}
+  ],
+  "expect": {"maxRequests": 1, "spokenContains": ["menu", "one iron pickaxe"], "spokenNotContains": ["two iron pickaxes"], "maxClarifications": 0}
+}

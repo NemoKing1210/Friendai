@@ -1,0 +1,11 @@
+{
+  "name": "free_time_hour",
+  "access": "owner",
+  "eventKind": "free_time",
+  "event": "stock the food chest",
+  "replies": [
+    {"text": "", "tools": ["choose_activity"]},
+    {"text": "[silent]", "tools": []}
+  ],
+  "expect": {"maxRequests": 2, "toolsCalled": ["choose_activity"], "maxClarifications": 0}
+}

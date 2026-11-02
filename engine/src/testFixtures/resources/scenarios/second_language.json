@@ -1,0 +1,10 @@
+{
+  "name": "second_language",
+  "access": "owner",
+  "language": "ru",
+  "playerSays": "Принеси мне немного дуба.",
+  "replies": [
+    {"text": "Хорошо, скоро принесу дуб.", "tools": []}
+  ],
+  "expect": {"maxRequests": 1, "spokenContains": ["дуб"], "maxClarifications": 0}
+}

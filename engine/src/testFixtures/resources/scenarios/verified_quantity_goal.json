@@ -1,0 +1,9 @@
+{
+  "name": "verified_quantity_goal",
+  "access": "owner",
+  "event": "verified task #12 mine_blocks finished: mined 32 cobblestone; the outcome was checked against the inventory",
+  "replies": [
+    {"text": "Done: the verified result says 32 cobblestone are in the chest.", "tools": []}
+  ],
+  "expect": {"maxRequests": 1, "spokenContains": ["32"], "maxClarifications": 0}
+}

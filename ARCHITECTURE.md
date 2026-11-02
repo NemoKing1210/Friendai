@@ -392,6 +392,25 @@ date, and compare only like with like.
 A change counts as an improvement only when verified goals rise while false claims, repeated remedies, clarifications,
 narration, stop latency, duplicate shifts and restore rejections do not; more model calls or more chat are not a gain.
 
+**The headless half.** The nine fixtures above also run without a world, against the real `CompanionBrain` and the
+policy objects it calls: `engine/src/testFixtures/resources/scenarios/` holds the JSON, `ScenarioRunner` drives it with
+`FakeGateway`, `FakeToolExecutor`, `RecordingSpeaker` and `ManualScheduler`, and `ScenarioBaselineTest` runs every
+fixture twice, requires the two results to be equal, and writes `engine/build/eval-baseline.md`. The report records the
+fixture id, the revision system property (`-Deval.revision`, default `working-tree`), request count, executed tools,
+spoken lines, clarifications (a spoken line with a question mark), narration (a spoken line containing a
+completion marker from `ScenarioRunner.NARRATION_MARKERS`), repeated tool calls and silence. `interruption` cancels the
+brain while its response is pending and fails if any tool or speech survives. Usage is `FakeGateway`'s synthetic zero,
+never a provider measurement. Run it with:
+
+```bash
+./gradlew :engine:test --tests 'dev.friendai.agent.eval.*'
+```
+
+Checks the headless runner cannot make stay with their owners and are listed in the generated report: the actual menu
+agreement is `runGameTest -Dfabric-api.gametest.filter='friendai-gametest:companion_control_tests_*'` (plus
+`memory_menu_tests_*`), duplicate shifts are `FreeTimeServiceTest`, restore rejection is `QueueSaveTest` and
+`active_task_lifecycle_tests_*`, and a real quantity or build is the tool's filtered GameTest.
+
 ## Data and persistence
 
 Owner-file persistence uses the pure `StoreCodec<T>` contract (including bounded `Reader` decoding) and

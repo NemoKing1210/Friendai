@@ -1,0 +1,9 @@
+{
+  "name": "silence",
+  "access": "owner",
+  "event": "furnace finished smelting",
+  "replies": [
+    {"text": "[silent]", "tools": []}
+  ],
+  "expect": {"maxRequests": 1, "nothingSpoken": true, "maxClarifications": 0}
+}

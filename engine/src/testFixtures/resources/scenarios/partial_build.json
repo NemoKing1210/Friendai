@@ -1,0 +1,9 @@
+{
+  "name": "partial_build",
+  "access": "owner",
+  "event": "plan #7 build house failed: placed 12 of 25 blocks; missing 13 oak planks",
+  "replies": [
+    {"text": "I placed 12 of 25 blocks and still need 13 oak planks.", "tools": []}
+  ],
+  "expect": {"maxRequests": 1, "spokenContains": ["12 of 25"], "spokenNotContains": ["finished the house"], "maxClarifications": 0}
+}

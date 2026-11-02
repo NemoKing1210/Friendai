@@ -1,0 +1,10 @@
+{
+  "name": "interruption",
+  "access": "owner",
+  "playerSays": "Mine some coal.",
+  "replies": [
+    {"text": "", "tools": ["mine_blocks"]}
+  ],
+  "stopAfterFirstRequest": true,
+  "expect": {"maxRequests": 1, "nothingSpoken": true}
+}

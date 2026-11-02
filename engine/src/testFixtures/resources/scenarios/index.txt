@@ -12,3 +12,12 @@ trading_event_retry_cannot_create_budget.json
 trading_explicit_order_uses_bounded_tool.json
 trading_question_uses_knowledge_without_spending.json
 trading_stale_quote_requires_inspection.json
+verified_quantity_goal.json
+partial_build.json
+remedy_then_blocker.json
+interruption.json
+reload.json
+free_time_hour.json
+silence.json
+second_language.json
+menu_agreement.json

@@ -1,0 +1,12 @@
+{
+  "name": "remedy_then_blocker",
+  "access": "owner",
+  "playerSays": "Get me 3 iron ingots.",
+  "followUpEvent": "plan #3 obtain iron failed: no reachable iron ore after the bounded search; one remedy was already tried",
+  "replies": [
+    {"text": "", "tools": ["obtain_item"]},
+    {"text": "[silent]", "tools": []},
+    {"text": "I tried getting the iron, but none is reachable. Should I dig lower or wait?", "tools": []}
+  ],
+  "expect": {"maxRequests": 3, "toolsCalled": ["obtain_item"], "maxRepeatedToolCalls": 0, "maxClarifications": 1, "spokenContains": ["reachable"]}
+}
