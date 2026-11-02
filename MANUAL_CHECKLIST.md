@@ -92,7 +92,7 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 
 - [ ] Open the screen in both UI languages: no tab, label, tooltip or button clips at GUI scale 4.
 
-  The layout half of this line is automated: `./gradlew runClientGameTest` opens a real client and checks that every settings field and the companion menu fit in all eight languages at GUI scale 4. What it cannot check is what a person sees — keyboard-only navigation, a screen reader reading the controls, and contrast.
+  The layout, keyboard and contrast halves of this line are automated: `./gradlew runClientGameTest` opens a real client and checks that every settings field and the companion menu fit in all eight languages at GUI scale 4 and that Tab, the tab bar and Escape work without a mouse; `UiContrastTest` measures every colour pair the menu draws against the WCAG minimum. What remains for a person is a screen reader reading the controls, the mod running without YACL, a LAN host and a non-operator client.
 - [ ] Visit every tab: Provider, Companion, Chat, Planning, Tasks, World, Trading, Resources, Free time, Memory, Mining and Voice each open and keep their values.
 - [ ] Trigger a validation error.
 - [ ] Reset one option and undo it.
