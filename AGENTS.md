@@ -391,6 +391,14 @@ The mod writes a durable, structured log of what the brain and the task queue di
 | `diagnostics/diagnose-<UTC>/` | `/friendai diagnose` bundles: `summary.txt`, `log.txt`, `tasks.json`, `queue.txt`, `chat.txt` |
 | `README.md` | generated one-page schema, event table and `jq`/`grep` recipes |
 
+**Typical locations.** The folder is `<gameDir>/logs/friendai`, where `gameDir` is the instance directory the launcher uses; a modpack may point it anywhere, so `/friendai logs path` and the **Open log folder** button are authoritative:
+
+- Windows, official launcher: `%APPDATA%\.minecraft\logs\friendai`.
+- Windows, per-instance launchers: `%APPDATA%\PrismLauncher\instances\<instance>\logs\friendai`, `%APPDATA%\MultiMC\instances\<instance>\logs\friendai`, `C:\Users\<you>\curseforge\minecraft\Instances\<instance>\logs\friendai`.
+- macOS, official launcher: `~/Library/Application Support/minecraft/logs/friendai`.
+- macOS, per-instance launchers: `~/Library/Application Support/PrismLauncher/instances/<instance>/logs/friendai`, `~/Library/Application Support/multimc/instances/<instance>/logs/friendai`.
+- Dedicated server: `<server directory>/logs/friendai`, for example `C:\servers\minecraft\logs\friendai` on Windows or `/srv/minecraft/logs/friendai` on Linux. The client buttons open the client's folder, never the server's.
+
 **What a line is.** JSONL: one object per line, with a header (`"kind":"header"`) as line 1. The fields that matter when debugging are `seq`, `timeMillis`, `level`, `category`, `event`, `turn`/`plan`/`job`/`task`/`toolCall`, `cause`, `durationMs`, `msg`, `data` and `error`. `cause` is the `seq` of the record that caused this one, so an error is followed backwards to the turn or task that started it. A `.md` digest beside a closed file renders the same chain as prose; it is generated and safe to delete.
 
 **Detail levels.** `off` writes no files; `normal` (default) records metadata only; `detailed` adds prompt, reply and tool-result bodies after redaction; `trace` adds per-step detail. Configured API keys become `***` before any sink, on both the pipeline and the log4j bridge. `normal` is what a dedicated server runs: do not raise it to `detailed` on a server carrying other people's chat without their knowledge.
