@@ -1,16 +1,13 @@
 {
   "modmenu.nameTranslation.friendai": "Friendai",
   "modmenu.descriptionTranslation.friendai": "ШІ-компаньйон, з яким можна грати й розмовляти — у чаті чи голосом.",
-
   "friendai.error.config.unknown_provider": "Невідомий провайдер: %s",
   "friendai.error.access": "У вас немає доступу до цього.",
   "friendai.error.config.needs_base_url": "Для провайдера %s потрібна базова URL-адреса",
   "friendai.error.config.no_route": "Немає правила маршрутизації для моделі %s",
   "friendai.config.test.ok_tools": "З'єднання є: виклик інструментів працює",
   "friendai.config.test.ok_text": "З'єднання є, але модель відповіла текстом замість виклику інструмента",
-
   "friendai.error.config.profile_missing": "Профіль «%s» не знайдено",
-
   "friendai.error.llm.auth": "Не вдалося підключитися до провайдера: неправильний API-ключ.",
   "friendai.error.llm.rate_limit": "Провайдер обмежує кількість запитів, спробуйте трохи пізніше.",
   "friendai.error.llm.timeout": "Провайдер не відповів вчасно.",
@@ -21,7 +18,6 @@
   "friendai.error.config": "Помилка налаштувань: %s",
   "friendai.error.unknown": "Щось пішло не так, подробиці в журналі.",
   "friendai.protocol.version_mismatch": "Версії протоколу Friendai не збігаються. На сервері й клієнті має бути одна версія мода.",
-
   "entity.friendai.companion": "Компаньйон",
   "friendai.command.summoned": "%s тут.",
   "friendai.command.summon_other_dimension": "Ваш компаньйон в іншому вимірі. Скористайтеся пунктом «Телепортувати до мене» в меню компаньйона, щоб перенести його сюди.",
@@ -31,7 +27,6 @@
   "friendai.inventory.unavailable": "Інвентар компаньйона зараз відкрити неможливо.",
   "friendai.companion.died": "%s загинув. Викличте знову: /friendai summon",
   "friendai.companion.too_far": "Ваш компаньйон надто далеко, щоб вас почути.",
-
   "friendai.command.stopped": "Зупинено.",
   "friendai.local_order.follow": "Іду за вами.",
   "friendai.local_order.stay": "Залишаюся тут.",
@@ -114,7 +109,6 @@
   "friendai.command.place.source.structure": "споруда",
   "friendai.command.place.source.farm": "ферма",
   "friendai.command.place.source.mine": "шахта",
-
   "friendai.config.title": "Налаштування Friendai",
   "friendai.config.category.provider": "Провайдер",
   "friendai.config.category.companion": "Компаньйон",
@@ -165,13 +159,12 @@
   "friendai.config.voice.language": "Мова мовлення",
   "friendai.config.voice.device": "Мікрофон",
   "friendai.config.voice.device.default": "Системний за замовчуванням",
-
   "key.category.friendai.main": "Friendai",
   "key.friendai.push_to_talk": "Натисни, щоб говорити",
   "friendai.voice.hud.recording": "Запис…",
   "friendai.voice.hud.transcribing": "Розшифрування…",
-
-  "friendai.voice.stream_incomplete": "Відповідь обірвалася; продовження не надійшло.",  "friendai.voice.error.no_model": "Мовну модель не завантажено — Налаштування → Голос",
+  "friendai.voice.stream_incomplete": "Відповідь обірвалася; продовження не надійшло.",
+  "friendai.voice.error.no_model": "Мовну модель не завантажено — Налаштування → Голос",
   "friendai.voice.error.no_key": "Для розпізнавання мовлення не задано API-ключ.",
   "friendai.voice.error.no_folder": "Для розпізнавання мовлення не задано ідентифікатор теки Yandex.",
   "friendai.voice.error.unsupported_language": "Ця мова не підтримується вибраним провайдером мовлення.",
@@ -180,7 +173,6 @@
   "friendai.voice.error.auth": "Сервіс мовлення відхилив API-ключ.",
   "friendai.voice.error.quota": "Сервіс мовлення зайнятий або квоту вичерпано. Спробуйте пізніше.",
   "friendai.voice.error.network": "Не вдалося зв'язатися із сервісом мовлення.",
-
   "friendai.voice.chat_line": "[🎤 %s] %s",
   "friendai.voice.need_companion": "Спершу викличте компаньйона: /friendai summon",
   "friendai.voice.error.model_corrupt": "Файл моделі пошкоджено, спробуйте ще раз.",
@@ -277,10 +269,10 @@
   "friendai.menu.tab.tasks": "Завдання",
   "friendai.menu.tab.memory": "Пам'ять",
   "friendai.menu.tab.places": "Місця",
-
   "friendai.menu.tab.map": "Карта",
   "friendai.menu.map.empty": "Дослідженої місцевості ще немає.",
-  "friendai.menu.map.count": "%s клітинок · %s місць · %s доріг",  "friendai.menu.tab.log": "Журнал",
+  "friendai.menu.map.count": "%s клітинок · %s місць · %s доріг",
+  "friendai.menu.tab.log": "Журнал",
   "friendai.menu.tab.debug": "Налагодження",
   "friendai.menu.tab.appearance": "Вигляд",
   "friendai.menu.appearance.name": "Ім'я",
@@ -592,7 +584,6 @@
   "friendai.menu.places.error.ambiguous": "Кілька місць відповідають %s: %s.",
   "friendai.menu.places.error.name_taken": "«%s» уже є назвою іншого місця.",
   "friendai.menu.places.error.name_invalid": "Назва місця має містити від 1 до %s символів.",
-
   "friendai.mining.unsafe_support": "Я не можу добувати блок, на якому тримаюся сам або тримається маршрут.",
   "friendai.mining.lava_below": "Я не ламатиму %s: безпосередньо під ним лава.",
   "friendai.mining.server_protected": "%s захищено сервером (захист точки появи або правило світу).",
@@ -1025,5 +1016,7 @@
   "friendai.config.voice.field.model.tooltip": "Назва моделі цього провайдера, заповнена його типовим значенням. Хмарна мова оплачується за запити або символи; локальна точка доступу безкоштовна. Застосовується при збереженні.",
   "friendai.config.voice.field.voice.tooltip": "Голос цього провайдера з його списку; типовий вибрано заздалегідь. Хмарні голоси оплачуються за символи. Застосовується при збереженні.",
   "friendai.config.voice.field.voice_id.tooltip": "Ідентифікатор голосу з панелі провайдера. Обов'язковий для ElevenLabs; вільний текст. Хмарні голоси оплачуються за символи. Застосовується при збереженні.",
-  "friendai.config.voice.tts.speed.cloud.tooltip": "Як швидко говорить хмарний голос. Межі повзунка залежать від провайдера: 0.5–2.0, ElevenLabs 0.7–1.2, Yandex 0.1–3.0. Типово 1.0."
+  "friendai.config.voice.tts.speed.cloud.tooltip": "Як швидко говорить хмарний голос. Межі повзунка залежать від провайдера: 0.5–2.0, ElevenLabs 0.7–1.2, Yandex 0.1–3.0. Типово 1.0.",
+  "friendai.config.voice.tts.stream": "Speak while the reply is arriving",
+  "friendai.config.voice.tts.stream.tooltip": "When on, the first safe sentence is spoken before the model finishes. Turn it off to wait for the full reply; early speech is also withheld when safety cannot be decided. Default on. Applies on Save."
 }

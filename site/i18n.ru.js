@@ -417,6 +417,7 @@ const RU = {
   "Local Piper voices": "Локальные голоса Piper",
   "Five catalogued voices via sherpa-onnx.": "Пять голосов из каталога через sherpa-onnx.",
   "Ordered per stream and session, with one cut-off report.": "По порядку в потоке и сессии, с одним сообщением об обрыве.",
+  "The first safe sentence speaks before the provider finishes; the full reply stays authoritative.": "Первая безопасная фраза звучит до завершения ответа; полный ответ остаётся главным.",
   "OpenAI TTS": "OpenAI TTS",
   "Cloud speech.": "Облачная речь.",
   "ElevenLabs": "ElevenLabs",

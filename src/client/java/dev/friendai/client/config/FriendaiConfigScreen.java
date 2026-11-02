@@ -1992,6 +1992,12 @@ public final class FriendaiConfigScreen {
                 value -> tts.provider = value,
                 FriendaiConfigScreen::ttsProviderLabel);
         synthesis.add(ttsEnabled);
+        synthesis.add(booleanOption(
+                "friendai.config.voice.tts.stream",
+                "friendai.config.voice.tts.stream.tooltip",
+                true,
+                () -> client.voice.streamReplies,
+                value -> client.voice.streamReplies = value));
         synthesis.add(ttsProvider);
         ttsProvider.addListener((option, value) -> {
             if (!applying) {

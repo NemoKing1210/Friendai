@@ -1,16 +1,13 @@
 {
   "modmenu.nameTranslation.friendai": "Friendai",
   "modmenu.descriptionTranslation.friendai": "Um companheiro de IA com quem você pode jogar e conversar — por chat ou por voz.",
-
   "friendai.error.config.unknown_provider": "Provedor desconhecido: %s",
   "friendai.error.access": "Você não tem acesso a isso.",
   "friendai.error.config.needs_base_url": "O provedor %s precisa de uma URL base",
   "friendai.error.config.no_route": "Nenhuma regra de roteamento para o modelo %s",
   "friendai.config.test.ok_tools": "Conectado: a chamada de ferramentas funciona",
   "friendai.config.test.ok_text": "Conectado, mas o modelo respondeu com texto em vez de chamar a ferramenta",
-
   "friendai.error.config.profile_missing": "Perfil '%s' não encontrado",
-
   "friendai.error.llm.auth": "Não é possível conectar ao provedor: chave de API inválida.",
   "friendai.error.llm.rate_limit": "O provedor está limitando as requisições, tente novamente mais tarde.",
   "friendai.error.llm.timeout": "O provedor não respondeu a tempo.",
@@ -21,7 +18,6 @@
   "friendai.error.config": "Erro de configuração: %s",
   "friendai.error.unknown": "Algo deu errado, veja o log para mais detalhes.",
   "friendai.protocol.version_mismatch": "As versões do protocolo do Friendai não coincidem. O servidor e o cliente precisam da mesma versão do mod.",
-
   "entity.friendai.companion": "Companheiro",
   "friendai.command.summoned": "%s chegou.",
   "friendai.command.summon_other_dimension": "Seu companheiro está em outra dimensão. Use \"Teleportar até mim\" no menu do companheiro para trazê-lo para cá.",
@@ -31,7 +27,6 @@
   "friendai.inventory.unavailable": "Não é possível abrir o inventário do companheiro agora.",
   "friendai.companion.died": "%s morreu. Convoque novamente: /friendai summon",
   "friendai.companion.too_far": "Seu companheiro está longe demais para ouvir você.",
-
   "friendai.command.stopped": "Parado.",
   "friendai.local_order.follow": "Seguindo você.",
   "friendai.local_order.stay": "Ficando aqui.",
@@ -114,7 +109,6 @@
   "friendai.command.place.source.structure": "estrutura",
   "friendai.command.place.source.farm": "fazenda",
   "friendai.command.place.source.mine": "mina",
-
   "friendai.config.title": "Configurações do Friendai",
   "friendai.config.category.provider": "Provedor",
   "friendai.config.category.companion": "Companheiro",
@@ -165,13 +159,12 @@
   "friendai.config.voice.language": "Idioma da fala",
   "friendai.config.voice.device": "Microfone",
   "friendai.config.voice.device.default": "Padrão do sistema",
-
   "key.category.friendai.main": "Friendai",
   "key.friendai.push_to_talk": "Aperte para falar",
   "friendai.voice.hud.recording": "Gravando…",
   "friendai.voice.hud.transcribing": "Transcrevendo…",
-
-  "friendai.voice.stream_incomplete": "A resposta foi interrompida; o final não chegou.",  "friendai.voice.error.no_model": "Modelo de fala não baixado — Configurações → Voz",
+  "friendai.voice.stream_incomplete": "A resposta foi interrompida; o final não chegou.",
+  "friendai.voice.error.no_model": "Modelo de fala não baixado — Configurações → Voz",
   "friendai.voice.error.no_key": "Nenhuma chave de API definida para o reconhecimento de fala.",
   "friendai.voice.error.no_folder": "Nenhum ID de pasta do Yandex definido para o reconhecimento de fala.",
   "friendai.voice.error.unsupported_language": "Este idioma não é suportado pelo provedor de fala selecionado.",
@@ -180,7 +173,6 @@
   "friendai.voice.error.auth": "O serviço de fala rejeitou a chave de API.",
   "friendai.voice.error.quota": "O serviço de fala está ocupado ou a cota se esgotou. Tente novamente mais tarde.",
   "friendai.voice.error.network": "Não foi possível alcançar o serviço de fala.",
-
   "friendai.voice.chat_line": "[🎤 %s] %s",
   "friendai.voice.need_companion": "Convoque seu companheiro primeiro: /friendai summon",
   "friendai.voice.error.model_corrupt": "O arquivo do modelo está corrompido, tente novamente.",
@@ -277,10 +269,10 @@
   "friendai.menu.tab.tasks": "Tarefas",
   "friendai.menu.tab.memory": "Memória",
   "friendai.menu.tab.places": "Lugares",
-
   "friendai.menu.tab.map": "Mapa",
   "friendai.menu.map.empty": "Nenhum terreno explorado ainda.",
-  "friendai.menu.map.count": "%s células · %s locais · %s caminhos",  "friendai.menu.tab.log": "Registro",
+  "friendai.menu.map.count": "%s células · %s locais · %s caminhos",
+  "friendai.menu.tab.log": "Registro",
   "friendai.menu.tab.debug": "Depuração",
   "friendai.menu.tab.appearance": "Aparência",
   "friendai.menu.appearance.name": "Nome",
@@ -592,7 +584,6 @@
   "friendai.menu.places.error.ambiguous": "Vários lugares correspondem a %s: %s.",
   "friendai.menu.places.error.name_taken": "\"%s\" já dá nome a outro lugar.",
   "friendai.menu.places.error.name_invalid": "Um nome de lugar deve ter de 1 a %s caracteres.",
-
   "friendai.mining.unsafe_support": "Não posso minerar um bloco que me sustenta ou sustenta a rota.",
   "friendai.mining.lava_below": "Não vou quebrar %s: há lava logo abaixo.",
   "friendai.mining.server_protected": "%s está protegido pelo servidor (proteção do ponto de renascimento ou uma regra do mundo).",
@@ -629,9 +620,6 @@
   "friendai.menu.traders.submit": "Enviar",
   "friendai.menu.traders.wait": "Esperar",
   "friendai.menu.traders.barter": "Trocar",
-  "friendai.menu.skills.saved": "Habilidade salva.",
-  "friendai.menu.skills.invalid": "Não é possível aplicar esta alteração. Verifique permissões, limites e a versão atual.",
-  "friendai.menu.skills.exported": "Habilidade exportada.",
   "friendai.menu.skills.saved": "Habilidade salva.",
   "friendai.menu.skills.invalid": "Não é possível aplicar esta alteração. Verifique permissões, limites e a versão atual.",
   "friendai.menu.skills.exported": "Habilidade exportada.",
@@ -1028,5 +1016,7 @@
   "friendai.config.voice.field.model.tooltip": "Nome do modelo deste provedor, preenchido com o padrão. A fala na nuvem cobra por pedido ou caractere; um endpoint local é grátis. Aplica ao salvar.",
   "friendai.config.voice.field.voice.tooltip": "Voz deste provedor, da lista dele; a padrão vem selecionada. Vozes na nuvem cobram por caractere. Aplica ao salvar.",
   "friendai.config.voice.field.voice_id.tooltip": "ID de voz do painel do provedor. Obrigatório para ElevenLabs; texto livre. Vozes na nuvem cobram por caractere. Aplica ao salvar.",
-  "friendai.config.voice.tts.speed.cloud.tooltip": "Velocidade da voz na nuvem. Os limites do controle seguem o provedor: 0.5–2.0, ElevenLabs 0.7–1.2, Yandex 0.1–3.0. Padrão 1.0."
+  "friendai.config.voice.tts.speed.cloud.tooltip": "Velocidade da voz na nuvem. Os limites do controle seguem o provedor: 0.5–2.0, ElevenLabs 0.7–1.2, Yandex 0.1–3.0. Padrão 1.0.",
+  "friendai.config.voice.tts.stream": "Speak while the reply is arriving",
+  "friendai.config.voice.tts.stream.tooltip": "When on, the first safe sentence is spoken before the model finishes. Turn it off to wait for the full reply; early speech is also withheld when safety cannot be decided. Default on. Applies on Save."
 }
