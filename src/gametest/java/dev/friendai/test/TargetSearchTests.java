@@ -312,6 +312,49 @@ public final class TargetSearchTests {
         });
     }
 
+    @GameTest(maxTicks = 120)
+    public void aRememberedStructureIsAReusableTravelTarget(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        var owner = GameTestSupport.onlinePlayer(h, "structure-owner", 2, 2, 2, true)
+                .player();
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.setOwner(owner.getUUID());
+        companion.setFollowMode(false);
+        BlockPos at = companion.blockPosition();
+        GameTestSupport.runtime(h.getLevel().getServer())
+                .placeService()
+                .remember(
+                        companion,
+                        new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER),
+                        new PlaceValues(
+                                "structure village",
+                                PlaceKind.LANDMARK,
+                                "",
+                                h.getLevel().dimension().identifier().toString(),
+                                new Pos(at.getX(), at.getY(), at.getZ()),
+                                64,
+                                Set.of(),
+                                PlaceSource.STRUCTURE,
+                                owner.getUUID(),
+                                "seen by its marker blocks"),
+                        h.getLevel().getGameTime());
+        Result result = new Result();
+        companion.executionCoordinator().setEventSink(result);
+        var started = GameTestToolRegistry.create(companion, () -> 16, MemoryAccess.DISABLED)
+                .bind(companion)
+                .execute(
+                        structureCall("village"),
+                        new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
+        h.assertTrue(!started.error(), started.content());
+        h.succeedWhen(() -> {
+            h.assertTrue(result.status != null, "the remembered structure search should finish");
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
+            h.assertTrue(
+                    result.summary.contains("the place structure village") || result.summary.contains("found"),
+                    result.summary);
+        });
+    }
+
     private static ToolCall structureCall(String structure) {
         JsonObject args = new JsonObject();
         args.addProperty("structure", structure);
