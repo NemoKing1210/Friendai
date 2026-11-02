@@ -2,6 +2,7 @@ package dev.friendai.agent.recover;
 
 import dev.friendai.agent.goal.Goal;
 import dev.friendai.agent.goal.GoalBoard;
+import dev.friendai.agent.verify.LoopMetrics;
 import dev.friendai.execution.queue.GuardFacts;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -11,7 +12,8 @@ import java.util.Set;
 
 /**
  * Builds the extra text of a task or plan event ({@code facts:}, {@code unmet:}, {@code diagnosis:} and the
- * replan-budget notice) and keeps the owner's goal board in step: lessons from failures and the replan count.
+ * replan-budget notice) and keeps the owner's goal board in step: lessons from failures and the replan count. A
+ * remedy the goal already tried is dropped and counted in the owner's {@link LoopMetrics}.
  */
 public final class FailureHandler {
     static final String TRIED = "tried: ";
@@ -19,9 +21,11 @@ public final class FailureHandler {
             "replan budget spent: tell the player what is blocking you and ask for help";
 
     private final RecoveryAdvisor advisor;
+    private final LoopMetrics metrics;
 
-    public FailureHandler(RecoveryAdvisor advisor) {
+    public FailureHandler(RecoveryAdvisor advisor, LoopMetrics metrics) {
         this.advisor = advisor;
+        this.metrics = metrics;
     }
 
     /**
@@ -42,6 +46,9 @@ public final class FailureHandler {
                 .filter(l -> l.startsWith(TRIED))
                 .forEach(l -> tried.add(l.substring(TRIED.length()))));
         Diagnosis diagnosis = advisor.diagnose(tool, failureText, tried);
+        for (int i = 0; i < diagnosis.repeatedRemedies(); i++) {
+            metrics.remedyRepeated();
+        }
         List<String> parts = new ArrayList<>();
         if (!factsLine.isBlank()) {
             parts.add(factsLine);

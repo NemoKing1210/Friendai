@@ -5,9 +5,12 @@ import java.util.List;
 /**
  * @param detail a short plain description of the cause, safe to store as a lesson
  * @param remedies things not yet tried, phrased as tool hints for the model
+ * @param repeatedRemedies how many of this rule's remedies were dropped because the goal already tried them; the
+ *     callers that own a {@code LoopMetrics} count them there
  * @param needsPlayer true when nothing the companion can do alone is left
  */
-public record Diagnosis(FailureKind kind, String detail, List<String> remedies, boolean needsPlayer) {
+public record Diagnosis(
+        FailureKind kind, String detail, List<String> remedies, int repeatedRemedies, boolean needsPlayer) {
     public Diagnosis {
         remedies = List.copyOf(remedies);
     }

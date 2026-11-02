@@ -5,6 +5,7 @@ import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.LongPredicate;
 import java.util.function.UnaryOperator;
@@ -14,9 +15,14 @@ import java.util.function.UnaryOperator;
  * the companion entity and restarts. Every mutation saves. Server thread only.
  */
 public final class FreeTimeService {
+    /** The summary recorded when a saved shift's execution plan did not come back. */
+    static final String ORPHANED_SHIFT = "the saved work plan was not restored";
+
     private final FreeTimeRepository repository;
     private final Map<UUID, FreeTime> states = new HashMap<>();
     private final Map<UUID, Long> lastEnd = new HashMap<>();
+    /** End reports the driver has not said yet, written when a restored shift could not be resumed. */
+    private final Map<UUID, String> pendingReports = new HashMap<>();
 
     public FreeTimeService(FreeTimeRepository repository) {
         this.repository = repository;
@@ -65,8 +71,7 @@ public final class FreeTimeService {
     public FreeTime stop(UUID owner, String reason, long now, ShiftStopWhen stopWhen) {
         lastEnd.put(owner, now);
         return update(owner, s -> {
-            List<ShiftRecord> history =
-                    s.shift() == null ? s.history() : withRecord(s, false, reason, now, stopWhen);
+            List<ShiftRecord> history = s.shift() == null ? s.history() : withRecord(s, false, reason, now, stopWhen);
             return copy(s, false, s.origin(), "", 0, null, false, s.nextShiftId(), history, s.cooldownUntil());
         });
     }
@@ -233,8 +238,17 @@ public final class FreeTimeService {
         if (current.shift() == null
                 || current.shift().planId() != 0
                         && restoredPlanExists.test(current.shift().planId())) return current;
-        return finishShift(
-                owner, false, "the saved work plan was not restored", nowMillis, ShiftStopWhen.WORK_CONFLICTS);
+        Shift orphan = current.shift();
+        String summary = ORPHANED_SHIFT;
+        FreeTime ended = finishShift(owner, false, summary, nowMillis, ShiftStopWhen.WORK_CONFLICTS);
+        // The driver says this once the companion is loaded, so a restart still reports what it gave up on.
+        pendingReports.put(owner, FreeTimeText.endReport(orphan, false, summary, ShiftStopWhen.WORK_CONFLICTS));
+        return ended;
+    }
+
+    /** The report for a shift ended during restore, taken once so it is said at most once. */
+    public Optional<String> takePendingReport(UUID owner) {
+        return Optional.ofNullable(pendingReports.remove(owner));
     }
 
     private static List<ShiftRecord> withRecord(

@@ -62,6 +62,32 @@ class RecoveryAdvisorTest {
     }
 
     @Test
+    void aTriedRemedyIsCountedAsRepeatedAndAFreshOneIsNot() {
+        Diagnosis fresh =
+                advisor.diagnose("build_structure", "missing materials: 3 × minecraft:iron_ingot", Set.of());
+        assertEquals(0, fresh.repeatedRemedies(), "nothing was tried, so nothing repeated");
+
+        Diagnosis repeated = advisor.diagnose(
+                "build_structure",
+                "missing materials: 3 × minecraft:iron_ingot",
+                Set.of("obtain_item minecraft:iron_ingot"));
+        assertEquals(1, repeated.repeatedRemedies());
+
+        Diagnosis twice = advisor.diagnose(
+                "go_to", "can't reach 1 2 3", Set.of("go_to a closer open spot first", "try a different target"));
+        assertEquals(2, twice.repeatedRemedies(), "each dropped remedy is one repeat");
+    }
+
+    @Test
+    void aBuildRemedyIsMatchedAfterItsTriedWording() {
+        Diagnosis d = advisor.diagnose(
+                "build_structure", "4 65 -7 is inside the house place \"home\" (r=8)", Set.of("build outside home"));
+        assertEquals(1, d.repeatedRemedies(), "the lesson stored the build wording, so it must be matched");
+        assertTrue(d.remedies().isEmpty());
+        assertTrue(d.needsPlayer());
+    }
+
+    @Test
     void protectedAreaNeedsThePlayer() {
         Diagnosis d = advisor.diagnose("build_structure", "10 64 -3 is protected", Set.of());
         assertEquals(FailureKind.FORBIDDEN, d.kind());

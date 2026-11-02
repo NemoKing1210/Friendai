@@ -191,6 +191,7 @@ public final class RecoveryAdvisor {
                 detail = "missing " + count + " " + m.group(2);
             }
             List<String> remedies = new ArrayList<>();
+            int repeated = 0;
             for (String template : rule.remedies()) {
                 String remedy = template;
                 if (m.groupCount() >= 2 && rule.kind() == FailureKind.MISSING_ITEM && rule.detailGroup() == 0) {
@@ -202,19 +203,22 @@ public final class RecoveryAdvisor {
                                 remedy.replace("{" + group + "}", m.group(group).strip());
                     }
                 }
-                if (!alreadyTried.contains(remedy)) {
+                // Word it the way the goal's lessons store it before comparing, or a build would be told to do
+                // exactly what it already tried.
+                if (buildTool(tool) && remedy.startsWith("mine outside ")) {
+                    remedy = "build" + remedy.substring("mine".length());
+                }
+                if (alreadyTried.contains(remedy)) {
+                    repeated++;
+                } else {
                     remedies.add(remedy);
                 }
             }
-            if (buildTool(tool)) {
-                remedies.replaceAll(remedy ->
-                        remedy.startsWith("mine outside ") ? "build" + remedy.substring("mine".length()) : remedy);
-            }
             boolean exhausted = !rule.remedies().isEmpty() && remedies.isEmpty();
             boolean needsPlayer = rule.ownerOnly() || exhausted;
-            return new Diagnosis(rule.kind(), detail, remedies, needsPlayer);
+            return new Diagnosis(rule.kind(), detail, remedies, repeated, needsPlayer);
         }
-        return new Diagnosis(FailureKind.UNKNOWN, "unclear cause", List.of(), false);
+        return new Diagnosis(FailureKind.UNKNOWN, "unclear cause", List.of(), 0, false);
     }
 
     private static boolean buildTool(String tool) {

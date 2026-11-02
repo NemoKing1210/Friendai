@@ -2,6 +2,7 @@ package dev.friendai.agent.autonomy;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -140,7 +141,47 @@ class FreeTimeServiceTest {
         assertEquals(
                 "the saved work plan was not restored",
                 reconciled.history().get(0).summary());
+        assertEquals(ShiftStopWhen.WORK_CONFLICTS, reconciled.history().get(0).stopWhen());
         assertEquals(200, reconciled.history().get(0).endedMillis());
+    }
+
+    @Test
+    void aRunningShiftSurvivesARestartWithItsPurposeAndRemainingBudget() {
+        service.start(OWNER, FreeTime.Origin.IDLE, "focus on iron", 600_000);
+        service.beginShift(OWNER, "mine iron", List.of(), "", NeedKind.GEAR, false, 600_000, 900_000);
+        service.linkPlan(OWNER, 42);
+
+        FreeTimeService restarted = new FreeTimeService(repository);
+        Shift restored = restarted.reconcileRestoredPlan(OWNER, Set.of(42L)::contains, 840_000).shift();
+
+        assertNotNull(restored, "a shift whose plan came back is resumed, not dropped");
+        assertEquals(42, restored.planId());
+        assertEquals("gearing up", restored.purpose());
+        assertEquals("5 min", restored.budget());
+        assertEquals(ShiftStopWhen.DONE, restored.stopWhen());
+        assertEquals(60_000L, restored.deadlineMillis() - 840_000, "only the budget it had left remains");
+        assertEquals("focus on iron", restarted.state(OWNER).wish());
+        assertTrue(restarted.takePendingReport(OWNER).isEmpty(), "a resumed shift has nothing to report");
+    }
+
+    @Test
+    void aRestoredShiftWhosePlanIsGoneEndsAsAWorkConflictAndSaysWhy() {
+        service.start(OWNER, FreeTime.Origin.IDLE, "", 600_000);
+        service.beginShift(OWNER, "mine iron", List.of(), "", NeedKind.GEAR, false, 600_000, 900_000);
+        service.linkPlan(OWNER, 42);
+
+        FreeTimeService restarted = new FreeTimeService(repository);
+        FreeTime ended = restarted.reconcileRestoredPlan(OWNER, ignored -> false, 840_000);
+
+        assertNull(ended.shift(), "the recorded shift is not resumed honestly");
+        ShiftRecord record = ended.history().getFirst();
+        assertEquals(ShiftStopWhen.WORK_CONFLICTS, record.stopWhen());
+        assertEquals(FreeTimeService.ORPHANED_SHIFT, record.summary());
+        assertEquals(
+                "Free time: gearing up — the saved work plan was not restored;"
+                        + " the work no longer fitted the queue.",
+                restarted.takePendingReport(OWNER).orElseThrow());
+        assertTrue(restarted.takePendingReport(OWNER).isEmpty(), "the report is said once");
     }
 
     @Test

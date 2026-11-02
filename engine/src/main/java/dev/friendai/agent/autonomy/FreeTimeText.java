@@ -17,12 +17,33 @@ public final class FreeTimeText {
                 + (shift == null
                         ? "between activities"
                         : "current activity: " + shift.goal() + " (purpose: " + shift.purpose() + "; budget: "
-                                + shift.budget() + "; stops when " + shift.stopWhen().phrase() + ")");
+                                + shift.budget() + "; stops when "
+                                + shift.stopWhen().phrase() + ")");
     }
 
     /** The audit's note for a shift that ended for a reason other than its own work finishing, or empty. */
     public static String stopNote(ShiftRecord record) {
-        return record.stopWhen() == ShiftStopWhen.DONE ? "" : " [" + record.stopWhen().name() + "]";
+        return record.stopWhen() == ShiftStopWhen.DONE
+                ? ""
+                : " [" + record.stopWhen().name() + "]";
+    }
+
+    /**
+     * One short English line for the owner when a shift ends: what it was for, what it got done and which stop
+     * condition fired. The driver says it through the free-time speech path, so an absent owner hears it on return.
+     */
+    public static String endReport(Shift shift, boolean success, String summary, ShiftStopWhen stopWhen) {
+        ShiftStopWhen stop = stopWhen == null ? ShiftStopWhen.DONE : stopWhen;
+        String purpose = shift == null ? ShiftContract.UNNAMED : shift.purpose();
+        String done = summary == null || summary.isBlank()
+                ? (success ? "done" : "nothing came of it")
+                : FreeTime.cut(summary.strip(), 160);
+        StringBuilder line =
+                new StringBuilder("Free time: ").append(purpose).append(" — ").append(done);
+        if (!done.equals(stop.phrase())) {
+            line.append("; ").append(stop.phrase());
+        }
+        return line.append('.').toString();
     }
 
     /** The last shifts, newest first, one short line each. */

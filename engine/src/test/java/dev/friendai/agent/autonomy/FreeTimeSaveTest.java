@@ -37,6 +37,40 @@ class FreeTimeSaveTest {
     }
 
     @Test
+    void aRunningShiftKeepsItsPurposeBudgetAndRemainingTimeAcrossARestart() {
+        var shift = new Shift(
+                7,
+                "mine iron",
+                List.of("has 6 iron_ore"),
+                "need a pickaxe",
+                42,
+                600_000,
+                1_800_000,
+                false,
+                NeedKind.GEAR);
+        var state = new FreeTime(
+                true,
+                FreeTime.Origin.IDLE,
+                "focus on iron",
+                500_000,
+                shift,
+                false,
+                8,
+                List.of(),
+                List.of(),
+                Map.of(),
+                List.of());
+
+        Shift loaded = FreeTimeSave.decode(FreeTimeSave.encode(state)).orElseThrow().shift();
+
+        assertEquals("gearing up", loaded.purpose());
+        assertEquals("20 min", loaded.budget());
+        assertEquals(ShiftStopWhen.DONE, loaded.stopWhen());
+        assertEquals(42, loaded.planId());
+        assertEquals(1_200_000L, loaded.deadlineMillis() - 600_000L, "the same deadline keeps the remaining budget");
+    }
+
+    @Test
     void offRoundTrips() {
         assertEquals(
                 FreeTime.OFF,

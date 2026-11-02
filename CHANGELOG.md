@@ -6,7 +6,14 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
-## [0.153.0] - 2026-11-02
+## [0.154.0] - 2026-11-02
+
+### Changed
+
+- Free time survives a restart: a shift keeps its purpose, budget and remaining time, and says one line when it ends — what it was for, what it got done and why it stopped. A shift whose plan did not come back ends as a work conflict instead of vanishing.
+- After a failed attempt the companion no longer re-offers the remedy it already tried: the repeated-remedy check now matches the remedy wording it would actually use, so it moves to a different approach or names the blocker.
+
+ - 2026-11-02
 
 ### Added
 

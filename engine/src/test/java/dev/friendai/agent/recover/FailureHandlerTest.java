@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import dev.friendai.agent.goal.Criterion;
 import dev.friendai.agent.goal.GoalBoard;
 import dev.friendai.agent.goal.GoalStatus;
+import dev.friendai.agent.verify.LoopMetrics;
 import dev.friendai.execution.queue.Guard;
 import dev.friendai.execution.queue.GuardFacts;
 import java.util.List;
@@ -15,7 +16,8 @@ import org.junit.jupiter.api.Test;
 
 class FailureHandlerTest {
     private static final String MISSING = "missing materials: 3 × minecraft:iron_ingot";
-    private final FailureHandler handler = new FailureHandler(new RecoveryAdvisor());
+    private final LoopMetrics metrics = new LoopMetrics();
+    private final FailureHandler handler = new FailureHandler(new RecoveryAdvisor(), metrics);
 
     private static GuardFacts logs(int count) {
         return new GuardFacts() {
@@ -81,6 +83,33 @@ class FailureHandlerTest {
         assertTrue(lessons.contains("missing 3 minecraft:iron_ingot"), lessons.toString());
         assertTrue(lessons.contains("tried: obtain_item minecraft:iron_ingot"), lessons.toString());
         assertEquals(2, lessons.size(), "a repeated failure adds each lesson once");
+    }
+
+    @Test
+    void aRepeatedRemedyIncrementsTheLoopCounterOncePerRepeat() {
+        GoalBoard board = boardWithPlan(3, 7);
+        handler.onFailure(board, 7, "build_structure", MISSING, "");
+        assertTrue(metrics.summary().contains("0 repeated remedies"), metrics.summary());
+
+        handler.onFailure(board, 7, "build_structure", MISSING, "");
+        assertTrue(metrics.summary().contains("1 repeated remedies"), metrics.summary());
+
+        handler.onFailure(board, 7, "build_structure", MISSING, "");
+        assertTrue(metrics.summary().contains("2 repeated remedies"), "each repeat counts: " + metrics.summary());
+    }
+
+    @Test
+    void aBuildRemedyStoredAsALessonIsCountedWhenOfferedAgain() {
+        GoalBoard board = boardWithPlan(3, 7);
+        String place = "4 65 -7 is inside the house place \"home\" (r=8)";
+        String first = handler.onFailure(board, 7, "build_structure", place, "");
+        assertTrue(first.contains("try: build outside home"), first);
+        assertTrue(metrics.summary().contains("0 repeated remedies"), metrics.summary());
+
+        String second = handler.onFailure(board, 7, "build_structure", place, "");
+        assertFalse(second.contains("try: build outside home"), "the same build is not offered twice: " + second);
+        assertTrue(second.contains("ask the player for help"), second);
+        assertTrue(metrics.summary().contains("1 repeated remedies"), metrics.summary());
     }
 
     @Test

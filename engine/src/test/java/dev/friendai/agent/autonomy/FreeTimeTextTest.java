@@ -54,6 +54,36 @@ class FreeTimeTextTest {
     }
 
     @Test
+    void theEndReportNamesThePurposeWhatItGotDoneAndTheStopCondition() {
+        var shift = new Shift(1, "mine iron", List.of(), "", 42, 1000, 301_000, false, NeedKind.GEAR);
+        assertEquals(
+                "Free time: gearing up — mined 6 iron ore; the work finished.",
+                FreeTimeText.endReport(shift, true, "mined 6 iron ore", ShiftStopWhen.DONE));
+        assertEquals(
+                "Free time: gearing up — the queue already holds mine_blocks iron_ore;"
+                        + " the work no longer fitted the queue.",
+                FreeTimeText.endReport(
+                        shift, false, "the queue already holds mine_blocks iron_ore", ShiftStopWhen.WORK_CONFLICTS));
+        assertEquals(
+                "Free time: gearing up — ran out of time; the shift's budget ran out.",
+                FreeTimeText.endReport(shift, false, "ran out of time", ShiftStopWhen.BUDGET_SPENT));
+    }
+
+    @Test
+    void aReportDoesNotRepeatTheStopWhenTheReasonIsTheSame() {
+        var shift = new Shift(1, "mine iron", List.of(), "", 42, 1000, 301_000, false, NeedKind.GEAR);
+        assertEquals(
+                "Free time: gearing up — the owner came back.",
+                FreeTimeText.endReport(shift, false, "the owner came back", ShiftStopWhen.OWNER_BACK));
+        assertEquals(
+                "Free time: gearing up — done; the work finished.",
+                FreeTimeText.endReport(shift, true, "", ShiftStopWhen.DONE));
+        assertEquals(
+                "Free time: gearing up — nothing came of it; the work finished.",
+                FreeTimeText.endReport(shift, false, "", ShiftStopWhen.DONE));
+    }
+
+    @Test
     void recentShiftsAreShortLines() {
         var state = new FreeTime(
                 true,

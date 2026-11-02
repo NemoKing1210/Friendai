@@ -919,8 +919,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
     private final class AgentEvents {
         private final UUID owner;
         private final CompanionEntity companion;
-        private final dev.friendai.agent.recover.FailureHandler handler =
-                new dev.friendai.agent.recover.FailureHandler(new dev.friendai.agent.recover.RecoveryAdvisor());
+        private final dev.friendai.agent.recover.FailureHandler handler;
         private dev.friendai.agent.verify.WorldSnapshot last;
 
         private final CompanionSession session;
@@ -929,6 +928,11 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
             this.owner = owner;
             this.companion = companion;
             this.session = session;
+            // The coordinator owns the counters this handler feeds: a repeated remedy shows up in the owner's
+            // debug-log loop window, not in a private tally nobody reads.
+            this.handler = new dev.friendai.agent.recover.FailureHandler(
+                    new dev.friendai.agent.recover.RecoveryAdvisor(),
+                    companion.executionCoordinator().loopMetrics());
             this.last = OutcomeFacts.snapshot(companion);
         }
 
