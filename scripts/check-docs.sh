@@ -1,19 +1,20 @@
 #!/bin/sh
-# Checks the repository guides for internal links that no longer resolve.
+# Checks the repository guides for internal links and tables that no longer hold together.
 #
 #   scripts/check-docs.sh [file...]
 #
-# Defaults to AGENTS.md, ARCHITECTURE.md, CONTRIBUTING.md, README.md and MANUAL_CHECKLIST.md. Every
-# relative link must point at an existing path, and every #anchor must match a heading of its file
-# (GitHub slug rules: lowercase, punctuation dropped, spaces turned into hyphens). External links are
-# not fetched: CI has no network dependency, and a moved web page is not this repository's problem.
+# Defaults to AGENTS.md, ARCHITECTURE.md, CONTRIBUTING.md, README.md, MANUAL_CHECKLIST.md and the pull
+# request template. Every relative link must point at an existing path, every #anchor must match a
+# heading of its file (GitHub slug rules: lowercase, punctuation dropped, spaces turned into hyphens),
+# and every table row must have the same number of cells as its header. External links are not
+# fetched: CI has no network dependency, and a moved web page is not this repository's problem.
 set -eu
 
 root=$(cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$root"
 
 if [ "$#" -eq 0 ]; then
-    set -- AGENTS.md ARCHITECTURE.md CONTRIBUTING.md README.md MANUAL_CHECKLIST.md
+    set -- AGENTS.md ARCHITECTURE.md CONTRIBUTING.md README.md MANUAL_CHECKLIST.md .github/PULL_REQUEST_TEMPLATE.md
 fi
 
 errors=$(mktemp)
@@ -76,10 +77,31 @@ for file in "$@"; do
             echo "check-docs: $file: '#$anchor' matches no heading in ${path:-$file}" >>"$errors"
         fi
     done
+
+    # A row whose cell count differs from its header shifts every column after it. Escaped pipes
+    # belong to the cell text, and a fenced block is not a table even when a diagram starts with one.
+    awk -v name="$file" '
+        function cells(s,   t) {
+            t = s
+            gsub(/\\\|/, "", t)
+            return gsub(/\|/, "|", t) - 1
+        }
+        /^[[:space:]]*```/ { fenced = !fenced; open = 0; next }
+        fenced { next }
+        /^[[:space:]]*\|/ {
+            n = cells($0)
+            if (!open) { columns = n; open = 1; next }
+            if (n != columns) {
+                printf "check-docs: %s:%d: table row has %d cells, header has %d\n", name, FNR, n, columns
+            }
+            next
+        }
+        { open = 0 }
+    ' "$file" >>"$errors"
 done
 
 if [ -s "$errors" ]; then
     cat "$errors" >&2
     exit 1
 fi
-printf 'check-docs: %s file(s) checked, all internal links resolve\n' "$#"
+printf 'check-docs: %s file(s) checked, links resolve and tables are well formed\n' "$#"

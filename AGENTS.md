@@ -10,7 +10,7 @@ The mod is **not client-only**: the server owns the companion entity, the brain,
 
 **Changing this guide is its own docs commit.** A rule change needs the maintainer's agreement, a `docs:` commit that says why, and no code riding along; never edit a rule to match a shortcut you just took.
 
-**The guide is checked.** `scripts/check-docs.sh` fails on a relative link to a missing path and on a `#anchor` that no heading in that file produces; CI's `Docs links` job runs it and `CI gate` requires that job. Run it after you rename a heading, move a file or add a link — a guide that points at a file that no longer exists misleads every session that loads it.
+**The guide is checked.** `scripts/check-docs.sh` fails on a relative link to a missing path, on a `#anchor` that no heading in that file produces, and on a table row whose cell count differs from its header's; CI's `Docs links` job runs it and `CI gate` requires that job. Run it after you rename a heading, move a file, add a link or edit a table — a guide that points at a file that no longer exists, or a table whose columns have shifted, misleads every session that loads it.
 
 **Orientation for a new agent:**
 
@@ -153,7 +153,7 @@ The first build downloads Minecraft and takes minutes; later builds take seconds
 | `build.gradle`, `engine/build.gradle`, `settings.gradle`, `gradle.properties` | Loom + engine setup, dependencies, and all versions including `mod_version`. |
 | `gradle/` | Wrapper. |
 | `.gitattributes`, `.editorconfig` | Line endings and editor defaults: text files are stored and checked out with LF, `*.bat`/`*.cmd` with CRLF, and Markdown keeps trailing spaces. Do not change them to "fix" a Windows checkout; a CRLF rewrite makes the whole tree look modified. |
-| `scripts/` | Maintenance scripts: `check-docs.sh` (guide links and anchors, run in CI), `check-release.sh`, `run-gametest-shard.sh`, `setup-branch-protection.sh`. |
+| `scripts/` | Maintenance scripts: `check-docs.sh` (guide links, anchors and table shape, run in CI), `check-release.sh`, `run-gametest-shard.sh`, `setup-branch-protection.sh`. |
 | `.github/workflows/` | CI: unit tests, GameTests, build, commit lint, release. |
 | `.githooks/` | Local `commit-msg` hook mirroring commitlint. Enable with `git config core.hooksPath .githooks`. |
 | `docs/superpowers/{specs,plans}/` | Local design specs and implementation plans. **Git-ignored**; read for context, never commit. |
@@ -288,7 +288,7 @@ An agent slows itself down by running Gradle after every edit: a unit run costs 
 ### CI checks and red runs
 
 - **The required checks are `CI gate` and `Commit lint gate`.** `CI gate` runs the unit suites, the GameTest shards, `spotlessCheck`, packaging, `verifyGametestShards` and the `Docs links` job; `Commit lint gate` checks the commits and the PR title. Nothing merges on a red or pending gate.
-- **The guides are checked too.** `Docs links` runs `scripts/check-docs.sh`: a relative link to a missing path, or a `#anchor` no heading produces, fails the job — fix the link or the heading, never the check. `Workflow lint` also runs `shellcheck` over `scripts/*.sh`.
+- **The guides are checked too.** `Docs links` runs `scripts/check-docs.sh`: a relative link to a missing path, a `#anchor` no heading produces, or a table row with the wrong cell count fails the job — fix the link, the heading or the table, never the check. `Workflow lint` also runs `shellcheck` over `scripts/*.sh`.
 - **A red GameTest shard names its class.** The suite runs as a matrix of shards and `scripts/run-gametest-shard.sh` boots one class per server, so the job name tells you which class to reproduce locally with that class's glob. The shard map is `.github/gametest-shards.json`.
 - **The log is an artifact.** A failing shard uploads `build/gametest-shards/<class>.log`, which holds the `TaskTrace` timeline of a flaky or hanging test. Read it before changing code.
 - **The nightly workflow is the only cross-class run.** `.github/workflows/nightly.yml` runs the whole suite in one server every night; a failure that appears only there is a shared-world or timing signal, not a reason to widen your own test scope.
