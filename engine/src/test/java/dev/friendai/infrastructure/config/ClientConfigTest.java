@@ -176,6 +176,21 @@ class ClientConfigTest {
     }
 
     @Test
+    void anUnknownLocalSttModelIsPreservedNotRewrittenToBase() {
+        ClientConfig c = ClientConfig.defaults();
+        c.voice.stt.local.model = "parakeet-v3";
+        c.validate();
+        assertEquals("parakeet-v3", c.voice.stt.local.model);
+        ConfigStore<ClientConfig> store = new ConfigStore<>(
+                dir.resolve("unknown-model.json"),
+                ClientConfig.class,
+                ClientConfig::defaults,
+                ClientConfig.CURRENT_VERSION);
+        store.save(c);
+        assertEquals("parakeet-v3", store.load().voice.stt.local.model);
+    }
+
+    @Test
     void knownLocalVoiceIsKept() {
         ClientConfig c = ClientConfig.defaults();
         c.voice.tts.local.voice = "en_GB-alba-medium";
