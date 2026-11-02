@@ -308,6 +308,75 @@ public class SocialOpeningTests {
     }
 
     /**
+     * A fresh Russian owner must never receive the invented cave: with no happenings and an empty book, the only
+     * topic available is a neutral question from the bank, and no fabricated recollection may reach the request.
+     */
+    @GameTest(maxTicks = 400)
+    public void aFreshRussianOwnerGetsNoInventedMemory(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        ServerRuntime runtime = GameTestSupport.runtime(h.getLevel().getServer());
+        runtime.memory().book(owner.getUUID()).ensurePlayer(owner.getUUID(), "social-russian");
+        runtime.memory().book(owner.getUUID()).setOwnerLanguage(owner.getUUID(), "Russian");
+        Script script = new Script();
+        runtime.sessions().setGatewayOverride(owner.getUUID(), script);
+        CompanionManager.get(h.getLevel().getServer()).summon(owner);
+
+        h.runAfterDelay(160, () -> {
+            List<String> openings = socialOpenings(script);
+            h.assertFalse(openings.isEmpty(), "an empty book still allows a neutral question");
+            for (String opening : openings) {
+                h.assertFalse(opening.contains("cave"), "no invented cave in the request: " + opening);
+                h.assertFalse(opening.contains("пещер"), "no invented cave in the request: " + opening);
+                h.assertFalse(opening.contains("вспоминаю"), "no fabricated recollection: " + opening);
+                h.assertFalse(opening.contains("копали"), "no fabricated shared work: " + opening);
+                h.assertTrue(
+                        opening.contains("Topic:") && opening.contains("?"),
+                        "the line must be a neutral question, not a statement: " + opening);
+            }
+            h.succeed();
+        });
+    }
+
+    /**
+     * A fact the owner stated is said back with its source named. The companion may repeat what it was told; it may
+     * not present that as something it witnessed.
+     */
+    @GameTest(maxTicks = 400)
+    public void anOwnerStatementIsAttributedNotWitnessed(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        ServerRuntime runtime = GameTestSupport.runtime(h.getLevel().getServer());
+        runtime.memory()
+                .book(owner.getUUID())
+                .addFact(
+                        new dev.friendai.features.memory.Subject.Player(owner.getUUID()),
+                        dev.friendai.features.memory.Category.PREFERENCE,
+                        "I like building with oak",
+                        owner.getUUID(),
+                        "social-owner",
+                        0,
+                        dev.friendai.features.memory.MemoryLimits.DEFAULTS);
+        Script script = new Script();
+        runtime.sessions().setGatewayOverride(owner.getUUID(), script);
+        CompanionManager.get(h.getLevel().getServer()).summon(owner);
+
+        h.runAfterDelay(160, () -> {
+            List<String> openings = socialOpenings(script);
+            h.assertValueEqual(
+                    openingsAbout(openings, "You told me earlier: I like building with oak"),
+                    1,
+                    "the owner's own words must be attributed, openings: " + openings);
+            for (String opening : openings) {
+                h.assertFalse(
+                        opening.contains("we like building with oak"),
+                        "the companion must not claim the owner's preference as shared experience: " + opening);
+            }
+            h.succeed();
+        });
+    }
+
+    /**
      * The social openings that actually reached a turn, one entry per posted line. Only the newest message of a
      * request is that turn's event batch; the earlier ones are history and would repeat a line already counted.
      */

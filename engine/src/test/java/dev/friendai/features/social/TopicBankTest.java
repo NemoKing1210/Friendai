@@ -94,4 +94,46 @@ class TopicBankTest {
             }
         }
     }
+
+    /** The shape the owner reported: a past event or an unseen state stated as fact. */
+    private static final List<String> INVENTED_MEMORY_SHAPES = List.of(
+            "we dug",
+            "we built",
+            "i remember",
+            "i keep thinking about",
+            "taller than i",
+            "вспоминаю",
+            "копали",
+            "выше, чем",
+            "erinnere",
+            "gegraben",
+            "als ich dachte",
+            "repense",
+            "creusé",
+            "plus grands que je",
+            "sigo pensando",
+            "cavamos",
+            "más altos de lo",
+            "ainda penso",
+            "escavamos",
+            "maiores do que",
+            "згадую",
+            "вищі, ніж",
+            "想起",
+            "挖过",
+            "还要高");
+
+    @Test
+    void everyOpenerIsANeutralQuestionWithNoStatedMemory() {
+        for (String code : CODES) {
+            for (String opener : TopicBank.forLanguage(code)) {
+                assertTrue(TopicBank.asks(opener), code + " opener is not a question: " + opener);
+                assertEquals(1, questionMarks(opener), code + " opener must ask exactly one question: " + opener);
+                String lower = opener.toLowerCase(java.util.Locale.ROOT);
+                for (String shape : INVENTED_MEMORY_SHAPES) {
+                    assertFalse(lower.contains(shape), code + " opener states an unobserved memory: " + opener);
+                }
+            }
+        }
+    }
 }

@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.159.1] - 2026-11-02
+
+### Fixed
+
+- The companion no longer invents shared memories when it starts a conversation: its small talk is now a neutral question about your plans, preferences or work, and a fact you told it is repeated with the source named instead of being presented as something you did together.
+
 ## [0.159.0] - 2026-11-02
 
 ### Fixed

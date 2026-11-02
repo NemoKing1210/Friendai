@@ -248,8 +248,15 @@ events the server already receives (the advancement rides a one-line mixin becau
 the owner is near enough to hear it, in the same dimension, not in a fight, not hurt and not holding an open container,
 posts one `BrainEvent.SocialOpening` for the newest entry nobody has spoken about yet. A line nobody could hear is held for 6,000 ticks and then
 dropped once; two lines never come closer than 1,200 ticks; a death already spoken about is never repeated. When there
-is no fact to tell it may open a subject of its own: `TopicBank` supplies the openers in the owner's learned language,
-`TopicRing` refuses one already raised and `TopicTaste` prefers one the owner answered before. Both live in the
+is no fact to tell it may open a subject of its own: `SocialDirector` first offers facts the owner stated about
+themselves — a `PROFILE`, `PREFERENCE` or `PROMISE` whose subject and author are the owner — and `SocialTopics` renders
+each one with its source named ("You told me earlier: …"), so a recorded claim is never presented as something the
+companion witnessed. `TopicCandidates` picks the first candidate `TopicRing` has not raised that `BannedTopics` allows
+and the cadence's question policy permits; the ring stores a stable `fact:<id>` for a record and the opener text for the
+bank. When no grounded candidate passes it falls back to `TopicBank`, whose openers are neutral questions about plans,
+preferences or work and assert no past event or unseen place. An empty result is silence: no event, no remembered key
+and no cadence charge. The chosen identity is committed only when the event is actually posted. Both the ring and the
+taste learned from answers live in the
 owner's versioned `SocialMemorySave` record (`infrastructure/persistence/social/SocialMemoryStore`), loaded on first
 use and saved whenever they change, so a restart neither repeats a subject nor forgets a preference.
 

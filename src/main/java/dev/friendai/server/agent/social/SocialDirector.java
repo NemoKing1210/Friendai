@@ -4,16 +4,21 @@ import dev.friendai.agent.turn.BrainEvent;
 import dev.friendai.agent.verify.LoopMetrics;
 import dev.friendai.entity.CompanionCarryData;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.memory.Subject;
 import dev.friendai.features.social.ConversationCadence;
 import dev.friendai.features.social.SocialActivity;
 import dev.friendai.features.social.SocialMemoryRepository;
 import dev.friendai.features.social.SocialMemorySave;
+import dev.friendai.features.social.SocialTopics;
 import dev.friendai.features.social.TopicBank;
+import dev.friendai.features.social.TopicCandidate;
+import dev.friendai.features.social.TopicCandidates;
 import dev.friendai.features.social.TopicRing;
 import dev.friendai.features.social.TopicTaste;
 import dev.friendai.features.survival.DeathRecord;
 import dev.friendai.foundation.diagnostics.LogKind;
 import dev.friendai.server.runtime.ServerRuntime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -141,16 +146,21 @@ public final class SocialDirector {
                 continue;
             }
             // Nothing to report: the companion may open a subject of its own, in the owner's own language.
-            String topic = nextTopic(runtime, owner);
+            boolean mayAsk = pace.mayAskQuestion();
+            TopicCandidate topic = nextTopic(runtime, owner, mayAsk);
             if (topic == null) {
                 continue;
             }
-            boolean asks = TopicBank.asks(topic) && pace.mayAskQuestion();
+            boolean asks = TopicBank.asks(topic.text()) && mayAsk;
+            // Commit the identity only now, when the event is actually posted: choosing alone remembers nothing.
+            TopicRing ring = topicRing(owner);
+            ring.remember(topic.id());
+            persist(owner);
             runtime.sessions()
                     .post(
                             owner,
                             new BrainEvent.SocialOpening(
-                                    BrainEvent.SocialOpening.Urgency.ORDINARY, List.of(), topic, asks));
+                                    BrainEvent.SocialOpening.Urgency.ORDINARY, List.of(), topic.text(), asks));
             // A question waits for the owner to speak; an ignored one backs the next line off.
             pace.recordLine(scene, (int) now, asks, false);
             activityOf(owner).line(false);
@@ -186,11 +196,6 @@ public final class SocialDirector {
         return "I died not long ago at " + death.get().describe() + ".";
     }
 
-    /**
-     * The first opener of the bank, in the language the owner actually writes in, that the ring still allows; null
-     * when every opener was already raised. The opener is remembered before it is returned, so a line that never
-     * reaches the brain still counts as raised.
-     */
     /** A raised subject nobody answered stops counting as liked once its window closes. */
     private void expireAnswers(long now) {
         for (var entry : new java.util.ArrayList<>(pendingTopic.entrySet())) {
@@ -202,26 +207,47 @@ public final class SocialDirector {
         }
     }
 
-    private String nextTopic(ServerRuntime runtime, UUID owner) {
+    /**
+     * The next subject to raise: a grounded fact the ring has not used, else a neutral question from the bank. The
+     * identity is committed by the caller only when the event is actually posted; choosing alone changes nothing.
+     */
+    private TopicCandidate nextTopic(ServerRuntime runtime, UUID owner, boolean allowQuestion) {
         String language = runtime.memory().book(owner).ownerLanguage(owner).orElse(null);
         TopicRing ring = topicRing(owner);
-        java.util.List<String> allowed = new java.util.ArrayList<>();
+        TopicTaste learned = tasteOf(owner);
+        List<TopicCandidate> grounded =
+                TopicCandidates.allowed(groundedTopics(runtime, owner), ring, language, allowQuestion);
+        if (!grounded.isEmpty()) {
+            return preferTaste(grounded, learned);
+        }
+        List<TopicCandidate> bank = new ArrayList<>();
         for (String opener : TopicBank.forLanguage(language)) {
-            if (ring.allows(opener) && !dev.friendai.features.social.BannedTopics.banned(opener, language)) {
-                allowed.add(opener);
+            bank.add(TopicCandidate.ofText(opener));
+        }
+        List<TopicCandidate> neutral = TopicCandidates.allowed(bank, ring, language, allowQuestion);
+        return neutral.isEmpty() ? null : preferTaste(neutral, learned);
+    }
+
+    /** The owner's own durable statements about themselves, each rendered with its source named. */
+    private List<TopicCandidate> groundedTopics(ServerRuntime runtime, UUID owner) {
+        return SocialTopics.fromFacts(runtime.memory().book(owner).facts(new Subject.Player(owner)), owner);
+    }
+
+    /** The candidate the owner answered before, if one is among the allowed ones; otherwise the first. */
+    private static TopicCandidate preferTaste(List<TopicCandidate> allowed, TopicTaste learned) {
+        List<String> texts = new ArrayList<>(allowed.size());
+        for (TopicCandidate candidate : allowed) {
+            texts.add(candidate.text());
+        }
+        String best = learned.best(texts);
+        if (best != null) {
+            for (TopicCandidate candidate : allowed) {
+                if (candidate.text().equals(best)) {
+                    return candidate;
+                }
             }
         }
-        if (allowed.isEmpty()) {
-            return null;
-        }
-        TopicTaste learned = tasteOf(owner);
-        String chosen = learned.best(allowed);
-        if (chosen == null) {
-            chosen = allowed.getFirst();
-        }
-        ring.remember(chosen);
-        persist(owner);
-        return chosen;
+        return allowed.getFirst();
     }
 
     /** The owner's ring, loaded from their record the first time it is needed; the map stays the fast path. */

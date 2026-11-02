@@ -54,6 +54,7 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] Leave and rejoin mid-plan: the job resumes, the result is reported once on return, and the server log prints an `Execution restore:` line only for what was rejected.
 - [ ] `/friendai freetime on`, stay within hearing and quiet for a recorded hour: `/friendai freetime status` shows the shifts, and the log records how many repeat a recent activity and whether a failed shift was retried.
 - [ ] Keep ambient speech on and stay near and silent for twenty minutes: one `social activity:` line appears with ordinary, urgent, held, dropped and owner-message counts, and an ignored question is not asked again within the backoff.
+- [ ] Fresh world, no journal entries: the companion's first self-raised line is a neutral question about plans, preferences or work. It never mentions a cave, a river, a chest or any past trip the two did not make; a Russian owner gets the Russian bank.
 - [ ] Repeat the quantity request in Russian and open the menu in both UI languages: the reply and the labels follow the language, the log evidence stays English, and the criterion is still checkable by its guard.
 - [ ] With a goal open and a task running, the Overview, Tasks and Feeling tabs agree with the log: the task line, the history entry and the criterion (not proven → met) are the same state after Done and after a relaunch.
 

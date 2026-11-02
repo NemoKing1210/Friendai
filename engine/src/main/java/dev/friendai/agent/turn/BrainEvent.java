@@ -211,7 +211,9 @@ public sealed interface BrainEvent {
         public String toPromptLine() {
             StringBuilder line =
                     new StringBuilder("[event] social: say one short line to your owner, or reply exactly [silent]."
-                            + " No tools, no task, no coordinates, never repeat yourself.");
+                            + " No tools, no task, no coordinates, never repeat yourself."
+                            + " Use only what the happenings and topic below state; add no event, place or shared"
+                            + " experience they do not, and stay silent when they support nothing worth saying.");
             if (!happenings.isEmpty()) {
                 line.append(" Happenings:");
                 for (String happening : happenings) {
