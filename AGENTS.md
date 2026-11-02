@@ -23,7 +23,7 @@ The mod is **not client-only**: the server owns the companion entity, the brain,
 
 **Taking a task from `TODO.md`?** Read "Working from TODO.md" first: most items need a spec and a plan before any code.
 
-**Contents:** [Working from TODO.md](#working-from-todomd) · [Commands](#commands) · [Project map](#project-map) · [Rules that keep it working](#rules-that-keep-it-working) · [When to stop and ask](#when-to-stop-and-ask) · [Mixins](#mixins) · [Language and localization](#language-and-localization) · [Formatting](#formatting) · [Testing](#testing) · [Minecraft API notes](#minecraft-api-notes-263) · [Common recipes](#common-recipes) · [Failure modes we have already seen](#failure-modes-we-have-already-seen) · [Troubleshooting](#troubleshooting) · [Working with subagents](#working-with-subagents) · [Parallel sessions](#parallel-sessions) · [Git and repository hygiene](#git-and-repository-hygiene) · [Branches and pull requests](#branches-and-pull-requests) · [Versioning](#versioning) · [Changelog](#changelog) · [Definition of done](#definition-of-done) · [Glossary](#glossary)
+**Contents:** [Working from TODO.md](#working-from-todomd) · [Commands](#commands) · [Project map](#project-map) · [Rules that keep it working](#rules-that-keep-it-working) · [When to stop and ask](#when-to-stop-and-ask) · [Mixins](#mixins) · [Language and localization](#language-and-localization) · [Formatting](#formatting) · [Testing](#testing) · [Minecraft API notes](#minecraft-api-notes-263) · [Common recipes](#common-recipes) · [Failure modes we have already seen](#failure-modes-we-have-already-seen) · [Debugging with logs](#debugging-with-logs) · [Troubleshooting](#troubleshooting) · [Working with subagents](#working-with-subagents) · [Parallel sessions](#parallel-sessions) · [Git and repository hygiene](#git-and-repository-hygiene) · [Branches and pull requests](#branches-and-pull-requests) · [Versioning](#versioning) · [Changelog](#changelog) · [Definition of done](#definition-of-done) · [Glossary](#glossary)
 
 ## Working from TODO.md
 
@@ -376,6 +376,38 @@ Each line is a rule stated above, in the shape it has actually failed in this re
 - **Treated a foreign error as yours.** A file you never touched fails to compile because another session is mid-edit; check `git status`, report it, do not patch it.
 - **Committed local state.** `docs/`, `run/`, `test-builds/`, `build/` or a downloaded model; they are git-ignored for a reason.
 - **Closed a TODO item quietly.** A skipped item needs its one-line `**Skipped:**` note and a report, not a silent `[x]`.
+
+## Debugging with logs
+
+The mod writes a durable, structured log of what the brain and the task queue did. It is the fastest answer to "why did the companion do that?"; the plain SLF4J lines in `logs/latest.log` stay the second choice.
+
+**Where the files are.** `<gameDir>/logs/friendai/`:
+
+| Path | Content |
+|---|---|
+| `server/<date>/boot-<boot>.jsonl` | server lifecycle and every `warn`/`error` from `friendai*` loggers |
+| `owners/<uuid>/<date>/session-<time>-<boot>.jsonl` | one owner's brain, tool, task and queue records |
+| `client/<date>/client-<boot>.jsonl` | client-side `CLIENT` and `SPEECH` records |
+| `diagnostics/diagnose-<UTC>/` | `/friendai diagnose` bundles: `summary.txt`, `log.txt`, `tasks.json`, `queue.txt`, `chat.txt` |
+| `README.md` | generated one-page schema, event table and `jq`/`grep` recipes |
+
+**What a line is.** JSONL: one object per line, with a header (`"kind":"header"`) as line 1. The fields that matter when debugging are `seq`, `timeMillis`, `level`, `category`, `event`, `turn`/`plan`/`job`/`task`/`toolCall`, `cause`, `durationMs`, `msg`, `data` and `error`. `cause` is the `seq` of the record that caused this one, so an error is followed backwards to the turn or task that started it. A `.md` digest beside a closed file renders the same chain as prose; it is generated and safe to delete.
+
+**Detail levels.** `off` writes no files; `normal` (default) records metadata only; `detailed` adds prompt, reply and tool-result bodies after redaction; `trace` adds per-step detail. Configured API keys become `***` before any sink, on both the pipeline and the log4j bridge. `normal` is what a dedicated server runs: do not raise it to `detailed` on a server carrying other people's chat without their knowledge.
+
+**How to use it when something breaks.**
+
+1. Find the failing line: `grep -h '"level":"error"' owners/<uuid>/*/*.jsonl | tail` (or filter on `"category":"task"` for task churn).
+2. Read its chain: take the `seq`, then `jq -c 'select(.seq==<seq> or .cause==<seq>)' owners/<uuid>/*/*.jsonl` until `cause` is 0. The digest's `## Errors and chains` section already draws this tree.
+3. Correlate: `turn` groups one chat turn, `task`/`job`/`plan` group execution, and `toolCall` joins a call to its result.
+4. Widen only when needed: `/friendai diagnose [chat] [player]` adds versions, masked config, queue, task history and, with `chat`, the transcript.
+5. In game: the operator **Log tab** tails the ring live (Pause freezes it), the **Logs** settings category opens the folder, and the companion itself answers "what happened?" through `read_log` (ring) and `logs_search` (files).
+
+**Commands.** `/friendai logs path` prints the server folder — the owner gets their own subtree, an operator the root. The client buttons open the client's own folder, which equals the server's only in singleplayer. `/friendai logs level <off|normal|detailed|trace>` applies live, `/friendai logs prune` runs retention now, `/friendai logs export` writes the diagnostic bundle.
+
+**Bounds.** A file rotates at `maxFileBytes` (8 MiB default) into `-2`, `-3` parts; retention keeps `maxTotalBytes`, `retentionDays` and `maxSessionsPerOwner` (50 MiB, 7 days, 20 sessions by default); the writer drops records rather than block the server and writes one `log.dropped` line; a torn last line after a crash is skipped by readers. `LoggingTests` covers writing, retention, `off` and redaction: `runGameTest -Dfabric-api.gametest.filter='friendai-gametest:logging_tests_*'`.
+
+**Never paste a bundle or a `detailed` file into an issue unread**: it can contain coordinates, inventory facts and, at `detailed`, prompt and reply text.
 
 ## Troubleshooting
 

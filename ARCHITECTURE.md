@@ -428,6 +428,13 @@ figures for those fixtures are a recorded coverage gap, not a fabricated zero.
 
 ## Data and persistence
 
+`logs/friendai/` is the durable diagnostics tree, not an owner store: the root `debug/LogWriterService` writes
+`server/`, `owners/<uuid>/` and `client/` JSONL files with one daemon thread, rotates them at
+`logging.maxFileBytes`, prunes by `logging.maxTotalBytes`, `retentionDays` and `maxSessionsPerOwner`, and writes a
+generated `.md` digest beside each closed file. `LogPipeline` redacts and fans records out; `FriendaiLogAppender`
+adds `warn`/`error` from `friendai*` loggers. `/friendai diagnose` bundles stay separate under
+`logs/friendai/diagnostics/`.
+
 Owner-file persistence uses the pure `StoreCodec<T>` contract (including bounded `Reader` decoding) and
 `StoreWriteStatus` with typed failure/read-only reasons. `OwnerFileStore<T>` lazily loads records and captures
 immutable UTF-8 bytes plus their revision on the server thread. At most one snapshot per owner is pending;
