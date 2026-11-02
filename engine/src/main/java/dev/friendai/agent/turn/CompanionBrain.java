@@ -112,6 +112,7 @@ public final class CompanionBrain {
     private int generation;
     private int step;
     private TurnKind turnKind = TurnKind.PLAYER;
+    private long turnSeq;
     private final List<String> turnPlayerTexts = new ArrayList<>();
     private String lastOwnerText;
     private long lastOwnerAtMillis;
@@ -269,6 +270,8 @@ public final class CompanionBrain {
 
     /** Drops the in-flight request (its response will be ignored) and all queued events. */
     public void cancel() {
+        long cancelled = turnSeq;
+        observe(o -> o.onTurnEnd(cancelled, "cancelled"));
         generation++;
         teachingContext = null;
         skillSession = SkillTurnSession.NONE;
@@ -483,6 +486,8 @@ public final class CompanionBrain {
             }
         }
         turnKind = turnPlayerTexts.isEmpty() ? TurnKind.EVENT : TurnKind.PLAYER;
+        long startedTurn = ++turnSeq;
+        observe(o -> o.onTurnStart(startedTurn));
         AccessLevel level = access.accessOf(principal);
         beginHistory(principal, level);
         Caller candidateCaller = new Caller(principal, name == null ? "" : name, level);
@@ -721,8 +726,10 @@ public final class CompanionBrain {
             observe(o -> o.onResponse(response));
         }
         if (error != null) {
-            LOGGER.warn("LLM request failed: {}", error.toString());
+            LOGGER.debug("LLM request failed: {}", error.toString());
             observe(o -> o.onError(error));
+            long failed = turnSeq;
+            observe(o -> o.onTurnEnd(failed, "error"));
             speaker.error(ErrorMessages.forUser(error));
             endTurn();
             return;
@@ -758,6 +765,8 @@ public final class CompanionBrain {
                 rememberSpoken(spoken);
                 String heard = spoken;
                 observe(o -> o.onReply(turnCaller, heard));
+                long delivered = turnSeq;
+                observe(o -> o.onTurnEnd(delivered, "delivered"));
             }
         }
         List<ToolCall> calls = response.toolCalls();

@@ -25,6 +25,29 @@ public final class BrainObservers implements BrainObserver {
     }
 
     @Override
+    public void onTurnStart(long turn) {
+        each(o -> o.onTurnStart(turn));
+    }
+
+    @Override
+    public void onTurnEnd(long turn, String outcome) {
+        each(o -> o.onTurnEnd(turn, outcome));
+    }
+
+    @Override
+    public void onRequest(
+            String system,
+            java.util.List<dev.friendai.agent.llm.model.Message> messages,
+            java.util.List<dev.friendai.agent.llm.model.ToolSpec> tools) {
+        each(o -> o.onRequest(system, messages, tools));
+    }
+
+    @Override
+    public void onResponse(dev.friendai.agent.llm.model.LlmResponse response) {
+        each(o -> o.onResponse(response));
+    }
+
+    @Override
     public void onEvent(BrainEvent e) {
         each(o -> o.onEvent(e));
     }

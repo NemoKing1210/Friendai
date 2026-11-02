@@ -44,6 +44,11 @@ public final class DebugLog {
         return entry;
     }
 
+    /** Stores the readable projection of a structured record: its message and its dialogue role. */
+    public synchronized LogEntry add(LogRecord record) {
+        return add(record.kind() == null ? LogKind.TASK : record.kind(), record.message());
+    }
+
     /** Entries with an id greater than {@code id}, oldest first; the last {@code limit} if there are more. */
     public synchronized List<LogEntry> after(long id, int limit) {
         List<LogEntry> newer = new ArrayList<>();

@@ -2,30 +2,62 @@ package dev.friendai.debug;
 
 import dev.friendai.execution.history.TaskHistory;
 import dev.friendai.foundation.diagnostics.DebugLog;
+import dev.friendai.foundation.diagnostics.LogPipeline;
+import dev.friendai.foundation.diagnostics.LogRecord;
+import dev.friendai.foundation.diagnostics.LogSettings;
+import dev.friendai.foundation.diagnostics.LogSink;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
-/** Per-owner debug state: the brain log, task history and menu subscriptions. */
-public final class DebugService {
+/** Per-owner debug state: the brain log, task history and menu subscriptions, plus the record pipeline. */
+public final class DebugService implements LogSink {
     public static final int LOG_CAPACITY = 500;
     public static final int LOG_TEXT_CHARS = 2000;
     public static final int HISTORY_CAPACITY = 20;
 
     private final UnaryOperator<String> redactor;
     private final LongSupplier clock;
+    private final LogPipeline pipeline;
     private final Map<UUID, DebugLog> logs = new HashMap<>();
     private final Map<UUID, TaskHistory> histories = new HashMap<>();
     private final Map<UUID, Long> subscribers = new HashMap<>();
     private final Set<UUID> movementViewers = new HashSet<>();
 
     public DebugService(UnaryOperator<String> redactor, LongSupplier clock) {
+        this(redactor, clock, () -> LogSettings.off(), null);
+    }
+
+    public DebugService(
+            UnaryOperator<String> redactor, LongSupplier clock, Supplier<LogSettings> settings, LogSink fileSink) {
         this.redactor = redactor;
         this.clock = clock;
+        this.pipeline = new LogPipeline(
+                this,
+                settings == null ? () -> LogSettings.off() : settings,
+                redactor,
+                fileSink == null ? new LogSink[0] : new LogSink[] {fileSink});
+    }
+
+    /** The one producer entry point: the ring always, files per the current settings. */
+    public LogPipeline pipeline() {
+        return pipeline;
+    }
+
+    public void update(LogSettings settings) {
+        pipeline.update(settings);
+    }
+
+    /** Keeps the menu buffer to records that have a dialogue role and an owner. */
+    @Override
+    public void accept(LogRecord record) {
+        if (record == null || record.owner() == null || record.kind() == null) return;
+        logOf(record.owner()).add(record);
     }
 
     public synchronized DebugLog logOf(UUID owner) {

@@ -99,6 +99,7 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
             new dev.friendai.features.knowledge.search.SearchHintStore();
     private final TrustConfirmations trust;
     private final dev.friendai.debug.DiagnosticService diagnostics;
+    private final dev.friendai.debug.LogWriterService fileLog;
     private ServerConfig config;
     private long lastTrustTick;
     private boolean stopping;
@@ -114,6 +115,16 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
         this.configuration = new ServerConfiguration(
                 entry -> FriendaiMod.LOGGER.warn("Unknown pathing break blacklist entry: {}", entry));
         logProblems(configuration.apply(config));
+        this.fileLog = resources.own(new dev.friendai.debug.LogWriterService(
+                FabricLoader.getInstance().getGameDir().resolve("logs").resolve("friendai"),
+                dev.friendai.debug.LogWriterScope.SERVER,
+                dev.friendai.foundation.diagnostics.LogNames.bootId(),
+                modVersion("friendai"),
+                modVersion("minecraft"),
+                owner -> "",
+                config.logging.toSettings(),
+                text -> text,
+                System::currentTimeMillis));
         this.memory = resources.own(new MemoryStore(
                 server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("memory"), writer));
         this.transcripts = resources.own(new TranscriptStore(
@@ -197,7 +208,8 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
                 freeTime,
                 this,
                 this,
-                searchHints));
+                searchHints,
+                fileLog));
         this.taskPersistence = new TaskPersistenceCoordinator(
                 this::settings,
                 sessions.taskRestoreRegistry(),
@@ -225,6 +237,10 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
 
     public dev.friendai.debug.DiagnosticService diagnostics() {
         return diagnostics;
+    }
+
+    public dev.friendai.debug.LogWriterService fileLog() {
+        return fileLog;
     }
 
     public ConfigStore<ServerConfig> store() {
@@ -496,6 +512,8 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
             companion.executionCoordinator().applySettings(applied);
         }
         sessions.reload(cfg);
+        fileLog.update(cfg.logging.toSettings());
+        sessions.debug().update(cfg.logging.toSettings());
         return problems;
     }
 
@@ -511,5 +529,12 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
 
     private static void logProblems(List<String> problems) {
         problems.forEach(p -> FriendaiMod.LOGGER.warn("Config: {}", p));
+    }
+
+    private static String modVersion(String id) {
+        return FabricLoader.getInstance()
+                .getModContainer(id)
+                .map(container -> container.getMetadata().getVersion().getFriendlyString())
+                .orElse("unknown");
     }
 }

@@ -62,6 +62,12 @@ public final class LogPipeline {
     /** The settings are read on every record, so an update takes effect immediately; kept for callers. */
     public void update(LogSettings ignored) {}
 
+    /** True when the current level allows prompt, reply and tool-result bodies. */
+    public boolean includesBodies() {
+        LogSettings current = settings.get();
+        return current != null && current.includesBodies();
+    }
+
     private LogRecord redact(LogRecord record) {
         Map<String, String> data = new LinkedHashMap<>();
         for (Map.Entry<String, String> entry : record.data().entrySet()) {

@@ -140,7 +140,8 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
             dev.friendai.agent.autonomy.FreeTimeService freeTimeService,
             dev.friendai.features.trading.minecraft.tool.TradingToolAccess tradingToolAccess,
             TrustAccess trustAccess,
-            dev.friendai.features.knowledge.search.SearchHintStore searchHints) {
+            dev.friendai.features.knowledge.search.SearchHintStore searchHints,
+            dev.friendai.foundation.diagnostics.LogSink fileLog) {
         this.server = server;
         this.scheduler = new ServerBrainScheduler(server);
         this.memory = memory;
@@ -155,7 +156,13 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
         this.placedService = placedService;
         this.searchHints = searchHints;
         this.perceptionContext = () -> new PerceptionContext(resources, settings.get(), freeTimeService);
-        this.debug = new DebugService(gateways.redactor(), System::currentTimeMillis);
+        this.debug = new DebugService(
+                gateways.redactor(),
+                System::currentTimeMillis,
+                () -> config == null
+                        ? dev.friendai.foundation.diagnostics.LogSettings.off()
+                        : config.logging.toSettings(),
+                fileLog);
         this.planners = new PlannerAdapter(scheduler, debug, gateways, () -> this.config, settings);
         MemoryAccess memoryAccess = new MemoryAccess() {
             @Override
@@ -1265,7 +1272,8 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                 companion.combatController().state()
                         != dev.friendai.features.combat.minecraft.CombatController.State.IDLE));
         brain.setObserver(BrainObservers.of(
-                new DebugLogObserver(debug.logOf(owner)),
+                new DebugLogObserver(
+                        owner, companion.getUUID(), Long.toString(System.currentTimeMillis(), 36), debug.pipeline()),
                 new dev.friendai.agent.turn.BrainObserver() {
                     @Override
                     public void onReply(Caller caller, String text) {

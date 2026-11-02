@@ -10,6 +10,7 @@ public final class LogEvents {
     public static final String TURN_START = "turn.start";
     public static final String TURN_END = "turn.end";
     public static final String EVENT_DROPPED = "event.dropped";
+    public static final String EVENT_POSTED = "event.posted";
     public static final String ASSISTANT_TEXT = "assistant.text";
     public static final String ASSISTANT_DELIVERED = "assistant.delivered";
     public static final String TOOL_CALL = "tool.call";

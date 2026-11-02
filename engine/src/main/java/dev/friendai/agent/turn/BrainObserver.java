@@ -7,6 +7,12 @@ import dev.friendai.execution.tool.ToolResult;
 public interface BrainObserver {
     BrainObserver NONE = new BrainObserver() {};
 
+    /** A turn began: the batch was chosen and the request is about to be built. */
+    default void onTurnStart(long turn) {}
+
+    /** A turn ended with one of `delivered`, `error` or `cancelled`. */
+    default void onTurnEnd(long turn, String outcome) {}
+
     default void onEvent(BrainEvent e) {}
 
     /** A posted event that never reached the queue, with a short English reason. */

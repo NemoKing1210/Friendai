@@ -1,0 +1,152 @@
+package dev.friendai.agent.turn;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import dev.friendai.agent.llm.model.LlmResponse;
+import dev.friendai.agent.llm.model.ToolCall;
+import dev.friendai.agent.llm.model.Usage;
+import dev.friendai.execution.tool.AccessLevel;
+import dev.friendai.execution.tool.Caller;
+import dev.friendai.execution.tool.ToolResult;
+import dev.friendai.foundation.diagnostics.LogCategory;
+import dev.friendai.foundation.diagnostics.LogEvents;
+import dev.friendai.foundation.diagnostics.LogKind;
+import dev.friendai.foundation.diagnostics.LogLevel;
+import dev.friendai.foundation.diagnostics.LogPipeline;
+import dev.friendai.foundation.diagnostics.LogRecord;
+import dev.friendai.foundation.diagnostics.LogSettings;
+import dev.friendai.foundation.diagnostics.LogSink;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
+import org.junit.jupiter.api.Test;
+
+class StructuredLogObserverTest {
+    private static final UUID OWNER = UUID.fromString("00000000-0000-0000-0000-000000000001");
+    private static final UUID COMPANION = UUID.fromString("00000000-0000-0000-0000-000000000002");
+
+    private static final class Recall implements LogSink {
+        final List<LogRecord> records = new ArrayList<>();
+
+        @Override
+        public void accept(LogRecord record) {
+            records.add(record);
+        }
+    }
+
+    private static LogPipeline pipeline(Recall sink, LogLevel level) {
+        LogSettings settings = new LogSettings(level, Set.of(), 1_000_000L, 10_000_000L, 7, 20, true);
+        return new LogPipeline(new Recall(), () -> settings, text -> text, sink);
+    }
+
+    private static ToolCall call(String name) {
+        return new ToolCall("call-1", name, null, "{\"count\":3}", null);
+    }
+
+    @Test
+    void aTurnStartsThenToolsChainThroughCauses() {
+        Recall sink = new Recall();
+        DebugLogObserver observer = new DebugLogObserver(OWNER, COMPANION, "s1", pipeline(sink, LogLevel.INFO));
+        observer.onTurnStart(4);
+        observer.onToolCall(call("mine_block_at"));
+        observer.onToolResult(call("mine_block_at"), ToolResult.ok("started"));
+        observer.onTurnEnd(4, "delivered");
+
+        List<LogRecord> records = sink.records;
+        assertEquals(
+                List.of(LogEvents.TURN_START, LogEvents.TOOL_CALL, LogEvents.TOOL_RESULT, LogEvents.TURN_END),
+                records.stream().map(LogRecord::event).toList());
+        assertEquals(4L, records.get(0).turn());
+        assertEquals(4L, records.get(1).turn());
+        assertEquals(records.get(0).seq(), records.get(1).cause());
+        assertEquals(records.get(1).seq(), records.get(2).cause());
+        assertEquals(records.get(0).seq(), records.get(3).cause());
+        assertEquals("call-1", records.get(1).toolCall());
+        assertEquals(LogCategory.TOOL, records.get(1).category());
+        assertEquals(LogKind.TOOL_CALL, records.get(1).kind());
+        assertEquals(OWNER, records.get(0).owner());
+        assertEquals(COMPANION, records.get(0).companion());
+        assertEquals("s1", records.get(0).session());
+    }
+
+    @Test
+    void anErrorCarriesTypeMessageAndABoundedStack() {
+        Recall sink = new Recall();
+        DebugLogObserver observer = new DebugLogObserver(OWNER, COMPANION, "s1", pipeline(sink, LogLevel.INFO));
+        observer.onTurnStart(1);
+        observer.onError(new IllegalStateException("boom"));
+        LogRecord error = sink.records.stream()
+                .filter(record -> record.level() == LogLevel.ERROR)
+                .findFirst()
+                .orElseThrow();
+        assertEquals(LogEvents.LLM_ERROR, error.event());
+        assertEquals("java.lang.IllegalStateException", error.error().type());
+        assertTrue(error.error().message().contains("boom"));
+        assertTrue(error.error().frames() > 0);
+    }
+
+    @Test
+    void normalOmitsBodiesAndDetailedKeepsThem() {
+        Recall normal = new Recall();
+        DebugLogObserver inNormal = new DebugLogObserver(OWNER, COMPANION, "s1", pipeline(normal, LogLevel.INFO));
+        inNormal.onToolResult(call("mine_block_at"), ToolResult.ok("a long result body"));
+        String normalText = normal.records.get(0).message();
+        assertFalse(normalText.contains("a long result body"));
+
+        Recall detailed = new Recall();
+        DebugLogObserver inDetailed = new DebugLogObserver(OWNER, COMPANION, "s1", pipeline(detailed, LogLevel.DEBUG));
+        inDetailed.onToolResult(call("mine_block_at"), ToolResult.ok("a long result body"));
+        assertTrue(detailed.records.get(0).message().contains("a long result body"));
+    }
+
+    @Test
+    void instructionSkillsNeverWriteTheirFields() {
+        Recall sink = new Recall();
+        DebugLogObserver observer = new DebugLogObserver(OWNER, COMPANION, "s1", pipeline(sink, LogLevel.DEBUG));
+        observer.onToolCall(new ToolCall("c", "manage_skill", null, "{\"body\":\"secret text\"}", null));
+        observer.onToolResult(new ToolCall("c", "manage_skill", null, "{}", null), ToolResult.ok("stored secret text"));
+        for (LogRecord record : sink.records) {
+            assertFalse(record.message().contains("secret text"));
+        }
+    }
+
+    @Test
+    void requestAndResponseAreReachableAtDetailed() {
+        Recall sink = new Recall();
+        DebugLogObserver observer = new DebugLogObserver(OWNER, COMPANION, "s1", pipeline(sink, LogLevel.DEBUG));
+        observer.onTurnStart(2);
+        observer.onRequest(
+                "system",
+                List.of(dev.friendai.agent.llm.model.Message.user("hi")),
+                List.of(new dev.friendai.agent.llm.model.ToolSpec("mine_block_at", "mine", null)));
+        observer.onResponse(
+                new LlmResponse("reply", List.of(), dev.friendai.agent.llm.model.StopReason.END, new Usage(1, 2)));
+        assertEquals(
+                List.of(LogEvents.LLM_REQUEST, LogEvents.LLM_RESPONSE),
+                sink.records.stream()
+                        .filter(record -> record.event().startsWith("llm."))
+                        .map(LogRecord::event)
+                        .toList());
+        LogRecord response = sink.records.stream()
+                .filter(record -> record.event().equals(LogEvents.LLM_RESPONSE))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(LogKind.RESPONSE, response.kind());
+    }
+
+    @Test
+    void aReplyAndAnAssistantTextStayDistinct() {
+        Recall sink = new Recall();
+        DebugLogObserver observer = new DebugLogObserver(OWNER, COMPANION, "s1", pipeline(sink, LogLevel.INFO));
+        observer.onAssistantText("raw");
+        observer.onReply(new Caller(OWNER, "Alex", AccessLevel.OWNER), "heard");
+        assertEquals(
+                List.of(LogEvents.ASSISTANT_TEXT, LogEvents.ASSISTANT_DELIVERED),
+                sink.records.stream().map(LogRecord::event).toList());
+        assertNotNull(sink.records.get(1).message());
+    }
+}
