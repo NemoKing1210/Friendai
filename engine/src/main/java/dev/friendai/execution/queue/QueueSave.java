@@ -32,6 +32,7 @@ public final class QueueSave {
             o.addProperty("added", p.addedTick());
             o.addProperty("deadline", p.deadlineTick());
             o.addProperty("onFailure", p.onFailure().name());
+            o.addProperty("autoRepair", p.autoRepair());
             if (p.definition() != null) o.add("definition", PlanCodec.toJson(p.definition()));
             if (p.cursor() != null) o.add("cursor", cursorJson(p.cursor()));
             plans.add(o);
@@ -129,7 +130,8 @@ public final class QueueSave {
                         p.get("deadline").getAsLong(),
                         FailurePolicy.valueOf(p.get("onFailure").getAsString()),
                         definition,
-                        cursor));
+                        cursor,
+                        !p.has("autoRepair") || p.get("autoRepair").getAsBoolean()));
             }
             for (PlanRecord plan : plans)
                 if (plan.cursor() != null && !plan.cursor().pendingActionPath().isEmpty()) {

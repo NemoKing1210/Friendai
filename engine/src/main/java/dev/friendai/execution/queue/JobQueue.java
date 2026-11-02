@@ -198,7 +198,8 @@ public final class JobQueue {
                         options.timeLimitTicks() == 0 ? 0 : clock + options.timeLimitTicks(),
                         options.onFailure(),
                         definition,
-                        null));
+                        null,
+                        options.autoRepair()));
         List<Long> ids = new ArrayList<>();
         for (int i = 0; i < steps.size(); i++) ids.add(nextJob++);
         for (int i = 0; i < steps.size(); i++) putNew(ids.get(i), planId, steps.get(i), options, ids);
@@ -234,7 +235,8 @@ public final class JobQueue {
                         options.timeLimitTicks() == 0 ? 0 : clock + options.timeLimitTicks(),
                         options.onFailure(),
                         definition,
-                        PlanCursor.start(clock, 0)));
+                        PlanCursor.start(clock, 0),
+                        options.autoRepair()));
         return planId;
     }
 
@@ -497,7 +499,15 @@ public final class JobQueue {
         plans.put(
                 planId,
                 new PlanRecord(
-                        plan.id(), plan.goal(), priority, plan.addedTick(), plan.deadlineTick(), plan.onFailure()));
+                        plan.id(),
+                        plan.goal(),
+                        priority,
+                        plan.addedTick(),
+                        plan.deadlineTick(),
+                        plan.onFailure(),
+                        plan.definition(),
+                        plan.cursor(),
+                        plan.autoRepair()));
         for (Job job : jobsOfPlan(planId))
             if (job.state() == JobState.PENDING && !job.priorityExplicit())
                 jobs.put(
@@ -613,7 +623,7 @@ public final class JobQueue {
         List<Long> ids = new ArrayList<>();
         for (int i = 0; i < steps.size(); i++) ids.add(nextJob++);
         PlanRecord plan = plans.get(old.planId());
-        PlanOptions options = new PlanOptions(plan.priority(), plan.onFailure(), 0);
+        PlanOptions options = new PlanOptions(plan.priority(), plan.onFailure(), 0, plan.autoRepair());
         for (int i = 0; i < steps.size(); i++) putNew(ids.get(i), old.planId(), steps.get(i), options, ids);
         for (int i = 0; i < ids.size(); i++) {
             Job job = jobs.get(ids.get(i));

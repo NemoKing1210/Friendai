@@ -70,6 +70,7 @@ public final class QueueTools implements FeatureToolContributor {
                                 .enumeration("on_failure", "Default failure policy", "ask", "skip", "stop_plan")
                                 .integer("time_limit_min", "Optional plan time limit; zero means none", 0, 1440)
                                 .bool("optimize", "Merge adjacent compatible count steps")
+                                .bool("auto_repair", "Allow bounded prerequisite insertion; false guarantees none")
                                 .required("steps")
                                 .build(),
                         AccessLevel.TRUSTED,
@@ -89,6 +90,7 @@ public final class QueueTools implements FeatureToolContributor {
                         "Validate a plan without adding it to the queue; return normalized JSON and all errors.",
                         SchemaBuilder.object()
                                 .array("steps", "Plan nodes to validate", stepSchema, 1, 64)
+                                .bool("auto_repair", "Report repair consent the queue_add would carry")
                                 .required("steps")
                                 .build(),
                         AccessLevel.TRUSTED,
@@ -278,6 +280,9 @@ public final class QueueTools implements FeatureToolContributor {
                     "Creative mode is active; only its online operator owner can request world-changing tasks.");
         }
         boolean optimize = args.has("optimize") && args.get("optimize").getAsBoolean();
+        boolean autoRepair = !args.has("auto_repair")
+                || args.get("auto_repair").isJsonNull()
+                || args.get("auto_repair").getAsBoolean();
         long id;
         try {
             if (optimize && allActions(bound.nodes())) {
@@ -291,23 +296,30 @@ public final class QueueTools implements FeatureToolContributor {
                                 step.args()))
                         .toList();
                 id = c.executionCoordinator()
-                        .enqueuePlan(goal, steps, factories, new PlanOptions(priority, policy, time), planId -> {
-                            QueueOptimizer.apply(c.executionCoordinator().queue(), planId, name -> {
-                                TaskToolDefinition def = all.get(name);
-                                return def == null ? null : def.queueTraits().mergeableCountArg();
-                            });
-                            registerFactories(
-                                    access,
-                                    c,
-                                    c.executionCoordinator().queue().jobsOfPlan(planId).stream()
-                                            .map(dev.friendai.execution.queue.Job::id)
-                                            .toList(),
-                                    allowed);
-                        });
+                        .enqueuePlan(
+                                goal, steps, factories, new PlanOptions(priority, policy, time, autoRepair), planId -> {
+                                    QueueOptimizer.apply(
+                                            c.executionCoordinator().queue(), planId, name -> {
+                                                TaskToolDefinition def = all.get(name);
+                                                return def == null
+                                                        ? null
+                                                        : def.queueTraits().mergeableCountArg();
+                                            });
+                                    registerFactories(
+                                            access,
+                                            c,
+                                            c.executionCoordinator().queue().jobsOfPlan(planId).stream()
+                                                    .map(dev.friendai.execution.queue.Job::id)
+                                                    .toList(),
+                                            allowed);
+                                });
             } else {
                 id = c.executionCoordinator()
                         .enqueuePlan(
-                                goal, bound, new PlanOptions(priority, policy, time), planFactories(access, allowed));
+                                goal,
+                                bound,
+                                new PlanOptions(priority, policy, time, autoRepair),
+                                planFactories(access, allowed));
             }
         } catch (IllegalArgumentException e) {
             return ToolResult.error("Invalid plan: " + e.getMessage());
