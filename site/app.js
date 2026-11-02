@@ -652,8 +652,21 @@ function renderGraph(box, g) {
     showTip(at(p.pointer.DOM), byId[p.node]);
   });
   net.on("blurNode", () => { hovered = null; unfocus(); box.style.cursor = "default"; hideTip(); });
-  net.on("dragStart", () => { dragging = true; net.setOptions({ physics: { enabled: true } }); hideTip(); box.style.cursor = "grabbing"; });
-  net.on("dragEnd", () => { dragging = false; box.style.cursor = "default"; setTimeout(freeze, 2500); });
+  // Only a node drag wakes the layout. Panning the canvas also fires dragStart/dragEnd with an empty
+  // selection, and enabling physics there made every node drift while the view was being moved.
+  net.on("dragStart", (p) => {
+    hideTip();
+    box.style.cursor = "grabbing";
+    if (!p.nodes || !p.nodes.length) return;
+    dragging = true;
+    net.setOptions({ physics: { enabled: true } });
+  });
+  net.on("dragEnd", (p) => {
+    box.style.cursor = "default";
+    if (!p.nodes || !p.nodes.length) return;
+    dragging = false;
+    setTimeout(freeze, 2500);
+  });
   net.on("click", (p) => {
     if (p.nodes.length && byId[p.nodes[0]].onclick) byId[p.nodes[0]].onclick();
   });
