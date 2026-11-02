@@ -1,6 +1,7 @@
 package dev.friendai.agent.turn;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.friendai.agent.llm.model.LlmResponse;
@@ -104,6 +105,26 @@ class CompanionBrainStreamTest {
 
         assertTrue(speaker.said.isEmpty(), speaker.said.toString());
         assertTrue(tools.executed.isEmpty(), "a cancelled stream has no effect");
+    }
+
+    @Test
+    void streamedSpeechIsOrderedAndTheFullReplyIsRecordedOnce() {
+        StreamingGateway gateway = new StreamingGateway();
+        gateway.steps.add(new Step(
+                List.of(new StreamDelta.Text("Hello there. Second."), new StreamDelta.Done()),
+                new LlmResponse("", List.of(), StopReason.END, new Usage(1, 2))));
+        FakeToolExecutor tools = new FakeToolExecutor();
+        RecordingSpeaker speaker = new RecordingSpeaker();
+
+        brain(gateway, tools, speaker).post(new BrainEvent.PlayerSaid(OWNER, "Steve", "hi", BrainEvent.Source.CHAT));
+
+        assertFalse(speaker.streamed.isEmpty(), "a streaming turn sends streamed speech");
+        assertEquals(1, speaker.streamed.stream().filter(s -> s.last()).count(), "exactly one last sentence");
+        assertEquals(
+                "Hello there. Second.",
+                speaker.streamed.stream().map(RecordingSpeaker.Streamed::text).reduce("", String::concat));
+        assertEquals(1, speaker.said.size(), "the full reply reaches chat once");
+        assertTrue(speaker.said.getFirst().contains("Hello there. Second."));
     }
 
     @Test

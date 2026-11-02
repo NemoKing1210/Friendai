@@ -16,6 +16,13 @@ public interface Speaker {
         say(text);
     }
 
+    /**
+     * One ordered sentence of a streamed reply. The default speaker has no stream transport and ignores it; a
+     * speaker that sends speech separately from chat uses {@code streamId/sessionId/sequence} for ordering.
+     */
+    default void streamSentence(
+            long streamId, long sessionId, long sequence, String text, boolean last, UUID addressee) {}
+
     void thinking(boolean on);
 
     void error(UserMessage message);

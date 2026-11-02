@@ -1,5 +1,6 @@
 package dev.friendai.client.tts;
 
+import dev.friendai.agent.llm.stream.SpeechStreamBuffer;
 import dev.friendai.client.FriendaiClient;
 import dev.friendai.client.audio.LocalTtsEngine;
 import dev.friendai.client.audio.VoiceModelManager;
@@ -26,6 +27,7 @@ import dev.friendai.infrastructure.speech.CloudTtsEngine;
 import dev.friendai.infrastructure.speech.TtsClient;
 import dev.friendai.infrastructure.speech.VoiceHttp;
 import dev.friendai.presentation.companion.ClientSessionId;
+import dev.friendai.protocol.speech.CompanionSpeechStreamView;
 import dev.friendai.protocol.speech.CompanionSpeechView;
 import java.net.http.HttpClient;
 import java.time.Duration;
@@ -83,6 +85,9 @@ public final class SpeechRuntime {
     private static volatile SpatialAudio.Mix mix = SpatialAudio.CENTER;
     private static ClientSessionId sessionId;
     private static boolean closed;
+    private static final SpeechStreamBuffer STREAM = new SpeechStreamBuffer();
+    private static long streamSession = -1;
+    private static final java.util.List<String> deferredSpeech = new java.util.ArrayList<>();
 
     private SpeechRuntime() {}
 
@@ -169,6 +174,9 @@ public final class SpeechRuntime {
             generation++;
             QUEUE.clear();
         }
+        STREAM.invalidate();
+        streamSession = -1;
+        deferredSpeech.clear();
         playingPlan = null;
         mix = SpatialAudio.CENTER;
         PLAYBACK.stop();
@@ -204,6 +212,9 @@ public final class SpeechRuntime {
             if (!disconnectedSession.equals(sessionId)) return;
             sessionId = null;
         }
+        STREAM.invalidate();
+        streamSession = -1;
+        deferredSpeech.clear();
         invalidate();
     }
 
@@ -226,7 +237,66 @@ public final class SpeechRuntime {
 
     /** A speech packet from the server, on the client thread, tied to its originating connection. */
     public static void onCompanionSpeech(ClientSessionId expectedSession, CompanionSpeechView payload) {
+        speak(
+                payload.companion(),
+                payload.text(),
+                payload.addressee(),
+                payload.companionId(),
+                payload.audibleRange(),
+                expectedSession);
+    }
+
+    /**
+     * A streamed sentence. Sessions are separated; {@link SpeechStreamBuffer} drops duplicates and keeps order.
+     * With {@code streamReplies} off the sentences wait locally and are spoken together at the stream's last
+     * sentence, so the owner hears one buffered reply rather than a server-side buffer.
+     */
+    public static void onCompanionStreamSentence(ClientSessionId expectedSession, CompanionSpeechStreamView payload) {
         if (!isCurrentSession(expectedSession)) return;
+        ClientConfig.TtsSection cfg = section();
+        if (cfg == null || !cfg.enabled) return;
+        if (payload.sessionId() != streamSession) {
+            streamSession = payload.sessionId();
+            STREAM.beginSession(payload.sessionId());
+            deferredSpeech.clear();
+        }
+        SpeechStreamBuffer.Result result = STREAM.offer(new SpeechStreamBuffer.Sentence(
+                payload.streamId(), payload.sessionId(), payload.sequence(), payload.text(), payload.last()));
+        boolean streaming = streamReplies();
+        for (SpeechStreamBuffer.Sentence sentence : result.ready()) {
+            if (streaming) {
+                speak(
+                        payload.companion(),
+                        sentence.text(),
+                        payload.addressee(),
+                        payload.companionId(),
+                        payload.audibleRange(),
+                        expectedSession);
+            } else {
+                deferredSpeech.add(sentence.text());
+            }
+        }
+        if (payload.last() && !streaming) {
+            for (String text : deferredSpeech) {
+                speak(
+                        payload.companion(),
+                        text,
+                        payload.addressee(),
+                        payload.companionId(),
+                        payload.audibleRange(),
+                        expectedSession);
+            }
+            deferredSpeech.clear();
+        }
+    }
+
+    private static void speak(
+            String companion,
+            String text,
+            UUID addressee,
+            UUID companionId,
+            int audibleRange,
+            ClientSessionId expectedSession) {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.level == null || minecraft.player == null) {
             return;
@@ -235,33 +305,32 @@ public final class SpeechRuntime {
         if (cfg == null || !cfg.enabled) {
             return;
         }
-        boolean speak = SpeechGate.shouldSpeak(
-                payload.addressee(),
+        boolean shouldSpeak = SpeechGate.shouldSpeak(
+                addressee,
                 minecraft.player.getUUID(),
                 cfg.speakGuests,
                 VoiceRuntime.mic().isRecording());
-        if (!speak) {
+        if (!shouldSpeak) {
             return;
         }
         Entity source = null;
         if (cfg.spatial) {
-            source = minecraft.level.getEntity(payload.companionId());
+            source = minecraft.level.getEntity(companionId);
             if (!(source instanceof CompanionEntity)) {
-                // The companion is not in this level: the reply must not be heard here.
                 return;
             }
         }
-        List<String> chunks = SpeechText.cleanAndSplit(payload.text(), cfg.maxChars);
+        List<String> chunks = SpeechText.cleanAndSplit(text, cfg.maxChars);
         if (chunks.isEmpty()) {
             return;
         }
-        int range = Math.max(1, Math.min(128, payload.audibleRange()));
+        int range = Math.max(1, Math.min(128, audibleRange));
         if (source != null) {
             mix = mixFor(minecraft.player, source, range);
         } else {
             mix = SpatialAudio.CENTER;
         }
-        enqueue(chunks, resolve(cfg, source != null, payload.companionId(), range), expectedSession);
+        enqueue(chunks, resolve(cfg, source != null, companionId, range), expectedSession);
     }
 
     /**
@@ -478,6 +547,11 @@ public final class SpeechRuntime {
     private static ClientConfig.TtsSection section() {
         ClientConfig config = FriendaiClient.clientConfig();
         return config == null || config.voice == null ? null : config.voice.tts;
+    }
+
+    private static boolean streamReplies() {
+        ClientConfig config = FriendaiClient.clientConfig();
+        return config == null || config.voice == null || config.voice.streamReplies;
     }
 
     private static Plan resolve(ClientConfig.TtsSection cfg, boolean spatial, UUID companionId, int range) {

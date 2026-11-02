@@ -6,6 +6,7 @@ import dev.friendai.features.conversation.*;
 import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.protocol.ProtocolFamily;
 import dev.friendai.protocol.speech.CompanionSpeechProtocolViewCodec;
+import dev.friendai.protocol.speech.CompanionSpeechStreamView;
 import dev.friendai.protocol.speech.CompanionSpeechView;
 import dev.friendai.server.companion.CompanionNames;
 import dev.friendai.server.runtime.ServerRuntimeRegistry;
@@ -81,6 +82,29 @@ public final class CompanionSpeaker implements Speaker {
             ServerRuntimeRegistry.getOrCreate(server)
                     .protocolConnections()
                     .sendView(player, ProtocolFamily.SPEECH, CompanionSpeechProtocolViewCodec.encode(view));
+        }
+    }
+
+    @Override
+    public void streamSentence(
+            long streamId, long sessionId, long sequence, String text, boolean last, UUID addressee) {
+        if (text.isBlank()) {
+            return;
+        }
+        CompanionSpeechStreamView view = new CompanionSpeechStreamView(
+                clampUtf8(name.get(), CompanionSpeechProtocolViewCodec.MAX_COMPANION_BYTES),
+                clampUtf8(text, CompanionSpeechProtocolViewCodec.MAX_TEXT_BYTES),
+                addressee,
+                companionId.get(),
+                audibleRange.getAsInt(),
+                streamId,
+                sessionId,
+                sequence,
+                last);
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            ServerRuntimeRegistry.getOrCreate(server)
+                    .protocolConnections()
+                    .sendView(player, ProtocolFamily.SPEECH, CompanionSpeechProtocolViewCodec.encodeStream(view));
         }
     }
 

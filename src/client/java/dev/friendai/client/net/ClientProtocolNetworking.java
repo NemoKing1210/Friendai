@@ -122,10 +122,17 @@ public final class ClientProtocolNetworking {
             }
             case DEBUG -> receiveDebug(sessionId, frame, bytes, session);
             case SPEECH -> {
-                var decoded = CompanionSpeechProtocolViewCodec.decode(bytes);
-                var view = decodedView(decoded);
-                if (view != null) SpeechRuntime.onCompanionSpeech(sessionId, view.value());
-                else warnView("speech", decoded);
+                if (frame.operationId() == CompanionSpeechProtocolViewCodec.STREAM_OPERATION) {
+                    var decoded = CompanionSpeechProtocolViewCodec.decodeStream(bytes);
+                    var view = decodedView(decoded);
+                    if (view != null) SpeechRuntime.onCompanionStreamSentence(sessionId, view.value());
+                    else warnView("speech stream", decoded);
+                } else {
+                    var decoded = CompanionSpeechProtocolViewCodec.decode(bytes);
+                    var view = decodedView(decoded);
+                    if (view != null) SpeechRuntime.onCompanionSpeech(sessionId, view.value());
+                    else warnView("speech", decoded);
+                }
             }
         }
     }

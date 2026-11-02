@@ -281,6 +281,7 @@ public final class CompanionBrain {
     }
 
     private boolean skillFreeTimeTurn;
+    private boolean streamedTurn;
 
     public boolean isSkillFreeTimeTurn() {
         return skillFreeTimeTurn;
@@ -587,7 +588,9 @@ public final class CompanionBrain {
             java.util.List<dev.friendai.agent.llm.model.Message> history = memory.snapshot();
             observe(o -> o.onRequest(system, history, sent));
             LlmGateway active = gateway.get();
+            streamedTurn = false;
             if (active instanceof StreamingLlmGateway streaming) {
+                streamedTurn = true;
                 StreamAccumulator accumulator = new StreamAccumulator();
                 future = streaming
                         .completeStreaming(system, history, sent, accumulator::accept)
@@ -643,7 +646,21 @@ public final class CompanionBrain {
             Optional<String> guarded = ReplyGuard.filter(raw, coordinatesAllowed(), recentSpeech(), turnToolNames);
             if (guarded.isPresent()) {
                 spoken = guarded.get();
-                speaker.say(spoken, turnCaller.uuid());
+                if (streamedTurn) {
+                    speaker.say(spoken);
+                    List<String> sentences = dev.friendai.features.speech.tts.SpeechText.cleanAndSplit(spoken, 300);
+                    for (int i = 0; i < sentences.size(); i++) {
+                        speaker.streamSentence(
+                                generation,
+                                generation,
+                                i,
+                                sentences.get(i),
+                                i == sentences.size() - 1,
+                                turnCaller.uuid());
+                    }
+                } else {
+                    speaker.say(spoken, turnCaller.uuid());
+                }
                 rememberSpoken(spoken);
                 String heard = spoken;
                 observe(o -> o.onReply(turnCaller, heard));
