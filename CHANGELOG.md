@@ -6,7 +6,14 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
-## [0.152.0] - 2026-11-02
+## [0.153.0] - 2026-11-02
+
+### Added
+
+- The menu's activity line now shows what the running task is doing in one word (working, waiting).
+- When a goal ends, the companion remembers one line about it that says whether the world confirmed it and the shortest fact a task actually verified — so an unproven "done" is remembered as unproven.
+
+ - 2026-11-02
 
 ### Added
 
