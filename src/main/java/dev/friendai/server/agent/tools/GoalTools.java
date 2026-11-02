@@ -5,6 +5,7 @@ import com.google.gson.JsonObject;
 import dev.friendai.agent.goal.Criterion;
 import dev.friendai.agent.goal.Goal;
 import dev.friendai.agent.goal.GoalBoard;
+import dev.friendai.agent.goal.GoalDeadline;
 import dev.friendai.agent.goal.GoalResult;
 import dev.friendai.agent.goal.GoalService;
 import dev.friendai.agent.goal.GoalStatus;
@@ -53,30 +54,47 @@ public final class GoalTools implements FeatureToolContributor {
                         + "type delivered, item minecraft:oak_log, count 12 for items the owner now holds, or "
                         + "type block_at, block minecraft:oak_planks, x 10, y 64, z -3 for one exact position) when "
                         + "the world can check it by itself. One primary goal at a time; background:true adds one "
-                        + "of at most three side goals.",
+                        + "of at most three side goals. deadline_minutes says how soon it is due.",
                 SchemaBuilder.object()
                         .string("text", "The goal in one short sentence")
                         .array("criteria", "How you will know it is done", criterionSchema, 0, 6)
                         .bool("background", "Add as a background goal instead of the primary one")
+                        .integer(
+                                "deadline_minutes",
+                                "Minutes from now the goal is due (1 to 10080); leave it out for no deadline",
+                                1,
+                                GoalDeadline.MAX_MINUTES)
                         .required("text")
                         .build(),
                 (companion, args) -> withBoard(companion, (owner, goals, board) -> {
+                    long now = companion.level().getGameTime();
+                    GoalResult<Long> due = deadline(args, now, 1);
+                    if (!due.ok()) {
+                        return ToolResult.error(due.error());
+                    }
                     GoalResult<Goal> result = board.set(
                             args.get("text").getAsString(),
                             criteria(args),
                             args.has("background") && args.get("background").getAsBoolean(),
-                            companion.level().getGameTime());
+                            now,
+                            due.value());
                     return result.ok() ? describe("set", result.value()) : ToolResult.error(result.error());
                 }));
         registerTool(
                 registry,
                 UPDATE_GOAL,
-                "Change a goal's text, criteria or status (active or blocked). Use finish_goal to end it.",
+                "Change a goal's text, criteria, status (active or blocked) or deadline"
+                        + " (deadline_minutes:0 removes it). Use finish_goal to end it.",
                 SchemaBuilder.object()
                         .integer("id", "Goal id")
                         .string("text", "New goal sentence")
                         .array("criteria", "Replacement criteria", criterionSchema, 0, 6)
                         .enumeration("status", "New status", "active", "blocked")
+                        .integer(
+                                "deadline_minutes",
+                                "Minutes from now the goal is due (1 to 10080), or 0 to remove the deadline",
+                                0,
+                                GoalDeadline.MAX_MINUTES)
                         .required("id")
                         .build(),
                 (companion, args) -> withBoard(companion, (owner, goals, board) -> {
@@ -86,11 +104,16 @@ public final class GoalTools implements FeatureToolContributor {
                             ? Optional.of(GoalStatus.valueOf(
                                     args.get("status").getAsString().toUpperCase(Locale.ROOT)))
                             : Optional.empty();
+                    GoalResult<Long> due = deadline(args, companion.level().getGameTime(), 0);
+                    if (!due.ok()) {
+                        return ToolResult.error(due.error());
+                    }
                     GoalResult<Goal> result = board.update(
                             args.get("id").getAsLong(),
                             args.has("text") ? Optional.of(args.get("text").getAsString()) : Optional.empty(),
                             criteria,
-                            status);
+                            status,
+                            args.has("deadline_minutes") ? Optional.of(due.value()) : Optional.empty());
                     return result.ok() ? describe("updated", result.value()) : ToolResult.error(result.error());
                 }));
         registerTool(
@@ -227,6 +250,24 @@ public final class GoalTools implements FeatureToolContributor {
             }
         }
         return list;
+    }
+
+    /**
+     * The {@code deadline_minutes} argument as an absolute game tick, zero for no deadline.
+     *
+     * @param minMinutes 1 when the goal must gain a deadline, 0 when zero may clear one
+     * @return the tick, or the message the model must read
+     */
+    static GoalResult<Long> deadline(JsonObject args, long nowTick, int minMinutes) {
+        if (!args.has("deadline_minutes")) {
+            return GoalResult.ok(0L);
+        }
+        int minutes = args.get("deadline_minutes").getAsInt();
+        if (minutes < minMinutes || minutes > GoalDeadline.MAX_MINUTES) {
+            return GoalResult.fail("deadline_minutes must be " + minMinutes + " to " + GoalDeadline.MAX_MINUTES
+                    + " minutes; leave it out for no deadline.");
+        }
+        return GoalResult.ok(GoalDeadline.tickFrom(nowTick, minutes));
     }
 
     /** An object with a valid guard {@code type} keeps its check; otherwise only its text counts. */

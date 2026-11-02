@@ -143,6 +143,7 @@ public final class CompanionRequestHandler {
                             edit.goalId(),
                             edit.text().isBlank() ? java.util.Optional.empty() : java.util.Optional.of(edit.text()),
                             java.util.Optional.empty(),
+                            java.util.Optional.empty(),
                             java.util.Optional.empty());
         } else if (request instanceof ControlRequest.RetryLast) {
             companions.find(owner).ifPresent(c -> c.executionCoordinator().retryLast());

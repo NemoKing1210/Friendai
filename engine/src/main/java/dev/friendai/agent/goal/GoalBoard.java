@@ -42,6 +42,12 @@ public final class GoalBoard {
     }
 
     public GoalResult<Goal> set(String text, List<Criterion> criteria, boolean background, long tick) {
+        return set(text, criteria, background, tick, 0L);
+    }
+
+    /** @param deadlineTick the absolute game tick the goal is due at, or zero for no deadline */
+    public GoalResult<Goal> set(
+            String text, List<Criterion> criteria, boolean background, long tick, long deadlineTick) {
         String cleaned = clean(text, MAX_TEXT);
         if (cleaned.isEmpty()) {
             return GoalResult.fail("The goal needs a short text.");
@@ -59,7 +65,8 @@ public final class GoalBoard {
             return GoalResult.fail("There is already a primary goal (#"
                     + primary().get().id() + "); finish or update it first, or add this one as a background goal.");
         }
-        Goal goal = new Goal(nextId++, cleaned, checked.value(), GoalStatus.ACTIVE, 0, 0, List.of(), tick, background);
+        Goal goal = new Goal(
+                nextId++, cleaned, checked.value(), GoalStatus.ACTIVE, 0, 0, List.of(), tick, background, deadlineTick);
         goals.add(goal);
         return GoalResult.ok(goal);
     }
@@ -84,9 +91,17 @@ public final class GoalBoard {
         return goals.stream().filter(g -> g.id() == id).findFirst();
     }
 
-    /** Edits a goal; status may only move between ACTIVE and BLOCKED here (use {@link #finish} to end it). */
+    /**
+     * Edits a goal; status may only move between ACTIVE and BLOCKED here (use {@link #finish} to end it).
+     *
+     * @param deadline the absolute game tick to be due at; empty keeps the current deadline, zero clears it
+     */
     public GoalResult<Goal> update(
-            long id, Optional<String> text, Optional<List<Criterion>> criteria, Optional<GoalStatus> status) {
+            long id,
+            Optional<String> text,
+            Optional<List<Criterion>> criteria,
+            Optional<GoalStatus> status,
+            Optional<Long> deadline) {
         Optional<Goal> found = find(id);
         if (found.isEmpty()) {
             return GoalResult.fail("No goal #" + id + ".");
@@ -115,6 +130,9 @@ public final class GoalBoard {
                 goal = goal.withReplans(0);
             }
             goal = goal.withStatus(status.get());
+        }
+        if (deadline.isPresent()) {
+            goal = goal.withDeadline(deadline.get());
         }
         replace(goal);
         return GoalResult.ok(goal);
@@ -176,8 +194,10 @@ public final class GoalBoard {
     /**
      * The prompt view of the primary goal; empty when there is none. The risk class is derived from the tools the
      * goal's queued work uses, so it is never stored and follows a replan.
+     *
+     * @param nowTick the game tick the deadline is measured against, so the prompt can say due or overdue
      */
-    public GoalView view(String planStatus, GuardFacts facts, Collection<String> tools) {
+    public GoalView view(String planStatus, GuardFacts facts, Collection<String> tools, long nowTick) {
         Optional<Goal> primary = primary();
         if (primary.isEmpty()) {
             return GoalView.EMPTY;
@@ -189,7 +209,8 @@ public final class GoalBoard {
                 unmet(goal.id(), facts).stream().map(Criterion::text).toList(),
                 planStatus == null ? "" : planStatus,
                 lessons.isEmpty() ? "" : lessons.get(lessons.size() - 1),
-                ToolRisk.of(tools));
+                ToolRisk.of(tools),
+                GoalDeadline.describe(goal.deadlineTick(), nowTick));
     }
 
     private void replace(Goal updated) {

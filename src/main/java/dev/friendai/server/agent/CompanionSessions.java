@@ -1211,7 +1211,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
             }
             var facts = new dev.friendai.task.queue.CompanionGuardFacts(companion);
             facts.refresh();
-            return board.view(plan, facts, tools);
+            return board.view(plan, facts, tools, companion.level().getGameTime());
         });
         AgentEvents agent = new AgentEvents(owner, companion, session);
         companion.executionCoordinator().setEventSink(new TaskEventSink() {

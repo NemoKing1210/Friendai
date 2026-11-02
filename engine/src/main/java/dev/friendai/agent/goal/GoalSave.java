@@ -28,6 +28,7 @@ public final class GoalSave {
             g.addProperty("replans", goal.replans());
             g.addProperty("created", goal.createdTick());
             g.addProperty("background", goal.background());
+            g.addProperty("deadline", goal.deadlineTick());
             JsonArray lessons = new JsonArray();
             goal.lessons().forEach(lessons::add);
             g.add("lessons", lessons);
@@ -76,7 +77,9 @@ public final class GoalSave {
                         g.get("replans").getAsInt(),
                         lessons,
                         g.get("created").getAsLong(),
-                        g.get("background").getAsBoolean()));
+                        g.get("background").getAsBoolean(),
+                        // Files written before the deadline existed simply have no deadline.
+                        g.has("deadline") ? g.get("deadline").getAsLong() : 0L));
             }
             long nextId = root.has("nextId") ? root.get("nextId").getAsLong() : 1;
             return Optional.of(GoalBoard.restore(maxBackground, maxReplans, nextId, goals));

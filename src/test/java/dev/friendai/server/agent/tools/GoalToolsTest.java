@@ -1,10 +1,12 @@
 package dev.friendai.server.agent.tools;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import dev.friendai.agent.goal.GoalDeadline;
 import dev.friendai.agent.llm.model.ToolSpec;
 import dev.friendai.agent.tools.ToolCatalog;
 import dev.friendai.agent.tools.ToolMeta;
@@ -39,7 +41,7 @@ class GoalToolsTest {
 
         JsonObject setGoal = schema(tools, "set_goal");
         assertEquals(
-                Set.of("text", "criteria", "background"),
+                Set.of("text", "criteria", "background", "deadline_minutes"),
                 setGoal.getAsJsonObject("properties").keySet());
         assertEquals(Set.of("text"), strings(setGoal.getAsJsonArray("required")));
         assertEquals(
@@ -48,10 +50,16 @@ class GoalToolsTest {
                         .getAsJsonObject("criteria")
                         .get("maxItems")
                         .getAsInt());
+        assertEquals(
+                1,
+                setGoal.getAsJsonObject("properties")
+                        .getAsJsonObject("deadline_minutes")
+                        .get("minimum")
+                        .getAsInt());
 
         JsonObject updateGoal = schema(tools, "update_goal");
         assertEquals(
-                Set.of("id", "text", "criteria", "status"),
+                Set.of("id", "text", "criteria", "status", "deadline_minutes"),
                 updateGoal.getAsJsonObject("properties").keySet());
         assertEquals(
                 Set.of("active", "blocked"),
@@ -76,6 +84,30 @@ class GoalToolsTest {
                         .getAsJsonObject());
         assertEquals("tell the owner", textOnly.text());
         assertTrue(textOnly.check().isEmpty());
+    }
+
+    @Test
+    void deadlineMinutesBecomeAnAbsoluteTickAndBadMinutesAreRejected() {
+        long now = 500;
+
+        assertTrue(GoalTools.deadline(new JsonObject(), now, 1).ok(), "omitting the deadline is allowed");
+        assertEquals(0L, GoalTools.deadline(new JsonObject(), now, 1).value());
+
+        var due = GoalTools.deadline(minutes(1_440), now, 1);
+        assertTrue(due.ok(), due.error());
+        assertEquals(now + 1_440L * GoalDeadline.TICKS_PER_MINUTE, due.value());
+
+        assertFalse(GoalTools.deadline(minutes(-1), now, 1).ok(), "a negative deadline is refused");
+        assertFalse(GoalTools.deadline(minutes(10_081), now, 0).ok(), "a week is the longest deadline");
+        assertFalse(GoalTools.deadline(minutes(0), now, 1).ok(), "set_goal cannot take zero as a deadline");
+        assertEquals(
+                0L, GoalTools.deadline(minutes(0), now, 0).value(), "update_goal takes zero to clear the deadline");
+    }
+
+    private static JsonObject minutes(int value) {
+        JsonObject args = new JsonObject();
+        args.addProperty("deadline_minutes", value);
+        return args;
     }
 
     private static Set<String> names(java.util.List<ToolSpec> specs) {

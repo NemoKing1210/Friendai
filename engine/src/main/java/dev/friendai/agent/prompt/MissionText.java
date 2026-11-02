@@ -25,8 +25,11 @@ public final class MissionText {
             out.append("\n- Goal: ")
                     .append(view.text())
                     .append(" (")
-                    .append(view.risk().token())
-                    .append(")");
+                    .append(view.risk().token());
+            if (!view.deadline().isBlank()) {
+                out.append("; ").append(view.deadline());
+            }
+            out.append(")");
             List<String> unmet = view.unmet();
             if (!unmet.isEmpty()) {
                 out.append("\n- Not yet confirmed: ")

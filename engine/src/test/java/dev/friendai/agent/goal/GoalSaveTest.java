@@ -57,4 +57,38 @@ class GoalSaveTest {
         String big = "{\"goals\":[],\"pad\":\"" + "x".repeat(40_000) + "\"}";
         assertTrue(GoalSave.decode(big, 3, 3).isEmpty());
     }
+
+    @Test
+    void roundTripKeepsTheDeadlineAndDefaultsItToZero() {
+        GoalBoard board = new GoalBoard(3, 3);
+        long due = 4_000 + 30 * GoalDeadline.TICKS_PER_MINUTE;
+        board.set("wood", List.of(), false, 4_000, due);
+        board.set("bg", List.of(), true, 4_000);
+
+        GoalBoard back = GoalSave.decode(GoalSave.encode(board), 3, 3).orElseThrow();
+        assertEquals(due, back.primary().orElseThrow().deadlineTick());
+        assertEquals(0L, back.background().get(0).deadlineTick());
+        assertTrue(GoalSave.encode(board).contains("\"deadline\":" + due));
+        assertTrue(GoalSave.encode(board).contains("\"deadline\":0"), "a goal without a deadline still writes it");
+    }
+
+    @Test
+    void aSaveFromBeforeTheDeadlineExistedDecodesToNoDeadline() {
+        String old = "{\"nextId\":2,\"goals\":["
+                + "{\"id\":1,\"text\":\"wood\",\"status\":\"ACTIVE\",\"plan\":0,\"replans\":0,"
+                + "\"created\":7,\"background\":false,\"lessons\":[],\"criteria\":[{\"text\":\"12 logs\"}]}]}";
+        GoalBoard back = GoalSave.decode(old, 3, 3).orElseThrow();
+        assertEquals("wood", back.primary().orElseThrow().text());
+        assertEquals(0L, back.primary().orElseThrow().deadlineTick());
+
+        String negative = old.replace("\"created\":7,", "\"created\":7,\"deadline\":-50,");
+        assertEquals(
+                0L,
+                GoalSave.decode(negative, 3, 3)
+                        .orElseThrow()
+                        .primary()
+                        .orElseThrow()
+                        .deadlineTick(),
+                "a broken deadline never becomes a due date");
+    }
 }

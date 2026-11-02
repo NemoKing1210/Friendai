@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.friendai.agent.prompt.MissionText;
 import dev.friendai.execution.queue.Guard;
 import dev.friendai.execution.queue.GuardFacts;
 import java.util.List;
@@ -116,7 +117,7 @@ class GoalBoardTest {
         assertTrue(board.recordReplan(id));
         assertFalse(board.recordReplan(id));
         assertEquals(GoalStatus.BLOCKED, board.primary().orElseThrow().status());
-        board.update(id, Optional.empty(), Optional.empty(), Optional.of(GoalStatus.ACTIVE));
+        board.update(id, Optional.empty(), Optional.empty(), Optional.of(GoalStatus.ACTIVE), Optional.empty());
         assertEquals(0, board.primary().orElseThrow().replans());
         assertTrue(board.recordReplan(id), "the budget is available again");
     }
@@ -126,7 +127,7 @@ class GoalBoardTest {
         GoalBoard board = new GoalBoard(3, 3);
         long id = board.set("g", List.of(), false, 1).value().id();
         board.recordReplan(id);
-        board.update(id, Optional.of("renamed"), Optional.empty(), Optional.of(GoalStatus.ACTIVE));
+        board.update(id, Optional.of("renamed"), Optional.empty(), Optional.of(GoalStatus.ACTIVE), Optional.empty());
         assertEquals(1, board.primary().orElseThrow().replans());
     }
 
@@ -169,13 +170,13 @@ class GoalBoardTest {
     @Test
     void viewIsEmptyWithoutAGoalAndShowsUnmetOtherwise() {
         GoalBoard board = new GoalBoard(3, 3);
-        assertTrue(board.view("none", items(Map.of()), List.of()).isEmpty());
+        assertTrue(board.view("none", items(Map.of()), List.of(), 1).isEmpty());
         board.set(
                 "wood",
                 List.of(new Criterion("12 logs", Optional.of(new Guard.HasItem("minecraft:oak_log", 12)))),
                 false,
                 1);
-        GoalView view = board.view("running", items(Map.of()), List.of("mine_blocks"));
+        GoalView view = board.view("running", items(Map.of()), List.of("mine_blocks"), 1);
         assertEquals("wood", view.text());
         assertEquals(List.of("12 logs"), view.unmet());
         assertEquals("running", view.planStatus());
@@ -187,13 +188,53 @@ class GoalBoardTest {
     void viewDerivesTheRiskFromThePlansTools() {
         GoalBoard board = new GoalBoard(3, 3);
         board.set("clear the yard", List.of(), false, 1);
-        GoalView careful = board.view("running", items(Map.of()), List.of("go_to", "mine_blocks"));
+        GoalView careful = board.view("running", items(Map.of()), List.of("go_to", "mine_blocks"), 1);
         assertEquals(RiskClass.CAREFUL, careful.risk());
-        GoalView destructive = board.view("running", items(Map.of()), List.of("go_to", "clear_area"));
+        GoalView destructive = board.view("running", items(Map.of()), List.of("go_to", "clear_area"), 1);
         assertEquals(RiskClass.DESTRUCTIVE, destructive.risk());
         assertTrue(destructive.consulted());
         assertEquals(
                 RiskClass.SAFE,
-                board.view("running", items(Map.of()), List.of()).risk());
+                board.view("running", items(Map.of()), List.of(), 1).risk());
+    }
+
+    @Test
+    void setStoresTheDeadlineAndTheViewCountsItDown() {
+        GoalBoard board = new GoalBoard(3, 3);
+        long due = 1_000 + 5 * GoalDeadline.TICKS_PER_MINUTE;
+        board.set("bring logs", List.of(), false, 1_000, due);
+        assertEquals(due, board.primary().orElseThrow().deadlineTick());
+        assertEquals(
+                "due in 5 minutes",
+                board.view("", items(Map.of()), List.of(), 1_000).deadline());
+        assertEquals(
+                "overdue by 2 minutes",
+                board.view("", items(Map.of()), List.of(), due + 2 * GoalDeadline.TICKS_PER_MINUTE)
+                        .deadline());
+        assertTrue(MissionText.render(board.view("", items(Map.of()), List.of(), 1_000))
+                .contains("- Goal: bring logs (risk: safe; due in 5 minutes)"));
+    }
+
+    @Test
+    void aGoalWithoutADeadlineShowsNone() {
+        GoalBoard board = new GoalBoard(3, 3);
+        board.set("bring logs", List.of(), false, 1_000);
+        assertEquals(0L, board.primary().orElseThrow().deadlineTick());
+        assertEquals("", board.view("", items(Map.of()), List.of(), 1_000).deadline());
+        assertTrue(MissionText.render(board.view("", items(Map.of()), List.of(), 1_000))
+                .contains("- Goal: bring logs (risk: safe)"));
+    }
+
+    @Test
+    void updateSetsKeepsAndClearsTheDeadline() {
+        GoalBoard board = new GoalBoard(3, 3);
+        long id = board.set("bring logs", List.of(), false, 1_000).value().id();
+        long due = 1_000 + 60 * GoalDeadline.TICKS_PER_MINUTE;
+        board.update(id, Optional.empty(), Optional.empty(), Optional.empty(), Optional.of(due));
+        assertEquals(due, board.primary().orElseThrow().deadlineTick());
+        board.update(id, Optional.of("bring planks"), Optional.empty(), Optional.empty(), Optional.empty());
+        assertEquals(due, board.primary().orElseThrow().deadlineTick(), "an omitted deadline is unchanged");
+        board.update(id, Optional.empty(), Optional.empty(), Optional.empty(), Optional.of(0L));
+        assertEquals(0L, board.primary().orElseThrow().deadlineTick());
     }
 }
