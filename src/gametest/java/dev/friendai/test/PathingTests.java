@@ -1008,6 +1008,42 @@ public class PathingTests {
     }
 
     @GameTest(maxTicks = 600)
+    public void walksFortyBlocksWithoutReversalOrDetour(GameTestHelper h) {
+        int base = 260;
+        GameTestSupport.platformAt(h, base, 56);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, base + 1, 20);
+        Vec3 target = h.absoluteVec(new Vec3(42.5, base + 1, 20.5));
+        TaskContext context = new TaskContext(c, h.getLevel());
+        Navigator navigator = new Navigator(context);
+        navigator.setGoal(new GoalPoint(target.x, target.y, target.z, 0.5, 0.5));
+        Navigator.State[] state = {Navigator.State.SEARCHING};
+        double[] travelled = {0};
+        double[] lastX = {c.getX()};
+        double[] lastZ = {c.getZ()};
+        int[] reversals = {0};
+        int[] lastSign = {0};
+        h.onEachTick(() -> {
+            state[0] = navigator.tick(context);
+            double dx = c.getX() - lastX[0];
+            double dz = c.getZ() - lastZ[0];
+            travelled[0] += Math.hypot(dx, dz);
+            int sign = Math.abs(dx) < 1.0e-4 ? 0 : dx > 0 ? 1 : -1;
+            if (sign != 0) {
+                if (lastSign[0] != 0 && sign != lastSign[0]) reversals[0]++;
+                lastSign[0] = sign;
+            }
+            lastX[0] = c.getX();
+            lastZ[0] = c.getZ();
+        });
+        h.succeedWhen(() -> {
+            h.assertTrue(state[0] == Navigator.State.ARRIVED, "not arrived: " + state[0] + " at " + c.position());
+            h.assertTrue(reversals[0] == 0, "reversed " + reversals[0] + " times");
+            h.assertTrue(
+                    travelled[0] <= 1.05 * 40.0, "walked " + travelled[0] + " blocks for a 40-block straight line");
+        });
+    }
+
+    @GameTest(maxTicks = 600)
     public void walksThirtyTwoBlocksInBudget(GameTestHelper h) {
         int base = 230;
         GameTestSupport.platformAt(h, base, 40);
@@ -1067,6 +1103,7 @@ public class PathingTests {
             double dx = c.getX() - lastX[0];
             double dz = c.getZ() - lastZ[0];
             lastX[0] = c.getX();
+            lastZ[0] = c.getZ();
             lastZ[0] = c.getZ();
             if (Math.hypot(dx, dz) > 0.02) {
                 float travel = Facing.yawToward(dx, dz);
