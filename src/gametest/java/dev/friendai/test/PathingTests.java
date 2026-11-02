@@ -626,6 +626,32 @@ public class PathingTests {
                 "still " + c.position().distanceTo(owner.position()) + " blocks away"));
     }
 
+    @GameTest(maxTicks = 3000)
+    public void followsThreeHundredBlocksWithoutTeleporting(GameTestHelper h) {
+        int floor = 300;
+        GameTestSupport.platformAt(h, floor, 312);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 302.0, floor + 1, 4.5);
+        owner.setOnGround(true);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, floor + 1, 4);
+        c.setOwner(owner.getUUID());
+        c.executionCoordinator().start(new FollowTask(true), "follow");
+        double[] last = {c.getX(), c.getY(), c.getZ()};
+        double[] biggest = {0};
+        h.onEachTick(() -> {
+            double step = Math.sqrt(Math.pow(c.getX() - last[0], 2)
+                    + Math.pow(c.getY() - last[1], 2)
+                    + Math.pow(c.getZ() - last[2], 2));
+            biggest[0] = Math.max(biggest[0], step);
+            last[0] = c.getX();
+            last[1] = c.getY();
+            last[2] = c.getZ();
+            h.assertTrue(biggest[0] < 1.5, "the companion jumped " + biggest[0] + " blocks in one tick");
+        });
+        h.succeedWhen(() -> h.assertTrue(
+                c.position().distanceTo(owner.position()) <= 5.0,
+                "still " + c.position().distanceTo(owner.position()) + " blocks away after 300 blocks"));
+    }
+
     @GameTest(maxTicks = 600)
     public void followDoesNotPillarToAnAirborneOwner(GameTestHelper h) {
         int floor = 90;
