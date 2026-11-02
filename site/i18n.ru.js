@@ -407,6 +407,7 @@ const RU = {
   "Replies can be spoken locally or through a cloud voice, panned and attenuated by where the companion is.": "Ответы озвучиваются локально или облачным голосом, с панорамой и затуханием по положению компаньона.",
   "Local Piper voices": "Локальные голоса Piper",
   "Five catalogued voices via sherpa-onnx.": "Пять голосов из каталога через sherpa-onnx.",
+  "Ordered per stream and session, with one cut-off report.": "По порядку в потоке и сессии, с одним сообщением об обрыве.",
   "OpenAI TTS": "OpenAI TTS",
   "Cloud speech.": "Облачная речь.",
   "ElevenLabs": "ElevenLabs",

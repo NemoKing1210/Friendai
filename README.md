@@ -164,6 +164,8 @@ The companion can also speak its replies. Synthesis is off by default; turn on *
 
 Only the reply text leaves your machine, and only for cloud synthesis; local voices never send it anywhere. For cloud recognition only the recording leaves. Keys are client-side for both directions: they live in the client config, may reference an environment variable (`env:OPENAI_API_KEY`), travel only in an HTTP header, and never appear in logs, chat or error messages. Friendai never retries a paid request automatically.
 
+Replies from a streaming provider are delivered as ordered sentences: the client keeps them in order, drops duplicates and a sentence from an older session, and reports one toast if the stream is cut off before its last sentence. **Stream replies** (Settings → Voice → Synthesis, on by default) can be turned off to buffer the whole reply on the client before speaking.
+
 Volume, the output device, the maximum length of a spoken phrase and speaking replies addressed to other players are on the same screen. **Voice comes from the companion** is on by default: every reply plays from the companion's position, pans left or right as you turn, and fades with distance until it is silent at the hearing radius. Turn it off to hear replies centred at full volume. **Test voice** speaks a sample sentence. Pressing push-to-talk or the **Stop speaking** key (unbound by default; set it in Controls) cuts a reply off.
 
 ## Resource knowledge and search

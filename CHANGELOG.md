@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.162.0] - 2026-11-02
+
+### Added
+
+- A streaming provider can deliver a reply as ordered sentences: the client plays them in order, never repeats one, and reports a cut-off answer once. **Stream replies** can be turned off in Voice settings to buffer the whole reply before speaking.
+
 ## [0.161.0] - 2026-11-02
 
 ### Added
