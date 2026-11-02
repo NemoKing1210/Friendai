@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.182.0] - 2026-11-02
+
+### Added
+
+- `plan_patch` accepts a pending action path (`step 1 → then #1`) and converts it to a bounded plan route, so a branch or repeat body can be patched without hand-computing indices.
+
 ## [0.181.0] - 2026-11-02
 
 ### Added

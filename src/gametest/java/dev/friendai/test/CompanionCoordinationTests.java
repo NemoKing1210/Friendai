@@ -168,8 +168,7 @@ public class CompanionCoordinationTests {
         args.addProperty("plan", planId);
         args.addProperty(
                 "expected", PlanFingerprint.of(companion.executionCoordinator().queue(), planId));
-        args.addProperty("route", "0,1");
-        args.addProperty("index", 0);
+        args.addProperty("path", "step 1 → then #1");
         args.addProperty("remove", 1);
         com.google.gson.JsonArray steps = new com.google.gson.JsonArray();
         JsonObject replacement = new JsonObject();
