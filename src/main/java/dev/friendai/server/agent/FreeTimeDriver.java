@@ -819,13 +819,15 @@ public final class FreeTimeDriver {
                         // The need did not fail, the planner could not draft work for it: only the director backs off.
                         Shift shift = state.shift();
                         service().finishShift(owner, false, "no plan: " + reason, now, ShiftStopWhen.WORK_CONFLICTS);
-                        reportShiftEnd(
-                                owner, companion, shift, false, "no plan: " + reason, ShiftStopWhen.WORK_CONFLICTS);
-                        budget(owner).failed();
+                        // One line, not two: when the owner asked for this shift they get the specific failure reason
+                        // instead of the generic end report, which would say the same thing twice.
                         if (speakFailure) {
-                            // The owner asked for this one: the sentence "I'll do that" must not be left hanging.
                             tell(owner, companion, dev.friendai.agent.plan.PlanFailure.ownerMessage(ownerError));
+                        } else {
+                            reportShiftEnd(
+                                    owner, companion, shift, false, "no plan: " + reason, ShiftStopWhen.WORK_CONFLICTS);
                         }
+                        budget(owner).failed();
                         return;
                     }
                     service().linkPlan(owner, plan.get());

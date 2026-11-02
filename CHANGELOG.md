@@ -6,7 +6,13 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
-## [0.155.0] - 2026-11-02
+## [0.155.1] - 2026-11-02
+
+### Fixed
+
+- A free-time shift the owner asked for no longer says the same thing twice when its plan fails: they get the specific reason once, not the reason plus a generic end report.
+
+ - 2026-11-02
 
 ### Added
 

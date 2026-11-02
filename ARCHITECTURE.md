@@ -173,12 +173,12 @@ Cross-feature dependencies are explicit and directed, and `PackageDependencyRule
 ### One chat or voice turn
 
 1. A chat message reaches `ChatRouter.onChat`; voice text arrives in a typed SPEECH-family `ProtocolRequestC2SPayload` and `ProtocolRequestDispatcher` invokes `VoiceTranscriptHandler` on the server thread. Trust confirmations are handled before addressing.
-2. `AddressDetector` decides whether the companion is addressed; `CompanionRouting` → `CompanionPicker` chooses which companion hears it (own within hearing → nearest other within hearing whose owner is online). Nothing in range means no companion hears it and the sender is told it is too far.
+2. `CompanionRouting.route` runs `CompanionPicker.pick` first, because the name that counts is the recipient's (own within hearing → the nearest other within hearing whose owner is online); `AddressDetector` is then built with that name. An addressed line with no recipient is answered `friendai.companion.too_far` only when the sender owns a companion; an unaddressed line reaches only the sender's own companion, and only with `chat.listenAll`.
 3. `CompanionSessions.post` → `CompanionBrain.post`; guest throttling happens in `shouldDrop`.
 4. `maybeStartTurn` batches the events for one principal, fixes `turnCaller`, appends one USER message and calls `requestStep`.
 4a. The batch is routed (`TurnRouter`): the turn mode decides which tool groups are visible. A failed plan with replans left, and a complex request that sets a goal, consult the planner first; its plan is queued with the turn caller's access and shown once in the Mission block.
-5. `requestStep` builds the system prompt with `PromptBuilder.system` and calls `gateway.complete(system, memory.snapshot(), tools.specs(access))`, where the specs are filtered to the visible groups when `agent.toolRouting` is on. Speech is still checked against every tool the caller has.
-6. The response callback speaks the text and executes every tool call in order through `ToolRegistry.run`; tools normally start a `Task`.
+5. `requestStep` builds the system prompt with `PromptBuilder.system` and calls `gateway.complete(system, memory.snapshot(), sent)`: `sent` is `tools.specs(caller access)` minus `manage_skill` outside a teaching turn, filtered by `ToolCatalog` to the visible groups (or every group when `agent.toolRouting` is off), with `trade_item` hidden on a `CHAT` turn. `turnToolNames` keeps every caller-visible name, so `ReplyGuard` hides any of them from speech.
+6. The response callback offers the reply to `ReplyGuard` (which may reduce it to silence) and executes every tool call in order through the bound `ToolExecutor` (`ToolRegistry.bind(...).execute`); a task tool starts a `Task` or queues a `QueuedStep`.
 7. Tool results are appended as TOOL messages and `requestStep` loops until there are no calls or `maxToolSteps` is reached; `endTurn` applies the cooldown.
 8. The owner's own hold (`/friendai pause`) is `ExecutionCoordinator.setManualPause`: it suspends the runner without
    dropping the active task, survives a rejoin or respawn because `resume` keeps `suspended = manualPause`, and
@@ -188,9 +188,36 @@ Cross-feature dependencies are explicit and directed, and `PackageDependencyRule
    care), so the prompt line reads `task #N ... (plan #P) (goal #G)` and the next turn can connect the result to the
    goal it was meant to prove.
 
+### One owner request: who decides, and what each hand-off must keep
+
+The chain below is one request from chat to speech; a change may alter a step's policy but not the contract at its hand-off.
+
+1. `ChatRouter.onChat` — decides whether a line is a request. Contract: it consumes a trust answer, lets `LocalOrderExecutor` run a recognized order through the registry instead of the brain, and posts at most one `BrainEvent.PlayerSaid` per accepted line. It must not pick a recipient or post twice.
+2. `CompanionRouting.route` → `CompanionPicker.pick` — decides who hears it. Contract: a pure pick, the sender's own companion within `chat.hearingRadius` first, then the nearest other companion within it whose owner is online when guests are enabled. It must not consult perception or answer for a companion that cannot hear the line.
+3. `CompanionSessions.post` → `CompanionBrain.post` — decides acceptance. Contract: `shouldDrop` is the only filter and it throttles guests alone (cooldown, `MAX_PENDING_PER_GUEST`); every drop is observed, never spoken. It must not run a turn on the caller's thread or drop an owner event.
+4. `CompanionBrain.maybeStartTurn` — decides the turn. Contract: one principal's batch, the turn's `generation` captured at start, `thinking` set before any request, `turnCaller` fixed for the turn, `visibleGroups` reset from `RouteDecision`. It must not start a turn while one is in flight or reuse another principal's history.
+5. `TurnRouter.route` — decides mode and groups without a model call. Contract: unclear text degrades to `ACTION` with every group, never to less capability; `wantPlanner` alone gates the planner; only an explicit owner trading verb mints a spend scope. It must not derive authority from a topic or a queued result.
+6. `CompanionBrain.requestStep` — decides what the model sees. Contract: `PromptBuilder.system`, `memory.snapshot()`, and catalog-filtered specs (`trade_item` hidden in `CHAT`) with one request in flight. It must not send a schema the caller cannot use or run a tool before the response.
+7. `CompanionBrain.onResponse` — decides what is said and run. Contract: `ReplyGuard` may reduce the text to silence but never drops a tool call; calls run in order, each appending exactly one TOOL message, errors included. It must not act on a stale `generation`.
+8. `GoalTools`, `QueueTools`, `TaskToolRuntime.tool` — decide what work exists. Contract: goals are OWNER-only and saved through `GoalService`; `queue_add` validates against the caller's allowlist and links a plan to a planless goal; a task tool starts a `Task` or enqueues a `QueuedStep` and reports `task #N` / `job #N`. They must not save an `AccessLevel`: `CompanionSessions.currentCaller` re-resolves it at activation.
+9. `ExecutionCoordinator.tick` → `QueueDriver` → `ActiveTaskController` — decides what runs. Contract: priority then queue order among ready jobs (`SKIP` guards skipped first), one active task, a direct task freezes a queue job, and `ActiveTaskController` turns timeout, stall and a thrown tick into `FAILED`. It must not start work under a hold.
+10. `ExecutionCoordinator.emit` → `TaskEventSink` — decides when it is published. Contract: `emit` defers events to `pendingEvents` during a transition and flushes after it settles; `CompanionSessions` posts only for the current session and companion, adding the plan and goal correlation. It must not let a listener reenter a half-settled queue update.
+11. `AgentEvents.extra` → `OutcomeChecker` / `FailureHandler` — decides whether the result is proven. Contract: `OutcomeChecker.check` compares the before/after `WorldSnapshot` with the goal's criteria and can turn a success into unmet; `FailureHandler` adds facts, diagnosis, lessons and replans, or `BUDGET_SPENT` plus a blocker. It must not treat a cancellation as a failure or a summary as proof.
+12. `OwnerPresentSpeaker` → `CompanionSpeaker` — decides how it sounds. Contract: silent while the owner is away; chat chunks go to everyone, then the SPEECH view to mod clients with the addressee. It must not bypass `ReplyGuard`.
+
+| Hand-off | Invariant |
+| --- | --- |
+| line → brain | one event per accepted line; a throttled guest line is observed, never answered |
+| turn → model | one request in flight; a reply from an older `generation` is discarded |
+| model → tools | one TOOL message per call, in order; an error is still a result |
+| tool → queue | authority is a principal re-resolved at activation, never a saved level |
+| task → event | settled once, after the coordinator's transition has flushed |
+| event → goal | a success needs world evidence; a cancellation is not a failure |
+| brain → speaker | silence when the owner is away; no internal name or unasked coordinate is spoken |
+
 ### Task lifecycle
 
-Every server tick runs the reflexes before the queue: `CombatController` (fight, retreat, eat), `FireReflex` (a burning body or owner) and `SelfCareReflex` (a water drop, a milk bucket, a golden apple, a potion). A consumable takes a `HoldReason.SELF_CARE` hold for the few ticks vanilla needs, so the running task resumes with its tool in hand; `CombatController.busy()` and `SelfCareReflex.busy()` keep the two from eating at once.
+Every server tick runs the reflexes before the queue: `CombatController` (fight, retreat, eat), `FireReflex` (a burning body or owner), `SelfCareReflex` (a water drop, a milk bucket, a golden apple, a potion) and `RecoveryReflex` (going back for the drops of a death, on a cooldown). A consumable takes a `HoldReason.SELF_CARE` hold for the few ticks vanilla needs, so the running task resumes with its tool in hand; `CombatController.busy()` and `SelfCareReflex.busy()` keep the two from eating at once.
 
 `QueueDriver` selects queued work and interprets plans; `ExecutionCoordinator` owns orders, scoped holds, suspension and default activity; `ActiveTaskController` owns the current or frozen task, captures its caller and settings snapshot, enforces timeout, and turns a thrown task callback into `FAILED`. Replacing a task calls `stop` once. If a task starts a replacement during its own tick, the old tick result is discarded after the replacement is installed. Terminal notifications pass through `TaskEventSink` and flush after the coordinator settles the transition, so listeners cannot reenter a half-finished queue update. With nothing to do the coordinator falls back to `FollowTask`, unless free time makes standing still the default (`DefaultActivityPolicy`, asked through `CompanionEntity.mayFollowOwner`). Pausing suspends ticking without losing the task: `CombatController` sets it around a retreat and around a fight it did not order and the companion inventory window owns an independent token. The companion menu takes no hold: the world and the companion keep running while it is open. `TaskPersistenceCoordinator` decodes the versioned execution document, attaches event listeners before notices, rebuilds only tasks known to the current registry, and rejects work whose actor or ephemeral spending authority is no longer valid.
 
