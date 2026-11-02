@@ -6,7 +6,13 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
-## [0.157.0] - 2026-11-02
+## [0.158.0] - 2026-11-02
+
+### Added
+
+- A goal can carry a deadline: set it in minutes with `set_goal` or `update_goal`, and the companion sees "due in N minutes" or "overdue by N minutes" before it plans. Old saved goals load unchanged with no deadline.
+
+ - 2026-11-02
 
 ### Changed
 
