@@ -87,6 +87,7 @@ public final class SpeechRuntime {
     private static boolean closed;
     private static final SpeechStreamBuffer STREAM = new SpeechStreamBuffer();
     private static long streamSession = -1;
+    private static long currentStreamId = -1;
     private static final java.util.List<String> deferredSpeech = new java.util.ArrayList<>();
 
     private SpeechRuntime() {}
@@ -174,6 +175,7 @@ public final class SpeechRuntime {
             generation++;
             QUEUE.clear();
         }
+        reportIncompleteStream();
         STREAM.invalidate();
         streamSession = -1;
         deferredSpeech.clear();
@@ -212,6 +214,7 @@ public final class SpeechRuntime {
             if (!disconnectedSession.equals(sessionId)) return;
             sessionId = null;
         }
+        reportIncompleteStream();
         STREAM.invalidate();
         streamSession = -1;
         deferredSpeech.clear();
@@ -257,6 +260,7 @@ public final class SpeechRuntime {
         if (cfg == null || !cfg.enabled) return;
         if (payload.sessionId() != streamSession) {
             streamSession = payload.sessionId();
+            currentStreamId = payload.streamId();
             STREAM.beginSession(payload.sessionId());
             deferredSpeech.clear();
         }
@@ -547,6 +551,13 @@ public final class SpeechRuntime {
     private static ClientConfig.TtsSection section() {
         ClientConfig config = FriendaiClient.clientConfig();
         return config == null || config.voice == null ? null : config.voice.tts;
+    }
+
+    private static void reportIncompleteStream() {
+        if (currentStreamId >= 0 && STREAM.incomplete(currentStreamId)) {
+            ClientToasts.show(Components.of(UserMessage.of("friendai.voice.stream_incomplete")));
+        }
+        currentStreamId = -1;
     }
 
     private static boolean streamReplies() {

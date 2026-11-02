@@ -170,7 +170,8 @@
   "key.friendai.push_to_talk": "Appuyer pour parler",
   "friendai.voice.hud.recording": "Enregistrement…",
   "friendai.voice.hud.transcribing": "Transcription…",
-  "friendai.voice.error.no_model": "Modèle vocal non téléchargé — Paramètres → Voix",
+
+  "friendai.voice.stream_incomplete": "La réponse a été interrompue ; la fin n'est pas arrivée.",  "friendai.voice.error.no_model": "Modèle vocal non téléchargé — Paramètres → Voix",
   "friendai.voice.error.no_key": "Aucune clé API n'est définie pour la reconnaissance vocale.",
   "friendai.voice.error.no_folder": "Aucun identifiant de dossier Yandex n'est défini pour la reconnaissance vocale.",
   "friendai.voice.error.unsupported_language": "Cette langue n'est pas prise en charge par le fournisseur vocal sélectionné.",

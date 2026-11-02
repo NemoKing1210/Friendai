@@ -170,7 +170,8 @@
   "key.friendai.push_to_talk": "Говорить (удерживать)",
   "friendai.voice.hud.recording": "Запись…",
   "friendai.voice.hud.transcribing": "Распознаю…",
-  "friendai.voice.error.no_model": "Модель распознавания не скачана — Настройки → Голос",
+
+  "friendai.voice.stream_incomplete": "Ответ оборвался; продолжение не пришло.",  "friendai.voice.error.no_model": "Модель распознавания не скачана — Настройки → Голос",
   "friendai.voice.error.no_key": "Для распознавания речи не задан API-ключ.",
   "friendai.voice.error.no_folder": "Для распознавания речи не задан идентификатор каталога Yandex.",
   "friendai.voice.error.unsupported_language": "Выбранный сервис распознавания не поддерживает этот язык.",

@@ -170,7 +170,8 @@
   "key.friendai.push_to_talk": "Push to talk",
   "friendai.voice.hud.recording": "RecordingвЂ¦",
   "friendai.voice.hud.transcribing": "TranscribingвЂ¦",
-  "friendai.voice.error.no_model": "Speech model not downloaded вЂ” Settings в†’ Voice",
+
+  "friendai.voice.stream_incomplete": "The reply was cut off; the rest did not arrive.",  "friendai.voice.error.no_model": "Speech model not downloaded вЂ” Settings в†’ Voice",
   "friendai.voice.error.no_key": "No API key is set for speech recognition.",
   "friendai.voice.error.no_folder": "No Yandex folder ID is set for speech recognition.",
   "friendai.voice.error.unsupported_language": "This language is not supported by the selected speech provider.",

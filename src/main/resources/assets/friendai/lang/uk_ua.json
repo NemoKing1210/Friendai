@@ -170,7 +170,8 @@
   "key.friendai.push_to_talk": "Натисни, щоб говорити",
   "friendai.voice.hud.recording": "Запис…",
   "friendai.voice.hud.transcribing": "Розшифрування…",
-  "friendai.voice.error.no_model": "Мовну модель не завантажено — Налаштування → Голос",
+
+  "friendai.voice.stream_incomplete": "Відповідь обірвалася; продовження не надійшло.",  "friendai.voice.error.no_model": "Мовну модель не завантажено — Налаштування → Голос",
   "friendai.voice.error.no_key": "Для розпізнавання мовлення не задано API-ключ.",
   "friendai.voice.error.no_folder": "Для розпізнавання мовлення не задано ідентифікатор теки Yandex.",
   "friendai.voice.error.unsupported_language": "Ця мова не підтримується вибраним провайдером мовлення.",

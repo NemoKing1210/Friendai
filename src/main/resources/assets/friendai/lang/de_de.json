@@ -170,7 +170,8 @@
   "key.friendai.push_to_talk": "Push-to-Talk",
   "friendai.voice.hud.recording": "Aufnahme läuft…",
   "friendai.voice.hud.transcribing": "Wird transkribiert…",
-  "friendai.voice.error.no_model": "Sprachmodell nicht heruntergeladen – Einstellungen → Sprache",
+
+  "friendai.voice.stream_incomplete": "Die Antwort wurde unterbrochen; der Rest kam nicht an.",  "friendai.voice.error.no_model": "Sprachmodell nicht heruntergeladen – Einstellungen → Sprache",
   "friendai.voice.error.no_key": "Für die Spracherkennung ist kein API-Schlüssel gesetzt.",
   "friendai.voice.error.no_folder": "Für die Spracherkennung ist keine Yandex-Ordner-ID gesetzt.",
   "friendai.voice.error.unsupported_language": "Diese Sprache wird vom gewählten Sprachanbieter nicht unterstützt.",

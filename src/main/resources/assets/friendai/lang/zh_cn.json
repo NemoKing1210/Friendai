@@ -170,7 +170,8 @@
   "key.friendai.push_to_talk": "按键说话",
   "friendai.voice.hud.recording": "录音中…",
   "friendai.voice.hud.transcribing": "转写中…",
-  "friendai.voice.error.no_model": "语音模型尚未下载 — 设置 → 语音",
+
+  "friendai.voice.stream_incomplete": "回复中断，后面的内容没有收到。",  "friendai.voice.error.no_model": "语音模型尚未下载 — 设置 → 语音",
   "friendai.voice.error.no_key": "尚未为语音识别设置 API 密钥。",
   "friendai.voice.error.no_folder": "尚未为语音识别设置 Yandex 文件夹 ID。",
   "friendai.voice.error.unsupported_language": "所选语音提供方不支持此语言。",

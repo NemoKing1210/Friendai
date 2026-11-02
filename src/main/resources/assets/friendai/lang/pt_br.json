@@ -170,7 +170,8 @@
   "key.friendai.push_to_talk": "Aperte para falar",
   "friendai.voice.hud.recording": "Gravando…",
   "friendai.voice.hud.transcribing": "Transcrevendo…",
-  "friendai.voice.error.no_model": "Modelo de fala não baixado — Configurações → Voz",
+
+  "friendai.voice.stream_incomplete": "A resposta foi interrompida; o final não chegou.",  "friendai.voice.error.no_model": "Modelo de fala não baixado — Configurações → Voz",
   "friendai.voice.error.no_key": "Nenhuma chave de API definida para o reconhecimento de fala.",
   "friendai.voice.error.no_folder": "Nenhum ID de pasta do Yandex definido para o reconhecimento de fala.",
   "friendai.voice.error.unsupported_language": "Este idioma não é suportado pelo provedor de fala selecionado.",
