@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.friendai.features.cartography.TerrainCell;
 import dev.friendai.features.cartography.TerrainGrid;
+import dev.friendai.features.cartography.TerrainRoad;
+import dev.friendai.features.cartography.TerrainSite;
 import dev.friendai.infrastructure.persistence.OwnerStoreWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -22,6 +24,9 @@ class TerrainStoreTest {
     @Test
     void aMissingRecordIsEmptyAndSaveRoundTrips() throws Exception {
         TerrainGrid saved = new TerrainGrid();
+        saved.setGeneration(42);
+        saved.addSite(new TerrainSite("minecraft:overworld", 4, -7, "village", "oak hollow", 1234));
+        saved.addRoad(new TerrainRoad("minecraft:overworld", 4, -7, 40, 12, "path", 1235));
         saved.observe(new TerrainCell(
                 new TerrainCell.CellKey("minecraft:overworld", 4, -7),
                 "minecraft:forest",
@@ -44,12 +49,15 @@ class TerrainStoreTest {
             assertEquals("minecraft:forest", cell.biome());
             assertTrue(cell.water());
             assertEquals(1234, cell.lastSeenTick());
+            assertEquals(42, loaded.generation());
+            assertEquals("oak hollow", loaded.sites().getFirst().name());
+            assertEquals("path", loaded.roads().getFirst().kind());
         }
     }
 
     @Test
     void aNewerRecordIsLeftUnread() throws Exception {
-        Files.writeString(dir.resolve(OWNER + ".json"), "{\"formatVersion\":2,\"revision\":1,\"payload\":null}");
+        Files.writeString(dir.resolve(OWNER + ".json"), "{\"formatVersion\":3,\"revision\":1,\"payload\":null}");
         try (var writer = new OwnerStoreWriter();
                 var store = new TerrainStore(dir, writer)) {
             assertTrue(store.grid(OWNER).cells().isEmpty());

@@ -15,7 +15,7 @@ import java.util.UUID;
 
 /** Independently versioned per-owner terrain grid; a missing/corrupt/newer record reads as empty. */
 public final class TerrainStore implements TerrainRepository, AutoCloseable {
-    public static final int FORMAT_VERSION = 1;
+    public static final int FORMAT_VERSION = 2;
     private static final long MAX_BYTES = 512 * 1024;
     private static final Gson GSON = new GsonBuilder().serializeNulls().create();
     private final OwnerFileStore<State> store;

@@ -93,7 +93,7 @@ class TerrainGridTest {
         assertEquals("minecraft:village", restored.landmark());
         assertEquals(1234, restored.lastSeenTick());
 
-        assertTrue(TerrainMapSave.decode("{\"formatVersion\":2,\"cells\":[]}").isEmpty());
+        assertTrue(TerrainMapSave.decode("{\"formatVersion\":3,\"cells\":[]}").isEmpty());
         assertTrue(TerrainMapSave.decode("not json").isEmpty());
         assertTrue(TerrainMapSave.decode("{}").isEmpty());
         assertTrue(TerrainMapSave.decode(null).isEmpty());
