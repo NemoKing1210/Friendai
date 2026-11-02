@@ -48,6 +48,7 @@ public class SocialOpeningTests {
         GameTestSupport.platform(h, 12);
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         ServerRuntime runtime = GameTestSupport.runtime(h.getLevel().getServer());
+        setOwnerLanguage(runtime, owner.getUUID(), "English");
         Script script = new Script();
         runtime.sessions().setGatewayOverride(owner.getUUID(), script);
         CompanionManager.get(h.getLevel().getServer()).summon(owner);
@@ -109,6 +110,13 @@ public class SocialOpeningTests {
         return 12;
     }
 
+    private static void setOwnerLanguage(ServerRuntime runtime, java.util.UUID owner, String language) {
+        var book = runtime.memory().book(owner);
+        // setOwnerLanguage only edits an existing record, and a mock player may not have one yet.
+        book.ensurePlayer(owner, "social-owner");
+        book.setOwnerLanguage(owner, language);
+    }
+
     @GameTest(maxTicks = 900)
     public void aDeathOpensOneToollessLine(GameTestHelper h) {
         GameTestSupport.platform(h, 12);
@@ -118,6 +126,7 @@ public class SocialOpeningTests {
                 Blocks.BED.red().defaultBlockState().setValue(BlockStateProperties.BED_PART, BedPart.HEAD));
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         ServerRuntime runtime = GameTestSupport.runtime(h.getLevel().getServer());
+        setOwnerLanguage(runtime, owner.getUUID(), "English");
         runtime.companionLife()
                 .setRespawnPoint(
                         owner.getUUID(),
@@ -174,12 +183,14 @@ public class SocialOpeningTests {
 
         ServerPlayer nearOwner =
                 GameTestSupport.onlinePlayer(h, "social-near", 2, 2, 2, true).player();
+        setOwnerLanguage(runtime, nearOwner.getUUID(), "English");
         Script nearScript = new Script();
         runtime.sessions().setGatewayOverride(nearOwner.getUUID(), nearScript);
         CompanionEntity nearCompanion = manager.summon(nearOwner);
 
         ServerPlayer farOwner =
                 GameTestSupport.onlinePlayer(h, "social-far", 6, 2, 6, true).player();
+        setOwnerLanguage(runtime, farOwner.getUUID(), "English");
         Script farScript = new Script();
         runtime.sessions().setGatewayOverride(farOwner.getUUID(), farScript);
         CompanionEntity farCompanion = manager.summon(farOwner);
@@ -220,6 +231,8 @@ public class SocialOpeningTests {
         ServerRuntime runtime = GameTestSupport.runtime(level.getServer());
         ServerPlayer owner =
                 GameTestSupport.onlinePlayer(h, "social-threat", 2, 2, 2, true).player();
+        runtime.memory().book(owner.getUUID()).ensurePlayer(owner.getUUID(), "social-threat");
+        runtime.memory().book(owner.getUUID()).setOwnerLanguage(owner.getUUID(), "English");
         Script script = new Script();
         runtime.sessions().setGatewayOverride(owner.getUUID(), script);
         CompanionEntity companion = CompanionManager.get(level.getServer()).summon(owner);
@@ -279,6 +292,7 @@ public class SocialOpeningTests {
         GameTestSupport.platform(h, 12);
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         ServerRuntime runtime = GameTestSupport.runtime(h.getLevel().getServer());
+        setOwnerLanguage(runtime, owner.getUUID(), "English");
         Script script = new Script();
         runtime.sessions().setGatewayOverride(owner.getUUID(), script);
         CompanionEntity companion =
@@ -338,11 +352,68 @@ public class SocialOpeningTests {
         });
     }
 
+    @GameTest(maxTicks = 500)
+    public void socialOpeningsWaitUntilOwnerLanguageIsKnown(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        // A unique owner keeps this test's journal and social state out of the shared mock-player record.
+        ServerPlayer owner = GameTestSupport.onlinePlayer(h, "social-language", 2, 2, 2, true)
+                .player();
+        ServerRuntime runtime = GameTestSupport.runtime(h.getLevel().getServer());
+        Script script = new Script();
+        runtime.sessions().setGatewayOverride(owner.getUUID(), script);
+        CompanionManager.get(h.getLevel().getServer()).summon(owner);
+        runtime.memory()
+                .book(owner.getUUID())
+                .recordHappening(
+                        owner.getUUID(),
+                        new dev.friendai.features.social.Happening(
+                                dev.friendai.features.social.Happening.Kind.DEATH,
+                                dev.friendai.features.social.Happening.Importance.HIGH,
+                                0,
+                                "death:before-language",
+                                "you died to a creeper"));
+
+        h.runAfterDelay(160, () -> {
+            h.assertTrue(
+                    socialOpenings(script).isEmpty(),
+                    "the companion stays silent and retains events until it knows the owner's language");
+            h.assertTrue(
+                    runtime.memory().book(owner.getUUID()).journal(owner.getUUID()).recent(12).stream()
+                            .anyMatch(entry -> entry.key().equals("death:before-language")),
+                    "an undelivered event must stay in the journal");
+            dev.friendai.server.agent.chat.CompanionRouting.deliver(
+                    runtime,
+                    owner,
+                    owner.getUUID(),
+                    "Привет, давай поговорим.",
+                    dev.friendai.agent.turn.BrainEvent.Source.CHAT);
+            h.assertValueEqual(
+                    "Russian",
+                    runtime.memory()
+                            .book(owner.getUUID())
+                            .ownerLanguage(owner.getUUID())
+                            .orElse(""),
+                    "the first owner message should teach the language used by social openings");
+            h.runAfterDelay(160, () -> {
+                List<String> openings = socialOpenings(script);
+                h.assertValueEqual(
+                        openingsAbout(openings, "you died to a creeper"),
+                        1,
+                        "a retained event is spoken once after the owner's language is known: " + openings);
+                h.assertTrue(
+                        openings.stream().anyMatch(opening -> opening.contains("Happenings:")),
+                        "the opening should carry the retained happening: " + openings);
+                h.succeed();
+            });
+        });
+    }
+
     @GameTest(maxTicks = 300)
     public void ordinarySmallTalkDoesNotCompeteWithFreeTimePlanning(GameTestHelper h) {
         GameTestSupport.platform(h, 12);
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         ServerRuntime runtime = GameTestSupport.runtime(h.getLevel().getServer());
+        setOwnerLanguage(runtime, owner.getUUID(), "English");
         Script script = new Script();
         runtime.sessions().setGatewayOverride(owner.getUUID(), script);
         CompanionManager.get(h.getLevel().getServer()).summon(owner);
@@ -370,6 +441,7 @@ public class SocialOpeningTests {
         GameTestSupport.platform(h, 12);
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         ServerRuntime runtime = GameTestSupport.runtime(h.getLevel().getServer());
+        setOwnerLanguage(runtime, owner.getUUID(), "English");
         runtime.memory()
                 .book(owner.getUUID())
                 .addFact(

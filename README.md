@@ -93,7 +93,20 @@ The **Search and profiles** tab holds the search field, the Basic/Advanced switc
 
 The server writes a durable log of what the companion did: one JSON object per line with a level, a category, a sequence id and a `cause` link to the record that started it, so a failure can be followed back to the turn that caused it. Files live under `logs/friendai/`: `server/<date>/`, `owners/<uuid>/<date>/` and `client/<date>/`. A readable `.md` digest sits beside each closed file, and a `README.md` explains the tree.
 
-The folder is `<gameDir>/logs/friendai`. With the official launcher that is `%APPDATA%\.minecraft\logs\friendai` on Windows and `~/Library/Application Support/minecraft/logs/friendai` on macOS; a launcher with per-instance folders puts it inside the instance, for example `%APPDATA%\PrismLauncher\instances\<instance>\logs\friendai` or `~/Library/Application Support/PrismLauncher/instances/<instance>/logs/friendai`; a dedicated server writes `<server directory>/logs/friendai`. **Open log folder** and `/friendai logs path` print the exact path, which is the reliable answer when a modpack uses a custom game directory.
+The folder is `<gameDir>/logs/friendai`. With the official launcher that is `%APPDATA%\.minecraft\logs\friendai` on Windows and `~/Library/Application Support/minecraft/logs/friendai` on macOS; a launcher with per-instance folders puts it inside the instance, for example `%APPDATA%\ModrinthApp\profiles\<profile>\logs\friendai`, `%APPDATA%\PrismLauncher\instances\<instance>\logs\friendai` or `~/Library/Application Support/PrismLauncher/instances/<instance>/logs/friendai`; a dedicated server writes `<server directory>/logs/friendai`. **Open log folder** and `/friendai logs path` print the exact path, which is the reliable answer when a modpack uses a custom game directory.
+
+On Windows, find recent owner-session digests in a Modrinth profile with PowerShell (replace `<profile>` and `<uuid>`; keep the path quoted when the profile name has spaces):
+
+```powershell
+$ownerLogs = Join-Path $env:APPDATA 'ModrinthApp\profiles\<profile>\logs\friendai\owners\<uuid>'
+Get-ChildItem $ownerLogs -Recurse -File -Include *.md,*.jsonl |
+    Sort-Object LastWriteTime -Descending |
+    Select-Object -First 10 FullName, LastWriteTime, Length
+Get-Content (Get-ChildItem $ownerLogs -Recurse -File -Filter *.md |
+    Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName)
+```
+
+The `.md` file is a readable digest; use its matching `.jsonl` for raw records. `/friendai logs path` and **Copy log path** are authoritative when a launcher uses a non-default game directory.
 
 The **Logs** settings category (or `logging` in `friendai-server.json`) chooses the detail level: `off` writes nothing to disk, `normal` (the default) records metadata, `detailed` adds prompt, reply and tool-result bodies after redaction, and `trace` adds per-step detail. It also controls the categories, per-file and total size caps, retention days and whether digests are written. Configured secrets are replaced with `***` before anything is written.
 

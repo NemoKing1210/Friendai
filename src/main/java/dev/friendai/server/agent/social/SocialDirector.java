@@ -80,7 +80,10 @@ public final class SocialDirector {
 
     private record PendingTopic(String topic, long raisedAt) {}
 
-    private record Held(String text, long since) {}
+    /** One line worth saying and its identity, committed only when the line is actually posted. */
+    private record Fact(String text, String key) {}
+
+    private record Held(String text, String key, long since) {}
 
     /** The owner said something: no unprompted line for the cadence's quiet window. */
     public void ownerSpoke(UUID owner, long gameTime) {
@@ -125,11 +128,14 @@ public final class SocialDirector {
             if (player == null) {
                 continue;
             }
-            String text = nextFact(runtime, owner);
+            if (runtime.memory().book(owner).ownerLanguage(owner).isEmpty()) {
+                continue;
+            }
+            Fact fact = nextFact(runtime, owner);
             ConversationCadence.Scene scene = scene(companion, player, hearing);
             if (scene == ConversationCadence.Scene.AWAY || !free(player, companion)) {
-                if (text != null) {
-                    hold(owner, text, now);
+                if (fact != null) {
+                    hold(owner, fact, now);
                 }
                 continue;
             }
@@ -138,13 +144,17 @@ public final class SocialDirector {
                 continue;
             }
             held.remove(owner);
-            if (text != null) {
+            if (fact != null) {
+                // The line is only now committed: a quiet window or a held line must not consume the fact.
+                announced
+                        .computeIfAbsent(owner, ignored -> new java.util.HashSet<>())
+                        .add(fact.key());
                 // A happening is news: it takes the line alone and a topic is not considered at all.
                 runtime.sessions()
                         .post(
                                 owner,
                                 new BrainEvent.SocialOpening(
-                                        BrainEvent.SocialOpening.Urgency.HIGH, List.of(text), "", false));
+                                        BrainEvent.SocialOpening.Urgency.HIGH, List.of(fact.text()), "", false));
                 // A statement, not a question: nothing waits for an answer.
                 pace.recordLine(scene, (int) now, false, false);
                 activityOf(owner).line(true);
@@ -177,21 +187,27 @@ public final class SocialDirector {
         }
     }
 
-    /** The held line if it is still fresh, otherwise the newest unspoken fact: a journal entry, or a death. */
-    private String nextFact(ServerRuntime runtime, UUID owner) {
+    /**
+     * The held line if it is still fresh, otherwise the newest unspoken fact: a journal entry, or a death. Selecting
+     * a fact never marks it as spoken; the caller commits its identity only when the line is actually posted, so a
+     * quiet window, a threat or a hold cannot swallow a happening silently.
+     */
+    private Fact nextFact(ServerRuntime runtime, UUID owner) {
         long now = runtime.server().overworld().getGameTime();
+        java.util.Set<String> spoken = announced.computeIfAbsent(owner, ignored -> new java.util.HashSet<>());
         Held waiting = held.get(owner);
         if (waiting != null) {
             if (now - waiting.since() <= WAIT_TICKS) {
-                return waiting.text();
+                return new Fact(waiting.text(), waiting.key());
             }
             held.remove(owner);
             activityOf(owner).dropped();
+            // A line nobody could hear is dropped once; keeping its key stops the same fact from returning later.
+            spoken.add(waiting.key());
         }
-        java.util.Set<String> spoken = announced.computeIfAbsent(owner, ignored -> new java.util.HashSet<>());
         for (var happening : runtime.memory().book(owner).journal(owner).recent(6)) {
-            if (spoken.add(happening.key())) {
-                return happening.text();
+            if (!spoken.contains(happening.key())) {
+                return new Fact(happening.text(), happening.key());
             }
         }
         // No journal yet (an older world, or the feed was not registered): fall back to the recorded death.
@@ -200,10 +216,10 @@ public final class SocialDirector {
             return null;
         }
         String key = "record:" + death.get().tick();
-        if (!spoken.add(key)) {
+        if (spoken.contains(key)) {
             return null;
         }
-        return "I died not long ago at " + death.get().describe() + ".";
+        return new Fact("I died not long ago at " + death.get().describe() + ".", key);
     }
 
     /** A raised subject nobody answered stops counting as liked once its window closes. */
@@ -287,11 +303,11 @@ public final class SocialDirector {
                 new SocialMemorySave(topicRing(owner).entries(), tasteOf(owner).weights()));
     }
 
-    private void hold(UUID owner, String text, long now) {
+    private void hold(UUID owner, Fact fact, long now) {
         if (held.containsKey(owner)) {
             return;
         }
-        held.put(owner, new Held(text, now));
+        held.put(owner, new Held(fact.text(), fact.key(), now));
         activityOf(owner).held();
     }
 

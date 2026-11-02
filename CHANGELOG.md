@@ -6,6 +6,20 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.194.0] - 2026-11-03
+
+### Changed
+
+- A request for a crafted item is now planned from the finished item, so the acquisition planner works out the logs, planks, sticks and stone itself instead of the companion hand-counting an ingredient chain.
+- A failed queue step now points at retrying it or replacing that step while keeping the rest of the plan, instead of cancelling the whole plan and starting over.
+- A turn that recovers from a failed plan now receives the planning and repair guidance, and the standing working method tells the companion to prefer nearby wood and never to name a species the player did not ask for.
+
+### Fixed
+
+- The companion no longer starts a social line before it has heard the owner speak: it waits for the first owner message, learns the language from it, and delivers anything it noticed in the meantime only after that.
+- A happening noticed while the owner is quiet, away or in danger is no longer marked as told before its line is actually spoken, so it is delivered once when the companion can speak instead of being replaced by a neutral question.
+- The companion no longer fails a crafting step because it counted the ingredients for the finished tools by hand; the acquisition planner computes the chain from the live inventory after every step.
+
 ## [0.193.1] - 2026-11-03
 
 ### Fixed

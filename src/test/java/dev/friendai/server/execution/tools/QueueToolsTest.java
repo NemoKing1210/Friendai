@@ -1,6 +1,7 @@
 package dev.friendai.server.execution.tools;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.JsonObject;
@@ -9,11 +10,16 @@ import dev.friendai.agent.llm.model.ToolSpec;
 import dev.friendai.agent.tools.ToolCatalog;
 import dev.friendai.agent.tools.ToolMeta;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.execution.queue.FailurePolicy;
+import dev.friendai.execution.queue.GuardAction;
+import dev.friendai.execution.queue.Job;
+import dev.friendai.execution.queue.JobState;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.Tool;
 import dev.friendai.execution.tool.ToolRegistry;
 import dev.friendai.execution.tool.ToolResult;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -78,6 +84,40 @@ class QueueToolsTest {
 
         assertTrue(result.content().contains("max_iterations"));
         assertTrue(result.content().contains("all_of/any_of"));
+    }
+
+    @Test
+    void aRunningJobRefusalKeepsThePlanInsteadOfRestartingIt() {
+        String running = QueueTools.updateRefusal(job(7, 3, JobState.RUNNING));
+        assertTrue(running.contains("running"), running);
+        assertTrue(running.contains("retry") && running.contains("replace"), running);
+        assertTrue(running.contains("plan #3"), running);
+        assertFalse(running.contains("cancel plan"), "a running job must not be answered with a whole-plan restart");
+
+        String failed = QueueTools.updateRefusal(job(8, 3, JobState.FAILED));
+        assertTrue(failed.contains("failed"), failed);
+        assertTrue(failed.contains("action=replace") && failed.contains("plan #3"), failed);
+        assertFalse(failed.contains("cancel plan"), failed);
+    }
+
+    private static Job job(long id, long planId, JobState state) {
+        return new Job(
+                id,
+                planId,
+                "obtain_item",
+                new JsonObject(),
+                0,
+                false,
+                0,
+                state,
+                List.of(),
+                GuardAction.WAIT,
+                FailurePolicy.ASK,
+                1,
+                0,
+                List.of(),
+                "",
+                0);
     }
 
     private static TaskToolDefinition taskDefinition(String name, boolean plannable) {

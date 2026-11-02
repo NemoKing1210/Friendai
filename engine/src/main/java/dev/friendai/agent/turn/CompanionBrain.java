@@ -523,7 +523,17 @@ public final class CompanionBrain {
                                         || outcome.kind()
                                                 == dev.friendai.foundation.teaching.TeachingContext.OutcomeKind
                                                         .SHIFT_FAILURE)));
-        skillSession = skillSource.begin(turnCaller, String.join("\n", turnPlayerTexts), turnKind);
+        // A recovery turn has no player text of its own, so its failure lines are what the skill triggers must see;
+        // ordinary chat and event turns keep only what the player said.
+        String skillText = String.join("\n", turnPlayerTexts);
+        if (decision.mode() == TurnMode.RECOVERY) {
+            StringBuilder withFailure = new StringBuilder(skillText);
+            for (BrainEvent event : batch) {
+                withFailure.append('\n').append(event.toPromptLine());
+            }
+            skillText = withFailure.toString();
+        }
+        skillSession = skillSource.begin(turnCaller, skillText, turnKind);
         teachingContext = null;
         if (turnPlayerTexts.isEmpty() && batch.stream().noneMatch(e -> e instanceof BrainEvent.FreeTimeShift)) {
             batch.stream()

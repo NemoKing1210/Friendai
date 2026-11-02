@@ -12,6 +12,41 @@ import org.junit.jupiter.api.Test;
 
 class CompanionBrainSkillsTest {
     @Test
+    void aFailedPlanHandsItsFailureLineToTheSkillTriggersAndChatDoesNot() {
+        UUID owner = UUID.randomUUID();
+        var gateway = new FakeGateway();
+        gateway.enqueue(FakeGateway.text("[silent]"));
+        gateway.enqueue(FakeGateway.text("[silent]"));
+        var scheduler = new ManualScheduler();
+        var skillMessages = new ArrayList<String>();
+        var brain = new CompanionBrain(
+                () -> new Persona("Friendai", "Guide", "auto"),
+                () -> new BrainSettings(8, 30, 0, 0),
+                () -> gateway,
+                new FakeToolExecutor(),
+                () -> "state",
+                new RecordingSpeaker(),
+                scheduler,
+                AccessResolver.of(owner, id -> false));
+        brain.setSkillSource((caller, message, turn) -> {
+            skillMessages.add(message);
+            return SkillTurnSession.NONE;
+        });
+
+        brain.post(new BrainEvent.Replan(7, "stuck at mine 1 spruce_log"));
+        scheduler.advance(0);
+        assertEquals(1, skillMessages.size());
+        assertTrue(
+                skillMessages.getFirst().contains("stuck at mine 1 spruce_log"),
+                "a recovery turn must hand its failure line to the skill triggers: " + skillMessages);
+
+        brain.post(new BrainEvent.PlayerSaid(owner, "Owner", "hello", BrainEvent.Source.CHAT));
+        scheduler.advance(0);
+        assertEquals(2, skillMessages.size());
+        assertEquals("hello", skillMessages.get(1), "an ordinary chat turn keeps only the player's words");
+    }
+
+    @Test
     void teachingOutcomeMayUseToolsButItsNarrationIsNotSpoken() {
         UUID owner = UUID.randomUUID();
         var gateway = new FakeGateway();

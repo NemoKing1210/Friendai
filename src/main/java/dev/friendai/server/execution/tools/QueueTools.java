@@ -10,7 +10,9 @@ import dev.friendai.agent.tools.ToolMeta;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.queue.FailurePolicy;
 import dev.friendai.execution.queue.Guard;
+import dev.friendai.execution.queue.Job;
 import dev.friendai.execution.queue.JobQueue;
+import dev.friendai.execution.queue.JobState;
 import dev.friendai.execution.queue.PlanCodec;
 import dev.friendai.execution.queue.PlanDefinition;
 import dev.friendai.execution.queue.PlanFingerprint;
@@ -65,7 +67,7 @@ public final class QueueTools implements FeatureToolContributor {
         registry.registerTool(
                 callerTool(
                         "queue_add",
-                        "Add a durable multi-step plan. Use guards for world conditions and after only when priority changes must not bypass a dependency.",
+                        "Add a durable multi-step plan. Check queue_show first and do not add a duplicate while work is active or waiting for a decision. Use guards for world conditions and after only when priority changes must not bypass a dependency.",
                         SchemaBuilder.object()
                                 .string("goal", "Short goal")
                                 .array("steps", "Steps to run", stepSchema, 1, 64)
@@ -138,7 +140,7 @@ public final class QueueTools implements FeatureToolContributor {
         registry.registerTool(
                 callerTool(
                         "queue_edit",
-                        "Move, reprioritize, update, replace, retry, skip or cancel queued work.",
+                        "Move, reprioritize, update, replace, retry, skip or cancel queued work. Update changes arguments only on a pending job; a failed job can be retried or replaced in place, keeping the rest of the plan. Check queue_show before adding work; do not queue a duplicate while a plan is active or waiting for a decision.",
                         SchemaBuilder.object()
                                 .enumeration(
                                         "action",
@@ -750,7 +752,16 @@ public final class QueueTools implements FeatureToolContributor {
                     var issues = ArgValidator.validate(d.schema(), obj);
                     if (!issues.isEmpty()) return error(String.join("; ", issues));
                     var r = q.updateArgs(id, obj, caller.uuid(), d.creativeSensitive());
-                    if (!r.ok()) return error(r.text());
+                    if (!r.ok()) {
+                        if ("job cannot be updated".equals(r.text())) {
+                            var current = q.job(id).orElse(null);
+                            if (current == null) {
+                                return error("job #" + id + " no longer exists; run queue_show to pick a live job.");
+                            }
+                            return error(updateRefusal(current));
+                        }
+                        return error(r.text());
+                    }
                     registerFactories(access, c, List.of(id), all);
                 }
                 case "replace" -> {
@@ -858,6 +869,31 @@ public final class QueueTools implements FeatureToolContributor {
         }
         runner.wakeQueue();
         return ToolResult.ok("queue updated");
+    }
+
+    /**
+     * Why an in-place update was refused, and the repair that keeps the plan. A running job cannot take new arguments
+     * without restarting its step, so the caller either lets it finish or repairs the job that stopped; cancelling the
+     * whole plan discards every completed step with it.
+     */
+    static String updateRefusal(Job job) {
+        String state = job.state().name().toLowerCase(java.util.Locale.ROOT);
+        long planId = job.planId();
+        if (job.state() == JobState.RUNNING) {
+            return "job #" + job.id() + " is running, so its arguments cannot change mid-step. Let it finish, or when"
+                    + " it stops use queue_edit action=retry to run it again"
+                    + (planId > 0
+                            ? " or action=replace with corrected steps to fix this job and keep plan #" + planId + "."
+                            : ".")
+                    + " Cancel the plan only if the goal itself changed.";
+        }
+        if (job.state() == JobState.FAILED || job.state() == JobState.CANCELLED) {
+            return "job #" + job.id() + " is " + state + "; use queue_edit action=retry to run it again"
+                    + (planId > 0
+                            ? " or action=replace with corrected steps to fix this job and keep plan #" + planId + "."
+                            : " or action=replace with corrected steps.");
+        }
+        return "job #" + job.id() + " is " + state + "; only a pending job can be updated in place.";
     }
 
     private static Map<String, TaskToolDefinition> allowed(Caller caller, Map<String, TaskToolDefinition> all) {

@@ -396,7 +396,7 @@ The mod writes a durable, structured log of what the brain and the task queue di
 **Typical locations.** The folder is `<gameDir>/logs/friendai`, where `gameDir` is the instance directory the launcher uses; a modpack may point it anywhere, so `/friendai logs path` and the **Open log folder** button are authoritative:
 
 - Windows, official launcher: `%APPDATA%\.minecraft\logs\friendai`.
-- Windows, per-instance launchers: `%APPDATA%\PrismLauncher\instances\<instance>\logs\friendai`, `%APPDATA%\MultiMC\instances\<instance>\logs\friendai`, `C:\Users\<you>\curseforge\minecraft\Instances\<instance>\logs\friendai`.
+- Windows, per-instance launchers: `%APPDATA%\ModrinthApp\profiles\<profile>\logs\friendai`, `%APPDATA%\PrismLauncher\instances\<instance>\logs\friendai`, `%APPDATA%\MultiMC\instances\<instance>\logs\friendai`, `C:\Users\<you>\curseforge\minecraft\Instances\<instance>\logs\friendai`.
 - macOS, official launcher: `~/Library/Application Support/minecraft/logs/friendai`.
 - macOS, per-instance launchers: `~/Library/Application Support/PrismLauncher/instances/<instance>/logs/friendai`, `~/Library/Application Support/multimc/instances/<instance>/logs/friendai`.
 - Dedicated server: `<server directory>/logs/friendai`, for example `C:\servers\minecraft\logs\friendai` on Windows or `/srv/minecraft/logs/friendai` on Linux. The client buttons open the client's folder, never the server's.
@@ -412,6 +412,19 @@ The mod writes a durable, structured log of what the brain and the task queue di
 3. Correlate: `turn` groups one chat turn, `task`/`job`/`plan` group execution, and `toolCall` joins a call to its result.
 4. Widen only when needed: `/friendai diagnose [chat] [player]` adds versions, masked config, queue, task history and, with `chat`, the transcript.
 5. In game: the operator **Log tab** tails the ring live (Pause freezes it), the **Logs** settings category opens the folder, and the companion itself answers "what happened?" through `read_log` (ring) and `logs_search` (files).
+
+**Finding the newest Modrinth session on Windows.** Replace `<profile>` and `<uuid>` with the profile folder and owner UUID. Keep the path quoted because profile names often contain spaces. The `.md` file is the readable digest; open the matching `.jsonl` when you need the original structured records:
+
+```powershell
+$logRoot = Join-Path $env:APPDATA 'ModrinthApp\profiles\<profile>\logs\friendai'
+Get-ChildItem (Join-Path $logRoot 'owners\<uuid>') -Recurse -File -Include *.md,*.jsonl |
+    Sort-Object LastWriteTime -Descending |
+    Select-Object -First 10 FullName, LastWriteTime, Length
+Get-Content (Get-ChildItem (Join-Path $logRoot 'owners\<uuid>') -Recurse -File -Filter *.md |
+    Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName)
+```
+
+For the active profile's exact path, run `/friendai logs path` in game or press **Copy log path**; Modrinth profiles need not be stored under the default `.minecraft` directory.
 
 **Commands.** `/friendai logs path` prints the server folder — the owner gets their own subtree, an operator the root. The client buttons open the client's own folder, which equals the server's only in singleplayer. `/friendai logs level <off|normal|detailed|trace>` applies live, `/friendai logs prune` runs retention now, `/friendai logs export` writes the diagnostic bundle.
 

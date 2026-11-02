@@ -270,6 +270,32 @@ class SkillSelectorTest {
     }
 
     @Test
+    void aRecoveryFailureLineSelectsItsProcedureAndOrdinaryChatDoesNot() {
+        var all = BuiltinSkills.load(getClass().getClassLoader());
+        var recovery = SkillSelector.select(
+                all,
+                context(
+                        AccessLevel.OWNER,
+                        "[event] plan #2 needs a decision at job #2 (obtain_item): stuck at mine 1 spruce_log",
+                        Set.of(InstructionSkill.Kind.EVENT)),
+                Set.of(),
+                24000,
+                2400);
+        var recoveryIds = ids(recovery);
+        assertTrue(
+                recoveryIds.contains("builtin:planning-recovery"),
+                "a recovery turn misses its procedure: " + recoveryIds);
+        assertTrue(recoveryIds.contains("builtin:verification"), "a recovery turn lost verification: " + recoveryIds);
+        assertTrue(recovery.renderedChars() <= 2400, "recovery slice " + recovery.renderedChars());
+
+        var chat = SkillSelector.select(
+                all, context(AccessLevel.OWNER, "hello", Set.of(InstructionSkill.Kind.CHAT)), Set.of(), 24000, 2400);
+        assertFalse(
+                ids(chat).contains("builtin:planning-recovery"),
+                "an ordinary chat turn took the recovery advice: " + ids(chat));
+    }
+
+    @Test
     void anOwnerProcedureOutranksABuiltinInTheSameTier() {
         var snapshot = new ArrayList<>(BuiltinSkills.load(getClass().getClassLoader()));
         snapshot.add(new InstructionSkill(

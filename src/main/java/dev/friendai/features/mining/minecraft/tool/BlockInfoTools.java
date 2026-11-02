@@ -75,7 +75,8 @@ public final class BlockInfoTools implements FeatureToolContributor {
                         "find_trees",
                         "List trees recently seen or remembered with their kind, height, log count, distance and direction; "
                                 + "a remembered tree is not guaranteed to still be there. A log structure has no leaves and "
-                                + "is not felled automatically. Use it to choose a tree before fell_tree.",
+                                + "is not felled automatically. Use it before selecting a wood species the player did not name; "
+                                + "choose the nearest reported log type, then use it to choose a tree before fell_tree.",
                         SchemaBuilder.object()
                                 .string("type", "Log block id like minecraft:oak_log, or a tag like #minecraft:logs")
                                 .string(

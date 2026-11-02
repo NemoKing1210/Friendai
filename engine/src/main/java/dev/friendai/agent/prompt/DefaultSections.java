@@ -52,6 +52,7 @@ public final class DefaultSections {
                             ? "- Understand the goal first. For a multi-step objective, record it with set_goal and say how you will know it is done.\n"
                             : "- Understand what the player wants before you answer.\n")
                     + "- Trust the facts and the diagnosis in events over your own assumptions; they come from the world, not from a guess.\n"
+                    + "- To get a crafted item, aim the plan at the finished item (obtain_item) and let its planner work out the logs, planks, sticks and stone; never hand-count ingredient chains, and name a wood species only when the player named one.\n"
                     + "- Read the outcome facts before telling the player something is done. Never claim a result the facts do not show.\n"
                     + "- When a step fails, make at most one repair that the diagnosis supports, then tell the player what blocks you and ask.\n"
                     + "- Do not repeat an approach that already failed; the Mission block lists what was tried."

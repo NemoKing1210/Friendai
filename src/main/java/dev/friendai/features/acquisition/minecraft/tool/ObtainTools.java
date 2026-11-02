@@ -45,7 +45,9 @@ public final class ObtainTools implements FeatureToolContributor {
     @Override
     public void register(FeatureToolRegistry registry) {
         JsonObject schema = SchemaBuilder.object()
-                .string("item", "Item id like minecraft:iron_pickaxe; tags are not accepted")
+                .string(
+                        "item",
+                        "Item id like minecraft:iron_pickaxe; tags are not accepted. For a crafting goal, request the finished item so the acquisition planner computes its ingredients.")
                 .integer("count", "How many to get", 1, 64)
                 .bool("use_containers", "Allow taking items from nearby chests and barrels")
                 .bool("explore", "Allow searching further away and digging down when a resource is not nearby")
@@ -54,7 +56,7 @@ public final class ObtainTools implements FeatureToolContributor {
                 .build();
         TaskToolDefinition obtain = new TaskToolDefinition(
                 "obtain_item",
-                "Get an item by any means: take it from nearby chests, mine, hunt, farm, smelt and craft, making the tools needed on the way, and explore if a resource is not nearby. Uses any nearby log for planks and sticks; a specific wood is explored only when the request names it. Re-plans after every step.",
+                "Get an item by any means: take it from nearby chests, mine, hunt, farm, smelt and craft, making the tools needed on the way, and explore if a resource is not nearby. For a crafting goal, request the finished item instead of hand-counting plank, stick or log ingredients; the planner computes the chain and replans from the live inventory after every step. It can use any recipe-compatible nearby log for wood ingredients. Use a specific log id only when the player named that species.",
                 schema,
                 (c, a) -> new ObtainTask(
                         itemId(a.get("item").getAsString()),
@@ -79,13 +81,15 @@ public final class ObtainTools implements FeatureToolContributor {
 
                     @Override
                     public String description() {
-                        return "Show how the companion would get an item from here, step by step, without doing it. Uses any nearby log for planks and sticks; a specific wood is explored only when the request names it.";
+                        return "Show how the companion would get an item from here, step by step, without doing it. For a crafting goal, preview the finished item instead of guessing ingredient counts. Recipe-compatible nearby logs are interchangeable; request a specific log only when the player named that species.";
                     }
 
                     @Override
                     public JsonObject schema() {
                         return SchemaBuilder.object()
-                                .string("item", "Item id like minecraft:iron_pickaxe; tags are not accepted")
+                                .string(
+                                        "item",
+                                        "Item id like minecraft:iron_pickaxe; tags are not accepted. For a crafting goal, request the finished item so the acquisition planner computes its ingredients.")
                                 .integer("count", "How many to get", 1, 64)
                                 .bool("use_containers", "Allow taking items from nearby chests and barrels")
                                 .bool(
