@@ -135,4 +135,12 @@ class StreamSpeechPolicyTest {
         assertInstanceOf(StreamSpeechPolicy.Hold.class, policy().offer("   ", true));
         assertInstanceOf(StreamSpeechPolicy.Hold.class, policy().offer(null, true));
     }
+
+    @Test
+    void fullReofferAfterASpokenPrefixDoesNotDuplicate() {
+        StreamSpeechPolicy policy = policy();
+        assertInstanceOf(StreamSpeechPolicy.Speak.class, policy.offer("Hello.", true));
+        assertInstanceOf(StreamSpeechPolicy.Hold.class, policy.offer("Hello. ```unfinished", true));
+        assertInstanceOf(StreamSpeechPolicy.StopIncomplete.class, policy.finish("Hello. ```unfinished", true));
+    }
 }
