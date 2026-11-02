@@ -111,7 +111,7 @@ const CATS = [
   { id: "memory", domain: "mind", name: "Memory & Trust", icon: "🧠", color: COLORS.amethyst,
     desc: "Per-owner memory with strict visibility: guests only see facts about themselves, and trust changes need the owner's confirmation.",
     items: [
-      "remember|Store a fact.", "recall|Read facts back.", "forget|Delete a fact.", "trust_player|Raise a player to trusted (needs confirmation).",
+      "remember|Store a fact.", "recall|Read facts back.", "forget|Delete a fact.", "trust_player|Raise a player to trusted (needs confirmation).", "request_help|Ask another owner's companion for bounded help.", "accept_help|Accept the named help only.", "decline_help|Decline with no transfer.",
       "untrust_player|Lower trust.", "set_name|Rename the companion.", "use_skill|Load an instruction skill once.", "list_skills|List the owner's skills with ids, versions and on/off state.", "skill_help|Read the skill-authoring checklist and its limits.", "manage_skill|Propose a skill after a finished goal.",
       "read_log|Read your recent activity log (owner only).", "recent_chat|Read recent conversations with a player.", "memory_overview|See facts with ids and how full each book is.", "compress_memory|Merge duplicate facts safely, dry run first (owner only).", "reset_manner|Drop a manner the owner dislikes and never drift back into it (owner only).",
       "~Access levels|GUEST < TRUSTED < OWNER on every tool.", "~Language learning|Learns your language after a few samples.", "~Skills advise only|They never change permissions." ] },
@@ -290,6 +290,9 @@ const CODE = {
   "recall": ["src/main/java/dev/friendai/features/memory/minecraft/tool/MemoryTools.java"],
   "forget": ["src/main/java/dev/friendai/features/memory/minecraft/tool/MemoryTools.java"],
   "trust_player": ["src/main/java/dev/friendai/features/memory/minecraft/tool/TrustTools.java"],
+  "request_help": ["src/main/java/dev/friendai/features/coordination/minecraft/tool/CoordinationTools.java"],
+  "accept_help": ["src/main/java/dev/friendai/features/coordination/minecraft/tool/CoordinationTools.java"],
+  "decline_help": ["src/main/java/dev/friendai/features/coordination/minecraft/tool/CoordinationTools.java"],
   "untrust_player": ["src/main/java/dev/friendai/features/memory/minecraft/tool/TrustTools.java"],
   "set_name": ["src/main/java/dev/friendai/server/execution/tools/ControlTools.java"],
   "use_skill": ["src/main/java/dev/friendai/features/instructions/minecraft/tool/SkillTools.java"],

@@ -217,7 +217,15 @@ public final class ToolCatalog {
                 "find_target",
                 "search_hint");
         group(metas, ToolGroup.PLACE, Cost.LOW, "remember_place", "go_to_place", "rename_place", "forget_place");
-        group(metas, ToolGroup.TRUST, Cost.LOW, "trust_player", "untrust_player");
+        group(
+                metas,
+                ToolGroup.TRUST,
+                Cost.LOW,
+                "trust_player",
+                "untrust_player",
+                "request_help",
+                "accept_help",
+                "decline_help");
         group(metas, ToolGroup.CONTROL, Cost.LOW, "set_name", "create_item", "fly_to", "execute_command");
         group(
                 metas,
@@ -267,6 +275,18 @@ public final class ToolCatalog {
                 "find_target",
                 "- Use find_target when the player asks to find something that is not a material: a village or other structure, a biome, a villager or animal, or a place you know.\n"
                         + "- A structure is found by seeing its marker blocks, never by assuming where one is; the result names the budget spent and why it stopped.");
+        hint(
+                metas,
+                "request_help",
+                "- Use request_help only when the owner asks another owner's companion for one bounded piece of help. A request expires and acceptance authorizes only that help.");
+        hint(
+                metas,
+                "accept_help",
+                "- Use accept_help when the owner accepts the named request. It authorizes only the help that request names.");
+        hint(
+                metas,
+                "decline_help",
+                "- Use decline_help when the owner declines a request. No work or transfer happens.");
         hint(
                 metas,
                 "search_hint",

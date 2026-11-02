@@ -9,6 +9,7 @@ import dev.friendai.features.brewing.minecraft.tool.BrewTools;
 import dev.friendai.features.combat.minecraft.tool.CombatTools;
 import dev.friendai.features.construction.minecraft.tool.ConstructionTools;
 import dev.friendai.features.cooking.minecraft.tool.CookingTools;
+import dev.friendai.features.coordination.minecraft.tool.CoordinationTools;
 import dev.friendai.features.crafting.minecraft.tool.CraftingTools;
 import dev.friendai.features.creative.minecraft.tool.CreativeTools;
 import dev.friendai.features.enchanting.minecraft.tool.EnchantTools;
@@ -138,6 +139,7 @@ public final class FriendaiTools {
                 new BlockInfoTools(mineRadius, treeRadius, dependencies.resourceCandidates(), dependencies.places()),
                 new PlacedTools(dependencies.placed()),
                 new MemoryTools(dependencies.memory()),
+                new CoordinationTools(),
                 new SelfTools(dependencies.self()),
                 new TrustTools(dependencies.trust()),
                 new ControlTools(dependencies.profiles()),

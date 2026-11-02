@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.163.0] - 2026-11-02
+
+### Added
+
+- Owners can ask another owner's companion for one bounded, expiring piece of help, accept or decline it; an acceptance authorizes only the named help.
+
 ## [0.162.0] - 2026-11-02
 
 ### Added
