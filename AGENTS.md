@@ -31,6 +31,13 @@ The mod is **not client-only**: the server owns the companion entity, the brain,
 2. Implement against that spec and plan, following "Test scope" and "Definition of done" like any other task.
 3. Close the loop: when the item is done, tick it `[x]` and move it to `TODO_ARCHIVE.md`, in the same commit that carries the change. Never renumber the remaining items — the maintainer refers to work by number ("do task 2"), so numbers are stable and finished items keep theirs. The archive is read-only history: never renumber an archived item and never reuse its number.
 
+**Judge the item before you claim it.**
+
+- **Check the premise, not only the wording.** Read the code and files the item names before touching anything: the cited `path:line` may have moved, a recent commit or another session may already have delivered the behavior, and the world sometimes proves the item's assumption wrong. The first ten minutes of reading are cheaper than a day of implementing the wrong thing.
+- **Ask what the change does to the product, not only whether it is implementable.** Would it remove working behavior, add a second mechanism beside one that already exists, spend reliability or safety on a feature nobody asked for, or force a rewrite the architecture does not need?
+- **If the item as written would leave the mod worse, do not implement it.** Restore the box to `[ ]`, write one short line under the item — `**Skipped:** <what is wrong> (<evidence: path:line, commit, failing test>)` — and report the item number and the reason in the final message so the maintainer decides. That line, written only after the item is released, is the one text ever added under an item; it is not a claim, and it is not a way to close work quietly. Leave `TODO.md` uncommitted for it, as for a dictated item; the final message is what reaches the maintainer now.
+- **If only part of the item is wrong, say which part** and either implement the safe remainder as a smaller change or propose the corrected scope instead of silently doing something else.
+
 **Pick a whole item, never a slice.**
 
 - When the maintainer asks you to choose work from `TODO.md` ("take the next task", "pick something", "do a task"), choose a top-level item with its own number — `17`, not `17.1`.
@@ -51,7 +58,7 @@ The mod is **not client-only**: the server owns the companion entity, the brain,
 - Do not make a `chore(todo): take task N` commit.
 - The trade-off is real — another checkout cannot see an uncommitted marker — so before you take an item check `grep -nE '^\s*- \[~\]' TODO.md`, `git status` and `git log`, and when two sessions share the file, coordinate instead of trusting the commit history.
 
-When the work ends: tick `[x]` and move the item to `TODO_ARCHIVE.md`, in the commit that carries the change. When you stop or abandon it: restore `[ ]` and say why in your final message. Never delete or silently rewrite another session's marker; a `[~]` older than 24 hours whose session is visibly gone may be taken over by saying so.
+When the work ends: tick `[x]` and move the item to `TODO_ARCHIVE.md`, in the commit that carries the change. When you stop, abandon or skip it: restore `[ ]`, add the one-line skip note described above, and say why in your final message. Never delete or silently rewrite another session's marker; a `[~]` older than 24 hours whose session is visibly gone may be taken over by saying so.
 
 **When the spec and the plan are not needed.**
 
@@ -59,6 +66,26 @@ When the work ends: tick `[x]` and move the item to `TODO_ARCHIVE.md`, in the co
 - If you can state the whole change in two sentences and the risk of a wrong direction is low, skip the paperwork.
 - If the item spans several modules, changes an interface, a save format, a config schema or user-visible behavior that needs design, or you are not sure what the fix is, write the spec and the plan first.
 - Unsure whether it is small? Write a one-paragraph spec: the cost is low, a wrong direction is not.
+
+**Plan against the architecture.**
+
+- **Read the flow before the first line of code.** Find the matching runtime flow in `ARCHITECTURE.md` and name the existing types that own each part of the job. The plan lists the files, the call sites, the data and event path, the rule each boundary crossing follows (rules 1–12), and the tests that will prove it.
+- **Extend an established mechanism instead of adding a parallel one.** A skill is a `Task` plus a tool contributed through `FeatureToolContributor`; a restorable task carries a checkpoint decoder; a provider is a preset entry; a structure is a registry entry; persistence uses `OwnerFileStore`/`StoreCodec`; configuration uses `ConfigStores` and an adjacent migration. If the item seems to need a second queue, store, event log, tool registry or turn loop, the plan is wrong — fix that in the plan, before any code.
+- Keep the layer boundary and thread ownership in the plan rather than in a review afterthought: pure policy in `engine/`, Minecraft adapters in the root source sets, world reads on the server thread only.
+
+**Leave the result flexible, reliable and extensible.**
+
+- **Flexible:** decisions live in pure policy or data — registries, tables, presets — not in hard-coded branches scattered through adapters; a new variant is an entry or an implementation, not an `if` in five places.
+- **Reliable:** bounded work per tick, timeouts in ticks, state that can be held and resumed, typed failure results instead of exceptions on the common path, and persistence that versions and protects what it writes.
+- **Extensible:** adding the next skill, provider, structure or setting touches its owning package and the shared registries only; orchestration does not change. A feature's tests cover boundaries, state transitions and failure paths, because that is what keeps it extensible without a rewrite.
+
+**Prove it runs, not only that it compiles.** An item is done when the covering unit group passes and, for a world change, a filtered GameTest class or a real client/server session has been run once — with the real result quoted (see "Testing" and "Definition of done"). Compilation is a gate, not proof of capability, and a test that cannot fail has proven nothing: break the guarded line once and watch the red.
+
+**Better ideas are welcome, within bounds.**
+
+- **Improve the item you are doing.** If planning shows a cleaner way, put it in the spec and plan, implement it as part of the item when it lowers risk or deletes code, and say in the final message what changed from the item's wording and why.
+- **Propose large changes, do not smuggle them in.** A new dependency, a package restructure, a schema redesign, a cross-cutting refactor or a rewrite of a working subsystem is the maintainer's decision; describe it in the final message — with the item it would serve — instead of doing it inside a TODO task.
+- **Never "fix" modules the item does not touch** just because you are in the neighbourhood, and never rewrite the project to make one item easier. An improvement is a smaller diff that does the same job, not a bigger one that renames things.
 
 **Recording an item is not a commit of its own.**
 
