@@ -205,6 +205,7 @@ public final class FriendaiConfigScreen {
             categories.add(planningCategory(server));
             categories.add(tasksCategory(server));
             categories.add(worldCategory(server));
+            categories.add(logsCategory(server));
             categories.add(tradingCategory(server));
             categories.add(resourcesCategory(server));
             categories.add(autonomyCategory(server));
@@ -1444,6 +1445,127 @@ public final class FriendaiConfigScreen {
                         .controller(option ->
                                 IntegerFieldControllerBuilder.create(option).range(1, 600))
                         .build())
+                .build();
+    }
+
+    private static ConfigCategory logsCategory(ServerConfig server) {
+        var logs = server.logging;
+        return ConfigCategory.createBuilder()
+                .name(scoped(tr("friendai.config.category.logs"), "friendai.config.scope.server"))
+                .option(ButtonOption.createBuilder()
+                        .name(tr("friendai.config.logs.open_folder"))
+                        .action((screen, button) ->
+                                dev.friendai.client.ui.LogFolder.open(dev.friendai.client.ui.LogFolder.localRoot()))
+                        .build())
+                .option(ButtonOption.createBuilder()
+                        .name(tr("friendai.config.logs.copy_path"))
+                        .action((screen, button) ->
+                                dev.friendai.client.ui.LogFolder.copy(dev.friendai.client.ui.LogFolder.localRoot()))
+                        .build())
+                .option(Option.<String>createBuilder()
+                        .name(tr("friendai.config.logs.level"))
+                        .description(OptionDescription.of(tr("friendai.config.logs.level.tooltip")))
+                        .binding("normal", () -> logs.level, value -> logs.level = value)
+                        .controller(option -> DropdownStringControllerBuilder.create(option)
+                                .values(List.of("off", "normal", "detailed", "trace"))
+                                .allowAnyValue(false))
+                        .build())
+                .option(booleanOption(
+                        "friendai.config.logs.category.brain",
+                        "friendai.config.logs.category.tooltip",
+                        true,
+                        () -> logs.brain,
+                        value -> logs.brain = value))
+                .option(booleanOption(
+                        "friendai.config.logs.category.tool",
+                        "friendai.config.logs.category.tooltip",
+                        true,
+                        () -> logs.tool,
+                        value -> logs.tool = value))
+                .option(booleanOption(
+                        "friendai.config.logs.category.task",
+                        "friendai.config.logs.category.tooltip",
+                        true,
+                        () -> logs.task,
+                        value -> logs.task = value))
+                .option(booleanOption(
+                        "friendai.config.logs.category.queue",
+                        "friendai.config.logs.category.tooltip",
+                        true,
+                        () -> logs.queue,
+                        value -> logs.queue = value))
+                .option(booleanOption(
+                        "friendai.config.logs.category.net",
+                        "friendai.config.logs.category.tooltip",
+                        true,
+                        () -> logs.net,
+                        value -> logs.net = value))
+                .option(booleanOption(
+                        "friendai.config.logs.category.speech",
+                        "friendai.config.logs.category.tooltip",
+                        true,
+                        () -> logs.speech,
+                        value -> logs.speech = value))
+                .option(booleanOption(
+                        "friendai.config.logs.category.world",
+                        "friendai.config.logs.category.tooltip",
+                        true,
+                        () -> logs.world,
+                        value -> logs.world = value))
+                .option(booleanOption(
+                        "friendai.config.logs.category.config",
+                        "friendai.config.logs.category.tooltip",
+                        true,
+                        () -> logs.config,
+                        value -> logs.config = value))
+                .option(booleanOption(
+                        "friendai.config.logs.category.client",
+                        "friendai.config.logs.category.tooltip",
+                        true,
+                        () -> logs.client,
+                        value -> logs.client = value))
+                .option(booleanOption(
+                        "friendai.config.logs.category.server",
+                        "friendai.config.logs.category.tooltip",
+                        true,
+                        () -> logs.server,
+                        value -> logs.server = value))
+                .option(Option.<Long>createBuilder()
+                        .name(tr("friendai.config.logs.max_file_bytes"))
+                        .description(OptionDescription.of(tr("friendai.config.logs.limits.tooltip")))
+                        .binding(8_388_608L, () -> logs.maxFileBytes, value -> logs.maxFileBytes = value)
+                        .controller(
+                                option -> dev.isxander.yacl3.api.controller.LongFieldControllerBuilder.create(option)
+                                        .range(1_048_576L, 268_435_456L))
+                        .build())
+                .option(Option.<Long>createBuilder()
+                        .name(tr("friendai.config.logs.max_total_bytes"))
+                        .description(OptionDescription.of(tr("friendai.config.logs.limits.tooltip")))
+                        .binding(52_428_800L, () -> logs.maxTotalBytes, value -> logs.maxTotalBytes = value)
+                        .controller(
+                                option -> dev.isxander.yacl3.api.controller.LongFieldControllerBuilder.create(option)
+                                        .range(1_048_576L, 2_147_483_648L))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.logs.retention_days"))
+                        .description(OptionDescription.of(tr("friendai.config.logs.limits.tooltip")))
+                        .binding(7, () -> logs.retentionDays, value -> logs.retentionDays = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(1, 90))
+                        .build())
+                .option(Option.<Integer>createBuilder()
+                        .name(tr("friendai.config.logs.max_sessions"))
+                        .description(OptionDescription.of(tr("friendai.config.logs.limits.tooltip")))
+                        .binding(20, () -> logs.maxSessionsPerOwner, value -> logs.maxSessionsPerOwner = value)
+                        .controller(option ->
+                                IntegerFieldControllerBuilder.create(option).range(1, 200))
+                        .build())
+                .option(booleanOption(
+                        "friendai.config.logs.digest",
+                        "friendai.config.logs.digest.tooltip",
+                        true,
+                        () -> logs.digest,
+                        value -> logs.digest = value))
                 .build();
     }
 

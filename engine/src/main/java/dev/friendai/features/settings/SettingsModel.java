@@ -389,10 +389,19 @@ public final class SettingsModel {
 
         // Logs: what the durable log records and how much of it is kept.
         entries.add(basic("friendai.config.logs.level", "logs", "level", "detail", "logs", "diagnostics"));
-        for (String category :
-                List.of("brain", "tool", "task", "queue", "net", "speech", "world", "config", "client", "server")) {
-            entries.add(advanced(
-                    "friendai.config.logs.category." + category, "logs", "category", category, "logs", "diagnostics"));
+        for (String key : List.of(
+                "friendai.config.logs.category.brain",
+                "friendai.config.logs.category.tool",
+                "friendai.config.logs.category.task",
+                "friendai.config.logs.category.queue",
+                "friendai.config.logs.category.net",
+                "friendai.config.logs.category.speech",
+                "friendai.config.logs.category.world",
+                "friendai.config.logs.category.config",
+                "friendai.config.logs.category.client",
+                "friendai.config.logs.category.server")) {
+            String category = key.substring(key.lastIndexOf('.') + 1);
+            entries.add(advanced(key, "logs", "category", category, "logs", "diagnostics"));
         }
         entries.add(advanced("friendai.config.logs.max_file_bytes", "logs", "size", "file", "logs", "retention"));
         entries.add(advanced("friendai.config.logs.max_total_bytes", "logs", "size", "total", "logs", "retention"));

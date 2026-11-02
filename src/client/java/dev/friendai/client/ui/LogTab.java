@@ -32,6 +32,9 @@ final class LogTab extends StatefulMenuTab {
 
     private List<Row> rows = List.of();
     private String rowsKey = "";
+    private boolean paused;
+    private List<LogEntry> frozen = List.of();
+    private FlatButton pauseButton;
 
     private record Chip(LogKind kind, int x, int y, int w) {}
 
@@ -89,16 +92,49 @@ final class LogTab extends StatefulMenuTab {
     @Override
     public void init(Host host, int left, int top, int width, int height) {
         int copyWidth = 52;
+        int openWidth = 72;
+        int pathWidth = 64;
+        int pauseWidth = 52;
+        int x = left + width;
+        x -= copyWidth;
         host.add(new FlatButton(
-                left + width - copyWidth,
+                x,
                 top,
                 copyWidth,
                 CHIP_HEIGHT,
                 Component.translatable("friendai.menu.log.copy"),
                 Ui.ACCENT,
                 this::copy));
-        int chipsHeight = layoutChips(host.font(), left, top, width);
-        host.add(new HitArea(left, top, width - copyWidth - GAP, chipsHeight, this::clickChip));
+        x -= GAP + pathWidth;
+        host.add(new FlatButton(
+                x,
+                top,
+                pathWidth,
+                CHIP_HEIGHT,
+                Component.translatable("friendai.menu.log.copy_path"),
+                Ui.DIM,
+                () -> dev.friendai.client.ui.LogFolder.copy(dev.friendai.client.ui.LogFolder.localRoot())));
+        x -= GAP + openWidth;
+        host.add(new FlatButton(
+                x,
+                top,
+                openWidth,
+                CHIP_HEIGHT,
+                Component.translatable("friendai.menu.log.open_folder"),
+                Ui.DIM,
+                () -> dev.friendai.client.ui.LogFolder.open(dev.friendai.client.ui.LogFolder.localRoot())));
+        x -= GAP + pauseWidth;
+        pauseButton = host.add(new FlatButton(
+                x,
+                top,
+                pauseWidth,
+                CHIP_HEIGHT,
+                Component.translatable("friendai.menu.log.pause"),
+                Ui.WARN,
+                this::togglePause));
+        int chipsWidth = Math.max(120, x - left - GAP);
+        int chipsHeight = layoutChips(host.font(), left, top, chipsWidth);
+        host.add(new HitArea(left, top, chipsWidth, chipsHeight, this::clickChip));
         int areaTop = top + chipsHeight + GAP + 2;
         host.add(new SelectArea(left, areaTop, width, top + height - areaTop, new SelectArea.Handler() {
             @Override
@@ -227,7 +263,17 @@ final class LogTab extends StatefulMenuTab {
     }
 
     private List<LogEntry> visibleEntries() {
+        if (paused) return frozen;
         return state.log().view(enabled);
+    }
+
+    private void togglePause() {
+        paused = !paused;
+        frozen = paused ? List.copyOf(state.log().view(enabled)) : List.of();
+        if (pauseButton != null) {
+            pauseButton.setMessage(
+                    Component.translatable(paused ? "friendai.menu.log.resume" : "friendai.menu.log.pause"));
+        }
     }
 
     /** Copies the selection, or the whole visible log when nothing is selected. */
