@@ -910,6 +910,33 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
             }
             if (proposal.targetPlanId() > 0) {
                 long planId = proposal.targetPlanId();
+                if (caller.uuid() != null) {
+                    var fresh = currentCaller(companion, caller.uuid());
+                    if (fresh.access().ordinal() < caller.access().ordinal()) {
+                        return ToolResult.error("access was revoked after the proposal");
+                    }
+                }
+                var plan = companion.executionCoordinator().queue().plan(planId).orElse(null);
+                if (plan == null) return ToolResult.error("plan #" + planId + " is no longer queued");
+                if (plan.definition() != null
+                        && companion
+                                .executionCoordinator()
+                                .queue()
+                                .jobsOfPlan(planId)
+                                .isEmpty()) {
+                    var patch = dev.friendai.execution.queue.PlanPatch.apply(
+                            companion.executionCoordinator().queue(),
+                            planId,
+                            proposal.targetFingerprint(),
+                            List.of(),
+                            0,
+                            plan.definition().nodes().size(),
+                            proposal.plan().nodes());
+                    plannerDebug(
+                            owner,
+                            patch.ok() ? "planner disposition=tree patched" : "planner disposition=tree patch refused");
+                    return patch.ok() ? ToolResult.ok(patch.text()) : ToolResult.error(patch.text());
+                }
                 var pending = companion.executionCoordinator().queue().jobsOfPlan(planId).stream()
                         .filter(job -> job.state() == dev.friendai.execution.queue.JobState.PENDING)
                         .findFirst()

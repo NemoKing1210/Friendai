@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.180.0] - 2026-11-02
+
+### Added
+
+- A replan proposal for an unstarted structured plan replaces its tree atomically through the plan patch path, and a proposal applied after the caller lost access is refused.
+
 ## [0.179.0] - 2026-11-02
 
 ### Added
