@@ -41,8 +41,17 @@ class FeatureToolRegistryTest {
         new MovementTools().register(registry);
         new RelativeMovementTools().register(registry);
 
-        Set<String> expectedNames =
-                Set.of("follow_player", "stay", "go_to", "jump", "set_pace", "step", "back_away", "approach", "circle");
+        Set<String> expectedNames = Set.of(
+                "follow_player",
+                "stay",
+                "go_to",
+                "travel_through_portal",
+                "jump",
+                "set_pace",
+                "step",
+                "back_away",
+                "approach",
+                "circle");
         Set<String> runtimeNames =
                 tools.specs().stream().map(spec -> spec.name()).collect(java.util.stream.Collectors.toSet());
         Set<String> metadataNames = registry.catalogMetadata().stream()

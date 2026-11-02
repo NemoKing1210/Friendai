@@ -67,6 +67,7 @@ const RU = {
   "Follow the owner at a chosen distance.": "Следовать за владельцем на выбранной дистанции.",
   "Hold the current position.": "Стоять на месте.",
   "Pathfind to coordinates.": "Дойти до координат.",
+  "Enter a lit nether portal.": "Войти в зажжённый портал Нижнего мира.",
   "Jump once.": "Прыгнуть один раз.",
   "Walk, sprint or sneak pace.": "Шаг, бег или крадущийся шаг.",
   "Choose whether it follows when idle.": "Выбрать, следовать ли за владельцем в простое.",

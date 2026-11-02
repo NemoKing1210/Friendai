@@ -18,7 +18,7 @@ const CATS = [
   { id: "movement", domain: "hands", name: "Movement", icon: "👟", color: COLORS.grass,
     desc: "Block-grid A* pathfinding that walks, falls, swims, climbs, digs, pillars and bridges within a per-tick time budget.",
     items: [
-      "follow_player|Follow the owner at a chosen distance.", "stay|Hold the current position.", "go_to|Pathfind to coordinates.",
+      "follow_player|Follow the owner at a chosen distance.", "stay|Hold the current position.", "go_to|Pathfind to coordinates.", "travel_through_portal|Enter a lit nether portal.",
       "jump|Jump once.", "set_pace|Walk, sprint or sneak pace.", "set_follow_mode|Choose whether it follows when idle.",
       "step|Move by a relative offset.", "back_away|Retreat from a target.", "approach|Walk up to a player, mob or block.",
       "circle|Circle around a point.", "set_follow_distance|How close it stays to the owner.",

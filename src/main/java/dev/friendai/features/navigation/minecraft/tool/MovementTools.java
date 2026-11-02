@@ -13,6 +13,7 @@ import dev.friendai.features.navigation.minecraft.task.GoToTask;
 import dev.friendai.features.navigation.minecraft.task.JumpTask;
 import dev.friendai.features.navigation.minecraft.task.NavigationCheckpoints;
 import dev.friendai.features.navigation.minecraft.task.StayTask;
+import dev.friendai.features.navigation.minecraft.task.TravelThroughPortalTask;
 import dev.friendai.features.navigation.movement.PaceMode;
 import dev.friendai.server.execution.tools.FeatureToolContributor;
 import dev.friendai.server.execution.tools.FeatureToolRegistry;
@@ -64,6 +65,17 @@ public final class MovementTools implements FeatureToolContributor {
                         true,
                         new TaskToolDefinition.QueueTraits(true, null))
                 .withCheckpoint("go_to", NavigationCheckpoints::goTo));
+        registry.registerTask(task(
+                "travel_through_portal",
+                "Walk into an existing lit nether portal to the other dimension. It never teleports directly; a missing "
+                        + "lit portal is a typed failure.",
+                SchemaBuilder.object()
+                        .enumeration("dimension", "Destination", "the_nether", "overworld")
+                        .required("dimension")
+                        .build(),
+                (c, a) -> new TravelThroughPortalTask(a.get("dimension").getAsString()),
+                false,
+                new TaskToolDefinition.QueueTraits(true, null)));
         registry.registerTask(task(
                 "jump",
                 "Jump once from the ground. Use it when the player asks you to jump or hop; for several jumps in a row, put several jump steps in one plan.",

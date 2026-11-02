@@ -12,6 +12,7 @@ import dev.friendai.features.construction.special.Offset;
 import dev.friendai.features.construction.special.SpecialStructure;
 import dev.friendai.features.construction.special.StructureBook;
 import dev.friendai.features.construction.special.StructureSnapshot;
+import dev.friendai.features.navigation.minecraft.task.TravelThroughPortalTask;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskStatus;
@@ -277,6 +278,59 @@ public class StructureTests {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
             h.assertTrue(h.getBlockState(new BlockPos(4, 3, 3)).is(Blocks.NETHER_PORTAL), "the portal should be lit");
+        });
+    }
+
+    @GameTest(maxTicks = 4000)
+    public void a_lit_portal_transits_a_companion(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 10, 2, 10);
+        c.inventory().addItem(new ItemStack(Items.OBSIDIAN, 10));
+        c.inventory().addItem(new ItemStack(Items.COBBLESTONE, 16));
+        c.inventory().addItem(new ItemStack(Items.FLINT_AND_STEEL, 1));
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(task(h, "nether_portal", 3, 2, 3), "build_special");
+        boolean[] entered = {false};
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
+            if (!entered[0]) {
+                BlockPos portal = h.absolutePos(new BlockPos(4, 3, 3));
+                h.assertTrue(h.getBlockState(new BlockPos(4, 3, 3)).is(Blocks.NETHER_PORTAL), "portal lit");
+                c.teleportTo(portal.getX() + 0.5, portal.getY(), portal.getZ() + 0.5);
+                entered[0] = true;
+                return;
+            }
+            h.assertTrue(
+                    c.level().dimension().identifier().toString().equals("minecraft:the_nether"),
+                    "still in " + c.level().dimension().identifier() + " at " + c.blockPosition());
+        });
+    }
+
+    @GameTest(maxTicks = 4000)
+    public void a_portal_task_walks_through_the_lit_portal(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 10, 2, 10);
+        c.inventory().addItem(new ItemStack(Items.OBSIDIAN, 10));
+        c.inventory().addItem(new ItemStack(Items.COBBLESTONE, 16));
+        c.inventory().addItem(new ItemStack(Items.FLINT_AND_STEEL, 1));
+        Result built = new Result();
+        ExecutionCoordinator builder = runner(c, built);
+        builder.start(task(h, "nether_portal", 3, 2, 3), "build_special");
+        boolean[] started = {false};
+        h.succeedWhen(() -> {
+            if (!started[0]) {
+                builder.tick();
+                h.assertTrue(built.status == TaskStatus.SUCCESS, "portal build " + built.status + ": " + built.summary);
+                started[0] = true;
+                builder.start(new TravelThroughPortalTask("minecraft:the_nether"), "travel_through_portal");
+                return;
+            }
+            builder.tick();
+            h.assertTrue(
+                    c.level().dimension().identifier().toString().equals("minecraft:the_nether"),
+                    "still in " + c.level().dimension().identifier() + " at " + c.blockPosition());
         });
     }
 

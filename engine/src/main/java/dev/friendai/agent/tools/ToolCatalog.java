@@ -135,6 +135,7 @@ public final class ToolCatalog {
                 "follow_player",
                 "stay",
                 "go_to",
+                "travel_through_portal",
                 "jump",
                 "set_pace",
                 "set_follow_mode",

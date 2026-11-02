@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.189.0] - 2026-11-02
+
+### Added
+
+- `travel_through_portal` walks into an existing lit nether portal and lets vanilla move the companion; a missing portal is a typed failure, never a direct dimension teleport.
+
 ## [0.188.0] - 2026-11-02
 
 ### Fixed
