@@ -22,7 +22,11 @@ public final class MissionText {
         }
         StringBuilder out = new StringBuilder("Mission:");
         if (hasGoal) {
-            out.append("\n- Goal: ").append(view.text());
+            out.append("\n- Goal: ")
+                    .append(view.text())
+                    .append(" (")
+                    .append(view.risk().token())
+                    .append(")");
             List<String> unmet = view.unmet();
             if (!unmet.isEmpty()) {
                 out.append("\n- Not yet confirmed: ")

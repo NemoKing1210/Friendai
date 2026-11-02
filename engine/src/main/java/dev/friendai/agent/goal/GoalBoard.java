@@ -2,6 +2,7 @@ package dev.friendai.agent.goal;
 
 import dev.friendai.execution.queue.GuardFacts;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -172,8 +173,11 @@ public final class GoalBoard {
                 .orElse(List.of());
     }
 
-    /** The prompt view of the primary goal; empty when there is none. */
-    public GoalView view(String planStatus, GuardFacts facts) {
+    /**
+     * The prompt view of the primary goal; empty when there is none. The risk class is derived from the tools the
+     * goal's queued work uses, so it is never stored and follows a replan.
+     */
+    public GoalView view(String planStatus, GuardFacts facts, Collection<String> tools) {
         Optional<Goal> primary = primary();
         if (primary.isEmpty()) {
             return GoalView.EMPTY;
@@ -184,7 +188,8 @@ public final class GoalBoard {
                 goal.text(),
                 unmet(goal.id(), facts).stream().map(Criterion::text).toList(),
                 planStatus == null ? "" : planStatus,
-                lessons.isEmpty() ? "" : lessons.get(lessons.size() - 1));
+                lessons.isEmpty() ? "" : lessons.get(lessons.size() - 1),
+                ToolRisk.of(tools));
     }
 
     private void replace(Goal updated) {

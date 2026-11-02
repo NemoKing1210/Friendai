@@ -169,15 +169,31 @@ class GoalBoardTest {
     @Test
     void viewIsEmptyWithoutAGoalAndShowsUnmetOtherwise() {
         GoalBoard board = new GoalBoard(3, 3);
-        assertTrue(board.view("none", items(Map.of())).isEmpty());
+        assertTrue(board.view("none", items(Map.of()), List.of()).isEmpty());
         board.set(
                 "wood",
                 List.of(new Criterion("12 logs", Optional.of(new Guard.HasItem("minecraft:oak_log", 12)))),
                 false,
                 1);
-        GoalView view = board.view("running", items(Map.of()));
+        GoalView view = board.view("running", items(Map.of()), List.of("mine_blocks"));
         assertEquals("wood", view.text());
         assertEquals(List.of("12 logs"), view.unmet());
         assertEquals("running", view.planStatus());
+        assertEquals(RiskClass.CAREFUL, view.risk());
+        assertFalse(view.consulted());
+    }
+
+    @Test
+    void viewDerivesTheRiskFromThePlansTools() {
+        GoalBoard board = new GoalBoard(3, 3);
+        board.set("clear the yard", List.of(), false, 1);
+        GoalView careful = board.view("running", items(Map.of()), List.of("go_to", "mine_blocks"));
+        assertEquals(RiskClass.CAREFUL, careful.risk());
+        GoalView destructive = board.view("running", items(Map.of()), List.of("go_to", "clear_area"));
+        assertEquals(RiskClass.DESTRUCTIVE, destructive.risk());
+        assertTrue(destructive.consulted());
+        assertEquals(
+                RiskClass.SAFE,
+                board.view("running", items(Map.of()), List.of()).risk());
     }
 }
