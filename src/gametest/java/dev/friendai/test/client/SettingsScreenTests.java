@@ -20,12 +20,14 @@ import dev.isxander.yacl3.gui.controllers.PopupControllerScreen;
 import dev.isxander.yacl3.gui.controllers.dropdown.DropdownStringController;
 import dev.isxander.yacl3.gui.controllers.dropdown.DropdownStringControllerElement;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
+import net.fabricmc.fabric.api.client.gametest.v1.screenshot.TestScreenshotOptions;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.AbstractButton;
 import net.minecraft.client.gui.components.TabButton;
@@ -36,6 +38,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.input.MouseButtonInfo;
+import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
 
 /** Real YACL screens in the isolated client-GameTest directory; never calls a paid service. */
@@ -45,9 +48,11 @@ public final class SettingsScreenTests implements FabricClientGameTest {
 
     private final List<String> failures = new ArrayList<>();
     private int passed;
+    private Path shotsDir;
 
     @Override
     public void runTest(ClientGameTestContext context) {
+        shotsDir = resolveShotsDir(context.computeOnClient(mc -> mc.gameDirectory.toPath()));
         int originalScale = context.computeOnClient(mc -> mc.options.guiScale().get());
         for (String locale : List.of("en_us", "ru_ru", "de_de", "fr_fr", "es_es", "pt_br", "zh_cn", "uk_ua")) {
             var reload = context.computeOnClient(mc -> {
@@ -56,6 +61,11 @@ public final class SettingsScreenTests implements FabricClientGameTest {
             });
             context.waitFor(mc -> reload.isDone());
             reload.join();
+            if (locale.equals("en_us")) {
+                context.runOnClient(mc -> mc.setScreenAndShow(FriendaiConfigScreen.create(new TitleScreen())));
+                context.waitTicks(2);
+                capture(context, "settings_tab_en_us");
+            }
             if (locale.equals("en_us") || locale.equals("ru_ru")) {
                 runCases(context);
             }
@@ -79,6 +89,9 @@ public final class SettingsScreenTests implements FabricClientGameTest {
                         }
                     }
                 });
+                if (locale.equals("en_us") || locale.equals("ru_ru")) {
+                    capture(c, "settings_tab_" + locale + "_gui_scale_4");
+                }
             });
             check(context, "companion menu fit " + locale, c -> {
                 c.runOnClient(mc -> mc.setScreenAndShow(
@@ -87,6 +100,22 @@ public final class SettingsScreenTests implements FabricClientGameTest {
                 c.runOnClient(mc -> {
                     Screen menu = mc.gui.screen();
                     require(menu instanceof CompanionControlScreen, "Expected companion menu for " + locale);
+                    java.util.List<String> railLabels = new java.util.ArrayList<>();
+                    for (var child : menu.children()) {
+                        if (child instanceof AbstractButton button
+                                && button.visible
+                                && button.getMessage().getString().length() > 0
+                                && button.getHeight() < 24) {
+                            railLabels.add(button.getMessage().getString());
+                        }
+                    }
+                    require(
+                            new java.util.HashSet<>(railLabels).size() == railLabels.size(),
+                            locale + " companion rail repeats a label: " + railLabels);
+                    require(
+                            railLabels.contains(Component.translatable("friendai.menu.tab.feeling")
+                                    .getString()),
+                            locale + " companion rail is missing Feeling: " + railLabels);
                     for (var child : menu.children()) {
                         if (child instanceof AbstractButton button && button.visible) {
                             int width = mc.font.width(button.getMessage());
@@ -98,6 +127,11 @@ public final class SettingsScreenTests implements FabricClientGameTest {
                         }
                     }
                 });
+                if (locale.equals("en_us") || locale.equals("ru_ru")) {
+                    // A rebuild moves the rail for a frame or two; let it settle so the capture is one frame's truth.
+                    c.waitTicks(4);
+                    capture(c, "companion_menu_" + locale + "_gui_scale_4");
+                }
             });
             context.setScreen(TitleScreen::new);
         }
@@ -745,6 +779,25 @@ public final class SettingsScreenTests implements FabricClientGameTest {
             failures.add(name + ": " + error);
             System.err.println("FRIENDAI_SETTINGS FAIL: " + name + ": " + error);
         }
+    }
+
+    /** Saves the current screen so a layout can be inspected without a manual client session. */
+    private void capture(ClientGameTestContext context, String name) {
+        Path file = context.takeScreenshot(
+                TestScreenshotOptions.of(name).disableCounterPrefix().withDestinationDir(shotsDir));
+        System.out.println("FRIENDAI_SHOT: " + file.toAbsolutePath());
+    }
+
+    private static Path resolveShotsDir(Path gameDirectory) {
+        // Loom runs client GameTests in build/run/clientGameTest; the shots belong in build/client-gametest-shots.
+        Path gameDir = gameDirectory.toAbsolutePath().normalize();
+        for (Path dir = gameDir; dir != null; dir = dir.getParent()) {
+            Path name = dir.getFileName();
+            if (name != null && name.toString().equals("build")) {
+                return dir.resolve("client-gametest-shots");
+            }
+        }
+        return gameDir.resolve("screenshots");
     }
 
     private static YACLScreen screen() {
