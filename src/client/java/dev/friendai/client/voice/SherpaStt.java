@@ -69,6 +69,11 @@ public final class SherpaStt implements StreamingSpeechToText, AutoCloseable {
     }
 
     @Override
+    public boolean supportsStreaming() {
+        return model.streaming();
+    }
+
+    @Override
     public CompletableFuture<String> transcribe(float[] samples16k, String language) {
         if (samples16k == null || samples16k.length == 0) {
             return CompletableFuture.completedFuture("");
@@ -81,10 +86,23 @@ public final class SherpaStt implements StreamingSpeechToText, AutoCloseable {
         return CompletableFuture.supplyAsync(
                 () -> {
                     ensureVerified();
-                    String text = clip().transcribe(samples16k);
+                    String text = model.streaming()
+                            ? decodeStreamingClip(samples16k, language)
+                            : clip().transcribe(samples16k);
                     return text == null ? "" : text.strip();
                 },
                 executor);
+    }
+
+    /**
+     * One clip decoded by the online recognizer: a streaming graph has no offline decoder, and a streaming model is
+     * never opened through {@link EngineFactory#openClip()}.
+     */
+    private String decodeStreamingClip(float[] samples16k, String language) {
+        try (StreamEngine stream = factory.openStream(effectiveLanguage(language))) {
+            stream.accept(samples16k);
+            return stream.finish();
+        }
     }
 
     @Override
@@ -226,6 +244,10 @@ public final class SherpaStt implements StreamingSpeechToText, AutoCloseable {
 
         @Override
         public ClipEngine openClip() {
+            if (model.streaming()) {
+                // An online NeMo graph has no offline decoder; sherpa-onnx treats it as fatal configuration.
+                throw failed();
+            }
             try {
                 OfflineRecognizer recognizer = new OfflineRecognizer(offlineConfig());
                 return new ClipEngine() {
@@ -254,6 +276,10 @@ public final class SherpaStt implements StreamingSpeechToText, AutoCloseable {
 
         @Override
         public StreamEngine openStream(String language) {
+            if (!model.streaming()) {
+                // An offline NeMo graph has no streaming encoder; sherpa-onnx calls exit(-1) on that mismatch.
+                throw failed();
+            }
             try {
                 OnlineRecognizer recognizer = new OnlineRecognizer(onlineConfig());
                 OnlineStream stream;

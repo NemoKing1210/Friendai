@@ -104,7 +104,7 @@ public final class PushToTalkHandler {
         java.util.concurrent.atomic.AtomicInteger generation = new java.util.concurrent.atomic.AtomicInteger();
         StreamingSpeechToText.StreamingSession stream = null;
         try {
-            if (recognizer instanceof StreamingSpeechToText streaming) {
+            if (recognizer instanceof StreamingSpeechToText streaming && streaming.supportsStreaming()) {
                 stream = streaming.startStreaming(
                         voice.language,
                         partial -> mc.execute(() -> {

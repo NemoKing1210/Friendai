@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.202.1] - 2026-11-04
+
+### Fixed
+
+- Recording with a local model that only decodes a finished clip (Parakeet V3, GigaAM v3) no longer closes the game; the clip is transcribed instead of opening a streaming session the model cannot serve, and a streaming-only model is no longer opened as an offline one.
+
 ## [0.202.0] - 2026-11-04
 
 ### Added

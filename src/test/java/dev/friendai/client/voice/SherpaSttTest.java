@@ -47,6 +47,7 @@ class SherpaSttTest {
                     model(false, false));
 
             assertTrue(stt.isReady());
+            assertFalse(stt.supportsStreaming(), "an offline graph cannot be opened as a stream");
             assertEquals("hello", stt.transcribe(new float[] {0.1f}, "ru").get(5, TimeUnit.SECONDS));
             assertEquals("hello", stt.transcribe(new float[] {0.2f}, "ru").get(5, TimeUnit.SECONDS));
 
@@ -54,6 +55,51 @@ class SherpaSttTest {
             assertEquals(1, opened.get(), "the native model is opened once");
             assertNotEquals(Thread.currentThread().getName(), workerThread.get());
             assertTrue(workerThread.get().startsWith("pool-"), "a worker thread owns the native call");
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void anOfflineModelTranscribesAsAClipWithoutOpeningAStream() throws Exception {
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            AtomicInteger streams = new AtomicInteger();
+            SherpaStt stt = new SherpaStt(
+                    factory(() -> clip("hello"), () -> {
+                        streams.incrementAndGet();
+                        return stream("", "unused");
+                    }),
+                    executor,
+                    () -> true,
+                    model(false, false));
+
+            assertEquals("hello", stt.transcribe(new float[] {0.1f}, "ru").get(5, TimeUnit.SECONDS));
+            assertEquals(0, streams.get(), "a clip-only model is never opened as a streaming session");
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void aStreamingModelTranscribesAClipThroughItsStreamingGraph() throws Exception {
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            AtomicInteger clips = new AtomicInteger();
+            SherpaStt stt = new SherpaStt(
+                    factory(
+                            () -> {
+                                clips.incrementAndGet();
+                                return clip("unused");
+                            },
+                            () -> stream("", "hello")),
+                    executor,
+                    () -> true,
+                    model(true, true));
+
+            assertTrue(stt.supportsStreaming());
+            assertEquals("hello", stt.transcribe(new float[] {0.1f}, "ru").get(5, TimeUnit.SECONDS));
+            assertEquals(0, clips.get(), "a streaming graph has no offline decoder to open");
         } finally {
             executor.shutdownNow();
         }
@@ -129,6 +175,7 @@ class SherpaSttTest {
             var session = prompting.startStreaming("RU-ru", null);
             session.feed(new float[] {0.1f});
             assertEquals("hello", session.finish().get(5, TimeUnit.SECONDS));
+            assertTrue(prompting.supportsStreaming());
             language.set(prompting.effectiveLanguage("RU-ru"));
             assertEquals("ru-ru", language.get());
 
@@ -137,6 +184,7 @@ class SherpaSttTest {
                     executor,
                     () -> true,
                     model(false, false));
+            assertFalse(detecting.supportsStreaming());
             assertNull(detecting.effectiveLanguage("RU-ru"), "an offline detector has no per-stream language");
         } finally {
             executor.shutdownNow();

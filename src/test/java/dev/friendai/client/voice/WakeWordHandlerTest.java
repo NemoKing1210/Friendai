@@ -115,6 +115,19 @@ class WakeWordHandlerTest {
     }
 
     @Test
+    void aRecognizerWithoutAStreamingGraphIsTranscribedAsAClip() {
+        OfflineStreamingStt offline = new OfflineStreamingStt();
+        stt = offline;
+        handler.tick();
+
+        speak();
+
+        assertEquals(1, offline.calls);
+        assertEquals(0, offline.streams, "a clip-only model is never opened as a streaming session");
+        assertEquals(List.of(TRANSCRIPT), transcripts);
+    }
+
+    @Test
     void aFalsePositiveSendsNoTurn() {
         handler.tick();
         detector.hitNext = false;
@@ -359,9 +372,26 @@ class WakeWordHandlerTest {
     }
 
     /** The recognizer seam: a scripted future, and the samples the handler handed over. */
-    private static final class FakeStt implements SpeechToText {
+    /** A recognizer that carries the streaming interface but reports that its model cannot stream. */
+    private static final class OfflineStreamingStt extends FakeStt implements StreamingSpeechToText {
+        private int streams;
+
+        @Override
+        public boolean supportsStreaming() {
+            return false;
+        }
+
+        @Override
+        public StreamingSpeechToText.StreamingSession startStreaming(
+                String language, java.util.function.Consumer<String> partials) {
+            streams++;
+            throw new AssertionError("an offline model must not be opened as a stream");
+        }
+    }
+
+    private static class FakeStt implements SpeechToText {
         private CompletableFuture<String> result = CompletableFuture.completedFuture(TRANSCRIPT);
-        private int calls;
+        int calls;
         private float[] lastSamples;
         private String lastLanguage;
 

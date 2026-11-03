@@ -402,7 +402,7 @@ public final class WakeWordHandler {
     /** Streaming recognizers need their session for the whole clip; a clip-only one is called directly. */
     private CompletableFuture<String> transcribe(SpeechToText recognizer, byte[] pcm, String language) {
         float[] samples = PcmConverter.toFloat(pcm);
-        if (!(recognizer instanceof StreamingSpeechToText streaming)) {
+        if (!(recognizer instanceof StreamingSpeechToText streaming) || !streaming.supportsStreaming()) {
             return recognizer.transcribe(samples, language);
         }
         StreamingSpeechToText.StreamingSession utterance;
