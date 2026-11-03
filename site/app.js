@@ -27,7 +27,7 @@ const CATS = [
   { id: "mining", domain: "hands", name: "Mining & Gathering", icon: "⛏️", color: COLORS.iron,
     desc: "Collects raw materials: trees, ores, drops. Tool choice comes from item data components, never hard-coded tiers.",
     items: [
-      "fell_tree|Fell a whole tree top-down using scaffold.", "mine_blocks|Mine up to 64 blocks of a type in one call.", "mine_block_at|Mine the block you point at, follow its vein, and report what was taken.",
+      "fell_tree|Fell a whole tree top-down using scaffold.", "mine_blocks|Mine up to 64 blocks of a type in one call.", "mine_block_at|Mine the block you point at, follow its vein, and report what was taken.", "excavate|Mine a box, tunnel, stair, shaft or strip mine in one call, with drops and safety.",
       "pickup_items|Collect every drop in the radius in one call.", "find_trees|Scan for trees.", "find_blocks|Scan for blocks and ore veins.",
       "find_placed|List blocks the companion placed earlier.",
       "~Vein follower|Mines a whole vein, not one block.", "~Tool selection|Picks the best tool from the stack's tool component.", "~Safe digging|Checks support and hazards before approaching.",
@@ -153,7 +153,7 @@ const CATS = [
 // Shown in the hover tooltip; paths are relative to the repository root.
 const CODE = {
   "movement": ["src/main/java/dev/friendai/features/navigation/minecraft/tool/MovementTools.java", "src/main/java/dev/friendai/features/navigation/minecraft/nav/Navigator.java"],
-  "mining": ["src/main/java/dev/friendai/features/mining/minecraft/tool/GatheringTools.java"],
+  "mining": ["src/main/java/dev/friendai/features/mining/minecraft/tool/GatheringTools.java", "src/main/java/dev/friendai/features/mining/minecraft/tool/ExcavationTools.java"],
   "building": ["src/main/java/dev/friendai/features/construction/minecraft/tool/BuildingTools.java"],
   "crafting": ["src/main/java/dev/friendai/features/crafting/minecraft/tool/CraftingTools.java", "src/main/java/dev/friendai/features/cooking/minecraft/tool/CookingTools.java"],
   "combat": ["src/main/java/dev/friendai/features/combat/minecraft/CombatController.java", "src/main/java/dev/friendai/features/combat/minecraft/tool/CombatTools.java"],
@@ -186,6 +186,7 @@ const CODE = {
   "fell_tree": ["src/main/java/dev/friendai/features/mining/minecraft/tool/GatheringTools.java", "src/main/java/dev/friendai/features/mining/minecraft/task/FellTreeTask.java"],
   "mine_blocks": ["src/main/java/dev/friendai/features/mining/minecraft/tool/GatheringTools.java", "src/main/java/dev/friendai/features/mining/minecraft/task/MineBlocksTask.java"],
   "mine_block_at": ["src/main/java/dev/friendai/features/mining/minecraft/tool/GatheringTools.java", "src/main/java/dev/friendai/features/mining/minecraft/task/MineBlockAtTask.java"],
+  "excavate": ["src/main/java/dev/friendai/features/mining/minecraft/tool/ExcavationTools.java", "src/main/java/dev/friendai/features/mining/minecraft/task/ExcavateTask.java", "engine/src/main/java/dev/friendai/features/mining/excavation/ExcavationGeometry.java"],
   "pickup_items": ["src/main/java/dev/friendai/features/inventory/minecraft/tool/InventoryTools.java", "src/main/java/dev/friendai/features/inventory/minecraft/task/PickupItemsTask.java"],
   "find_trees": ["src/main/java/dev/friendai/features/mining/minecraft/tool/BlockInfoTools.java"],
   "find_blocks": ["src/main/java/dev/friendai/features/mining/minecraft/tool/BlockInfoTools.java"],

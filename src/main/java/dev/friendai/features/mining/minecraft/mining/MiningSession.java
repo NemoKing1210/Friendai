@@ -122,7 +122,7 @@ public final class MiningSession {
             throw new IllegalStateException("Cannot replace mining targets while an action is active");
         }
         this.mode = Mode.TARGETS;
-        this.targets = List.copyOf(targets);
+        this.targets = new ArrayList<>(targets);
         this.matches = matches;
         this.target = null;
         this.failure = null;
@@ -290,14 +290,20 @@ public final class MiningSession {
     }
 
     private State tickTargets(TaskContext context) {
-        if (targets.isEmpty()) {
-            return fail("friendai.mining.unreachable");
-        }
         State resumed = continueRemaining(context);
         if (resumed != null) {
             return resumed;
         }
         if (search == null) {
+            // A target that became air is already mined: do not spend a search on it again. This is what lets one
+            // session own a whole vein or region while the caller keeps ticking it after EXTRACTED.
+            targets.removeIf(pos -> context.level().hasChunkAt(pos)
+                    && context.level().getBlockState(pos).isAir());
+            if (targets.isEmpty()) {
+                lastState = State.EXHAUSTED;
+                stop(context);
+                return lastState;
+            }
             createTargetSearch(context);
         }
         SearchResult result = search.step(searchBudget(context), System::nanoTime);
@@ -456,6 +462,16 @@ public final class MiningSession {
             diagnostic = target == null ? "target-gone" : "target-refused-" + shortKey(lost.key());
             return retryPlan(lost);
         }
+        if (!DropRoom.hasRoom(context, target)) {
+            if (extraction != null) {
+                extraction.stop(context);
+                extraction = null;
+            }
+            target = null;
+            search = null;
+            diagnostic = "inventory-full";
+            return fail(UserMessage.of("friendai.mining.inventory_full"));
+        }
         if (!catchChecked) {
             catchChecked = true;
             DropGuard.Plan plan = DropGuard.plan(context, target, placements);
@@ -503,6 +519,7 @@ public final class MiningSession {
         extraction.stop(context);
         extraction = null;
         if (result == BreakAction.State.BROKEN) {
+            brokenBlocks++;
             noProgressPlans = 0;
             diagnostic = "";
             search = null;
@@ -756,13 +773,5 @@ public final class MiningSession {
 
     private static BlockPos blockPos(Pos pos) {
         return new BlockPos(pos.x(), pos.y(), pos.z());
-    }
-
-    private static BlockPos blockPos(Pos pos, boolean ignored) {
-        return blockPos(pos);
-    }
-
-    private static Pos plain(BlockPos pos, boolean ignored) {
-        return plain(pos);
     }
 }

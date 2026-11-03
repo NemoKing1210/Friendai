@@ -203,6 +203,8 @@ Container contents are cached only after the companion opens a container during 
 
 Search policy is under `tasks.resources` in `config/friendai-server.json`: local searches default to 64 blocks and 2,400 ticks. Expeditions default to disabled and require both `allowExpeditions` and companion chunk loading. They hold at most the next-leg chunk ticket; with chunk loading disabled, the companion stops at its current loaded frontier. The atlas, coverage and executed trails are owner-scoped and bounded.
 
+`excavate` mines a bounded shape rather than a resource count: a box between two corners, a tunnel, a descending stair, a shaft or a strip mine with alternating branches. One call covers the whole region; `count` stops early and `until_item`/`until_count` stop once that many items were actually taken. Cell by cell it uses the same protection, support, lava, drop-guard, tool and inventory rules as `mine_blocks`; containers, lava and protected places are never broken by default. A long excavation writes a bounded checkpoint and resumes after a reload without re-mining cells it already took.
+
 ## Goals and planning
 
 For an objective with several parts ("build a house and bring iron") the companion records a goal with how it will know it is done, and the goal survives plans, failures, death and restarts. It keeps working on it through the task queue, reads the facts of every finished task (items gained and lost, what is still unmet) and, when a step fails, gets a diagnosis and a remedy it has not tried yet. After a few failed repairs it stops and asks you what blocks it.

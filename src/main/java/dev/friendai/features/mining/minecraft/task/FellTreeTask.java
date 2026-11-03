@@ -23,6 +23,7 @@ import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.autonomy.PlaceGuard;
 import dev.friendai.task.inventory.DropCollector;
+import dev.friendai.task.inventory.ItemMatcher;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -89,12 +90,22 @@ public final class FellTreeTask implements Task {
     private final int limit;
     private final boolean collect;
     private final String label;
+    /** The log item this felling produces, so only its own drops are recorded; set at start. */
+    private ItemMatcher productMatcher;
 
     private final Set<BlockPos> remaining;
     /** Every log this task has ever counted, so a log found later is counted once. */
     private final Set<BlockPos> known;
     /** Logs that will not be cut, and why. */
     private final Map<BlockPos, String> blacklist = new LinkedHashMap<>();
+    /** Logs that left the world or changed before they were reached: skipped, never counted as felled. */
+    private final Map<BlockPos, String> skipped = new LinkedHashMap<>();
+    /** Item entities this felling produced, so an owner's drop at the foot is never taken or rescued. */
+    private final Set<UUID> producedDrops = new HashSet<>();
+    /** Break cells whose vanilla drops may still spawn; each is scanned for a few ticks. */
+    private final Map<BlockPos, Long> dropWindows = new LinkedHashMap<>();
+
+    private static final long DROP_WINDOW_TICKS = 4;
 
     private int total;
 
@@ -122,6 +133,7 @@ public final class FellTreeTask implements Task {
     private int sweepRounds;
     private long nextRescueScan;
     private int settleTicks;
+    private int chunkWait;
     private TaskStatus pendingStatus;
     private BlockPos lastBroken;
     private long startTick;
@@ -151,9 +163,55 @@ public final class FellTreeTask implements Task {
         return "fell_tree";
     }
 
+    /** Resume constructor used only by the checkpoint decoder. */
+    FellTreeTask(
+            TreeFinder.TreeInfo tree,
+            BlockMatcher matcher,
+            int limit,
+            boolean collect,
+            int cutCount,
+            Set<BlockPos> remaining,
+            int total) {
+        this(tree, matcher, limit, collect);
+        this.remaining.clear();
+        this.remaining.addAll(remaining);
+        this.known.addAll(remaining);
+        this.cutCount = cutCount;
+        this.total = total;
+    }
+
+    BlockMatcher matcher() {
+        return matcher;
+    }
+
+    TreeFinder.TreeInfo tree() {
+        return tree;
+    }
+
+    int limit() {
+        return limit;
+    }
+
+    boolean collect() {
+        return collect;
+    }
+
+    int cutCount() {
+        return cutCount;
+    }
+
+    int total() {
+        return total;
+    }
+
+    Set<BlockPos> remainingLogs() {
+        return Set.copyOf(remaining);
+    }
+
     @Override
     public void start(TaskContext c) {
         startTick = c.level().getGameTime();
+        productMatcher = ItemMatcher.parse(matcher.label()).orElse(null);
         prepare(c);
     }
 
@@ -192,9 +250,12 @@ public final class FellTreeTask implements Task {
 
     @Override
     public TaskStatus tick(TaskContext c) {
-        DropCollector.pickupAtFeet(c, FEET_RADIUS, null);
-        remaining.removeIf(
-                pos -> !c.level().hasChunkAt(pos) || !matcher.test(c.level().getBlockState(pos)));
+        scanDropWindows(c);
+        if (!producedDrops.isEmpty()) {
+            // An empty entity filter would mean "take anything" to DropCollector; before the first own drop there is
+            // nothing to take, and after it the set is the provenance.
+            DropCollector.pickupAtFeet(c, FEET_RADIUS, null, producedDrops);
+        }
         if (!refusal.isEmpty() && !finished) {
             return finish(c, TaskStatus.FAILED, refusal);
         }
@@ -433,7 +494,20 @@ public final class FellTreeTask implements Task {
                 // A step that cannot be taken leaves the companion where it is; the logs it cannot reach are named.
             }
             BlockPos target = pos(stage.logs().get(logIndex));
-            if (!c.level().hasChunkAt(target) || !matcher.test(c.level().getBlockState(target))) {
+            if (!c.level().hasChunkAt(target)) {
+                if (++chunkWait <= 40) {
+                    return TaskStatus.RUNNING;
+                }
+                chunkWait = 0;
+                skipped.put(target, "not loaded");
+                remaining.remove(target);
+                logIndex++;
+                continue;
+            }
+            chunkWait = 0;
+            if (!matcher.test(c.level().getBlockState(target))) {
+                skipped.put(target, "changed");
+                remaining.remove(target);
                 logIndex++;
                 continue;
             }
@@ -455,6 +529,7 @@ public final class FellTreeTask implements Task {
                     lastBroken = broken;
                     remaining.remove(broken);
                     cutCount++;
+                    recordDrops(c, broken);
                     adopt(c, broken);
                     logIndex++;
                 }
@@ -513,11 +588,13 @@ public final class FellTreeTask implements Task {
                     lastBroken = broken;
                     remaining.remove(broken);
                     cutCount++;
+                    recordDrops(c, broken);
                     adopt(c, broken);
                 }
                 case GONE -> {
                     breaker = null;
                     remaining.remove(target);
+                    skipped.put(target, "gone");
                 }
                 case UNREACHABLE -> {
                     breaker = null;
@@ -537,7 +614,7 @@ public final class FellTreeTask implements Task {
         if (limit > 0 && cutCount >= limit) {
             return finish(
                     c,
-                    blacklist.isEmpty() ? TaskStatus.SUCCESS : TaskStatus.FAILED,
+                    blacklist.isEmpty() && skipped.isEmpty() ? TaskStatus.SUCCESS : TaskStatus.FAILED,
                     "felled " + cutCount + " of " + total + " " + label + " logs (limit)");
         }
         if (settleTicks < RESCUE_SETTLE_TICKS) {
@@ -550,8 +627,15 @@ public final class FellTreeTask implements Task {
         for (BlockPos pos : remaining) {
             blacklist.putIfAbsent(pos, "no stance reaches it");
         }
-        TaskStatus status = blacklist.isEmpty() && remaining.isEmpty() ? TaskStatus.SUCCESS : TaskStatus.FAILED;
-        return finish(c, status, "felled " + (total - remaining.size()) + " of " + total + " " + label + " logs");
+        TaskStatus status = blacklist.isEmpty() && remaining.isEmpty() && skipped.isEmpty()
+                ? TaskStatus.SUCCESS
+                : TaskStatus.FAILED;
+        String text = "felled " + cutCount + " of " + total + " " + label + " logs";
+        if (!skipped.isEmpty()) {
+            text += "; skipped " + skipped.size() + " that " + (skipped.size() == 1 ? "was" : "were")
+                    + " not there when reached";
+        }
+        return finish(c, status, text);
     }
 
     /** Removes the column from the top down before the task finishes. */
@@ -614,6 +698,12 @@ public final class FellTreeTask implements Task {
         text.append(" in ").append(c.level().getGameTime() - startTick).append(" ticks");
         if (scaffold != null && scaffold.used() > 0) {
             text.append("; ").append(scaffold.used()).append(" scaffold blocks placed");
+        }
+        if (!skipped.isEmpty()) {
+            text.append("; ")
+                    .append(skipped.size())
+                    .append(skipped.size() == 1 ? " log" : " logs")
+                    .append(" were not there when reached");
         }
         if (!blacklist.isEmpty()) {
             text.append("; ")
@@ -685,6 +775,7 @@ public final class FellTreeTask implements Task {
             rescuedDrops.add(drop.getUUID());
             return true;
         }
+        producedDrops.add(drop.getUUID());
         rescueAttempts.put(drop.getUUID(), attempts + 1);
         rescuing = drop.getUUID();
         rescue = new BlockBreaker(List.of(leaf), state -> state.is(BlockTags.LEAVES), true, false, false);
@@ -701,7 +792,13 @@ public final class FellTreeTask implements Task {
     private boolean dropsFalling(TaskContext c) {
         return !c.level()
                 .getEntitiesOfClass(
-                        ItemEntity.class, sweepBox(), e -> !e.isRemoved() && !e.onGround() && e.getAge() < 40)
+                        ItemEntity.class,
+                        sweepBox(),
+                        e -> !e.isRemoved()
+                                && !e.onGround()
+                                && e.getAge() < 40
+                                && (producedDrops.contains(e.getUUID())
+                                        || productMatcher != null && productMatcher.test(e.getItem())))
                 .isEmpty();
     }
 
@@ -715,6 +812,8 @@ public final class FellTreeTask implements Task {
                         e -> !e.isRemoved()
                                 && e.onGround()
                                 && !rescuedDrops.contains(e.getUUID())
+                                && (producedDrops.contains(e.getUUID())
+                                        || productMatcher != null && productMatcher.test(e.getItem()))
                                 && c.companion().canCollect(e))
                 .stream()
                 .sorted(Comparator.comparingDouble(e -> e.distanceToSqr(c.companion())))
@@ -767,14 +866,17 @@ public final class FellTreeTask implements Task {
     }
 
     private TaskStatus startSweep(TaskContext c) {
-        if (!collect || cutCount == 0) {
+        if (!collect || cutCount == 0 || producedDrops.isEmpty()) {
             phase = Phase.DONE;
             return pendingStatus;
         }
         // The drops of a high log land at the foot of the tree, so the sweep is centred on the ground there.
         BlockPos from = lastBroken != null ? lastBroken : tree.base();
         sweep = new DropCollector(
-                Vec3.atCenterOf(new BlockPos(from.getX(), tree.base().getY(), from.getZ())), SWEEP_RADIUS);
+                Vec3.atCenterOf(new BlockPos(from.getX(), tree.base().getY(), from.getZ())),
+                SWEEP_RADIUS,
+                null,
+                producedDrops);
         phase = Phase.SWEEP;
         return TaskStatus.RUNNING;
     }
@@ -804,6 +906,43 @@ public final class FellTreeTask implements Task {
     private void refuse(String reason) {
         refusal = reason;
         phase = Phase.DONE;
+    }
+
+    /** Records the items a break just produced, and keeps scanning its cell for the vanilla spawn window. */
+    private void recordDrops(TaskContext c, BlockPos broken) {
+        dropWindows.put(broken, c.level().getGameTime() + DROP_WINDOW_TICKS);
+        scanProduced(c, broken);
+    }
+
+    private void scanDropWindows(TaskContext c) {
+        if (dropWindows.isEmpty()) {
+            return;
+        }
+        long now = c.level().getGameTime();
+        var iterator = dropWindows.entrySet().iterator();
+        while (iterator.hasNext()) {
+            var entry = iterator.next();
+            if (now > entry.getValue()) {
+                iterator.remove();
+                continue;
+            }
+            scanProduced(c, entry.getKey());
+        }
+    }
+
+    private void scanProduced(TaskContext c, BlockPos broken) {
+        // A crown log can fall more than the vanilla spawn radius before the window ends, so scan the whole tree
+        // footprint for a young item of this tree's product. An owner's old stack in the same box stays untouched.
+        AABB box = productMatcher == null ? new AABB(broken).inflate(2.0) : sweepBox();
+        for (ItemEntity drop : c.level()
+                .getEntitiesOfClass(
+                        ItemEntity.class,
+                        box,
+                        e -> !e.isRemoved()
+                                && e.getAge() <= 20
+                                && (productMatcher == null || productMatcher.test(e.getItem())))) {
+            producedDrops.add(drop.getUUID());
+        }
     }
 
     /** Takes in logs next to the one just broken that the first scan did not see, such as past an unloaded chunk. */
@@ -849,6 +988,11 @@ public final class FellTreeTask implements Task {
     @Override
     public Task cleanupAfterCancel(TaskContext c) {
         return scaffold == null || scaffold.placed().isEmpty() ? null : new ScaffoldCleanupTask(scaffold.placed());
+    }
+
+    @Override
+    public String saveData() {
+        return TreeCheckpoints.encode(this);
     }
 
     @Override

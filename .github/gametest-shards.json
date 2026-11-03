@@ -27,6 +27,7 @@
 			"classes": [
 				"BuildTests",
 				"MineBlocksTests",
+				"ExcavationTests",
 				"MiningTests",
 				"TreeFellingTests",
 				"PlaceBlockTests",

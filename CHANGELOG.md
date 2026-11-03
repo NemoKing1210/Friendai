@@ -6,6 +6,21 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.197.0] - 2026-11-03
+
+### Added
+
+- `excavate` mines a bounded box, tunnel, descending stair, shaft or strip mine in one call, with the same protection, support, drop, tool and inventory rules as ordinary mining.
+- `mine_blocks` accepts `radius`, `exclude`, `until_item`/`until_count` and `require_tool`; `mine_block_at` accepts `vein`, `vein_limit` and `collect`; `fell_tree` accepts `structures`.
+
+### Fixed
+
+- A vein neighbour above lava or with a full inventory is now refused with its reason instead of losing its drop.
+- A mining search centred on a point no longer gives up when the nearest match is protected, and a stale refusal no longer appears in a later summary.
+- A felling no longer counts a log as cut when it was unloaded or replaced before it was reached, and it no longer takes or rescues an item the owner dropped at the tree.
+- `find_trees` applies its radius to trunk evidence and lists the requested number of trees even when log structures are nearby.
+- Mining tools name the arguments they accept instead of silently ignoring an unknown one.
+
 ## [0.196.0] - 2026-11-03
 
 ### Added

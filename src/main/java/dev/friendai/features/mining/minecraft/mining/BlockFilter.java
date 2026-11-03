@@ -7,7 +7,7 @@ import java.util.Optional;
 import net.minecraft.world.level.block.state.BlockState;
 
 /** Matches an included block id/tag and rejects any of the excluded ids/tags. */
-public final class BlockFilter {
+public final class BlockFilter implements BlockMatcher {
     private final BlockMatcher include;
     private final List<BlockMatcher> excludes;
 
@@ -16,6 +16,7 @@ public final class BlockFilter {
         this.excludes = List.copyOf(Objects.requireNonNull(excludes, "excludes"));
     }
 
+    @Override
     public boolean test(BlockState state) {
         if (!include.test(state)) {
             return false;
@@ -29,6 +30,7 @@ public final class BlockFilter {
     }
 
     /** The include label followed by every exclusion, in the order the caller supplied them. */
+    @Override
     public String label() {
         if (excludes.isEmpty()) {
             return include.label();
@@ -58,7 +60,7 @@ public final class BlockFilter {
             }
             parsed.add(matcher.get());
         }
-        Optional<BlockMatcher> base = BlockMatcher.parse(include);
+        Optional<BlockMatcher> base = BlockMatcher.parseTarget(include);
         return base.map(matcher -> new BlockFilter(matcher, parsed));
     }
 }

@@ -6,13 +6,16 @@ import dev.friendai.debug.DebugTarget;
 import dev.friendai.features.construction.minecraft.build.ScaffoldCleanupTask;
 import dev.friendai.features.mining.ClusterFill;
 import dev.friendai.features.mining.MineReport;
+import dev.friendai.features.mining.MiningBounds;
 import dev.friendai.features.mining.minecraft.mining.BlockBreaker;
 import dev.friendai.features.mining.minecraft.mining.CatchPlatform;
 import dev.friendai.features.mining.minecraft.mining.DropGuard;
 import dev.friendai.features.mining.minecraft.mining.DropRoom;
 import dev.friendai.features.mining.minecraft.mining.MiningRefusal;
+import dev.friendai.features.mining.minecraft.mining.MiningSession;
 import dev.friendai.features.mining.minecraft.mining.TemporaryBlockCleanup;
 import dev.friendai.features.navigation.minecraft.nav.PlacementLedger;
+import dev.friendai.features.navigation.pathing.Node;
 import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.task.Task;
@@ -50,6 +53,9 @@ public final class MineBlockAtTask implements Task {
     private static final int MAX_SWEEP_RADIUS = 24;
 
     private final BlockPos pos;
+    private final boolean veinEnabled;
+    private final int veinLimit;
+    private final boolean collect;
     private BlockBreaker breaker;
     private DropCollector sweep;
     private BlockState startBlock;
@@ -58,6 +64,8 @@ public final class MineBlockAtTask implements Task {
     private boolean supportRetry;
     /** The vein still to break, in the order the fill found it. */
     private final Deque<BlockPos> vein = new ArrayDeque<>();
+    /** The shared session that breaks vein cells with the same guards as the pointed block. */
+    private MiningSession veinSession;
 
     /** The catch blocks this job placed, so they are taken down with it. */
     private final PlacementLedger placements = new PlacementLedger();
@@ -80,7 +88,14 @@ public final class MineBlockAtTask implements Task {
     private String stop = "";
 
     public MineBlockAtTask(BlockPos pos) {
+        this(pos, true, MAX_VEIN_BLOCKS, true);
+    }
+
+    public MineBlockAtTask(BlockPos pos, boolean vein, int veinLimit, boolean collect) {
         this.pos = pos;
+        this.veinEnabled = vein;
+        this.veinLimit = Math.max(1, Math.min(MAX_VEIN_BLOCKS, veinLimit));
+        this.collect = collect;
     }
 
     @Override
@@ -242,9 +257,60 @@ public final class MineBlockAtTask implements Task {
 
     /** Starts the next vein cell, or the drop sweep once the vein is done. */
     private TaskStatus next(TaskContext c) {
+        if (veinSession != null) {
+            MiningSession.State state = veinSession.tick(c);
+            switch (state) {
+                case WORKING:
+                    return TaskStatus.RUNNING;
+                case EXTRACTED:
+                    BlockPos broken = veinSession.target();
+                    if (broken != null) {
+                        mined++;
+                        spread = Math.max(
+                                spread, Math.sqrt(Vec3.atCenterOf(broken).distanceToSqr(Vec3.atCenterOf(pos))));
+                    }
+                    return TaskStatus.RUNNING;
+                case EXHAUSTED:
+                    veinSession = null;
+                    vein.clear();
+                    return next(c);
+                case FAILED:
+                    UserMessage failure = veinSession.failure();
+                    stop = failure == null
+                            ? "stopped in the vein for an unknown reason"
+                            : "stopped in the vein: " + failureText(failure);
+                    veinSession = null;
+                    vein.clear();
+                    return next(c);
+            }
+        }
         if (!vein.isEmpty()) {
-            breaker = new BlockBreaker(vein.poll(), this::stillTarget);
+            veinSession = new MiningSession(
+                    c.companion(),
+                    new MiningBounds(new Node(pos.getX(), pos.getY(), pos.getZ()), MAX_SWEEP_RADIUS),
+                    vein.size() + 64,
+                    6_000,
+                    placements);
+            List<BlockPos> targets = new ArrayList<>();
+            for (BlockPos cell : vein) {
+                MiningRefusal refusal = MiningRefusal.check(c, cell, false);
+                if (refusal == null || refusal instanceof MiningRefusal.OwnSupport) {
+                    targets.add(cell);
+                } else if (stop.isEmpty()) {
+                    stop = "stopped at a neighbour at " + coords(cell) + ": " + refusal.describe();
+                }
+            }
+            vein.clear();
+            if (targets.isEmpty()) {
+                veinSession.stop(c);
+                veinSession = null;
+                return next(c);
+            }
+            veinSession.setTargets(targets, state -> true);
             return TaskStatus.RUNNING;
+        }
+        if (!collect) {
+            return report();
         }
         if (sweep == null) {
             sweep = new DropCollector(Vec3.atCenterOf(pos), sweepRadius());
@@ -267,7 +333,7 @@ public final class MineBlockAtTask implements Task {
      * the same breaker as the pointed one, so nothing bypasses the permission and tool checks.
      */
     private void expandVein(BlockPos broken, TaskContext c) {
-        if (!startBlock.is(BlockTags.ORES) && !startBlock.is(BlockTags.LOGS)) {
+        if (!veinEnabled || (!startBlock.is(BlockTags.ORES) && !startBlock.is(BlockTags.LOGS))) {
             return;
         }
         List<Pos> seeds = new ArrayList<>(6);
@@ -286,7 +352,7 @@ public final class MineBlockAtTask implements Task {
                     BlockPos cell = new BlockPos(x, y, z);
                     return c.level().isLoaded(cell) && stillTarget(c.level().getBlockState(cell));
                 },
-                MAX_VEIN_BLOCKS - 1);
+                veinLimit - 1);
         for (Pos cell : cluster) {
             vein.add(new BlockPos(cell.x(), cell.y(), cell.z()));
         }
@@ -369,6 +435,26 @@ public final class MineBlockAtTask implements Task {
             breaker.stop(c);
         }
         vein.clear();
+        if (veinSession != null) {
+            veinSession.stop(c);
+            veinSession = null;
+        }
+    }
+
+    private static String failureText(UserMessage failure) {
+        return switch (failure.key()) {
+            case "friendai.mining.no_tool" -> "no suitable tool to collect the vein; get the right tool first";
+            case "friendai.mining.unsafe_support" -> "a vein cell supports the companion or its route";
+            case "friendai.mining.server_protected" -> "the server protects a vein cell";
+            case "friendai.mining.place_protected" -> "a vein cell is inside a protected place";
+            case "friendai.mining.own_support_unsafe" -> "a vein cell is under the companion and its drop is unsafe";
+            case "friendai.mining.not_breakable" -> "a vein cell cannot be broken";
+            case "friendai.mining.unsafe_passage" -> "the passage to a vein cell is unsafe";
+            case "friendai.mining.unreachable" -> "a vein cell cannot be reached safely";
+            case "friendai.mining.search_limit" -> "the vein search limit was reached";
+            case "friendai.mining.inventory_full" -> "the inventory is full";
+            default -> failure.key();
+        };
     }
 
     /** A cancelled job takes its catch blocks down like a cancelled build takes its scaffold. */

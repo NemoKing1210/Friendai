@@ -55,4 +55,21 @@ public interface BlockMatcher {
             }
         });
     }
+
+    /** Like {@link #parse}, but a single block id that is air or a fluid is not a mining target. */
+    static Optional<BlockMatcher> parseTarget(String idOrTag) {
+        Optional<BlockMatcher> parsed = parse(idOrTag);
+        if (parsed.isEmpty() || idOrTag.strip().startsWith("#")) {
+            return parsed;
+        }
+        Identifier id = Identifier.tryParse(parsed.get().label());
+        if (id == null || !BuiltInRegistries.BLOCK.containsKey(id)) {
+            return Optional.empty();
+        }
+        BlockState state = BuiltInRegistries.BLOCK.getValue(id).defaultBlockState();
+        if (state.isAir() || !state.getFluidState().isEmpty()) {
+            return Optional.empty();
+        }
+        return parsed;
+    }
 }

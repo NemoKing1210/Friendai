@@ -144,7 +144,15 @@ public final class ToolCatalog {
                 "back_away",
                 "approach",
                 "circle");
-        group(metas, ToolGroup.GATHERING, Cost.HIGH, "fell_tree", "mine_blocks", "mine_block_at", "pickup_items");
+        group(
+                metas,
+                ToolGroup.GATHERING,
+                Cost.HIGH,
+                "fell_tree",
+                "mine_blocks",
+                "mine_block_at",
+                "excavate",
+                "pickup_items");
         group(metas, ToolGroup.INVENTORY, Cost.LOW, "give_items", "drop_items", "show_inventory", "equip_item");
         group(metas, ToolGroup.BUILDING, Cost.MEDIUM, "place_block", "use_block", "light_area", "clear_area");
         group(metas, ToolGroup.STORAGE, Cost.MEDIUM, "store_items", "take_items", "check_container", "deposit_items");
@@ -255,16 +263,24 @@ public final class ToolCatalog {
                 metas,
                 "fell_tree",
                 "- To chop a tree, call find_trees when the kind or the exact tree is unclear, then fell_tree. It climbs the trunk once and cuts the tree from the crown down, so the logs fall to the foot. limit takes the top N logs and leaves the trunk standing; it is a cap, not a shortcut. Pass collect:false only when speed matters more than the drops.\n"
+                        + "- A named block id may also match a log building; pass structures:false to refuse one. A tag or no type never touches a building.\n"
                         + "- Chopping, mining and a tree search start around you: near is not needed when nobody is named. near \"me\" is only the player's own position. When the player points at a tree or a block, pass the coordinates they mean, not a moved search origin.");
         hint(
                 metas,
                 "mine_blocks",
                 "- Use mine_blocks for a kind of block (ore, stone, a named log type); use fell_tree when the player asks for a tree.\n"
-                        + "- After placing blocks, mine_blocks with placed:true takes back only those blocks; it never touches an unplaced neighbour.");
+                        + "- After placing blocks, mine_blocks with placed:true takes back only those blocks; it never touches an unplaced neighbour.\n"
+                        + "- radius widens or narrows this call. exclude skips ids or tags. until_item/until_count stop once that many items were actually taken, e.g. until_item \"minecraft:raw_iron\" with until_count 16. require_tool:true refuses a block that needs a tool the companion does not carry.");
         hint(
                 metas,
                 "mine_block_at",
-                "- Use mine_block_at when the owner points at one block: it mines that block and continues into its connected vein, then says how many it mined and what it took. Use mine_blocks to collect a number of blocks of a kind found around you; use fell_tree for a whole tree.");
+                "- Use mine_block_at when the owner points at one block: it mines that block and continues into its connected vein, then says how many it mined and what it took. Use mine_blocks to collect a number of blocks of a kind found around you; use fell_tree for a whole tree.\n"
+                        + "- vein:false mines only the pointed block; vein_limit caps the vein. collect:false skips the drop sweep when speed matters.");
+        hint(
+                metas,
+                "excavate",
+                "- Use excavate for a shape: box (two corners in box), tunnel (run direction/length), stair (descends one block per step), shaft (down/up) or strip (branches). One call covers the region; count stops early, until_item/until_count stop on taken items.\n"
+                        + "- Protected places, containers and lava are never broken by default; containers:true is the only opt-in. Use clear_area to clear a plot for building, not to mine its solids.");
         hint(
                 metas,
                 "pickup_items",

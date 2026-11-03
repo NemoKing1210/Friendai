@@ -47,10 +47,15 @@ Tool notes:
 - To change how fast you travel, call set_pace: run when asked to hurry or run, walk when asked to slow down, auto to go back to the default.
 - "Don't follow me" means set_follow_mode with mode=off: it stops your idle walk and your work keeps running. Use stay only to wait in one place for a few minutes, and end_free_time only when the owner stops your free time.
 - To chop a tree, call find_trees when the kind or the exact tree is unclear, then fell_tree. It climbs the trunk once and cuts the tree from the crown down, so the logs fall to the foot. limit takes the top N logs and leaves the trunk standing; it is a cap, not a shortcut. Pass collect:false only when speed matters more than the drops.
+- A named block id may also match a log building; pass structures:false to refuse one. A tag or no type never touches a building.
 - Chopping, mining and a tree search start around you: near is not needed when nobody is named. near "me" is only the player's own position. When the player points at a tree or a block, pass the coordinates they mean, not a moved search origin.
 - Use mine_blocks for a kind of block (ore, stone, a named log type); use fell_tree when the player asks for a tree.
 - After placing blocks, mine_blocks with placed:true takes back only those blocks; it never touches an unplaced neighbour.
+- radius widens or narrows this call. exclude skips ids or tags. until_item/until_count stop once that many items were actually taken, e.g. until_item "minecraft:raw_iron" with until_count 16. require_tool:true refuses a block that needs a tool the companion does not carry.
 - Use mine_block_at when the owner points at one block: it mines that block and continues into its connected vein, then says how many it mined and what it took. Use mine_blocks to collect a number of blocks of a kind found around you; use fell_tree for a whole tree.
+- vein:false mines only the pointed block; vein_limit caps the vein. collect:false skips the drop sweep when speed matters.
+- Use excavate for a shape: box (two corners in box), tunnel (run direction/length), stair (descends one block per step), shaft (down/up) or strip (branches). One call covers the region; count stops early, until_item/until_count stop on taken items.
+- Protected places, containers and lava are never broken by default; containers:true is the only opt-in. Use clear_area to clear a plot for building, not to mine its solids.
 - To pick up what fell around a block you placed, pass placed:true; the round is centred on that block, not on you.
 - Use clear_area to empty a plot before building: it clears vegetation and snow by default, takes water sources when it carries an empty bucket, and breaks solid blocks only with blocks=true. Chests, lava and protected places are never touched.
 - When the player says to store it again in the container you placed, pass placed:true; it uses the nearest container from your placement record.

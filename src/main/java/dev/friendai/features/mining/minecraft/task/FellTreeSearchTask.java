@@ -35,13 +35,18 @@ public final class FellTreeSearchTask implements Task {
     private String summary = "";
 
     public FellTreeSearchTask(BlockMatcher type, BlockPos origin, int radius, int limit, boolean collect) {
+        this(type, origin, radius, limit, collect, type == null || type.label().startsWith("#"));
+    }
+
+    public FellTreeSearchTask(
+            BlockMatcher type, BlockPos origin, int radius, int limit, boolean collect, boolean treesOnly) {
         this.type = type;
         this.origin = origin.immutable();
         this.radius = Math.max(1, radius);
         this.limit = limit;
         this.collect = collect;
         this.logs = type != null ? type : BlockMatcher.parse("#minecraft:logs").orElseThrow();
-        this.treesOnly = type == null || type.label().startsWith("#");
+        this.treesOnly = treesOnly;
     }
 
     @Override
@@ -107,6 +112,11 @@ public final class FellTreeSearchTask implements Task {
         } else {
             c.companion().getNavigation().stop();
         }
+    }
+
+    @Override
+    public Task cleanupAfterCancel(TaskContext c) {
+        return delegate == null ? null : delegate.cleanupAfterCancel(c);
     }
 
     @Override

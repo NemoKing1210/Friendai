@@ -10,12 +10,14 @@ import dev.friendai.debug.WorkStatus;
 import dev.friendai.features.construction.minecraft.build.ScaffoldCleanupTask;
 import dev.friendai.features.mining.MiningBounds;
 import dev.friendai.features.mining.minecraft.mining.BlockBreaker;
+import dev.friendai.features.mining.minecraft.mining.BlockFilter;
 import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
 import dev.friendai.features.mining.minecraft.mining.CatchPlatform;
 import dev.friendai.features.mining.minecraft.mining.DropGuard;
 import dev.friendai.features.mining.minecraft.mining.DropRoom;
 import dev.friendai.features.mining.minecraft.mining.MiningRefusal;
 import dev.friendai.features.mining.minecraft.mining.MiningSession;
+import dev.friendai.features.mining.minecraft.mining.MiningToolView;
 import dev.friendai.features.mining.minecraft.mining.TemporaryBlockCleanup;
 import dev.friendai.features.navigation.minecraft.nav.PlacementLedger;
 import dev.friendai.features.navigation.pathing.Node;
@@ -26,18 +28,20 @@ import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.inventory.DropCollector;
+import dev.friendai.task.inventory.ItemMatcher;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.tags.BlockTags;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
 /** Finds, walks to, breaks N blocks of a kind and sweeps up what they drop. */
 public final class MineBlocksTask implements Task {
-    private final BlockMatcher matcher;
+    private final BlockFilter matcher;
     private final int count;
     private final int radius;
     private final Set<BlockPos> blacklist = new HashSet<>();
@@ -90,6 +94,16 @@ public final class MineBlocksTask implements Task {
     private final boolean collect;
     /** When true, candidates come only from the placement ledger; unplaced siblings are never mined. */
     private final boolean placedOnly;
+    /** When true, a block that needs a harvest tool is skipped unless the companion carries one. */
+    private final boolean requireTool;
+    /** The item goal, or null; {@link #untilCount} is then zero. */
+    private final ItemMatcher untilMatcher;
+
+    private final int untilCount;
+    private int untilTaken;
+    private boolean sweepForUntil;
+    private boolean finalSweep;
+    private boolean toolSkipped;
 
     public MineBlocksTask(BlockMatcher matcher, int count, int radius) {
         this(matcher, count, radius, null, true, false);
@@ -101,12 +115,28 @@ public final class MineBlocksTask implements Task {
 
     public MineBlocksTask(
             BlockMatcher matcher, int count, int radius, BlockPos origin, boolean collect, boolean placedOnly) {
+        this(new BlockFilter(matcher, List.of()), count, radius, origin, collect, placedOnly, false, null, 0);
+    }
+
+    public MineBlocksTask(
+            BlockFilter matcher,
+            int count,
+            int radius,
+            BlockPos origin,
+            boolean collect,
+            boolean placedOnly,
+            boolean requireTool,
+            ItemMatcher untilMatcher,
+            int untilCount) {
         this.matcher = matcher;
         this.count = count;
         this.radius = radius;
         this.origin = origin;
         this.collect = collect;
         this.placedOnly = placedOnly;
+        this.requireTool = requireTool;
+        this.untilMatcher = untilMatcher;
+        this.untilCount = untilCount;
     }
 
     @Override
@@ -250,25 +280,31 @@ public final class MineBlocksTask implements Task {
             return guarded;
         }
         if (sweep != null) {
-            if (sweep.tick(c) == DropCollector.State.DONE) {
-                sweep = null;
+            if (sweep.tick(c) != DropCollector.State.DONE) {
+                return TaskStatus.RUNNING;
+            }
+            if (sweepForUntil) {
+                untilTaken += matchingTaken(sweep.collectedStacks());
+            }
+            boolean wasFinal = finalSweep;
+            sweep = null;
+            sweepForUntil = false;
+            finalSweep = false;
+            if (untilReached()) {
+                summary = "took " + untilTaken + " " + untilMatcher.label() + " after mining " + mined + " "
+                        + matcher.label();
+                return TaskStatus.SUCCESS;
+            }
+            if (wasFinal && untilMatcher != null) {
+                summary = "mined " + mined + " " + matcher.label() + ", took " + untilTaken + " of " + untilCount + " "
+                        + untilMatcher.label();
+                return TaskStatus.FAILED;
             }
             return TaskStatus.RUNNING;
         }
         if (miningSessionActive) {
-            if (miningSession.target() != null
-                    && "extract".equals(miningSession.phase())
-                    && !DropRoom.hasRoom(c, miningSession.target())) {
-                miningSession.stop(c);
-                miningSessionActive = false;
-                summary = "mined " + mined + " of " + count + ", inventory full before the next drop";
-                c.owner()
-                        .ifPresent(player -> player.sendSystemMessage(
-                                Components.of(
-                                        dev.friendai.foundation.text.UserMessage.of("friendai.mining.inventory_full")),
-                                true));
-                return TaskStatus.FAILED;
-            }
+            // The session itself refuses a target when the inventory has no room, once per target rather than
+            // once per tick.
             return tickMiningSession(c);
         }
         if (breaker == null) {
@@ -282,8 +318,14 @@ public final class MineBlocksTask implements Task {
                 observationWaitTicks = 0;
                 breaker = null;
                 mined++;
+                lastRefusal = null;
                 rememberMined(lastBroken);
                 c.placedService().forget(c.companion(), lastBroken);
+                if (untilMatcher != null && !finalSweep) {
+                    // Stop and take what this pass dropped, so until_item counts items, not blocks.
+                    sweep = new DropCollector(Vec3.atCenterOf(lastBroken), SWEEP_RADIUS, untilMatcher);
+                    sweepForUntil = true;
+                }
                 yield TaskStatus.RUNNING;
             }
             case GONE -> {
@@ -384,17 +426,23 @@ public final class MineBlocksTask implements Task {
     }
 
     private TaskStatus search(TaskContext c) {
+        toolSkipped = false;
         if (mined >= count) {
             if (startSweep()) {
                 return TaskStatus.RUNNING;
+            }
+            if (untilMatcher != null && untilTaken < untilCount) {
+                summary = "mined " + mined + " " + matcher.label() + ", took " + untilTaken + " of " + untilCount + " "
+                        + untilMatcher.label();
+                return TaskStatus.FAILED;
             }
             summary = "mined " + mined + " " + matcher.label();
             return TaskStatus.SUCCESS;
         }
         List<BlockPos> candidates;
         if (placedOnly) {
-            candidates = new ArrayList<>(
-                    c.placedService().candidates(c.companion(), matcher, origin, radius, evidenceLimit(CANDIDATES)));
+            candidates = new ArrayList<>(c.placedService()
+                    .candidates(c.companion(), matcher, origin, radius, evidenceLimit(CANDIDATES * 4)));
             candidates.removeIf(this::excluded);
         } else {
             candidates = treeCandidates(c);
@@ -408,7 +456,7 @@ public final class MineBlocksTask implements Task {
                         ? radius
                         : Math.min(128, c.companion().blockPosition().distManhattan(origin) + radius);
                 candidates = new ArrayList<>(evidence.knownOrVisible(
-                        c.companion(), matcher, evidenceRadius, evidenceLimit(origin == null ? CANDIDATES : 64)));
+                        c.companion(), matcher, evidenceRadius, evidenceLimit(origin == null ? CANDIDATES * 4 : 64)));
                 candidates.removeIf(this::excluded);
                 if (origin != null) {
                     double radiusSquared = (double) radius * radius;
@@ -416,11 +464,6 @@ public final class MineBlocksTask implements Task {
                     candidates.removeIf(pos -> pos.distToCenterSqr(originX, originY, originZ) > radiusSquared);
                     candidates.sort(java.util.Comparator.comparingDouble(
                             pos -> pos.distToCenterSqr(originX, originY, originZ)));
-                    if (candidates.size() > 1) {
-                        // BlockBreaker walks from the companion, so choose the nearest eligible evidence to the
-                        // requested origin before handing it a single target.
-                        candidates = new ArrayList<>(candidates.subList(0, 1));
-                    }
                 } else if (candidates.size() > CANDIDATES) {
                     candidates = new ArrayList<>(candidates.subList(0, CANDIDATES));
                 }
@@ -445,6 +488,31 @@ public final class MineBlocksTask implements Task {
             }
         }
         candidates = legal;
+        if (requireTool) {
+            List<BlockPos> harvestable = new ArrayList<>(candidates.size());
+            for (BlockPos pos : candidates) {
+                BlockState state = c.level().getBlockState(pos);
+                if (!state.requiresCorrectToolForDrops()
+                        || MiningToolView.currentToolFor(c.companion(), state).isPresent()) {
+                    harvestable.add(pos);
+                } else {
+                    toolSkipped = true;
+                }
+            }
+            candidates = harvestable;
+        }
+        if (origin != null) {
+            double originX = origin.getX() + 0.5, originY = origin.getY() + 0.5, originZ = origin.getZ() + 0.5;
+            candidates.sort(
+                    java.util.Comparator.comparingDouble(pos -> pos.distToCenterSqr(originX, originY, originZ)));
+            if (candidates.size() > 1) {
+                // BlockBreaker walks from the companion, so choose the nearest legal evidence to the requested
+                // origin after the protection/tool filters, not before them.
+                candidates = new ArrayList<>(candidates.subList(0, 1));
+            }
+        } else if (candidates.size() > CANDIDATES) {
+            candidates = new ArrayList<>(candidates.subList(0, CANDIDATES));
+        }
         if (candidates.isEmpty()) {
             if (pendingObservation != null && observationWaitTicks < OBSERVATION_WAIT_TICKS) {
                 if (observationWaitTicks++ == 0) {
@@ -470,6 +538,9 @@ public final class MineBlocksTask implements Task {
                         + (placedOnly
                                 ? " you placed nearby"
                                 : hidden ? " could be reached" : " observed or remembered nearby");
+            }
+            if (toolSkipped && lastRefusal == null) {
+                summary = "no suitable tool to collect " + matcher.label() + " nearby";
             }
             if (lastRefusal != null) {
                 summary += "; " + lastRefusal.describe() + "; " + lastRefusal.remedy();
@@ -541,7 +612,7 @@ public final class MineBlocksTask implements Task {
             case "friendai.mining.unsafe_passage" -> "the passage is unsafe to excavate";
             case "friendai.mining.unreachable" -> "the resource cannot be reached safely";
             case "friendai.mining.search_limit" -> "the mining search limit was reached";
-            case "friendai.mining.inventory_full" -> "the inventory is full";
+            case "friendai.mining.inventory_full" -> "inventory full before the next drop";
             default -> failure.key();
         };
     }
@@ -559,8 +630,27 @@ public final class MineBlocksTask implements Task {
             return false;
         }
         sweep = new DropCollector(Vec3.atCenterOf(lastBroken), SWEEP_RADIUS);
+        sweepForUntil = untilMatcher != null;
+        finalSweep = true;
         lastBroken = null;
         return true;
+    }
+
+    private int matchingTaken(List<ItemStack> stacks) {
+        if (untilMatcher == null) {
+            return 0;
+        }
+        int total = 0;
+        for (ItemStack stack : stacks) {
+            if (untilMatcher.test(stack)) {
+                total += stack.getCount();
+            }
+        }
+        return total;
+    }
+
+    private boolean untilReached() {
+        return untilMatcher != null && untilTaken >= untilCount;
     }
 
     /**

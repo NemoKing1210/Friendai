@@ -20,10 +20,12 @@ import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.LeavesBlock;
+import net.minecraft.world.phys.AABB;
 
 /**
  * Tree recognition and felling. The world is shared and tests run in parallel, so each test uses its own wood types
@@ -976,6 +978,28 @@ public class TreeFellingTests {
         leaf(h, 7, 6, 8);
         leaf(h, 6, 5, 8);
         return cells;
+    }
+
+    /** An item the owner dropped at the foot is not this felling's product and must survive. */
+    @GameTest(maxTicks = 1200)
+    public void aForeignItemAtTheFootIsLeftAlone(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        List<BlockPos> cells = strandedTree(h);
+        h.spawnItem(Items.DIAMOND, 6.5f, 2.0f, 8.5f);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        Result result = new Result();
+        FellTreeTask task = new FellTreeTask(info(h, cells, "oak_log", 4), oak(), 0, true);
+        ExecutionCoordinator runner = start(c, result, task);
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
+            h.assertFalse(
+                    h.getLevel()
+                            .getEntitiesOfClass(
+                                    ItemEntity.class, new AABB(h.absolutePos(new BlockPos(6, 1, 8))).inflate(3))
+                            .isEmpty(),
+                    "the owner's diamond was taken: " + result.summary);
+        });
     }
 
     /** A protected leaf must stop the rescue: no break, no retry, and the drop stays where it is. */

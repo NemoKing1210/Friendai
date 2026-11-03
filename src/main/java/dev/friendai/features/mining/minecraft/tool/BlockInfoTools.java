@@ -139,6 +139,7 @@ public final class BlockInfoTools implements FeatureToolContributor {
         Map<BlockPos, String> observedIds = resources == null
                 ? Map.of()
                 : resources.recentOrRememberedBlockIds(companion, evidenceRadius, 1024).entrySet().stream()
+                        .filter(entry -> entry.getKey().distSqr(origin) <= (double) radius * radius)
                         .filter(entry -> {
                             Identifier id = Identifier.tryParse(entry.getValue());
                             return id != null
@@ -153,14 +154,16 @@ public final class BlockInfoTools implements FeatureToolContributor {
                 : resources.recentOrRemembered(companion, leavesMatcher, evidenceRadius, 1024).stream()
                         .filter(pos -> pos.distSqr(origin) <= (double) radius * radius)
                         .collect(java.util.stream.Collectors.toUnmodifiableSet());
-        List<TreeFinder.TreeInfo> found =
-                TreeFinder.findObserved((ServerLevel) companion.level(), origin, observedIds, leaves, limit);
+        List<TreeFinder.TreeInfo> found = TreeFinder.findObserved(
+                (ServerLevel) companion.level(), origin, observedIds, leaves, TreeFinder.MAX_SCANNED_LOGS);
         List<TreeSummary> trees = found.stream()
                 .filter(tree -> tree.kind() != TreeFinder.Kind.LOG_STRUCTURE)
+                .limit(limit)
                 .map(TreeFinder.TreeInfo::summary)
                 .toList();
         List<TreeSummary> structures = found.stream()
                 .filter(tree -> tree.kind() == TreeFinder.Kind.LOG_STRUCTURE)
+                .limit(limit)
                 .map(TreeFinder.TreeInfo::summary)
                 .toList();
         return ToolResult.ok(TreeText.toolListing(trees, structures, radius, "recently seen or remembered"));

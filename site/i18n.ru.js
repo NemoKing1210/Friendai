@@ -95,6 +95,8 @@ const RU = {
   "Mine up to 64 blocks of a type in one call.": "Добыть до 64 блоков одного типа за один вызов.",
   "Mine the block you point at, follow its vein, and report what was taken.":
     "Добыть указанный блок, пройти по его жиле и сообщить, что подобрано.",
+  "Mine a box, tunnel, stair, shaft or strip mine in one call, with drops and safety.":
+    "Прорыть коробку, тоннель, лестницу, шахту или штрек за один вызов, с дропом и безопасностью.",
   "Collect every drop in the radius in one call.": "Подобрать все выпавшие предметы в радиусе за один вызов.",
   "Scan for trees.": "Найти деревья.",
   "Scan for blocks and ore veins.": "Найти блоки и рудные жилы.",

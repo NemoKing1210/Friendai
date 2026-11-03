@@ -293,6 +293,10 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] Deep ore beyond the excavation budget: the companion leaves the ore untouched and reports that the search limit was reached.
 - [ ] Default ore navigation blacklist: an explicitly requested ore is still extractable, while blacklisted corridor blocks stay intact.
 - [ ] Fill the companion's inventory before mining ore: it stops before breaking the target and reports that the inventory is full.
+- [ ] "Dig a 3x3 tunnel 20 blocks forward": `excavate` opens the whole corridor in one call, collects the drops, and reports the broken count.
+- [ ] "Dig a shaft down until you hit something interesting" with lava below a cell: that cell stays, the rest continues, and the companion never stands in lava.
+- [ ] "Excavate this area but leave the chest": the chest survives and the summary names it as skipped; `containers:true` is needed to break it.
+- [ ] Stop an excavation midway and reload: if a checkpoint was written, it resumes without re-mining the cells already taken; otherwise it reports that the job was not resumed.
 
 ## Blocks and containers
 

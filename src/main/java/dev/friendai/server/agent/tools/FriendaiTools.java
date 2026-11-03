@@ -31,6 +31,7 @@ import dev.friendai.features.memory.minecraft.tool.SelfTools;
 import dev.friendai.features.memory.minecraft.tool.TrustAccess;
 import dev.friendai.features.memory.minecraft.tool.TrustTools;
 import dev.friendai.features.mining.minecraft.tool.BlockInfoTools;
+import dev.friendai.features.mining.minecraft.tool.ExcavationTools;
 import dev.friendai.features.mining.minecraft.tool.GatheringTools;
 import dev.friendai.features.navigation.minecraft.tool.FlightTools;
 import dev.friendai.features.navigation.minecraft.tool.MovementTools;
@@ -122,6 +123,7 @@ public final class FriendaiTools {
                         fellCollectDrops,
                         dependencies.resourceCandidates(),
                         dependencies.places()),
+                new ExcavationTools(mineCollectDrops, dependencies.places()),
                 new InventoryTools(),
                 new ObtainTools(obtainSubtasks),
                 new ResourceTools(obtainSubtasks),

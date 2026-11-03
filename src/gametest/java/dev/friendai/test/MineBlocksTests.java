@@ -4,12 +4,16 @@ import dev.friendai.debug.DebugAction;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.features.inventory.minecraft.task.PickupItemsTask;
+import dev.friendai.features.mining.minecraft.mining.BlockFilter;
 import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
 import dev.friendai.features.mining.minecraft.task.MineBlockAtTask;
 import dev.friendai.features.mining.minecraft.task.MineBlocksTask;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.execution.TaskEventSink;
+import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.task.inventory.ItemMatcher;
+import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -863,6 +867,121 @@ public class MineBlocksTests {
             h.assertTrue(picked.status != null, "waiting for pickup_items: " + picked.summary);
             h.assertTrue(picked.status == TaskStatus.SUCCESS, "pickup: " + picked.status + " " + picked.summary);
             h.assertTrue(c.inventory().countItem(Items.COAL) == 1, "coal taken by pickup_items: " + picked.summary);
+        });
+    }
+
+    @GameTest(maxTicks = 900)
+    public void originSkipsAProtectedNearestCandidate(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        BlockPos origin = new BlockPos(4, 2, 2);
+        BlockPos stone = new BlockPos(2, 2, 6);
+        h.setBlock(origin, Blocks.BEDROCK);
+        h.setBlock(stone, Blocks.STONE);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(java.util.UUID.randomUUID());
+        c.inventory().addItem(new ItemStack(Items.DIAMOND_PICKAXE));
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(origin)), "bedrock should be visible");
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(stone)), "stone should be visible");
+        TaskContext context = new TaskContext(c, h.getLevel());
+        h.assertFalse(
+                context.resources()
+                        .knownOrVisible(c, BlockMatcher.parse("minecraft:stone").orElseThrow(), 16, 8)
+                        .isEmpty(),
+                "stone should be in the evidence");
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(
+                new MineBlocksTask(
+                        new BlockFilter(BlockMatcher.parse("minecraft:stone").orElseThrow(), List.of()),
+                        1,
+                        8,
+                        h.absolutePos(origin),
+                        true,
+                        false,
+                        false,
+                        null,
+                        0),
+                "mine_blocks");
+        h.succeedWhen(() -> {
+            runner.tick();
+            if (result.status == null || result.status == TaskStatus.RUNNING) {
+                return;
+            }
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(countBlocks(h, Blocks.STONE, stone) == 0, "legal stone was not mined: " + result.summary);
+            h.assertTrue(countBlocks(h, Blocks.BEDROCK, origin) == 1, "bedrock must stay");
+        });
+    }
+
+    @GameTest(maxTicks = 1600)
+    public void untilItemStopsAfterTheTakenCount(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        BlockPos[] stones = {new BlockPos(4, 2, 2), new BlockPos(4, 2, 4)};
+        for (BlockPos stone : stones) {
+            h.setBlock(stone, Blocks.STONE);
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(java.util.UUID.randomUUID());
+        c.inventory().addItem(new ItemStack(Items.DIAMOND_PICKAXE));
+        for (BlockPos stone : stones) {
+            h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(stone)), "stone should be visible");
+        }
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(
+                new MineBlocksTask(
+                        new BlockFilter(BlockMatcher.parse("minecraft:stone").orElseThrow(), List.of()),
+                        2,
+                        16,
+                        null,
+                        true,
+                        false,
+                        false,
+                        ItemMatcher.parse("minecraft:cobblestone").orElseThrow(),
+                        1),
+                "mine_blocks");
+        h.succeedWhen(() -> {
+            runner.tick();
+            if (result.status == null || result.status == TaskStatus.RUNNING) {
+                return;
+            }
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.contains("took 1"), "summary was " + result.summary);
+            h.assertTrue(c.inventory().countItem(Items.COBBLESTONE) >= 1, "cobblestone taken");
+            h.assertTrue(countBlocks(h, Blocks.STONE, stones) > 0, "some stone should remain");
+        });
+    }
+
+    @GameTest(maxTicks = 600)
+    public void requireToolLeavesTheBlockIntact(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        BlockPos stone = new BlockPos(4, 2, 2);
+        h.setBlock(stone, Blocks.STONE);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(java.util.UUID.randomUUID());
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(stone)), "stone should be visible");
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(
+                new MineBlocksTask(
+                        new BlockFilter(BlockMatcher.parse("minecraft:stone").orElseThrow(), List.of()),
+                        1,
+                        8,
+                        null,
+                        true,
+                        false,
+                        true,
+                        null,
+                        0),
+                "mine_blocks");
+        h.succeedWhen(() -> {
+            runner.tick();
+            if (result.status == null || result.status == TaskStatus.RUNNING) {
+                return;
+            }
+            h.assertTrue(result.status == TaskStatus.FAILED, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(countBlocks(h, Blocks.STONE, stone) == 1, "stone must stay without a tool");
+            h.assertTrue(result.summary.contains("suitable tool"), "summary was " + result.summary);
         });
     }
 }
