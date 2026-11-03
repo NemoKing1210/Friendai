@@ -14,8 +14,30 @@ import dev.friendai.features.navigation.pathing.Pos;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 
 public final class ResourceToolsTests {
+    @GameTest(maxTicks = 80)
+    public void unsupportedStrategyFailsBeforeATaskStarts(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        var owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(owner.getUUID());
+        c.inventory().addItem(new ItemStack(Items.WOODEN_PICKAXE));
+        var tools =
+                GameTestToolRegistry.create(c, () -> 16, MemoryAccess.DISABLED).bind(c);
+        var caller = new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER);
+        JsonObject args = new JsonObject();
+        args.addProperty("resource", "minecraft:stone");
+        args.addProperty("strategy", "cave");
+        var result = tools.execute(new ToolCall("1", "search_resource", args, args.toString(), null), caller);
+        h.assertTrue(result.error(), "cave must be rejected for stone: " + result.content());
+        h.assertTrue(result.content().contains("mine"), result.content());
+        h.assertTrue(!c.executionCoordinator().hasWork(), "a rejected strategy must not start a task");
+        h.succeed();
+    }
+
     @GameTest(maxTicks = 80)
     public void resourceResolverAndKnownResourceScope(GameTestHelper h) {
         GameTestSupport.platform(h, 12);

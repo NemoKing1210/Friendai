@@ -18,8 +18,10 @@ import dev.friendai.features.acquisition.minecraft.search.SearchTargets;
 import dev.friendai.features.knowledge.ResourceKnowledgeText;
 import dev.friendai.features.knowledge.ResourceQuery;
 import dev.friendai.features.knowledge.minecraft.LandmarkScanner;
+import dev.friendai.features.knowledge.search.ResourceSearchProfile;
 import dev.friendai.features.knowledge.search.SearchHint;
 import dev.friendai.features.knowledge.search.SearchPlanner;
+import dev.friendai.features.knowledge.search.TargetKind;
 import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.server.execution.tools.FeatureToolContributor;
 import dev.friendai.server.execution.tools.FeatureToolRegistry;
@@ -59,13 +61,13 @@ public final class ResourceTools implements FeatureToolContributor {
                         + "#minecraft:planks, oak_planks and stick resolve to wood and use a surface search; the "
                         + "companion inspects its surroundings before travelling. Unknown locations are not assumed.",
                 searchSchema,
-                (companion, args) -> taskFactory.create(
-                        null,
-                        args.get("resource").getAsString(),
-                        args.has("strategy") ? args.get("strategy").getAsString() : "auto",
-                        args.has("scope") ? args.get("scope").getAsString() : "local",
-                        args.has("heading") ? args.get("heading").getAsString() : null,
-                        null),
+                (companion, args) -> {
+                    String resource = args.get("resource").getAsString();
+                    SearchTargets.Resolution resolved = SearchTargets.resolve(context(companion), "resource", resource);
+                    if (!resolved.ok()) throw new IllegalArgumentException(resolved.error());
+                    validateStrategy(companion, resolved.kind(), strategy(args));
+                    return taskFactory.create(null, resource, strategy(args), scope(args), heading(args), null);
+                },
                 (companion, caller, args) -> callerSearch(companion, caller, args, taskFactory));
 
         JsonObject targetSchema = SchemaBuilder.object()
@@ -90,13 +92,8 @@ public final class ResourceTools implements FeatureToolContributor {
                             args.get("kind").getAsString(),
                             args.get("target").getAsString());
                     if (!resolved.ok()) throw new IllegalArgumentException(resolved.error());
-                    return taskFactory.create(
-                            resolved.kind(),
-                            null,
-                            args.has("strategy") ? args.get("strategy").getAsString() : "auto",
-                            args.has("scope") ? args.get("scope").getAsString() : "local",
-                            args.has("heading") ? args.get("heading").getAsString() : null,
-                            null);
+                    validateStrategy(companion, resolved.kind(), strategy(args));
+                    return taskFactory.create(resolved.kind(), null, strategy(args), scope(args), heading(args), null);
                 },
                 (companion, caller, args) -> callerFindTarget(companion, caller, args, taskFactory));
 
@@ -211,13 +208,8 @@ public final class ResourceTools implements FeatureToolContributor {
                 args.get("kind").getAsString(),
                 args.get("target").getAsString());
         if (!resolved.ok()) throw new IllegalArgumentException(resolved.error());
-        return taskFactory.create(
-                resolved.kind(),
-                null,
-                args.has("strategy") ? args.get("strategy").getAsString() : "auto",
-                scope,
-                args.has("heading") ? args.get("heading").getAsString() : null,
-                caller);
+        validateStrategy(companion, resolved.kind(), strategy(args));
+        return taskFactory.create(resolved.kind(), null, strategy(args), scope, heading(args), caller);
     }
 
     private static ToolResult hint(CompanionEntity companion, JsonObject args) {
@@ -309,6 +301,54 @@ public final class ResourceTools implements FeatureToolContributor {
         return ToolResult.ok("search hint set: " + hint.describe(now));
     }
 
+    private static String strategy(JsonObject args) {
+        return args.has("strategy") && !args.get("strategy").isJsonNull()
+                ? args.get("strategy").getAsString()
+                : "auto";
+    }
+
+    private static String scope(JsonObject args) {
+        return args.has("scope") && !args.get("scope").isJsonNull()
+                ? args.get("scope").getAsString()
+                : "local";
+    }
+
+    private static String heading(JsonObject args) {
+        return args.has("heading") && !args.get("heading").isJsonNull()
+                ? args.get("heading").getAsString()
+                : null;
+    }
+
+    /**
+     * Rejects a strategy the target's profile does not allow before a task exists. The task keeps its own guard;
+     * this boundary error names the allowed set so the model can correct the call instead of waiting for a failure.
+     */
+    private static void validateStrategy(CompanionEntity companion, TargetKind target, String requested) {
+        if (requested == null || requested.isBlank() || requested.equalsIgnoreCase("auto")) return;
+        ResourceSearchProfile.Strategy strategy;
+        try {
+            strategy = ResourceSearchProfile.Strategy.valueOf(requested.toUpperCase(java.util.Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("unknown search strategy: " + requested);
+        }
+        if (!(target instanceof TargetKind.BlockFamily family)) {
+            if (strategy != ResourceSearchProfile.Strategy.SURFACE) {
+                throw new IllegalArgumentException("strategy " + requested.toLowerCase(java.util.Locale.ROOT)
+                        + " applies to resource searches only; " + target.label() + " uses surface");
+            }
+            return;
+        }
+        String dimension = companion.level().dimension().identifier().toString();
+        if (family.profile().allows(dimension, strategy)) return;
+        String allowed = family.profile().strategies().stream()
+                .map(value -> value.name().toLowerCase(java.util.Locale.ROOT))
+                .sorted()
+                .collect(java.util.stream.Collectors.joining(", "));
+        String allowedText = allowed.isBlank() ? "none" : allowed;
+        throw new IllegalArgumentException("strategy " + requested.toLowerCase(java.util.Locale.ROOT)
+                + " is not available for " + target.label() + " in " + dimension + "; use one of: " + allowedText);
+    }
+
     private static String string(JsonObject args, String field) {
         return args.has(field) && !args.get(field).isJsonNull()
                 ? args.get(field).getAsString()
@@ -327,13 +367,11 @@ public final class ResourceTools implements FeatureToolContributor {
             if (caller.access() != AccessLevel.OWNER || !config.allowExpeditions() || !config.chunkLoadingEnabled())
                 throw new IllegalArgumentException("expeditions are disabled or owner-only");
         }
-        return taskFactory.create(
-                null,
-                args.get("resource").getAsString(),
-                args.has("strategy") ? args.get("strategy").getAsString() : "auto",
-                scope,
-                args.has("heading") ? args.get("heading").getAsString() : null,
-                caller);
+        String resource = args.get("resource").getAsString();
+        SearchTargets.Resolution resolved = SearchTargets.resolve(context(companion), "resource", resource);
+        if (!resolved.ok()) throw new IllegalArgumentException(resolved.error());
+        validateStrategy(companion, resolved.kind(), strategy(args));
+        return taskFactory.create(null, resource, strategy(args), scope, heading(args), caller);
     }
 
     private static ToolResult query(CompanionEntity companion, JsonObject args) {
