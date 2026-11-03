@@ -125,6 +125,16 @@ class MovementToolsTest {
     }
 
     @Test
+    void aPortalTripToAnUnknownDimensionIsRefusedBeforeWalking() {
+        JsonObject args = argsWith("dimension", "the_end");
+
+        IllegalArgumentException refused =
+                assertThrows(IllegalArgumentException.class, () -> MovementTools.portal(null, args));
+
+        assertTrue(refused.getMessage().contains("the_nether"), refused.getMessage());
+    }
+
+    @Test
     void harmlessMovementIsCreativeSafeAndTerrainChangingMovementIsNot() {
         FeatureToolRegistry registry = registry();
         new MovementTools().register(registry);

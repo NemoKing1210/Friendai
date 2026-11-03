@@ -14,6 +14,7 @@ import dev.friendai.features.navigation.minecraft.nav.PathExecutor;
 import dev.friendai.features.navigation.minecraft.task.ApproachEntityTask;
 import dev.friendai.features.navigation.minecraft.task.FollowTask;
 import dev.friendai.features.navigation.minecraft.task.GoToTask;
+import dev.friendai.features.navigation.minecraft.task.TravelThroughPortalTask;
 import dev.friendai.features.navigation.movement.Facing;
 import dev.friendai.features.navigation.pathing.BreakProgress;
 import dev.friendai.features.navigation.pathing.Cell;
@@ -1561,5 +1562,18 @@ public class PathingTests {
                     "did not walk around the gap: " + out.why() + " at " + c.position());
             h.assertTrue(lowest[0] >= base + 1, "fell into the trench, down to y=" + lowest[0]);
         });
+    }
+
+    @GameTest
+    public void nearestPortalPrefersTheCloserFrame(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 260, 12);
+        BlockPos near = h.absolutePos(new BlockPos(6, 261, 2));
+        h.setBlock(new BlockPos(6, 261, 2), Blocks.NETHER_PORTAL);
+        h.setBlock(new BlockPos(9, 261, 2), Blocks.NETHER_PORTAL);
+
+        BlockPos found = TravelThroughPortalTask.nearestPortal(h.getLevel(), h.absolutePos(new BlockPos(2, 261, 2)));
+
+        h.assertTrue(found != null && found.equals(near), "the nearer of two portals must win, got " + found);
+        h.succeed();
     }
 }

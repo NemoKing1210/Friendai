@@ -90,7 +90,7 @@ public final class MovementTools implements FeatureToolContributor {
                                 .enumeration("dimension", "Destination", "the_nether", "overworld")
                                 .required("dimension")
                                 .build(),
-                        (c, a) -> new TravelThroughPortalTask(a.get("dimension").getAsString()),
+                        MovementTools::portal,
                         false,
                         new TaskToolDefinition.QueueTraits(true, null),
                         PORTAL_HINT)
@@ -148,6 +148,18 @@ public final class MovementTools implements FeatureToolContributor {
 
     private static ToolMeta metadata(String name, String hint) {
         return new ToolMeta(name, ToolGroup.MOVEMENT, false, hint, List.of(), Cost.MEDIUM);
+    }
+
+    /**
+     * A portal trip is checked before the walk: a destination the game cannot deliver must not send the companion into
+     * a portal to find out, which would move it a world away from where the order expected it.
+     */
+    static Task portal(CompanionEntity companion, JsonObject args) {
+        String dimension = args.get("dimension").getAsString();
+        if (!TravelThroughPortalTask.isSupportedDestination(dimension)) {
+            throw new IllegalArgumentException("destination must be the_nether or overworld");
+        }
+        return new TravelThroughPortalTask(dimension);
     }
 
     static Task goTo(CompanionEntity companion, JsonObject args) {
