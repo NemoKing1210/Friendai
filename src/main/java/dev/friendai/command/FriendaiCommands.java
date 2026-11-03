@@ -11,12 +11,14 @@ import dev.friendai.FriendaiMod;
 import dev.friendai.common.Components;
 import dev.friendai.debug.DiagnoseAccess;
 import dev.friendai.debug.DiagnosticCollector;
+import dev.friendai.debug.DiagnosticSnapshot;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.execution.tool.InventoryAccess;
 import dev.friendai.features.memory.MemoryBook;
 import dev.friendai.features.memory.MemoryReport;
 import dev.friendai.features.memory.PlayerRecord;
+import dev.friendai.foundation.diagnostics.LogNames;
 import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.infrastructure.config.ServerConfig;
 import dev.friendai.menu.FriendaiMenus;
@@ -343,8 +345,30 @@ public final class FriendaiCommands {
                     "friendai.command.diagnose.failed", error.getClass().getSimpleName()));
             return 0;
         }
+        java.util.List<String> categories = new java.util.ArrayList<>();
+        runtime.config().logging.toSettings().categories().forEach(category -> categories.add(category.token()));
+        DiagnosticSnapshot snapshot = new DiagnosticSnapshot(
+                target.getName().getString(),
+                target.getUUID(),
+                net.fabricmc.loader.api.FabricLoader.getInstance()
+                        .getGameDir()
+                        .resolve("logs")
+                        .resolve("friendai")
+                        .resolve("owners")
+                        .resolve(target.getUUID().toString()),
+                LogNames.bootId(),
+                versionOf("friendai"),
+                versionOf("minecraft"),
+                runtime.config().logging.level,
+                categories,
+                Map.of("profile", runtime.config().activeProfile),
+                runtime.fileLog().health());
         runtime.diagnostics()
-                .write(files, runtime.sessions().debug().redactor())
+                .writeIncident(
+                        files,
+                        snapshot,
+                        runtime.fileLog().flushStatus(),
+                        runtime.sessions().debug().redactor())
                 .whenComplete((path, error) -> server.execute(() -> {
                     if (error != null) {
                         Throwable cause = error.getCause() == null ? error : error.getCause();
@@ -358,6 +382,17 @@ public final class FriendaiCommands {
                     }
                 }));
         return 1;
+    }
+
+    private static String versionOf(String id) {
+        try {
+            return net.fabricmc.loader.api.FabricLoader.getInstance()
+                    .getModContainer(id)
+                    .map(container -> container.getMetadata().getVersion().getFriendlyString())
+                    .orElse("");
+        } catch (RuntimeException unavailable) {
+            return "";
+        }
     }
 
     private static int stop(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {

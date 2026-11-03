@@ -1589,8 +1589,8 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                 if (!isCurrent(session, companion) || event == null) return;
                 dev.friendai.execution.log.TaskLogCorrelation correlation = debug.correlation(owner);
                 long parent = correlation.parentSeq(event);
-                java.util.Map<String, String> data =
-                        dev.friendai.foundation.diagnostics.LogEventData.build(event.context(), event.facts());
+                java.util.Map<String, String> data = new java.util.LinkedHashMap<>(
+                        dev.friendai.foundation.diagnostics.LogEventData.build(event.context(), event.facts()));
                 long cause = parent;
                 if (parent < 0L) {
                     cause = 0L;
