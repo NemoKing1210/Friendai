@@ -323,6 +323,8 @@ const RU = {
   "Classifies a failure and suggests a new remedy.": "Классифицирует сбой и предлагает новое средство.",
   "Quiet outcomes": "Тихие итоги",
   "Learns without narrating repeated status.": "Обучается без повторных сообщений о ходе работы.",
+  "Speech gate": "Речевой фильтр",
+  "Irrelevant status stays silent; a new blocker gets one line; a player question is always answered.": "Неважный статус молчит; новый блокер получает одну строку; вопрос игрока всегда получает ответ.",
 
   /* ---- Memory ---- */
   "Memory & Trust": "Память и доверие",

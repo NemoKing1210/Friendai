@@ -108,7 +108,8 @@ const CATS = [
       "queue_show|Show the queue.", "queue_edit|Edit queued steps.", "plan_help|Explain plan syntax.", "plan_validate|Dry-run a plan.",
       "request_tools|Unlock a tool group for this turn.", "stop|Stop everything.", "start_free_time|Begin autonomous time.", "end_free_time|End it.", "choose_activity|Pick what to do in free time.",
       "~LLM planner|1-4 attempts, JSON mode, repair prompts.", "~Conditional plans|If, repeat and guards over world facts.", "~Outcome checker|Compares before and after snapshots.",
-      "~Recovery advisor|Classifies a failure and suggests a new remedy.", "~Quiet outcomes|Learns without narrating repeated status.", "~Shift reports|One line per blocker (missing support, an own place, a tree it cannot climb); a repeat is silent." ] },
+      "~Recovery advisor|Classifies a failure and suggests a new remedy.", "~Quiet outcomes|Learns without narrating repeated status.", "~Shift reports|One line per blocker (missing support, an own place, a tree it cannot climb); a repeat is silent.",
+      "~Speech gate|Irrelevant status stays silent; a new blocker gets one line; a player question is always answered." ] },
   { id: "memory", domain: "mind", name: "Memory & Trust", icon: "🧠", color: COLORS.amethyst,
     desc: "Per-owner memory with strict visibility: guests only see facts about themselves, and trust changes need the owner's confirmation.",
     items: [
