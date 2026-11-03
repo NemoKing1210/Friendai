@@ -176,6 +176,14 @@ public record TaskContext(
     }
 
     /**
+     * Publishes one decision the task already made (selected step, strategy, recipe, station). Safe, already-computed
+     * facts only: logging never performs a second world scan and never changes the task's choice.
+     */
+    public void decision(String event, String reason, java.util.Map<String, String> facts) {
+        if (execution != null) execution.decision(event, reason, facts);
+    }
+
+    /**
      * Publishes one structured phase fact through the runner. A phase change is immediate, a repeated PROGRESS is
      * throttled, and nothing here posts a brain event or changes what the task does.
      */

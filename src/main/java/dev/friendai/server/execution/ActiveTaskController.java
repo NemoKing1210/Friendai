@@ -333,6 +333,14 @@ public final class ActiveTaskController {
         return new TaskLogSpan(child, operation, reason, facts, sink).start();
     }
 
+    /** Publishes one decision fact for the current activation; called on transitions, not every tick. */
+    public boolean reportDecision(String event, String reason, Map<String, String> facts) {
+        ActiveTask active = current;
+        if (active == null || event == null || event.isBlank()) return false;
+        diagnostics.accept(TaskLogEvents.decisionEvent(active.logContext(), event, active.toolName(), reason, facts));
+        return true;
+    }
+
     /** Publishes a throttled phase fact for the current activation; false when it says nothing new. */
     public boolean reportPhase(TaskPhase phase, int percent, String reason, String detail, long stamp) {
         ActiveTask active = current;

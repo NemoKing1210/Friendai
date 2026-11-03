@@ -347,6 +347,10 @@ public final class ObtainTask implements Task {
             return fail(room.get());
         }
         currentStep = plan.steps().get(0);
+        c.decision(
+                dev.friendai.foundation.diagnostics.LogEvents.RESOURCE_DECISION,
+                "step_selected",
+                obtainDecisionFacts(plan, currentStep, have));
         current = subtask(c, currentStep);
         if (ticks - lastNoticeTick >= NOTICE_INTERVAL) {
             lastNoticeTick = ticks;
@@ -354,6 +358,19 @@ public final class ObtainTask implements Task {
         }
         current.start(childContext == null ? c : childContext);
         return TaskStatus.RUNNING;
+    }
+
+    /** Already-computed evidence: no second scan, no candidate graph, bounded text. */
+    private java.util.Map<String, String> obtainDecisionFacts(ObtainPlan plan, ObtainStep step, int have) {
+        java.util.Map<String, String> facts = new java.util.LinkedHashMap<>();
+        facts.put("step", step.getClass().getSimpleName().toLowerCase(java.util.Locale.ROOT));
+        facts.put("stepNumber", Integer.toString(stepsRun + 1));
+        facts.put("steps", Integer.toString(plan.steps().size()));
+        facts.put("have", Integer.toString(have));
+        facts.put("excludedSites", Integer.toString(excludedSiteIds.size()));
+        String missing = ObtainText.missingText(plan.missing(), !explore);
+        if (!missing.isBlank()) facts.put("missing", missing);
+        return facts;
     }
 
     private Task subtask(TaskContext c, ObtainStep step) {

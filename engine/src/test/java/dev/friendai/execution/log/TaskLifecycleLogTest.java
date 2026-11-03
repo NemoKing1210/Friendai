@@ -170,6 +170,22 @@ class TaskLifecycleLogTest {
     }
 
     @Test
+    void aDecisionCarriesOnlyItsAlreadyComputedFacts() {
+        TaskLogEvent decision = TaskLogEvents.decisionEvent(
+                executionContext(3L, 0L, 0L, 0L, 9L),
+                LogEvents.RESOURCE_DECISION,
+                "obtain_item",
+                "step_selected",
+                Map.of("step", "mine", "have", "0"));
+
+        assertEquals(LogEvents.RESOURCE_DECISION, decision.event());
+        assertEquals("decided", decision.status());
+        assertEquals(TaskLogEvent.Parent.EXECUTION, decision.parent());
+        assertEquals("step_selected", decision.facts().get("reason"));
+        assertEquals("mine", decision.facts().get("step"));
+    }
+
+    @Test
     void factsAreAnImmutableBoundedCopy() {
         Map<String, String> facts = new HashMap<>();
         facts.put("reason", "search_selected");

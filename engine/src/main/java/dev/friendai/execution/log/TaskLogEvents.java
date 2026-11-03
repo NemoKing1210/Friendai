@@ -102,6 +102,16 @@ public final class TaskLogEvents {
                 facts);
     }
 
+    /** One decision the owning task already made: selected step, strategy, recipe or station. */
+    public static TaskLogEvent decisionEvent(
+            LogContext context, String event, String tool, String reason, Map<String, String> facts) {
+        requireTool(tool);
+        Map<String, String> bounded = new LinkedHashMap<>();
+        if (facts != null) bounded.putAll(facts);
+        if (reason != null && !reason.isBlank()) bounded.put("reason", reason);
+        return new TaskLogEvent(context, TaskLogEvent.Parent.EXECUTION, event, tool, "decided", -1L, bounded);
+    }
+
     /** One bounded snapshot of the work state, captured before a stall stop clears it. */
     public static TaskLogEvent snapshotEvent(
             LogContext context, String tool, String reason, Map<String, String> facts) {

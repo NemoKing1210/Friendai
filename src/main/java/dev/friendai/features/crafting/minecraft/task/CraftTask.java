@@ -136,6 +136,10 @@ public final class CraftTask implements Task {
             }
             Map<String, Integer> items = inventoryMap(c.companion());
             plan = CraftPlanner.planNew(item, count, items, index, Stations.available(c.level(), c.companion()));
+            c.decision(
+                    dev.friendai.foundation.diagnostics.LogEvents.CRAFT_DECISION,
+                    plan.ok() ? "plan_ready" : "ingredients_missing",
+                    craftDecisionFacts(plan, items.getOrDefault(item, 0)));
             if (!plan.ok()) {
                 int held = items.getOrDefault(item, 0);
                 if (held >= count) {
@@ -150,6 +154,18 @@ public final class CraftTask implements Task {
         } catch (RuntimeException e) {
             failure = "can't craft " + count + " " + item;
         }
+    }
+
+    private java.util.Map<String, String> craftDecisionFacts(CraftPlan plan, int held) {
+        java.util.Map<String, String> facts = new java.util.LinkedHashMap<>();
+        facts.put("item", item);
+        facts.put("count", Integer.toString(count));
+        facts.put("have", Integer.toString(held));
+        facts.put("steps", Integer.toString(plan.steps().size()));
+        if (!plan.ok() && !plan.missing().isEmpty()) {
+            facts.put("missing", CraftText.missingText(plan.missing()));
+        }
+        return facts;
     }
 
     @Override

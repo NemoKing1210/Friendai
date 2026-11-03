@@ -372,6 +372,11 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
      *
      * @return true when a retry was queued, false when there is nothing to retry or the queue still holds it
      */
+    /** Publishes a decision the running task already made; see {@link TaskContext#decision}. */
+    public void decision(String event, String reason, java.util.Map<String, String> facts) {
+        inTransition(() -> activeTasks.reportDecision(event, reason, facts));
+    }
+
     /** Opens a nested span on the running activation; see {@link TaskContext#beginSpan}. */
     public dev.friendai.execution.log.TaskLogSpan beginSpan(
             LogContext parent, String operation, String reason, java.util.Map<String, String> facts) {
