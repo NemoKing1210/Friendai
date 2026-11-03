@@ -98,6 +98,9 @@ public final class SelfTools implements FeatureToolContributor {
                                 .integer("turn", "Only records of this turn", 0, Integer.MAX_VALUE)
                                 .integer("task", "Only records of this task", 0, Integer.MAX_VALUE)
                                 .integer("before", "Only records with an id smaller than this", 0, Integer.MAX_VALUE)
+                                .string("trace", "Only records of this trace token")
+                                .integer("execution", "Only records of this execution id", 0, Integer.MAX_VALUE)
+                                .integer("request", "Only records of this request id", 0, Integer.MAX_VALUE)
                                 .string("query", "Case-insensitive text in the message or a data value")
                                 .integer("limit", "How many records to return", 1, 200)
                                 .enumeration("order", "Newest or oldest first", "newest", "oldest")
@@ -323,6 +326,11 @@ public final class SelfTools implements FeatureToolContributor {
             String query = args.has("query") && !args.get("query").isJsonNull()
                     ? args.get("query").getAsString()
                     : "";
+            String trace = args.has("trace") && !args.get("trace").isJsonNull()
+                    ? args.get("trace").getAsString()
+                    : "";
+            long execution = args.has("execution") ? args.get("execution").getAsLong() : 0L;
+            long request = args.has("request") ? args.get("request").getAsLong() : 0L;
             int limit = args.has("limit") ? args.get("limit").getAsInt() : 50;
             boolean newest =
                     !args.has("order") || args.get("order").getAsString().equalsIgnoreCase("newest");
@@ -330,7 +338,16 @@ public final class SelfTools implements FeatureToolContributor {
                     caller,
                     owner,
                     self.logRoot(owner),
-                    new LogFilter(level, category == null ? Set.of() : Set.of(category), event, turn, task, query),
+                    new LogFilter(
+                            level,
+                            category == null ? Set.of() : Set.of(category),
+                            event,
+                            turn,
+                            task,
+                            query,
+                            trace,
+                            execution,
+                            request),
                     before,
                     limit,
                     newest,

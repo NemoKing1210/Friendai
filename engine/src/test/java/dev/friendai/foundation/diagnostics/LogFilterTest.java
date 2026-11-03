@@ -32,6 +32,40 @@ class LogFilterTest {
     }
 
     @Test
+    void identityFiltersMatchOnlyTheirOwnRecords() {
+        LogRecord tagged = new LogRecord(
+                2L,
+                1L,
+                LogLevel.INFO,
+                LogCategory.TASK,
+                null,
+                LogEvents.TASK_START,
+                null,
+                null,
+                "",
+                0L,
+                0L,
+                0L,
+                0L,
+                "",
+                0L,
+                -1L,
+                "started",
+                Map.of("trace", "t-1", "execution", "7", "request", "3"),
+                null);
+
+        assertTrue(new LogFilter(null, Set.of(), "", 0L, 0L, "", "t-1", 7L, 3L).accepts(tagged));
+        assertFalse(new LogFilter(null, Set.of(), "", 0L, 0L, "", "t-2", 0L, 0L).accepts(tagged));
+        assertFalse(new LogFilter(null, Set.of(), "", 0L, 0L, "", "", 8L, 0L).accepts(tagged));
+        assertFalse(new LogFilter(null, Set.of(), "", 0L, 0L, "", "", 0L, 4L).accepts(tagged));
+        assertTrue(new LogFilter(null, Set.of(), "", 0L, 0L, "").accepts(tagged), "the old shape means any");
+        assertFalse(
+                new LogFilter(null, Set.of(), "", 0L, 0L, "", "t-1", 0L, 0L)
+                        .accepts(record(LogLevel.INFO, LogCategory.TASK, LogEvents.TASK_START, 0L, 0L)),
+                "a legacy record without the key does not match an active identity filter");
+    }
+
+    @Test
     void levelThresholdKeepsThisLevelAndAbove() {
         LogFilter filter = new LogFilter(LogLevel.WARN, Set.of(), "", 0L, 0L, "");
         assertTrue(filter.accepts(record(LogLevel.WARN, LogCategory.TASK, LogEvents.TASK_START, 0L, 0L)));
