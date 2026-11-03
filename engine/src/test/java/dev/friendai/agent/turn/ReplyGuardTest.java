@@ -134,4 +134,40 @@ class ReplyGuardTest {
     void cleanupLeavesNoDoubleSpacesOrDanglingPunctuation() {
         assertEquals("The hive is nearby.", filter("The hive is  nearby  (1279 68 358) .", false, null));
     }
+
+    @Test
+    void aToolCallTypedIntoTheMessageIsSilence() {
+        String leaked = "\n\n<tool_calls>\n<invoke name=\"find_trees\">\n<parameter name=\"radius\">32</parameter>\n"
+                + "<parameter name=\"limit\">5</parameter>\n</invoke>\n</tool_calls>";
+        assertNull(filter(leaked, false, null));
+    }
+
+    @Test
+    void textBesideALeakedToolCallSurvives() {
+        assertEquals(
+                "I'll look for trees.",
+                filter(
+                        "I'll look for trees.\n<tool_calls><invoke name=\"find_trees\">"
+                                + "<parameter name=\"radius\">32</parameter></invoke></tool_calls>",
+                        false,
+                        null));
+    }
+
+    @Test
+    void anUnterminatedLeakedCallTakesOnlyWhatFollowsIt() {
+        assertEquals("No idea.", filter("No idea.<tool_call>\n{\"name\": \"stay\"}", false, null));
+    }
+
+    @Test
+    void everyMeasuredToolCallDialectIsDropped() {
+        assertNull(filter("<function=stay>{}</function>", false, null));
+        assertNull(filter("<tool_call>{\"name\": \"stay\"}</tool_call>", false, null));
+        assertNull(filter("<antml:invoke name=\"stay\"></antml:invoke>", false, null));
+        assertNull(filter("<function_calls><invoke name=\"stay\"></invoke></function_calls>", false, null));
+    }
+
+    @Test
+    void chatTemplateTokensAreDropped() {
+        assertEquals("Done.", filter("Done. <|im_end|>", false, null));
+    }
 }

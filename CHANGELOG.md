@@ -6,6 +6,13 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.202.2] - 2026-11-04
+
+### Fixed
+
+- The companion no longer shows or speaks a tool call it typed out instead of performing: such a reply now counts as silence, and a message that also contained a real answer keeps only the answer.
+- A social line batched with a failed task, a blocked plan or a goal nudge now reaches the model with its tools, so it can repair the work instead of answering in text.
+
 ## [0.202.1] - 2026-11-04
 
 ### Fixed

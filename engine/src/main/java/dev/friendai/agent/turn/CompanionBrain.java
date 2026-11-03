@@ -424,6 +424,33 @@ public final class CompanionBrain {
         }
     }
 
+    /**
+     * A turn that only makes conversation: it carries a social opening and nothing that reports work the companion
+     * might have to act on. Such a turn sends no schema, so a batch that also reports a failure or asks for a plan
+     * keeps its tools — otherwise the model is told to repair the plan with no tool to repair it with, and answers in
+     * markup instead of words.
+     */
+    private static boolean isChatterOnly(List<BrainEvent> batch) {
+        boolean social = false;
+        for (BrainEvent event : batch) {
+            if (event instanceof BrainEvent.SocialOpening) {
+                social = true;
+            } else if (!reportsNothingToActOn(event)) {
+                return false;
+            }
+        }
+        return social;
+    }
+
+    /** Events a words-only reply can absorb whole: a notice, a taught run, a stop or a success. */
+    private static boolean reportsNothingToActOn(BrainEvent event) {
+        return event instanceof BrainEvent.WorldNotice
+                || event instanceof BrainEvent.SkillOutcome
+                || event instanceof BrainEvent.TaskCancelled
+                || (event instanceof BrainEvent.TaskFinished finished && finished.success())
+                || (event instanceof BrainEvent.PlanFinished finished && finished.success());
+    }
+
     /** The player a turn acts for. Task events belong to the owner. */
     private UUID principalOf(BrainEvent event) {
         return event instanceof BrainEvent.PlayerSaid said ? said.playerUuid() : access.owner();
@@ -554,7 +581,7 @@ public final class CompanionBrain {
                     .ifPresent(e -> teachingContext = new dev.friendai.foundation.teaching.TeachingContext(
                             access.owner(), e.outcomeId(), generation, e.kind()));
         }
-        socialTurn = batch.stream().anyMatch(event -> event instanceof BrainEvent.SocialOpening);
+        socialTurn = isChatterOnly(batch);
         turnSpeechAllowed = CompanionSpeechPolicy.maySpeak(batch, !turnPlayerTexts.isEmpty());
         visibleGroups.clear();
         visibleGroups.addAll(decision.groups());

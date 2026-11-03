@@ -900,6 +900,47 @@ class CompanionBrainTest {
     }
 
     @Test
+    void aSocialOpeningBatchedWithAWorkReportKeepsItsTools() {
+        routedToolbox(false);
+        CompletableFuture<LlmResponse> running = gateway.enqueuePending();
+        brain.post(said("hi"));
+        brain.post(social());
+        brain.post(new BrainEvent.PlanBlocked(3, "stone kit", 1, "obtain_item", "no pickaxe here", 2));
+        gateway.enqueue(text("On it."));
+        running.complete(text("Hi"));
+
+        assertEquals(2, gateway.requests.size());
+        assertFalse(
+                toolNames(gateway.requests.get(1)).isEmpty(),
+                "asked to repair a plan, the model must be able to call queue_edit");
+    }
+
+    @Test
+    void aSocialOpeningWithFinishedWorkStillSendsNoSchema() {
+        routedToolbox(false);
+        CompletableFuture<LlmResponse> running = gateway.enqueuePending();
+        brain.post(said("hi"));
+        brain.post(social());
+        brain.post(new BrainEvent.TaskFinished(7, "mine_blocks", true, "mined 3 logs"));
+        gateway.enqueue(text("Nice."));
+        running.complete(text("Hi"));
+
+        assertEquals(2, gateway.requests.size());
+        assertTrue(toolNames(gateway.requests.get(1)).isEmpty(), "chatter about finished work spends no schema");
+    }
+
+    @Test
+    void aToolCallTypedIntoTheReplyIsNeverDelivered() {
+        gateway.enqueue(text("\n\n<tool_calls>\n<invoke name=\"find_trees\">\n<parameter name=\"radius\">32</parameter>"
+                + "\n</invoke>\n</tool_calls>"));
+        brain.post(social());
+
+        assertTrue(speaker.said.isEmpty(), speaker.said.toString());
+        assertTrue(speaker.addressees.isEmpty(), speaker.addressees.toString());
+        assertFalse(brain.isThinking());
+    }
+
+    @Test
     void aSilentSocialReplySaysAndSpeaksNothing() {
         gateway.enqueue(text(ReplyGuard.SILENT));
         brain.post(new BrainEvent.SocialOpening(

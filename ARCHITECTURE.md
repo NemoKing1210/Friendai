@@ -275,9 +275,14 @@ identity is committed only when the event is actually posted. Both the ring and 
 the owner's versioned `SocialMemorySave` record (`infrastructure/persistence/social/SocialMemoryStore`), loaded on first
 use and saved whenever they change, so a restart neither repeats a subject nor forgets a preference.
 
-A social batch carries no tools at all: `CompanionBrain` sends `List.of()` schemas and an empty tool-name set for the
-turn, so the model can only answer in words and the loop refuses anything it invents. `ReplyGuard` still strips the
-`[silent]` sentinel, ids, coordinates and repeats, and a late reply dies on the generation counter like any other. The
+A chatter-only batch carries no tools at all: when a `SocialOpening` is batched with nothing but a world notice, a
+taught-run outcome, a stop or a successful report, `CompanionBrain` sends `List.of()` schemas and an empty tool-name
+set for the turn, so the model can only answer in words. A batch that also reports a failure, a blocked plan, an idle
+goal or a shift keeps its tools: the model is never told to repair a plan with nothing to repair it with. `ReplyGuard`
+strips the `[silent]` sentinel, ids, coordinates and repeats, and also drops a tool call the model typed into its
+message body instead of returning it as a call (`<tool_calls>`, `<invoke>`, `<parameter>`, the `antml:` spelling, the
+`<function=name>` form and chat-template tokens such as `<|im_end|>`); a reply that was only markup becomes silence and
+is remembered as the sentinel. A late reply dies on the generation counter like any other. The
 owner switches it off with `chat.ambientSpeech` (off means the companion answers only) and reads the state with
 `/friendai speak status`.
 

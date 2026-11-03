@@ -34,6 +34,24 @@ public final class ReplyGuard {
     private static final Pattern COORDINATE_CUES =
             Pattern.compile("(?iu)(?<![\\p{L}])(?:where|coords|coordinates|location|locate|position)(?![\\p{L}])"
                     + "|(?<![\\p{L}])где(?![\\p{L}])|координат|местоположен");
+    /**
+     * The tag names of the function-call dialects some models write into the message body instead of the call
+     * channel: {@code <tool_calls><invoke name=..><parameter name=..>}, its {@code antml:} spelling and the
+     * {@code <function=name>} form. A dialect nobody wrote is simply never matched.
+     */
+    private static final String TOOL_TAG =
+            "(?:tool_calls?|function_calls?|function|tool_use|tool_result|invoke|parameter|antml:invoke|antml:parameter)";
+    /** A complete leaked call: the outer element and everything it wraps. */
+    private static final Pattern TOOL_MARKUP_BLOCK = Pattern.compile("(?is)<(" + TOOL_TAG + ")\\b[^>]*>.*?</\\1\\s*>");
+    /**
+     * A leaked opening tag with no close: the model kept writing markup to the end of its message, so the rest is
+     * markup too and cannot be salvaged as a sentence.
+     */
+    private static final Pattern TOOL_MARKUP_OPEN_TO_END = Pattern.compile("(?is)<" + TOOL_TAG + "\\b[^>]*>.*\\z");
+    /** A bare opening or closing tag left over from a partly stripped call. */
+    private static final Pattern TOOL_MARKUP_TAG = Pattern.compile("(?is)</?" + TOOL_TAG + "\\b[^>]*>");
+    /** Chat-template control tokens such as {@code <|im_end|>} that leak in the same way. */
+    private static final Pattern CONTROL_TOKEN = Pattern.compile("<\\|[^|<>]{1,40}\\|>");
 
     private ReplyGuard() {}
 
@@ -64,6 +82,10 @@ public final class ReplyGuard {
                 return Optional.empty();
             }
             text = SENTINEL.matcher(text).replaceAll(" ").strip();
+            if (text.isEmpty()) {
+                return Optional.empty();
+            }
+            text = stripToolMarkup(text).strip();
             if (text.isEmpty()) {
                 return Optional.empty();
             }
@@ -103,6 +125,17 @@ public final class ReplyGuard {
         } catch (RuntimeException e) {
             return Optional.empty();
         }
+    }
+
+    /**
+     * Removes a tool call the model typed into its message instead of returning it as a call. Nothing here executes:
+     * the markup is dropped so the player never reads it, and a reply that was only markup becomes silence.
+     */
+    private static String stripToolMarkup(String text) {
+        String out = TOOL_MARKUP_BLOCK.matcher(text).replaceAll(" ");
+        out = TOOL_MARKUP_OPEN_TO_END.matcher(out).replaceAll(" ");
+        out = TOOL_MARKUP_TAG.matcher(out).replaceAll(" ");
+        return CONTROL_TOKEN.matcher(out).replaceAll(" ");
     }
 
     /** True when the player's message asks where something is. */
