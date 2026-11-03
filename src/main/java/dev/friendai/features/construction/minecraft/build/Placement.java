@@ -72,8 +72,12 @@ public final class Placement {
                     z = anchorPos.getZ() + 3;
                 }
             }
+            // The ground under the site, not the canopy over it: WORLD_SURFACE counted leaves and put a shelter on a
+            // tree top, five blocks above the ground the foundation could reach.
             corner = new BlockPos(
-                    x, level(companion).getHeight(Heightmap.Types.WORLD_SURFACE, x + width / 2, z + depth / 2), z);
+                    x,
+                    level(companion).getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x + width / 2, z + depth / 2),
+                    z);
         }
         List<PlacedSpec> specs = new ArrayList<>(blueprint.blocks().size());
         for (BlockSpec spec : blueprint.blocks()) {
