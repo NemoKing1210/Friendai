@@ -40,6 +40,8 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] "Friendai, do your own thing" (and "займись своими делами"): free time starts, the companion names an activity within a minute and works on it.
 - [ ] Over one in-game day of free time with a real provider, the chosen activities are sensible (food when hungry, better tools, smelting, farm tending) and do not repeat a failed one right away.
 - [ ] At night with no home in the current dimension, free time starts the shelter reflex: it builds from carried materials or lights a safe spot and waits; it does not repeat an exposed resource search.
+- [ ] Mine a few blocks near the base, then leave free time on: the mine it remembers does not stop it chopping trees or mining around that spot.
+- [ ] Tell it to build a small shelter with no coordinates while trees stand nearby: the floor lands on the ground, not on a canopy.
 - [ ] With a repeated free-time blocker, the owner hears one concise translated report, the status/history still names the blocker, and the same failure does not produce a report burst; a different blocker is reported once.
 - [ ] A blocked queued step remains visible after its question is coalesced; the same blocker is asked about again only after five minutes, while a new blocker can be raised immediately.
 - [ ] In a Russian owner session, free-time reports and the away summary use the owner's locale; language-profile metadata does not become an ambient small-talk topic, and a direct owner question still gets a reply during social quiet time.

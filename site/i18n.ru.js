@@ -358,7 +358,7 @@ const RU = {
 
   /* ---- Places ---- */
   "Places": "Места",
-  "A book of named places. Autonomous work never breaks inside a known place and takes only from containers in one.": "Книга именованных мест. Автономная работа не ломает ничего внутри известного места и берёт только из контейнеров в нём.",
+  "A book of named places. Autonomous work never breaks inside your places and takes only from containers in one; dig sites it registered itself are work areas.": "Книга именованных мест. Автономная работа не ломает ничего внутри ваших мест и берёт только из контейнеров в них; выкопанные им самим места — рабочие.",
   "Save the current spot.": "Сохранить текущее место.",
   "Walk to a named place.": "Дойти до именованного места.",
   "Rename it.": "Переименовать его.",
@@ -367,7 +367,11 @@ const RU = {
   "Auto registration": "Автозапись",
   "Notes beds, bases and farms.": "Запоминает кровати, базы и фермы.",
   "Place guard": "Защита мест",
-  "Protects known places during free time.": "Охраняет известные места в свободное время.",
+  "Protects your places during free time; a farm it tends and its own dig sites are work areas.": "Бережёт ваши места в свободное время; ферма, за которой он ухаживает, и его собственные выкопанные места — рабочие.",
+  "Mine box": "Границы шахты",
+  "A remembered mine covers the blocks it dug, not the radius it searched.": "Запомненная шахта охватывает выкопанные блоки, а не радиус поиска.",
+  "Shift reports": "Отчёты о сменах",
+  "One line per blocker (missing support, an own place, a tree it cannot climb); a repeat is silent.": "Одна строка на помеху (не хватило опоры, своё место, дерево, на которое не забраться); повтор молчит.",
   "Same dimension": "То же измерение",
   "go_to_place never crosses dimensions.": "go_to_place никогда не пересекает измерения.",
 
@@ -571,7 +575,7 @@ const RU = {
   "Goals": "Цели",
   "One primary and three background goals, lessons, replan budget.": "Одна главная и три фоновые цели, уроки, бюджет перепланирования.",
   "Free time": "Свободное время",
-  "Shifts, history, cooldowns, away summaries.": "Смены, история, перезарядки, сводки об отсутствии.",
+  "Shifts, history, cooldowns, away summaries, and shift.start/end/report records in the durable log.": "Смены, история, перезарядки, сводки об отсутствии и записи shift.start/end/report в постоянном логе.",
   "Instruction skills": "Инструктивные навыки",
   "19 builtins, global and owner records; list_skills and skill_help read, manage_skill writes.":
     "19 встроенных, общие и владельческие записи; list_skills и skill_help читают, manage_skill записывает.",

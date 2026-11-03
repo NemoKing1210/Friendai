@@ -6,6 +6,24 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.196.0] - 2026-11-03
+
+### Added
+
+- Free time tells you what stopped an activity — a missing support block, one of its own places, or a tree it could not climb — and repeats the same blocker only once.
+- Free time works inside the dig sites it registered itself; a remembered mine now covers the box it dug instead of the radius it searched.
+- Every free-time shift and every direct line now appears in the durable log (`shift.start`, `shift.end`, `shift.report`, `assistant.direct`).
+
+### Changed
+
+- A build placed without coordinates stands on the ground instead of on a tree canopy.
+- A tree whose sides cannot be climbed is cut as far as the ground reaches instead of being left standing.
+
+### Fixed
+
+- The generic "I couldn't finish my free-time activity" no longer hides the cause behind a repeated line.
+
+
 ## [0.195.1] - 2026-11-03
 
 ### Fixed

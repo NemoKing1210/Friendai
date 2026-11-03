@@ -107,7 +107,7 @@ const CATS = [
       "queue_show|Show the queue.", "queue_edit|Edit queued steps.", "plan_help|Explain plan syntax.", "plan_validate|Dry-run a plan.",
       "request_tools|Unlock a tool group for this turn.", "stop|Stop everything.", "start_free_time|Begin autonomous time.", "end_free_time|End it.", "choose_activity|Pick what to do in free time.",
       "~LLM planner|1-4 attempts, JSON mode, repair prompts.", "~Conditional plans|If, repeat and guards over world facts.", "~Outcome checker|Compares before and after snapshots.",
-      "~Recovery advisor|Classifies a failure and suggests a new remedy.", "~Quiet outcomes|Learns without narrating repeated status." ] },
+      "~Recovery advisor|Classifies a failure and suggests a new remedy.", "~Quiet outcomes|Learns without narrating repeated status.", "~Shift reports|One line per blocker (missing support, an own place, a tree it cannot climb); a repeat is silent." ] },
   { id: "memory", domain: "mind", name: "Memory & Trust", icon: "🧠", color: COLORS.amethyst,
     desc: "Per-owner memory with strict visibility: guests only see facts about themselves, and trust changes need the owner's confirmation.",
     items: [
@@ -116,10 +116,10 @@ const CATS = [
       "read_log|Read your recent activity log (owner only).", "logs_search|Search the durable log files by level, category, event, turn or task (owner only).", "recent_chat|Read recent conversations with a player.", "memory_overview|See facts with ids and how full each book is.", "compress_memory|Merge duplicate facts safely, dry run first (owner only).", "reset_manner|Drop a manner the owner dislikes and never drift back into it (owner only).",
       "~Access levels|GUEST < TRUSTED < OWNER on every tool.", "~Language learning|Learns your language after a few samples.", "~Skills advise only|They never change permissions." ] },
   { id: "places", domain: "mind", name: "Places", icon: "📍", color: COLORS.diamond,
-    desc: "A book of named places. Autonomous work never breaks inside a known place and takes only from containers in one.",
+    desc: "A book of named places. Autonomous work never breaks inside your places and takes only from containers in one; dig sites it registered itself are work areas.",
     items: [
       "remember_place|Save the current spot.", "go_to_place|Walk to a named place.", "rename_place|Rename it.", "forget_place|Delete it.", "find_place|Look one up.",
-      "~Auto registration|Notes beds, bases and farms.", "~Place guard|Protects known places during free time.", "~Same dimension|go_to_place never crosses dimensions." ] },
+      "~Auto registration|Notes beds, bases and farms.", "~Place guard|Protects your places during free time; a farm it tends and its own dig sites are work areas.", "~Mine box|A remembered mine covers the blocks it dug, not the radius it searched.", "~Same dimension|go_to_place never crosses dimensions." ] },
 
   { id: "perception", domain: "senses", name: "Perception", icon: "👁️", color: COLORS.quartz,
     desc: "Turns the world into prompt text: surroundings, threats, landmarks and what the owner is looking at.",
@@ -362,8 +362,10 @@ const CODE = {
   "~Language learning": ["engine/src/main/java/dev/friendai/foundation/text/LanguageMemory.java"],
   "~Skills advise only": ["src/main/java/dev/friendai/server/instructions/SkillService.java"],
   "~Auto registration": ["engine/src/main/java/dev/friendai/features/places/PlaceAutoRegistration.java"],
-  "~Place guard": ["src/main/java/dev/friendai/task/autonomy/PlaceGuard.java"],
+  "~Place guard": ["src/main/java/dev/friendai/task/autonomy/PlaceGuard.java", "engine/src/main/java/dev/friendai/features/places/PlaceProtection.java"],
   "~Same dimension": ["src/main/java/dev/friendai/features/places/minecraft/task/GoToPlaceTask.java"],
+  "~Mine box": ["engine/src/main/java/dev/friendai/features/places/PlaceAutoRegistration.java"],
+  "~Shift reports": ["engine/src/main/java/dev/friendai/agent/autonomy/FreeTimeText.java", "engine/src/main/java/dev/friendai/agent/autonomy/ShiftBlocker.java"],
   "~Brief radius 8": ["src/main/java/dev/friendai/server/agent/perception/PerceptionBuilder.java"],
   "~Detailed radius 16": ["src/main/java/dev/friendai/server/agent/perception/PerceptionBuilder.java"],
   "~Owner focus": ["src/main/java/dev/friendai/server/agent/perception/OwnerFocusBuilder.java"],
@@ -433,7 +435,7 @@ const MEM_CARDS = [
     hub: { label: "Owner data", icon: "🗂️", color: COLORS.amethyst, desc: "Memory, profile, goals and free-time stores share one bounded runtime writer; it flushes latest-revision snapshots on a 5 s server-tick cadence. Unsupported versions are never overwritten." },
     color: COLORS.amethyst, items: [
       "~Memory|Facts about players, trust, learned language, food rules.", "~Conversation transcript|Both sides of every chat, redacted, capped by count and age.", "~Companion profile|Name, description, language and address.", "~Goals|One primary and three background goals, lessons, replan budget.",
-      "~Free time|Shifts, history, cooldowns, away summaries.", "~Instruction skills|19 builtins, global and owner records; list_skills and skill_help read, manage_skill writes.", "~Places|Named places with aliases, dimension and visits.",
+      "~Free time|Shifts, history, cooldowns, away summaries, and shift.start/end/report records in the durable log.", "~Instruction skills|19 builtins, global and owner records; list_skills and skill_help read, manage_skill writes.", "~Places|Named places with aliases, dimension and visits.",
       "~Placed blocks|Ledger of blocks it placed (cap 512).", "~Knowledge|Observed resources.", "~Trades|Known villager trades.", "~Blueprints|Saved layouts as JSON." ] },
   { title: "In the world save", sub: "Companion entity + SavedData",
     hub: { label: "Companion entity", icon: "🧍", color: COLORS.grass, desc: "Saved with the world; versioned by Mojang's entity data." },
