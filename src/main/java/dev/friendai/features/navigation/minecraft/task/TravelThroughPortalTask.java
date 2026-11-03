@@ -129,6 +129,15 @@ public final class TravelThroughPortalTask implements Task {
         c.companion().getNavigation().stop();
     }
 
+    /**
+     * Vanilla moves the companion on the tick its box overlaps the portal block, before the walk reports arrival, so
+     * the success path ends with a live navigator holding the body. Drop it like any other finished task.
+     */
+    @Override
+    public void onTerminal(TaskContext c) {
+        mover.stop(c);
+    }
+
     @Override
     public String describe() {
         return "walking into a nether portal toward " + targetDimension;

@@ -411,6 +411,7 @@ public final class Navigator {
                 || path == null
                 || path.steps().isEmpty()) {
             if (!mayPlace || !config().allowPlace() || gatherRounds >= GATHER_ROUNDS) {
+                abandonExecutor(c);
                 state = State.UNREACHABLE;
                 return;
             }
@@ -424,6 +425,7 @@ public final class Navigator {
             // carries: walking it would spend the block and strand the companion. Learn the price of the whole
             // passage (or the rest of it) and gather that instead.
             if (!mayPlace || !config().allowPlace() || gatherRounds >= GATHER_ROUNDS) {
+                abandonExecutor(c);
                 state = State.UNREACHABLE;
                 return;
             }
