@@ -1,5 +1,6 @@
 package dev.friendai.features.navigation.pathing;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -24,6 +25,22 @@ public record GoalPickup(List<DropPoint> drops, double reach) implements PathGoa
 
     public GoalPickup {
         drops = List.copyOf(drops);
+    }
+
+    @Override
+    public String label() {
+        return drops.size() == 1 ? "pickup" : drops.size() + " drops";
+    }
+
+    @Override
+    public List<Pos> cells() {
+        int shown = Math.min(drops.size(), MAX_OVERLAY_CELLS);
+        List<Pos> cells = new ArrayList<>(shown);
+        for (int i = 0; i < shown; i++) {
+            DropPoint drop = drops.get(i);
+            cells.add(new Pos((int) Math.floor(drop.x()), (int) Math.floor(drop.y()), (int) Math.floor(drop.z())));
+        }
+        return List.copyOf(cells);
     }
 
     @Override

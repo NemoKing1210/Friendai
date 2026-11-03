@@ -1,9 +1,21 @@
 package dev.friendai.features.navigation.pathing;
 
+import java.util.List;
 import java.util.Optional;
 
 /** A goal near a single point, as {@code MoveHelper} wants: within a horizontal radius and a height band. */
 public record GoalPoint(double x, double y, double z, double horizontal, double vertical) implements PathGoal {
+
+    @Override
+    public String label() {
+        return "point " + (int) Math.floor(x) + " " + (int) Math.floor(y) + " " + (int) Math.floor(z);
+    }
+
+    @Override
+    public List<Pos> cells() {
+        return List.of(new Pos((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z)));
+    }
+
 
     @Override
     public boolean protects(Pos p) {
