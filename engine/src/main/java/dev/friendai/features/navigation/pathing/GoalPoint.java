@@ -16,7 +16,6 @@ public record GoalPoint(double x, double y, double z, double horizontal, double 
         return List.of(new Pos((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z)));
     }
 
-
     @Override
     public boolean protects(Pos p) {
         int gx = (int) Math.floor(x);
