@@ -665,6 +665,39 @@ class CompanionBrainTest {
     }
 
     @Test
+    void aDeliveredTurnIsNotCancelledAgain() {
+        List<String> ends = new ArrayList<>();
+        brain.setObserver(new BrainObserver() {
+            @Override
+            public void onTurnEnd(long turn, String outcome) {
+                ends.add(outcome);
+            }
+        });
+        gateway.enqueue(text("done"));
+        brain.post(said("hi"));
+        assertEquals(List.of("delivered"), ends);
+        brain.cancel();
+        brain.cancel();
+        assertEquals(List.of("delivered"), ends, "a finished turn ends once");
+    }
+
+    @Test
+    void cancellingOneFlightTwiceReportsOneEnd() {
+        List<String> ends = new ArrayList<>();
+        brain.setObserver(new BrainObserver() {
+            @Override
+            public void onTurnEnd(long turn, String outcome) {
+                ends.add(outcome);
+            }
+        });
+        gateway.enqueuePending();
+        brain.post(said("hi"));
+        brain.cancel();
+        brain.cancel();
+        assertEquals(List.of("cancelled"), ends);
+    }
+
+    @Test
     void errorIsReportedAndBrainRecovers() {
         gateway.enqueueFailure(new LlmException(LlmErrorKind.AUTH, "bad key"));
         brain.post(said("hi"));

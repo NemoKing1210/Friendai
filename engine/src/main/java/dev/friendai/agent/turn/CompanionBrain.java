@@ -271,7 +271,9 @@ public final class CompanionBrain {
     /** Drops the in-flight request (its response will be ignored) and all queued events. */
     public void cancel() {
         long cancelled = turnSeq;
-        observe(o -> o.onTurnEnd(cancelled, "cancelled"));
+        // One turn ends once: a second cancel, or a cancel after the reply was delivered, has nothing
+        // left to stop and must not add another end record to the log.
+        if (thinking || !queue.isEmpty()) observe(o -> o.onTurnEnd(cancelled, "cancelled"));
         generation++;
         teachingContext = null;
         skillSession = SkillTurnSession.NONE;
