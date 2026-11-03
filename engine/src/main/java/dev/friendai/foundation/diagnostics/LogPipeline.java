@@ -17,6 +17,7 @@ public final class LogPipeline {
     private final UnaryOperator<String> redactor;
     private final List<LogSink> files;
     private final AtomicLong sequence = new AtomicLong();
+    private final AtomicLong sinkFailures = new AtomicLong();
 
     public LogPipeline(LogSink ring, Supplier<LogSettings> settings, UnaryOperator<String> redactor, LogSink... files) {
         this.ring = ring;
@@ -49,14 +50,28 @@ public final class LogPipeline {
                 redacted.message(),
                 redacted.data(),
                 redacted.error());
-        ring.accept(record);
+        accept(ring, record);
         LogSettings current = settings.get();
         if (current != null && current.allows(record)) {
             for (LogSink sink : files) {
-                sink.accept(record);
+                accept(sink, record);
             }
         }
         return assigned;
+    }
+
+    /** How many sink deliveries threw; a broken sink never reaches gameplay or stops the other sinks. */
+    public long sinkFailures() {
+        return sinkFailures.get();
+    }
+
+    private void accept(LogSink sink, LogRecord record) {
+        if (sink == null) return;
+        try {
+            sink.accept(record);
+        } catch (RuntimeException broken) {
+            sinkFailures.incrementAndGet();
+        }
     }
 
     /** The settings are read on every record, so an update takes effect immediately; kept for callers. */

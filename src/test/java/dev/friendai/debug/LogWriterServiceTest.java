@@ -2,23 +2,38 @@ package dev.friendai.debug;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import dev.friendai.foundation.diagnostics.LogCategory;
 import dev.friendai.foundation.diagnostics.LogEvents;
+import dev.friendai.foundation.diagnostics.LogFlushResult;
+import dev.friendai.foundation.diagnostics.LogHealth;
 import dev.friendai.foundation.diagnostics.LogLevel;
 import dev.friendai.foundation.diagnostics.LogRecord;
 import dev.friendai.foundation.diagnostics.LogSettings;
 import java.io.IOException;
+import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.BooleanSupplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
@@ -39,11 +54,32 @@ class LogWriterServiceTest {
                 root, scope, "7f3c", "0.160.0", "26.3", uuid -> "Alex", settings, redactor, () -> NOW, queue);
     }
 
+    private static LogWriterService injected(
+            Path root, int queue, LogSettings settings, LogWriterService.Io io, ReentrantLock gate) {
+        return new LogWriterService(
+                root,
+                LogWriterScope.SERVER,
+                "7f3c",
+                "0.160.0",
+                "26.3",
+                uuid -> "Alex",
+                settings,
+                text -> text.replace("SECRET", "***"),
+                () -> NOW,
+                queue,
+                io,
+                gate);
+    }
+
     private static LogRecord record(long seq, LogCategory category, UUID owner) {
+        return record(seq, category, owner, LogLevel.INFO);
+    }
+
+    private static LogRecord record(long seq, LogCategory category, UUID owner, LogLevel level) {
         return new LogRecord(
                 seq,
                 NOW,
-                LogLevel.INFO,
+                level,
                 category,
                 null,
                 LogEvents.SERVER_START,
@@ -66,6 +102,16 @@ class LogWriterServiceTest {
         if (!Files.isDirectory(dir)) return List.of();
         try (Stream<Path> stream = Files.walk(dir)) {
             return stream.filter(path -> path.toString().endsWith(".jsonl")).toList();
+        }
+    }
+
+    private static void await(String what, BooleanSupplier condition) {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (!condition.getAsBoolean()) {
+            if (System.nanoTime() > deadline) {
+                fail("timed out waiting for " + what);
+            }
+            Thread.onSpinWait();
         }
     }
 
@@ -159,13 +205,16 @@ class LogWriterServiceTest {
     }
 
     @Test
-    void anUnwritableRootReportsAnErrorInsteadOfThrowing(@TempDir Path dir) throws IOException {
+    void anUnwritableRootReportsAFailedBarrierInsteadOfThrowing(@TempDir Path dir) throws IOException {
         Path root = dir.resolve("not-a-directory");
         Files.writeString(root, "x", StandardCharsets.UTF_8);
         try (LogWriterService writer = writer(root, LogWriterScope.SERVER, settings(LogLevel.INFO), 8)) {
             writer.offer(record(1, LogCategory.SERVER, null));
-            writer.flushNow().join();
+            LogFlushResult result = writer.flushStatus().join();
+            assertEquals(LogFlushResult.Status.FAILED, result.status());
+            assertEquals("writer_failed", result.errorCode());
             assertTrue(writer.stats().errors() > 0);
+            assertEquals(LogHealth.State.FAILED, writer.health().state());
         }
     }
 
@@ -218,5 +267,343 @@ class LogWriterServiceTest {
         }
         assertTrue(Files.exists(sentinel), "the server subtree belongs to the other writer");
         assertEquals(1, jsonl(root.resolve("client").resolve(DAY)).size());
+    }
+
+    @Test
+    void aBarrierCoversExactlyTheRecordsAdmittedBeforeIt(@TempDir Path root) {
+        try (LogWriterService writer = writer(root, LogWriterScope.SERVER, settings(LogLevel.INFO), 64)) {
+            assertTrue(writer.offer(record(1, LogCategory.SERVER, null)));
+            assertTrue(writer.offer(record(2, LogCategory.SERVER, null)));
+
+            LogFlushResult result = writer.flushStatus().join();
+
+            assertEquals(LogFlushResult.Status.FLUSHED, result.status());
+            assertEquals(2L, result.acceptedThrough());
+            assertEquals(2L, result.processedThrough());
+            assertEquals(2L, result.written());
+            assertEquals(0L, result.dropped());
+            assertTrue(Files.exists(result.path()));
+        }
+    }
+
+    @Test
+    void aDisabledWriterReportsDisabledRatherThanADurableFlush(@TempDir Path root) throws IOException {
+        try (LogWriterService writer = writer(root, LogWriterScope.SERVER, settings(null), 64)) {
+            writer.offer(record(1, LogCategory.SERVER, null));
+
+            LogFlushResult result = writer.flushStatus().join();
+
+            assertEquals(LogFlushResult.Status.DISABLED, result.status());
+            assertFalse(result.durable());
+            assertTrue(jsonl(root).isEmpty());
+        }
+    }
+
+    @Test
+    void flushDueTriggersOnTheDeadlineOrThePendingBatch() {
+        assertFalse(LogWriterService.flushDue(999L, 0L, 0L));
+        assertTrue(LogWriterService.flushDue(1000L, 0L, 0L));
+        assertFalse(LogWriterService.flushDue(0L, 0L, 255L));
+        assertTrue(LogWriterService.flushDue(0L, 0L, 256L));
+    }
+
+    @Test
+    void theDeadlineFlushesUnderContinuousAdmission(@TempDir Path root) {
+        AtomicLong now = new AtomicLong(NOW);
+        LogWriterService writer = new LogWriterService(
+                root,
+                LogWriterScope.SERVER,
+                "7f3c",
+                "0.160.0",
+                "26.3",
+                uuid -> "Alex",
+                settings(LogLevel.INFO),
+                text -> text,
+                now::get,
+                64);
+        try {
+            assertTrue(writer.offer(record(1, LogCategory.SERVER, null)));
+            await("the first record to be processed", () -> writer.health().processed() == 1L);
+            now.addAndGet(LogWriterService.FLUSH_INTERVAL_MS);
+            assertTrue(writer.offer(record(2, LogCategory.SERVER, null)));
+            await("the deadline to flush both records", () -> writer.health().written() >= 2L);
+        } finally {
+            writer.close();
+        }
+    }
+
+    @Test
+    void aFullBatchFlushesWithoutABarrier(@TempDir Path root) {
+        LogWriterService writer = writer(root, LogWriterScope.SERVER, settings(LogLevel.INFO), 512);
+        try {
+            for (int i = 0; i < 300; i++) {
+                writer.offer(record(i + 1, LogCategory.SERVER, null));
+            }
+            await(
+                    "the pending batch to flush",
+                    () -> writer.health().written() >= LogWriterService.PENDING_FLUSH_RECORDS);
+        } finally {
+            writer.close();
+        }
+    }
+
+    @Test
+    void aSaturatedQueueDropsDetailBeforeOrdinaryRecords(@TempDir Path root) throws Exception {
+        BlockingIo io = new BlockingIo();
+        LogWriterService writer = injected(root, 32, settings(LogLevel.INFO), io, new ReentrantLock());
+        try {
+            assertTrue(writer.offer(record(0, LogCategory.SERVER, null)));
+            assertTrue(io.entered.await(5, TimeUnit.SECONDS), "the writer must reach the injected open");
+
+            int detail = 0;
+            while (writer.offer(record(100 + detail, LogCategory.SERVER, null, LogLevel.DEBUG))) {
+                detail++;
+            }
+            assertEquals(24, detail, "32 queue slots - 4 control - 4 detail");
+            int ordinary = 0;
+            while (writer.offer(record(ordinary + 1, LogCategory.SERVER, null))) {
+                ordinary++;
+            }
+            assertEquals(4, ordinary);
+            assertEquals(28, writer.health().depth());
+        } finally {
+            io.release.countDown();
+            writer.close();
+        }
+    }
+
+    @Test
+    void acceptedRecordsKeepTheirAdmissionOrder(@TempDir Path root) throws IOException {
+        try (LogWriterService writer = writer(root, LogWriterScope.SERVER, settings(LogLevel.INFO), 64)) {
+            for (int i = 0; i < 50; i++) {
+                assertTrue(writer.offer(record(i + 1, LogCategory.SERVER, null)));
+            }
+            assertEquals(
+                    LogFlushResult.Status.FLUSHED, writer.flushStatus().join().status());
+        }
+        List<String> lines =
+                Files.readAllLines(jsonl(root.resolve("server").resolve(DAY)).get(0), StandardCharsets.UTF_8);
+        List<String> messages = new ArrayList<>();
+        for (String line : lines) {
+            int at = line.indexOf("message ");
+            if (at >= 0) {
+                messages.add(line.substring(at, line.indexOf('"', at)));
+            }
+        }
+        assertEquals(50, messages.size());
+        for (int i = 0; i < messages.size(); i++) {
+            assertEquals("message " + (i + 1), messages.get(i));
+        }
+    }
+
+    @Test
+    void concurrentProducersAndDropsAreCountedExactly(@TempDir Path root) throws Exception {
+        int threads = 4;
+        int perThread = 1000;
+        ExecutorService pool = Executors.newFixedThreadPool(threads);
+        LogWriterService writer = writer(root, LogWriterScope.SERVER, settings(LogLevel.INFO), 64);
+        try {
+            List<java.util.concurrent.Future<Integer>> results = new ArrayList<>();
+            for (int t = 0; t < threads; t++) {
+                int base = t * perThread;
+                results.add(pool.submit(() -> {
+                    int accepted = 0;
+                    for (int i = 0; i < perThread; i++) {
+                        if (writer.offer(record(base + i + 1, LogCategory.SERVER, null))) accepted++;
+                    }
+                    return accepted;
+                }));
+            }
+            int accepted = 0;
+            for (var result : results) {
+                accepted += result.get();
+            }
+            LogHealth health = writer.health();
+            assertEquals(accepted, health.accepted());
+            assertEquals(threads * perThread, health.accepted() + health.dropped());
+
+            LogFlushResult barrier = writer.flushStatus().join();
+            assertEquals(LogFlushResult.Status.FLUSHED, barrier.status());
+            assertEquals(health.accepted(), barrier.acceptedThrough());
+            assertEquals(barrier.acceptedThrough(), barrier.processedThrough());
+        } finally {
+            pool.shutdownNow();
+            writer.close();
+        }
+    }
+
+    @Test
+    void aBarrierIsBusyWhenItCannotTakeTheAdmissionGate(@TempDir Path root) throws Exception {
+        ReentrantLock gate = new ReentrantLock();
+        CountDownLatch locked = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        Thread holder = new Thread(() -> {
+            gate.lock();
+            locked.countDown();
+            try {
+                release.await(5, TimeUnit.SECONDS);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+            } finally {
+                gate.unlock();
+            }
+        });
+        holder.start();
+        assertTrue(locked.await(5, TimeUnit.SECONDS));
+        LogWriterService writer = injected(root, 64, settings(LogLevel.INFO), null, gate);
+        try {
+            LogFlushResult result = writer.flushStatus().join();
+            assertEquals(LogFlushResult.Status.BUSY, result.status());
+            assertEquals("admission_busy", result.errorCode());
+            assertFalse(writer.offer(record(1, LogCategory.SERVER, null)));
+            assertEquals(1L, writer.health().dropped());
+
+            assertThrows(CompletionException.class, () -> writer.flushNow().join());
+        } finally {
+            release.countDown();
+            holder.join(5000L);
+            writer.close();
+        }
+    }
+
+    @Test
+    void aFailedWriterIsVisibleAndRejectsFurtherRecords(@TempDir Path root) {
+        LogWriterService.Io broken = new LogWriterService.Io() {
+            @Override
+            public Writer open(Path path) throws IOException {
+                throw new IOException("disk full");
+            }
+
+            @Override
+            public void flush(Writer writer) {}
+
+            @Override
+            public void close(Writer writer) {}
+        };
+        LogWriterService writer = injected(root, 64, settings(LogLevel.INFO), broken, null);
+        try {
+            assertTrue(writer.offer(record(1, LogCategory.SERVER, null)));
+            LogFlushResult result = writer.flushStatus().join();
+            assertEquals(LogFlushResult.Status.FAILED, result.status());
+            assertEquals(LogHealth.State.FAILED, writer.health().state());
+            assertTrue(writer.health().errors() >= 1L);
+            assertFalse(writer.offer(record(2, LogCategory.SERVER, null)));
+            assertEquals(1L, writer.health().accepted());
+        } finally {
+            writer.close();
+            writer.close();
+        }
+    }
+
+    @Test
+    void aLossMarkerThatCannotBeWrittenKeepsTheLossCount(@TempDir Path root) {
+        // Queue capacity 1 reserves its only slot for control items, so every record is dropped, and the flush opens
+        // the file to write the loss marker: header line is call 1, its newline 2, the marker line 3 fails.
+        LogWriterService writer = injected(root, 1, settings(LogLevel.INFO), failingWriterIo(3), null);
+        try {
+            for (int i = 0; i < 10; i++) {
+                writer.offer(record(i + 1, LogCategory.SERVER, null));
+            }
+            assertEquals(
+                    LogFlushResult.Status.FAILED, writer.flushStatus().join().status());
+            LogHealth health = writer.health();
+            assertEquals(LogHealth.State.FAILED, health.state());
+            assertEquals(0L, health.accepted());
+            assertEquals(10L, health.dropped());
+            assertEquals(10L, health.droppedSinceFlush(), "a failed marker must not erase the loss count");
+        } finally {
+            writer.close();
+        }
+    }
+
+    @Test
+    void aTimedOutCloseLeavesUnwrittenCountsVisible(@TempDir Path root) throws Exception {
+        BlockingIo io = new BlockingIo();
+        LogWriterService writer = injected(root, 64, settings(LogLevel.INFO), io, null);
+        try {
+            writer.offer(record(1, LogCategory.SERVER, null));
+            writer.offer(record(2, LogCategory.SERVER, null));
+            assertTrue(io.entered.await(5, TimeUnit.SECONDS));
+            writer.close();
+
+            LogHealth health = writer.health();
+            assertEquals(LogHealth.State.CLOSED, health.state());
+            assertTrue(health.accepted() > health.written(), "unwritten records must stay visible");
+            assertTrue(health.accepted() >= 2L);
+        } finally {
+            io.release.countDown();
+            await("the worker to drain after release", () -> writer.health().written() >= 2L);
+            writer.close();
+        }
+    }
+
+    private static LogWriterService.Io failingWriterIo(int failAt) {
+        return new LogWriterService.Io() {
+            @Override
+            public Writer open(Path path) {
+                return new FailingWriter(failAt);
+            }
+
+            @Override
+            public void flush(Writer writer) throws IOException {
+                writer.flush();
+            }
+
+            @Override
+            public void close(Writer writer) throws IOException {
+                writer.close();
+            }
+        };
+    }
+
+    /** Returns a writer that blocks the first open so admission can be observed against a still queue. */
+    private static final class BlockingIo implements LogWriterService.Io {
+        final CountDownLatch entered = new CountDownLatch(1);
+        final CountDownLatch release = new CountDownLatch(1);
+
+        @Override
+        public Writer open(Path path) throws IOException {
+            entered.countDown();
+            try {
+                release.await(10, TimeUnit.SECONDS);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+            }
+            return Files.newBufferedWriter(
+                    path, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+        }
+
+        @Override
+        public void flush(Writer writer) throws IOException {
+            writer.flush();
+        }
+
+        @Override
+        public void close(Writer writer) throws IOException {
+            writer.close();
+        }
+    }
+
+    /** Fails on the configured write call and accepts everything else. */
+    private static final class FailingWriter extends Writer {
+        private final int failAt;
+        private int calls;
+
+        FailingWriter(int failAt) {
+            this.failAt = failAt;
+        }
+
+        @Override
+        public void write(char[] buffer, int offset, int length) throws IOException {
+            if (++calls == failAt) {
+                throw new IOException("disk full");
+            }
+        }
+
+        @Override
+        public void flush() {}
+
+        @Override
+        public void close() {}
     }
 }

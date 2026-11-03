@@ -3,11 +3,14 @@ package dev.friendai.debug;
 import dev.friendai.FriendaiMod;
 import dev.friendai.foundation.diagnostics.LogCategory;
 import dev.friendai.foundation.diagnostics.LogDigest;
+import dev.friendai.foundation.diagnostics.LogError;
 import dev.friendai.foundation.diagnostics.LogEvents;
 import dev.friendai.foundation.diagnostics.LogFileHeader;
 import dev.friendai.foundation.diagnostics.LogFileInfo;
 import dev.friendai.foundation.diagnostics.LogFileKind;
 import dev.friendai.foundation.diagnostics.LogFilter;
+import dev.friendai.foundation.diagnostics.LogFlushResult;
+import dev.friendai.foundation.diagnostics.LogHealth;
 import dev.friendai.foundation.diagnostics.LogJson;
 import dev.friendai.foundation.diagnostics.LogLevel;
 import dev.friendai.foundation.diagnostics.LogNames;
@@ -18,8 +21,8 @@ import dev.friendai.foundation.diagnostics.LogScanResult;
 import dev.friendai.foundation.diagnostics.LogSettings;
 import dev.friendai.foundation.diagnostics.LogSink;
 import dev.friendai.foundation.diagnostics.ScanLimits;
-import java.io.BufferedWriter;
 import java.io.IOException;
+import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -35,8 +38,12 @@ import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.UnaryOperator;
@@ -45,10 +52,21 @@ import java.util.function.UnaryOperator;
  * Owns the durable side of the log: one daemon thread writes records into per-stream JSONL files, rotates at the
  * size limit, prunes by age, session count and total size, and writes a digest beside a closed file. The server
  * thread only offers a record; every failure disables this writer instead of reaching the game.
+ *
+ * <p>Admission is one short transaction under {@link #gate}: capacity, tickets and queue insertion happen together,
+ * so a barrier taken at that point covers exactly the records admitted before it. A rejected offer has no ticket and
+ * is counted as dropped. Control items (barriers, retention) keep a small reserved slice of the queue, and detail
+ * traffic keeps its own reserve, so a saturated queue sheds DEBUG/TRACE before ordinary records. Every file
+ * operation, including the final close and digest, runs on the writer thread; {@link #close()} only signals and
+ * waits, up to five seconds.
  */
 public final class LogWriterService implements LogSink, AutoCloseable {
     public static final int DEFAULT_QUEUE_CAPACITY = 8192;
-    private static final long FLUSH_INTERVAL_MS = 1000L;
+    static final long FLUSH_INTERVAL_MS = 1000L;
+    static final int PENDING_FLUSH_RECORDS = 256;
+    static final int CONTROL_RESERVE = 8;
+    static final int DETAIL_RESERVE = 128;
+    static final long SHUTDOWN_MILLIS = 5000L;
     private static final int MAX_DIGEST_CHARS = 256 * 1024;
     private static final String THREAD_NAME = "friendai-log-writer";
     private static final String README = """
@@ -78,28 +96,66 @@ public final class LogWriterService implements LogSink, AutoCloseable {
             `jq -r 'select(.cause==1234) | [.seq,.event,.msg] | @tsv' owners/<uuid>/<date>/*.jsonl`
             """;
 
+    /** The only file operations the writer performs; tests inject failures through it. */
+    interface Io {
+        Writer open(Path path) throws IOException;
+
+        void flush(Writer writer) throws IOException;
+
+        void close(Writer writer) throws IOException;
+    }
+
+    private static final Io DEFAULT_IO = new Io() {
+        @Override
+        public Writer open(Path path) throws IOException {
+            return Files.newBufferedWriter(
+                    path, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+        }
+
+        @Override
+        public void flush(Writer writer) throws IOException {
+            writer.flush();
+        }
+
+        @Override
+        public void close(Writer writer) throws IOException {
+            writer.close();
+        }
+    };
+
     private final Path root;
     private final LogWriterScope scope;
     private final String boot;
     private final String modVersion;
     private final String minecraftVersion;
     private final Function<UUID, String> ownerNames;
-    private volatile UnaryOperator<String> redactor;
     private final LongSupplier clock;
     private final long startedMillis;
     private final BlockingQueue<Object> queue;
     private final Thread thread;
     private final Map<Path, OpenFile> open = new HashMap<>();
-    private final AtomicLong accepted = new AtomicLong();
+    private final AtomicLong admittedThrough = new AtomicLong();
     private final AtomicLong dropped = new AtomicLong();
+    private final AtomicLong droppedSinceFlush = new AtomicLong();
     private final AtomicLong written = new AtomicLong();
     private final AtomicLong errors = new AtomicLong();
+    private final AtomicInteger highWater = new AtomicInteger();
+    private final AtomicBoolean closeRequested = new AtomicBoolean();
+    private final Io io;
+    private final ReentrantLock gate;
+    private final int capacity;
+    private final int controlReserve;
+    private final int detailReserve;
+    private volatile UnaryOperator<String> redactor;
     private volatile LogSettings settings;
     private volatile boolean closed;
     private volatile boolean failed;
+    private volatile String failureCode = "";
     private volatile Path currentFile;
-    private long droppedSinceFlush;
-    private long lastFlush;
+    private volatile long processedThrough;
+    private volatile long lastFlush;
+    private long nextTicket;
+    private long pendingRecords;
     private boolean readmeWritten;
 
     public LogWriterService(
@@ -136,6 +192,35 @@ public final class LogWriterService implements LogSink, AutoCloseable {
             UnaryOperator<String> redactor,
             LongSupplier clock,
             int queueCapacity) {
+        this(
+                root,
+                scope,
+                boot,
+                modVersion,
+                minecraftVersion,
+                ownerNames,
+                settings,
+                redactor,
+                clock,
+                queueCapacity,
+                DEFAULT_IO,
+                new ReentrantLock());
+    }
+
+    /** The injection seam: package-private so production always uses the JDK files and a fair gate. */
+    LogWriterService(
+            Path root,
+            LogWriterScope scope,
+            String boot,
+            String modVersion,
+            String minecraftVersion,
+            Function<UUID, String> ownerNames,
+            LogSettings settings,
+            UnaryOperator<String> redactor,
+            LongSupplier clock,
+            int queueCapacity,
+            Io io,
+            ReentrantLock gate) {
         this.root = root;
         this.scope = scope;
         this.boot = boot;
@@ -146,11 +231,17 @@ public final class LogWriterService implements LogSink, AutoCloseable {
         this.redactor = redactor == null ? text -> text : redactor;
         this.clock = clock == null ? System::currentTimeMillis : clock;
         this.startedMillis = this.clock.getAsLong();
-        this.queue = new ArrayBlockingQueue<>(Math.max(1, queueCapacity));
+        this.capacity = Math.max(1, queueCapacity);
+        this.controlReserve = capacity >= 64 ? CONTROL_RESERVE : Math.max(1, capacity / 8);
+        int wantedDetail = capacity >= 1024 ? DETAIL_RESERVE : Math.max(1, capacity / 8);
+        this.detailReserve = Math.min(wantedDetail, Math.max(0, capacity - controlReserve - 1));
+        this.queue = new ArrayBlockingQueue<>(this.capacity);
+        this.io = io == null ? DEFAULT_IO : io;
+        this.gate = gate == null ? new ReentrantLock() : gate;
+        this.lastFlush = this.startedMillis;
         this.thread = new Thread(this::run, THREAD_NAME);
         this.thread.setDaemon(true);
         this.thread.start();
-        this.lastFlush = this.startedMillis;
     }
 
     @Override
@@ -158,16 +249,41 @@ public final class LogWriterService implements LogSink, AutoCloseable {
         offer(record);
     }
 
-    /** Never blocks and never throws; a full queue counts as a dropped record. */
+    /**
+     * Admits one record without blocking or throwing. A closed, failed or busy writer and a queue without room for
+     * this class of record all count as a dropped record; the accepted ones keep their admission order.
+     */
     public boolean offer(LogRecord record) {
-        if (record == null || closed) return false;
-        if (queue.offer(record)) {
-            accepted.incrementAndGet();
-            return true;
+        if (record == null) return false;
+        if (closed || failed) {
+            drop();
+            return false;
         }
-        dropped.incrementAndGet();
-        droppedSinceFlush++;
-        return false;
+        if (!gate.tryLock()) {
+            drop();
+            return false;
+        }
+        try {
+            if (closed || failed) {
+                drop();
+                return false;
+            }
+            if (!hasRoom(record)) {
+                drop();
+                return false;
+            }
+            long ticket = nextTicket + 1L;
+            if (!queue.offer(new Envelope(record, ticket))) {
+                drop();
+                return false;
+            }
+            nextTicket = ticket;
+            admittedThrough.set(ticket);
+            noteDepth();
+            return true;
+        } finally {
+            gate.unlock();
+        }
     }
 
     public void update(LogSettings settings) {
@@ -180,38 +296,142 @@ public final class LogWriterService implements LogSink, AutoCloseable {
     }
 
     public LogWriterStats stats() {
-        return new LogWriterStats(accepted.get(), dropped.get(), written.get(), errors.get(), currentFile);
+        return new LogWriterStats(admittedThrough.get(), dropped.get(), written.get(), errors.get(), currentFile);
     }
 
-    /** Waits until everything offered before the call is written and flushed. */
-    public CompletableFuture<Path> flushNow() {
-        CompletableFuture<Path> done = new CompletableFuture<>();
-        if (!queue.offer(new Flush(done))) {
-            done.complete(currentFile);
+    public LogHealth health() {
+        return new LogHealth(
+                admittedThrough.get(),
+                processedThrough,
+                written.get(),
+                dropped.get(),
+                errors.get(),
+                droppedSinceFlush.get(),
+                queue.size(),
+                highWater.get(),
+                lastFlush,
+                failed ? LogHealth.State.FAILED : closed ? LogHealth.State.CLOSED : LogHealth.State.OPEN);
+    }
+
+    /**
+     * Takes a barrier after the records admitted so far. The result distinguishes a real flush from a busy, failed,
+     * closed or disabled writer; it never claims durability it did not get.
+     */
+    public CompletableFuture<LogFlushResult> flushStatus() {
+        if (settings.level() == null) {
+            return CompletableFuture.completedFuture(new LogFlushResult(
+                    LogFlushResult.Status.DISABLED,
+                    currentFile,
+                    admittedThrough.get(),
+                    0L,
+                    0L,
+                    dropped.get(),
+                    "log_disabled"));
         }
-        return done;
+        if (closed) {
+            return CompletableFuture.completedFuture(new LogFlushResult(
+                    LogFlushResult.Status.CLOSED,
+                    currentFile,
+                    admittedThrough.get(),
+                    processedThrough,
+                    written.get(),
+                    dropped.get(),
+                    "writer_closed"));
+        }
+        if (failed) {
+            return CompletableFuture.completedFuture(new LogFlushResult(
+                    LogFlushResult.Status.FAILED,
+                    currentFile,
+                    admittedThrough.get(),
+                    processedThrough,
+                    written.get(),
+                    dropped.get(),
+                    failureCode));
+        }
+        CompletableFuture<LogFlushResult> done = new CompletableFuture<>();
+        if (!gate.tryLock()) {
+            done.complete(LogFlushResult.busy("admission_busy", currentFile, admittedThrough.get(), dropped.get()));
+            return done;
+        }
+        try {
+            if (closed || failed) {
+                done.complete(new LogFlushResult(
+                        closed ? LogFlushResult.Status.CLOSED : LogFlushResult.Status.FAILED,
+                        currentFile,
+                        admittedThrough.get(),
+                        processedThrough,
+                        written.get(),
+                        dropped.get(),
+                        closed ? "writer_closed" : failureCode));
+                return done;
+            }
+            long covered = admittedThrough.get();
+            long droppedAtBarrier = dropped.get();
+            if (!queue.offer(new Flush(done, covered, droppedAtBarrier))) {
+                done.complete(LogFlushResult.busy("queue_full", currentFile, covered, droppedAtBarrier));
+            }
+            return done;
+        } finally {
+            gate.unlock();
+        }
+    }
+
+    /**
+     * The historical signature with corrected failure behavior: a barrier that did not flush completes exceptionally
+     * instead of handing back a path that promises a write. New code uses {@link #flushStatus()}.
+     */
+    public CompletableFuture<Path> flushNow() {
+        return flushStatus().thenApply(result -> {
+            if (!result.durable()) {
+                throw new CompletionException(new IOException("log flush "
+                        + result.status()
+                        + (result.errorCode().isEmpty() ? "" : ": " + result.errorCode())));
+            }
+            return result.path();
+        });
     }
 
     @Override
     public void close() {
-        if (closed) return;
-        closed = true;
+        if (!closeRequested.compareAndSet(false, true)) {
+            joinRemaining(System.nanoTime());
+            return;
+        }
         LogSinkHub.remove(this);
+        long started = System.nanoTime();
+        CompletableFuture<LogFlushResult> barrier = flushStatus();
+        closed = true;
         try {
-            flushNow().get(5, TimeUnit.SECONDS);
+            barrier.get(remainingMillis(started), TimeUnit.MILLISECONDS);
         } catch (Exception ignored) {
-            // A closed writer must not throw; the remaining files are closed below.
+            // A timeout leaves the files to the worker; health still reports the unwritten count.
+        }
+        joinRemaining(started);
+    }
+
+    public int pruneNow() {
+        if (closed || failed) return 0;
+        CompletableFuture<Integer> done = new CompletableFuture<>();
+        if (!gate.tryLock()) return 0;
+        try {
+            if (!queue.offer(new Prune(done))) return 0;
+        } finally {
+            gate.unlock();
         }
         try {
-            thread.join(5000L);
-        } catch (InterruptedException interrupted) {
-            Thread.currentThread().interrupt();
+            return done.get(5, TimeUnit.SECONDS);
+        } catch (Exception failure) {
+            return 0;
         }
-        closeAll();
+    }
+
+    /** True when the writer should flush now: the deadline elapsed or enough records are pending. */
+    static boolean flushDue(long nowMillis, long lastFlushMillis, long pendingRecords) {
+        return nowMillis - lastFlushMillis >= FLUSH_INTERVAL_MS || pendingRecords >= PENDING_FLUSH_RECORDS;
     }
 
     private void run() {
-        while (!closed || !queue.isEmpty()) {
+        while (true) {
             Object item;
             try {
                 item = queue.poll(200L, TimeUnit.MILLISECONDS);
@@ -219,21 +439,70 @@ public final class LogWriterService implements LogSink, AutoCloseable {
                 Thread.currentThread().interrupt();
                 break;
             }
-            if (item instanceof LogRecord record) {
-                writeSafely(record);
+            if (item instanceof Envelope envelope) {
+                writeSafely(envelope.record());
+                processedThrough = envelope.ticket();
+                pendingRecords++;
+                noteDepth();
+                if (flushDue(clock.getAsLong(), lastFlush, pendingRecords)) {
+                    flush();
+                }
             } else if (item instanceof Flush flush) {
                 flush();
-                flush.done().complete(currentFile);
+                flush.done().complete(flushResult(flush));
             } else if (item instanceof Prune prune) {
                 int removed = prune();
                 flush();
                 prune.done().complete(removed);
-            } else {
-                flushIfDue();
+            } else if (closed && queue.isEmpty()) {
+                break;
+            } else if (flushDue(clock.getAsLong(), lastFlush, pendingRecords)) {
+                flush();
             }
         }
         flush();
         closeAll();
+    }
+
+    private LogFlushResult flushResult(Flush flush) {
+        long accepted = admittedThrough.get();
+        long processed = Math.max(processedThrough, flush.covered());
+        if (failed) {
+            return new LogFlushResult(
+                    LogFlushResult.Status.FAILED,
+                    currentFile,
+                    accepted,
+                    processed,
+                    written.get(),
+                    flush.droppedAtBarrier(),
+                    failureCode);
+        }
+        return new LogFlushResult(
+                LogFlushResult.Status.FLUSHED,
+                currentFile,
+                accepted,
+                processed,
+                written.get(),
+                flush.droppedAtBarrier(),
+                "");
+    }
+
+    private void noteDepth() {
+        highWater.accumulateAndGet(queue.size(), Math::max);
+    }
+
+    private void drop() {
+        dropped.incrementAndGet();
+        droppedSinceFlush.incrementAndGet();
+    }
+
+    private boolean hasRoom(LogRecord record) {
+        int limit = capacity - controlReserve - (isDetail(record) ? detailReserve : 0);
+        return queue.size() < limit;
+    }
+
+    private static boolean isDetail(LogRecord record) {
+        return record.level() != null && record.level().ordinal() <= LogLevel.DEBUG.ordinal();
     }
 
     private void writeSafely(LogRecord record) {
@@ -242,9 +511,8 @@ public final class LogWriterService implements LogSink, AutoCloseable {
             write(record);
         } catch (IOException failure) {
             errors.incrementAndGet();
-            failed = true;
+            fail(failure);
             closeQuietly();
-            FriendaiMod.LOGGER.warn("File log disabled: {}", failure.toString());
         }
     }
 
@@ -277,9 +545,9 @@ public final class LogWriterService implements LogSink, AutoCloseable {
         for (Map.Entry<String, String> entry : record.data().entrySet()) {
             data.put(redactor.apply(entry.getKey()), redactor.apply(entry.getValue()));
         }
-        dev.friendai.foundation.diagnostics.LogError error = record.error();
+        LogError error = record.error();
         if (error != null) {
-            error = new dev.friendai.foundation.diagnostics.LogError(
+            error = new LogError(
                     redactor.apply(error.type()),
                     redactor.apply(error.message()),
                     redactor.apply(error.stack()),
@@ -332,8 +600,7 @@ public final class LogWriterService implements LogSink, AutoCloseable {
         }
         prune();
         String header = LogJson.encodeHeader(header(owner));
-        BufferedWriter writer = Files.newBufferedWriter(
-                path, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+        Writer writer = io.open(path);
         OpenFile file = new OpenFile(path, writer);
         file.headerBytes = header.getBytes(StandardCharsets.UTF_8).length + 1;
         file.bytes = file.headerBytes;
@@ -364,7 +631,7 @@ public final class LogWriterService implements LogSink, AutoCloseable {
 
     private OpenFile rotate(Path path, OpenFile file, UUID owner) throws IOException {
         flush(file);
-        file.writer.close();
+        io.close(file.writer);
         open.remove(path);
         if (settings.digest()) writeDigest(path);
         int part = 2;
@@ -379,21 +646,17 @@ public final class LogWriterService implements LogSink, AutoCloseable {
         return opened;
     }
 
-    private void flushIfDue() {
-        long now = clock.getAsLong();
-        if (now - lastFlush >= FLUSH_INTERVAL_MS) {
-            flush();
-        }
-    }
-
     private void flush() {
         if (settings.level() == null) {
-            droppedSinceFlush = 0;
+            droppedSinceFlush.set(0);
+            pendingRecords = 0;
             return;
         }
-        if (droppedSinceFlush > 0 && !failed) {
-            long count = droppedSinceFlush;
-            droppedSinceFlush = 0;
+        if (failed) {
+            return;
+        }
+        long lost = droppedSinceFlush.getAndSet(0);
+        if (lost > 0) {
             LogRecord marker = new LogRecord(
                     0L,
                     clock.getAsLong(),
@@ -411,40 +674,46 @@ public final class LogWriterService implements LogSink, AutoCloseable {
                     "",
                     0L,
                     -1L,
-                    "dropped " + count + " records",
-                    Map.of("count", Long.toString(count)),
+                    "dropped " + lost + " records",
+                    Map.of("count", Long.toString(lost)),
                     null);
             try {
                 write(marker);
-            } catch (IOException ignored) {
+            } catch (IOException failure) {
                 errors.incrementAndGet();
-                failed = true;
+                droppedSinceFlush.addAndGet(lost);
+                fail(failure);
             }
         }
         for (OpenFile file : open.values()) {
             flush(file);
         }
+        if (failed) {
+            closeQuietly();
+        }
+        pendingRecords = 0;
         lastFlush = clock.getAsLong();
     }
 
     private void flush(OpenFile file) {
         try {
-            file.writer.flush();
+            io.flush(file.writer);
             written.addAndGet(file.pending);
             file.pending = 0;
         } catch (IOException failure) {
             errors.incrementAndGet();
-            failed = true;
+            fail(failure);
         }
     }
 
-    public int pruneNow() {
-        CompletableFuture<Integer> done = new CompletableFuture<>();
-        if (!queue.offer(new Prune(done))) return 0;
-        try {
-            return done.get(5, TimeUnit.SECONDS);
-        } catch (Exception failure) {
-            return 0;
+    private void fail(IOException failure) {
+        boolean first = !failed;
+        failed = true;
+        if (failureCode.isEmpty()) {
+            failureCode = "writer_failed";
+        }
+        if (first) {
+            FriendaiMod.LOGGER.warn("File log disabled: {}", failure.toString());
         }
     }
 
@@ -563,7 +832,7 @@ public final class LogWriterService implements LogSink, AutoCloseable {
     private void closeQuietly() {
         for (OpenFile file : open.values()) {
             try {
-                file.writer.close();
+                io.close(file.writer);
             } catch (IOException ignored) {
                 // Already failing.
             }
@@ -578,7 +847,7 @@ public final class LogWriterService implements LogSink, AutoCloseable {
             if (file == null) continue;
             flush(file);
             try {
-                file.writer.close();
+                io.close(file.writer);
             } catch (IOException ignored) {
                 errors.incrementAndGet();
             }
@@ -586,22 +855,38 @@ public final class LogWriterService implements LogSink, AutoCloseable {
         }
     }
 
+    private void joinRemaining(long started) {
+        try {
+            thread.join(remainingMillis(started));
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    private static long remainingMillis(long startedNanos) {
+        long elapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedNanos);
+        return Math.max(1L, SHUTDOWN_MILLIS - elapsed);
+    }
+
     /** One open stream and its running byte count. */
     private static final class OpenFile {
         final Path path;
-        final BufferedWriter writer;
+        final Writer writer;
         long bytes;
         long headerBytes;
         long pending;
 
-        OpenFile(Path path, BufferedWriter writer) {
+        OpenFile(Path path, Writer writer) {
             this.path = path;
             this.writer = writer;
         }
     }
 
-    /** A queue barrier that completes after every earlier record has been written and flushed. */
-    private record Flush(CompletableFuture<Path> done) {}
+    /** One admitted record with the ticket its barrier coverage is expressed in. */
+    private record Envelope(LogRecord record, long ticket) {}
+
+    /** A queue barrier that completes after every record admitted before it has been written and flushed. */
+    private record Flush(CompletableFuture<LogFlushResult> done, long covered, long droppedAtBarrier) {}
 
     /** A queue barrier that runs retention on the writer thread and returns how many files it removed. */
     private record Prune(CompletableFuture<Integer> done) {}

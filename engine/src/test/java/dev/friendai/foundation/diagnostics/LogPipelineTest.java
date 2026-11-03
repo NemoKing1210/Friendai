@@ -1,9 +1,11 @@
 package dev.friendai.foundation.diagnostics;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
@@ -273,6 +275,47 @@ class LogPipelineTest {
         assertEquals("t-0123456789", stored.data().get("trace"));
         assertEquals("1", stored.data().get("parentSpan"));
         assertNotNull(stored.data().get("truncated"));
+    }
+
+    @Test
+    void aFailingRingSinkDoesNotStopTheFilesOrEscape() {
+        Recall file = new Recall();
+        LogSink broken = record -> {
+            throw new IllegalStateException("ring broke");
+        };
+        LogPipeline pipeline = new LogPipeline(broken, () -> settings(LogLevel.INFO, Set.of()), text -> text, file);
+
+        long seq = assertDoesNotThrow(() -> pipeline.emit(draft("kept")));
+
+        assertEquals(1L, seq);
+        assertEquals(1, file.records.size());
+        assertEquals(1L, pipeline.sinkFailures());
+    }
+
+    @Test
+    void aFailingFileSinkIsIsolatedPerSink() {
+        Recall good = new Recall();
+        LogSink broken = record -> {
+            throw new IllegalStateException("file broke");
+        };
+        LogPipeline pipeline =
+                new LogPipeline(new Recall(), () -> settings(LogLevel.INFO, Set.of()), text -> text, broken, good);
+
+        pipeline.emit(draft("kept"));
+
+        assertEquals(1, good.records.size());
+        assertEquals(1L, pipeline.sinkFailures());
+    }
+
+    @Test
+    void aFatalJvmErrorIsNotSwallowedAsASinkFailure() {
+        LogSink fatal = record -> {
+            throw new AssertionError("fatal");
+        };
+        LogPipeline pipeline = new LogPipeline(fatal, () -> settings(LogLevel.INFO, Set.of()), text -> text);
+
+        assertThrows(AssertionError.class, () -> pipeline.emit(draft("x")));
+        assertEquals(0L, pipeline.sinkFailures());
     }
 
     @Test
