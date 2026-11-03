@@ -344,6 +344,7 @@ public class ToolTests {
                 "check_container",
                 "deposit_items",
                 "find_stored_item",
+                "move_items",
                 "craft_item",
                 "get_recipe",
                 "smelt_items",

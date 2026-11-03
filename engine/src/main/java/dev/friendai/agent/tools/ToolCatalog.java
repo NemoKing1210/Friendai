@@ -157,6 +157,13 @@ public final class ToolCatalog {
         group(metas, ToolGroup.BUILDING, Cost.MEDIUM, "place_block", "use_block", "light_area", "clear_area");
         group(metas, ToolGroup.STORAGE, Cost.MEDIUM, "store_items", "take_items", "check_container", "deposit_items");
         metas.add(new ToolMeta(
+                "move_items",
+                ToolGroup.STORAGE,
+                false,
+                "- Use one move_items call to shift a known quantity between two containers instead of take_items then store_items.",
+                List.of(),
+                Cost.MEDIUM));
+        metas.add(new ToolMeta(
                 "find_stored_item",
                 ToolGroup.STORAGE,
                 false,

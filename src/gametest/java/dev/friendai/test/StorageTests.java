@@ -3,6 +3,7 @@ package dev.friendai.test;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.features.inventory.minecraft.task.CheckContainerTask;
+import dev.friendai.features.inventory.minecraft.task.MoveItemsTask;
 import dev.friendai.features.inventory.minecraft.task.StoreItemsTask;
 import dev.friendai.features.inventory.minecraft.task.TakeItemsTask;
 import dev.friendai.server.execution.ExecutionCoordinator;
@@ -779,6 +780,29 @@ public class StorageTests {
                     containerAt(h, 12, 2, 3).getItem(0).is(Items.ANDESITE),
                     "the andesite must go to the recorded empty chest, not the full near one");
             h.assertTrue(containerAt(h, 3, 2, 6).getItem(0).is(Items.DIRT), "the full unrecorded chest stays untouched");
+        });
+    }
+
+    @GameTest(maxTicks = 800)
+    public void moveItemsMovesExactCount(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(3, 2, 3, Blocks.CHEST);
+        containerAt(h, 3, 2, 3).setItem(0, new ItemStack(Items.IRON_INGOT, 10));
+        h.setBlock(12, 2, 12, Blocks.CHEST);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 6, 2, 6);
+        c.setOwner(java.util.UUID.randomUUID());
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(new MoveItemsTask(matcher("minecraft:iron_ingot"), 7,
+                h.absolutePos(new BlockPos(3, 2, 3)), h.absolutePos(new BlockPos(12, 2, 12))), "move_items");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(containerAt(h, 3, 2, 3).getItem(0).getCount() == 3, "source must keep 3");
+            h.assertTrue(containerAt(h, 12, 2, 12).getItem(0).getCount() == 7, "target must hold 7");
+            var runtime = GameTestSupport.runtime(h);
+            h.assertTrue(runtime.storage().find(c, Set.of("minecraft:iron_ingot"), 1,
+                    c.level().getGameTime()).size() == 2, "both records must be updated");
         });
     }
 }

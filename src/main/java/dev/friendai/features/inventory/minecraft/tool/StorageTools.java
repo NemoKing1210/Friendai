@@ -5,12 +5,14 @@ import dev.friendai.agent.tools.Cost;
 import dev.friendai.agent.tools.ToolGroup;
 import dev.friendai.agent.tools.ToolMeta;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.SchemaBuilder;
 import dev.friendai.execution.tool.Tool;
 import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.features.inventory.minecraft.storage.StorageAccess;
 import dev.friendai.features.inventory.minecraft.task.CheckContainerTask;
 import dev.friendai.features.inventory.minecraft.task.DepositTask;
+import dev.friendai.features.inventory.minecraft.task.MoveItemsTask;
 import dev.friendai.features.inventory.minecraft.task.StoreItemsTask;
 import dev.friendai.features.inventory.minecraft.task.TakeItemsTask;
 import dev.friendai.features.storage.StorageText;
@@ -19,6 +21,7 @@ import dev.friendai.server.execution.tools.FeatureToolContributor;
 import dev.friendai.server.execution.tools.FeatureToolRegistry;
 import dev.friendai.server.execution.tools.TaskToolDefinition;
 import dev.friendai.task.inventory.ItemMatcher;
+import net.minecraft.core.BlockPos;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -97,6 +100,41 @@ public final class StorageTools implements FeatureToolContributor {
                         a.has("place") && !a.get("place").isJsonNull()
                                 ? a.get("place").getAsString()
                                 : null)));
+        registry.registerTask(new TaskToolDefinition(
+                "move_items",
+                "Move a known quantity of one item from one storage container to another in one call, returning "
+                        + "leftovers to the source.",
+                SchemaBuilder.object()
+                        .string("item", "Item id like minecraft:iron_ingot, or a tag like #minecraft:planks")
+                        .integer("count", "How many items to move", 1, 2304)
+                        .integer("from_x", "Source container X")
+                        .integer("from_y", "Source container Y")
+                        .integer("from_z", "Source container Z")
+                        .integer("to_x", "Target container X")
+                        .integer("to_y", "Target container Y")
+                        .integer("to_z", "Target container Z")
+                        .required("item", "count", "from_x", "from_y", "from_z", "to_x", "to_y", "to_z")
+                        .build(),
+                (c, a) -> new MoveItemsTask(
+                        matcher(a.get("item").getAsString()),
+                        a.get("count").getAsInt(),
+                        new BlockPos(
+                                a.get("from_x").getAsInt(),
+                                a.get("from_y").getAsInt(),
+                                a.get("from_z").getAsInt()),
+                        new BlockPos(
+                                a.get("to_x").getAsInt(),
+                                a.get("to_y").getAsInt(),
+                                a.get("to_z").getAsInt())),
+                null,
+                true,
+                AccessLevel.TRUSTED,
+                TaskToolDefinition.QueueTraits.DEFAULT,
+                false,
+                false,
+                metadata("move_items"),
+                null,
+                null));
         registry.registerTool(findStoredItem(access), metadata("find_stored_item"));
     }
 
@@ -157,6 +195,15 @@ public final class StorageTools implements FeatureToolContributor {
     }
 
     private static ToolMeta metadata(String name) {
+        if (name.equals("move_items")) {
+            return new ToolMeta(
+                    name,
+                    ToolGroup.STORAGE,
+                    false,
+                    "- Use one move_items call to shift a known quantity between two containers instead of take_items then store_items.",
+                    List.of(),
+                    Cost.MEDIUM);
+        }
         if (name.equals("find_stored_item")) {
             return new ToolMeta(
                     name,

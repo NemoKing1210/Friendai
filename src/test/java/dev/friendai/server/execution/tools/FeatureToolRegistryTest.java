@@ -149,7 +149,8 @@ class FeatureToolRegistryTest {
                 "take_items",
                 "check_container",
                 "deposit_items",
-                "find_stored_item");
+                "find_stored_item",
+                "move_items");
         Set<String> taskNames = Set.of(
                 "give_items",
                 "drop_items",
@@ -159,7 +160,8 @@ class FeatureToolRegistryTest {
                 "store_items",
                 "take_items",
                 "check_container",
-                "deposit_items");
+                "deposit_items",
+                "move_items");
         Set<String> runtimeNames =
                 tools.specs().stream().map(spec -> spec.name()).collect(java.util.stream.Collectors.toSet());
         Set<String> metadataNames = registry.catalogMetadata().stream()
@@ -169,7 +171,10 @@ class FeatureToolRegistryTest {
         assertEquals(expectedNames, runtimeNames);
         assertEquals(expectedNames, metadataNames);
         assertEquals(taskNames, registry.taskDefinitions().keySet());
-        assertEquals(taskNames, registry.restorableTaskNames());
+        Set<String> restorableNames = taskNames.stream()
+                .filter(name -> !name.equals("move_items"))
+                .collect(java.util.stream.Collectors.toSet());
+        assertEquals(restorableNames, registry.restorableTaskNames());
         assertEquals(
                 taskNames,
                 registry.taskDefinitions().values().stream()
