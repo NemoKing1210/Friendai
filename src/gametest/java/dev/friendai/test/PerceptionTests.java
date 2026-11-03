@@ -152,16 +152,56 @@ public class PerceptionTests {
     }
 
     @GameTest
+    public void surveyAreaShowsWhatIsVisibleAndHidesWhatIsNot(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        for (int x = 0; x < 8; x++) h.setBlock(x, 3, 5, Blocks.STONE);
+        h.setBlock(4, 3, 6, Blocks.STONE);
+        var owner = GameTestSupport.mockPlayerAt(h, 4.5, 2, 2.5);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(owner.getUUID());
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(3, 3, 5))),
+                "wall should be directly visible");
+        var tools = GameTestToolRegistry.create(c, () -> 32).bind(c);
+        var caller = new dev.friendai.execution.tool.Caller(
+                owner.getUUID(), "owner", dev.friendai.execution.tool.AccessLevel.OWNER);
+        var result = tools.execute(
+                new dev.friendai.agent.llm.model.ToolCall(
+                        "1", "survey_area", new com.google.gson.JsonObject(), "{}", null),
+                caller);
+        h.assertTrue(!result.error(), result.content());
+        String[] lines = result.content().lines().toArray(String[]::new);
+        h.assertTrue(lines[0].startsWith("map at "), lines[0]);
+        String grid = String.join("\n", java.util.Arrays.copyOfRange(lines, 1, lines.length));
+        java.util.function.BiFunction<Integer, Integer, Character> glyph =
+                (dx, dz) -> grid.lines().toArray(String[]::new)[dz + 8].charAt(dx + 8);
+        h.assertTrue(glyph.apply(1, 3) == '#', "visible wall should be #: " + grid);
+        h.assertTrue(glyph.apply(2, 4) == '?', "hidden block must stay unseen: " + grid);
+        h.assertTrue(glyph.apply(0, 0) == '@', "self should be @: " + grid);
+        h.spawn(net.minecraft.world.entity.EntityTypes.ZOMBIE, new BlockPos(6, 2, 2));
+        var after = tools.execute(
+                new dev.friendai.agent.llm.model.ToolCall(
+                        "2", "survey_area", new com.google.gson.JsonObject(), "{}", null),
+                caller);
+        String[] afterLines = after.content().lines().toArray(String[]::new);
+        String afterGrid = String.join("\n", java.util.Arrays.copyOfRange(afterLines, 1, afterLines.length));
+        java.util.function.BiFunction<Integer, Integer, Character> afterGlyph =
+                (dx, dz) -> afterGrid.lines().toArray(String[]::new)[dz + 8].charAt(dx + 8);
+        h.assertTrue(afterGlyph.apply(4, 0) == 'Z', "visible hostile should be Z: " + afterGrid);
+        h.succeed();
+    }
+
+    @GameTest
     public void surveyAreaShowsSelfWallAndSpeaker(GameTestHelper h) {
         GameTestSupport.platform(h, 12);
         for (int x = 0; x < 8; x++) {
-            h.setBlock(x, 2, 6, Blocks.STONE);
+            h.setBlock(x, 3, 6, Blocks.STONE);
         }
         var owner = GameTestSupport.mockPlayerAt(h, 4.5, 2, 2.5);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.setOwner(owner.getUUID());
         h.assertTrue(
-                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(2, 2, 6))),
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(2, 3, 6))),
                 "wall should be directly visible");
         var tools = GameTestToolRegistry.create(c, () -> 32).bind(c);
         var call = new dev.friendai.agent.llm.model.ToolCall(

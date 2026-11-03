@@ -71,18 +71,18 @@ public final class PerceptionTools implements FeatureToolContributor {
         registry.registerTool(
                 callerTool(
                         SURVEY_AREA,
-                        "Draw a top-down map of the area at your eye level. Legend: @ you, O the speaker, Z hostile, "
-                                + "# solid, ~ water, ^ lava or fire, . air, ? unloaded chunk. Use it to find a way "
-                                + "around walls or to see where a threat stands.",
+                        "Draw a top-down map of what you can see at eye level, with the center coordinates. "
+                                + "Legend: @ you, O the speaker, Z a hostile you can see, # solid, . air, ~ water, "
+                                + "^ lava or fire, ? unseen or unloaded. It never shows a hidden block. Use it to "
+                                + "find a way around walls or to see where a threat stands.",
                         SchemaBuilder.object()
                                 .integer("radius", "Map radius in blocks", 3, 16)
                                 .build(),
                         AccessLevel.TRUSTED,
                         (companion, caller, args) -> {
                             int radius = args.has("radius") ? args.get("radius").getAsInt() : 8;
-                            return ToolResult.ok(AreaMapBuilder.of(
-                                            companion, caller.uuid(), radius, resourceCandidates.apply(companion))
-                                    + hintLine(companion));
+                            return ToolResult.ok(
+                                    AreaMapBuilder.of(companion, caller.uuid(), radius) + hintLine(companion));
                         }),
                 metadata(SURVEY_AREA));
     }

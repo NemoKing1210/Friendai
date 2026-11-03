@@ -62,9 +62,10 @@ class PerceptionToolsTest {
                         + "especially after they may have moved.",
                 spec(tools, "player_view").description());
         assertEquals(
-                "Draw a top-down map of the area at your eye level. Legend: @ you, O the speaker, Z hostile, "
-                        + "# solid, ~ water, ^ lava or fire, . air, ? unloaded chunk. Use it to find a way around "
-                        + "walls or to see where a threat stands.",
+                "Draw a top-down map of what you can see at eye level, with the center coordinates. "
+                        + "Legend: @ you, O the speaker, Z a hostile you can see, # solid, . air, ~ water, "
+                        + "^ lava or fire, ? unseen or unloaded. It never shows a hidden block. Use it to "
+                        + "find a way around walls or to see where a threat stands.",
                 spec(tools, "survey_area").description());
         assertEquals(
                 JsonParser.parseString("{\"type\":\"object\",\"properties\":{}}"),
