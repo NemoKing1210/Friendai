@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
+import java.util.Map;
 import java.util.function.UnaryOperator;
 import org.junit.jupiter.api.Test;
 
@@ -113,5 +114,37 @@ class DebugLogTest {
         log.add(LogKind.USER, "c");
         assertEquals(2L, log.firstId());
         assertEquals(2L, log.size());
+    }
+
+    @Test
+    void aStructuredRecordProjectsItsIdentityWithoutReusingTheRingId() {
+        DebugLog log = new DebugLog(10, 400, text -> text, () -> 7L);
+        LogRecord record = new LogRecord(
+                0L,
+                0L,
+                LogLevel.INFO,
+                LogCategory.TASK,
+                LogKind.TASK,
+                LogEvents.TASK_PROGRESS,
+                null,
+                null,
+                "",
+                0L,
+                5L,
+                6L,
+                7L,
+                "",
+                0L,
+                -1L,
+                "mine: running",
+                Map.of("trace", "t-1", "execution", "9", "phase", "progress", "reason", "search_selected"),
+                null);
+
+        LogEntry entry = log.add(record);
+
+        assertTrue(entry.text().startsWith("trace=t-1 execution=9 plan=5 job=6"), entry.text());
+        assertTrue(entry.text().contains("phase=progress"));
+        assertTrue(entry.text().endsWith("mine: running"));
+        assertEquals(1L, entry.id(), "the ring id is its own, not the file seq");
     }
 }

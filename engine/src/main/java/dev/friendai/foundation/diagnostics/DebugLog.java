@@ -44,9 +44,34 @@ public final class DebugLog {
         return entry;
     }
 
-    /** Stores the readable projection of a structured record: its message and its dialogue role. */
+    /**
+     * Stores the readable projection of a structured record: a compact identity prefix (trace/execution/span, plan/job,
+     * phase/status/reason) followed by its message. The entry keeps its own ring id; the file sequence is not copied
+     * here, so the two cannot be confused in the menu.
+     */
     public synchronized LogEntry add(LogRecord record) {
-        return add(record.kind() == null ? LogKind.TASK : record.kind(), record.message());
+        return add(record.kind() == null ? LogKind.TASK : record.kind(), projection(record));
+    }
+
+    static String projection(LogRecord record) {
+        StringBuilder text = new StringBuilder();
+        appendKey(text, "trace", record.data().get("trace"));
+        appendKey(text, "execution", record.data().get("execution"));
+        appendKey(text, "span", record.data().get("span"));
+        if (record.plan() > 0L) appendKey(text, "plan", Long.toString(record.plan()));
+        if (record.job() > 0L) appendKey(text, "job", Long.toString(record.job()));
+        appendKey(text, "phase", record.data().get("phase"));
+        appendKey(text, "status", record.data().get("status"));
+        appendKey(text, "reason", record.data().get("reason"));
+        if (!text.isEmpty()) text.append(' ');
+        text.append(record.message());
+        return text.toString();
+    }
+
+    private static void appendKey(StringBuilder text, String key, String value) {
+        if (value == null || value.isBlank()) return;
+        if (!text.isEmpty()) text.append(' ');
+        text.append(key).append('=').append(value);
     }
 
     /** Entries with an id greater than {@code id}, oldest first; the last {@code limit} if there are more. */
