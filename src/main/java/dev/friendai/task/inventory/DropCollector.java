@@ -84,6 +84,8 @@ public final class DropCollector {
     private int ticks;
     private int arrivedTicks;
     private int collected;
+    private boolean waitingReported;
+    private boolean reportedRound;
     private boolean rescanNow;
 
     /** @param origin the point the round is about: drops this far from it, once, are its business */
@@ -106,16 +108,18 @@ public final class DropCollector {
 
     public State tick(TaskContext c) {
         CompanionEntity companion = c.companion();
+        int before = collected;
         collected += collectAtFeet(c, TOUCH_RADIUS);
+        if (collected != before) waitingReported = false;
         if (++ticks > MAX_TICKS) {
             stop(c);
-            return State.DONE;
+            return roundDone(c);
         }
         if (rescanNow || ticks == 1 || ticks % SCAN_INTERVAL == 0 || stale()) {
             scan(c);
             if (drops.isEmpty()) {
                 stop(c);
-                return State.DONE;
+                return roundDone(c);
             }
         }
         if (!Threats.dangersNear(c.level(), companion.position(), THREAT_RADIUS, companion)
@@ -128,6 +132,13 @@ public final class DropCollector {
             // Drops are there, but none is ready: still falling, or inside the vanilla pickup delay. Wait for one
             // rather than end the round without it or walk to a guess.
             resetNavigation(c);
+            if (!waitingReported) {
+                waitingReported = true;
+                c.decision(
+                        dev.friendai.foundation.diagnostics.LogEvents.INVENTORY_DELTA,
+                        "waiting_drop",
+                        java.util.Map.of("collected", Integer.toString(collected)));
+            }
             return State.COLLECTING;
         }
         if (!points.equals(goalPoints)) {
@@ -141,6 +152,30 @@ public final class DropCollector {
     }
 
     /** How many items this round has moved into the inventory. */
+    /** One bounded per-item summary for the round: ids and counts only, at most eight entries. */
+    private State roundDone(TaskContext c) {
+        if (!reportedRound) {
+            reportedRound = true;
+            java.util.Map<String, Integer> counts = new java.util.LinkedHashMap<>();
+            for (ItemStack stack : collectedStacks()) {
+                String id = net.minecraft.core.registries.BuiltInRegistries.ITEM
+                        .getKey(stack.getItem())
+                        .toString();
+                counts.merge(id, stack.getCount(), Integer::sum);
+            }
+            java.util.Map<String, String> facts = new java.util.LinkedHashMap<>();
+            facts.put("collected", Integer.toString(collected));
+            int index = 0;
+            for (var entry : counts.entrySet()) {
+                if (index >= 8) break;
+                index++;
+                facts.put("item" + index, entry.getKey() + " x" + entry.getValue());
+            }
+            c.decision(dev.friendai.foundation.diagnostics.LogEvents.INVENTORY_DELTA, "pickup_round", facts);
+        }
+        return State.DONE;
+    }
+
     public int collected() {
         return collected;
     }

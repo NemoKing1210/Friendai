@@ -318,6 +318,7 @@ public final class MineBlocksTask implements Task {
                 observationWaitTicks = 0;
                 breaker = null;
                 mined++;
+                reportMined(c);
                 lastRefusal = null;
                 rememberMined(lastBroken);
                 c.placedService().forget(c.companion(), lastBroken);
@@ -395,6 +396,24 @@ public final class MineBlocksTask implements Task {
         return null;
     }
 
+    /** One bounded evidence record per broken block: counts and the target label, no coordinates. */
+    private void reportMined(TaskContext c) {
+        java.util.Map<String, String> facts = new java.util.LinkedHashMap<>();
+        facts.put("mined", Integer.toString(mined));
+        facts.put("count", Integer.toString(count));
+        facts.put("target", matcher.label());
+        c.decision(dev.friendai.foundation.diagnostics.LogEvents.INVENTORY_DELTA, "block_mined", facts);
+    }
+
+    /** Captures why mining stopped before the summary is cleared; the reason token is stable, not prose. */
+    private void reportMiningFailure(TaskContext c, String reason) {
+        java.util.Map<String, String> facts = new java.util.LinkedHashMap<>();
+        facts.put("mined", Integer.toString(mined));
+        facts.put("count", Integer.toString(count));
+        facts.put("target", matcher.label());
+        c.decision(dev.friendai.foundation.diagnostics.LogEvents.INVENTORY_DELTA, reason, facts);
+    }
+
     private TaskStatus tickMiningSession(TaskContext c) {
         MiningSession.State state = miningSession.tick(c);
         return switch (state) {
@@ -404,6 +423,7 @@ public final class MineBlocksTask implements Task {
                 pendingObservation = lastBroken;
                 observationWaitTicks = 0;
                 mined++;
+                reportMined(c);
                 rememberMined(lastBroken);
                 c.placedService().forget(c.companion(), lastBroken);
                 miningSessionActive = false;
@@ -411,11 +431,13 @@ public final class MineBlocksTask implements Task {
             }
             case EXHAUSTED -> {
                 miningSessionActive = false;
+                reportMiningFailure(c, "search_exhausted");
                 summary = "mined " + mined + " of " + count + ", mining search limit reached";
                 yield TaskStatus.FAILED;
             }
             case FAILED -> {
                 miningSessionActive = false;
+                reportMiningFailure(c, "mining_failed");
                 String reason = miningSession.failure() == null
                         ? "the resource became unreachable"
                         : failureText(miningSession.failure());
