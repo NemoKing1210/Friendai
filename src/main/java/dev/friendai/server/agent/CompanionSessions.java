@@ -167,7 +167,6 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
         if (fileLog instanceof dev.friendai.debug.LogWriterService writer) {
             writer.useSequenceSource(debug.pipeline()::reserveSequence);
         }
-        emitStreamStart();
         this.planners = new PlannerAdapter(scheduler, debug, gateways, () -> this.config, settings);
         MemoryAccess memoryAccess = new MemoryAccess() {
             @Override
@@ -293,6 +292,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
         this.freeTime = new FreeTimeDriver(
                 server, this, () -> this.config, settings, freeTimeService, places, placeService, taskTools, planTools);
         reload(initial);
+        emitStreamStart();
     }
     /** Free time: the companion working on its own. */
     public FreeTimeDriver freeTime() {
@@ -1436,16 +1436,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
             @Override
             public void onFinished(int id, long planId, String toolName, TaskStatus status, String summary) {
                 if (!isCurrent(session, companion)) return;
-                emitTask(dev.friendai.execution.log.TaskLogEvents.finish(
-                        owner,
-                        companion.getUUID(),
-                        logSession,
-                        id,
-                        planId,
-                        0L,
-                        toolName,
-                        status == TaskStatus.SUCCESS,
-                        summary));
+                // The structured lifecycle producer owns task.finish; this callback keeps history and speech only.
                 debug.historyOf(owner)
                         .add(new TaskRecord(
                                 id, toolName, status == TaskStatus.SUCCESS ? "SUCCESS" : "FAILED", summary));
@@ -1473,8 +1464,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
             @Override
             public void onCancelled(int id, String toolName, String reason) {
                 if (!isCurrent(session, companion)) return;
-                emitTask(dev.friendai.execution.log.TaskLogEvents.cancel(
-                        owner, companion.getUUID(), logSession, id, toolName, reason));
+                // The structured lifecycle producer owns task.cancel; this callback keeps history and speech only.
                 debug.historyOf(owner).add(new TaskRecord(id, toolName, "CANCELLED", reason));
                 postFromSession(session, companion, owner, new BrainEvent.TaskCancelled(id, toolName, reason));
             }
@@ -1549,7 +1539,8 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                 if (!isCurrent(session, companion) || event == null) return;
                 dev.friendai.execution.log.TaskLogCorrelation correlation = debug.correlation(owner);
                 long parent = correlation.parentSeq(event);
-                java.util.Map<String, String> data = new java.util.LinkedHashMap<>(event.facts());
+                java.util.Map<String, String> data =
+                        dev.friendai.foundation.diagnostics.LogEventData.build(event.context(), event.facts());
                 long cause = parent;
                 if (parent < 0L) {
                     cause = 0L;

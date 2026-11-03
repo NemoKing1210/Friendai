@@ -39,7 +39,8 @@ public final class ActiveTaskController {
             ServerSettings settings,
             dev.friendai.task.ProgressWatch progress,
             LogContext logContext,
-            long execution) {}
+            long execution,
+            ExecutionTiming timing) {}
 
     public record Completion(ActiveTask active, TaskStatus status, String summary) {}
 
@@ -52,7 +53,6 @@ public final class ActiveTaskController {
     private int activeTicks;
     private Consumer<TaskLogEvent> diagnostics = event -> {};
     private final DiagnosticClock clock;
-    private ExecutionTiming timing;
 
     public ActiveTaskController(IntSupplier timeoutSec) {
         this(timeoutSec, DiagnosticClock.system());
@@ -82,6 +82,7 @@ public final class ActiveTaskController {
         int id = start.id();
         long execution = allocateExecution();
         LogContext logContext = start.logContext().withExecution(execution, id, start.planId(), start.jobId());
+        ExecutionTiming timing = ExecutionTiming.started(clock);
         ActiveTask active = new ActiveTask(
                 id,
                 start.jobId(),
@@ -99,15 +100,17 @@ public final class ActiveTaskController {
                 start.settings(),
                 new dev.friendai.task.ProgressWatch(activeTicks),
                 logContext,
-                execution);
+                execution,
+                timing);
         current = active;
-        timing = ExecutionTiming.started(clock);
         diagnostics.accept(
                 TaskLogEvents.startEvent(logContext, start.toolName(), java.util.Map.of("origin", start.origin())));
         try {
             task.start(context(start.taskContext(), active));
         } catch (RuntimeException e) {
             if (current == active) current = null;
+            diagnostics.accept(TaskLogEvents.finishEvent(
+                    logContext, start.toolName(), "failed", -1L, java.util.Map.of("reason", "start_failed")));
             release(task, context(start.taskContext(), active), "failed to start");
             throw e;
         }
@@ -129,7 +132,7 @@ public final class ActiveTaskController {
             status = TaskStatus.FAILED;
             summary = "task crashed: " + e.getClass().getSimpleName();
         }
-        if (timing != null) timing.onTick(clock.nanoTime() - processingStart);
+        active.timing().onTick(clock.nanoTime() - processingStart);
         if (current != active) return Optional.empty();
         if (status == TaskStatus.RUNNING) {
             int stallTicks = Math.max(20, active.timeoutSec() * 10);
@@ -156,18 +159,17 @@ public final class ActiveTaskController {
             summary = "timed out";
         }
         if (status == TaskStatus.RUNNING) return Optional.empty();
-        ExecutionTiming.Snapshot measured = timing == null ? null : timing.snapshot();
+        ExecutionTiming.Snapshot measured = active.timing().snapshot();
         diagnostics.accept(TaskLogEvents.finishEvent(
                 active.logContext(),
                 active.toolName(),
                 status.name().toLowerCase(Locale.ROOT),
-                measured == null ? -1L : measured.wallMs(),
-                measured == null
-                        ? java.util.Map.of()
-                        : java.util.Map.of(
-                                "activeTicks", Long.toString(measured.activeTicks()),
-                                "heldTicks", Long.toString(measured.heldTicks()),
-                                "tickNanos", Long.toString(measured.tickNanos()))));
+                measured.wallMs(),
+                java.util.Map.of(
+                        "activeTicks", Long.toString(measured.activeTicks()),
+                        "heldTicks", Long.toString(measured.heldTicks()),
+                        "tickNanos", Long.toString(measured.tickNanos()),
+                        "summary", summary == null ? "" : summary)));
         current = null;
         release(active.task(), activeContext, "terminal");
         return Optional.of(new Completion(active, status, summary));
@@ -226,7 +228,8 @@ public final class ActiveTaskController {
                 active.settings(),
                 active.progress(),
                 active.logContext(),
-                active.execution());
+                active.execution(),
+                active.timing());
         frozenElapsed = 0;
         diagnostics.accept(TaskLogEvents.resumeEvent(active.logContext(), active.toolName()));
     }
@@ -238,13 +241,13 @@ public final class ActiveTaskController {
 
     /** One runner tick observed under an explicit hold; it does not advance the task's active work. */
     public void recordHoldTick() {
-        if (timing != null) timing.onHoldTick();
+        ActiveTask active = current != null ? current : frozen;
+        if (active != null) active.timing().onHoldTick();
     }
 
     public void reset() {
         current = null;
         clearFrozen();
-        timing = null;
         activeTicks = 0;
     }
 

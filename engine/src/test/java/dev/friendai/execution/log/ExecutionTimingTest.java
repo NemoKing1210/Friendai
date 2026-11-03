@@ -95,6 +95,23 @@ class ExecutionTimingTest {
     }
 
     @Test
+    void twoActivationsNeverShareCounters() {
+        FakeClock clock = new FakeClock();
+        ExecutionTiming first = ExecutionTiming.started(clock);
+        ExecutionTiming second = ExecutionTiming.started(clock);
+        for (int i = 0; i < 5; i++) {
+            first.onTick(1L);
+        }
+        first.onHoldTick();
+
+        assertEquals(5L, first.snapshot().activeTicks());
+        assertEquals(1L, first.snapshot().heldTicks());
+        assertEquals(0L, second.snapshot().activeTicks());
+        assertEquals(0L, second.snapshot().heldTicks());
+        assertEquals(0L, second.snapshot().tickNanos());
+    }
+
+    @Test
     void aNegativeProcessingMeasurementIsClamped() {
         ExecutionTiming timing = ExecutionTiming.started(new FakeClock());
 

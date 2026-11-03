@@ -303,6 +303,21 @@ class LogWriterServiceTest {
     }
 
     @Test
+    void aBarrierDoesNotCoverRecordsAdmittedAfterIt(@TempDir Path root) {
+        try (LogWriterService writer = writer(root, LogWriterScope.SERVER, settings(LogLevel.INFO), 64)) {
+            assertTrue(writer.offer(record(1, LogCategory.SERVER, null)));
+
+            java.util.concurrent.CompletableFuture<LogFlushResult> barrier = writer.flushStatus();
+            assertTrue(writer.offer(record(2, LogCategory.SERVER, null)), "a later record is still admitted");
+
+            LogFlushResult result = barrier.join();
+            assertEquals(LogFlushResult.Status.FLUSHED, result.status());
+            assertEquals(1L, result.acceptedThrough(), "the barrier covers only what preceded it");
+            assertEquals(1L, result.processedThrough());
+        }
+    }
+
+    @Test
     void aDisabledWriterReportsDisabledRatherThanADurableFlush(@TempDir Path root) throws IOException {
         try (LogWriterService writer = writer(root, LogWriterScope.SERVER, settings(null), 64)) {
             writer.offer(record(1, LogCategory.SERVER, null));

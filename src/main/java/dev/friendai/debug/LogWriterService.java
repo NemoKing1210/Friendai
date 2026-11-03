@@ -474,7 +474,8 @@ public final class LogWriterService implements LogSink, AutoCloseable {
     }
 
     private LogFlushResult flushResult(Flush flush) {
-        long accepted = admittedThrough.get();
+        // The barrier promises exactly the coverage admitted before it; a later admission is not its business.
+        long accepted = flush.covered();
         long processed = Math.max(processedThrough, flush.covered());
         if (failed) {
             return new LogFlushResult(
