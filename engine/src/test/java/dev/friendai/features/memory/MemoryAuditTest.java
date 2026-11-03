@@ -84,10 +84,10 @@ class MemoryAuditTest {
     void verifiedGoalOutcomesSaySoAndExpiredClaimsReadStale() {
         MemoryBook goals = new MemoryBook();
         goals.ensurePlayer(O, "Steve");
-        String checked = GoalOutcomeFact.text(
-                "Collect 32 oak logs", GoalOutcomeFact.End.VERIFIED, "+32 minecraft:oak_log", 160);
-        String oldChecked = GoalOutcomeFact.text(
-                "Visit the village", GoalOutcomeFact.End.VERIFIED, "+1 minecraft:bread", 160);
+        String checked =
+                GoalOutcomeFact.text("Collect 32 oak logs", GoalOutcomeFact.End.VERIFIED, "+32 minecraft:oak_log", 160);
+        String oldChecked =
+                GoalOutcomeFact.text("Visit the village", GoalOutcomeFact.End.VERIFIED, "+1 minecraft:bread", 160);
         String guessed = GoalOutcomeFact.text("Make a friend", GoalOutcomeFact.End.UNVERIFIED, null, 160);
         goals.addFact(Subject.player(O), Category.NOTE, checked, O, "Steve", NOW - DAY, BIG);
         goals.addFact(Subject.player(O), Category.PLACE, oldChecked, O, "Steve", NOW - 31 * DAY, BIG);

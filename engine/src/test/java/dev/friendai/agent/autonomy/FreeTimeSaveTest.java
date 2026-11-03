@@ -61,7 +61,8 @@ class FreeTimeSaveTest {
                 Map.of(),
                 List.of());
 
-        Shift loaded = FreeTimeSave.decode(FreeTimeSave.encode(state)).orElseThrow().shift();
+        Shift loaded =
+                FreeTimeSave.decode(FreeTimeSave.encode(state)).orElseThrow().shift();
 
         assertEquals("gearing up", loaded.purpose());
         assertEquals("20 min", loaded.budget());

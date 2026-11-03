@@ -8,7 +8,8 @@ public final class SettingsCommandTests {
     @GameTest
     public void settingsCommandReportsWithoutAPlayer(GameTestHelper h) throws Exception {
         var server = h.getLevel().getServer();
-        int result = server.getCommands().getDispatcher().execute("friendai settings", server.createCommandSourceStack());
+        int result =
+                server.getCommands().getDispatcher().execute("friendai settings", server.createCommandSourceStack());
         h.assertTrue(result == 1, "/friendai settings returned " + result);
         h.succeed();
     }

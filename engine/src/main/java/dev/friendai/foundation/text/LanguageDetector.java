@@ -39,8 +39,26 @@ public final class LanguageDetector {
             "el", "la", "los", "las", "y", "es", "no", "que", "un", "una", "para", "con", "por", "como", "muy", "esta",
             "puedes", "traerme", "pico", "cofre");
     private static final Set<String> PORTUGUESE = Set.of(
-            "o", "a", "os", "as", "e", "nao", "que", "um", "uma", "para", "com", "por", "como", "muito", "esta",
-            "voce", "pode", "trazer", "picareta", "bau");
+            "o",
+            "a",
+            "os",
+            "as",
+            "e",
+            "nao",
+            "que",
+            "um",
+            "uma",
+            "para",
+            "com",
+            "por",
+            "como",
+            "muito",
+            "esta",
+            "voce",
+            "pode",
+            "trazer",
+            "picareta",
+            "bau");
 
     private LanguageDetector() {}
 

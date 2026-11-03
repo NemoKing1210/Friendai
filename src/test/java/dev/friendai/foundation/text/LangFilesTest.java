@@ -121,8 +121,8 @@ class LangFilesTest {
         List<String> missing = new ArrayList<>();
         for (String locale : locales()) {
             JsonObject catalog = language(locale);
-            for (var skill :
-                    dev.friendai.features.instructions.BuiltinSkills.load(getClass().getClassLoader())) {
+            for (var skill : dev.friendai.features.instructions.BuiltinSkills.load(
+                    getClass().getClassLoader())) {
                 String key = dev.friendai.features.instructions.BuiltinSkills.titleKey(skill.id())
                         .orElseThrow();
                 if (!catalog.has(key)) missing.add(locale + ": " + key);

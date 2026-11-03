@@ -113,8 +113,8 @@ public final class FriendaiCommands {
                                 .executes(ctx -> diagnose(ctx, false))
                                 .then(Commands.literal("chat").executes(ctx -> diagnose(ctx, true)))
                                 .then(Commands.argument("player", EntityArgument.player())
-                                        .executes(ctx ->
-                                                diagnoseFor(ctx, EntityArgument.getPlayer(ctx, "player"), false))
+                                        .executes(
+                                                ctx -> diagnoseFor(ctx, EntityArgument.getPlayer(ctx, "player"), false))
                                         .then(Commands.literal("chat")
                                                 .executes(ctx -> diagnoseFor(
                                                         ctx, EntityArgument.getPlayer(ctx, "player"), true))))))
@@ -275,7 +275,9 @@ public final class FriendaiCommands {
     private static int logsPath(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
         var sender = ctx.getSource().getPlayerOrException();
         Path root = FabricLoader.getInstance().getGameDir().resolve("logs").resolve("friendai");
-        Path path = Operators.isOperator(sender) ? root : root.resolve("owners").resolve(sender.getUUID().toString());
+        Path path = Operators.isOperator(sender)
+                ? root
+                : root.resolve("owners").resolve(sender.getUUID().toString());
         ctx.getSource().sendSuccess(() -> Component.translatable("friendai.command.logs.path", path.toString()), false);
         return 1;
     }
@@ -287,8 +289,7 @@ public final class FriendaiCommands {
             List<String> problems = runtime.applyLoggingLevel(level);
             ctx.getSource()
                     .sendSuccess(
-                            () -> Component.translatable(
-                                    "friendai.command.logs.level_set", level, problems.size()),
+                            () -> Component.translatable("friendai.command.logs.level_set", level, problems.size()),
                             true);
             return 1;
         } catch (RuntimeException failure) {
@@ -303,8 +304,7 @@ public final class FriendaiCommands {
         var runtime = ServerRuntimeRegistry.getOrCreate(ctx.getSource().getServer());
         try {
             int removed = runtime.pruneLogs();
-            ctx.getSource()
-                    .sendSuccess(() -> Component.translatable("friendai.command.logs.pruned", removed), true);
+            ctx.getSource().sendSuccess(() -> Component.translatable("friendai.command.logs.pruned", removed), true);
             return 1;
         } catch (RuntimeException failure) {
             ctx.getSource()

@@ -25,8 +25,8 @@ class ShiftContractTest {
 
     @Test
     void aNewShiftStatesItsContract() {
-        Shift shift = new Shift(
-                1, "get iron", List.of(), "gear is missing", 0, 100, 100 + 5 * 60_000L, false, NeedKind.GEAR);
+        Shift shift =
+                new Shift(1, "get iron", List.of(), "gear is missing", 0, 100, 100 + 5 * 60_000L, false, NeedKind.GEAR);
         assertEquals("gearing up", shift.purpose());
         assertEquals("5 min", shift.budget());
         assertEquals(ShiftStopWhen.DONE, shift.stopWhen());
