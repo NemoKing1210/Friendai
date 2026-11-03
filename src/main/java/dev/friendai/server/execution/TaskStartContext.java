@@ -20,7 +20,8 @@ public record TaskStartContext(
         boolean creativeSensitive,
         ServerSettings settings,
         TaskContext taskContext,
-        LogContext logContext) {
+        LogContext logContext,
+        String origin) {
     public TaskStartContext {
         if (toolName == null || toolName.isBlank()) throw new IllegalArgumentException("tool name is required");
         if (id < 0 || jobId < 0 || planId < 0)
@@ -28,5 +29,6 @@ public record TaskStartContext(
         if (settings == null) throw new IllegalArgumentException("server settings are required");
         if (taskContext == null) throw new IllegalArgumentException("task context is required");
         logContext = logContext == null ? LogContext.NONE : logContext;
+        origin = origin == null || origin.isBlank() ? "activation" : origin;
     }
 }

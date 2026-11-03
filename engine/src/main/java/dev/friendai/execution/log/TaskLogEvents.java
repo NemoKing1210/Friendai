@@ -50,13 +50,24 @@ public final class TaskLogEvents {
 
     /** A task activation start; its parent is the invocation captured in the context. */
     public static TaskLogEvent startEvent(LogContext context, String tool) {
+        return startEvent(context, tool, Map.of());
+    }
+
+    /** A start that names where the activation came from: a model call, a command, autonomy or a restore. */
+    public static TaskLogEvent startEvent(LogContext context, String tool, Map<String, String> facts) {
         requireTool(tool);
         return new TaskLogEvent(
-                context, TaskLogEvent.Parent.INVOCATION, LogEvents.TASK_START, tool, "started", -1L, Map.of());
+                context, TaskLogEvent.Parent.INVOCATION, LogEvents.TASK_START, tool, "started", -1L, facts);
     }
 
     /** A graceful terminal; its parent is the execution start resolved by {@link TaskLogCorrelation}. */
     public static TaskLogEvent finishEvent(LogContext context, String tool, String status) {
+        return finishEvent(context, tool, status, -1L, Map.of());
+    }
+
+    /** A terminal carrying the measured activation time and its counters. */
+    public static TaskLogEvent finishEvent(
+            LogContext context, String tool, String status, long durationMs, Map<String, String> facts) {
         requireTool(tool);
         return new TaskLogEvent(
                 context,
@@ -64,8 +75,20 @@ public final class TaskLogEvents {
                 LogEvents.TASK_FINISH,
                 tool,
                 status == null ? "unknown" : status,
-                -1L,
-                Map.of());
+                durationMs,
+                facts);
+    }
+
+    /** One observed server tick gap; the reason is unknown, never inferred as a pause. */
+    public static TaskLogEvent clockGap(long gapMs) {
+        return new TaskLogEvent(
+                LogContext.NONE,
+                TaskLogEvent.Parent.INVOCATION,
+                LogEvents.CLOCK_GAP,
+                "",
+                "unknown",
+                Math.max(0L, gapMs),
+                Map.of("reason", "unknown", "gapMs", Long.toString(Math.max(0L, gapMs))));
     }
 
     public static TaskLogEvent cancelEvent(LogContext context, String tool, String reason) {

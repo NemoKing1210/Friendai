@@ -131,6 +131,19 @@ class TaskLifecycleLogTest {
     }
 
     @Test
+    void aStartCanNameItsOriginAndAClockGapStaysUnknown() {
+        TaskLogEvent restored = TaskLogEvents.startEvent(
+                executionContext(1L, 0L, 0L, 0L, 0L), "mine_block_at", Map.of("origin", "restore"));
+        assertEquals("restore", restored.facts().get("origin"));
+
+        TaskLogEvent gap = TaskLogEvents.clockGap(2_500L);
+        assertEquals(LogEvents.CLOCK_GAP, gap.event());
+        assertEquals("unknown", gap.facts().get("reason"));
+        assertEquals(2_500L, gap.durationMs());
+        assertEquals("2500", gap.facts().get("gapMs"));
+    }
+
+    @Test
     void factsAreAnImmutableBoundedCopy() {
         Map<String, String> facts = new HashMap<>();
         facts.put("reason", "search_selected");

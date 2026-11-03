@@ -82,6 +82,11 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     /** The tool invocation the runner is executing right now; runner-local, never read by a worker. */
     private LogContext invocationContext = LogContext.NONE;
 
+    private final dev.friendai.foundation.diagnostics.DiagnosticClock diagnosticClock =
+            dev.friendai.foundation.diagnostics.DiagnosticClock.system();
+    private long lastTickWall = -1L;
+    private boolean clockGapReported;
+
     private record Started(long jobId, QueuedStep step, StepFactory factory, LogContext context) {}
 
     private final List<String> pendingNotices = new java.util.ArrayList<>();
@@ -753,7 +758,23 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     }
 
     public void tick() {
+        reportClockGap();
         inTransition(this::tickActive);
+    }
+
+    /** One clock.gap per observed gap over a second; the reason stays unknown, it is never inferred as a pause. */
+    private void reportClockGap() {
+        long now = diagnosticClock.wallMillis();
+        if (lastTickWall > 0L) {
+            long gap = now - lastTickWall;
+            if (gap > 1000L && !clockGapReported) {
+                clockGapReported = true;
+                emit(sink -> sink.onDiagnostic(dev.friendai.execution.log.TaskLogEvents.clockGap(gap)));
+            } else if (gap <= 1000L) {
+                clockGapReported = false;
+            }
+        }
+        lastTickWall = now;
     }
 
     public void releaseAllHolds() {
@@ -764,7 +785,12 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         syncSettings();
         revalidateCreativeHover();
         clearIssuedInterrupt();
-        if (paused || suspended || held()) return;
+        if (paused || suspended || held()) {
+            if (activeTasks.currentActive() != null || activeTasks.frozenActive() != null) {
+                activeTasks.recordHoldTick();
+            }
+            return;
+        }
         if (activeTask() != null && activeTask().defaultActivity() && !mayFollowOwner.getAsBoolean())
             clearCurrentSilently();
         queueDriver.advanceClock();
@@ -903,7 +929,8 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
                 creativeSensitive,
                 settings,
                 baseContext(),
-                LogContext.NONE);
+                LogContext.NONE,
+                "command");
         try {
             return activeTasks.start(task, start);
         } catch (RuntimeException e) {
@@ -1034,7 +1061,8 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
                             job.creativeSensitive(),
                             settings,
                             new TaskContext(companion, (ServerLevel) companion.level(), this, actionContext, settings),
-                            job.diagnostic()));
+                            job.diagnostic(),
+                            "activation"));
             queueDriver.resetBlockedClock();
             return true;
         } catch (RuntimeException e) {
@@ -1200,7 +1228,8 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
                                 false,
                                 settings,
                                 baseContext(),
-                                LogContext.NONE));
+                                LogContext.NONE,
+                                "autonomy"));
             } catch (RuntimeException e) {
                 LOGGER.warn("Default follow failed to start", e);
             }
@@ -1312,7 +1341,8 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
                             activeJob.creativeSensitive(),
                             settings,
                             new TaskContext(companion, (ServerLevel) companion.level(), this, actionContext, settings),
-                            LogContext.NONE));
+                            LogContext.NONE,
+                            "restore"));
         } catch (RuntimeException e) {
             queueDriver.fail(activeJob.id(), "task crashed: " + e.getClass().getSimpleName());
         }

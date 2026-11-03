@@ -1,9 +1,11 @@
 package dev.friendai.server.execution;
 
+import dev.friendai.execution.log.ExecutionTiming;
 import dev.friendai.execution.log.TaskLogEvent;
 import dev.friendai.execution.log.TaskLogEvents;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.features.creative.CreativeActionContext;
+import dev.friendai.foundation.diagnostics.DiagnosticClock;
 import dev.friendai.foundation.diagnostics.LogContext;
 import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.task.Task;
@@ -49,9 +51,16 @@ public final class ActiveTaskController {
     private long nextExecution = 1;
     private int activeTicks;
     private Consumer<TaskLogEvent> diagnostics = event -> {};
+    private final DiagnosticClock clock;
+    private ExecutionTiming timing;
 
     public ActiveTaskController(IntSupplier timeoutSec) {
+        this(timeoutSec, DiagnosticClock.system());
+    }
+
+    public ActiveTaskController(IntSupplier timeoutSec, DiagnosticClock clock) {
         this.timeoutSec = timeoutSec;
+        this.clock = clock == null ? DiagnosticClock.system() : clock;
     }
 
     public int allocateId(boolean emitEvents) {
@@ -92,7 +101,9 @@ public final class ActiveTaskController {
                 logContext,
                 execution);
         current = active;
-        diagnostics.accept(TaskLogEvents.startEvent(logContext, start.toolName()));
+        timing = ExecutionTiming.started(clock);
+        diagnostics.accept(
+                TaskLogEvents.startEvent(logContext, start.toolName(), java.util.Map.of("origin", start.origin())));
         try {
             task.start(context(start.taskContext(), active));
         } catch (RuntimeException e) {
@@ -110,6 +121,7 @@ public final class ActiveTaskController {
         activeTicks++;
         TaskStatus status;
         String summary = null;
+        long processingStart = clock.nanoTime();
         try {
             status = active.task().tick(activeContext);
         } catch (RuntimeException e) {
@@ -117,6 +129,7 @@ public final class ActiveTaskController {
             status = TaskStatus.FAILED;
             summary = "task crashed: " + e.getClass().getSimpleName();
         }
+        if (timing != null) timing.onTick(clock.nanoTime() - processingStart);
         if (current != active) return Optional.empty();
         if (status == TaskStatus.RUNNING) {
             int stallTicks = Math.max(20, active.timeoutSec() * 10);
@@ -143,8 +156,18 @@ public final class ActiveTaskController {
             summary = "timed out";
         }
         if (status == TaskStatus.RUNNING) return Optional.empty();
+        ExecutionTiming.Snapshot measured = timing == null ? null : timing.snapshot();
         diagnostics.accept(TaskLogEvents.finishEvent(
-                active.logContext(), active.toolName(), status.name().toLowerCase(Locale.ROOT)));
+                active.logContext(),
+                active.toolName(),
+                status.name().toLowerCase(Locale.ROOT),
+                measured == null ? -1L : measured.wallMs(),
+                measured == null
+                        ? java.util.Map.of()
+                        : java.util.Map.of(
+                                "activeTicks", Long.toString(measured.activeTicks()),
+                                "heldTicks", Long.toString(measured.heldTicks()),
+                                "tickNanos", Long.toString(measured.tickNanos()))));
         current = null;
         release(active.task(), activeContext, "terminal");
         return Optional.of(new Completion(active, status, summary));
@@ -213,9 +236,15 @@ public final class ActiveTaskController {
         frozenElapsed = 0;
     }
 
+    /** One runner tick observed under an explicit hold; it does not advance the task's active work. */
+    public void recordHoldTick() {
+        if (timing != null) timing.onHoldTick();
+    }
+
     public void reset() {
         current = null;
         clearFrozen();
+        timing = null;
         activeTicks = 0;
     }
 
