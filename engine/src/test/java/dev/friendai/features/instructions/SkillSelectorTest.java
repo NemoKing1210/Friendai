@@ -82,6 +82,16 @@ class SkillSelectorTest {
     }
 
     @Test
+    void aRussianBuildRequestSelectsSmartPlanning() {
+        var builtins = BuiltinSkills.load(getClass().getClassLoader());
+        var context = context(AccessLevel.OWNER, "Сделай мне и себе каменные инструменты");
+        var selected = SkillSelector.select(builtins, context, Set.of(), 24000, 2400);
+        assertTrue(
+                selected.skills().stream().anyMatch(s -> s.id().equals("builtin:smart-planning")),
+                selected.skills().stream().map(InstructionSkill::id).toList().toString());
+    }
+
+    @Test
     void rankingAndSmallBudgetAreDeterministic() {
         var a = skill("owner:a", true, false, "A".repeat(500));
         var z = skill("owner:z", true, true, "Small instruction.");

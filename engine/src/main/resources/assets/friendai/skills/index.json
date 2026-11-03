@@ -4,9 +4,22 @@
     "name": "Smart planning",
     "description": "When planning work, inspect facts and order concrete steps.",
     "turnKinds": [
-      "planning"
+      "planning",
+      "chat"
     ],
-    "triggers": [],
+    "triggers": [
+      "make",
+      "craft",
+      "build",
+      "gather",
+      "collect",
+      "сделай",
+      "сделать",
+      "создай",
+      "построй",
+      "добудь",
+      "изготовь"
+    ],
     "alwaysOn": false,
     "includeProfile": false
   },
