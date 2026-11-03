@@ -20,6 +20,56 @@ import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Blocks;
 
 public final class ResourceJourneyTests {
+    @GameTest(maxTicks = 600)
+    public void aVisitThatFindsNothingForgetsTheSite(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 500, 32);
+        var owner = GameTestSupport.mockPlayerAt(h, 2, 501, 2);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 501, 2);
+        companion.setOwner(owner.getUUID());
+        var state = GameTestSupport.runtime(h.getLevel().getServer());
+        dev.friendai.entity.CompanionManager.get(h.getLevel().getServer()).register(companion);
+        state.observations().register(companion);
+        String dimension = h.getLevel().dimension().identifier().toString();
+        var ore = h.absolutePos(new net.minecraft.core.BlockPos(10, 501, 2));
+        var viewpoint = h.absolutePos(new net.minecraft.core.BlockPos(2, 501, 2));
+        long observed = Math.max(0, h.getLevel().getGameTime() - 1);
+        // Only the memory exists: no coal block was placed, so the visit has nothing to see.
+        long siteId = state.knowledge()
+                .book(owner.getUUID())
+                .observe(
+                        new ResourceObservation(
+                                "minecraft:coal_ore",
+                                new ResourceObservation.Location(
+                                        dimension, new Pos(ore.getX(), ore.getY(), ore.getZ())),
+                                new Pos(viewpoint.getX(), viewpoint.getY(), viewpoint.getZ()),
+                                observed),
+                        "minecraft:coal_ore");
+        h.assertTrue(
+                state.knowledge()
+                        .book(owner.getUUID())
+                        .site(siteId, h.getLevel().getGameTime() + 1)
+                        .map(site -> !site.members().isEmpty())
+                        .orElse(false),
+                "the remembered site should exist before the visit");
+
+        Result result = new Result();
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 600, () -> false);
+        runner.setEventSink(result);
+        runner.start(new VisitResourceTask(siteId, dimension, 400), "visit_resource");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(
+                    result.status != null && result.status != TaskStatus.RUNNING, "waiting for the visit to finish");
+            h.assertTrue(result.status == TaskStatus.FAILED, "an empty site must fail the visit: " + result.status);
+            var site = state.knowledge()
+                    .book(owner.getUUID())
+                    .site(siteId, h.getLevel().getGameTime() + 1);
+            h.assertTrue(
+                    site.map(candidate -> candidate.members().isEmpty()).orElse(true),
+                    "the site must be forgotten after a visit found nothing: " + site);
+        });
+    }
+
     private static final class Result implements TaskEventSink {
         TaskStatus status;
         String summary;

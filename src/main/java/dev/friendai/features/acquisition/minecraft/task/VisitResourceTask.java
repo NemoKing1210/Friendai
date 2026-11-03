@@ -94,6 +94,17 @@ public final class VisitResourceTask implements Task {
         if (journey != null) journey.stop(c);
     }
 
+    /**
+     * A visit exists to prove the remembered blocks are still there. Once it has proved the opposite, the site
+     * is forgotten so the next plan does not tour the same empty place again.
+     */
+    @Override
+    public void onTerminal(TaskContext c) {
+        if (result == ResourceCandidates.Verification.ABSENT || result == ResourceCandidates.Verification.OCCLUDED) {
+            c.resources().confirmAbsent(c.companion(), siteId);
+        }
+    }
+
     @Override
     public String describe() {
         return "visiting remembered resource site " + siteId;

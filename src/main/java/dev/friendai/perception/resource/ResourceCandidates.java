@@ -366,6 +366,20 @@ public final class ResourceCandidates {
         return Verification.PENDING;
     }
 
+    /**
+     * Forgets a site's exact members after a visit proved the blocks are no longer there. The site and any
+     * remaining members stay in the book, so a partly mined outcrop keeps the blocks that were not checked.
+     */
+    public void confirmAbsent(CompanionEntity companion, long siteId) {
+        if (companion.ownerUuid() == null || !(companion.level() instanceof ServerLevel level)) return;
+        ResourceKnowledge book = knowledge.book(companion.ownerUuid());
+        ResourceSite site = book.site(siteId, logicalTick(level)).orElse(null);
+        if (site == null) return;
+        long tick = logicalTick(level);
+        String dimension = level.dimension().identifier().toString();
+        site.members().forEach(pos -> book.confirmAbsent(new ResourceObservation.Location(dimension, pos), tick));
+    }
+
     public java.util.Optional<ResourceSite> site(CompanionEntity companion, long siteId) {
         if (companion.ownerUuid() == null || !(companion.level() instanceof ServerLevel level))
             return java.util.Optional.empty();
