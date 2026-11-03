@@ -841,8 +841,7 @@ public class StorageTests {
                 ContainerAccess.canonicalChest(h.getLevel(), single).equals(single),
                 "a single chest must keep its own position");
         h.assertTrue(
-                ContainerAccess.canonicalChest(h.getLevel(), merged)
-                        .equals(h.absolutePos(new BlockPos(3, 2, 3))),
+                ContainerAccess.canonicalChest(h.getLevel(), merged).equals(h.absolutePos(new BlockPos(3, 2, 3))),
                 "a merged chest must use the lower half");
         h.succeed();
     }
@@ -858,13 +857,19 @@ public class StorageTests {
         c.setOwner(java.util.UUID.randomUUID());
         Result result = new Result();
         ExecutionCoordinator runner = runner(c, result);
-        runner.start(new MoveItemsTask(matcher("minecraft:iron_ingot"), 7,
-                h.absolutePos(new BlockPos(3, 2, 3)), h.absolutePos(new BlockPos(12, 2, 12))), "move_items");
+        runner.start(
+                new MoveItemsTask(
+                        matcher("minecraft:iron_ingot"),
+                        7,
+                        h.absolutePos(new BlockPos(3, 2, 3)),
+                        h.absolutePos(new BlockPos(12, 2, 12))),
+                "move_items");
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.FAILED, "not failed: " + result.status + " " + result.summary);
             h.assertTrue(containerAt(h, 3, 2, 3).getItem(0).getCount() == 10, "the source must get every item back");
-            h.assertTrue(result.summary.contains("went back to the source"),
+            h.assertTrue(
+                    result.summary.contains("went back to the source"),
                     "the summary must name the returned items: " + result.summary);
             h.assertTrue(result.summary.contains("7"), "the summary must name the count: " + result.summary);
         });
@@ -879,12 +884,18 @@ public class StorageTests {
         c.setOwner(java.util.UUID.randomUUID());
         Result result = new Result();
         ExecutionCoordinator runner = runner(c, result);
-        runner.start(new MoveItemsTask(matcher("minecraft:iron_ingot"), 7,
-                h.absolutePos(new BlockPos(3, 2, 3)), h.absolutePos(new BlockPos(12, 2, 12))), "move_items");
+        runner.start(
+                new MoveItemsTask(
+                        matcher("minecraft:iron_ingot"),
+                        7,
+                        h.absolutePos(new BlockPos(3, 2, 3)),
+                        h.absolutePos(new BlockPos(12, 2, 12))),
+                "move_items");
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.FAILED, "not failed: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.contains("no storage container"),
+            h.assertTrue(
+                    result.summary.contains("no storage container"),
                     "the refusal must name the missing target: " + result.summary);
         });
     }

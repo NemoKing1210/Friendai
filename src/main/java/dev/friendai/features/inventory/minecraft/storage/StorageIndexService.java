@@ -126,7 +126,6 @@ public final class StorageIndexService implements StorageAccess {
         return index;
     }
 
-
     /** Maps one knowledge observation to the query record; legacy slot-less rows read as unknown capacity. */
     static ContainerRecord toRecord(ResourceKnowledge.ContainerObservation observation) {
         int total = observation.slotsTotal() > 0 ? observation.slotsTotal() : 27;

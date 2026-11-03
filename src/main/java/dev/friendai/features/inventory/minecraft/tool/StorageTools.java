@@ -195,22 +195,10 @@ public final class StorageTools implements FeatureToolContributor {
 
     private static ToolMeta metadata(String name) {
         if (name.equals("move_items")) {
-            return new ToolMeta(
-                    name,
-                    ToolGroup.STORAGE,
-                    false,
-                    "",
-                    List.of(),
-                    Cost.MEDIUM);
+            return new ToolMeta(name, ToolGroup.STORAGE, false, "", List.of(), Cost.MEDIUM);
         }
         if (name.equals("find_stored_item")) {
-            return new ToolMeta(
-                    name,
-                    ToolGroup.STORAGE,
-                    false,
-                    "",
-                    List.of(),
-                    Cost.LOW);
+            return new ToolMeta(name, ToolGroup.STORAGE, false, "", List.of(), Cost.LOW);
         }
         String hint = name.equals("store_items")
                 ? "- When the player says to store it again in the container you placed, pass placed:true; it uses the nearest container from your placement record."
