@@ -57,7 +57,7 @@ public final class StoreItemsTask extends ContainerTaskBase {
         if (placed) {
             return context.placedService().nearestContainer(context.companion(), NEAR_PLACED_RADIUS);
         }
-        return ContainerAccess.nearest(context, RADIUS);
+        return context.storage().storeTarget(context.companion()).or(() -> ContainerAccess.nearest(context, RADIUS));
     }
 
     @Override
@@ -98,6 +98,7 @@ public final class StoreItemsTask extends ContainerTaskBase {
         }
         inventory.setChanged();
         container.setChanged();
+        ContainerAccess.recordContents(c, containerPos, container);
 
         if (stored.isEmpty()) {
             summary = "the " + ContainerAccess.shortLabel(c.level(), containerPos) + " at " + coords() + " is full";

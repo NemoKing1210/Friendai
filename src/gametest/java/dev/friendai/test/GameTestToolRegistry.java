@@ -42,7 +42,8 @@ final class GameTestToolRegistry {
                 ignored -> sessions.freeTime(),
                 candidate -> searchHintLine(state, candidate),
                 state.placeService(),
-                state.placedService());
+                state.placedService(),
+                state.storage());
         return FriendaiTools.build(
                         radius,
                         radius,

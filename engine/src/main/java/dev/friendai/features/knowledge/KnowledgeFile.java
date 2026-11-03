@@ -401,16 +401,35 @@ public final class KnowledgeFile {
         private int x, y, z;
         private Map<String, Integer> items = new LinkedHashMap<>();
         private long observedTick;
+        private String kind;
+        private int used;
+        private int total;
 
         public ContainerRecord() {}
 
         ContainerRecord(String dimension, int x, int y, int z, Map<String, Integer> items, long observedTick) {
+            this(dimension, x, y, z, items, observedTick, "", 0, 0);
+        }
+
+        ContainerRecord(
+                String dimension,
+                int x,
+                int y,
+                int z,
+                Map<String, Integer> items,
+                long observedTick,
+                String kind,
+                int used,
+                int total) {
             this.dimension = dimension;
             this.x = x;
             this.y = y;
             this.z = z;
             this.items = new LinkedHashMap<>(items);
             this.observedTick = observedTick;
+            this.kind = kind;
+            this.used = used;
+            this.total = total;
         }
 
         public String dimension() {
@@ -435,6 +454,18 @@ public final class KnowledgeFile {
 
         public long observedTick() {
             return observedTick;
+        }
+
+        public String kind() {
+            return kind == null ? "" : kind;
+        }
+
+        public int used() {
+            return used;
+        }
+
+        public int total() {
+            return total;
         }
     }
 

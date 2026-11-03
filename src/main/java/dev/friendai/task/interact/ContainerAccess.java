@@ -18,9 +18,12 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.Container;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.ChestBlock;
 import net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.HopperBlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.ChestType;
 import net.minecraft.world.level.chunk.LevelChunk;
 
 /** Storage containers the companion may use: chests (double chests merged), barrels, shulker boxes. */
@@ -134,17 +137,58 @@ public final class ContainerAccess {
         CompanionEntity companion = context.companion();
         if (companion.ownerUuid() == null) return;
         Map<String, Integer> items = new LinkedHashMap<>();
+        int used = 0;
         for (int slot = 0; slot < container.getContainerSize(); slot++) {
             ItemStack stack = container.getItem(slot);
-            if (!stack.isEmpty())
+            if (!stack.isEmpty()) {
+                used++;
                 items.merge(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString(), stack.getCount(), Integer::sum);
+            }
         }
+        BlockPos canonical = canonicalChest(level, pos);
         var location = new ResourceObservation.Location(
-                level.dimension().identifier().toString(), new Pos(pos.getX(), pos.getY(), pos.getZ()));
+                level.dimension().identifier().toString(),
+                new Pos(canonical.getX(), canonical.getY(), canonical.getZ()));
         long tick = level.getServer().overworld().getGameTime();
         ResourceKnowledge book = context.ownerKnowledge();
         book.invalidateContainer(location);
-        book.recordContainer(new ResourceKnowledge.ContainerObservation(location, items, tick));
+        book.recordContainer(new ResourceKnowledge.ContainerObservation(
+                location, items, tick, shortLabel(level, canonical), used, container.getContainerSize()));
+    }
+
+    /**
+     * The half of a double chest with the lower x, then the lower z; a single chest keeps its own position.
+     */
+    public static BlockPos canonicalChest(ServerLevel level, BlockPos position) {
+        BlockState origin = level.getBlockState(position);
+        if (!(origin.getBlock() instanceof ChestBlock)
+                || origin.getValue(ChestBlock.TYPE) == ChestType.SINGLE) return position;
+        BlockPos connected = ChestBlock.getConnectedBlockPos(position, origin);
+        if (connected.equals(position)) return position;
+        return canonicalChest(position, candidate -> {
+            if (!candidate.equals(connected)) return false;
+            BlockState other = level.getBlockState(candidate);
+            return other.getBlock() instanceof ChestBlock && other.getValue(ChestBlock.TYPE) != ChestType.SINGLE;
+        });
+    }
+
+    public static BlockPos canonicalChest(BlockPos position, Predicate<BlockPos> otherHalfAt) {
+        for (BlockPos candidate : List.of(position.west(), position.east(), position.north(), position.south())) {
+            if (otherHalfAt.test(candidate)) {
+                return lower(position, candidate);
+            }
+        }
+        return position;
+    }
+
+    private static BlockPos lower(BlockPos left, BlockPos right) {
+        if (left.getX() != right.getX()) {
+            return left.getX() < right.getX() ? left : right;
+        }
+        if (left.getZ() != right.getZ()) {
+            return left.getZ() < right.getZ() ? left : right;
+        }
+        return left;
     }
 
     /** Inserts as much of the stack as fits, with vanilla rules; returns the leftover. */

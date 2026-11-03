@@ -141,6 +141,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
             dev.friendai.features.trading.minecraft.tool.TradingToolAccess tradingToolAccess,
             TrustAccess trustAccess,
             dev.friendai.features.knowledge.search.SearchHintStore searchHints,
+            dev.friendai.features.inventory.minecraft.storage.StorageIndexService storage,
             dev.friendai.foundation.diagnostics.LogSink fileLog) {
         this.server = server;
         this.scheduler = new ServerBrainScheduler(server);
@@ -276,7 +277,8 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                         this::searchHintLine,
                         placeService,
                         placedService,
-                        selfAccess),
+                        selfAccess,
+                        storage),
                 () -> settings.get().tasks().mineCollectDrops(),
                 () -> settings.get().tasks().fellCollectDrops());
         this.tools = builtins.registry();

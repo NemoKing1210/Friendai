@@ -2,6 +2,7 @@ package dev.friendai.server.agent.tools;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.instructions.minecraft.tool.SkillToolAccess;
+import dev.friendai.features.inventory.minecraft.storage.StorageAccess;
 import dev.friendai.features.memory.CompanionProfileRepository;
 import dev.friendai.features.memory.minecraft.tool.MemoryAccess;
 import dev.friendai.features.memory.minecraft.tool.SelfAccess;
@@ -31,7 +32,8 @@ public record ToolDependencies(
         Function<CompanionEntity, String> searchHintLine,
         PlaceService places,
         PlacedService placed,
-        SelfAccess self) {
+        SelfAccess self,
+        StorageAccess storage) {
     public ToolDependencies(
             MemoryAccess memory,
             CompanionProfileRepository profiles,
@@ -60,7 +62,8 @@ public record ToolDependencies(
                 searchHintLine,
                 places,
                 placed,
-                SelfAccess.DISABLED);
+                SelfAccess.DISABLED,
+                StorageAccess.UNAVAILABLE);
     }
 
     public ToolDependencies(
@@ -91,6 +94,39 @@ public record ToolDependencies(
                 PlacedService.unavailable());
     }
 
+    public ToolDependencies(
+            MemoryAccess memory,
+            CompanionProfileRepository profiles,
+            Function<CompanionEntity, PerceptionContext> perceptionContext,
+            Function<CompanionEntity, ResourceCandidates> resourceCandidates,
+            TradingToolAccess trading,
+            QueueToolAccess queue,
+            GoalToolAccess goals,
+            Function<CompanionEntity, SkillToolAccess> skills,
+            Function<CompanionEntity, TrustAccess> trust,
+            Function<CompanionEntity, FreeTimeDriver> freeTime,
+            Function<CompanionEntity, String> searchHintLine,
+            PlaceService places,
+            PlacedService placed,
+            StorageAccess storage) {
+        this(
+                memory,
+                profiles,
+                perceptionContext,
+                resourceCandidates,
+                trading,
+                queue,
+                goals,
+                skills,
+                trust,
+                freeTime,
+                searchHintLine,
+                places,
+                placed,
+                SelfAccess.DISABLED,
+                storage);
+    }
+
     public ToolDependencies {
         Objects.requireNonNull(memory);
         Objects.requireNonNull(profiles);
@@ -106,5 +142,6 @@ public record ToolDependencies(
         Objects.requireNonNull(places);
         Objects.requireNonNull(placed);
         Objects.requireNonNull(self);
+        Objects.requireNonNull(storage);
     }
 }

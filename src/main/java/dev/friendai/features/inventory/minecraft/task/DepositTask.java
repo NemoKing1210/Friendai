@@ -10,6 +10,9 @@ import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.features.places.Place;
 import dev.friendai.features.places.PlaceKind;
 import dev.friendai.features.places.PlaceQuery;
+import dev.friendai.features.storage.ContainerRecord;
+import dev.friendai.features.storage.StorageKey;
+import dev.friendai.features.storage.StorageTargets;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
@@ -17,6 +20,7 @@ import dev.friendai.task.interact.ContainerAccess;
 import dev.friendai.task.inventory.KeepPolicy;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -142,10 +146,10 @@ public final class DepositTask implements Task {
         BlockPos anchor = new BlockPos(
                 place.anchor().x(), place.anchor().y(), place.anchor().z());
         int r = place.radius();
-        containers = ContainerAccess.all(c.level(), anchor, r * 2).stream()
+        List<BlockPos> found = ContainerAccess.all(c.level(), anchor, r * 2).stream()
                 .filter(pos -> place.contains(new Pos(pos.getX(), pos.getY(), pos.getZ())))
-                .limit(MAX_CONTAINERS)
                 .toList();
+        containers = orderByIndex(c, found).stream().limit(MAX_CONTAINERS).toList();
         if (containers.isEmpty()) {
             return Optional.of("no chest or barrel at " + place.name());
         }
@@ -161,6 +165,47 @@ public final class DepositTask implements Task {
                 .stream()
                 .findFirst()
                 .map(PlaceQuery.Result::place);
+    }
+
+    private List<BlockPos> orderByIndex(TaskContext c, List<BlockPos> found) {
+        if (found.isEmpty()) {
+            return List.of();
+        }
+        CompanionEntity companion = c.companion();
+        String dimension = c.level().dimension().identifier().toString();
+        Map<StorageKey, BlockPos> byKey = new LinkedHashMap<>();
+        for (BlockPos pos : found) {
+            BlockPos canonical = ContainerAccess.canonicalChest(c.level(), pos);
+            byKey.put(new StorageKey(dimension, canonical.getX(), canonical.getY(), canonical.getZ()), pos);
+        }
+        Set<String> ids = depositableIds(c);
+        List<ContainerRecord> recorded = c.storage().records(companion).stream()
+                .filter(record -> byKey.containsKey(record.key()))
+                .toList();
+        BlockPos origin = companion.blockPosition();
+        List<BlockPos> ordered = new ArrayList<>();
+        for (ContainerRecord record :
+                StorageTargets.depositOrder(recorded, dimension, ids, origin.getX(), origin.getY(), origin.getZ())) {
+            ordered.add(byKey.get(record.key()));
+        }
+        for (BlockPos pos : found) {
+            if (!ordered.contains(pos)) {
+                ordered.add(pos);
+            }
+        }
+        return ordered;
+    }
+
+    private Set<String> depositableIds(TaskContext c) {
+        Set<String> ids = new LinkedHashSet<>();
+        SimpleContainer bag = c.companion().inventory();
+        for (Integer slot : depositable(c).keySet()) {
+            ItemStack stack = bag.getItem(slot);
+            if (!stack.isEmpty()) {
+                ids.add(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString());
+            }
+        }
+        return ids;
     }
 
     private void visit(TaskContext c, BlockPos pos) {

@@ -75,6 +75,7 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
     private final SocialMemoryStore socialMemoryStore;
     private final TerrainStore terrainStore;
     private final TerrainSamplerService terrainSampler;
+    private final dev.friendai.features.inventory.minecraft.storage.StorageIndexService storageService;
     private final SkillService skills;
     private final GoalService goals;
     private final dev.friendai.agent.autonomy.FreeTimeService freeTime;
@@ -156,6 +157,8 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
                 server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("knowledge"),
                 KnowledgeLimits.DEFAULTS,
                 writer));
+        this.storageService = new dev.friendai.features.inventory.minecraft.storage.StorageIndexService(
+                owner -> knowledge.book(owner), () -> dev.friendai.features.storage.StorageLimits.DEFAULTS);
         this.places = resources.own(new PlaceStore(
                 server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("places"),
                 PlaceLimits.DEFAULTS,
@@ -210,6 +213,7 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
                 this,
                 this,
                 searchHints,
+                storageService,
                 fileLog));
         fileLog.updateRedactor(sessions.redactor());
         this.taskPersistence = new TaskPersistenceCoordinator(
@@ -300,6 +304,10 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
 
     public TerrainStore terrainStore() {
         return terrainStore;
+    }
+
+    public dev.friendai.features.inventory.minecraft.storage.StorageIndexService storage() {
+        return storageService;
     }
 
     public TerrainSamplerService terrainSampler() {
