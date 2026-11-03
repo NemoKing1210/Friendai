@@ -135,7 +135,8 @@ class FeatureToolRegistryTest {
         ToolRegistry<CompanionEntity> tools = new ToolRegistry<>();
         FeatureToolRegistry registry = new FeatureToolRegistry(tools, FeatureToolRegistryTest::taskTool);
         new InventoryTools().register(registry);
-        new StorageTools().register(registry);
+        new StorageTools(dev.friendai.features.inventory.minecraft.storage.StorageAccess.UNAVAILABLE)
+                .register(registry);
 
         Set<String> expectedNames = Set.of(
                 "get_inventory",
@@ -147,7 +148,8 @@ class FeatureToolRegistryTest {
                 "store_items",
                 "take_items",
                 "check_container",
-                "deposit_items");
+                "deposit_items",
+                "find_stored_item");
         Set<String> taskNames = Set.of(
                 "give_items",
                 "drop_items",

@@ -199,6 +199,10 @@ public final class ServerRuntime implements AutoCloseable {
         return services.terrainStore();
     }
 
+    public dev.friendai.features.inventory.minecraft.storage.StorageIndexService storage() {
+        return services.storage();
+    }
+
     public ResourceCandidates resourceCandidates() {
         return services.resources();
     }

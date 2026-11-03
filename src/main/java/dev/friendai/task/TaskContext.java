@@ -220,6 +220,10 @@ public record TaskContext(
         return runtime().placedService();
     }
 
+    public dev.friendai.features.inventory.minecraft.storage.StorageIndexService storage() {
+        return runtime().storage();
+    }
+
     public TradeStore trading() {
         return runtime().trading();
     }

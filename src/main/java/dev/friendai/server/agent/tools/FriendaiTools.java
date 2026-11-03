@@ -136,7 +136,7 @@ public final class FriendaiTools {
                 new SurvivalTools(),
                 new AnimalTools(),
                 new PlaceTools(dependencies.places()),
-                new StorageTools(),
+                new StorageTools(dependencies.storage()),
                 new CraftingTools(),
                 new BlockInfoTools(mineRadius, treeRadius, dependencies.resourceCandidates(), dependencies.places()),
                 new PlacedTools(dependencies.placed()),

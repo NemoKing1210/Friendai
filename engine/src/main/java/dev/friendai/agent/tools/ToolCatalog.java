@@ -156,6 +156,13 @@ public final class ToolCatalog {
         group(metas, ToolGroup.INVENTORY, Cost.LOW, "give_items", "drop_items", "show_inventory", "equip_item");
         group(metas, ToolGroup.BUILDING, Cost.MEDIUM, "place_block", "use_block", "light_area", "clear_area");
         group(metas, ToolGroup.STORAGE, Cost.MEDIUM, "store_items", "take_items", "check_container", "deposit_items");
+        metas.add(new ToolMeta(
+                "find_stored_item",
+                ToolGroup.STORAGE,
+                false,
+                "- Use before take_items or store_items when you do not know which container holds the item.",
+                List.of(),
+                Cost.LOW));
         group(metas, ToolGroup.CRAFTING, Cost.MEDIUM, "craft_item", "get_recipe");
         group(metas, ToolGroup.COOKING, Cost.MEDIUM, "smelt_items", "cook_food", "collect_smelted");
         group(metas, ToolGroup.ENCHANT, Cost.MEDIUM, "enchant_item", "anvil_item", "grindstone_item");
