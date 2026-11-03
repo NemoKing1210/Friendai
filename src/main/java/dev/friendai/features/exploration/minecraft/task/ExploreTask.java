@@ -312,6 +312,12 @@ public final class ExploreTask implements Task {
         } else {
             summary = "no " + target.label() + " within " + maxRadius + " blocks";
         }
+        if (miningSession != null) {
+            String why = miningSession.debugReason();
+            if (!why.isBlank()) {
+                summary += " (" + why + ")";
+            }
+        }
         return TaskStatus.FAILED;
     }
 

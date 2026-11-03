@@ -60,6 +60,36 @@ public final class ResourceSearchTests {
         });
     }
 
+    @GameTest(maxTicks = 200)
+    public void aMineFailureNamesTheLegReason(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        var owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.setOwner(owner.getUUID());
+        companion.inventory().setItem(0, Items.WOODEN_PICKAXE.getDefaultInstance());
+        for (int x = 1; x <= 3; x++) {
+            for (int z = 1; z <= 3; z++) {
+                if (x == 2 && z == 2) continue;
+                h.setBlock(x, 2, z, Blocks.BEDROCK);
+                h.setBlock(x, 3, z, Blocks.BEDROCK);
+            }
+        }
+        h.setBlock(2, 4, 2, Blocks.BEDROCK);
+        Result result = new Result();
+        companion.executionCoordinator().setEventSink(result);
+        var started = GameTestToolRegistry.create(companion, () -> 16, MemoryAccess.DISABLED)
+                .bind(companion)
+                .execute(
+                        searchCall("minecraft:stone", "mine", "local"),
+                        new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
+        h.assertTrue(!started.error(), started.content());
+        h.succeedWhen(() -> {
+            h.assertTrue(result.status != null, "mine failure should finish");
+            h.assertTrue(result.status == TaskStatus.FAILED, "status " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.contains("dug ") || result.summary.contains("why="), result.summary);
+        });
+    }
+
     @GameTest(maxTicks = 40)
     public void trustedCannotEscalateToExpedition(GameTestHelper h) {
         GameTestSupport.platform(h, 12);

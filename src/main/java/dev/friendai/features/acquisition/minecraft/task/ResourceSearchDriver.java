@@ -9,6 +9,7 @@ import dev.friendai.features.acquisition.minecraft.search.SearchFrontierFacts;
 import dev.friendai.features.acquisition.minecraft.search.SearchTargets;
 import dev.friendai.features.knowledge.search.ResourceSearchProfile;
 import dev.friendai.features.knowledge.search.SearchCoverage;
+import dev.friendai.features.knowledge.search.SearchFailureText;
 import dev.friendai.features.knowledge.search.SearchHint;
 import dev.friendai.features.knowledge.search.SearchPlanner;
 import dev.friendai.features.knowledge.search.SearchSession;
@@ -475,12 +476,13 @@ public final class ResourceSearchDriver implements Task {
                 return TaskStatus.RUNNING;
             }
             if (miningStatus == TaskStatus.RUNNING) return TaskStatus.RUNNING;
+            String legSummary = miningSearch.resultSummary();
             miningSearch.stop(context);
             miningSearch = null;
             found = miningStatus == TaskStatus.SUCCESS && targetFound(context);
             session.advance(input(context, null, SearchSession.LegOutcome.ARRIVED, found, 0));
             if (!found) {
-                summary = diagnostic("guarded mining leg ended without current visible evidence for " + target.label());
+                summary = diagnostic(SearchFailureText.miningLeg(target.label(), legSummary, ""));
                 session.advance(input(context, null, SearchSession.LegOutcome.NONE, false, 0));
                 session.advance(input(context, null, SearchSession.LegOutcome.NONE, false, 0));
                 session.advance(input(context, null, SearchSession.LegOutcome.NONE, false, 0));
