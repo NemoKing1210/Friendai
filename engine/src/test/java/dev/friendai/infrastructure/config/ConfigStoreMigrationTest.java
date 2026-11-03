@@ -248,4 +248,16 @@ class ConfigStoreMigrationTest {
         assertEquals(8 * 1024 * 1024 + 1, Files.size(file()));
         assertTrue(backups().isEmpty());
     }
+
+    @Test
+    void aVersion21RecordGainsTheStorageDefaults() throws Exception {
+        Path file = dir.resolve("friendai-server.json");
+        Files.writeString(file, "{\"version\":21,\"activeProfile\":\"custom\"}");
+        ServerConfig loaded = ConfigStores.server(file).load();
+        assertEquals(22, loaded.version);
+        assertEquals("custom", loaded.activeProfile);
+        assertEquals(256, loaded.storage.maxContainers);
+        assertEquals(64, loaded.storage.maxKindsPerContainer);
+        assertEquals(24_000, loaded.storage.staleAfterTicks);
+    }
 }
