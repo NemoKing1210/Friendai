@@ -20,6 +20,31 @@ class PlanPatchPolicyTest {
     }
 
     @Test
+    void aFlatFailedStepIsPatchable() {
+        JobQueue queue = new JobQueue(QueueLimits.DEFAULTS);
+        long plan = queue.addPlan("p", List.of(step()), PlanOptions.DEFAULT).planId();
+        long job = queue.jobsOfPlan(plan).getFirst().id();
+        queue.fail(job, "no route");
+        assertTrue(PlanPatchPolicy.reject(queue, job).isEmpty());
+        var replaced = queue.replace(job, List.of(step()));
+        assertTrue(replaced.ok(), replaced.text());
+        assertTrue(queue.plans().stream().anyMatch(p -> p.id() == plan), "the plan must stay active");
+        assertTrue(
+                queue.jobsOfPlan(plan).stream().anyMatch(j -> j.state() == JobState.PENDING),
+                "the replacement must be pending");
+    }
+
+    @Test
+    void aFailedStructuredStepStaysProtected() {
+        JobQueue queue = new JobQueue(QueueLimits.DEFAULTS);
+        var definition = new PlanDefinition(List.of(new PlanNode.Action(step())));
+        long plan = queue.addStructuredPlan("p", definition, PlanOptions.DEFAULT);
+        long job = queue.addJob(plan, step()).id();
+        queue.fail(job, "no route");
+        assertTrue(PlanPatchPolicy.reject(queue, job).orElseThrow().contains("terminal"));
+    }
+
+    @Test
     void anActiveStructuredFrameIsNotRewrittenBehindTheCursor() {
         JobQueue queue = new JobQueue(QueueLimits.DEFAULTS);
         var definition = new PlanDefinition(List.of(new PlanNode.Action(step())));

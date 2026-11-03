@@ -96,6 +96,7 @@ class QueueToolsTest {
 
         String failed = QueueTools.updateRefusal(job(8, 3, JobState.FAILED));
         assertTrue(failed.contains("failed"), failed);
+        assertTrue(failed.contains("retry it first, then update"), failed);
         assertTrue(failed.contains("action=replace") && failed.contains("plan #3"), failed);
         assertFalse(failed.contains("cancel plan"), failed);
     }

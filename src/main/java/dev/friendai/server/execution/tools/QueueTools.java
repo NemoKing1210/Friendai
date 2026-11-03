@@ -888,10 +888,11 @@ public final class QueueTools implements FeatureToolContributor {
                     + " Cancel the plan only if the goal itself changed.";
         }
         if (job.state() == JobState.FAILED || job.state() == JobState.CANCELLED) {
-            return "job #" + job.id() + " is " + state + "; use queue_edit action=retry to run it again"
+            return "job #" + job.id() + " is " + state + "; retry it first, then update its arguments"
                     + (planId > 0
-                            ? " or action=replace with corrected steps to fix this job and keep plan #" + planId + "."
-                            : " or action=replace with corrected steps.");
+                            ? ", or use queue_edit action=replace in place to fix this job and keep plan #" + planId
+                                    + "."
+                            : ", or use queue_edit action=replace in place.");
         }
         return "job #" + job.id() + " is " + state + "; only a pending job can be updated in place.";
     }
