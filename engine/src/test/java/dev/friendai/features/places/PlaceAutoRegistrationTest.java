@@ -189,14 +189,15 @@ class PlaceAutoRegistrationTest {
 
     @Test
     void aDigBelowTheThresholdEarnsNoMine() {
-        assertTrue(PlaceAutoRegistration.mineCandidate(8, 16, OVERWORLD, new Pos(8, 121, 5), 5, "minecraft:white_wool")
+        assertTrue(PlaceAutoRegistration.mineCandidate(
+                        8, 16, OVERWORLD, new Pos(8, 121, 5), new Pos(8, 121, 5), "minecraft:white_wool")
                 .isEmpty());
     }
 
     @Test
     void aDigExactlyAtTheThresholdEarnsAMine() {
         PlaceCandidate mine = PlaceAutoRegistration.mineCandidate(
-                        16, 16, OVERWORLD, new Pos(8, 121, 5), 5, "minecraft:white_wool")
+                        16, 16, OVERWORLD, new Pos(8, 121, 5), new Pos(8, 121, 5), "minecraft:white_wool")
                 .orElseThrow();
         assertEquals(PlaceKind.MINE, mine.kind());
         assertEquals(PlaceSource.MINE, mine.source());
@@ -206,7 +207,8 @@ class PlaceAutoRegistrationTest {
 
     @Test
     void aDigAboveTheThresholdEarnsAMine() {
-        assertTrue(PlaceAutoRegistration.mineCandidate(20, 16, OVERWORLD, new Pos(8, 121, 5), 5, "minecraft:white_wool")
+        assertTrue(PlaceAutoRegistration.mineCandidate(
+                        20, 16, OVERWORLD, new Pos(8, 121, 5), new Pos(8, 121, 5), "minecraft:white_wool")
                 .isPresent());
     }
 
@@ -218,29 +220,49 @@ class PlaceAutoRegistrationTest {
     }
 
     @Test
-    void mineRadiusIsClampedToTheBoxAPlaceCovers() {
-        assertEquals(1, mineRadius(0));
-        assertEquals(5, mineRadius(5));
-        assertEquals(Place.RADIUS_MAX, mineRadius(999));
+    void aMinePlaceCoversTheDugBoxNotTheSearchRadius() {
+        var candidate = PlaceAutoRegistration.mineCandidate(
+                        12, 8, OVERWORLD, new Pos(-2, 63, 43), new Pos(-2, 73, 43), "minecraft:stone")
+                .orElseThrow();
+        assertEquals(new Pos(-2, 68, 43), candidate.anchor());
+        assertEquals(1, candidate.radius());
+        assertEquals(5, candidate.below());
+        assertEquals(5, candidate.above());
+    }
+
+    @Test
+    void aWideDigGetsTheHalfExtentAndTheBand() {
+        var candidate = PlaceAutoRegistration.mineCandidate(
+                        40, 8, OVERWORLD, new Pos(0, 66, 0), new Pos(9, 70, 4), "#minecraft:logs")
+                .orElseThrow();
+        assertEquals(new Pos(4, 68, 2), candidate.anchor());
+        assertEquals(5, candidate.radius());
+        assertEquals(2, candidate.below());
+        assertEquals(2, candidate.above());
+    }
+
+    @Test
+    void aHugeDigClampsTheRadiusAndTheBand() {
+        var candidate = PlaceAutoRegistration.mineCandidate(
+                        500, 8, OVERWORLD, new Pos(0, 0, 0), new Pos(999, 500, 999), "minecraft:stone")
+                .orElseThrow();
+        assertEquals(Place.RADIUS_MAX, candidate.radius());
+        assertEquals(Place.RADIUS_MAX, candidate.below());
+        assertEquals(Place.RADIUS_MAX, candidate.above());
     }
 
     @Test
     void aDigWithoutADimensionEarnsNoMine() {
-        assertTrue(PlaceAutoRegistration.mineCandidate(16, 16, "  ", new Pos(8, 121, 5), 5, "minecraft:white_wool")
+        assertTrue(PlaceAutoRegistration.mineCandidate(
+                        16, 16, "  ", new Pos(8, 121, 5), new Pos(8, 121, 5), "minecraft:white_wool")
                 .isEmpty());
     }
 
     private static String mineLabel(String matcherLabel) {
-        return PlaceAutoRegistration.mineCandidate(16, 16, OVERWORLD, new Pos(8, 121, 5), 5, matcherLabel)
+        return PlaceAutoRegistration.mineCandidate(
+                        16, 16, OVERWORLD, new Pos(8, 121, 5), new Pos(8, 121, 5), matcherLabel)
                 .orElseThrow()
                 .label();
-    }
-
-    private static int mineRadius(int radius) {
-        return PlaceAutoRegistration.mineCandidate(
-                        16, 16, OVERWORLD, new Pos(8, 121, 5), radius, "minecraft:white_wool")
-                .orElseThrow()
-                .radius();
     }
 
     private static Place apply(

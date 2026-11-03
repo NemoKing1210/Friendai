@@ -176,8 +176,8 @@ public final class PlaceService {
             Place existing = outcome.decision() == PlaceAutoRegistration.Decision.UPDATE
                     ? book(companion).byId(outcome.targetId()).orElse(null)
                     : null;
-            int below = existing == null ? Place.defaultBelow(candidate.radius()) : existing.below();
-            int above = existing == null ? Place.defaultAbove(candidate.radius()) : existing.above();
+            int below = existing == null ? candidate.below() : existing.below();
+            int above = existing == null ? candidate.above() : existing.above();
             PlaceValues values = new PlaceValues(
                     outcome.name(),
                     candidate.kind(),

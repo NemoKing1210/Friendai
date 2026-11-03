@@ -82,23 +82,36 @@ public final class PlaceAutoRegistration {
 
     /**
      * The mine a finished dig earns, or empty when the dig was too small to be one ({@code mined} below
-     * {@code autoMinBlocks}) or nothing says where it happened. The label drops the tag marker and the namespace
-     * before humanizing, so {@code minecraft:oak_log} is "oak log" and {@code #minecraft:logs} is "logs"; the radius
-     * is the job's own search radius, kept within the box a place may cover.
+     * {@code autoMinBlocks}) or nothing says where it happened. The place covers the box actually dug: its anchor is
+     * the box centre, its radius the horizontal half-extent and its band the vertical one, all clamped to the box a
+     * place may cover. The label drops the tag marker and the namespace before humanizing, so
+     * {@code minecraft:oak_log} is "oak log" and {@code #minecraft:logs} is "logs".
      */
     public static Optional<PlaceCandidate> mineCandidate(
-            int mined, int autoMinBlocks, String dimension, Pos anchor, int radius, String matcherLabel) {
-        if (mined < autoMinBlocks || dimension == null || dimension.isBlank() || anchor == null) {
+            int mined, int autoMinBlocks, String dimension, Pos min, Pos max, String matcherLabel) {
+        if (mined < autoMinBlocks || dimension == null || dimension.isBlank() || min == null || max == null) {
             return Optional.empty();
         }
+        int minX = Math.min(min.x(), max.x());
+        int maxX = Math.max(min.x(), max.x());
+        int minY = Math.min(min.y(), max.y());
+        int maxY = Math.max(min.y(), max.y());
+        int minZ = Math.min(min.z(), max.z());
+        int maxZ = Math.max(min.z(), max.z());
+        int centreX = (minX + maxX) / 2;
+        int centreY = (minY + maxY) / 2;
+        int centreZ = (minZ + maxZ) / 2;
+        int radius = Math.clamp((Math.max(maxX - minX, maxZ - minZ) + 1) / 2, 1, Place.RADIUS_MAX);
         return Optional.of(new PlaceCandidate(
                 PlaceKind.MINE,
                 PlaceNames.humanize(stripNamespaceAndTag(matcherLabel)),
                 "",
                 dimension,
-                anchor,
-                Math.clamp(radius, 1, Place.RADIUS_MAX),
-                PlaceSource.MINE));
+                new Pos(centreX, centreY, centreZ),
+                radius,
+                PlaceSource.MINE,
+                Math.clamp(centreY - minY, 0, Place.RADIUS_MAX),
+                Math.clamp(maxY - centreY, 0, Place.RADIUS_MAX)));
     }
 
     /** {@code "#minecraft:logs"} and {@code "minecraft:oak_log"} become "logs" and "oak_log". */

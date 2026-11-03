@@ -75,8 +75,10 @@ public final class MineBlocksTask implements Task {
     private String summary = "";
     /** The last typed refusal, so a job that stops says what stopped it. */
     private MiningRefusal lastRefusal;
-    /** The first block this job actually broke; the anchor of the place it may be remembered as. */
-    private BlockPos firstMined;
+    /** The box this job actually broke; the place it may be remembered as covers exactly it. */
+    private BlockPos minMined;
+
+    private BlockPos maxMined;
     /** The dimension the job ran in, captured at start because a place candidate is built without a context. */
     private String dimension = "";
     /** {@code places.autoMineMinBlocks}, captured at start: a small dig is not a mine. */
@@ -280,7 +282,7 @@ public final class MineBlocksTask implements Task {
                 observationWaitTicks = 0;
                 breaker = null;
                 mined++;
-                rememberFirst(lastBroken);
+                rememberMined(lastBroken);
                 c.placedService().forget(c.companion(), lastBroken);
                 yield TaskStatus.RUNNING;
             }
@@ -360,7 +362,7 @@ public final class MineBlocksTask implements Task {
                 pendingObservation = lastBroken;
                 observationWaitTicks = 0;
                 mined++;
-                rememberFirst(lastBroken);
+                rememberMined(lastBroken);
                 c.placedService().forget(c.companion(), lastBroken);
                 miningSessionActive = false;
                 yield TaskStatus.RUNNING;
@@ -665,28 +667,39 @@ public final class MineBlocksTask implements Task {
     }
 
     /** The first block broken keeps the place anchored where the ore or stone was, not where the search started. */
-    private void rememberFirst(BlockPos minedBlock) {
-        if (firstMined == null) {
-            firstMined = minedBlock;
+    private void rememberMined(BlockPos minedBlock) {
+        if (minedBlock == null) {
+            return;
         }
+        minMined = minMined == null
+                ? minedBlock
+                : new BlockPos(
+                        Math.min(minMined.getX(), minedBlock.getX()),
+                        Math.min(minMined.getY(), minedBlock.getY()),
+                        Math.min(minMined.getZ(), minedBlock.getZ()));
+        maxMined = maxMined == null
+                ? minedBlock
+                : new BlockPos(
+                        Math.max(maxMined.getX(), minedBlock.getX()),
+                        Math.max(maxMined.getY(), minedBlock.getY()),
+                        Math.max(maxMined.getZ(), minedBlock.getZ()));
     }
 
     /**
-     * The dug-out site, only once the job was big enough to be a mine. Anchored on the requested origin when the call
-     * named one, else on the first block broken; the radius is the job's own search radius.
+     * The dug-out site, only once the job was big enough to be a mine. The place covers the box actually dug, not the
+     * radius the job searched in: a wide search is not a wide mine.
      */
     @Override
     public PlaceCandidate placeCandidate() {
-        BlockPos anchor = origin != null ? origin : firstMined;
-        if (anchor == null) {
+        if (minMined == null || maxMined == null) {
             return null;
         }
         return PlaceAutoRegistration.mineCandidate(
                         mined,
                         autoMinBlocks,
                         dimension,
-                        new Pos(anchor.getX(), anchor.getY(), anchor.getZ()),
-                        radius,
+                        new Pos(minMined.getX(), minMined.getY(), minMined.getZ()),
+                        new Pos(maxMined.getX(), maxMined.getY(), maxMined.getZ()),
                         matcher.label())
                 .orElse(null);
     }
