@@ -1,6 +1,7 @@
 package dev.friendai.server.execution;
 
 import dev.friendai.execution.log.ExecutionTiming;
+import dev.friendai.execution.log.TaskDiagnosticEpisode;
 import dev.friendai.execution.log.TaskLogEvent;
 import dev.friendai.execution.log.TaskLogEvents;
 import dev.friendai.execution.tool.Caller;
@@ -10,6 +11,9 @@ import dev.friendai.foundation.diagnostics.LogContext;
 import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
+import dev.friendai.task.TaskPhase;
+import dev.friendai.task.TaskProgress;
+import dev.friendai.task.TaskProgressThrottle;
 import dev.friendai.task.TaskStatus;
 import java.util.Locale;
 import java.util.Optional;
@@ -40,7 +44,9 @@ public final class ActiveTaskController {
             dev.friendai.task.ProgressWatch progress,
             LogContext logContext,
             long execution,
-            ExecutionTiming timing) {}
+            ExecutionTiming timing,
+            TaskProgressThrottle progressThrottle,
+            TaskDiagnosticEpisode episode) {}
 
     public record Completion(ActiveTask active, TaskStatus status, String summary) {}
 
@@ -83,6 +89,8 @@ public final class ActiveTaskController {
         long execution = allocateExecution();
         LogContext logContext = start.logContext().withExecution(execution, id, start.planId(), start.jobId());
         ExecutionTiming timing = ExecutionTiming.started(clock);
+        TaskProgressThrottle progressThrottle = new TaskProgressThrottle();
+        TaskDiagnosticEpisode episode = new TaskDiagnosticEpisode();
         ActiveTask active = new ActiveTask(
                 id,
                 start.jobId(),
@@ -101,7 +109,9 @@ public final class ActiveTaskController {
                 new dev.friendai.task.ProgressWatch(activeTicks),
                 logContext,
                 execution,
-                timing);
+                timing,
+                progressThrottle,
+                episode);
         current = active;
         diagnostics.accept(
                 TaskLogEvents.startEvent(logContext, start.toolName(), java.util.Map.of("origin", start.origin())));
@@ -144,11 +154,23 @@ public final class ActiveTaskController {
                             activeTicks,
                             stallTicks);
             if (progress == dev.friendai.task.ProgressWatch.Status.STALLED) {
+                diagnostics.accept(TaskLogEvents.snapshotEvent(
+                        active.logContext(),
+                        active.toolName(),
+                        "stalled",
+                        snapshotFacts(active, stallTicks, "stalled")));
                 safeStop(active.task(), activeContext, "no progress");
                 status = TaskStatus.FAILED;
                 String phase = active.task().debugStatus();
                 if (phase == null || phase.isBlank()) phase = active.task().describe();
                 summary = "no progress for " + Math.max(1, stallTicks / 20) + "s: " + phase;
+            } else if (progress == dev.friendai.task.ProgressWatch.Status.PROGRESS
+                    && active.episode().sample(activeTicks, active.task().progressStamp(), false, phaseOf(active))) {
+                diagnostics.accept(TaskLogEvents.snapshotEvent(
+                        active.logContext(),
+                        active.toolName(),
+                        "no_progress",
+                        snapshotFacts(active, stallTicks, "no_progress")));
             }
         }
         if (status == TaskStatus.RUNNING
@@ -229,7 +251,9 @@ public final class ActiveTaskController {
                 active.progress(),
                 active.logContext(),
                 active.execution(),
-                active.timing());
+                active.timing(),
+                active.progressThrottle(),
+                active.episode());
         frozenElapsed = 0;
         diagnostics.accept(TaskLogEvents.resumeEvent(active.logContext(), active.toolName()));
     }
@@ -265,6 +289,40 @@ public final class ActiveTaskController {
 
     public int activeTicks() {
         return activeTicks;
+    }
+
+    /** Publishes a throttled phase fact for the current activation; false when it says nothing new. */
+    public boolean reportPhase(TaskPhase phase, int percent, String reason, String detail, long stamp) {
+        ActiveTask active = current;
+        if (active == null || phase == null) return false;
+        TaskProgress event = active.progressThrottle()
+                .observe(active.id(), active.toolName(), phase, percent, detail, stamp, activeTicks);
+        if (event == null) return false;
+        diagnostics.accept(TaskLogEvents.phaseEvent(
+                active.logContext(), active.toolName(), event.phase(), event.percent(), reason, event.detail()));
+        return true;
+    }
+
+    /** Everything a pre-stop snapshot needs, collected before a stop/cleanup can clear the task. */
+    private java.util.Map<String, String> snapshotFacts(ActiveTask active, int stallTicks, String reason) {
+        ExecutionTiming.Snapshot measured = active.timing().snapshot();
+        java.util.Map<String, String> facts = new java.util.LinkedHashMap<>();
+        facts.put("reason", reason);
+        facts.put("phase", phaseOf(active));
+        facts.put("ticksSinceChange", Integer.toString(active.progress().ticksSinceChange(activeTicks)));
+        facts.put("activeTicks", Long.toString(measured.activeTicks()));
+        facts.put("heldTicks", Long.toString(measured.heldTicks()));
+        facts.put("tickNanos", Long.toString(measured.tickNanos()));
+        facts.put("stallTicks", Integer.toString(stallTicks));
+        facts.put("timeoutSec", Integer.toString(active.timeoutSec()));
+        facts.put("stamp", Long.toString(active.task().progressStamp()));
+        return facts;
+    }
+
+    private static String phaseOf(ActiveTask active) {
+        String phase = active.task().debugStatus();
+        if (phase == null || phase.isBlank()) phase = active.task().describe();
+        return phase == null ? "" : phase;
     }
 
     private TaskContext context(TaskContext base, ActiveTask active) {

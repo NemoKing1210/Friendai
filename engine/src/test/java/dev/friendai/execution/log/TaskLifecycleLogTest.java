@@ -144,6 +144,32 @@ class TaskLifecycleLogTest {
     }
 
     @Test
+    void aPhaseFactCarriesOnlyWhatTheTaskActuallyMeasured() {
+        TaskLogEvent phase = TaskLogEvents.phaseEvent(
+                executionContext(3L, 0L, 0L, 0L, 9L),
+                "mine_block_at",
+                dev.friendai.task.TaskPhase.PROGRESS,
+                40,
+                "search_selected",
+                "mining iron");
+        assertEquals(LogEvents.TASK_PROGRESS, phase.event());
+        assertEquals(TaskLogEvent.Parent.EXECUTION, phase.parent());
+        assertEquals("40", phase.facts().get("percent"));
+        assertEquals("search_selected", phase.facts().get("reason"));
+
+        TaskLogEvent unknown = TaskLogEvents.phaseEvent(
+                executionContext(3L, 0L, 0L, 0L, 9L), "mine_block_at", dev.friendai.task.TaskPhase.WAITING, -1, "", "");
+        assertEquals(LogEvents.TASK_PHASE, unknown.event());
+        assertFalse(unknown.facts().containsKey("percent"), "an unknown percent stays absent, not zero");
+
+        TaskLogEvent snapshot = TaskLogEvents.snapshotEvent(
+                executionContext(3L, 0L, 0L, 0L, 9L), "mine_block_at", "stalled", Map.of("activeTicks", "200"));
+        assertEquals(LogEvents.TASK_SNAPSHOT, snapshot.event());
+        assertEquals("stalled", snapshot.facts().get("reason"));
+        assertEquals("200", snapshot.facts().get("activeTicks"));
+    }
+
+    @Test
     void factsAreAnImmutableBoundedCopy() {
         Map<String, String> facts = new HashMap<>();
         facts.put("reason", "search_selected");

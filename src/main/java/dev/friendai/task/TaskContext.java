@@ -161,6 +161,14 @@ public record TaskContext(
     public void notice(String text) {
         if (execution != null) execution.notice(text);
     }
+
+    /**
+     * Publishes one structured phase fact through the runner. A phase change is immediate, a repeated PROGRESS is
+     * throttled, and nothing here posts a brain event or changes what the task does.
+     */
+    public void progress(dev.friendai.task.TaskPhase phase, int percent, String reason, String detail, long stamp) {
+        if (execution != null) execution.progress(phase, percent, reason, detail, stamp);
+    }
     /** The running task belongs to free time, which follows stricter rules than an owner order. */
     public boolean autonomous() {
         return execution != null && execution.autonomousActive();

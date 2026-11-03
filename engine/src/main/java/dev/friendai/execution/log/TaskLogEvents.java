@@ -6,6 +6,9 @@ import dev.friendai.foundation.diagnostics.LogEvents;
 import dev.friendai.foundation.diagnostics.LogKind;
 import dev.friendai.foundation.diagnostics.LogLevel;
 import dev.friendai.foundation.diagnostics.LogRecord;
+import dev.friendai.task.TaskPhase;
+import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -77,6 +80,37 @@ public final class TaskLogEvents {
                 status == null ? "unknown" : status,
                 durationMs,
                 facts);
+    }
+
+    /** A bounded phase fact; a repeated PROGRESS is already throttled by the caller. */
+    public static TaskLogEvent phaseEvent(
+            LogContext context, String tool, TaskPhase phase, int percent, String reason, String detail) {
+        requireTool(tool);
+        TaskPhase value = phase == null ? TaskPhase.PROGRESS : phase;
+        Map<String, String> facts = new LinkedHashMap<>();
+        facts.put("phase", value.name().toLowerCase(Locale.ROOT));
+        if (percent >= 0) facts.put("percent", Integer.toString(percent));
+        if (reason != null && !reason.isBlank()) facts.put("reason", reason);
+        if (detail != null && !detail.isBlank()) facts.put("detail", detail);
+        return new TaskLogEvent(
+                context,
+                TaskLogEvent.Parent.EXECUTION,
+                value == TaskPhase.PROGRESS ? LogEvents.TASK_PROGRESS : LogEvents.TASK_PHASE,
+                tool,
+                value.name().toLowerCase(Locale.ROOT),
+                -1L,
+                facts);
+    }
+
+    /** One bounded snapshot of the work state, captured before a stall stop clears it. */
+    public static TaskLogEvent snapshotEvent(
+            LogContext context, String tool, String reason, Map<String, String> facts) {
+        requireTool(tool);
+        Map<String, String> bounded = new LinkedHashMap<>();
+        if (facts != null) bounded.putAll(facts);
+        bounded.put("reason", reason == null ? "" : reason);
+        return new TaskLogEvent(
+                context, TaskLogEvent.Parent.EXECUTION, LogEvents.TASK_SNAPSHOT, tool, "snapshot", -1L, bounded);
     }
 
     /** One observed server tick gap; the reason is unknown, never inferred as a pause. */

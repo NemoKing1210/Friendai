@@ -372,6 +372,11 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
      *
      * @return true when a retry was queued, false when there is nothing to retry or the queue still holds it
      */
+    /** Forwards a task's phase report to the running activation; see {@link TaskContext#progress}. */
+    public void progress(dev.friendai.task.TaskPhase phase, int percent, String reason, String detail, long stamp) {
+        inTransition(() -> activeTasks.reportPhase(phase, percent, reason, detail, stamp));
+    }
+
     public boolean retryLast() {
         Started last = lastStarted;
         if (last == null) return false;
