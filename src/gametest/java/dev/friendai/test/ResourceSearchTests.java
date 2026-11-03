@@ -63,6 +63,9 @@ public final class ResourceSearchTests {
     @GameTest(maxTicks = 200)
     public void aMineFailureNamesTheLegReason(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
+        for (int x = 0; x < 16; x++) {
+            for (int z = 0; z < 16; z++) h.setBlock(x, 1, z, Blocks.BEDROCK);
+        }
         var owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         companion.setOwner(owner.getUUID());
