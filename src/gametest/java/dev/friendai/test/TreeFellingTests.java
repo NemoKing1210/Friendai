@@ -168,6 +168,42 @@ public class TreeFellingTests {
         });
     }
 
+    @GameTest(maxTicks = 800)
+    public void aTreeWithNoUsableClimbIsCutFromTheGround(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        List<BlockPos> logs = new java.util.ArrayList<>();
+        for (int y = 2; y <= 4; y++) {
+            BlockPos p = new BlockPos(6, y, 6);
+            h.setBlock(p, Blocks.OAK_LOG);
+            logs.add(p);
+        }
+        // Wall every climb column the planner may pick, leaving only the companion's own cell free (blocked above it).
+        for (int x = 4; x <= 8; x++) {
+            for (int z = 4; z <= 8; z++) {
+                if (x == 6 && z == 6) {
+                    continue;
+                }
+                for (int y = 2; y <= 4; y++) {
+                    if (x == 5 && z == 6 && y == 2) {
+                        continue;
+                    }
+                    h.setBlock(new BlockPos(x, y, z), Blocks.DIRT);
+                }
+            }
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 5, 2, 6);
+        List<BlockPos> absolute = logs.stream().map(h::absolutePos).toList();
+        TreeFinder.TreeInfo tree = new TreeFinder.TreeInfo(
+                "oak_log", absolute, absolute.get(0), 3, TreeFinder.Kind.STANDING_TREE, 8.0, "south");
+        Result result = new Result();
+        ExecutionCoordinator runner = start(c, result, new FellTreeTask(tree, oak(), 0, true));
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.contains("3 of 3"), "summary " + result.summary);
+        });
+    }
+
     @GameTest(maxTicks = 1600)
     public void fellsWholeTree(GameTestHelper h) {
         GameTestSupport.platform(h, 16);

@@ -184,19 +184,9 @@ public final class FellTreeTask implements Task {
             refuse("there is no clear side to climb the " + label + " tree at " + coords(tree.base()));
             return;
         }
-        FellPlan.Climb best = plan.climbs().get(0);
-        if (best.scaffoldNeeded() > MAX_CLIMB) {
-            refuse("the " + label + " tree needs " + best.scaffoldNeeded() + " blocks of climbing, more than the "
-                    + MAX_CLIMB + " I can build");
-            return;
-        }
+        // The climb cost is checked per candidate in chooseClimb, which also skips an unusable side; refusing here on
+        // the first candidate alone would give up on a tree another side, or the ground, can still cut.
         scaffold = new Scaffold(c.companion());
-        int available = scaffold.available(c);
-        if (available < best.scaffoldNeeded()) {
-            refuse("I need " + best.scaffoldNeeded() + " blocks of dirt or cobblestone to climb the " + label
-                    + " tree, I have " + available);
-            return;
-        }
         phase = Phase.WALK;
     }
 
@@ -284,8 +274,34 @@ public final class FellTreeTask implements Task {
             moveAttempts = 0;
             return true;
         }
-        refuse("there is no clear side to climb the " + label + " tree at " + coords(tree.base())
-                + (last.isEmpty() ? "" : ": " + last));
+        String reason = "there is no clear side to climb the " + label + " tree at " + coords(tree.base())
+                + (last.isEmpty() ? "" : ": " + last);
+        if (groundReaches(c)) {
+            // No column can be climbed, but the lower logs are within reach from where it stands: cut those rather
+            // than leaving the whole tree untouched.
+            climb = null;
+            stages = List.of();
+            stageIndex = 0;
+            logIndex = 0;
+            refusal = "";
+            phase = Phase.CUT;
+            return false;
+        }
+        refuse(reason);
+        return false;
+    }
+
+    /** Whether a remaining log is within arm's reach from where the companion stands. */
+    private boolean groundReaches(TaskContext c) {
+        Vec3 eyes = c.companion().getEyePosition();
+        for (BlockPos log : remaining) {
+            if (blacklist.containsKey(log) || !c.companion().hands().canInteract(log)) {
+                continue;
+            }
+            if (eyes.distanceTo(Vec3.atCenterOf(log)) <= FellPlanner.REACH) {
+                return true;
+            }
+        }
         return false;
     }
 
