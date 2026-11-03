@@ -178,7 +178,7 @@ public final class MiningSession {
         if (extraction != null) {
             return tickExtraction(context);
         }
-        if (mode == Mode.TARGETS && waitForGround()) {
+        if (waitForGround()) {
             return State.WORKING;
         }
         if (mode == Mode.EXPLORE) {

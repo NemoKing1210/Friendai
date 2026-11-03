@@ -4,8 +4,10 @@ import dev.friendai.debug.DebugAction;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.features.inventory.minecraft.task.PickupItemsTask;
+import dev.friendai.features.mining.MiningBounds;
 import dev.friendai.features.mining.minecraft.mining.BlockFilter;
 import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
+import dev.friendai.features.mining.minecraft.mining.MiningSession;
 import dev.friendai.features.mining.minecraft.task.MineBlockAtTask;
 import dev.friendai.features.mining.minecraft.task.MineBlocksTask;
 import dev.friendai.server.execution.ExecutionCoordinator;
@@ -29,6 +31,26 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 public class MineBlocksTests {
+    @GameTest(maxTicks = 100)
+    public void explorationWaitsForTheLanding(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        for (int x = 0; x < 16; x++) {
+            for (int z = 0; z < 16; z++) {
+                for (int y = 0; y <= 2; y++) h.setBlock(x, y, z, Blocks.STONE);
+            }
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 6, 2);
+        MiningSession session = new MiningSession(
+                c, new MiningBounds(new dev.friendai.features.navigation.pathing.Node(2, 6, 2), 16), 24, 200);
+        session.explore(1, 0);
+        TaskContext context = new TaskContext(c, h.getLevel());
+        h.assertTrue(
+                session.tick(context) == MiningSession.State.WORKING, "an airborne exploration must wait, not plan");
+        h.assertTrue(
+                session.phase().equals("settle"), "the wait must be visible as the settle phase: " + session.phase());
+        h.succeed();
+    }
+
     private static final class Result implements TaskEventSink {
         TaskStatus status;
         String summary;
