@@ -77,6 +77,10 @@ public final class QueueDriver {
         queue.cancel(id);
     }
 
+    void cancelJob(long id, String reason) {
+        queue.cancel(id, reason);
+    }
+
     void cancelPlan(long id) {
         queue.cancelPlan(id);
     }

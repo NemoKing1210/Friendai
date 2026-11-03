@@ -1043,17 +1043,21 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
             cancelForCapabilityChange();
             return false;
         }
+        TaskContext authorizationContext = new TaskContext(
+                companion, (ServerLevel) companion.level(), this, actionContext, settingsSupplier.get());
+        String revoked = "access to " + job.tool() + " was revoked before the action started";
         if (isStructuredPlan(job.planId())) {
             PlanStepFactory planFactory = queueDriver.planFactory(job.planId(), job.tool());
-            QueuedStep step = step(job);
-            TaskContext authorizationContext = new TaskContext(
-                    companion, (ServerLevel) companion.level(), this, actionContext, settingsSupplier.get());
-            if (planFactory == null || !planFactory.authorized(authorizationContext, step)) {
+            if (planFactory == null || !planFactory.authorized(authorizationContext, step(job))) {
                 queueDriver.cancelPlan(job.planId());
-                queueDriver.finishPlan(
-                        job.planId(), "access to " + job.tool() + " was revoked before the action started", false);
+                queueDriver.finishPlan(job.planId(), revoked, false);
                 return startNextQueued();
             }
+        } else if (!factory.authorized(authorizationContext)) {
+            // Deterministic refusal: retrying with the same principal would only fail again.
+            queueDriver.cancelJob(job.id(), revoked);
+            if (job.planId() > 0) queueDriver.finishPlan(job.planId(), revoked, false);
+            return startNextQueued();
         }
         if (job.planId() == 0) lastStarted = new Started(job.id(), step(job), factory, job.diagnostic());
         try {

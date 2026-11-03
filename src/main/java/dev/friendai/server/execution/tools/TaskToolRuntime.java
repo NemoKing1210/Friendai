@@ -12,6 +12,8 @@ import dev.friendai.execution.tool.Tool;
 import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.server.creative.CreativeModeService;
 import dev.friendai.task.Task;
+import dev.friendai.task.TaskContext;
+import dev.friendai.task.plan.StepFactory;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -101,11 +103,7 @@ public final class TaskToolRuntime {
                                             List.of(),
                                             principal,
                                             definition.creativeSensitive()),
-                                    context -> {
-                                        Caller current = access.currentCaller(context.companion(), principal)
-                                                .withTradingScope(QueueTradeScope.read(queuedArgs));
-                                        return create(definition, context.companion(), current, queuedArgs.deepCopy());
-                                    });
+                                    guarded(access, definition, principal, queuedArgs));
                 } catch (IllegalArgumentException e) {
                     return ToolResult.error(e.getMessage());
                 }
@@ -137,22 +135,57 @@ public final class TaskToolRuntime {
     }
 
     /** Resolves the queued job by its stable id at activation, so later optimization or edits are honoured. */
-    public static dev.friendai.task.plan.StepFactory queuedStepFactory(
+    public static StepFactory queuedStepFactory(
             QueueToolAccess access, long jobId, java.util.Map<String, TaskToolDefinition> definitions) {
         Objects.requireNonNull(access);
         Objects.requireNonNull(definitions);
-        return context -> {
-            var job = context.companion()
-                    .executionCoordinator()
-                    .queue()
-                    .job(jobId)
-                    .orElseThrow(() -> new IllegalStateException("queued task " + jobId + " was removed"));
-            TaskToolDefinition definition = definitions.get(job.tool());
-            if (definition == null) throw new IllegalStateException("task factory is unavailable for " + job.tool());
-            JsonObject args = job.args();
-            Caller caller = access.currentCaller(context.companion(), job.principal())
-                    .withTradingScope(QueueTradeScope.read(args));
-            return create(definition, context.companion(), caller, args);
+        return new StepFactory() {
+            @Override
+            public Task create(TaskContext context) {
+                var job = context.companion()
+                        .executionCoordinator()
+                        .queue()
+                        .job(jobId)
+                        .orElseThrow(() -> new IllegalStateException("queued task " + jobId + " was removed"));
+                TaskToolDefinition definition = definitions.get(job.tool());
+                if (definition == null)
+                    throw new IllegalStateException("task factory is unavailable for " + job.tool());
+                JsonObject args = job.args();
+                Caller caller = access.currentCaller(context.companion(), job.principal())
+                        .withTradingScope(QueueTradeScope.read(args));
+                return TaskToolRuntime.create(definition, context.companion(), caller, args);
+            }
+
+            @Override
+            public boolean authorized(TaskContext context) {
+                var job = context.companion().executionCoordinator().queue().job(jobId);
+                if (job.isEmpty()) return false;
+                TaskToolDefinition definition = definitions.get(job.get().tool());
+                if (definition == null) return false;
+                return access.currentCaller(context.companion(), job.get().principal())
+                        .access()
+                        .allows(definition.minAccess());
+            }
+        };
+    }
+
+    /** A queued factory that re-checks the requester's current access when the job finally activates. */
+    private static StepFactory guarded(
+            QueueToolAccess access, TaskToolDefinition definition, UUID principal, JsonObject args) {
+        return new StepFactory() {
+            @Override
+            public Task create(TaskContext context) {
+                Caller current = access.currentCaller(context.companion(), principal)
+                        .withTradingScope(QueueTradeScope.read(args));
+                return TaskToolRuntime.create(definition, context.companion(), current, args.deepCopy());
+            }
+
+            @Override
+            public boolean authorized(TaskContext context) {
+                return access.currentCaller(context.companion(), principal)
+                        .access()
+                        .allows(definition.minAccess());
+            }
         };
     }
 

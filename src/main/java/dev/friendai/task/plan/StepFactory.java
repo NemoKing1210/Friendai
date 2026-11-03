@@ -8,4 +8,12 @@ import dev.friendai.task.TaskContext;
 public interface StepFactory {
     /** @throws IllegalArgumentException with an LLM-readable message when the step cannot be built (unknown item, missing owner) */
     Task create(TaskContext c);
+
+    /**
+     * Rechecked immediately before activation, so a job queued under an access level that has since been revoked never
+     * starts. A factory registered from a stable, already-authorized source may keep the default.
+     */
+    default boolean authorized(TaskContext c) {
+        return true;
+    }
 }

@@ -1,31 +1,46 @@
 package dev.friendai.test;
 
+import com.google.gson.JsonObject;
 import dev.friendai.agent.llm.model.LlmResponse;
 import dev.friendai.agent.llm.model.Message;
 import dev.friendai.agent.llm.model.StopReason;
 import dev.friendai.agent.llm.model.ToolSpec;
 import dev.friendai.agent.llm.model.Usage;
+import dev.friendai.agent.tools.ToolCatalog;
 import dev.friendai.agent.turn.LlmGateway;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
+import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.execution.queue.FailurePolicy;
+import dev.friendai.execution.queue.GuardAction;
+import dev.friendai.execution.queue.JobState;
+import dev.friendai.execution.queue.QueuedStep;
 import dev.friendai.execution.tool.AccessLevel;
+import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolResult;
+import dev.friendai.features.navigation.minecraft.task.StayTask;
 import dev.friendai.server.agent.chat.ChatRouter;
 import dev.friendai.server.agent.tools.FriendaiTools;
+import dev.friendai.server.execution.ExecutionCoordinator;
+import dev.friendai.server.execution.tools.TaskToolDefinition;
+import dev.friendai.server.execution.tools.TaskToolRuntime;
 import dev.friendai.server.memory.TrustConfirmations;
 import dev.friendai.server.runtime.ServerRuntime;
 import dev.friendai.server.runtime.ServerRuntimeRegistry;
+import dev.friendai.task.TaskContext;
 import io.netty.channel.embedded.EmbeddedChannel;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicInteger;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.network.protocol.game.ClientboundSystemChatPacket;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 
 /** Trust changes asked for in chat or voice: owner-only tools, confirmation outside the model. */
@@ -379,6 +394,109 @@ public class TrustTests {
                     recorder.requests.isEmpty(),
                     "an offline owner's expiry must not wake the brain: " + recorder.requests);
             h.succeed();
+        });
+    }
+
+    /**
+     * A job queued by a trusted player must not run after the owner revoked that trust: the activation boundary rechecks
+     * the requester's current access, not the access it had when the tool call was accepted.
+     */
+    @GameTest(maxTicks = 200)
+    public void queuedJobRefusesAfterTrustIsRevoked(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        ServerPlayer friend = GameTestSupport.mockPlayerAt(h, 3, 2, 3);
+        ServerRuntime state = GameTestSupport.runtime(h);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.setOwner(owner.getUUID());
+        state.memory()
+                .book(owner.getUUID())
+                .setTrusted(friend.getUUID(), friend.getName().getString(), true, 0);
+
+        ExecutionCoordinator runner = companion.executionCoordinator();
+        runner.resume();
+        long blocker = runner.enqueue(
+                new QueuedStep(
+                        "stay",
+                        new JsonObject(),
+                        null,
+                        List.of(),
+                        GuardAction.WAIT,
+                        FailurePolicy.ASK,
+                        1,
+                        List.of(),
+                        owner.getUUID(),
+                        false),
+                context -> new StayTask(60));
+        for (int i = 0;
+                i < 5 && !runner.activeJob().map(job -> job.id() == blocker).orElse(false);
+                i++) {
+            runner.tick();
+        }
+        h.assertTrue(
+                runner.activeJob().map(job -> job.id() == blocker).orElse(false),
+                "the blocking job should be running before the probe is queued");
+
+        AtomicInteger created = new AtomicInteger();
+        TaskToolDefinition definition = new TaskToolDefinition(
+                "stay",
+                "stay",
+                new JsonObject(),
+                (subject, args) -> {
+                    created.incrementAndGet();
+                    return new StayTask(20);
+                },
+                null,
+                false,
+                AccessLevel.TRUSTED,
+                TaskToolDefinition.QueueTraits.DEFAULT,
+                true,
+                false,
+                ToolCatalog.defaults().meta("stay").orElseThrow());
+        ToolResult queued = TaskToolRuntime.tool(definition, state.sessions())
+                .execute(
+                        companion,
+                        new Caller(friend.getUUID(), friend.getName().getString(), AccessLevel.TRUSTED),
+                        new JsonObject());
+        h.assertTrue(!queued.error(), "queueing should succeed: " + queued.content());
+        h.assertTrue(
+                queued.content().contains("queued behind"),
+                "the probe must wait behind the blocker: " + queued.content());
+        long probe = runner.queue().jobs().stream()
+                .filter(job -> friend.getUUID().equals(job.principal()))
+                .mapToLong(job -> job.id())
+                .max()
+                .orElseThrow();
+        int afterEnqueue = created.get();
+        h.assertValueEqual(afterEnqueue, 1, "queueing creates the task once, activation creates it again");
+
+        state.memory()
+                .book(owner.getUUID())
+                .setTrusted(friend.getUUID(), friend.getName().getString(), false, 0);
+        var restored = state.sessions()
+                .taskRestoreRegistry()
+                .stepFactories(runner.queue())
+                .get(probe);
+        h.assertTrue(restored != null, "a restored job should have a factory");
+        h.assertTrue(
+                !restored.authorized(new TaskContext(companion, (ServerLevel) companion.level())),
+                "a restored job must also refuse revoked access");
+        List<Long> ran = new ArrayList<>();
+        h.succeedWhen(() -> {
+            runner.tick();
+            runner.activeJob().ifPresent(active -> {
+                if (ran.isEmpty() || ran.getLast() != active.id()) ran.add(active.id());
+            });
+            JobState probeState =
+                    runner.queue().job(probe).map(job -> job.state()).orElse(null);
+            h.assertTrue(
+                    probeState == null
+                            || probeState == JobState.FAILED
+                            || probeState == JobState.CANCELLED
+                            || probeState == JobState.DONE,
+                    "the revoked job is still pending: " + probeState);
+            h.assertValueEqual(created.get(), afterEnqueue, "a queued job ran after its requester lost access");
+            h.assertTrue(!ran.contains(probe), "the revoked job became the active task: " + ran);
         });
     }
 }

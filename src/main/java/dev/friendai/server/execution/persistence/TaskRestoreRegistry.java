@@ -94,7 +94,19 @@ public final class TaskRestoreRegistry {
             if (def == null) continue;
             JsonObject args = job.args();
             UUID principal = job.principal();
-            factories.put(job.id(), context -> create(def, context, principal, args));
+            factories.put(job.id(), new StepFactory() {
+                @Override
+                public Task create(TaskContext context) {
+                    return TaskRestoreRegistry.this.create(def, context, principal, args);
+                }
+
+                @Override
+                public boolean authorized(TaskContext context) {
+                    return callers.apply(context.companion().ownerUuid(), principal)
+                            .access()
+                            .allows(def.minAccess());
+                }
+            });
         }
         return factories;
     }
