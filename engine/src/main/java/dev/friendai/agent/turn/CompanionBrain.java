@@ -275,9 +275,9 @@ public final class CompanionBrain {
     /** Drops the in-flight request (its response will be ignored) and all queued events. */
     public void cancel() {
         long cancelled = turnSeq;
-        // One turn ends once: a second cancel, or a cancel after the reply was delivered, has nothing
-        // left to stop and must not add another end record to the log.
-        if (thinking || !queue.isEmpty()) observe(o -> o.onTurnEnd(cancelled, "cancelled"));
+        // One turn ends once: only a request that is actually running has something to cancel. Queued events
+        // during the post-turn cooldown belong to no turn, and a delivered turn has already ended.
+        if (thinking) observe(o -> o.onTurnEnd(cancelled, "cancelled"));
         generation++;
         teachingContext = null;
         skillSession = SkillTurnSession.NONE;
@@ -930,6 +930,7 @@ public final class CompanionBrain {
             return;
         }
         speaker.say(UserMessage.of("friendai.companion.goal_blocked", tick.goal()));
+        observe(o -> o.onTurnEnd(turnSeq, "delivered"));
     }
 
     private void endTurn() {

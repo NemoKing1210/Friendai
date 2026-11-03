@@ -699,9 +699,37 @@ class CompanionBrainTest {
 
     @Test
     void theIdleGoalNudgeIsAnsweredWhenTheModelStaysSilent() {
+        List<String> ends = new ArrayList<>();
+        brain.setObserver(new BrainObserver() {
+            @Override
+            public void onTurnEnd(long turn, String outcome) {
+                ends.add(outcome);
+            }
+        });
         gateway.enqueue(text("[silent]"));
         brain.post(new BrainEvent.GoalTick("stone tools", List.of("stone pickaxe")));
         assertEquals(List.of(UserMessage.of("friendai.companion.goal_blocked", "stone tools")), speaker.messages);
+        assertEquals(List.of("delivered"), ends, "the answered nudge ends the turn in the log");
+    }
+
+    @Test
+    void aCancelDuringTheCooldownDoesNotCancelTheDeliveredTurn() {
+        cooldown = 500;
+        List<String> ends = new ArrayList<>();
+        brain.setObserver(new BrainObserver() {
+            @Override
+            public void onTurnEnd(long turn, String outcome) {
+                ends.add(outcome);
+            }
+        });
+        gateway.enqueue(text("done"));
+        gateway.enqueue(text("later"));
+        brain.post(said("one"));
+        brain.post(said("two"));
+        assertEquals(List.of("delivered"), ends);
+        brain.cancel();
+        brain.cancel();
+        assertEquals(List.of("delivered"), ends, "a queued event is not a turn to cancel");
     }
 
     @Test
