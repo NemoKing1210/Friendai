@@ -129,8 +129,7 @@ public final class CombatController {
     /** The current task-driven fight targets the owner, who asked for it, so the self-protection check is waived. */
     private boolean ownerConsent;
 
-    private boolean weaponSwapped;
-    private ItemStack previousMainHand = ItemStack.EMPTY;
+    private HandSwap weaponSwap;
     private boolean usingBow;
     private int drawTicks;
     private int unreachableTicks;
@@ -142,15 +141,15 @@ public final class CombatController {
     private Vec3 retreatTarget;
     private int armorCheckTicks = 20;
     private int lastArmorHash;
-    private ItemStack eatingPrevious = ItemStack.EMPTY;
     private ItemStack eatingItem = ItemStack.EMPTY;
     private int eatTicks;
     private Kind targetKind = Kind.SELF;
     private Vec3 anchor = Vec3.ZERO;
     private WeaponPolicy.Band band = WeaponPolicy.Band.UNKNOWN;
-    private boolean shieldSwapped;
     private boolean shieldRaised;
-    private ItemStack previousOffhand = ItemStack.EMPTY;
+    private HandSwap shieldSwap;
+    private HandSwap eatingSwap;
+    private dev.friendai.task.TaskExecutionPort.Hold eatingHold;
     private int weaponCheckTicks;
     private int potionCooldown;
     private int potionBudget;
@@ -230,7 +229,7 @@ public final class CombatController {
     /** Interrupts an eating attempt and returns the food to the inventory. */
     public void stopEating() {
         if (state == State.EATING && companion.level() instanceof ServerLevel level) {
-            interruptEating(level);
+            interruptEating();
         }
     }
 
@@ -290,7 +289,7 @@ public final class CombatController {
             } else if (state == State.RETREATING) {
                 finishRetreat();
             } else if (state == State.EATING) {
-                interruptEating(level);
+                interruptEating();
                 state = State.IDLE;
                 decision = CombatDecision.none();
             }
@@ -322,7 +321,7 @@ public final class CombatController {
             return;
         }
         if (state == State.EATING) {
-            tickEating(level);
+            tickEating();
             return;
         }
         if (state == State.FIGHTING) {
@@ -389,65 +388,73 @@ public final class CombatController {
         if (food.isEmpty()) {
             return;
         }
+        eatingItem = food.copy();
+        eatingSwap = HandSwap.install(companion, slot, EquipmentSlot.MAINHAND, food);
+        eatingHold = companion.taskExecution().acquireSelfCareHold();
         state = State.EATING;
         decision = new CombatDecision(CombatDecision.Action.EAT, CombatDecision.Reason.RECOVER);
-        eatingItem = food.copy();
-        eatingPrevious = companion.getMainHandItem().copy();
         eatTicks = 0;
-        companion.setItemSlot(EquipmentSlot.MAINHAND, food);
         companion.startUsingItem(InteractionHand.MAIN_HAND);
+        if (!companion.isUsingItem()) {
+            returnFood();
+            state = State.IDLE;
+            decision = CombatDecision.none();
+        }
     }
 
-    private void tickEating(ServerLevel level) {
+    private void tickEating() {
         eatTicks++;
         LivingEntity attacker = companion.getLastHurtByMob();
         boolean hitRecently = attacker != null
                 && companion.tickCount - companion.getLastHurtByMobTimestamp() <= 1
                 && companion.distanceTo(attacker) <= 3.0;
         if (hitRecently || !companion.isUsingItem()) {
+            // Only a stack that really lost one item was eaten: an emptied hand is no evidence (a task could not run
+            // here while the self-care hold is held, but a vanished food stack must never credit nutrition).
             ItemStack current = companion.getMainHandItem();
-            boolean consumed = current.isEmpty() || current.getCount() < eatingItem.getCount();
+            int remaining = current.isEmpty() ? 0 : current.getCount();
+            boolean consumed = eatingItem.getCount() - remaining == 1;
             if (consumed) {
                 FoodProperties food = eatingItem.get(DataComponents.FOOD);
                 if (food != null) {
                     companion.hunger().eat(food.nutrition(), food.saturation());
                 }
             }
-            returnFood(level);
+            returnFood();
             state = State.IDLE;
             decision = CombatDecision.none();
             return;
         }
         if (eatTicks > 200) {
             companion.stopUsingItem();
-            returnFood(level);
+            returnFood();
             state = State.IDLE;
             decision = CombatDecision.none();
         }
     }
 
-    private void interruptEating(ServerLevel level) {
+    private void interruptEating() {
         if (state != State.EATING) {
             return;
         }
         if (companion.isUsingItem()) {
             companion.stopUsingItem();
         }
-        returnFood(level);
+        returnFood();
         state = State.IDLE;
         decision = CombatDecision.none();
     }
 
-    private void returnFood(ServerLevel level) {
-        ItemStack food = companion.getMainHandItem();
-        companion.setItemSlot(EquipmentSlot.MAINHAND, eatingPrevious);
-        if (!food.isEmpty()) {
-            ItemStack leftover = companion.inventory().addItem(food);
-            if (!leftover.isEmpty()) {
-                companion.spawnAtLocation(level, leftover);
-            }
+    /** Puts the food back, restores the displaced hand stack from the inventory and releases the self-care hold. */
+    private void returnFood() {
+        if (eatingSwap != null) {
+            eatingSwap.restore(companion);
+            eatingSwap = null;
         }
-        eatingPrevious = ItemStack.EMPTY;
+        if (eatingHold != null) {
+            eatingHold.close();
+            eatingHold = null;
+        }
         eatingItem = ItemStack.EMPTY;
         eatTicks = 0;
     }
@@ -514,7 +521,7 @@ public final class CombatController {
     }
 
     private void beginRetreat(ServerLevel level, List<LivingEntity> threats, boolean fromCreeper) {
-        interruptEating(level);
+        interruptEating();
         stopLootRound();
         if (state == State.FIGHTING) {
             abandonFight();
@@ -812,31 +819,20 @@ public final class CombatController {
     }
 
     private void equipWeapon() {
-        weaponSwapped = false;
-        previousMainHand = ItemStack.EMPTY;
+        weaponSwap = null;
         int slot = Equipment.bestMeleeWeaponSlot(companion);
         if (slot < 0) {
             return;
         }
-        previousMainHand = companion.getMainHandItem().copy();
-        companion.setItemSlot(EquipmentSlot.MAINHAND, companion.inventory().removeItemNoUpdate(slot));
-        weaponSwapped = true;
+        weaponSwap = HandSwap.equip(companion, slot, EquipmentSlot.MAINHAND);
     }
 
     private void restoreWeapon() {
-        if (!weaponSwapped) {
+        if (weaponSwap == null) {
             return;
         }
-        ItemStack current = companion.getMainHandItem();
-        companion.setItemSlot(EquipmentSlot.MAINHAND, previousMainHand);
-        if (!current.isEmpty()) {
-            ItemStack leftover = companion.inventory().addItem(current);
-            if (!leftover.isEmpty() && companion.level() instanceof ServerLevel level) {
-                companion.spawnAtLocation(level, leftover);
-            }
-        }
-        previousMainHand = ItemStack.EMPTY;
-        weaponSwapped = false;
+        weaponSwap.restore(companion);
+        weaponSwap = null;
     }
 
     /** True when a shield is in the offhand or anywhere in the inventory. */
@@ -854,16 +850,14 @@ public final class CombatController {
 
     /** Moves a shield to the offhand, preserving whatever was there. */
     private void equipShield() {
-        if (shieldSwapped || companion.getItemBySlot(EquipmentSlot.OFFHAND).is(Items.SHIELD)) {
+        if (shieldSwap != null || companion.getItemBySlot(EquipmentSlot.OFFHAND).is(Items.SHIELD)) {
             return;
         }
         for (int i = 0; i < companion.inventory().getContainerSize(); i++) {
             if (!companion.inventory().getItem(i).is(Items.SHIELD)) {
                 continue;
             }
-            previousOffhand = companion.getItemBySlot(EquipmentSlot.OFFHAND).copy();
-            companion.setItemSlot(EquipmentSlot.OFFHAND, companion.inventory().removeItemNoUpdate(i));
-            shieldSwapped = true;
+            shieldSwap = HandSwap.equip(companion, i, EquipmentSlot.OFFHAND);
             return;
         }
     }
@@ -892,19 +886,11 @@ public final class CombatController {
     /** Returns the displaced offhand stack, spawning overflow rather than dropping it silently. */
     private void restoreShield() {
         lowerShield();
-        if (!shieldSwapped) {
+        if (shieldSwap == null) {
             return;
         }
-        ItemStack current = companion.getItemBySlot(EquipmentSlot.OFFHAND);
-        companion.setItemSlot(EquipmentSlot.OFFHAND, previousOffhand);
-        if (!current.isEmpty()) {
-            ItemStack leftover = companion.inventory().addItem(current);
-            if (!leftover.isEmpty() && companion.level() instanceof ServerLevel level) {
-                companion.spawnAtLocation(level, leftover);
-            }
-        }
-        previousOffhand = ItemStack.EMPTY;
-        shieldSwapped = false;
+        shieldSwap.restore(companion);
+        shieldSwap = null;
     }
 
     private void tickFight(ServerLevel level, int now) {

@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
@@ -170,6 +171,43 @@ public class CombatTests {
                     notices.heldAtStart.stream().anyMatch(s -> s.is(Items.STONE_SWORD)),
                     "held during the fight: " + notices.heldAtStart);
             h.assertTrue(c.getMainHandItem().isEmpty(), "main hand not restored: " + c.getMainHandItem());
+        });
+    }
+
+    /**
+     * The stack a fight displaces stays in the inventory, where death, saving and the menu already look for it; the swap
+     * restores it to the hand instead of keeping it in a controller field.
+     */
+    @GameTest(maxTicks = 800)
+    public void swappedWeaponWaitsInTheInventory(GameTestHelper h) {
+        GameTestSupport.platform(h, 15);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.DIAMOND_PICKAXE));
+        c.inventory().addItem(new ItemStack(Items.STONE_SWORD));
+        Zombie zombie = h.spawnWithNoFreeWill(EntityTypes.ZOMBIE, 5, 2, 2);
+        zombie.setCustomName(Component.literal("test-swap-zombie"));
+        roof(h, 5, 2);
+        AtomicBoolean swapped = new AtomicBoolean();
+        h.runAfterDelay(
+                20,
+                () -> c.hurtServer(h.getLevel(), h.getLevel().damageSources().mobAttack(zombie), 1.0F));
+        h.succeedWhen(() -> {
+            if (c.getMainHandItem().is(Items.STONE_SWORD)) {
+                swapped.set(true);
+                h.assertValueEqual(
+                        c.inventory().countItem(Items.DIAMOND_PICKAXE),
+                        1,
+                        "the displaced pickaxe must wait in the inventory during the fight");
+            }
+            h.assertTrue(
+                    zombie.isDeadOrDying() || zombie.isRemoved(),
+                    "zombie still alive: " + zombie.getHealth() + ", state "
+                            + c.combatController().state() + ", held " + c.getMainHandItem());
+            h.assertTrue(swapped.get(), "the companion never drew the sword");
+            h.assertTrue(
+                    c.getMainHandItem().is(Items.DIAMOND_PICKAXE),
+                    "the pickaxe is back in the hand: " + c.getMainHandItem());
+            h.assertValueEqual(c.inventory().countItem(Items.STONE_SWORD), 1, "the sword went back to the bag");
         });
     }
 
