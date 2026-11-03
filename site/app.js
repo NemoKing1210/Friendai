@@ -114,7 +114,7 @@ const CATS = [
     items: [
       "remember|Store a fact.", "recall|Read facts back.", "forget|Delete a fact.", "trust_player|Raise a player to trusted (needs confirmation).", "request_help|Ask another owner's companion for bounded help.", "accept_help|Accept the named help only.", "decline_help|Decline with no transfer.", "offer_handoff|Offer an exact item quantity at a meeting point.", "accept_handoff|Accept only the named transfer.", "replan_plan|Ask the planner to repair one stalled plan.",
       "untrust_player|Lower trust.", "set_name|Rename the companion.", "use_skill|Load an instruction skill once.", "list_skills|List the owner's skills with ids, versions and on/off state.", "skill_help|Read the skill-authoring checklist and its limits.", "manage_skill|Propose a skill after a finished goal.",
-      "read_log|Read your recent activity log (owner only).", "logs_search|Search the durable log files by level, category, event, turn or task (owner only).", "recent_chat|Read recent conversations with a player.", "memory_overview|See facts with ids and how full each book is.", "compress_memory|Merge duplicate facts safely, dry run first (owner only).", "reset_manner|Drop a manner the owner dislikes and never drift back into it (owner only).",
+      "read_log|Read your recent activity log (owner only).", "logs_search|Search the durable log files by level, category, event, turn, task, trace, execution or request (owner only).", "recent_chat|Read recent conversations with a player.", "memory_overview|See facts with ids and how full each book is.", "compress_memory|Merge duplicate facts safely, dry run first (owner only).", "reset_manner|Drop a manner the owner dislikes and never drift back into it (owner only).",
       "~Access levels|GUEST < TRUSTED < OWNER on every tool.", "~Language learning|Learns your language after a few samples.", "~Skills advise only|They never change permissions." ] },
   { id: "places", domain: "mind", name: "Places", icon: "📍", color: COLORS.diamond,
     desc: "A book of named places. Autonomous work never breaks inside your places and takes only from containers in one; dig sites it registered itself are work areas.",
@@ -148,7 +148,7 @@ const CATS = [
     desc: "A tabbed control screen that pauses the companion while open. Operator-only tabs are filtered on the server.",
     items: [
       "~Overview|Status, health, hunger, task.", "~Toggles|Per-companion switches.", "~Tasks|Queue and history.", "~Memory|Browse and forget.", "~Skills|Instruction skills.",
-      "~Places|Rename or forget places.", "~Map|Explored cells, sites and roads, never the full grid.", "~Plan controls|Pause, resume or defer the first plan from the menu.", "~Appearance|Name and custom skin.", "~Traders|Known trades.", "~Log and Debug|Operator-only brain log and prompt.", "~Settings screen|YACL, optional." ] }
+      "~Places|Rename or forget places.", "~Map|Explored cells, sites and roads, never the full grid.", "~Plan controls|Pause, resume or defer the first plan from the menu.", "~Appearance|Name and custom skin.", "~Traders|Known trades.", "~Log and Debug|Operator-only brain log with trace and execution prefixes, plus the incident bundle.", "~Settings screen|YACL, optional." ] }
 ];
 
 /* ================= CODE LOCATIONS ================= */

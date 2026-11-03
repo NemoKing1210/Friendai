@@ -6,6 +6,21 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.200.0] - 2026-11-04
+
+### Added
+
+- `/friendai diagnose` now writes one incident bundle with `manifest.json`, `events.jsonl` and `incident.md` beside the existing facts. The manifest states the boot, scope, writer health and exactly what is partial; the report separates executions, failures, last observed progress and goal verdicts, and marks a missing terminal instead of guessing.
+- A task's durable records carry a trace and execution identity, so a queued task that starts before its tool result and finishes in a later turn can still be followed, including after a freeze or a restart.
+- Provider calls record request size and each HTTP attempt (status, duration and retry backoff) without bodies, headers or URLs; a late reply after a stop is recorded as discarded rather than as a provider failure.
+- Mining, pickup, giving and crafting record bounded item-flow evidence, and goal checks publish their verdict separately from the task's own summary.
+- `logs_search` filters by trace, execution and request, and the live Log tab shows the same identity prefix in front of each row.
+
+### Fixed
+
+- A flush request now reports a real failure instead of handing back a path: a busy, failed, closed or disabled writer is visible, and shutdown never closes open files from a second thread.
+- `/friendai diagnose` no longer crashes the server tick when a diagnostic parent is missing.
+
 ## [0.199.0] - 2026-11-03
 
 ### Added

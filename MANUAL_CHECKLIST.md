@@ -489,6 +489,12 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] After a real goal or failed free-time shift, inspect a proposed model procedure, approve/reject it, and confirm only approved guidance appears next turn. Restart the world and confirm records, approvals and hourly allowance survive.
 - [ ] On a dedicated server without YACL, exercise /friendai skills list|show|create|edit|duplicate|delete|enable|disable|approve|reject|import|export and /friendai description show|set|clear|language|address. Confirm global operations require operator permission.
 
+## Diagnostics incident bundle
+
+- [ ] Ask for a stone tool, let it run, then run `/friendai diagnose`. The bundle contains `manifest.json`, `events.jsonl` and `incident.md`; the manifest names the flush status and any partial reason, and the report pairs each execution's start and end or says `NO TERMINAL`.
+- [ ] Stop the companion mid-task and run `/friendai diagnose` again: the report shows the cancellation, not a success, and the last progress line names the phase.
+- [ ] Open the operator Log tab while a task runs: rows carry `trace=`/`execution=` before the phase text, timestamps, freeze and copy keep working, and a missing parent appears as `unresolved` rather than as a guess.
+
 ## Planner JSON and failure diagnostics (TODO 27)
 
 - [ ] OpenAI Chat: capture one redacted planner request/reply and its finish_reason; verify response_format=json_object and actionable owner failure text.
