@@ -139,7 +139,7 @@ public final class GatheringTools implements FeatureToolContributor {
         excludeItem.addProperty("type", "string");
         registry.registerTask(task(
                 "mine_blocks",
-                "Mine N blocks of the given block id or #tag near the companion and collect the drops. One call mines up to 64 blocks; give count for the whole batch. "
+                "Mine N blocks of the given block id or #tag near the companion and collect the drops. It mines only blocks you have observed or remembered; it does not search for unseen blocks. Use search_resource for a buried resource. One call mines up to 64 blocks; give count for the whole batch. "
                         + "For a standing tree use fell_tree: it climbs once and cuts the whole tree, while this tool "
                         + "would mine one log at a time. "
                         + "Stone and ores need a pickaxe of sufficient tier; without one the task refuses "

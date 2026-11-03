@@ -592,8 +592,9 @@ public class ToolTests {
         h.assertTrue(
                 !r.error()
                         && r.content()
-                                .equals("no minecraft:sponge observed or remembered within 8 blocks; "
-                                        + "use look_around or survey_area to look around"),
+                                .equals(
+                                        "no minecraft:sponge observed or remembered within 8 blocks; "
+                                                + "use search_resource to search for it, or look_around for a visible exposure"),
                 "content was " + r.content());
         h.succeed();
     }

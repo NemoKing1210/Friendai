@@ -112,7 +112,7 @@ public final class BlockInfoTools implements FeatureToolContributor {
                         "describe_block",
                         "Facts about a block: id, hardness, whether it can be dug by hand or needs a proper tool "
                                 + "(and whether you have one), plus the light level there. Omit x, y and z to describe the "
-                                + "block the speaker is looking at.",
+                                + "block the speaker is looking at. A block you have never seen returns unknown.",
                         SchemaBuilder.object()
                                 .integer("x", "Block x coordinate", -30000000, 30000000)
                                 .integer("y", "Block y coordinate", -64, 320)
@@ -178,7 +178,7 @@ public final class BlockInfoTools implements FeatureToolContributor {
                 resources == null ? List.of() : resources.knownOrVisible(companion, matcher, radius, limit);
         if (found.isEmpty()) {
             return ToolResult.ok("no " + matcher.label() + " observed or remembered within " + radius
-                    + " blocks; use look_around or survey_area to look around");
+                    + " blocks; use search_resource to search for it, or look_around for a visible exposure");
         }
         StringBuilder text =
                 new StringBuilder(found.size() + " observed/remembered " + matcher.label() + " nearest first: ");

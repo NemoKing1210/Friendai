@@ -69,7 +69,7 @@ public final class FellTreeSearchTask implements Task {
         }
         if (waited++ > TREE_SEARCH_WAIT_TICKS) {
             summary = "no " + logs.label() + " tree observed or remembered within " + radius
-                    + " blocks; use look_around or survey_area to look around";
+                    + " blocks; use search_resource to search for it, or look_around for a visible exposure";
             return TaskStatus.FAILED;
         }
         long now = c.level().getGameTime();

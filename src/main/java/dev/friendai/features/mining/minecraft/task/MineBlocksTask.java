@@ -532,7 +532,8 @@ public final class MineBlocksTask implements Task {
                         : hidden
                                 ? "could not reach any " + matcher.label() + " nearby"
                                 : "no " + matcher.label()
-                                        + " observed or remembered nearby; use look_around or survey_area to look around";
+                                        + " observed or remembered nearby; use search_resource to search for it, "
+                                        + "or look_around for a visible exposure";
             } else {
                 summary = "mined " + mined + " of " + count + ", no more " + matcher.label()
                         + (placedOnly

@@ -190,7 +190,7 @@ public class MineBlocksTests {
             h.assertTrue(result.status == TaskStatus.FAILED, "not finished");
             h.assertTrue(
                     result.summary.equals("no minecraft:spruce_log observed or remembered nearby; "
-                            + "use look_around or survey_area to look around"),
+                            + "use search_resource to search for it, or look_around for a visible exposure"),
                     "summary was " + result.summary);
         });
     }
@@ -210,7 +210,7 @@ public class MineBlocksTests {
             h.assertTrue(result.status == TaskStatus.FAILED, "not finished");
             h.assertTrue(
                     result.summary.equals("no minecraft:bedrock observed or remembered nearby; "
-                            + "use look_around or survey_area to look around"),
+                            + "use search_resource to search for it, or look_around for a visible exposure"),
                     "summary was " + result.summary);
             h.assertTrue(countBlocks(h, Blocks.BEDROCK, bedrock) == 1, "bedrock must stay");
         });
@@ -481,7 +481,7 @@ public class MineBlocksTests {
                     "hidden granite must stay unknown: " + result.status + " " + result.summary);
             h.assertTrue(
                     result.summary.equals("no minecraft:granite observed or remembered nearby; "
-                            + "use look_around or survey_area to look around"),
+                            + "use search_resource to search for it, or look_around for a visible exposure"),
                     "summary was " + result.summary);
             h.assertTrue(
                     countBlocks(h, Blocks.GRANITE, new BlockPos(7, 3, 7)) == 1,
@@ -562,7 +562,7 @@ public class MineBlocksTests {
                     "hidden log must stay unknown: " + result.status + " " + result.summary);
             h.assertTrue(
                     result.summary.equals("no minecraft:oak_log observed or remembered nearby; "
-                            + "use look_around or survey_area to look around"),
+                            + "use search_resource to search for it, or look_around for a visible exposure"),
                     "summary was " + result.summary);
             h.assertTrue(
                     countBlocks(h, Blocks.OAK_LOG, new BlockPos(6, 2, 2)) == 1, "the hidden log must stay in place");
