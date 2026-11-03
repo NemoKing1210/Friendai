@@ -1091,6 +1091,55 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
             this.last = OutcomeFacts.snapshot(companion);
         }
 
+        /** A passive verdict record for the existing check; delivered speech is never treated as proof. */
+        private void emitOutcomeCheck(
+                dev.friendai.agent.verify.Outcome outcome,
+                boolean taskSucceeded,
+                boolean hasCriteria,
+                long planId,
+                String tool) {
+            String verdict;
+            if (!taskSucceeded) {
+                verdict = "unmet";
+            } else if (!hasCriteria) {
+                verdict = "unknown";
+            } else {
+                verdict = outcome.success() ? "met" : "unmet";
+            }
+            java.util.Map<String, String> data = new java.util.LinkedHashMap<>();
+            data.put("verdict", verdict);
+            data.put("subject", "companion");
+            data.put("source", "outcome_checker");
+            data.put("plan", Long.toString(planId));
+            data.put(
+                    "facts",
+                    outcome.facts().stream()
+                            .map(dev.friendai.agent.verify.Fact::text)
+                            .collect(java.util.stream.Collectors.joining("; ")));
+            data.put("unmet", String.join("; ", outcome.unmetCriteria()));
+            debug.pipeline()
+                    .emit(new dev.friendai.foundation.diagnostics.LogRecord(
+                            0L,
+                            0L,
+                            dev.friendai.foundation.diagnostics.LogLevel.INFO,
+                            dev.friendai.foundation.diagnostics.LogCategory.TASK,
+                            null,
+                            dev.friendai.foundation.diagnostics.LogEvents.OUTCOME_CHECK,
+                            owner,
+                            companion.getUUID(),
+                            "",
+                            0L,
+                            planId,
+                            0L,
+                            0L,
+                            tool == null ? "" : tool,
+                            0L,
+                            -1L,
+                            "outcome: " + verdict,
+                            data,
+                            null));
+        }
+
         /** The text to append to an event line; empty when there is nothing verified to add. */
         String extra(boolean success, long planId, String tool, String text) {
             try {
@@ -1106,6 +1155,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                                 .orElse(java.util.List.of());
                 var outcome = dev.friendai.agent.verify.OutcomeChecker.check(
                         last, after, success, criteria, new dev.friendai.task.queue.CompanionGuardFacts(companion));
+                emitOutcomeCheck(outcome, success, criteria.isEmpty(), planId, tool);
                 last = after;
                 session.noteVerified(outcome.facts().stream()
                         .map(dev.friendai.agent.verify.Fact::text)

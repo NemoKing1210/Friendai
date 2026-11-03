@@ -87,7 +87,22 @@ public final class GiveItemsTask implements Task {
             gave += stack.getCount();
         }
         summary = "gave " + gave + " " + itemLabel();
+        emitGiveEvidence(c, have, gave);
         return TaskStatus.SUCCESS;
+    }
+
+    /** Bounded, already-observed evidence; a delivered item is not proof the owner picked it up. */
+    private void emitGiveEvidence(TaskContext c, int availableBefore, int gave) {
+        var companion = c.companion();
+        java.util.Map<String, String> facts = new java.util.LinkedHashMap<>();
+        facts.put("requested", Integer.toString(count));
+        facts.put("available", Integer.toString(availableBefore));
+        facts.put("removed", Integer.toString(gave));
+        facts.put("dropped", Integer.toString(gave));
+        facts.put("carriedAfter", Integer.toString(InventoryOps.count(companion.inventory(), matcher)));
+        facts.put("heldAfter", Integer.toString(held(companion)));
+        facts.put("ownerReceipt", "unknown");
+        c.decision(dev.friendai.foundation.diagnostics.LogEvents.INVENTORY_DELTA, "give_completed", facts);
     }
 
     private int held(CompanionEntity companion) {
