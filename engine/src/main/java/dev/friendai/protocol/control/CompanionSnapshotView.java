@@ -38,7 +38,8 @@ public record CompanionSnapshotView(
         List<String> goalUnmet,
         boolean workPaused,
         long goalId,
-        String currentPhase) {
+        String currentPhase,
+        String routine) {
 
     /**
      * A payload written before these fields existed, or by a peer that leaves them out, decodes with them empty:
@@ -246,6 +247,7 @@ public record CompanionSnapshotView(
                 goalUnmet,
                 workPaused,
                 goalId,
+                "",
                 "");
     }
 
@@ -256,6 +258,7 @@ public record CompanionSnapshotView(
         goalCriteria = goalCriteria == null ? List.of() : List.copyOf(goalCriteria);
         goalUnmet = goalUnmet == null ? List.of() : List.copyOf(goalUnmet);
         currentPhase = currentPhase == null ? "" : currentPhase;
+        routine = routine == null ? "" : routine;
     }
 
     public record Vitals(

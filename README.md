@@ -71,7 +71,7 @@ The companion keeps the chunks around itself loaded, so it keeps working when yo
 
 ## Configuration upgrades
 
-Supported older configuration files upgrade automatically: server schemas 3–15 to 16, and client schemas 1–3 to 4. Provider profiles, API keys, models, devices and explicit settings are retained; new fields receive validated defaults. Renamed settings are converted explicitly. Unknown extension fields survive upgrades and subsequent saves, including reordered routing rules. If several edited array entries carry extra fields and their identity becomes ambiguous, saving is refused rather than guessing which entry owns those fields; edit that file directly while the game/server is stopped.
+Supported older configuration files upgrade automatically: server schemas 3–21 to 22, and client schemas 1–8 to 9. Provider profiles, API keys, models, devices and explicit settings are retained; new fields receive validated defaults. Renamed settings are converted explicitly. Unknown extension fields survive upgrades and subsequent saves, including reordered routing rules. If several edited array entries carry extra fields and their identity becomes ambiguous, saving is refused rather than guessing which entry owns those fields; edit that file directly while the game/server is stopped.
 
 Before replacement, the mod validates the result and saves the exact original bytes beside the file as `<filename>.v<old-version>.<unique-id>.bak`. Backups are never overwritten by another upgrade. Writes use atomic replacement; configuration files are limited to 8 MiB. If an upgrade, backup or replacement fails, the original stays intact and read-only while defaults are used in memory. Correct the problem and reopen the server settings screen or restart the game/server to retry.
 
@@ -179,6 +179,8 @@ Hold **V** to talk. Open **Settings → Voice → Recognition** and choose where
 
 The transcript is sent to the server as a chat message. Local recognition keeps the audio on your machine; a cloud provider uploads the recording, and only while that provider is selected.
 
+**Wake word (off by default).** In **Settings → Voice → Recognition**, enable the wake word and choose one of the bundled phrases. The client then keeps a small local KeywordSpotter armed and shows a listening indicator; only the post-wake utterance follows the configured local or cloud recognition route. The wake detector itself is local and the 5.5 MB model is downloaded once. Pre-wake audio stays in a short volatile ring (default 2 s, at most 5 s) and is never uploaded, written to disk or kept after the utterance. Disarming, opening a screen, disconnect, push-to-talk or the companion speaking stops monitoring; a cancelled or false-positive detection sends no turn.
+
 Both typed chat and push-to-talk only reach a companion in the same dimension within the server's hearing radius (32 blocks by default, `chat.hearingRadius`). Farther away the companion neither hears you nor answers, and says so instead of staying silent.
 
 ### Speech output
@@ -227,6 +229,19 @@ A complex request, or a failed plan with replans left, is first drafted by a sep
 | `planner` | none | Name of a profile to use for planning; empty uses the active profile. |
 | `plannerTimeoutSec` | `60` | How long a planner call may take (10–300). |
 
+## Routines
+
+Ask for a timetable in chat, for example “every morning feed the cows and mine ten logs”. The companion records one routine per owner: a name, a game-time phase (`morning`, `day`, `evening`, `night`) or an interval in game minutes, and one to eight steps made of existing tools. `list_routines` shows the next due time and the last result; `cancel_routine` removes it.
+
+- Due work enters the ordinary queue with your authority. It never goes ahead of an owner order, and a running free-time shift is stopped at its safe boundary — except a safety reflex (survival, shelter, hunger), which is left alone.
+- A window missed while the server was off is skipped, never replayed, so a long absence cannot build a backlog. A `/time` jump only moves the next due tick forward.
+- The routine and its last outcome are saved under `<world>/friendai/routines/`. A crash between queueing the plan and saving the routine is reported as `interrupted` and is not repeated.
+- Disabling autonomy stops new dispatches; work already queued is allowed to finish. `list_routines` and the menu's **Routine** row show the next due time and the last result.
+
+## Portal travel
+
+`travel_through_portal` walks the companion through a lit nether portal. If no lit portal is within 16 blocks and the destination is the Overworld or the Nether, it first builds and lights a 4×5 obsidian frame from carried materials, then enters it. The trip never teleports the companion: entering the portal block lets vanilla apply its own dimension rules and landing search. Before departure the source portal is saved as the `return portal` place (kind `portal`); a place you named yourself is never overwritten, a removed or renamed anchor is not recreated silently, and the trip falls back to the nearest portal. The End is not buildable through a nether portal and is a typed refusal.
+
 ## Trading
 
 The owner can ask the companion to find loaded villagers, wandering traders and adult piglins, inspect exact vanilla offers, query remembered prices and preview explicit spending limits. Market notes are saved per owner under `<world>/friendai/trading/`; quotes and locations expire independently, and every purchase rechecks the live merchant offer. Orders use the companion's own reputation and inventory and never refresh stock or change professions by force.
@@ -234,6 +249,10 @@ The owner can ask the companion to find loaded villagers, wandering traders and 
 Merchant orders require per-item caps and reserves. Queue retries share the original owner turn's scope and cannot increase its limits; pending purchases are not replayed after a restart. `obtain_item` considers a merchant only when that same owner turn already supplied an explicit trade budget and payment fingerprint. It only plans component-neutral outputs; exact component trades use `trade_item`.
 
 The `barter` tool uses a real adult piglin and vanilla gold interaction. Its outputs are random, so the companion reports only drops attributed to that attempt and stops rather than paying again if an accepted ingot has no observed result. It defaults to at most eight gold ingots per order. Trading controls are owner-private in the Traders tab. Server defaults live under `tasks.trading` in `config/friendai-server.json`; `enabled` can turn all trading tools and UI actions off.
+
+## Memory retrieval
+
+Memory retrieval is an opt-in, default-off setting under `memory.retrieval` in `config/friendai-server.json`. `lexical` selects the facts that share words with your message, filtered by caller visibility and redacted before scoring, within `retrievalTopK` and `retrievalMaxChars`; it is a word match, not a semantic model, and it runs entirely on the server with no provider or download. A missing or stale derived index is rebuilt from the owner's memory file; forgetting or replacing a fact makes it immediately unretrievable, and the ordinary bounded memory block remains the fallback.
 
 ## Languages
 

@@ -375,7 +375,7 @@ public final class CompanionBrain {
                 skillSession.persona(persona.get()),
                 perception.describe(turnCaller),
                 turnCaller,
-                memorySource.describe(turnCaller),
+                memorySource.describe(turnCaller, String.join("\n", turnPlayerTexts)),
                 turnKind,
                 goalSource.view(turnCaller),
                 agentSettings.get().promptBudget(),

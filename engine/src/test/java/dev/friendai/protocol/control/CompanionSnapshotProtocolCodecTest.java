@@ -95,6 +95,7 @@ final class CompanionSnapshotProtocolCodecTest {
         assertEquals("", view.goalText());
         assertEquals(List.of(), view.goalCriteria());
         assertEquals(List.of(), view.goalUnmet());
+        assertEquals("", view.routine(), "an old payload has no routine line");
     }
 
     @Test
@@ -165,6 +166,62 @@ final class CompanionSnapshotProtocolCodecTest {
                 StandardCharsets.UTF_8);
         assertTrue(json.contains("\"kind\":9"));
         assertTrue(json.contains("\"kind\":10"));
+    }
+
+    @Test
+    void aRoutineLineSurvivesTheSnapshotRoundTrip() {
+        CompanionSnapshotView producer = new CompanionSnapshotView(
+                true,
+                false,
+                "Friend",
+                "provider",
+                "model",
+                false,
+                "idle",
+                List.of(),
+                List.of(),
+                "",
+                List.of(),
+                new CompanionSnapshotView.Vitals(0, 0, 0, 0, 0, "", "", "none", "none", "", 0, 0),
+                List.of(),
+                true,
+                true,
+                false,
+                false,
+                false,
+                "",
+                false,
+                true,
+                "",
+                "",
+                "",
+                "",
+                "",
+                List.of(),
+                "",
+                List.of(),
+                List.of(),
+                false,
+                0,
+                "",
+                "morning · next in 1200 ticks · last: succeeded");
+
+        byte[] encoded = CompanionSnapshotProtocolCodec.encodeForRecipient(producer, false, 6);
+        DecodeResult.Valid<ProtocolView<CompanionSnapshotView>> decoded =
+                assertInstanceOf(DecodeResult.Valid.class, CompanionSnapshotProtocolCodec.decode(encoded));
+
+        assertEquals(
+                "morning · next in 1200 ticks · last: succeeded",
+                decoded.value().value().routine());
+    }
+
+    @Test
+    void anOldSnapshotWithoutARoutineDecodesEmpty() {
+        DecodeResult.Valid<ProtocolView<CompanionSnapshotView>> decoded = assertInstanceOf(
+                DecodeResult.Valid.class,
+                CompanionSnapshotProtocolCodec.decode(
+                        CompanionSnapshotProtocolCodec.encodeForRecipient(snapshot(), false, 7)));
+        assertEquals("", decoded.value().value().routine());
     }
 
     private static CompanionSnapshotView snapshot() {

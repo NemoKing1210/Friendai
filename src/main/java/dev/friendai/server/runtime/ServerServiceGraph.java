@@ -79,6 +79,7 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
     private final SkillService skills;
     private final GoalService goals;
     private final dev.friendai.agent.autonomy.FreeTimeService freeTime;
+    private final dev.friendai.infrastructure.persistence.routines.RoutineStore routines;
     private final SkinStore skins;
     private final KnowledgeStore knowledge;
     private final PlaceStore places;
@@ -144,6 +145,8 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
                 server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("goals"), writer));
         this.freeTimeStore = resources.own(new FreeTimeStore(
                 server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("free-time"), writer));
+        this.routines = resources.own(new dev.friendai.infrastructure.persistence.routines.RoutineStore(
+                server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("routines"), writer));
         this.socialMemoryStore = resources.own(new SocialMemoryStore(
                 server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("social"), writer));
         this.terrainStore = resources.own(new TerrainStore(
@@ -210,6 +213,7 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
                 placedService,
                 this.resources,
                 freeTime,
+                routines,
                 this,
                 this,
                 searchHints,
@@ -300,6 +304,10 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
 
     public FreeTimeStore freeTimeStore() {
         return freeTimeStore;
+    }
+
+    public dev.friendai.infrastructure.persistence.routines.RoutineStore routines() {
+        return routines;
     }
 
     public TerrainStore terrainStore() {

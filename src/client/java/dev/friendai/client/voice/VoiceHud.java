@@ -31,6 +31,7 @@ public final class VoiceHud {
     private static final int SHADOW = 0xFF555555;
     private static final int OUTLINE = 0xFF000000;
     private static final int TEXT_COLOR = 0xFF3F3F3F;
+    private static final int ACCENT_LISTENING = 0xFF3B6EA5;
     private static final int ACCENT_RECORDING = 0xFFAA0000;
     private static final int ACCENT_TRANSCRIBING = 0xFF555555;
     private static final int ACCENT_ERROR = 0xFF8A4500;
@@ -70,7 +71,7 @@ public final class VoiceHud {
 
     private static boolean isActive(VoiceState.Snapshot state) {
         return switch (state.kind()) {
-            case RECORDING, TRANSCRIBING -> true;
+            case LISTENING, RECORDING, TRANSCRIBING -> true;
             case ERROR -> state.message() != null && System.currentTimeMillis() - state.sinceMillis() <= ERROR_MILLIS;
             default -> false;
         };
@@ -78,6 +79,7 @@ public final class VoiceHud {
 
     private static Component textOf(VoiceState.Snapshot state) {
         return switch (state.kind()) {
+            case LISTENING -> Component.translatable("friendai.voice.hud.listening");
             case RECORDING ->
                 state.partial() == null || state.partial().isBlank()
                         ? Component.translatable("friendai.voice.hud.recording")
@@ -92,6 +94,7 @@ public final class VoiceHud {
             GuiGraphicsExtractor graphics, Font font, Component text, VoiceState.Kind kind, float visibility) {
         boolean transcribing = kind == VoiceState.Kind.TRANSCRIBING;
         boolean error = kind == VoiceState.Kind.ERROR;
+        boolean listening = kind == VoiceState.Kind.LISTENING;
         int maxTextWidth = Math.max(24, graphics.guiWidth() - 16 - PADDING * 2 - INDICATOR_WIDTH - INDICATOR_GAP);
         if (font.width(text) > maxTextWidth) {
             text = Component.literal(font.plainSubstrByWidth(text.getString(), maxTextWidth));
@@ -109,13 +112,8 @@ public final class VoiceHud {
             drawWaitingDots(graphics, contentX, centerY, visibility);
         } else {
             float strength = error ? 1f : pulse();
-            drawDot(
-                    graphics,
-                    contentX + (INDICATOR_WIDTH - DOT_SIZE) / 2,
-                    centerY,
-                    error ? ACCENT_ERROR : ACCENT_RECORDING,
-                    strength,
-                    visibility);
+            int accent = error ? ACCENT_ERROR : listening ? ACCENT_LISTENING : ACCENT_RECORDING;
+            drawDot(graphics, contentX + (INDICATOR_WIDTH - DOT_SIZE) / 2, centerY, accent, strength, visibility);
         }
 
         int textColor = error ? ACCENT_ERROR : TEXT_COLOR;

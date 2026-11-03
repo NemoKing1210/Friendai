@@ -1,0 +1,10 @@
+{
+  "name": "repairable_failure",
+  "access": "owner",
+  "event": "plan #5 build wall failed: placed 4 of 10 blocks; retry the remaining 6",
+  "replies": [
+    {"text": "", "tools": ["queue_add"]},
+    {"text": "I queued the remaining six blocks and will retry them.", "tools": []}
+  ],
+  "expect": {"maxRequests": 2, "toolsCalled": ["queue_add"], "maxRepeatedToolCalls": 0, "spokenContains": ["remaining six"]}
+}

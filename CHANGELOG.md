@@ -6,7 +6,7 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
-## [0.200.0] - 2026-11-04
+## [0.202.0] - 2026-11-04
 
 ### Added
 
@@ -20,6 +20,29 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 - A flush request now reports a real failure instead of handing back a path: a busy, failed, closed or disabled writer is visible, and shutdown never closes open files from a second thread.
 - `/friendai diagnose` no longer crashes the server tick when a diagnostic parent is missing.
+## [0.201.0] - 2026-11-04
+
+### Added
+
+- `travel_through_portal` can build and light a nether portal from carried obsidian and flint, walks in, verifies a safe landing, and records a durable `return portal` place so a later return uses the same anchor. A user-named place is never overwritten.
+- Hands-free voice: an opt-in wake word with a local detector, a listening indicator, a bounded pre-roll and all eight interface languages. It is off by default; pre-wake audio is never uploaded or persisted.
+- Opt-in memory retrieval (`memory.retrieval=lexical`): caller-visible facts selected by a local word match within a bounded budget, with a versioned derived index and immediate invalidation on forget or redaction.
+
+### Changed
+
+- The defaults review records the current values as reviewed and unchanged: the fixed fixtures keep request payloads flat, so no preset is shipped that would imply a tuning the evidence does not support.
+- Configuration documentation now names the current server schema 22 and client schema 9.
+
+## [0.200.0] - 2026-11-03
+
+### Added
+
+- Owner routines: one saved timetable per owner with a game-time phase or interval and up to eight existing tool steps. `set_routine`, `list_routines` and `cancel_routine` manage it, and the menu shows the next due time and last result.
+- A due routine enters the normal queue, waits behind an owner order, survives a restart, and skips a window missed while the server was off instead of replaying it.
+
+### Changed
+
+- Disabling autonomy stops new routine dispatches; a plan already running is allowed to finish and one status line explains the pause.
 
 ## [0.199.0] - 2026-11-03
 

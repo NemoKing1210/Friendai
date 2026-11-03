@@ -21,7 +21,7 @@ import java.util.function.Function;
 
 /** friendai-server.json. */
 public class ServerConfig {
-    public static final int VERSION = 21;
+    public static final int VERSION = 22;
 
     public int version = VERSION;
     public String activeProfile = "main";
@@ -230,9 +230,28 @@ public class ServerConfig {
         public int compactAtPercent = 90;
         /** Whether the model may apply a memory compaction (a dry run is always allowed). */
         public boolean compactionEnabled = true;
+        /**
+         * How the prompt picks facts: {@code off} renders the whole book as before, {@code lexical} renders only the
+         * bounded top matches of the local hashed bag-of-words backend. This is a word match, not a semantic one: no
+         * model file is downloaded and no fact or query leaves the device. Off unless the operator opts in.
+         */
+        public String retrieval = "off";
+        /** The most facts one retrieved memory block carries. */
+        public int retrievalTopK = 5;
+        /** The most characters of fact text one retrieved memory block carries. */
+        public int retrievalMaxChars = 600;
 
         public MemoryLimits limits() {
             return new MemoryLimits(maxFactChars, maxFactsPerPlayer, maxWorldFacts);
+        }
+
+        /** The validated retrieval settings for this section; {@code off} means the ordinary renderer runs. */
+        public dev.friendai.features.memory.retrieval.MemoryRetrieval.Settings retrievalSettings() {
+            if (!enabled || !"lexical".equals(retrieval)) {
+                return dev.friendai.features.memory.retrieval.MemoryRetrieval.Settings.off();
+            }
+            return new dev.friendai.features.memory.retrieval.MemoryRetrieval.Settings(
+                    true, retrievalTopK, retrievalMaxChars, limits(), compactAtPercent);
         }
 
         public dev.friendai.features.memory.transcript.TranscriptLimits transcriptLimits() {
@@ -562,6 +581,15 @@ public class ServerConfig {
         memory.transcriptRetentionDays =
                 clamp(problems, "memory.transcriptRetentionDays", memory.transcriptRetentionDays, 1, 90);
         memory.compactAtPercent = clamp(problems, "memory.compactAtPercent", memory.compactAtPercent, 50, 100);
+        String retrieval =
+                memory.retrieval == null ? "" : memory.retrieval.strip().toLowerCase(java.util.Locale.ROOT);
+        if (!List.of("off", "lexical").contains(retrieval)) {
+            problems.add("memory.retrieval " + memory.retrieval + " is not off or lexical, using off");
+            retrieval = "off";
+        }
+        memory.retrieval = retrieval;
+        memory.retrievalTopK = clamp(problems, "memory.retrievalTopK", memory.retrievalTopK, 1, 8);
+        memory.retrievalMaxChars = clamp(problems, "memory.retrievalMaxChars", memory.retrievalMaxChars, 200, 4_000);
         return problems;
     }
 

@@ -10,7 +10,9 @@ import dev.friendai.features.speech.VoiceErrors;
 import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.infrastructure.config.ClientConfig;
 import dev.friendai.presentation.companion.ClientSessionId;
+import java.util.Objects;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
@@ -31,6 +33,9 @@ public final class PushToTalkHandler {
     /** The capture generation this handler last started; a completion from an older one is dropped. */
     private int recording;
 
+    /** Told true when push-to-talk takes the microphone and false when it lets go. */
+    private Consumer<Boolean> captureHook = capturing -> {};
+
     private ClientSessionId recordingSession;
     private SpeechToText recordingRecognizer;
     private StreamingSpeechToText.StreamingSession recordingStream;
@@ -42,6 +47,14 @@ public final class PushToTalkHandler {
         this.stt = stt;
         this.session = session;
         this.onTranscript = onTranscript;
+    }
+
+    /**
+     * Hands-free listening stands down while the key is held: one microphone cannot serve two captures, and a
+     * press is an explicit request that must win over the wake word.
+     */
+    public void onCapture(Consumer<Boolean> hook) {
+        this.captureHook = Objects.requireNonNull(hook, "hook");
     }
 
     public void register() {
@@ -64,6 +77,7 @@ public final class PushToTalkHandler {
     private void onPressed(Minecraft mc) {
         // Never record the companion's own voice: a press cuts any reply off before the mic opens.
         SpeechRuntime.stop();
+        captureHook.accept(true);
         ClientConfig.SttSection voice = FriendaiClient.clientConfig().voice.stt;
         pressIgnored = true;
         ClientSessionId sessionId = session.get();
@@ -131,6 +145,7 @@ public final class PushToTalkHandler {
     }
 
     private void onReleased(Minecraft mc) {
+        captureHook.accept(false);
         ClientSessionId sessionId = recordingSession;
         SpeechToText recognizer = recordingRecognizer;
         StreamingSpeechToText.StreamingSession stream = recordingStream;
@@ -189,6 +204,7 @@ public final class PushToTalkHandler {
 
     /** Resets key and recording state when the owning connection closes. */
     public void onDisconnect(ClientSessionId sessionId) {
+        captureHook.accept(false);
         if (sessionId.equals(recordingSession) || recordingSession == null) {
             held = false;
             pressIgnored = true;

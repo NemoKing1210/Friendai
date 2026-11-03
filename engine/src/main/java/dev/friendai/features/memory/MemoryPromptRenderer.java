@@ -55,6 +55,36 @@ public final class MemoryPromptRenderer {
         return HEADER + "\n" + counts + "\n" + String.join("\n", parts);
     }
 
+    /**
+     * Renders only the facts a retrieval selected, with the same header and fullness line as the full block, so a
+     * selected block reads like a memory block while never carrying a fact this caller may not see or one the
+     * current message did not select. The heading names the backend honestly: it matches words, not meaning.
+     *
+     * @param facts the selected facts, in the order they must be rendered; empty means "nothing to render"
+     */
+    public static String renderSelection(
+            MemoryBook book,
+            UUID owner,
+            Caller caller,
+            MemoryLimits limits,
+            int compactAtPercent,
+            List<Fact> facts,
+            java.util.function.UnaryOperator<String> redactor) {
+        if (book == null || owner == null || caller == null || facts == null || facts.isEmpty()) {
+            return "";
+        }
+        java.util.function.UnaryOperator<String> clean = redactor == null ? text -> text : redactor;
+        String body = renderFacts(facts, owner, clean);
+        if (body.isBlank()) {
+            return "";
+        }
+        MemoryLimits effective = limits == null ? MemoryLimits.DEFAULTS : limits;
+        return HEADER + "\n"
+                + MemoryAudit.counts(book, owner, caller, effective, compactAtPercent)
+                + "\nClosest remembered facts to what was just said (word match, not meaning):\n"
+                + body;
+    }
+
     private static void addPlayerSection(
             List<String> parts,
             MemoryBook book,

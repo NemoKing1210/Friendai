@@ -112,3 +112,45 @@ and applied by `/friendai reload`. See `FriendaiConfigScreen` for the category e
 | Skills | skills.totalChars | int | 96_000 | 4000..96000 | skills.total_chars | yes |
 | Companion | companion.chunkLoading.enabled | boolean | true |  | companion.chunk_loading | no |
 | Companion | companion.chunkLoading.radius | int | 1 | 0..4 | companion.chunk_radius | yes |
+
+## Default review (TODO 67.2, 2026-11-04)
+
+The table above is the server field inventory. This section records the owner, category and keep/change decision for
+the shipped defaults, including the client, provider-profile and mirrored runtime defaults that the older table did
+not cover. Evidence is the deterministic baseline in `engine/build/eval-baseline.md` unless a row names a test or a
+compatibility invariant. "Keep" means no evidence justified a change; it is not an unexamined default.
+
+| Owner | Key(s) | Current | Category | Decision | Evidence / invariant |
+|---|---|---|---|---|---|
+| `ServerConfig` | `agent.promptBudget` | 24 000 chars | token-sensitive | keep | Baseline system prompts are 8.6k–34.2k chars; an eight-step objective reaches 97.8k across eight requests. The prompt budget is a ceiling, not a target; no fixture was truncated, and lowering it risks dropping tool schemas. |
+| `ServerConfig` | `brain.historyMessages` | 30 | token-sensitive | keep | Baseline history is 1–64 messages; the longest fixture is the deliberate eight-step objective. Trimming is already message- and turn-aware (rule 4); a lower cap would shorten legitimate multi-call work. |
+| `ServerConfig` | `brain.maxToolStepsPerTurn` | 8 | token/loop | keep | The eight-step fixture completes in 8 requests; this is a turn loop bound, not a prompt cost. |
+| `ServerConfig` | `chat.maxReplyChars` | 256 | presentation | keep | At the clamp ceiling; lowering truncates player-facing replies and needs a product decision, not a spend target. |
+| `ServerConfig` | `places.promptBudget` | 1 200 | token-sensitive | keep | Places block is bounded separately and the baseline does not show it crowding the system prompt. |
+| `ServerConfig` | `skills.promptBudget` | 4 096 | token-sensitive | keep | The owner's runtime file uses 2 400; the code default is the safer upper bound for owner/model skills. A change needs a skill-selection starvation fixture. |
+| `ServerConfig` | `memory.maxFactChars` / `maxFactsPerPlayer` / `maxWorldFacts` | 512 / 128 / 128 | learning/retention | keep | At or near their clamps; lowering loses learned facts. |
+| `ServerConfig` | `memory.compactAtPercent` / transcript caps | 90 / 200 / 400 / 7 days | learning/retention | keep | Compaction and retention are privacy/learning decisions, not token tuning. |
+| `ServerConfig` | `autonomy.*` | 20 min / 6 per hour / 2 offline | spend/autonomy | keep | Baseline `hour_passive` makes 0 requests; `hour_assistive` and `hour_autonomous` each make one scripted request in a simulated hour. Lowering caps without provider usage would suppress useful work. |
+| `ServerConfig` | `memory.retrieval` / `topK` / `maxChars` | off / 5 / 600 | token-sensitive, opt-in | keep (off) | New opt-in feature; default off preserves the existing prompt and spend. The lexical backend is measured separately. |
+| `ServerConfig` | `profile.provider/model/apiKey/baseUrl/temperature/maxTokens` | anthropic / claude-sonnet-5-5 / env / null / 0.7 / 8192 | provider-dependent | keep | No offline tokenizer or same-model usage; lowering output or context can truncate tool JSON and multilingual replies. Provider/key changes are not defaults tuning. |
+| `ClientConfig` | `voice.stt.local.model` | `base` | client/UX | keep | Whisper base is the documented balance; the catalog lets the owner choose a larger model without a default migration. |
+| `ClientConfig` | `voice.stt.maxRecordSec` / `voice.tts.maxChars` / `volume` / `spatial` | 30 / 300 / 1.0 / on | presentation | keep | Bounded by existing clamps; no token effect. |
+| `ClientConfig` | `voice.streamReplies` | true | presentation | keep | Streaming reduces first-sentence latency; the guard still buffers unsafe prefixes. |
+| `ClientConfig` | `voice.wake.enabled` / phrase / preRollSec | false / bundle default / 2 | privacy | keep | Wake word is opt-in by design and never opens the microphone unasked. |
+| `ClientConfig` | `voice.stt.provider/language/inputDevice`, `voice.tts.*` | local/auto/system/… | client/UX | keep | Environment-dependent; no safe universal default change. |
+| `BrainSettings` | `maxToolStepsPerTurn`, `historyMessages`, timeouts, cooldown | mirrors of `brain.*` | mirror | keep | `AgentSettings.DEFAULTS` and `BrainSettings` are tested against the validated config defaults; changing one without the other is a bug, not tuning. |
+| `TaskRuntimeSettings` / `QueueLimits` / `MemoryLimits` / `TranscriptLimits` | bounded defaults | see owning classes | safety/persistence | keep | These caps enforce bounded work, queue and file size; they are not token knobs. |
+| `ProviderRegistry` / profiles | provider presets, endpoints, models | data | provider-dependent | keep | Routing and key handling are outside default tuning; a preset cannot rewrite provider/model/key. |
+
+### Mirror consistency
+
+Existing consistency checks cover the server autonomy section. Add/keep tests for `AgentSettings.DEFAULTS`,
+`TaskRuntimeSettings.DEFAULTS`, `QueueLimits.DEFAULTS`, `MemoryLimits.DEFAULTS`, `TranscriptLimits.DEFAULTS` and the
+client wake/recognition defaults so a mirrored field cannot drift from its validated owner.
+
+### Decision
+
+The baseline shows the current defaults already keep capability and cost within the measured fixtures; none of the
+reviewed keys justified a change. No "preset" therefore ships: a preset that applies the same values would be a no-op
+and would suggest a tuning that the evidence does not support. The opt-in preset path remains an explicit future
+decision if a measured fixture shows a shortfall (67.4/67.5). Existing explicit owner settings always win.

@@ -12,6 +12,7 @@ import dev.friendai.features.places.minecraft.PlaceService;
 import dev.friendai.features.trading.minecraft.tool.TradingToolAccess;
 import dev.friendai.perception.resource.ResourceCandidates;
 import dev.friendai.server.agent.FreeTimeDriver;
+import dev.friendai.server.agent.RoutineDriver;
 import dev.friendai.server.agent.perception.PerceptionContext;
 import dev.friendai.server.execution.tools.QueueToolAccess;
 import java.util.Objects;
@@ -33,7 +34,8 @@ public record ToolDependencies(
         PlaceService places,
         PlacedService placed,
         SelfAccess self,
-        StorageAccess storage) {
+        StorageAccess storage,
+        Function<CompanionEntity, RoutineDriver> routines) {
     public ToolDependencies(
             MemoryAccess memory,
             CompanionProfileRepository profiles,
@@ -63,7 +65,8 @@ public record ToolDependencies(
                 places,
                 placed,
                 SelfAccess.DISABLED,
-                StorageAccess.UNAVAILABLE);
+                StorageAccess.UNAVAILABLE,
+                companion -> null);
     }
 
     public ToolDependencies(
@@ -91,7 +94,45 @@ public record ToolDependencies(
                 freeTime,
                 searchHintLine,
                 PlaceService.unavailable(),
-                PlacedService.unavailable());
+                PlacedService.unavailable(),
+                SelfAccess.DISABLED,
+                StorageAccess.UNAVAILABLE,
+                companion -> null);
+    }
+
+    public ToolDependencies(
+            MemoryAccess memory,
+            CompanionProfileRepository profiles,
+            Function<CompanionEntity, PerceptionContext> perceptionContext,
+            Function<CompanionEntity, ResourceCandidates> resourceCandidates,
+            TradingToolAccess trading,
+            QueueToolAccess queue,
+            GoalToolAccess goals,
+            Function<CompanionEntity, SkillToolAccess> skills,
+            Function<CompanionEntity, TrustAccess> trust,
+            Function<CompanionEntity, FreeTimeDriver> freeTime,
+            Function<CompanionEntity, String> searchHintLine,
+            PlaceService places,
+            PlacedService placed,
+            StorageAccess storage,
+            Function<CompanionEntity, RoutineDriver> routines) {
+        this(
+                memory,
+                profiles,
+                perceptionContext,
+                resourceCandidates,
+                trading,
+                queue,
+                goals,
+                skills,
+                trust,
+                freeTime,
+                searchHintLine,
+                places,
+                placed,
+                SelfAccess.DISABLED,
+                storage,
+                routines);
     }
 
     public ToolDependencies(
@@ -124,7 +165,8 @@ public record ToolDependencies(
                 places,
                 placed,
                 SelfAccess.DISABLED,
-                storage);
+                storage,
+                companion -> null);
     }
 
     public ToolDependencies {
@@ -143,5 +185,6 @@ public record ToolDependencies(
         Objects.requireNonNull(placed);
         Objects.requireNonNull(self);
         Objects.requireNonNull(storage);
+        Objects.requireNonNull(routines);
     }
 }

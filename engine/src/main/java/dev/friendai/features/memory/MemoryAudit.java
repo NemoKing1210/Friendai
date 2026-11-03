@@ -145,7 +145,12 @@ public final class MemoryAudit {
         return caller.uuid() != null && Objects.equals(((Subject.Player) subject).uuid(), caller.uuid());
     }
 
-    private static List<Fact> visible(MemoryBook book, UUID owner, Caller caller) {
+    /**
+     * Every fact this caller may read, ascending by id: the owner sees every fact, a trusted player sees the world
+     * plus their own, a guest sees only facts about themselves. This is the one access switch retrieval, the audit
+     * and the prompt all use, so a hidden fact is never embedded or scored for that caller.
+     */
+    public static List<Fact> visible(MemoryBook book, UUID owner, Caller caller) {
         List<Fact> facts = new ArrayList<>();
         if (caller.access() == AccessLevel.OWNER) {
             return book.allFacts();

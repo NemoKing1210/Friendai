@@ -1,6 +1,8 @@
 package dev.friendai.agent.turn;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.friendai.agent.autonomy.NeedKind;
@@ -37,6 +39,18 @@ class CompanionSpeechPolicyTest {
         assertTrue(CompanionSpeechPolicy.mayAskAuthorityQuestion(
                 blocker, 1 + CompanionSpeechPolicy.AUTHORITY_QUESTION_COOLDOWN_MILLIS, 1));
         assertFalse(CompanionSpeechPolicy.mayAskAuthorityQuestion(blocker, 0, 1));
+    }
+
+    @Test
+    void authorityQuestionKeyNormalizesToolAndReason() {
+        var first = new BrainEvent.PlanBlocked(1, "g", 2, " Mine_Blocks ", " Missing   Scaffold ", 3);
+        var second = new BrainEvent.PlanBlocked(9, "other", 4, "mine_blocks", "missing scaffold", 1);
+        assertEquals(
+                CompanionSpeechPolicy.authorityQuestionKey(first), CompanionSpeechPolicy.authorityQuestionKey(second));
+        assertNotEquals(
+                CompanionSpeechPolicy.authorityQuestionKey(first),
+                CompanionSpeechPolicy.authorityQuestionKey(
+                        new BrainEvent.PlanBlocked(1, "g", 2, "mine_blocks", "other reason", 3)));
     }
 
     @Test

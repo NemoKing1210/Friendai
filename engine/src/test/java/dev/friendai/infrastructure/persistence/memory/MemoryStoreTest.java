@@ -8,10 +8,13 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.friendai.features.memory.*;
+import dev.friendai.features.memory.retrieval.LexicalEmbedder;
+import dev.friendai.features.memory.retrieval.RetrievalIndex;
 import dev.friendai.foundation.persistence.UnsupportedStoreVersionException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -130,6 +133,62 @@ class MemoryStoreTest {
         store.flushAll();
         assertEquals(old, Files.readString(file));
         store.close();
+    }
+
+    @Test
+    void formatFourFilesStillLoadAndAreUpgradedOnTheNextWrite() throws IOException {
+        Path file = dir.resolve(A + ".json");
+        Files.writeString(file, """
+                {"formatVersion":4,"revision":3,"nextId":2,"players":[],
+                 "facts":[{"id":1,"subject":"world","category":"NOTE","text":"The lake is north","createdAt":0}],
+                 "foodRules":[],"bonds":{}}
+                """);
+        MemoryStore store = new MemoryStore(dir, () -> 0L);
+        MemoryBook book = store.book(A);
+        assertEquals(1, book.allFacts().size(), "a format 4 file still reads");
+        assertEquals("The lake is north", book.allFacts().getFirst().text());
+        assertTrue(book.retrievalIndex(A).isEmpty(), "a format 4 file has no derived index and gains none by magic");
+
+        book.setFoodRule("minecraft:bread", false);
+        store.flushAll();
+        store.close();
+
+        String json = Files.readString(file);
+        assertTrue(json.contains("\"formatVersion\": 5"), "the next write is the current format: " + json);
+        assertTrue(json.contains("\"retrieval\": {}"), "an old file gains an empty derived section: " + json);
+    }
+
+    @Test
+    void theDerivedIndexSurvivesARestartAndAForgottenFactLeavesNoVectorsOnDisk() throws IOException {
+        MemoryStore store = new MemoryStore(dir, () -> 0L);
+        MemoryBook book = store.book(A);
+        Fact lake = book.addFact(
+                Subject.WORLD, Category.PLACE, "The lake is north of the base", A, "Ann", 0, MemoryLimits.DEFAULTS);
+        RetrievalIndex index = RetrievalIndex.build(
+                List.of(new RetrievalIndex.Source(lake.id(), lake.text())),
+                List.of(lake.text()),
+                LexicalEmbedder.ID,
+                LexicalEmbedder.DIMENSIONS,
+                new LexicalEmbedder());
+        assertTrue(book.putRetrievalIndex(A, index));
+        store.flushAll();
+        store.close();
+
+        MemoryStore reopened = new MemoryStore(dir, () -> 0L);
+        MemoryBook restored = reopened.book(A);
+        assertEquals(
+                index,
+                restored.retrievalIndex(A).orElseThrow(),
+                "a restart reuses the vectors instead of rebuilding them");
+
+        assertTrue(restored.removeFact(lake.id()));
+        assertTrue(restored.retrievalIndex(A).isEmpty(), "a forgotten fact drops the index at once");
+        reopened.flushAll();
+        reopened.close();
+
+        String json = Files.readString(dir.resolve(A + ".json"));
+        assertTrue(json.contains("\"retrieval\": {}"), "a forgotten fact leaves no vectors behind: " + json);
+        assertFalse(json.contains(LexicalEmbedder.ID), "the backend stamp went with the index");
     }
 
     @Test

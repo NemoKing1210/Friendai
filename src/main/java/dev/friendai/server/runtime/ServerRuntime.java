@@ -191,6 +191,11 @@ public final class ServerRuntime implements AutoCloseable {
         return services.freeTime();
     }
 
+    /** Per-owner routines, backed by their own versioned records. */
+    public dev.friendai.infrastructure.persistence.routines.RoutineStore routines() {
+        return services.routines();
+    }
+
     public dev.friendai.features.cartography.minecraft.TerrainSamplerService terrainSampler() {
         return services.terrainSampler();
     }

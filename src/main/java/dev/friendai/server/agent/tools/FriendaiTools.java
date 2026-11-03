@@ -163,6 +163,7 @@ public final class FriendaiTools {
                 .register(featureTools);
         new RoutingTools().register(featureTools);
         new FreeTimeTools(dependencies.freeTime()).register(featureTools);
+        new RoutineTools(dependencies.routines()).register(featureTools);
 
         Map<String, TaskToolDefinition> taskTools = featureTools.taskDefinitions();
         Map<String, TaskToolDefinition> plannable = new LinkedHashMap<>();

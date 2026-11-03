@@ -89,6 +89,81 @@ class ConfigStoresTest {
     }
 
     @Test
+    void schema21GainsLexicalRetrievalOffAndKeepsEveryMemoryChoice() throws IOException {
+        Path path = dir.resolve("server-21-memory.json");
+        Files.writeString(path, """
+                {"version":21,"memory":{"enabled":false,"maxFactsPerPlayer":12,"compactAtPercent":75},
+                 "extension":{"kept":true}}
+                """);
+        var store = ConfigStores.server(path);
+        ServerConfig config = store.load();
+
+        assertEquals(ServerConfig.VERSION, config.version);
+        assertEquals("off", config.memory.retrieval, "retrieval is off unless the operator opts in");
+        assertEquals(5, config.memory.retrievalTopK);
+        assertEquals(600, config.memory.retrievalMaxChars);
+        assertFalse(config.memory.retrievalSettings().enabled(), "off means the ordinary renderer runs");
+        assertFalse(config.memory.enabled);
+        assertEquals(12, config.memory.maxFactsPerPlayer);
+        assertEquals(75, config.memory.compactAtPercent);
+
+        store.save(config);
+        assertTrue(
+                json(path).getAsJsonObject("extension").get("kept").getAsBoolean(),
+                "an unknown field of the old file survives the upgrade");
+        assertEquals(
+                "off", json(path).getAsJsonObject("memory").get("retrieval").getAsString());
+    }
+
+    @Test
+    void anExplicitRetrievalChoiceSurvivesAndOnlyLexicalTurnsItOn() throws IOException {
+        Path path = dir.resolve("server-retrieval.json");
+        Files.writeString(path, """
+                {"version":22,"memory":{"enabled":true,"retrieval":"lexical","retrievalTopK":8,
+                 "retrievalMaxChars":900}}
+                """);
+        ServerConfig config = ConfigStores.server(path).load();
+        assertEquals("lexical", config.memory.retrieval);
+        assertEquals(8, config.memory.retrievalTopK);
+        assertEquals(900, config.memory.retrievalMaxChars);
+        var settings = config.memory.retrievalSettings();
+        assertTrue(settings.enabled());
+        assertEquals(8, settings.topK());
+        assertEquals(900, settings.maxChars());
+        assertEquals(config.memory.limits(), settings.limits());
+
+        Files.writeString(path, "{\"version\":22,\"memory\":{\"enabled\":false,\"retrieval\":\"lexical\"}}");
+        assertFalse(
+                ConfigStores.server(path).load().memory.retrievalSettings().enabled(),
+                "memory.enabled off still turns retrieval off");
+    }
+
+    @Test
+    void retrievalSettingsAreNormalizedAndClamped() {
+        ServerConfig config = ServerConfig.defaults();
+        config.memory.retrieval = " Semantic ";
+        config.memory.retrievalTopK = 99;
+        config.memory.retrievalMaxChars = 10;
+        List<String> problems = config.validate();
+
+        assertEquals("off", config.memory.retrieval, "a semantic backend is not shipped, so it reads as off");
+        assertEquals(8, config.memory.retrievalTopK);
+        assertEquals(200, config.memory.retrievalMaxChars);
+        assertTrue(problems.stream().anyMatch(problem -> problem.contains("memory.retrieval")), problems.toString());
+        assertTrue(problems.stream().anyMatch(problem -> problem.contains("memory.retrievalTopK")));
+        assertTrue(problems.stream().anyMatch(problem -> problem.contains("memory.retrievalMaxChars")));
+
+        ServerConfig upper = ServerConfig.defaults();
+        upper.memory.retrieval = "LEXICAL";
+        upper.memory.retrievalTopK = 0;
+        upper.memory.retrievalMaxChars = 99_999;
+        upper.validate();
+        assertEquals("lexical", upper.memory.retrieval, "the value is stored lowercased");
+        assertEquals(1, upper.memory.retrievalTopK);
+        assertEquals(4_000, upper.memory.retrievalMaxChars);
+    }
+
+    @Test
     void transcriptAndCompactionSettingsAreClamped() {
         ServerConfig config = ServerConfig.defaults();
         config.memory.transcriptMaxEntries = 1;
