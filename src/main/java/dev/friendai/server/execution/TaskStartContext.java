@@ -2,6 +2,7 @@ package dev.friendai.server.execution;
 
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.features.creative.CreativeActionContext;
+import dev.friendai.foundation.diagnostics.LogContext;
 import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.task.TaskContext;
 
@@ -18,12 +19,14 @@ public record TaskStartContext(
         long planId,
         boolean creativeSensitive,
         ServerSettings settings,
-        TaskContext taskContext) {
+        TaskContext taskContext,
+        LogContext logContext) {
     public TaskStartContext {
         if (toolName == null || toolName.isBlank()) throw new IllegalArgumentException("tool name is required");
         if (id < 0 || jobId < 0 || planId < 0)
             throw new IllegalArgumentException("task identifiers cannot be negative");
         if (settings == null) throw new IllegalArgumentException("server settings are required");
         if (taskContext == null) throw new IllegalArgumentException("task context is required");
+        logContext = logContext == null ? LogContext.NONE : logContext;
     }
 }

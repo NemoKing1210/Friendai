@@ -1,12 +1,17 @@
 package dev.friendai.server.execution;
 
+import dev.friendai.execution.log.TaskLogEvent;
+import dev.friendai.execution.log.TaskLogEvents;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.features.creative.CreativeActionContext;
+import dev.friendai.foundation.diagnostics.LogContext;
 import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
+import java.util.Locale;
 import java.util.Optional;
+import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,7 +35,9 @@ public final class ActiveTaskController {
             boolean creativeSensitive,
             int timeoutSec,
             ServerSettings settings,
-            dev.friendai.task.ProgressWatch progress) {}
+            dev.friendai.task.ProgressWatch progress,
+            LogContext logContext,
+            long execution) {}
 
     public record Completion(ActiveTask active, TaskStatus status, String summary) {}
 
@@ -39,7 +46,9 @@ public final class ActiveTaskController {
     private ActiveTask frozen;
     private int frozenElapsed;
     private int nextId = 1;
+    private long nextExecution = 1;
     private int activeTicks;
+    private Consumer<TaskLogEvent> diagnostics = event -> {};
 
     public ActiveTaskController(IntSupplier timeoutSec) {
         this.timeoutSec = timeoutSec;
@@ -49,9 +58,21 @@ public final class ActiveTaskController {
         return emitEvents ? nextId++ : 0;
     }
 
+    /** A diagnostic execution identity for one activation, independent of the public task id. */
+    public long allocateExecution() {
+        return nextExecution++;
+    }
+
+    /** Installs the structured lifecycle publisher; the default drops nothing and logs nothing by itself. */
+    public void setDiagnostics(Consumer<TaskLogEvent> diagnostics) {
+        this.diagnostics = diagnostics == null ? event -> {} : diagnostics;
+    }
+
     /** Starts a task whose prior runner policy has already settled any active task. */
     public int start(Task task, TaskStartContext start) {
         int id = start.id();
+        long execution = allocateExecution();
+        LogContext logContext = start.logContext().withExecution(execution, id, start.planId(), start.jobId());
         ActiveTask active = new ActiveTask(
                 id,
                 start.jobId(),
@@ -67,8 +88,11 @@ public final class ActiveTaskController {
                 start.creativeSensitive(),
                 timeoutSec.getAsInt(),
                 start.settings(),
-                new dev.friendai.task.ProgressWatch(activeTicks));
+                new dev.friendai.task.ProgressWatch(activeTicks),
+                logContext,
+                execution);
         current = active;
+        diagnostics.accept(TaskLogEvents.startEvent(logContext, start.toolName()));
         try {
             task.start(context(start.taskContext(), active));
         } catch (RuntimeException e) {
@@ -119,6 +143,8 @@ public final class ActiveTaskController {
             summary = "timed out";
         }
         if (status == TaskStatus.RUNNING) return Optional.empty();
+        diagnostics.accept(TaskLogEvents.finishEvent(
+                active.logContext(), active.toolName(), status.name().toLowerCase(Locale.ROOT)));
         current = null;
         release(active.task(), activeContext, "terminal");
         return Optional.of(new Completion(active, status, summary));
@@ -128,6 +154,7 @@ public final class ActiveTaskController {
     public Optional<ActiveTask> stop(StopRequest request, TaskContext taskContext) {
         ActiveTask active = current;
         if (active == null) return Optional.empty();
+        diagnostics.accept(TaskLogEvents.cancelEvent(active.logContext(), active.toolName(), request.reason()));
         current = null;
         safeStop(active.task(), context(taskContext, active), request.reason());
         return Optional.of(active);
@@ -136,6 +163,7 @@ public final class ActiveTaskController {
     public Optional<ActiveTask> stopFrozen(StopRequest request, TaskContext taskContext) {
         ActiveTask active = frozen;
         if (active == null) return Optional.empty();
+        diagnostics.accept(TaskLogEvents.cancelEvent(active.logContext(), active.toolName(), request.reason()));
         frozen = null;
         frozenElapsed = 0;
         safeStop(active.task(), context(taskContext, active), request.reason());
@@ -144,6 +172,7 @@ public final class ActiveTaskController {
 
     public void freezeCurrent() {
         if (current == null) return;
+        diagnostics.accept(TaskLogEvents.holdEvent(current.logContext(), current.toolName()));
         frozen = current;
         frozenElapsed = Math.max(0, activeTicks - current.startActiveTick());
         current = null;
@@ -172,8 +201,11 @@ public final class ActiveTaskController {
                 active.creativeSensitive(),
                 active.timeoutSec(),
                 active.settings(),
-                active.progress());
+                active.progress(),
+                active.logContext(),
+                active.execution());
         frozenElapsed = 0;
+        diagnostics.accept(TaskLogEvents.resumeEvent(active.logContext(), active.toolName()));
     }
 
     public void clearFrozen() {
@@ -205,7 +237,12 @@ public final class ActiveTaskController {
 
     private TaskContext context(TaskContext base, ActiveTask active) {
         return new TaskContext(
-                base.companion(), base.level(), base.execution(), active.creativeActionContext(), active.settings());
+                base.companion(),
+                base.level(),
+                base.execution(),
+                active.creativeActionContext(),
+                active.settings(),
+                active.logContext());
     }
 
     private void safeStop(Task task, TaskContext taskContext, String reason) {

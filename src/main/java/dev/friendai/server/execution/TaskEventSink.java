@@ -1,5 +1,6 @@
 package dev.friendai.server.execution;
 
+import dev.friendai.execution.log.TaskLogEvent;
 import dev.friendai.features.places.PlaceCandidate;
 import dev.friendai.task.TaskStatus;
 
@@ -28,4 +29,10 @@ public interface TaskEventSink {
     default void onPlace(PlaceCandidate candidate, String toolName) {}
 
     default void onDebug(String text) {}
+
+    /**
+     * One structured diagnostic lifecycle fact (start, terminal, hold, resume). The default ignores it, so existing
+     * sinks and tests keep working; a sink that publishes it must not also duplicate the legacy callbacks.
+     */
+    default void onDiagnostic(TaskLogEvent event) {}
 }

@@ -22,6 +22,7 @@ import dev.friendai.features.survival.minecraft.FoodSubtaskFactory;
 import dev.friendai.features.trading.TradeAuthority;
 import dev.friendai.features.trading.TradeBook;
 import dev.friendai.features.trading.minecraft.trading.*;
+import dev.friendai.foundation.diagnostics.LogContext;
 import dev.friendai.infrastructure.config.ServerConfig;
 import dev.friendai.infrastructure.persistence.knowledge.KnowledgeStore;
 import dev.friendai.infrastructure.persistence.memory.MemoryStore;
@@ -49,8 +50,28 @@ public record TaskContext(
         ServerLevel level,
         ExecutionCoordinator execution,
         CreativeActionContext creativeActionContext,
-        ServerSettings serverSettings) {
+        ServerSettings serverSettings,
+        LogContext logContext) {
     private static final FoodSubtaskFactory FOOD_SUBTASKS = new MinecraftFoodSubtaskFactory();
+
+    /** The historical shape: a context without captured diagnostic provenance. */
+    public TaskContext(
+            CompanionEntity companion,
+            ServerLevel level,
+            ExecutionCoordinator execution,
+            CreativeActionContext creativeActionContext,
+            ServerSettings serverSettings) {
+        this(companion, level, execution, creativeActionContext, serverSettings, LogContext.NONE);
+    }
+
+    public TaskContext {
+        logContext = logContext == null ? LogContext.NONE : logContext;
+    }
+
+    /** The same world context carrying another diagnostic identity; authority and settings are untouched. */
+    public TaskContext withLogContext(LogContext context) {
+        return new TaskContext(companion, level, execution, creativeActionContext, serverSettings, context);
+    }
 
     public TaskContext(
             CompanionEntity companion,

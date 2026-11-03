@@ -1545,6 +1545,45 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
             }
 
             @Override
+            public void onDiagnostic(dev.friendai.execution.log.TaskLogEvent event) {
+                if (!isCurrent(session, companion) || event == null) return;
+                dev.friendai.execution.log.TaskLogCorrelation correlation = debug.correlation(owner);
+                long parent = correlation.parentSeq(event);
+                java.util.Map<String, String> data = new java.util.LinkedHashMap<>(event.facts());
+                long cause = parent;
+                if (parent < 0L) {
+                    cause = 0L;
+                    data.put("unresolved", event.parent().name().toLowerCase(java.util.Locale.ROOT));
+                }
+                long seq = debug.pipeline()
+                        .emit(new dev.friendai.foundation.diagnostics.LogRecord(
+                                0L,
+                                0L,
+                                dev.friendai.foundation.diagnostics.LogLevel.INFO,
+                                dev.friendai.foundation.diagnostics.LogCategory.TASK,
+                                dev.friendai.foundation.diagnostics.LogKind.TASK,
+                                event.event(),
+                                owner,
+                                companion.getUUID(),
+                                logSession,
+                                event.context().turn(),
+                                event.context().plan(),
+                                event.context().job(),
+                                event.context().task(),
+                                event.tool(),
+                                cause,
+                                event.durationMs(),
+                                event.tool() + ": " + event.status(),
+                                data,
+                                null));
+                if (event.starts()) {
+                    correlation.recordStart(event, seq);
+                } else if (event.terminal()) {
+                    correlation.recordTerminal(event);
+                }
+            }
+
+            @Override
             public void onDebug(String text) {
                 if (!isCurrent(session, companion)) return;
                 emitTask(dev.friendai.execution.log.TaskLogEvents.progress(

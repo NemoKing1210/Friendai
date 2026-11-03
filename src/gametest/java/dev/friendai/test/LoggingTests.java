@@ -5,6 +5,7 @@ import dev.friendai.execution.log.TaskLogEvents;
 import dev.friendai.foundation.diagnostics.LogCategory;
 import dev.friendai.foundation.diagnostics.LogEvents;
 import dev.friendai.foundation.diagnostics.LogFilter;
+import dev.friendai.foundation.diagnostics.LogFlushResult;
 import dev.friendai.foundation.diagnostics.LogLevel;
 import dev.friendai.foundation.diagnostics.LogRecord;
 import dev.friendai.foundation.diagnostics.LogScan;
@@ -187,7 +188,10 @@ public class LoggingTests {
                             "booted",
                             Map.of(),
                             null));
-            writer.service().flushNow().join();
+            LogFlushResult barrier = writer.service().flushStatus().join();
+            h.assertTrue(
+                    barrier.status() == LogFlushResult.Status.DISABLED,
+                    "off must report a disabled flush, not a durable one: " + barrier);
         }
         h.assertTrue(files(root).isEmpty(), "off must not create a log file");
         h.succeed();

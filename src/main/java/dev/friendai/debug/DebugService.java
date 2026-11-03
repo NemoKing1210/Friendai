@@ -1,6 +1,7 @@
 package dev.friendai.debug;
 
 import dev.friendai.execution.history.TaskHistory;
+import dev.friendai.execution.log.TaskLogCorrelation;
 import dev.friendai.foundation.diagnostics.DebugLog;
 import dev.friendai.foundation.diagnostics.LogPipeline;
 import dev.friendai.foundation.diagnostics.LogRecord;
@@ -28,6 +29,7 @@ public final class DebugService implements LogSink {
     private final Map<UUID, TaskHistory> histories = new HashMap<>();
     private final Map<UUID, Long> subscribers = new HashMap<>();
     private final Set<UUID> movementViewers = new HashSet<>();
+    private final Map<UUID, TaskLogCorrelation> correlations = new HashMap<>();
 
     public DebugService(UnaryOperator<String> redactor, LongSupplier clock) {
         this(redactor, clock, () -> LogSettings.off(), null);
@@ -66,6 +68,14 @@ public final class DebugService implements LogSink {
 
     public UnaryOperator<String> redactor() {
         return redactor;
+    }
+
+    /**
+     * The bounded parent resolver for one owner's deferred lifecycle facts. It is transient bookkeeping, not an event
+     * store, and lives beside the owner's other debug state.
+     */
+    public synchronized TaskLogCorrelation correlation(UUID owner) {
+        return correlations.computeIfAbsent(owner, key -> new TaskLogCorrelation());
     }
 
     public synchronized TaskHistory historyOf(UUID owner) {

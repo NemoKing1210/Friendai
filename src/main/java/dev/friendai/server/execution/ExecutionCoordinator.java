@@ -122,6 +122,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         this.mayFollowOwner = mayFollowOwner;
         this.settingsSupplier = settingsSupplier;
         this.activeTasks = new ActiveTaskController(timeoutSec);
+        this.activeTasks.setDiagnostics(event -> emit(sink -> sink.onDiagnostic(event)));
         this.queueDriver = new QueueDriver(this);
     }
 
@@ -901,7 +902,8 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
                 0,
                 creativeSensitive,
                 settings,
-                baseContext());
+                baseContext(),
+                LogContext.NONE);
         try {
             return activeTasks.start(task, start);
         } catch (RuntimeException e) {
@@ -1031,8 +1033,8 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
                             job.planId(),
                             job.creativeSensitive(),
                             settings,
-                            new TaskContext(
-                                    companion, (ServerLevel) companion.level(), this, actionContext, settings)));
+                            new TaskContext(companion, (ServerLevel) companion.level(), this, actionContext, settings),
+                            job.diagnostic()));
             queueDriver.resetBlockedClock();
             return true;
         } catch (RuntimeException e) {
@@ -1186,7 +1188,19 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
                 activeTasks.start(
                         new FollowTask(true),
                         new TaskStartContext(
-                                "follow", null, null, false, true, false, 0, 0, 0, false, settings, baseContext()));
+                                "follow",
+                                null,
+                                null,
+                                false,
+                                true,
+                                false,
+                                0,
+                                0,
+                                0,
+                                false,
+                                settings,
+                                baseContext(),
+                                LogContext.NONE));
             } catch (RuntimeException e) {
                 LOGGER.warn("Default follow failed to start", e);
             }
@@ -1297,8 +1311,8 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
                             activeJob.planId(),
                             activeJob.creativeSensitive(),
                             settings,
-                            new TaskContext(
-                                    companion, (ServerLevel) companion.level(), this, actionContext, settings)));
+                            new TaskContext(companion, (ServerLevel) companion.level(), this, actionContext, settings),
+                            LogContext.NONE));
         } catch (RuntimeException e) {
             queueDriver.fail(activeJob.id(), "task crashed: " + e.getClass().getSimpleName());
         }
