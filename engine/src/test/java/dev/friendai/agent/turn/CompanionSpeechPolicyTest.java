@@ -61,6 +61,29 @@ class CompanionSpeechPolicyTest {
                 shift(3, NeedKind.FOOD), "the owner came back", ShiftStopWhen.OWNER_BACK, history));
     }
 
+    @Test
+    void theSameBlockerOnAnotherTreeIsNotReportedAgain() {
+        Shift current = shift(3, NeedKind.STOCK);
+        List<ShiftRecord> history = List.of(record(
+                2,
+                NeedKind.STOCK,
+                false,
+                "no clear side to climb the spruce tree at -1 80 46: "
+                        + "minecraft:dirt blocks the climb at -7 76 41 in 2 ticks"));
+
+        assertFalse(CompanionSpeechPolicy.shouldReportShiftFailure(
+                current,
+                "no clear side to climb the spruce tree at -30 70 12: "
+                        + "minecraft:dirt blocks the climb at -31 63 11 in 41 ticks",
+                ShiftStopWhen.DONE,
+                history));
+        assertTrue(CompanionSpeechPolicy.shouldReportShiftFailure(
+                current,
+                "-5 84 31 needs a block at -5 79 31 that the blueprint does not provide in 3 ticks",
+                ShiftStopWhen.DONE,
+                history));
+    }
+
     private static Shift shift(long id, NeedKind need) {
         return new Shift(id, "activity", List.of(), "", 10, 0, 100, false, need);
     }

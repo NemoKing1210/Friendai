@@ -1,6 +1,7 @@
 package dev.friendai.agent.turn;
 
 import dev.friendai.agent.autonomy.Shift;
+import dev.friendai.agent.autonomy.ShiftBlocker;
 import dev.friendai.agent.autonomy.ShiftRecord;
 import dev.friendai.agent.autonomy.ShiftStopWhen;
 import java.util.List;
@@ -49,10 +50,10 @@ public final class CompanionSpeechPolicy {
                 || stopWhen == ShiftStopWhen.OWNER_PAUSED) {
             return false;
         }
-        String blocker = normalize(summary);
+        String blocker = ShiftBlocker.key(summary);
         return history.stream()
                 .filter(record -> !record.success() && record.id() != shift.id())
-                .noneMatch(record -> normalize(record.summary()).equals(blocker));
+                .noneMatch(record -> ShiftBlocker.key(record.summary()).equals(blocker));
     }
 
     private static String normalize(String text) {
