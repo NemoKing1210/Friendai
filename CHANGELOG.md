@@ -6,6 +6,16 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.194.1] - 2026-11-03
+
+### Fixed
+
+- The game no longer crashes when a menu snapshot cannot be encoded: the companion menu closes with a warning in the log and the server keeps running.
+- The settings screen opens and searches in every mode; a search that keeps only a category's buttons no longer fails to rebuild the screen.
+- The companion says it is stuck and needs a decision when a goal is unfinished and its queue is idle, instead of standing still in silence.
+- A crafting step that fails for a reason other than missing materials names the step, instead of reporting ingredients the companion already carries.
+- A cancelled turn is written to the log once, not twice.
+
 ## [0.194.0] - 2026-11-03
 
 ### Changed

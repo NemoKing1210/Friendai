@@ -308,7 +308,7 @@ its id and `free time: ` goal, so `FreeTimeDriver` reopens the shift; the driver
 
 ### Companion menu
 
-The client subscribes with a typed CONTROL-family request frame; `ProtocolRequestDispatcher` passes the authenticated request to `DebugStream.openMenu`, which subscribes the player and sends the first snapshot in a `ProtocolViewS2CPayload`. `UNSUBSCRIBE` goes through `DebugStream.closeMenu`, the same path a disconnect and the ten-tick sweep take. The map tab receives its own bounded CONTROL frame (operation 129): `TerrainMapView` carries at most 128 seeded, spaced cells plus 32 sites and 32 roads of the player's current dimension, never the full grid; `TerrainMapProtocolCodec` bounds the frame and `MapTab` draws it. `DebugStream` pushes framed control views every 10 ticks; `SnapshotBuilder` builds them for the requester’s own companion. Everyone sees status and task history; the brain log, prompt, perception text and tool names are operator-only (`DebugAccess`, checked on the server). The Memory and Places tabs send typed MEMORY and PLACES requests and receive correlated protocol views; rename and delete use typed place operations.
+The client subscribes with a typed CONTROL-family request frame; `ProtocolRequestDispatcher` passes the authenticated request to `DebugStream.openMenu`, which subscribes the player and sends the first snapshot in a `ProtocolViewS2CPayload`. `UNSUBSCRIBE` goes through `DebugStream.closeMenu`, the same path a disconnect and the ten-tick sweep take. The map tab receives its own bounded CONTROL frame (operation 129): `TerrainMapView` carries at most 128 seeded, spaced cells plus 32 sites and 32 roads of the player's current dimension, never the full grid; `TerrainMapProtocolCodec` bounds the frame and `MapTab` draws it. `DebugStream` pushes framed control views every 10 ticks; `SnapshotBuilder` builds them for the requester’s own companion, and a frame the encoder rejects closes that viewer’s menu with a warning instead of escaping into the server tick. Everyone sees status and task history; the brain log, prompt, perception text and tool names are operator-only (`DebugAccess`, checked on the server). The Memory and Places tabs send typed MEMORY and PLACES requests and receive correlated protocol views; rename and delete use typed place operations.
 
 ### Instruction skills and self-teaching
 
@@ -351,7 +351,7 @@ the goal that owns the plan hold. `Criterion` pairs text with an optional `Guard
 turns that into the suffix the model reads: `facts:`, `diagnosis:`, `tried:`, `unmet:`, `blocker:` or the replan-budget
 notice, and `all criteria confirmed: call finish_goal` on success. A `finish_goal` call posts the terminal
 `SkillOutcome` for `goal:<id>` (`GOAL_SUCCESS` or `GOAL_FAILURE`). `GoalTick` wakes an idle companion with its unmet
-list, and `QueueText` renders the prompt and status view (`Task queue: N running, N pending`, `Blocked: #id ...`,
+list and answers a silent model with the blocked line itself, and `QueueText` renders the prompt and status view (`Task queue: N running, N pending`, `Blocked: #id ...`,
 `plan #id "...": current <path>`) so what the owner sees can be compared line for line with the log. `GoalBoard.finish`
 takes the model's word and does not re-check criteria, which is exactly why false completion has to be observed
 rather than trusted.
