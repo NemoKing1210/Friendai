@@ -186,7 +186,8 @@ public final class Navigator {
      */
     public void setGoal(PathGoal goal) {
         if (goal == null
-                || goal.equals(this.goal)
+                || !stopped
+                        && goal.equals(this.goal)
                         && (search != null
                                 || executor != null
                                 || state == State.SEARCHING

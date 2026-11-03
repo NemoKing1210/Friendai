@@ -88,6 +88,10 @@ public class NavigatorStateTests {
             h.assertFalse(navigator.searching(), "a stopped navigator must not start a search");
             h.assertTrue(navigator.plan() == null, "a stopped navigator must not walk a route");
             h.assertFalse(c.pathing(), "a stopped navigator must leave pathing off");
+            // The same goal must still wake a parked navigator: stop() leaves the state at SEARCHING, which must
+            // not look like a search already in progress.
+            navigator.setGoal(new GoalPoint(far.x, far.y, far.z, 1.0, 2.0));
+            h.assertTrue(navigator.searching(), "a new goal must restart a stopped navigator");
         });
     }
 }
