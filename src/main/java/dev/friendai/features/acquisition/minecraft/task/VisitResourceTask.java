@@ -95,12 +95,17 @@ public final class VisitResourceTask implements Task {
     }
 
     /**
-     * A visit exists to prove the remembered blocks are still there. Once it has proved the opposite, the site
-     * is forgotten so the next plan does not tour the same empty place again.
+     * A visit exists to prove the remembered blocks are still there. Only a site the companion reached and
+     * inspected can prove the opposite: a blocked path or a chunk that failed to load proves nothing about the
+     * blocks, so forgetting the site then would delete real knowledge.
      */
+    static boolean provesSiteEmpty(boolean observing, ResourceCandidates.Verification result) {
+        return observing && result == ResourceCandidates.Verification.OCCLUDED;
+    }
+
     @Override
     public void onTerminal(TaskContext c) {
-        if (result == ResourceCandidates.Verification.ABSENT || result == ResourceCandidates.Verification.OCCLUDED) {
+        if (provesSiteEmpty(observing, result)) {
             c.resources().confirmAbsent(c.companion(), siteId);
         }
     }
