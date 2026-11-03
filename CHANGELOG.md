@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.195.0] - 2026-11-03
+
+### Changed
+
+- A remembered resource site that a visit proves empty is forgotten, so the companion stops walking back to places it has already cleared instead of touring them site by site.
+
 ## [0.194.1] - 2026-11-03
 
 ### Fixed
