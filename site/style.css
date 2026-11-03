@@ -104,6 +104,16 @@ nav.tabs { position: sticky; top: 0; z-index: 20; display: flex; flex-wrap: wrap
 #tip .src { margin-top: 7px; padding-top: 6px; border-top: 2px dashed #4a2a7a; }
 #tip .src span { display: block; font-family: var(--pixel); font-size: 8px; line-height: 1.6; color: #9a8ab8; margin-bottom: 3px; }
 #tip code { display: block; font-family: "Courier New", monospace; font-size: 15px; line-height: 1.35; color: #9be07a; word-break: break-all; }
+#tip .hint { display: block; margin-top: 6px; font-style: normal; font-size: 16px; color: #9a8ab8; }
+
+/* copy confirmation */
+#toast {
+  position: fixed; left: 50%; bottom: 18px; z-index: 60; pointer-events: none;
+  transform: translate(-50%, 12px); opacity: 0; transition: opacity .15s, transform .15s;
+  padding: 6px 14px; background: var(--tip-bg); color: #9be07a; border: 3px solid var(--tip-edge);
+  box-shadow: 0 0 0 3px #000; font-size: 22px; white-space: nowrap;
+}
+#toast.show { opacity: .97; transform: translate(-50%, 0); }
 
 footer { text-align: center; font-family: var(--pixel); font-size: 9px; line-height: 2; color: #e8d3b3; text-shadow: 2px 2px 0 #3a2410; padding: 18px 0 0; }
 .hidden { display: none; }

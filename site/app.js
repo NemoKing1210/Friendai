@@ -513,6 +513,37 @@ const count = (n, key) => {
   return n + " " + (m10 === 1 && m100 !== 11 ? f[0] : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? f[1] : f[2]);
 };
 
+/* ---- copy a name and its file paths (double click) ---- */
+let toastTimer = 0;
+function toast(msg) {
+  const el = $("#toast");
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove("show"), 1800);
+}
+// file:// pages are not always a secure context, so keep the old textarea trick as a fallback
+function legacyCopy(text) {
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.setAttribute("readonly", "");
+  ta.style.cssText = "position:fixed;top:0;left:-9999px;opacity:0";
+  document.body.append(ta);
+  ta.select();
+  let ok = false;
+  try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+  ta.remove();
+  return ok;
+}
+function copyLines(lines) {
+  const text = lines.filter(Boolean).join("\n");
+  const done = (ok) => toast(ok ? t("Copied") : t("Copy failed"));
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => done(true), () => done(legacyCopy(text)));
+  } else done(legacyCopy(text));
+}
+
 const parseItem = (s, withCode = true) => {
   const trait = s.startsWith("~");
   const raw = trait ? s.slice(1) : s;
@@ -544,6 +575,8 @@ function showTip(ev, n) {
     n.code.forEach((path) => { const line = document.createElement("code"); line.textContent = path; src.append(line); });
     tip.append(src);
   }
+  const hint = document.createElement("em"); hint.className = "hint"; hint.textContent = t("Double-click to copy");
+  tip.append(hint);
   tip.classList.add("show");
   moveTip(ev);
 }
@@ -677,8 +710,20 @@ function renderGraph(box, g) {
     dragging = false;
     setTimeout(freeze, 2500);
   });
+  // A double click emits two clicks first, so a category only opens once the second click is known not to come.
+  let clickTimer = 0;
   net.on("click", (p) => {
-    if (p.nodes.length && byId[p.nodes[0]].onclick) byId[p.nodes[0]].onclick();
+    if (!p.nodes.length) return;
+    const n = byId[p.nodes[0]];
+    if (!n.onclick) return;
+    clearTimeout(clickTimer);
+    clickTimer = setTimeout(() => { if (networks.get(box.id)?.net === net) n.onclick(); }, 220);
+  });
+  net.on("doubleClick", (p) => {
+    clearTimeout(clickTimer);
+    if (!p.nodes.length) return;
+    const n = byId[p.nodes[0]];
+    copyLines([n.label].concat(n.code || []));
   });
   box.addEventListener("mousemove", (ev) => { if (hovered) moveTip(ev); });
 
@@ -816,6 +861,8 @@ function buildCards(containerId, cards, prefix) {
     sec.className = "panel" + (c.wide ? " wide" : "");
     const h = document.createElement("h2"); h.textContent = t(c.title);
     const p = document.createElement("p"); p.className = "lead"; p.style.fontSize = "21px"; p.style.margin = "0 0 10px"; p.textContent = t(c.sub);
+    const copyCard = () => copyLines([t(c.title), t(c.sub)]);
+    [h, p].forEach((el) => { el.title = t("Double-click to copy"); el.addEventListener("dblclick", copyCard); });
     const gb = document.createElement("div"); gb.className = "graphbox" + (c.wide ? "" : " sm");
     const canvas = document.createElement("div"); canvas.className = "vis"; canvas.id = prefix + i; canvas.setAttribute("role", "img"); canvas.setAttribute("aria-label", t(c.title));
     gb.append(canvas); sec.append(h, p, gb); box.append(sec);
@@ -876,6 +923,7 @@ function setLang(lang) {
   translateStatic();
   buildDynamic();
   hideTip();
+  $("#toast").classList.remove("show");
   renderTab(currentTab);
 }
 
