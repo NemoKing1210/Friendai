@@ -11,6 +11,13 @@ import java.util.function.Consumer;
  */
 public interface StreamingSpeechToText extends SpeechToText {
     /**
+     * Whether this recognizer may open a session at all. One adapter serves both model families, and a model whose
+     * graph has no streaming encoder must be transcribed as a clip: asking its runtime for a session ends the process
+     * instead of failing, so a caller checks this before calling {@link #startStreaming}.
+     */
+    boolean supportsStreaming();
+
+    /**
      * Starts one streaming session. The session may load its native model on a worker, so this call returns quickly
      * and the first {@link StreamingSession#feed(float[])} is safe immediately.
      *
