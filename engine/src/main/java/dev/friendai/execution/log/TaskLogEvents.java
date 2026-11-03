@@ -113,6 +113,40 @@ public final class TaskLogEvents {
                 context, TaskLogEvent.Parent.EXECUTION, LogEvents.TASK_SNAPSHOT, tool, "snapshot", -1L, bounded);
     }
 
+    /** A nested span opening; its parent is the enclosing span or the execution. */
+    public static TaskLogEvent spanStart(
+            LogContext context, String operation, String reason, Map<String, String> facts) {
+        Map<String, String> bounded = new LinkedHashMap<>();
+        if (facts != null) bounded.putAll(facts);
+        bounded.put("operation", operation == null ? "" : operation);
+        if (reason != null && !reason.isBlank()) bounded.put("reason", reason);
+        return new TaskLogEvent(
+                context,
+                context.parentSpan() > 0L ? TaskLogEvent.Parent.SPAN : TaskLogEvent.Parent.EXECUTION,
+                LogEvents.SPAN_START,
+                operation,
+                "started",
+                -1L,
+                bounded);
+    }
+
+    /** A nested span closing; it descends from its own start, which the resolver addresses by execution and span. */
+    public static TaskLogEvent spanEnd(
+            LogContext context, String operation, String status, String reason, Map<String, String> facts) {
+        Map<String, String> bounded = new LinkedHashMap<>();
+        if (facts != null) bounded.putAll(facts);
+        bounded.put("operation", operation == null ? "" : operation);
+        if (reason != null && !reason.isBlank()) bounded.put("reason", reason);
+        return new TaskLogEvent(
+                context,
+                TaskLogEvent.Parent.SPAN,
+                LogEvents.SPAN_END,
+                operation,
+                status == null ? "unknown" : status,
+                -1L,
+                bounded);
+    }
+
     /** One observed server tick gap; the reason is unknown, never inferred as a pause. */
     public static TaskLogEvent clockGap(long gapMs) {
         return new TaskLogEvent(

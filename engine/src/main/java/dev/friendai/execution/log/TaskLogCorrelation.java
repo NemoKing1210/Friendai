@@ -28,9 +28,13 @@ public final class TaskLogCorrelation {
         return switch (event.parent()) {
             case INVOCATION -> event.context().cause() > 0L ? event.context().cause() : UNRESOLVED;
             case EXECUTION -> executionStarts.getOrDefault(event.context().execution(), UNRESOLVED);
-            case SPAN ->
-                spanStarts.getOrDefault(
-                        key(event.context().execution(), event.context().parentSpan()), UNRESOLVED);
+            case SPAN -> {
+                // A span end descends from its own start; any other span fact descends from the enclosing span.
+                long referenced = LogEvents.SPAN_END.equals(event.event())
+                        ? event.context().span()
+                        : event.context().parentSpan();
+                yield spanStarts.getOrDefault(key(event.context().execution(), referenced), UNRESOLVED);
+            }
         };
     }
 

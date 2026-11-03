@@ -4,6 +4,7 @@ import dev.friendai.execution.log.ExecutionTiming;
 import dev.friendai.execution.log.TaskDiagnosticEpisode;
 import dev.friendai.execution.log.TaskLogEvent;
 import dev.friendai.execution.log.TaskLogEvents;
+import dev.friendai.execution.log.TaskLogSpan;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.features.creative.CreativeActionContext;
 import dev.friendai.foundation.diagnostics.DiagnosticClock;
@@ -16,6 +17,7 @@ import dev.friendai.task.TaskProgress;
 import dev.friendai.task.TaskProgressThrottle;
 import dev.friendai.task.TaskStatus;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.IntSupplier;
@@ -46,7 +48,15 @@ public final class ActiveTaskController {
             long execution,
             ExecutionTiming timing,
             TaskProgressThrottle progressThrottle,
-            TaskDiagnosticEpisode episode) {}
+            TaskDiagnosticEpisode episode,
+            Spans spans) {}
+
+    /** The bounded live-span state of one activation: depth, the next id and how many were truncated. */
+    static final class Spans {
+        int depth;
+        long next = 1;
+        int truncated;
+    }
 
     public record Completion(ActiveTask active, TaskStatus status, String summary) {}
 
@@ -91,6 +101,7 @@ public final class ActiveTaskController {
         ExecutionTiming timing = ExecutionTiming.started(clock);
         TaskProgressThrottle progressThrottle = new TaskProgressThrottle();
         TaskDiagnosticEpisode episode = new TaskDiagnosticEpisode();
+        Spans spans = new Spans();
         ActiveTask active = new ActiveTask(
                 id,
                 start.jobId(),
@@ -111,7 +122,8 @@ public final class ActiveTaskController {
                 execution,
                 timing,
                 progressThrottle,
-                episode);
+                episode,
+                spans);
         current = active;
         diagnostics.accept(
                 TaskLogEvents.startEvent(logContext, start.toolName(), java.util.Map.of("origin", start.origin())));
@@ -187,11 +199,7 @@ public final class ActiveTaskController {
                 active.toolName(),
                 status.name().toLowerCase(Locale.ROOT),
                 measured.wallMs(),
-                java.util.Map.of(
-                        "activeTicks", Long.toString(measured.activeTicks()),
-                        "heldTicks", Long.toString(measured.heldTicks()),
-                        "tickNanos", Long.toString(measured.tickNanos()),
-                        "summary", summary == null ? "" : summary)));
+                terminalFacts(active, measured, summary)));
         current = null;
         release(active.task(), activeContext, "terminal");
         return Optional.of(new Completion(active, status, summary));
@@ -253,7 +261,8 @@ public final class ActiveTaskController {
                 active.execution(),
                 active.timing(),
                 active.progressThrottle(),
-                active.episode());
+                active.episode(),
+                active.spans());
         frozenElapsed = 0;
         diagnostics.accept(TaskLogEvents.resumeEvent(active.logContext(), active.toolName()));
     }
@@ -291,6 +300,39 @@ public final class ActiveTaskController {
         return activeTicks;
     }
 
+    /** The live span depth one activation may open; deeper activity becomes counted opaque detail. */
+    public static final int MAX_SPAN_DEPTH = 8;
+
+    /** Opens a nested span for the current activation, or a detached one when depth is exhausted. */
+    public TaskLogSpan beginSpan(LogContext parent, String operation, String reason, Map<String, String> facts) {
+        ActiveTask active = current;
+        if (active == null) return TaskLogSpan.none(operation);
+        Spans spans = active.spans();
+        if (spans.depth >= MAX_SPAN_DEPTH) {
+            spans.truncated++;
+            return TaskLogSpan.none(operation);
+        }
+        long spanId = spans.next++;
+        spans.depth++;
+        LogContext base = parent == null ? LogContext.NONE : parent;
+        LogContext child = base.withSpan(spanId, base.span(), 0L);
+        TaskLogSpan.Sink sink = new TaskLogSpan.Sink() {
+            @Override
+            public void start(TaskLogSpan span) {
+                diagnostics.accept(
+                        TaskLogEvents.spanStart(span.context(), span.operation(), span.reason(), span.startFacts()));
+            }
+
+            @Override
+            public void end(TaskLogSpan span, String status, String reasonText, Map<String, String> endFacts) {
+                spans.depth = Math.max(0, spans.depth - 1);
+                diagnostics.accept(
+                        TaskLogEvents.spanEnd(span.context(), span.operation(), status, reasonText, endFacts));
+            }
+        };
+        return new TaskLogSpan(child, operation, reason, facts, sink).start();
+    }
+
     /** Publishes a throttled phase fact for the current activation; false when it says nothing new. */
     public boolean reportPhase(TaskPhase phase, int percent, String reason, String detail, long stamp) {
         ActiveTask active = current;
@@ -301,6 +343,19 @@ public final class ActiveTaskController {
         diagnostics.accept(TaskLogEvents.phaseEvent(
                 active.logContext(), active.toolName(), event.phase(), event.percent(), reason, event.detail()));
         return true;
+    }
+
+    private static Map<String, String> terminalFacts(
+            ActiveTask active, ExecutionTiming.Snapshot measured, String summary) {
+        Map<String, String> facts = new java.util.LinkedHashMap<>();
+        facts.put("activeTicks", Long.toString(measured.activeTicks()));
+        facts.put("heldTicks", Long.toString(measured.heldTicks()));
+        facts.put("tickNanos", Long.toString(measured.tickNanos()));
+        facts.put("summary", summary == null ? "" : summary);
+        if (active.spans().truncated > 0) {
+            facts.put("truncatedSpans", Integer.toString(active.spans().truncated));
+        }
+        return facts;
     }
 
     /** Everything a pre-stop snapshot needs, collected before a stop/cleanup can clear the task. */

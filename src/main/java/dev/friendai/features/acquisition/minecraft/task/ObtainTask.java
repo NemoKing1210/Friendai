@@ -2,6 +2,7 @@ package dev.friendai.features.acquisition.minecraft.task;
 
 import dev.friendai.debug.DebugTarget;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.execution.log.TaskLogSpan;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.features.acquisition.ObtainPlan;
 import dev.friendai.features.acquisition.ObtainPlanner;
@@ -69,6 +70,8 @@ public final class ObtainTask implements Task {
     private final List<String> history = new ArrayList<>();
     private final Set<Long> excludedSiteIds = new LinkedHashSet<>();
     private Task current;
+    private TaskContext childContext;
+    private TaskLogSpan span;
     private Supplier<ResourceCandidates.Verification> currentVisitVerification;
     private ObtainStep currentStep;
     private boolean creativeCreationStep;
@@ -256,7 +259,7 @@ public final class ObtainTask implements Task {
             return TaskStatus.RUNNING;
         }
         if (current != null) {
-            TaskStatus status = current.tick(c);
+            TaskStatus status = current.tick(childContext == null ? c : childContext);
             if (status == TaskStatus.RUNNING) {
                 return TaskStatus.RUNNING;
             }
@@ -264,7 +267,15 @@ public final class ObtainTask implements Task {
             ResourceCandidates.Verification visitVerification = currentVisitVerification != null
                     ? currentVisitVerification.get()
                     : dev.friendai.perception.resource.ResourceCandidates.Verification.PENDING;
-            safeStop(current, c);
+            safeStop(current, childContext == null ? c : childContext);
+            if (span != null) {
+                span.finish(
+                        status.name().toLowerCase(java.util.Locale.ROOT),
+                        status == TaskStatus.SUCCESS ? "child_succeeded" : "child_failed",
+                        java.util.Map.of());
+                span = null;
+            }
+            childContext = null;
             ObtainStep step = currentStep;
             current = null;
             currentVisitVerification = null;
@@ -341,11 +352,18 @@ public final class ObtainTask implements Task {
             lastNoticeTick = ticks;
             c.debug("obtain " + item + ": " + ObtainText.stepText(currentStep) + " (step " + (stepsRun + 1) + ")");
         }
-        current.start(c);
+        current.start(childContext == null ? c : childContext);
         return TaskStatus.RUNNING;
     }
 
     private Task subtask(TaskContext c, ObtainStep step) {
+        // One span per composed child: it opens when the child is actually created and closes when it terminates.
+        if (span != null) span.finish("replaced", "next_step", java.util.Map.of());
+        span = c.beginSpan(
+                step.getClass().getSimpleName().toLowerCase(java.util.Locale.ROOT),
+                "obtain_step",
+                java.util.Map.of("step", Integer.toString(stepsRun + 1)));
+        childContext = c.forSpan(span);
         if (step instanceof ObtainStep.Take take) {
             currentVisitVerification = null;
             return new TakeFromContainerTask(itemMatcher(take.item()), take.count());
@@ -613,11 +631,25 @@ public final class ObtainTask implements Task {
     @Override
     public void stop(TaskContext c) {
         clearCreativeCreation();
+        if (span != null) {
+            span.finish("cancelled", "stopped", java.util.Map.of());
+            span = null;
+        }
+        childContext = null;
         if (current != null) {
             safeStop(current, c);
             current = null;
         }
         c.companion().getNavigation().stop();
+    }
+
+    @Override
+    public void onTerminal(TaskContext c) {
+        if (span != null) {
+            span.finish("finished", "terminal", java.util.Map.of());
+            span = null;
+        }
+        childContext = null;
     }
 
     @Override

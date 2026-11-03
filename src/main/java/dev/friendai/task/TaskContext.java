@@ -162,6 +162,19 @@ public record TaskContext(
         if (execution != null) execution.notice(text);
     }
 
+    /** Opens a nested span for composed work; a detached span when there is no runner or depth is exhausted. */
+    public dev.friendai.execution.log.TaskLogSpan beginSpan(
+            String operation, String reason, java.util.Map<String, String> facts) {
+        return execution == null
+                ? dev.friendai.execution.log.TaskLogSpan.none(operation)
+                : execution.beginSpan(logContext, operation, reason, facts);
+    }
+
+    /** The child context of a span: same authority, settings and execution, plus the span identity. */
+    public TaskContext forSpan(dev.friendai.execution.log.TaskLogSpan span) {
+        return span == null ? this : withLogContext(span.context());
+    }
+
     /**
      * Publishes one structured phase fact through the runner. A phase change is immediate, a repeated PROGRESS is
      * throttled, and nothing here posts a brain event or changes what the task does.
