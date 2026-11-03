@@ -541,9 +541,34 @@ public class ObtainTests {
         });
     }
 
+    @GameTest(maxTicks = 9600)
+    public void stonePickaxeFromBuriedStone(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        for (int x = 0; x < 16; x++) {
+            for (int z = 0; z < 16; z++) {
+                for (int y = -8; y <= -2; y++) h.setBlock(x, y, z, Blocks.STONE);
+                for (int y = -1; y <= 1; y++) h.setBlock(x, y, z, Blocks.DIRT);
+            }
+        }
+        BlockPos table = new BlockPos(12, 2, 12);
+        h.setBlock(table, Blocks.CRAFTING_TABLE);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.WOODEN_PICKAXE));
+        c.inventory().addItem(new ItemStack(Items.STICK, 4));
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(table)), "table should be visible");
+        Result result = new Result();
+        ExecutionCoordinator runner = obtain(c, result, obtainTask("minecraft:stone_pickaxe", 1, true, true));
+        h.succeedWhen(() -> {
+            GameTestSupport.observeVisible(h, c, h.absolutePos(table));
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertValueEqual(c.inventory().countItem(Items.STONE_PICKAXE), 1, "pickaxes");
+        });
+    }
+
     /**
-     * What the companion has seen ages out of the observation window, and this chain is longer than the oak one, so the
-     * test keeps its evidence fresh on every tick the way its sibling does.
+     * What the companion has seen ages out of the observation window, and this chain is longer than the oak one, so
+     * the test keeps its evidence fresh on every tick the way its sibling does.
      */
     @GameTest(maxTicks = 9600)
     public void stonePickaxeFromAcaciaOnly(GameTestHelper h) {

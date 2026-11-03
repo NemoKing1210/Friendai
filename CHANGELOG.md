@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.197.1] - 2026-11-03
+
+### Fixed
+
+- A stone search now reports the reason it stopped, keeps its search budget while a plan waits, and lets a failed step in a plan be replaced instead of clearing the whole plan.
+
 ## [0.197.0] - 2026-11-03
 
 ### Added
