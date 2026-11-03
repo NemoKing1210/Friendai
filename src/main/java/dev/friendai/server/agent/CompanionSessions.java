@@ -296,6 +296,39 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
     /** Records a direct, translated chat line in the same bounded log as brain deliveries. */
     void logDirectDelivery(UUID owner, String translationKey) {
         debug.logOf(owner).add(LogKind.ASSISTANT, "direct delivery: " + translationKey);
+        CompanionSession session = session(owner);
+        CompanionEntity companion = session.companion();
+        debug.pipeline()
+                .emit(new dev.friendai.foundation.diagnostics.LogRecord(
+                        0L,
+                        0L,
+                        dev.friendai.foundation.diagnostics.LogLevel.INFO,
+                        dev.friendai.foundation.diagnostics.LogCategory.BRAIN,
+                        LogKind.ASSISTANT,
+                        dev.friendai.foundation.diagnostics.LogEvents.ASSISTANT_DIRECT,
+                        owner,
+                        companion == null ? null : companion.getUUID(),
+                        session.logSession(),
+                        0L,
+                        0L,
+                        0L,
+                        0L,
+                        "",
+                        0L,
+                        -1L,
+                        "direct delivery: " + translationKey,
+                        java.util.Map.of("key", translationKey),
+                        null));
+    }
+
+    /** The durable log id of the owner's current session; empty before the brain attaches. */
+    public String logSession(UUID owner) {
+        return session(owner).logSession();
+    }
+
+    /** Emits a free-time record through the same durable pipeline as task records. */
+    public void logFreeTime(dev.friendai.foundation.diagnostics.LogRecord record) {
+        debug.pipeline().emit(record);
     }
 
     Supplier<PerceptionContext> perceptionContext() {
@@ -1282,6 +1315,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                 companion.combatController().state()
                         != dev.friendai.features.combat.minecraft.CombatController.State.IDLE));
         String logSession = Long.toString(System.currentTimeMillis(), 36);
+        session.logSession(logSession);
         brain.setObserver(BrainObservers.of(
                 new DebugLogObserver(owner, companion.getUUID(), logSession, debug.pipeline()),
                 new dev.friendai.agent.turn.BrainObserver() {

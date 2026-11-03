@@ -30,6 +30,7 @@ public final class CompanionSession {
     private Planner plannerOverride;
     private long lastGoalTick;
     private int nudgeStreak;
+    private String logSession = "";
 
     public CompanionSession(UUID owner, MemoryBook memory) {
         this.owner = Objects.requireNonNull(owner);
@@ -39,6 +40,15 @@ public final class CompanionSession {
 
     public UUID owner() {
         return owner;
+    }
+
+    /** The id this session's durable records carry; empty until the brain attaches. */
+    public String logSession() {
+        return logSession;
+    }
+
+    void logSession(String id) {
+        this.logSession = id == null ? "" : id;
     }
 
     public boolean isThinking() {

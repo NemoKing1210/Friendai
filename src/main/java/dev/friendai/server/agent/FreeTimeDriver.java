@@ -10,6 +10,7 @@ import dev.friendai.agent.autonomy.AutonomySettings;
 import dev.friendai.agent.autonomy.AwaySummary;
 import dev.friendai.agent.autonomy.Executor;
 import dev.friendai.agent.autonomy.FreeTime;
+import dev.friendai.agent.autonomy.FreeTimeLogEvents;
 import dev.friendai.agent.autonomy.FreeTimeService;
 import dev.friendai.agent.autonomy.FreeTimeStatus;
 import dev.friendai.agent.autonomy.FreeTimeText;
@@ -280,7 +281,10 @@ public final class FreeTimeDriver {
         if (!success
                 && dev.friendai.agent.turn.CompanionSpeechPolicy.shouldReportShiftFailure(
                         shift, summary, stopWhen, service().state(owner).history())) {
-            tell(owner, companion, FreeTimeText.shiftFailureMessage(summary));
+            UserMessage line = FreeTimeText.shiftFailureMessage(summary);
+            brains.logFreeTime(FreeTimeLogEvents.report(
+                    owner, companion.getUUID(), brains.logSession(owner), shift.planId(), line.key()));
+            tell(owner, companion, line);
         }
     }
 
@@ -325,11 +329,11 @@ public final class FreeTimeDriver {
         facts.invalidate(owner);
         String stageAfter = ProgressionLadder.evaluate(facts.build(companion, owner, now, placeService))
                 .stage();
-        String diagnosis = success
-                ? ""
+        var diagnosis = success
+                ? null
                 : new dev.friendai.agent.recover.RecoveryAdvisor()
-                        .diagnose("", summary == null ? "" : summary, Set.of())
-                        .line();
+                        .diagnose("", summary == null ? "" : summary, Set.of());
+        String diagnosisLine = diagnosis == null ? "" : diagnosis.line();
         // A plan that ended because its own time limit ran out stopped on its budget, not because the work was done.
         ShiftStopWhen stopWhen = !success && summary != null && summary.contains(ShiftOutcome.TIME_UP)
                 ? ShiftStopWhen.BUDGET_SPENT
@@ -341,12 +345,22 @@ public final class FreeTimeDriver {
                 summary,
                 stageAtStart.getOrDefault(owner, stageAfter),
                 stageAfter,
-                diagnosis,
+                diagnosisLine,
                 now,
                 config.get().autonomy.toSettings(),
                 stopWhen);
         service()
                 .finishShift(owner, outcome.record().success(), outcome.record().summary(), now, stopWhen);
+        brains.logFreeTime(FreeTimeLogEvents.end(
+                owner,
+                companion.getUUID(),
+                brains.logSession(owner),
+                planId,
+                outcome.record().success(),
+                stopWhen.name(),
+                outcome.record().summary(),
+                diagnosis == null ? "" : diagnosis.kind().name(),
+                diagnosis == null ? "" : diagnosis.detail()));
         reportShiftEnd(
                 owner,
                 companion,
@@ -839,6 +853,13 @@ public final class FreeTimeDriver {
                         return;
                     }
                     service().linkPlan(owner, plan.get());
+                    brains.logFreeTime(FreeTimeLogEvents.start(
+                            owner,
+                            companion.getUUID(),
+                            brains.logSession(owner),
+                            plan.get(),
+                            state.shift().need().name(),
+                            state.shift().goal()));
                     facts.invalidate(owner);
                     brains.plannerDebug(owner, "planner disposition=queued plan #" + plan.get());
                 }));
@@ -927,6 +948,13 @@ public final class FreeTimeDriver {
                 .beginShift(
                         owner, need.text(), List.of(), "", need.kind(), true, nowMillis, nowMillis + minutes * 60_000L);
         service().linkPlan(owner, plan.get());
+        brains.logFreeTime(FreeTimeLogEvents.start(
+                owner,
+                companion.getUUID(),
+                brains.logSession(owner),
+                plan.get(),
+                need.kind().name(),
+                need.text()));
         facts.invalidate(owner);
         return true;
     }

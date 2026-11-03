@@ -13,6 +13,7 @@ public final class LogEvents {
     public static final String EVENT_POSTED = "event.posted";
     public static final String ASSISTANT_TEXT = "assistant.text";
     public static final String ASSISTANT_DELIVERED = "assistant.delivered";
+    public static final String ASSISTANT_DIRECT = "assistant.direct";
     public static final String TOOL_CALL = "tool.call";
     public static final String TOOL_RESULT = "tool.result";
     public static final String SKILL_SELECT = "skill.select";
@@ -34,6 +35,9 @@ public final class LogEvents {
     public static final String QUEUE_ADD = "queue.add";
     public static final String QUEUE_ACTIVATE = "queue.activate";
     public static final String QUEUE_BLOCK = "queue.block";
+    public static final String SHIFT_START = "shift.start";
+    public static final String SHIFT_END = "shift.end";
+    public static final String SHIFT_REPORT = "shift.report";
     public static final String CONFIG_LOAD = "config.load";
     public static final String CONFIG_SAVE = "config.save";
     public static final String CONFIG_MIGRATE = "config.migrate";
