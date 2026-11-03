@@ -111,6 +111,12 @@ public final class QueueText {
             }
         return truncate(out.toString(), 1200);
     }
+    /** What a clear removed, counted before the plans were archived and their jobs removed. */
+    public static String cleared(int plans, int jobs) {
+        if (plans == 0 && jobs == 0) return "queue is already empty";
+        return "cleared " + plans + (plans == 1 ? " plan and " : " plans and ") + jobs + (jobs == 1 ? " job" : " jobs");
+    }
+
     /** Human-readable, bounded view of the interpreter position and repeat counters. */
     public static String planProgress(PlanRecord plan) {
         var cursor = plan.cursor();

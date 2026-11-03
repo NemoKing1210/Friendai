@@ -19,6 +19,13 @@ class QueueTextTest {
     }
 
     @Test
+    void clearedReportsWhatWasRemoved() {
+        assertEquals("queue is already empty", QueueText.cleared(0, 0));
+        assertEquals("cleared 1 plan and 3 jobs", QueueText.cleared(1, 3));
+        assertEquals("cleared 2 plans and 1 job", QueueText.cleared(2, 1));
+    }
+
+    @Test
     void summaryNamesRunningAndBlockedWork() {
         JobQueue q = new JobQueue(QueueLimits.DEFAULTS);
         var steps = List.of(

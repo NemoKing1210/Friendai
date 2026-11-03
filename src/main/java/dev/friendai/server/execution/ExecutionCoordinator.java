@@ -616,15 +616,25 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
 
     private String clearQueueActive(String reason) {
         ActiveTask active = activeTask();
-        Task cleanup = active != null && active.jobId() > 0 ? active.task().cleanupAfterCancel(context()) : null;
+        int plans = queueDriver.queue().plans().size();
+        int jobs = queueDriver.queue().jobCount();
+        boolean stoppedActive = active != null && active.jobId() > 0;
+        Task cleanup = stoppedActive ? active.task().cleanupAfterCancel(context()) : null;
         ActiveTask frozen = frozenTask();
         if (frozen != null) {
             cleanup = combineCleanup(cleanup, frozen.task().cleanupAfterCancel(context(frozen)));
             stopFrozen(reason);
         }
-        if (active != null && active.jobId() > 0) cancelCurrent(reason);
+        if (stoppedActive) cancelCurrent(reason);
         for (PlanRecord plan : queueDriver.queue().plans()) queueDriver.finishPlan(plan.id(), reason, false);
-        String result = queueDriver.clear().text();
+        String result;
+        if (plans == 0 && jobs == 0) {
+            result = stoppedActive ? "stopped the active task" : QueueText.cleared(0, 0);
+        } else {
+            result = QueueText.cleared(plans, jobs);
+            if (stoppedActive) result += " and stopped the active task";
+        }
+        queueDriver.clear();
         queueDriver.clearFactories();
         queueDriver.clearAwaitingDecisions();
         if (cleanup != null) begin(cleanup, "scaffold_cleanup", false, false);
