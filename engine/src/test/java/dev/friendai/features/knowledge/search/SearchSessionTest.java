@@ -55,7 +55,7 @@ class SearchSessionTest {
     }
 
     @Test
-    void timeIncludesTravelInspectionAndReturnTicks() {
+    void workTicksCountTaskTicksNotElapsedTime() {
         SearchSession session = new SearchSession(
                 UUID.randomUUID(),
                 "minecraft:overworld",
@@ -63,12 +63,39 @@ class SearchSessionTest {
                 new Pos(0, 64, 0),
                 new SearchSession.Limits(64, 256, 2400, 128),
                 100);
-        assertFalse(session.accountWork(101, new Pos(0, 64, 0), 0, 0));
-        assertFalse(session.accountWork(1299, new Pos(4, 64, 0), 4, 0));
-        assertEquals(1_199, session.snapshot().spentTicks());
-        assertTrue(session.accountWork(2500, new Pos(8, 64, 0), 4, 0));
-        assertEquals(2_400, session.snapshot().spentTicks());
+        assertFalse(session.accountWork(10_000, new Pos(0, 64, 0), 0, 0));
+        assertEquals(1, session.snapshot().spentTicks());
+        for (int i = 1; i < 2399; i++) {
+            assertFalse(session.accountWork(10_000L + i, new Pos(0, 64, 0), 0, 0));
+        }
+        assertTrue(session.accountWork(12_399, new Pos(0, 64, 0), 0, 0));
+        assertEquals(2400, session.snapshot().spentTicks());
         assertEquals(SearchSession.Phase.RETURN, session.snapshot().phase());
+    }
+
+    @Test
+    void theSameTickIsCountedOnceAcrossAdvanceAndAccountWork() {
+        SearchSession session = new SearchSession(
+                UUID.randomUUID(),
+                "minecraft:overworld",
+                "iron",
+                new Pos(0, 64, 0),
+                new SearchSession.Limits(64, 256, 2400, 128),
+                100);
+        session.advance(new SearchSession.Input(
+                100,
+                "minecraft:overworld",
+                new Pos(0, 64, 0),
+                true,
+                false,
+                SearchSession.LegOutcome.NONE,
+                null,
+                0,
+                0,
+                0,
+                0));
+        assertFalse(session.accountWork(100, new Pos(0, 64, 0), 0, 0));
+        assertEquals(1, session.snapshot().spentTicks());
     }
 
     @Test
@@ -135,7 +162,7 @@ class SearchSessionTest {
                 0,
                 0));
         assertEquals(SearchSession.Phase.COMPLETE, returned.phase());
-        assertEquals(20, session.snapshot().spentTicks());
+        assertEquals(4, session.snapshot().spentTicks());
         assertEquals(16, session.snapshot().spentTravelBlocks());
     }
 
@@ -152,7 +179,7 @@ class SearchSessionTest {
         session.clampLimits(new SearchSession.Limits(32, 128, 600, 32));
         assertEquals(
                 new SearchSession.Limits(32, 128, 600, 32), session.snapshot().limits());
-        assertEquals(800, session.snapshot().spentTicks());
+        assertEquals(1, session.snapshot().spentTicks());
         assertEquals(10, session.snapshot().spentTravelBlocks());
     }
 
@@ -169,7 +196,7 @@ class SearchSessionTest {
         session.resumeAfterReload(1_000);
 
         assertEquals(SearchSession.Phase.CHOOSE_FRONTIER, session.snapshot().phase());
-        assertEquals(800, session.snapshot().spentTicks());
+        assertEquals(1, session.snapshot().spentTicks());
         assertEquals(10, session.snapshot().spentTravelBlocks());
         assertEquals(2, session.snapshot().excavationBlocks());
         assertEquals(1_000, session.snapshot().lastTick());

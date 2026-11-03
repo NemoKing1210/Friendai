@@ -34,7 +34,7 @@ class SearchLedgerTest {
                 new SearchSession.Limits(512, 2_048, 12_000, 128),
                 new Pos(40, 64, 80));
         assertSame(first, retry);
-        assertEquals(10, retry.snapshot().spentTicks());
+        assertEquals(1, retry.snapshot().spentTicks());
         assertEquals(SearchLedger.LOCAL_DEFAULTS, retry.snapshot().limits());
     }
 
@@ -59,7 +59,7 @@ class SearchLedgerTest {
         SearchLedger restored = new SearchLedger();
         restored.restore(original.toJson());
         assertEquals(
-                10,
+                1,
                 restored.acquire(
                                 owner,
                                 "minecraft:overworld",

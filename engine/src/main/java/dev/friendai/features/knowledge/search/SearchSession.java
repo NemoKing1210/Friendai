@@ -5,7 +5,10 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
-/** Pure goal-level search state machine; it makes decisions but never moves the companion. */
+/**
+ * Pure goal-level search state machine; it makes decisions but never moves the companion. Its tick budget counts
+ * task ticks, so time spent waiting in a queue or for a model turn costs nothing.
+ */
 public final class SearchSession {
     public enum Phase {
         PREPARE,
@@ -90,6 +93,9 @@ public final class SearchSession {
     private long lastTick;
     private double spentTravelBlocks;
     private long spentTicks;
+    /** The last game tick that consumed a budget tick, so one server tick counts once even across advance and work. */
+    private long lastAccountedTick = Long.MIN_VALUE;
+
     private int excavationBlocks;
     private int blockedLegs;
     private Runnable onChange;
@@ -115,6 +121,7 @@ public final class SearchSession {
                 snapshot.startedTick());
         restored.phase = snapshot.phase();
         restored.lastTick = snapshot.lastTick();
+        restored.lastAccountedTick = snapshot.lastTick();
         restored.spentTravelBlocks = snapshot.spentTravelBlocks();
         restored.spentTicks = snapshot.spentTicks();
         restored.excavationBlocks = snapshot.excavationBlocks();
@@ -131,6 +138,13 @@ public final class SearchSession {
         if (onChange != null) onChange.run();
     }
 
+    /** Counts one task tick; idle time between two calls costs nothing. */
+    private void accountTick(long tick) {
+        if (tick == lastAccountedTick) return;
+        lastAccountedTick = tick;
+        spentTicks++;
+    }
+
     public synchronized Decision advance(Input input) {
         Decision decision = advanceInternal(input);
         changed();
@@ -140,7 +154,8 @@ public final class SearchSession {
     private Decision advanceInternal(Input input) {
         if (!dimension.equals(input.dimension())) return terminal(Phase.FAILED, Reason.WRONG_DIMENSION);
         lastTick = Math.max(lastTick, input.tick());
-        spentTicks = Math.max(spentTicks, input.tick() - startedTick) + input.workTicks();
+        accountTick(input.tick());
+        spentTicks += input.workTicks();
         spentTravelBlocks += input.travelBlocks();
         excavationBlocks += input.excavationBlocks();
         if (input.discovered()) {
@@ -203,7 +218,7 @@ public final class SearchSession {
         if (tick < 0 || !Double.isFinite(travelBlocks) || travelBlocks < 0 || blocksExcavated < 0)
             throw new IllegalArgumentException("invalid measured work");
         lastTick = Math.max(lastTick, tick);
-        spentTicks = Math.max(spentTicks, Math.max(0, tick - startedTick));
+        accountTick(tick);
         spentTravelBlocks += travelBlocks;
         excavationBlocks += blocksExcavated;
         if (spentTicks >= limits.ticks()
@@ -232,6 +247,7 @@ public final class SearchSession {
         phase = Phase.CHOOSE_FRONTIER;
         lastTick = now;
         startedTick = Math.max(0, now - spentTicks);
+        lastAccountedTick = Long.MIN_VALUE;
         changed();
     }
 
@@ -243,6 +259,7 @@ public final class SearchSession {
         if (now < 0) throw new IllegalArgumentException("tick must not be negative");
         lastTick = Math.max(lastTick, now);
         startedTick = Math.max(0, now - spentTicks);
+        lastAccountedTick = Long.MIN_VALUE;
         if (phase == Phase.COMPLETE || phase == Phase.FAILED) return;
         if (phase != Phase.RETURN) phase = Phase.CHOOSE_FRONTIER;
         changed();
