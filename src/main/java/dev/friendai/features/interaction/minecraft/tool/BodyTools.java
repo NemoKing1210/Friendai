@@ -154,7 +154,7 @@ public final class BodyTools implements FeatureToolContributor {
         registerTask(
                 registry,
                 "wait",
-                "Do nothing for a number of seconds. Use it between the steps of a queue when something has to settle.",
+                "Do nothing for a number of seconds. Use it only between the steps of a queue when something has to settle. It occupies the task runner: to wait for a running task, end your turn instead; the task-finished event starts the next turn.",
                 SchemaBuilder.object()
                         .number("seconds", "How long to wait, from 0.5 to 60")
                         .required("seconds")
