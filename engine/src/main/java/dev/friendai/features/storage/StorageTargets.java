@@ -92,10 +92,15 @@ public final class StorageTargets {
      */
     public static List<ContainerRecord> depositOrder(
             Collection<ContainerRecord> records, String dimension, String itemId, int x, int y, int z) {
+        return depositOrder(records, dimension, Set.of(itemId), x, y, z);
+    }
+
+    public static List<ContainerRecord> depositOrder(
+            Collection<ContainerRecord> records, String dimension, Set<String> itemIds, int x, int y, int z) {
         if (records == null || records.isEmpty()) {
             return List.of();
         }
-        Set<String> item = Set.of(itemId);
+        Set<String> item = Set.copyOf(itemIds);
         List<ContainerRecord> sorted = new ArrayList<>(records);
         sorted.sort(Comparator.comparingInt((ContainerRecord record) -> depositGroup(record, item))
                 .thenComparing(record -> !record.key().dimension().equals(dimension))

@@ -1,6 +1,7 @@
 package dev.friendai.features.inventory.minecraft.storage;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.storage.ContainerRecord;
 import dev.friendai.features.storage.StoredCandidate;
 import java.util.List;
 import java.util.Optional;
@@ -11,6 +12,8 @@ import net.minecraft.server.level.ServerLevel;
 /** Server-thread access to the owner's observed-container index, as tools and tasks see it. */
 public interface StorageAccess {
     void forget(CompanionEntity companion, ServerLevel level, BlockPos position);
+
+    List<ContainerRecord> records(CompanionEntity companion);
 
     List<StoredCandidate> find(CompanionEntity companion, Set<String> itemIds, int minCount, long nowTick);
 
@@ -26,6 +29,11 @@ public interface StorageAccess {
     StorageAccess UNAVAILABLE = new StorageAccess() {
         @Override
         public void forget(CompanionEntity companion, ServerLevel level, BlockPos position) {}
+
+        @Override
+        public List<ContainerRecord> records(CompanionEntity companion) {
+            return List.of();
+        }
 
         @Override
         public List<StoredCandidate> find(

@@ -62,6 +62,11 @@ class StorageToolsTest {
         public void forget(CompanionEntity companion, ServerLevel level, BlockPos position) {}
 
         @Override
+        public List<ContainerRecord> records(CompanionEntity companion) {
+            return List.of();
+        }
+
+        @Override
         public List<StoredCandidate> find(
                 CompanionEntity companion, Set<String> itemIds, int minCount, long nowTick) {
             return matches;

@@ -54,6 +54,11 @@ public final class StorageIndexService implements StorageAccess {
     }
 
     @Override
+    public List<ContainerRecord> records(CompanionEntity companion) {
+        return List.copyOf(book(companion).records());
+    }
+
+    @Override
     public List<StoredCandidate> find(
             CompanionEntity companion, Set<String> itemIds, int minCount, long nowTick) {
         StorageIndex index = book(companion);

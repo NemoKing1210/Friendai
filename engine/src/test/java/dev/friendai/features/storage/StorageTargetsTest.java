@@ -67,4 +67,18 @@ class StorageTargetsTest {
             int x, int y, int z, long seen, int used, Map<String, Integer> counts) {
         return new ContainerRecord(new StorageKey(OVERWORLD, x, y, z), "chest", seen, used, 27, counts);
     }
+
+    @Test
+    void depositOrderPutsTheItemThenFreeSlotsThenUnrecorded() {
+        var limits = new StorageLimits(16, 8, 600);
+        var index = new StorageIndex(limits);
+        index.observe(record(1, 0, 0, 10, 27, Map.of("minecraft:stone", 64)));
+        index.observe(record(2, 0, 0, 10, 1, Map.of("minecraft:iron_ingot", 5)));
+        index.observe(record(3, 0, 0, 10, 1, Map.of()));
+        var ordered = StorageTargets.depositOrder(
+                index.records(), OVERWORLD, "minecraft:iron_ingot", 0, 0, 0);
+        assertEquals(2, ordered.get(0).key().x());
+        assertEquals(3, ordered.get(1).key().x());
+        assertEquals(1, ordered.get(2).key().x());
+    }
 }
