@@ -17,6 +17,25 @@ public final class CraftText {
                 .collect(Collectors.joining(", ", "missing: ", ""));
     }
 
+    /** The shortfall line when a fresh plan still lacks ingredients, otherwise the empty string. */
+    public static String shortfall(Map<String, Integer> missing) {
+        if (missing == null || missing.isEmpty()) {
+            return "";
+        }
+        return missingText(missing);
+    }
+
+    /**
+     * The failure line for a step whose inventory changed under the task: the real shortfall a fresh plan
+     * found, or the step that could not be repeated. It never invents ingredient counts.
+     */
+    public static String changedInventory(Map<String, Integer> missing, String stepOutput) {
+        String shortfall = shortfall(missing);
+        return shortfall.isEmpty()
+                ? "the inventory changed while crafting: could not repeat " + stepOutput
+                : "the inventory changed while crafting: " + shortfall;
+    }
+
     /**
      * {@code can craft 1 minecraft:iron_pickaxe now: craft minecraft:stick (1×) in the inventory, then …} or
      * {@code can't craft 1 minecraft:iron_pickaxe yet; missing: …}.

@@ -2,6 +2,7 @@ package dev.friendai.features.crafting;
 
 import static dev.friendai.features.crafting.Ingredient.of;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -16,6 +17,25 @@ class CraftTextTest {
         m.put("#minecraft:logs", 3);
         m.put("minecraft:iron_ingot", 2);
         assertEquals("missing: 3 × #minecraft:logs, 2 × minecraft:iron_ingot", CraftText.missingText(m));
+    }
+
+    @Test
+    void shortfallIsEmptyWhenNothingIsMissing() {
+        assertEquals("", CraftText.shortfall(Map.of()));
+    }
+
+    @Test
+    void changedInventoryNamesTheStepInsteadOfInventingIngredients() {
+        String line = CraftText.changedInventory(Map.of(), "minecraft:wooden_pickaxe");
+        assertEquals("the inventory changed while crafting: could not repeat minecraft:wooden_pickaxe", line);
+        assertFalse(line.contains("missing:"), line);
+    }
+
+    @Test
+    void changedInventoryReportsTheRealShortfall() {
+        assertEquals(
+                "the inventory changed while crafting: missing: 1 × #minecraft:wooden_tool_materials",
+                CraftText.changedInventory(Map.of("#minecraft:wooden_tool_materials", 1), "minecraft:wooden_pickaxe"));
     }
 
     @Test

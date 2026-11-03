@@ -7,8 +7,6 @@ import dev.friendai.features.crafting.CraftPlan;
 import dev.friendai.features.crafting.CraftPlanner;
 import dev.friendai.features.crafting.CraftStep;
 import dev.friendai.features.crafting.CraftText;
-import dev.friendai.features.crafting.Ingredient;
-import dev.friendai.features.crafting.Recipe;
 import dev.friendai.features.crafting.Station;
 import dev.friendai.features.crafting.StationPolicy;
 import dev.friendai.features.crafting.minecraft.RecipeIndex;
@@ -182,7 +180,7 @@ public final class CraftTask implements Task {
         stepTicks = 0;
         swing(c.companion());
         if (!craftOnce(c, step)) {
-            summary = "the inventory changed while crafting: " + remainingMissing(c);
+            summary = remainingMissing(c);
             return TaskStatus.FAILED;
         }
         craftsDone++;
@@ -421,7 +419,7 @@ public final class CraftTask implements Task {
             case FURNACE, SMOKER, BLAST_FURNACE, CAMPFIRE -> false;
         };
         if (!crafted) {
-            summary = "the inventory changed while crafting: " + remainingMissing(c);
+            summary = remainingMissing(c);
             return TaskStatus.FAILED;
         }
         craftsDone++;
@@ -790,21 +788,15 @@ public final class CraftTask implements Task {
             producedTarget = craftsDone * last.recipe().outputCount();
         }
         int remaining = Math.max(1, count - producedTarget);
+        String stepOutput = plan.steps().get(stepIndex).recipe().output();
         try {
             CraftPlan rest = CraftPlanner.planNew(
                     item, remaining, inventoryMap(c.companion()), index, Stations.available(c.level(), c.companion()));
-            if (!rest.missing().isEmpty()) {
-                return CraftText.missingText(rest.missing());
-            }
+            return CraftText.changedInventory(rest.missing(), stepOutput);
         } catch (RuntimeException e) {
-            // Fall through to the failed step's own ingredients.
+            // The failed step's own output is all that is known for sure.
+            return CraftText.changedInventory(Map.of(), stepOutput);
         }
-        Recipe recipe = plan.steps().get(stepIndex).recipe();
-        Map<String, Integer> missing = new LinkedHashMap<>();
-        for (Ingredient ingredient : recipe.ingredients()) {
-            missing.merge(ingredient.label(), 1, Integer::sum);
-        }
-        return CraftText.missingText(missing);
     }
 
     private static Map<String, Integer> inventoryMap(CompanionEntity companion) {
