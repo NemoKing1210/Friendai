@@ -26,6 +26,7 @@ import dev.friendai.protocol.ProtocolView;
 import dev.friendai.protocol.control.CompanionSnapshotProtocolCodec;
 import dev.friendai.protocol.control.CompanionSnapshotView;
 import dev.friendai.server.agent.CompanionSessions;
+import dev.friendai.server.net.DebugStream;
 import dev.friendai.server.net.Operators;
 import dev.friendai.server.net.SnapshotBuilder;
 import dev.friendai.server.runtime.ServerRuntime;
@@ -470,6 +471,29 @@ public class CompanionControlTests {
         } finally {
             deop(player);
         }
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 100)
+    public void menuSnapshotFailureKeepsTheTickAlive(GameTestHelper h) {
+        ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        var server = h.getLevel().getServer();
+        CompanionSessions brains = GameTestSupport.runtime(server).sessions();
+        CompanionManager.get(server).summon(player);
+        brains.debug().subscribe(player.getUUID());
+        DebugStream stream = new DebugStream((snapshot, operator, requestId) -> {
+            throw new IllegalArgumentException("bad frame");
+        });
+        ServerRuntime runtime = runtime(player);
+        try {
+            for (int i = 0; i < 10; i++) stream.tick(runtime);
+        } catch (RuntimeException failure) {
+            h.fail("snapshot failure escaped the tick: " + failure);
+            return;
+        }
+        h.assertTrue(
+                !brains.debug().subscribers().contains(player.getUUID()),
+                "a failed snapshot closes that menu: " + brains.debug().subscribers());
         h.succeed();
     }
 

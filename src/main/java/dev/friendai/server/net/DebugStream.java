@@ -1,11 +1,13 @@
 package dev.friendai.server.net;
 
+import dev.friendai.FriendaiMod;
 import dev.friendai.debug.DebugService;
 import dev.friendai.features.cartography.TerrainMapView;
 import dev.friendai.foundation.diagnostics.LogEntry;
 import dev.friendai.presentation.companion.CompanionSnapshot;
 import dev.friendai.protocol.ProtocolFamily;
 import dev.friendai.protocol.control.CompanionSnapshotProtocolCodec;
+import dev.friendai.protocol.control.CompanionSnapshotView;
 import dev.friendai.protocol.control.TerrainMapProtocolCodec;
 import dev.friendai.server.runtime.ServerRuntime;
 import dev.friendai.transport.protocol.CompanionSnapshotProtocolAdapter;
@@ -20,7 +22,20 @@ public final class DebugStream {
 
     private int counter;
 
-    public DebugStream() {}
+    /** Encodes one menu snapshot; the production value is the protocol codec, tests replace it. */
+    public interface SnapshotEncoder {
+        byte[] encode(CompanionSnapshotView snapshot, boolean operator, long requestId);
+    }
+
+    private final SnapshotEncoder encoder;
+
+    public DebugStream() {
+        this(CompanionSnapshotProtocolCodec::encodeForRecipient);
+    }
+
+    public DebugStream(SnapshotEncoder encoder) {
+        this.encoder = encoder;
+    }
 
     public void tick(ServerRuntime runtime) {
         MinecraftServer server = runtime.server();
@@ -70,7 +85,14 @@ public final class DebugStream {
     }
 
     private void send(ServerRuntime runtime, ServerPlayer player) {
-        send(runtime, player, 0);
+        try {
+            send(runtime, player, 0);
+        } catch (RuntimeException failure) {
+            // A snapshot that cannot be encoded is a bug in one frame, not a reason to stop the
+            // server tick: close that viewer's menu and keep the rest of the world running.
+            FriendaiMod.LOGGER.warn("companion snapshot failed for {}", player.getUUID(), failure);
+            closeMenu(runtime, player.getUUID());
+        }
     }
 
     private void send(ServerRuntime runtime, ServerPlayer player, long requestId) {
@@ -85,7 +107,7 @@ public final class DebugStream {
                 .sendView(
                         player,
                         ProtocolFamily.CONTROL,
-                        CompanionSnapshotProtocolCodec.encodeForRecipient(
+                        encoder.encode(
                                 CompanionSnapshotProtocolAdapter.toProtocol(snapshot),
                                 Operators.isOperator(player),
                                 requestId));
