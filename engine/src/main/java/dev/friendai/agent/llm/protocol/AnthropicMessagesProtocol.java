@@ -39,7 +39,11 @@ public final class AnthropicMessagesProtocol implements LlmProtocol {
     @Override
     public CompletableFuture<LlmResponse> complete(Endpoint endpoint, LlmRequest request) {
         return transport
-                .postJson(ProtocolSupport.uri(endpoint, "/messages"), headers(endpoint), toWire(request))
+                .postJson(
+                        ProtocolSupport.uri(endpoint, "/messages"),
+                        headers(endpoint),
+                        toWire(request),
+                        request.telemetry())
                 .thenApply(this::fromWire);
     }
 

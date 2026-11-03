@@ -4,6 +4,8 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.friendai.agent.llm.JsonHttpTransport;
+import dev.friendai.agent.llm.RequestAttempt;
+import dev.friendai.agent.llm.RequestTelemetry;
 import dev.friendai.agent.llm.model.LlmErrorKind;
 import dev.friendai.agent.llm.model.LlmException;
 import java.io.IOException;
@@ -16,6 +18,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -40,27 +43,46 @@ public final class HttpTransport implements JsonHttpTransport {
     }
 
     public CompletableFuture<JsonObject> postJson(URI uri, Map<String, String> headers, JsonObject body) {
+        return postJson(uri, headers, body, RequestTelemetry.NONE);
+    }
+
+    @Override
+    public CompletableFuture<JsonObject> postJson(
+            URI uri, Map<String, String> headers, JsonObject body, RequestTelemetry telemetry) {
         HttpRequest.Builder b = HttpRequest.newBuilder(uri)
                 .timeout(timeout)
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(body.toString(), StandardCharsets.UTF_8));
         headers.forEach(b::header);
-        return execute(b.build(), secretsOf(headers), 0);
+        long payloadBytes = body.toString().getBytes(StandardCharsets.UTF_8).length;
+        return execute(b.build(), secretsOf(headers), 0, telemetry, payloadBytes);
     }
 
     public CompletableFuture<JsonObject> getJson(URI uri, Map<String, String> headers) {
-        HttpRequest.Builder b = HttpRequest.newBuilder(uri).timeout(timeout).GET();
-        headers.forEach(b::header);
-        return execute(b.build(), secretsOf(headers), 0);
+        return getJson(uri, headers, RequestTelemetry.NONE);
     }
 
-    private CompletableFuture<JsonObject> execute(HttpRequest request, List<String> secrets, int attempt) {
+    @Override
+    public CompletableFuture<JsonObject> getJson(URI uri, Map<String, String> headers, RequestTelemetry telemetry) {
+        HttpRequest.Builder b = HttpRequest.newBuilder(uri).timeout(timeout).GET();
+        headers.forEach(b::header);
+        return execute(b.build(), secretsOf(headers), 0, telemetry, 0L);
+    }
+
+    private CompletableFuture<JsonObject> execute(
+            HttpRequest request, List<String> secrets, int attempt, RequestTelemetry telemetry, long payloadBytes) {
+        RequestTelemetry observation = telemetry == null ? RequestTelemetry.NONE : telemetry;
+        long started = System.nanoTime();
+        observation.accept(new RequestAttempt(attempt + 1, RequestAttempt.START, 0, "", -1L, 0L, payloadBytes));
         return client.sendAsync(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
                 .handle((response, error) -> {
+                    long elapsedMs = Math.max(0L, (System.nanoTime() - started) / 1_000_000L);
                     LlmException failure;
+                    int status = 0;
                     if (error != null) {
                         failure = mapTransportError(unwrap(error));
                     } else if (response.statusCode() / 100 != 2) {
+                        status = response.statusCode();
                         failure = mapStatus(response.statusCode(), response.body(), secrets);
                     } else {
                         try {
@@ -68,6 +90,14 @@ public final class HttpTransport implements JsonHttpTransport {
                             if (!parsed.isJsonObject()) {
                                 throw new IllegalStateException("not an object");
                             }
+                            observation.accept(new RequestAttempt(
+                                    attempt + 1,
+                                    RequestAttempt.FINISH,
+                                    response.statusCode(),
+                                    "",
+                                    elapsedMs,
+                                    0L,
+                                    payloadBytes));
                             return CompletableFuture.completedFuture(parsed.getAsJsonObject());
                         } catch (RuntimeException e) {
                             failure = new LlmException(LlmErrorKind.PARSE, "Response is not valid JSON");
@@ -75,13 +105,34 @@ public final class HttpTransport implements JsonHttpTransport {
                     }
                     if (failure.kind().retryable() && attempt < maxRetries) {
                         long delayMs = backoffBase.toMillis() << attempt;
+                        observation.accept(new RequestAttempt(
+                                attempt + 1,
+                                RequestAttempt.RETRY,
+                                status,
+                                kindToken(failure),
+                                elapsedMs,
+                                delayMs,
+                                payloadBytes));
                         return CompletableFuture.supplyAsync(
                                         () -> null, CompletableFuture.delayedExecutor(delayMs, TimeUnit.MILLISECONDS))
-                                .thenCompose(ignored -> execute(request, secrets, attempt + 1));
+                                .thenCompose(
+                                        ignored -> execute(request, secrets, attempt + 1, observation, payloadBytes));
                     }
+                    observation.accept(new RequestAttempt(
+                            attempt + 1,
+                            RequestAttempt.FINISH,
+                            status,
+                            kindToken(failure),
+                            elapsedMs,
+                            0L,
+                            payloadBytes));
                     return CompletableFuture.<JsonObject>failedFuture(failure);
                 })
                 .thenCompose(f -> f);
+    }
+
+    private static String kindToken(LlmException failure) {
+        return failure.kind().name().toLowerCase(Locale.ROOT);
     }
 
     private static Throwable unwrap(Throwable t) {

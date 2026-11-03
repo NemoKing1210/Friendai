@@ -1,5 +1,6 @@
 package dev.friendai.agent.turn;
 
+import dev.friendai.agent.llm.RequestTelemetry;
 import dev.friendai.agent.llm.model.LlmResponse;
 import dev.friendai.agent.llm.model.Message;
 import dev.friendai.agent.llm.model.StopReason;
@@ -111,6 +112,9 @@ public final class CompanionBrain {
     private boolean hasFinishedTurn;
     private long lastTurnEnd;
     private int generation;
+    private long requestCounter;
+    private long requestIdForGeneration;
+    private int requestIdGeneration = -1;
     private int step;
     private TurnKind turnKind = TurnKind.PLAYER;
     private long turnSeq;
@@ -633,6 +637,13 @@ public final class CompanionBrain {
         }));
     }
 
+    /** One telemetry scope per logical gateway invocation, carrying the turn and generation that started it. */
+    private RequestTelemetry telemetryFor(int gen) {
+        long requestId = ++requestCounter;
+        return new RequestTelemetry(
+                requestId, turnSeq, gen, attempt -> observe(o -> o.onRequestAttempt(requestId, attempt)));
+    }
+
     private void requestStep(int gen) {
         if (gen != generation) {
             return;
@@ -659,6 +670,9 @@ public final class CompanionBrain {
             java.util.List<dev.friendai.agent.llm.model.Message> history = memory.snapshot();
             observe(o -> o.onRequest(system, history, sent));
             LlmGateway active = gateway.get();
+            RequestTelemetry telemetry = telemetryFor(gen);
+            requestIdForGeneration = telemetry.requestId();
+            requestIdGeneration = gen;
             streamedTurn = false;
             if (active instanceof StreamingLlmGateway streaming) {
                 streamedTurn = true;
@@ -668,13 +682,18 @@ public final class CompanionBrain {
                 earlyIncomplete = false;
                 earlyText = "";
                 future = streaming
-                        .completeStreaming(system, history, sent, delta -> {
-                            accumulator.accept(delta);
-                            scheduler.execute(() -> releaseEarly(gen, accumulator));
-                        })
+                        .completeStreaming(
+                                system,
+                                history,
+                                sent,
+                                delta -> {
+                                    accumulator.accept(delta);
+                                    scheduler.execute(() -> releaseEarly(gen, accumulator));
+                                },
+                                telemetry)
                         .thenApply(response -> completeFromStream(accumulator, response));
             } else {
-                future = active.complete(system, history, sent);
+                future = active.complete(system, history, sent, telemetry);
             }
         } catch (RuntimeException e) {
             future = CompletableFuture.failedFuture(e);
@@ -737,6 +756,10 @@ public final class CompanionBrain {
         if (gen == generation && response != null && response.usage() != null)
             observe(o -> o.onUsage(response.usage()));
         if (gen != generation) {
+            long discarded = requestIdForGeneration;
+            if (requestIdGeneration == gen && discarded > 0L) {
+                observe(o -> o.onRequestDiscarded(discarded, "stale_generation"));
+            }
             return;
         }
         if (response != null) {

@@ -1,6 +1,7 @@
 package dev.friendai.llm;
 
 import com.google.gson.JsonObject;
+import dev.friendai.agent.llm.RequestTelemetry;
 import dev.friendai.agent.llm.model.LlmRequest;
 import dev.friendai.agent.llm.model.LlmResponse;
 import dev.friendai.agent.llm.model.Message;
@@ -25,20 +26,56 @@ public final class LlmClient implements LlmGateway {
 
     @Override
     public CompletableFuture<LlmResponse> complete(String system, List<Message> messages, List<ToolSpec> tools) {
-        return complete(system, messages, tools, false, profile.maxTokens());
+        return complete(system, messages, tools, false, profile.maxTokens(), RequestTelemetry.NONE);
     }
 
     @Override
     public CompletableFuture<LlmResponse> completeJson(String system, List<Message> messages, int outputMultiplier) {
-        return complete(system, messages, List.of(), true, multipliedMaxTokens(profile.maxTokens(), outputMultiplier));
+        return complete(
+                system,
+                messages,
+                List.of(),
+                true,
+                multipliedMaxTokens(profile.maxTokens(), outputMultiplier),
+                RequestTelemetry.NONE);
+    }
+
+    @Override
+    public CompletableFuture<LlmResponse> complete(
+            String system, List<Message> messages, List<ToolSpec> tools, RequestTelemetry telemetry) {
+        return complete(system, messages, tools, false, profile.maxTokens(), telemetry);
+    }
+
+    @Override
+    public CompletableFuture<LlmResponse> completeJson(
+            String system, List<Message> messages, int outputMultiplier, RequestTelemetry telemetry) {
+        return complete(
+                system,
+                messages,
+                List.of(),
+                true,
+                multipliedMaxTokens(profile.maxTokens(), outputMultiplier),
+                telemetry);
     }
 
     private CompletableFuture<LlmResponse> complete(
-            String system, List<Message> messages, List<ToolSpec> tools, boolean jsonObject, int maxTokens) {
+            String system,
+            List<Message> messages,
+            List<ToolSpec> tools,
+            boolean jsonObject,
+            int maxTokens,
+            RequestTelemetry telemetry) {
         try {
             Route route = registry.resolve(profile);
             LlmRequest request = new LlmRequest(
-                    profile.model(), system, messages, tools, profile.temperature(), maxTokens, jsonObject);
+                    profile.model(),
+                    system,
+                    messages,
+                    tools,
+                    profile.temperature(),
+                    maxTokens,
+                    jsonObject,
+                    telemetry == null ? RequestTelemetry.NONE : telemetry);
             return route.protocol().complete(route.endpoint(), request);
         } catch (RuntimeException e) {
             return CompletableFuture.failedFuture(e);
@@ -68,7 +105,10 @@ public final class LlmClient implements LlmGateway {
         return complete(
                         "You are a connectivity test. Call the ping tool.",
                         List.of(Message.user("ping")),
-                        List.of(ping))
+                        List.of(ping),
+                        false,
+                        profile.maxTokens(),
+                        RequestTelemetry.NONE)
                 .thenApply(r -> r.toolCalls().isEmpty()
                         ? UserMessage.of("friendai.config.test.ok_text")
                         : UserMessage.of("friendai.config.test.ok_tools"));

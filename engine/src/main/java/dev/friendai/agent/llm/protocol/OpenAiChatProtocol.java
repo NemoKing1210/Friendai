@@ -35,7 +35,8 @@ public final class OpenAiChatProtocol implements LlmProtocol {
                 .postJson(
                         ProtocolSupport.uri(endpoint, "/chat/completions"),
                         ProtocolSupport.headers(endpoint),
-                        toWire(request))
+                        toWire(request),
+                        request.telemetry())
                 .thenApply(this::fromWire);
     }
 

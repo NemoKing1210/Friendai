@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.friendai.agent.llm.RequestAttempt;
 import dev.friendai.agent.llm.model.LlmResponse;
 import dev.friendai.agent.llm.model.ToolCall;
 import dev.friendai.agent.llm.model.Usage;
@@ -90,6 +91,47 @@ class StructuredLogObserverTest {
         assertEquals(4L, stale.turn());
         assertEquals("trace-2", stale.trace());
         assertEquals(sink.records.get(0).seq(), stale.cause(), "the root still descends from the turn");
+    }
+
+    @Test
+    void providerAttemptsAndDiscardsAreBoundedSafeFacts() {
+        Recall sink = new Recall();
+        DebugLogObserver observer =
+                new DebugLogObserver(OWNER, COMPANION, "s1", pipeline(sink, LogLevel.INFO), "trace-1");
+        observer.onRequestAttempt(7L, new RequestAttempt(2, RequestAttempt.RETRY, 429, "rate_limit", 41L, 250L, 1024L));
+        observer.onRequestAttempt(7L, new RequestAttempt(3, RequestAttempt.FINISH, 200, "", 90L, 0L, 1024L));
+        observer.onRequestDiscarded(7L, "stale_generation");
+
+        assertEquals(
+                List.of(LogEvents.LLM_RETRY, LogEvents.LLM_ATTEMPT, LogEvents.LLM_DISCARDED),
+                sink.records.stream().map(LogRecord::event).toList());
+        LogRecord retry = sink.records.get(0);
+        assertEquals("7", retry.data().get("request"));
+        assertEquals("429", retry.data().get("status"));
+        assertEquals("rate_limit", retry.data().get("error"));
+        assertEquals("250", retry.data().get("backoffMs"));
+        assertEquals("stale_generation", sink.records.get(2).data().get("reason"));
+        assertFalse(retry.message().contains("body"), "an attempt fact never carries a body");
+    }
+
+    @Test
+    void aRequestRecordsItsSizeButNotItsBodiesAtNormal() {
+        Recall sink = new Recall();
+        DebugLogObserver observer =
+                new DebugLogObserver(OWNER, COMPANION, "s1", pipeline(sink, LogLevel.DEBUG), "trace-1");
+        observer.onTurnStart(3);
+        observer.onRequest(
+                "system prompt",
+                List.of(dev.friendai.agent.llm.model.Message.user("a long player message")),
+                List.of(new dev.friendai.agent.llm.model.ToolSpec("mine_block_at", "dig", null)));
+
+        LogRecord request = sink.records.get(1);
+        assertEquals(LogEvents.LLM_REQUEST, request.event());
+        assertEquals("13", request.data().get("systemChars"));
+        assertEquals("21", request.data().get("historyChars"));
+        assertEquals("1", request.data().get("tools"));
+        assertEquals("0", request.data().get("schemaChars"));
+        assertTrue(request.message().length() <= 400);
     }
 
     @Test

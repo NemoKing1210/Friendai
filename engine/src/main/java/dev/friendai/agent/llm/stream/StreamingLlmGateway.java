@@ -15,4 +15,14 @@ import java.util.function.Consumer;
 public interface StreamingLlmGateway extends LlmGateway {
     CompletableFuture<LlmResponse> completeStreaming(
             String system, List<Message> messages, List<ToolSpec> tools, Consumer<StreamDelta> onDelta);
+
+    /** The same stream with per-request telemetry; the default keeps the old path. */
+    default CompletableFuture<LlmResponse> completeStreaming(
+            String system,
+            List<Message> messages,
+            List<ToolSpec> tools,
+            Consumer<StreamDelta> onDelta,
+            dev.friendai.agent.llm.RequestTelemetry telemetry) {
+        return completeStreaming(system, messages, tools, onDelta);
+    }
 }

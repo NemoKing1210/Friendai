@@ -14,4 +14,21 @@ public interface LlmGateway {
     default CompletableFuture<LlmResponse> completeJson(String system, List<Message> messages, int outputMultiplier) {
         return complete(system, messages, List.of());
     }
+
+    /** The same completion with a per-request telemetry scope; older and fake gateways keep their behaviour. */
+    default CompletableFuture<LlmResponse> complete(
+            String system,
+            List<Message> messages,
+            List<ToolSpec> tools,
+            dev.friendai.agent.llm.RequestTelemetry telemetry) {
+        return complete(system, messages, tools);
+    }
+
+    default CompletableFuture<LlmResponse> completeJson(
+            String system,
+            List<Message> messages,
+            int outputMultiplier,
+            dev.friendai.agent.llm.RequestTelemetry telemetry) {
+        return completeJson(system, messages, outputMultiplier);
+    }
 }

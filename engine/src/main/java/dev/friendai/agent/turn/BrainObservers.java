@@ -25,6 +25,16 @@ public final class BrainObservers implements BrainObserver {
     }
 
     @Override
+    public void onRequestAttempt(long requestId, dev.friendai.agent.llm.RequestAttempt attempt) {
+        each(o -> o.onRequestAttempt(requestId, attempt));
+    }
+
+    @Override
+    public void onRequestDiscarded(long requestId, String reason) {
+        each(o -> o.onRequestDiscarded(requestId, reason));
+    }
+
+    @Override
     public void onTurnStart(long turn) {
         each(o -> o.onTurnStart(turn));
     }

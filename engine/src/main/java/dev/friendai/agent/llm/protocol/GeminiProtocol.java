@@ -34,7 +34,11 @@ public final class GeminiProtocol implements LlmProtocol {
     public CompletableFuture<LlmResponse> complete(Endpoint endpoint, LlmRequest request) {
         String path = "/models/" + request.model() + ":generateContent";
         return transport
-                .postJson(ProtocolSupport.uri(endpoint, path), ProtocolSupport.headers(endpoint), toWire(request))
+                .postJson(
+                        ProtocolSupport.uri(endpoint, path),
+                        ProtocolSupport.headers(endpoint),
+                        toWire(request),
+                        request.telemetry())
                 .thenApply(this::fromWire);
     }
 

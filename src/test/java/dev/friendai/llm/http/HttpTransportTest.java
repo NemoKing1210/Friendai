@@ -6,12 +6,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import dev.friendai.agent.llm.RequestAttempt;
+import dev.friendai.agent.llm.RequestTelemetry;
 import dev.friendai.agent.llm.model.LlmErrorKind;
 import dev.friendai.agent.llm.model.LlmException;
 import dev.friendai.testutil.MockHttpServer;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -62,6 +66,34 @@ class HttpTransportTest {
         MockHttpServer.RecordedRequest r = server.requests().get(0);
         assertEquals("{\"a\":1}", r.body());
         assertEquals("application/json", r.header("Content-Type"));
+    }
+
+    @Test
+    void reportsEachAttemptWithoutBodiesOrHeaders() throws Exception {
+        server.enqueue(429, "{\"error\":\"SECRET-BODY\"}");
+        server.enqueue(500, "{\"error\":\"SECRET-BODY\"}");
+        server.enqueue(200, "{\"ok\":true}");
+        List<RequestAttempt> attempts = new ArrayList<>();
+        RequestTelemetry telemetry = new RequestTelemetry(7L, 3L, 1, attempts::add);
+
+        JsonObject result = transport
+                .postJson(
+                        uri(), Map.of("Authorization", "Bearer SECRET-KEY"), body("{\"a\":\"SECRET-BODY\"}"), telemetry)
+                .get();
+
+        assertTrue(result.get("ok").getAsBoolean());
+        assertEquals(
+                List.of("start", "retry", "start", "retry", "start", "finish"),
+                attempts.stream().map(RequestAttempt::stage).toList());
+        assertEquals(
+                List.of(1, 1, 2, 2, 3, 3),
+                attempts.stream().map(RequestAttempt::attempt).toList());
+        assertEquals(429, attempts.get(1).status());
+        assertEquals(500, attempts.get(3).status());
+        assertEquals(200, attempts.get(5).status());
+        assertTrue(attempts.get(1).backoffMs() > 0L);
+        assertTrue(attempts.get(0).payloadBytes() > 0L);
+        assertFalse(attempts.toString().contains("SECRET"));
     }
 
     @Test

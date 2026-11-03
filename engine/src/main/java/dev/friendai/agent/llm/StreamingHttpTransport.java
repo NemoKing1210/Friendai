@@ -12,4 +12,10 @@ import java.util.function.Consumer;
  */
 public interface StreamingHttpTransport {
     CompletableFuture<Void> postStream(URI uri, Map<String, String> headers, String body, Consumer<byte[]> onChunk);
+
+    /** The same stream with per-attempt telemetry; the default keeps the old path. */
+    default CompletableFuture<Void> postStream(
+            URI uri, Map<String, String> headers, String body, Consumer<byte[]> onChunk, RequestTelemetry telemetry) {
+        return postStream(uri, headers, body, onChunk);
+    }
 }

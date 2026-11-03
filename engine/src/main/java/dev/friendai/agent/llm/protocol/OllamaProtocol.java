@@ -33,7 +33,10 @@ public final class OllamaProtocol implements LlmProtocol {
     public CompletableFuture<LlmResponse> complete(Endpoint endpoint, LlmRequest request) {
         return transport
                 .postJson(
-                        ProtocolSupport.uri(endpoint, "/api/chat"), ProtocolSupport.headers(endpoint), toWire(request))
+                        ProtocolSupport.uri(endpoint, "/api/chat"),
+                        ProtocolSupport.headers(endpoint),
+                        toWire(request),
+                        request.telemetry())
                 .thenApply(this::fromWire);
     }
 

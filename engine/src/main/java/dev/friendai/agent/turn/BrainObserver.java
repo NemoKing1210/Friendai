@@ -41,4 +41,10 @@ public interface BrainObserver {
     default void onResponse(dev.friendai.agent.llm.model.LlmResponse response) {}
 
     default void onError(Throwable error) {}
+
+    /** One measured HTTP attempt of a logical request; safe metadata only, never a body or a header. */
+    default void onRequestAttempt(long requestId, dev.friendai.agent.llm.RequestAttempt attempt) {}
+
+    /** A late reply or attempt of a request whose turn already moved on; it had no speech or tool effect. */
+    default void onRequestDiscarded(long requestId, String reason) {}
 }

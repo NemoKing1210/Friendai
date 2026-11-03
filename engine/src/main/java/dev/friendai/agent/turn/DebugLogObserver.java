@@ -1,5 +1,6 @@
 package dev.friendai.agent.turn;
 
+import dev.friendai.agent.llm.RequestAttempt;
 import dev.friendai.agent.llm.model.ToolCall;
 import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.foundation.diagnostics.DebugLog;
@@ -300,6 +301,17 @@ public final class DebugLogObserver implements BrainObserver {
                 .append(tools.stream()
                         .map(dev.friendai.agent.llm.model.ToolSpec::name)
                         .toList());
+        int systemChars = system == null ? 0 : system.length();
+        int historyChars = 0;
+        for (dev.friendai.agent.llm.model.Message message : messages) {
+            historyChars += message.text() == null ? 0 : message.text().length();
+        }
+        int schemaChars = 0;
+        for (dev.friendai.agent.llm.model.ToolSpec tool : tools) {
+            schemaChars += tool.parametersSchema() == null
+                    ? 0
+                    : tool.parametersSchema().toString().length();
+        }
         if (legacy != null) {
             legacy.add(LogKind.REQUEST, text.toString());
             return;
@@ -312,7 +324,12 @@ public final class DebugLogObserver implements BrainObserver {
                 turnStartSeq,
                 "",
                 text.toString(),
-                Map.of("messages", Integer.toString(messages.size())),
+                Map.of(
+                        "messages", Integer.toString(messages.size()),
+                        "systemChars", Integer.toString(systemChars),
+                        "historyChars", Integer.toString(historyChars),
+                        "tools", Integer.toString(tools.size()),
+                        "schemaChars", Integer.toString(schemaChars)),
                 null);
     }
 
@@ -341,6 +358,45 @@ public final class DebugLogObserver implements BrainObserver {
                 "",
                 message,
                 Map.of("tools", Integer.toString(response.toolCalls().size())),
+                null);
+    }
+
+    @Override
+    public void onRequestAttempt(long requestId, RequestAttempt attempt) {
+        if (legacy != null || attempt == null) return;
+        Map<String, String> facts = new java.util.LinkedHashMap<>();
+        facts.put("request", Long.toString(requestId));
+        facts.put("attempt", Integer.toString(attempt.attempt()));
+        facts.put("stage", attempt.stage());
+        if (attempt.status() > 0) facts.put("status", Integer.toString(attempt.status()));
+        if (!attempt.errorKind().isEmpty()) facts.put("error", attempt.errorKind());
+        if (attempt.durationMs() >= 0L) facts.put("durationMs", Long.toString(attempt.durationMs()));
+        if (attempt.backoffMs() > 0L) facts.put("backoffMs", Long.toString(attempt.backoffMs()));
+        if (attempt.payloadBytes() > 0L) facts.put("bytes", Long.toString(attempt.payloadBytes()));
+        emit(
+                attempt.retry() ? LogLevel.WARN : LogLevel.INFO,
+                LogCategory.BRAIN,
+                LogKind.REQUEST,
+                attempt.retry() ? LogEvents.LLM_RETRY : LogEvents.LLM_ATTEMPT,
+                lastRequestSeq,
+                "",
+                "request " + requestId + " attempt " + attempt.attempt() + " " + attempt.stage(),
+                facts,
+                null);
+    }
+
+    @Override
+    public void onRequestDiscarded(long requestId, String reason) {
+        if (legacy != null) return;
+        emit(
+                LogLevel.INFO,
+                LogCategory.BRAIN,
+                LogKind.REQUEST,
+                LogEvents.LLM_DISCARDED,
+                lastRequestSeq,
+                "",
+                "request " + requestId + " discarded",
+                Map.of("request", Long.toString(requestId), "reason", reason == null ? "" : reason),
                 null);
     }
 
