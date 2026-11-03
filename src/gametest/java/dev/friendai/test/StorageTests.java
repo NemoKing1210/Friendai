@@ -680,4 +680,105 @@ public class StorageTests {
             h.assertTrue(stored.size() == 1 && stored.getFirst().count() == 8, "index was " + stored);
         });
     }
+
+    @GameTest(maxTicks = 600)
+    public void takeWithoutCoordinatesFindsRecordedChest(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(12, 2, 3, Blocks.CHEST);
+        containerAt(h, 12, 2, 3).setItem(0, new ItemStack(Items.IRON_INGOT, 10));
+        h.setBlock(3, 2, 6, Blocks.CHEST);
+        containerAt(h, 3, 2, 6).setItem(0, new ItemStack(Items.STONE, 10));
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(java.util.UUID.randomUUID());
+        Result check = new Result();
+        Result take = new Result();
+        ExecutionCoordinator checkRunner = runner(c, check);
+        ExecutionCoordinator takeRunner = runner(c, take);
+        checkRunner.start(new CheckContainerTask(h.absolutePos(new BlockPos(12, 2, 3))), "check_container");
+        int[] phase = {0};
+        h.succeedWhen(() -> {
+            if (phase[0] == 0) {
+                checkRunner.tick();
+                h.assertTrue(
+                        check.status == TaskStatus.SUCCESS, "not finished: " + check.status + " " + check.summary);
+                takeRunner.start(new TakeItemsTask(matcher("minecraft:iron_ingot"), 4, null), "take_items");
+                phase[0] = 1;
+                return;
+            }
+            takeRunner.tick();
+            h.assertTrue(take.status == TaskStatus.SUCCESS, "not finished: " + take.status + " " + take.summary);
+            h.assertTrue(c.inventory().countItem(Items.IRON_INGOT) == 4, "iron must come from the far chest");
+        });
+    }
+
+    @GameTest(maxTicks = 600)
+    public void takeRevalidatesAStaleRecord(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(12, 2, 3, Blocks.CHEST);
+        containerAt(h, 12, 2, 3).setItem(0, new ItemStack(Items.IRON_INGOT, 10));
+        h.setBlock(3, 2, 6, Blocks.CHEST);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(java.util.UUID.randomUUID());
+        Result check = new Result();
+        Result take = new Result();
+        ExecutionCoordinator checkRunner = runner(c, check);
+        ExecutionCoordinator takeRunner = runner(c, take);
+        checkRunner.start(new CheckContainerTask(h.absolutePos(new BlockPos(12, 2, 3))), "check_container");
+        int[] phase = {0};
+        h.succeedWhen(() -> {
+            if (phase[0] == 0) {
+                checkRunner.tick();
+                h.assertTrue(
+                        check.status == TaskStatus.SUCCESS, "not finished: " + check.status + " " + check.summary);
+                containerAt(h, 12, 2, 3).setItem(0, ItemStack.EMPTY);
+                takeRunner.start(new TakeItemsTask(matcher("minecraft:iron_ingot"), 4, null), "take_items");
+                phase[0] = 1;
+                return;
+            }
+            takeRunner.tick();
+            h.assertTrue(take.status == TaskStatus.FAILED, "not failed: " + take.status + " " + take.summary);
+            h.assertTrue(
+                    take.summary.contains(coords(h.absolutePos(new BlockPos(12, 2, 3)))),
+                    "the recorded far chest must be rechecked: " + take.summary);
+            h.assertTrue(
+                    GameTestSupport.runtime(h)
+                            .storage()
+                            .find(c, Set.of("minecraft:iron_ingot"), 1, c.level().getGameTime())
+                            .isEmpty(),
+                    "the emptied record must be refreshed");
+        });
+    }
+
+    @GameTest(maxTicks = 600)
+    public void storeWithoutCoordinatesUsesRecordedFreeChest(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(12, 2, 3, Blocks.CHEST);
+        h.setBlock(3, 2, 6, Blocks.CHEST);
+        fill(containerAt(h, 3, 2, 6), Items.DIRT, 27);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(java.util.UUID.randomUUID());
+        c.inventory().addItem(new ItemStack(Items.ANDESITE, 4));
+        Result check = new Result();
+        Result store = new Result();
+        ExecutionCoordinator checkRunner = runner(c, check);
+        ExecutionCoordinator storeRunner = runner(c, store);
+        checkRunner.start(new CheckContainerTask(h.absolutePos(new BlockPos(12, 2, 3))), "check_container");
+        int[] phase = {0};
+        h.succeedWhen(() -> {
+            if (phase[0] == 0) {
+                checkRunner.tick();
+                h.assertTrue(
+                        check.status == TaskStatus.SUCCESS, "not finished: " + check.status + " " + check.summary);
+                storeRunner.start(new StoreItemsTask(null, Integer.MAX_VALUE, null), "store_items");
+                phase[0] = 1;
+                return;
+            }
+            storeRunner.tick();
+            h.assertTrue(store.status == TaskStatus.SUCCESS, "not finished: " + store.status + " " + store.summary);
+            h.assertTrue(
+                    containerAt(h, 12, 2, 3).getItem(0).is(Items.ANDESITE),
+                    "the andesite must go to the recorded empty chest, not the full near one");
+            h.assertTrue(containerAt(h, 3, 2, 6).getItem(0).is(Items.DIRT), "the full unrecorded chest stays untouched");
+        });
+    }
 }
