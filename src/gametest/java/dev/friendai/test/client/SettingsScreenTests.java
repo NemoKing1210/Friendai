@@ -927,10 +927,6 @@ public final class SettingsScreenTests implements FabricClientGameTest {
         return screen;
     }
 
-    private static String keyOf(Option<?> option) {
-        return option.name().getContents() instanceof TranslatableContents text ? text.getKey() : "";
-    }
-
     private static Option<?> option(String key) {
         return screen().config.categories().stream()
                 .flatMap(category -> category.groups().stream())
