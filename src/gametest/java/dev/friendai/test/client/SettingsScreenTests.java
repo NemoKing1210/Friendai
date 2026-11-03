@@ -243,6 +243,23 @@ public final class SettingsScreenTests implements FabricClientGameTest {
     }
 
     private void runCases(ClientGameTestContext context) {
+        check(context, "a search that keeps only root options stays buildable", c -> {
+            Screen[] before = new Screen[1];
+            c.runOnClient(mc -> {
+                mc.setScreenAndShow(FriendaiConfigScreen.create(new TitleScreen()));
+                before[0] = mc.gui.screen();
+                // "copy" matches the Logs category's root button only, so every other category it
+                // reaches loses all its groups; one of them used to throw while the screen rebuilt.
+                set("friendai.config.nav.search", "copy");
+            });
+            c.waitTicks(3);
+            c.runOnClient(mc -> {
+                require(mc.gui.screen() instanceof YACLScreen, "the search left the settings on " + mc.gui.screen());
+                require(mc.gui.screen() != before[0], "the filtered rebuild never replaced the screen");
+                set("friendai.config.nav.search", "");
+            });
+            c.waitTicks(3);
+        });
         check(context, "click a suggested model with custom input allowed", c -> {
             c.runOnClient(mc -> {
                 ModelCache.put("anthropic", List.of("deepseek-v4-pro", "deepseek-v4-flash"));
@@ -908,6 +925,10 @@ public final class SettingsScreenTests implements FabricClientGameTest {
                     + Minecraft.getInstance().gui.screen());
         }
         return screen;
+    }
+
+    private static String keyOf(Option<?> option) {
+        return option.name().getContents() instanceof TranslatableContents text ? text.getKey() : "";
     }
 
     private static Option<?> option(String key) {

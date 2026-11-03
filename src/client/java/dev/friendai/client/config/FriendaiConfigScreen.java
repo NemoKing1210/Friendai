@@ -525,11 +525,11 @@ public final class FriendaiConfigScreen {
             groups.add(narrowed.build());
         }
         if (root.isEmpty() && groups.isEmpty()) return null;
-        return ConfigCategory.createBuilder()
-                .name(category.name())
-                .options(root)
-                .groups(groups)
-                .build();
+        ConfigCategory.Builder narrowed =
+                ConfigCategory.createBuilder().name(category.name()).options(root);
+        // YACL rejects an empty group list, and a search that keeps only root options produces one.
+        if (!groups.isEmpty()) narrowed.groups(groups);
+        return narrowed.build();
     }
 
     /**
