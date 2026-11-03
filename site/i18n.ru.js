@@ -361,6 +361,9 @@ const RU = {
   "Learns your language after a few samples.": "Определяет ваш язык после нескольких фраз.",
   "Skills advise only": "Навыки лишь советуют",
   "They never change permissions.": "Они никогда не меняют права.",
+  "Opt-in retrieval": "Выборка по запросу",
+  "Default off; caller-visible facts selected by a local word match within a bounded budget.":
+    "По умолчанию выключено; видимые собеседнику факты отбираются локальным совпадением слов в пределах ограниченного бюджета.",
 
   /* ---- Places ---- */
   "Places": "Места",
@@ -442,7 +445,9 @@ const RU = {
   "Replies can be spoken locally or through a cloud voice, panned and attenuated by where the companion is.": "Ответы озвучиваются локально или облачным голосом, с панорамой и затуханием по положению компаньона.",
   "Local Piper voices": "Локальные голоса Piper",
   "Five catalogued voices via sherpa-onnx.": "Пять голосов из каталога через sherpa-onnx.",
+  "Streamed sentences": "Предложения потоком",
   "Ordered per stream and session, with one cut-off report.": "По порядку в потоке и сессии, с одним сообщением об обрыве.",
+  "Early sentence": "Ранняя фраза",
   "The first safe sentence speaks before the provider finishes; the full reply stays authoritative.": "Первая безопасная фраза звучит до завершения ответа; полный ответ остаётся главным.",
   "OpenAI TTS": "OpenAI TTS",
   "Cloud speech.": "Облачная речь.",
@@ -468,14 +473,17 @@ const RU = {
   "Skills": "Навыки",
   "Instruction skills.": "Инструктивные навыки.",
   "Rename or forget places.": "Переименовать или забыть места.",
+  "Map": "Карта",
   "Explored cells, sites and roads, never the full grid.": "Исследованные клетки, места и дороги; не вся карта.",
+  "Plan controls": "Управление планом",
   "Pause, resume or defer the first plan from the menu.": "Пауза, продолжение или отсрочка первого плана из меню.",
   "Appearance": "Внешний вид",
   "Name and custom skin.": "Имя и свой скин.",
   "Traders": "Торговцы",
   "Known trades.": "Известные сделки.",
   "Log and Debug": "Лог и отладка",
-  "Operator-only brain log and prompt.": "Лог мозга и промпт только для операторов.",
+  "Operator-only brain log with trace and execution prefixes, plus the incident bundle.":
+    "Лог мозга только для операторов, с префиксами trace и execution, плюс пакет диагностики инцидента.",
   "Settings screen": "Экран настроек",
   "YACL, optional.": "YACL, необязательно.",
 
@@ -584,7 +592,8 @@ const RU = {
   "Per-owner files": "Файлы владельца",
   "<world>/friendai/ - one file per owner UUID, atomic writes, .bak recovery": "<world>/friendai/ — по файлу на UUID владельца, атомарная запись, восстановление из .bak",
   "Owner data": "Данные владельца",
-  "Each book has its own format version and revision. Debounced 5 s flush; unsupported versions are never overwritten.": "У каждой книги своя версия формата и ревизия. Отложенная запись раз в 5 с; неподдерживаемые версии никогда не перезаписываются.",
+  "Memory, profile, goals and free-time stores share one bounded runtime writer; it flushes latest-revision snapshots on a 5 s server-tick cadence. Unsupported versions are never overwritten.":
+    "Память, профиль, цели и свободное время пишет один ограниченный по работе компонент: он сбрасывает снимки последней ревизии раз в 5 секунд по тикам сервера. Неподдерживаемые версии никогда не перезаписываются.",
   "Facts about players, trust, learned language, food rules.": "Факты об игроках, доверие, выученный язык, правила питания.",
   "Companion profile": "Профиль компаньона",
   "Name, description, language and address.": "Имя, описание, язык и обращение.",
