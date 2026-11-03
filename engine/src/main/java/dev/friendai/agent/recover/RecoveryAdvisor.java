@@ -147,6 +147,14 @@ public final class RecoveryAdvisor {
                     List.of(),
                     true),
             new Rule(
+                    Pattern.compile("no clear side to climb|blocks the climb|can't climb through"
+                            + "|ran out of dirt or cobblestone while climbing"),
+                    FailureKind.UNREACHABLE,
+                    0,
+                    "no way up the tree",
+                    List.of("find_trees for another tree", "obtain_item minecraft:dirt"),
+                    false),
+            new Rule(
                     Pattern.compile(
                             "creeper|zombie|skeleton|spider|lava|drown|burning|too dangerous|health too low|low health"),
                     FailureKind.DANGER,

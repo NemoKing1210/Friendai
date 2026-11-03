@@ -215,6 +215,21 @@ class RecoveryAdvisorTest {
     }
 
     @Test
+    void aBlockedClimbSuggestsAnotherTree() {
+        Diagnosis d = advisor.diagnose(
+                "fell_tree",
+                "there is no clear side to climb the spruce tree at -8 79 42: "
+                        + "minecraft:dirt blocks the climb at -7 76 41 in 2 ticks",
+                Set.of());
+
+        assertEquals(FailureKind.UNREACHABLE, d.kind());
+        assertEquals("no way up the tree", d.detail());
+        assertTrue(
+                d.remedies().contains("find_trees for another tree"),
+                d.remedies().toString());
+    }
+
+    @Test
     void diagnosisLineIsReadable() {
         Diagnosis d = advisor.diagnose("build_structure", "missing materials: 3 × minecraft:iron_ingot", Set.of());
         assertEquals(

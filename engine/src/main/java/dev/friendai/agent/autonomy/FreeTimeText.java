@@ -45,6 +45,18 @@ public final class FreeTimeText {
                 && diagnosis.detail().equals("no food source in the local search area")) {
             return UserMessage.of("friendai.freetime.shift_report.food_not_found");
         }
+        if (diagnosis.kind() == FailureKind.UNREACHABLE && diagnosis.detail().startsWith("missing support at")) {
+            return UserMessage.of("friendai.freetime.shift_report.support_needed");
+        }
+        if (diagnosis.kind() == FailureKind.RESOURCE_NOT_FOUND
+                && diagnosis.detail().startsWith("protected by the place ")) {
+            return UserMessage.of(
+                    "friendai.freetime.shift_report.place_protected",
+                    diagnosis.detail().substring("protected by the place ".length()));
+        }
+        if (diagnosis.kind() == FailureKind.UNREACHABLE && diagnosis.detail().equals("no way up the tree")) {
+            return UserMessage.of("friendai.freetime.shift_report.tree_unreachable");
+        }
         return UserMessage.of("friendai.freetime.shift_report.failed");
     }
 

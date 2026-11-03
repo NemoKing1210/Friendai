@@ -106,6 +106,32 @@ class FreeTimeTextTest {
     }
 
     @Test
+    void aBuildThatNeededSupportSaysSo() {
+        assertEquals(
+                "friendai.freetime.shift_report.support_needed",
+                FreeTimeText.shiftFailureMessage(
+                                "-5 84 31 needs a block at -5 79 31 that the blueprint does not provide in 3 ticks")
+                        .key());
+    }
+
+    @Test
+    void aPlaceThatStoppedTheWorkIsNamed() {
+        var message = FreeTimeText.shiftFailureMessage("there is no clear side to climb the spruce tree at -1 80 46: "
+                + "the foot of the climb at -2 73 45 is inside the mine place \"mine\" (r=32) in 2 ticks");
+        assertEquals("friendai.freetime.shift_report.place_protected", message.key());
+        assertEquals(List.of("mine"), message.args());
+    }
+
+    @Test
+    void aTreeThatCannotBeClimbedSaysSo() {
+        assertEquals(
+                "friendai.freetime.shift_report.tree_unreachable",
+                FreeTimeText.shiftFailureMessage("there is no clear side to climb the spruce tree at -8 79 42: "
+                                + "minecraft:dirt blocks the climb at -7 76 41 in 2 ticks")
+                        .key());
+    }
+
+    @Test
     void recentShiftsAreShortLines() {
         var state = new FreeTime(
                 true,

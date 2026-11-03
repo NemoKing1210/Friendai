@@ -302,8 +302,9 @@ public final class FellTreeTask implements Task {
                 || !floorState.getFluidState().isEmpty()) {
             return "there is no solid ground at " + coords(base);
         }
-        if (!c.companion().hands().canInteract(base) || PlaceGuard.protects(c, base)) {
-            return "the foot of the climb at " + coords(base) + " is protected";
+        String foot = protection(c, base);
+        if (!foot.isEmpty()) {
+            return "the foot of the climb at " + coords(base) + " is " + foot;
         }
         for (int y = base.getY(); y <= candidate.climbFeetY() + 1; y++) {
             BlockPos pos = new BlockPos(base.getX(), y, base.getZ());
@@ -317,8 +318,9 @@ public final class FellTreeTask implements Task {
             if (!clearable(state)) {
                 return blockId(level, pos) + " blocks the climb at " + coords(pos);
             }
-            if (!c.companion().hands().canInteract(pos) || PlaceGuard.protects(c, pos)) {
-                return "the leaves at " + coords(pos) + " are protected";
+            String leaves = protection(c, pos);
+            if (!leaves.isEmpty()) {
+                return "the leaves at " + coords(pos) + " are " + leaves;
             }
         }
         return "";
