@@ -136,6 +136,12 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] Hold **V** while speaking: the capsule is centered horizontally above the hotbar, its dot pulses and the bars follow your voice; after release the waiting dots animate while transcribing.
 - [ ] No microphone / no model: the HUD shows a hint and nothing else breaks.
 - [ ] Local recognition with each Whisper model (`tiny`, `base` and `small`).
+- [ ] **Parakeet V3**: download 671 MB from the settings row, confirm the row shows the size, 25 languages and CC BY 4.0, then record a clip in a language it lists and get the expected transcript. Select Japanese: recording is refused with the unsupported-language message and no model is started.
+- [ ] **Nemotron 3.5**: download 682 MB, hold **V** and watch a partial transcript appear before release; release produces exactly one turn. A press shorter than 0.3 s produces no turn. With the language set to `auto` a Russian clip is recognized, and with an unsupported language the row explains why.
+- [ ] **GigaAM v3**: download 232 MB, record Russian and see punctuation and capital letters from the model; a language other than Russian or `auto` is refused before recording.
+- [ ] Interrupt a model download (close the game mid-download), restart: the previously installed model still records, and pressing **Download model** again finishes the new one without touching the old.
+- [ ] Replace one byte of an installed model file without changing its size: the next recording reports "no model" instead of crashing, and redownloading repairs it.
+- [ ] Settings → Voice → Recognition in each of the eight shipped languages: the row shows name, download size, languages, mode and licence without overlapping, and Save/Cancel/Reset keep the selected id.
 - [ ] OpenAI recognition with a real key (default model `gpt-transcribe`).
 - [ ] Groq recognition with a real key (default model `whisper-large-v3`).
 - [ ] Yandex recognition with a real key and folder ID; a language it does not support shows a clear message.

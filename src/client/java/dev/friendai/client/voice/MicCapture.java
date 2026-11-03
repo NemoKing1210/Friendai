@@ -1,6 +1,7 @@
 package dev.friendai.client.voice;
 
 import dev.friendai.features.speech.AudioLevel;
+import dev.friendai.features.speech.PcmConverter;
 import dev.friendai.features.speech.PcmRingBuffer;
 import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
@@ -19,6 +20,10 @@ public final class MicCapture implements AutoCloseable {
 
     private volatile boolean recording;
     private volatile float level;
+    private volatile ChunkListener listener;
+    /** The failure a listener raised on the capture thread; read by the caller after {@link #stop()}. */
+    private volatile RuntimeException listenerFailure;
+
     private TargetDataLine line;
     private Thread reader;
     private ByteArrayOutputStream buffer;
@@ -39,6 +44,18 @@ public final class MicCapture implements AutoCloseable {
 
     /** @param deviceName null means the system default */
     public synchronized void start(String deviceName, int maxSeconds) throws LineUnavailableException {
+        start(deviceName, maxSeconds, null);
+    }
+
+    /**
+     * Records while delivering ordered 16 kHz float chunks to {@code listener} on the capture thread.
+     *
+     * @param deviceName null means the system default
+     * @param listener receives every chunk as it arrives; a thrown failure stops the recording and is reported by
+     *     {@link #listenerFailure()}
+     */
+    public synchronized void start(String deviceName, int maxSeconds, ChunkListener listener)
+            throws LineUnavailableException {
         if (recording) {
             return;
         }
@@ -61,6 +78,8 @@ public final class MicCapture implements AutoCloseable {
         line = opened;
         buffer = new ByteArrayOutputStream();
         level = 0f;
+        this.listener = listener;
+        listenerFailure = null;
         recording = true;
         int limit = maxSeconds * BYTES_PER_SECOND;
         TargetDataLine source = opened;
@@ -78,6 +97,18 @@ public final class MicCapture implements AutoCloseable {
                             preRoll.write(chunk, n);
                             synchronized (sink) {
                                 sink.write(chunk, 0, n);
+                            }
+                            ChunkListener target = listener;
+                            if (target != null) {
+                                try {
+                                    target.onChunk(PcmConverter.toFloat(java.util.Arrays.copyOf(chunk, n)));
+                                } catch (RuntimeException failure) {
+                                    // The recognizer refused the chunk (overflow or a closed session): stop
+                                    // capture and let the caller report the typed failure after release.
+                                    listenerFailure = failure;
+                                    recording = false;
+                                    break;
+                                }
                             }
                         }
                     } catch (RuntimeException ignored) {
@@ -100,6 +131,7 @@ public final class MicCapture implements AutoCloseable {
         line = null;
         reader = null;
         buffer = null;
+        listener = null;
         level = 0f;
         if (closingLine == null) {
             return new byte[0];
@@ -148,5 +180,16 @@ public final class MicCapture implements AutoCloseable {
     /** True once the recording thread has ended on its own (limit reached) and {@link #stop()} is still due. */
     public synchronized boolean hasPendingRecording() {
         return line != null;
+    }
+
+    /** The failure a chunk listener raised during the last recording, or null. */
+    public RuntimeException listenerFailure() {
+        return listenerFailure;
+    }
+
+    /** Receives ordered 16 kHz mono samples on the capture thread. */
+    @FunctionalInterface
+    public interface ChunkListener {
+        void onChunk(float[] samples16k);
     }
 }

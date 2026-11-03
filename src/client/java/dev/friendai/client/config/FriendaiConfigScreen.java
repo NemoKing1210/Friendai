@@ -12,8 +12,8 @@ import dev.friendai.agent.llm.provider.ProviderPreset;
 import dev.friendai.agent.llm.provider.ProviderRegistry;
 import dev.friendai.agent.turn.ErrorMessages;
 import dev.friendai.client.FriendaiClient;
+import dev.friendai.client.audio.LocalSttBundleManager;
 import dev.friendai.client.audio.VoiceModelManager;
-import dev.friendai.client.audio.WhisperModel;
 import dev.friendai.client.tts.SpeechPlayback;
 import dev.friendai.client.tts.SpeechRuntime;
 import dev.friendai.client.ui.ClientToasts;
@@ -29,6 +29,8 @@ import dev.friendai.features.speech.ResolvedTts;
 import dev.friendai.features.speech.VoiceErrors;
 import dev.friendai.features.speech.VoicePreset;
 import dev.friendai.features.speech.VoiceReadiness;
+import dev.friendai.features.speech.stt.LocalSttCatalog;
+import dev.friendai.features.speech.stt.LocalSttCatalog.LocalSttModel;
 import dev.friendai.features.speech.stt.SttPresets;
 import dev.friendai.features.speech.tts.TtsPresets;
 import dev.friendai.features.speech.tts.VoiceModel;
@@ -89,8 +91,6 @@ public final class FriendaiConfigScreen {
      * tests the connection and stays next to the model option for the rest of the session.
      */
     private static final Map<String, UserMessage> TEXT_ONLY_MODELS = new ConcurrentHashMap<>();
-
-    private static final List<String> WHISPER_MODELS = List.of("tiny", "base", "small");
 
     /** Export/import envelope version; a file that does not carry this number is refused. */
     private static final int TRANSFER_VERSION = 1;
@@ -2198,28 +2198,48 @@ public final class FriendaiConfigScreen {
 
     private static List<Option<?>> localRecognitionOptions(
             Screen parent, ClientConfig client, ClientConfig.SttSection stt, boolean sttReveal, boolean ttsReveal) {
+        List<String> ids = new ArrayList<>();
+        for (LocalSttModel entry : LocalSttCatalog.all()) {
+            ids.add(entry.id());
+        }
+        // An id this build does not know is kept selectable instead of being rewritten by the widget; its row
+        // then explains that it is not part of the catalogue.
+        if (stt.local.model != null && !stt.local.model.isBlank() && !ids.contains(stt.local.model)) {
+            ids.add(stt.local.model);
+        }
         Option<String> model = Option.<String>createBuilder()
                 .name(tr("friendai.config.voice.model"))
                 .description(OptionDescription.of(tr("friendai.config.voice.model.tooltip")))
                 .binding("base", () -> stt.local.model, value -> stt.local.model = value)
-                .controller(o -> DropdownStringControllerBuilder.create(o)
-                        .values(WHISPER_MODELS)
-                        .allowAnyValue(false))
+                .controller(o ->
+                        DropdownStringControllerBuilder.create(o).values(ids).allowAnyValue(false))
                 .build();
-        // A missing model is reported with the runtime's own message, so recording fails with the
-        // same words this row shows.
-        LabelOption status =
-                statusLabel(VoiceRuntime.sttStatus(stt).problem(), "friendai.config.voice.status.installed");
+        // The row describes the pending selection, while readiness comes from the same runtime decision a
+        // recording makes. A missing model is reported with the runtime's own message so the row and a
+        // failed recording say the same words.
+        LabelOption status = recognitionStatus(model.pendingValue());
         ButtonOption download = ButtonOption.createBuilder()
                 .name(tr("friendai.config.voice.download"))
                 .action((screen, button) -> {
-                    WhisperModel selected = WhisperModel.byId(model.pendingValue());
+                    LocalSttModel selected =
+                            LocalSttCatalog.byId(model.pendingValue()).orElse(null);
+                    if (selected == null) {
+                        toast(tr("friendai.config.voice.model.unknown"));
+                        return;
+                    }
                     int[] lastStep = {-1};
                     long generation = session == null ? -1 : session.generation();
                     VoiceRuntime.manager()
-                            .download(selected.spec(), fraction -> {
-                                int percent = (int) (fraction * 100);
-                                if (percent / 10 != lastStep[0]) {
+                            .install(selected, new LocalSttBundleManager.ProgressListener() {
+                                @Override
+                                public void fileStarted(LocalSttCatalog.LocalModelFile file) {}
+
+                                @Override
+                                public void bytesWritten(long written, long total) {
+                                    int percent = total <= 0 ? 0 : (int) Math.min(100, written * 100 / total);
+                                    if (percent / 10 == lastStep[0]) {
+                                        return;
+                                    }
                                     lastStep[0] = percent / 10;
                                     Minecraft.getInstance().execute(() -> {
                                         if (session == null || !session.current(generation)) return;
@@ -2247,6 +2267,34 @@ public final class FriendaiConfigScreen {
             }
         });
         return List.of(model, status, download);
+    }
+
+    /** The selected catalog row: the runtime's refusal, or the model's size, languages, mode and licence. */
+    private static LabelOption recognitionStatus(String modelId) {
+        String effective = modelId == null ? FriendaiClient.clientConfig().voice.stt.local.model : modelId;
+        VoiceRuntime.SttStatus status = VoiceRuntime.sttStatus(FriendaiClient.clientConfig().voice.stt, effective);
+        if (status.problem() != null) {
+            return LabelOption.create(Components.of(status.problem()));
+        }
+        LocalSttModel selected = LocalSttCatalog.byId(effective).orElse(null);
+        if (selected == null) {
+            return LabelOption.create(tr("friendai.config.voice.model.unknown"));
+        }
+        String languages = selected.languages().size() == 1
+                        && LocalSttCatalog.MULTILINGUAL.equals(
+                                selected.languages().get(0))
+                ? tr("friendai.config.voice.model.multilingual").getString()
+                : String.join(", ", selected.languages());
+        String mode = selected.streaming()
+                ? tr("friendai.config.voice.model.mode.streaming").getString()
+                : tr("friendai.config.voice.model.mode.offline").getString();
+        return LabelOption.create(Component.translatable(
+                "friendai.config.voice.model.summary",
+                selected.displayName(),
+                selected.totalBytes() / 1_000_000L,
+                languages,
+                mode,
+                selected.license()));
     }
 
     private static List<Option<?>> localSynthesisOptions(

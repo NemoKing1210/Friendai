@@ -1,11 +1,12 @@
 package dev.friendai.client.voice;
 
+import dev.friendai.FriendaiMod;
 import dev.friendai.client.FriendaiClient;
-import dev.friendai.client.audio.NativeAudioGuard;
-import dev.friendai.client.audio.WhisperModel;
-import dev.friendai.client.audio.WhisperModelManager;
+import dev.friendai.client.audio.LocalSttBundleManager;
 import dev.friendai.features.speech.ResolvedStt;
 import dev.friendai.features.speech.VoiceReadiness;
+import dev.friendai.features.speech.stt.LocalSttCatalog;
+import dev.friendai.features.speech.stt.LocalSttCatalog.LocalSttModel;
 import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.infrastructure.config.ClientConfig;
 import dev.friendai.infrastructure.config.VoiceConfig;
@@ -15,6 +16,8 @@ import dev.friendai.presentation.companion.ClientSessionId;
 import java.net.http.HttpClient;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
 
@@ -41,14 +44,14 @@ public final class VoiceRuntime {
     /** Recognition uploads up to 30 s of audio, so it gets a longer budget than synthesis. */
     private static final SttClient STT = SttClient.withBuiltins(new VoiceHttp(HTTP, Duration.ofSeconds(60)));
 
-    private static final WhisperModelManager MANAGER = new WhisperModelManager(
-            FabricLoader.getInstance().getGameDir().resolve("friendai").resolve("models"),
-            HTTP,
-            WhisperModel.DOWNLOAD_BASE_URL);
+    /** One catalog, one downloader: legacy Whisper and the sherpa bundles share it. */
+    private static final LocalSttBundleManager MANAGER =
+            new LocalSttBundleManager(FabricLoader.getInstance().getGameDir(), HTTP);
 
     private static final MicCapture MIC = new MicCapture();
 
-    private static WhisperLocalStt current;
+    private static SpeechToText current;
+    private static AutoCloseable currentClosable;
     private static String currentModel;
     private static CloudStt currentCloud;
     private static String currentCloudKey;
@@ -62,7 +65,7 @@ public final class VoiceRuntime {
         return MIC;
     }
 
-    public static WhisperModelManager manager() {
+    public static LocalSttBundleManager manager() {
         return MANAGER;
     }
 
@@ -77,46 +80,77 @@ public final class VoiceRuntime {
         if (!resolved.local()) {
             return cloudStt(resolved);
         }
-        WhisperModel wanted = WhisperModel.find(settings.local.model).orElse(null);
-        if (wanted == null) return NOT_READY;
-        if (current != null && wanted.id().equals(currentModel)) {
+        LocalSttModel wanted = LocalSttCatalog.byId(settings.local.model).orElse(null);
+        if (wanted == null) {
+            return NOT_READY;
+        }
+        String key = wanted.id() + "@" + wanted.revision();
+        if (current != null && key.equals(currentModel)) {
             return current;
         }
         // Rebuild only the local engine; an external invalidate() bumps the capture generation,
         // but loading a model for the current press must not invalidate that press.
-        if (current != null) {
-            current.close();
-            current = null;
-            currentModel = null;
-        }
-        if (!MANAGER.isInstalled(wanted.spec())) {
+        closeRecognizer();
+        if (!MANAGER.hasFiles(wanted)) {
             return NOT_READY;
         }
-        NativeAudioGuard.requireClientEnvironment();
-        WhisperLocalStt stt = new WhisperLocalStt(MANAGER.path(wanted.spec()));
-        if (!stt.isReady()) {
-            stt.close();
+        try {
+            if (wanted.whisper()) {
+                WhisperLocalStt whisper =
+                        new WhisperLocalStt(MANAGER.file(wanted, wanted.files().get(0)));
+                if (!whisper.isReady()) {
+                    whisper.close();
+                    return NOT_READY;
+                }
+                current = whisper;
+                currentClosable = whisper;
+            } else {
+                SherpaStt sherpa = new SherpaStt(
+                        wanted,
+                        MANAGER.dir(wanted),
+                        () -> MANAGER.verifyInstalled(wanted),
+                        worker("friendai-stt-" + wanted.id()));
+                current = sherpa;
+                currentClosable = sherpa;
+            }
+        } catch (RuntimeException failure) {
+            FriendaiMod.LOGGER.warn("Could not start local speech recognition for {}", wanted.id(), failure);
+            closeRecognizer();
             return NOT_READY;
         }
-        current = stt;
-        currentModel = wanted.id();
-        return stt;
+        currentModel = key;
+        return current;
     }
 
     /** Whether recognition can run right now, and what to tell the player when it cannot. */
     public static synchronized SttStatus sttStatus() {
-        return sttStatus(FriendaiClient.clientConfig().voice.stt);
+        return sttStatus(FriendaiClient.clientConfig().voice.stt, FriendaiClient.clientConfig().voice.stt.local.model);
     }
 
     public static synchronized SttStatus sttStatus(ClientConfig.SttSection settings) {
+        return sttStatus(settings, settings.local.model);
+    }
+
+    /**
+     * Readiness for one selected catalog id, so the settings screen can show the row the player is editing while
+     * the saved configuration still points at the old one.
+     */
+    public static synchronized SttStatus sttStatus(ClientConfig.SttSection settings, String modelId) {
         ResolvedStt resolved = resolveStt(settings);
-        boolean installed = resolved.local()
-                && WhisperModel.find(settings.local.model)
-                        .map(model -> MANAGER.isInstalled(model.spec()))
-                        .orElse(false);
+        if (!resolved.local()) {
+            return cloudStatus(resolved);
+        }
+        LocalSttModel model = LocalSttCatalog.byId(modelId).orElse(null);
+        if (model == null) {
+            return new SttStatus(false, UserMessage.of("friendai.voice.error.unknown_model"));
+        }
+        boolean installed = MANAGER.hasFiles(model);
         UserMessage problem = VoiceReadiness.stt(resolved, installed);
         if (problem != null) {
             return new SttStatus(false, problem);
+        }
+        if (!model.supportsLanguage(settings.language)) {
+            return new SttStatus(false, UserMessage.of("friendai.voice.error.unsupported_language"));
         }
         // This is used while building the settings screen: do not initialize a native engine merely
         // to display configured availability. The explicit recording action performs the load check.
@@ -185,11 +219,22 @@ public final class VoiceRuntime {
     }
 
     private static void closeRecognizer() {
-        if (current != null) {
-            current.close();
-            current = null;
-            currentModel = null;
+        AutoCloseable closing = currentClosable;
+        current = null;
+        currentClosable = null;
+        currentModel = null;
+        if (closing != null) {
+            try {
+                closing.close();
+            } catch (Exception | LinkageError failure) {
+                FriendaiMod.LOGGER.warn("Could not close local speech recognition", failure);
+            }
         }
+    }
+
+    private static SttStatus cloudStatus(ResolvedStt resolved) {
+        UserMessage problem = VoiceReadiness.stt(resolved, false);
+        return problem == null ? new SttStatus(true, null) : new SttStatus(false, problem);
     }
 
     private static SpeechToText cloudStt(ResolvedStt resolved) {
@@ -213,6 +258,14 @@ public final class VoiceRuntime {
         return resolved.providerId() + "|" + resolved.baseUrl() + "|" + resolved.model() + "|"
                 + (resolved.hasKey() ? Integer.toHexString(resolved.apiKey().hashCode()) : "") + "|"
                 + resolved.language() + "|" + resolved.folderId();
+    }
+
+    private static ExecutorService worker(String name) {
+        return Executors.newSingleThreadExecutor(runnable -> {
+            Thread thread = new Thread(runnable, name);
+            thread.setDaemon(true);
+            return thread;
+        });
     }
 
     private static ResolvedStt resolveStt(ClientConfig.SttSection settings) {

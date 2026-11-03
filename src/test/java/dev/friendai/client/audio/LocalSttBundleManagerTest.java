@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import dev.friendai.features.speech.stt.LocalSttCatalog;
 import dev.friendai.features.speech.stt.LocalSttCatalog.LocalModelFile;
 import dev.friendai.features.speech.stt.LocalSttCatalog.LocalSttModel;
+import dev.friendai.features.speech.stt.LocalSttCatalog.SherpaFiles;
 import dev.friendai.foundation.text.UserFacingException;
 import dev.friendai.testutil.MockHttpServer;
 import java.io.IOException;
@@ -43,12 +44,38 @@ class LocalSttBundleManagerTest {
     @BeforeEach
     void setUp() {
         server = new MockHttpServer();
-        manager = new LocalSttBundleManager(dir, HttpClient.newHttpClient(), server.baseUrl());
+        manager = new LocalSttBundleManager(dir, HttpClient.newHttpClient());
     }
 
     @AfterEach
     void tearDown() {
         server.close();
+        // Windows can hold a just-closed handle for a moment; give it time before JUnit deletes the @TempDir,
+        // otherwise an otherwise green test fails in extension cleanup with "Failed to close extension context".
+        for (int attempt = 0; attempt < 40; attempt++) {
+            try {
+                deleteTree(dir);
+                return;
+            } catch (IOException stillOpen) {
+                try {
+                    Thread.sleep(50);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
+        }
+    }
+
+    private static void deleteTree(Path root) throws IOException {
+        if (!Files.exists(root)) {
+            return;
+        }
+        try (var walk = Files.walk(root)) {
+            for (Path entry : walk.sorted(java.util.Comparator.reverseOrder()).toList()) {
+                Files.deleteIfExists(entry);
+            }
+        }
     }
 
     @Test
@@ -84,7 +111,7 @@ class LocalSttBundleManagerTest {
         assertEquals(model.totalBytes(), lastByte(written), "progress ends at the aggregate size");
         assertTrue(manager.isInstalled(model));
         assertEquals(
-                List.of("/parakeet-test/model.int8.onnx", "/parakeet-test/tokens.txt"),
+                List.of("/model.int8.onnx", "/tokens.txt"),
                 server.requests().stream()
                         .map(MockHttpServer.RecordedRequest::path)
                         .toList());
@@ -150,13 +177,67 @@ class LocalSttBundleManagerTest {
         Path bundle = manager.dir(model);
         Files.createDirectories(bundle);
         Files.write(bundle.resolve("model.int8.onnx"), MODEL_BYTES);
-        assertTrue(manager.isInstalled(model));
+        assertFalse(manager.isInstalled(model), "files without a verified marker are not an installation");
 
         Path installed = manager.install(model).get(10, TimeUnit.SECONDS);
 
         assertEquals(bundle, installed);
-        assertEquals(0, server.requests().size(), "a complete bundle is not downloaded again");
+        assertEquals(0, server.requests().size(), "a complete bundle is verified and adopted, not downloaded again");
+        assertTrue(manager.isInstalled(model), "verification writes the marker");
         assertArrayEquals(MODEL_BYTES, Files.readAllBytes(bundle.resolve("model.int8.onnx")));
+    }
+
+    @Test
+    void verificationHashesContentAndInstallRepairsATamperedFile() throws Exception {
+        LocalSttModel model = twoFileModel();
+        server.enqueue(200, MODEL_BYTES);
+        server.enqueue(200, TOKENS_BYTES);
+        manager.install(model).get(10, TimeUnit.SECONDS);
+        assertTrue(manager.verifyInstalled(model));
+
+        Path modelFile = manager.dir(model).resolve("model.int8.onnx");
+        byte[] tampered = MODEL_BYTES.clone();
+        tampered[0] ^= 0x01;
+        Files.write(modelFile, tampered);
+
+        LocalSttBundleManager fresh = new LocalSttBundleManager(dir, HttpClient.newHttpClient());
+        assertFalse(fresh.verifyInstalled(model), "a same-size edit must fail verification");
+        server.enqueue(200, MODEL_BYTES);
+        server.enqueue(200, TOKENS_BYTES);
+        fresh.install(model).get(10, TimeUnit.SECONDS);
+
+        assertArrayEquals(MODEL_BYTES, Files.readAllBytes(modelFile));
+        assertTrue(fresh.verifyInstalled(model));
+        assertTrue(fresh.isInstalled(model));
+    }
+
+    @Test
+    void aMarkerForAnotherRevisionDoesNotCountAsInstalled() throws Exception {
+        LocalSttModel model = model("parakeet-test", file("model.int8.onnx", MODEL_BYTES));
+        server.enqueue(200, MODEL_BYTES);
+        manager.install(model).get(10, TimeUnit.SECONDS);
+        assertTrue(manager.isInstalled(model));
+
+        LocalSttModel otherRevision = new LocalSttModel(
+                model.id(),
+                model.displayName(),
+                model.engine(),
+                "another-revision",
+                model.downloadBaseUrl(),
+                model.bundleDir(),
+                model.files(),
+                model.sherpa(),
+                model.languages(),
+                model.streaming(),
+                model.languagePrompt(),
+                model.modelType(),
+                model.memoryMb(),
+                model.license(),
+                model.licenseUrl(),
+                model.attribution());
+        assertFalse(manager.isInstalled(otherRevision), "the marker names the revision it verified");
+        assertTrue(manager.verifyInstalled(otherRevision), "the same bytes satisfy the new manifest");
+        assertTrue(manager.isInstalled(otherRevision));
     }
 
     @Test
@@ -232,11 +313,18 @@ class LocalSttBundleManagerTest {
                 "Whisper Tiny",
                 LocalSttCatalog.ENGINE_WHISPER,
                 "main",
+                server.baseUrl(),
                 LocalSttCatalog.LEGACY_MODELS_DIR,
                 List.of(file("ggml-tiny.bin", MODEL_BYTES)),
+                null,
                 List.of(LocalSttCatalog.MULTILINGUAL),
                 false,
-                "MIT");
+                false,
+                "whisper.cpp",
+                100,
+                "MIT",
+                "https://example.test/license",
+                "test");
         Path legacyDir = manager.dir(legacy);
         Files.createDirectories(legacyDir);
         Files.writeString(legacyDir.resolve("ggml-base.bin"), "another model already installed");
@@ -261,11 +349,18 @@ class LocalSttBundleManagerTest {
                 "Parakeet",
                 LocalSttCatalog.ENGINE_SHERPA,
                 "rev",
+                server.baseUrl(),
                 bundleDir("parakeet-test"),
                 List.of(file("model.int8.onnx", MODEL_BYTES), file("model.int8.onnx", OTHER_BYTES)),
+                sherpaFiles(),
                 List.of("multi"),
                 false,
-                "MIT"));
+                false,
+                LocalSttCatalog.MODEL_TYPE_NEMO_TRANSDUCER,
+                100,
+                "MIT",
+                "https://example.test/license",
+                "test"));
         assertRejected(model("parakeet-test", file("../escape.bin", MODEL_BYTES)));
         assertRejected(model("parakeet-test", file("nested/model.int8.onnx", MODEL_BYTES)));
         assertRejected(model("parakeet-test", new LocalModelFile("model.int8.onnx", 0, sha(MODEL_BYTES))));
@@ -276,11 +371,18 @@ class LocalSttBundleManagerTest {
                 "Parakeet",
                 LocalSttCatalog.ENGINE_SHERPA,
                 "rev",
+                server.baseUrl(),
                 "../outside",
                 List.of(file("model.int8.onnx", MODEL_BYTES)),
+                sherpaFiles(),
                 List.of("multi"),
                 false,
-                "MIT"));
+                false,
+                LocalSttCatalog.MODEL_TYPE_NEMO_TRANSDUCER,
+                100,
+                "MIT",
+                "https://example.test/license",
+                "test"));
         assertEquals(0, server.requests().size(), "a broken manifest fails before any request");
     }
 
@@ -305,21 +407,45 @@ class LocalSttBundleManagerTest {
         return written.get(written.size() - 1);
     }
 
-    private static LocalSttModel twoFileModel() {
+    private LocalSttModel twoFileModel() {
         return model("parakeet-test", file("model.int8.onnx", MODEL_BYTES), file("tokens.txt", TOKENS_BYTES));
     }
 
-    private static LocalSttModel model(String id, LocalModelFile... files) {
+    private LocalSttModel model(String id, LocalModelFile... files) {
         return new LocalSttModel(
                 id,
                 "Parakeet",
                 LocalSttCatalog.ENGINE_SHERPA,
                 "rev",
+                server.baseUrl(),
                 bundleDir(id),
                 List.of(files),
+                rolesOf(files),
                 List.of("multi"),
                 false,
-                "MIT");
+                false,
+                LocalSttCatalog.MODEL_TYPE_NEMO_TRANSDUCER,
+                100,
+                "MIT",
+                "https://example.test/license",
+                "test");
+    }
+
+    private static SherpaFiles sherpaFiles() {
+        return new SherpaFiles("model.int8.onnx", "model.int8.onnx", "model.int8.onnx", "tokens.txt");
+    }
+
+    /** Roles for an arbitrary test manifest: every role must name a declared file or the catalog rejects it. */
+    private static SherpaFiles rolesOf(LocalModelFile[] files) {
+        String first = files.length == 0 ? "model.int8.onnx" : files[0].file();
+        String tokens = first;
+        for (LocalModelFile file : files) {
+            if (file.file().endsWith(".txt")) {
+                tokens = file.file();
+                break;
+            }
+        }
+        return new SherpaFiles(first, first, first, tokens);
     }
 
     private static LocalModelFile file(String name, byte[] content) {

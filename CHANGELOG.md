@@ -6,6 +6,18 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.199.0] - 2026-11-03
+
+### Added
+
+- Local speech recognition can use Parakeet V3, Nemotron 3.5 or GigaAM v3 beside the Whisper models. Each download is pinned to an upstream revision and checked by size and SHA-256 before it can be selected.
+- Nemotron 3.5 shows a partial transcript in the HUD while you hold the push-to-talk key; only the final transcript is sent to the companion.
+
+### Changed
+
+- The speech model list shows each model's download size, languages, streaming or offline mode and licence, and refuses a language the selected model does not support instead of changing models silently.
+- An interrupted download now leaves an installed model usable, and a corrupt or tampered model file is rejected before it is loaded.
+
 ## [0.198.0] - 2026-11-03
 
 ### Added

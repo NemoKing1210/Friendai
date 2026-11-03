@@ -164,7 +164,13 @@ The key is never written to logs or chat. "Test connection" in the settings scre
 
 Hold **V** to talk. Open **Settings → Voice → Recognition** and choose where speech is turned into text:
 
-- **Local (Whisper, offline)** — [whisper.cpp](https://github.com/ggerganov/whisper.cpp) runs one of the `tiny`, `base` or `small` models on your CPU, free of charge. Press **Download model**; models are stored in `<game dir>/friendai/models/`.
+- **Local (offline)** — the bundled whisper.cpp and sherpa-onnx runtimes transcribe on your CPU, free of charge. Pick a model in **Settings → Voice → Recognition** and press **Download model**:
+  - **Whisper `tiny`, `base`, `small`** — [whisper.cpp](https://github.com/ggerganov/whisper.cpp), multilingual, stored in `<game dir>/friendai/models/`. Existing installations keep working without a new download.
+  - **Parakeet V3** — 671 MB, 25 European languages including English, German, French, Spanish, Russian and Ukrainian, offline, CC BY 4.0. The most accurate multilingual entry; about 790 MB of process memory while loaded (measured on Windows 11 x64, JDK 25, two threads).
+  - **Nemotron 3.5** — 682 MB, 19 transcription-ready locales, streaming, OpenMDW-1.1. While you hold the key the HUD shows a replaceable partial transcript before release; about 810 MB.
+  - **GigaAM v3** — 232 MB, Russian with punctuation from the model, offline, MIT; about 340 MB.
+
+  New bundles live in `<game dir>/friendai/models/stt/<id>/`. Every file is checked against the pinned upstream revision, exact byte size and SHA-256 before the model can be used, and an interrupted download never replaces a working installation. Memory figures are measured whole-process working sets, not a guarantee for every machine. Parakeet and GigaAM detect the language themselves; Nemotron receives the configured language, or detects it when the setting is `auto`. A language a model does not list is refused before recording instead of being silently changed, and one model is never substituted for another.
 - **OpenAI (paid)** — an OpenAI-compatible transcription API (`gpt-transcribe` by default). The base URL can point at any OpenAI-compatible server, including a local one, which needs no key.
 - **Groq (paid)** — the same API through Groq (`whisper-large-v3` by default).
 - **Google Cloud Speech-to-Text (paid)** — a key and a language; the recording is sent as LINEAR16.

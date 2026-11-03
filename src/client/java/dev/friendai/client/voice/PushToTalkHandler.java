@@ -33,6 +33,7 @@ public final class PushToTalkHandler {
 
     private ClientSessionId recordingSession;
     private SpeechToText recordingRecognizer;
+    private StreamingSpeechToText.StreamingSession recordingStream;
 
     public PushToTalkHandler(
             Supplier<SpeechToText> stt,
@@ -86,61 +87,104 @@ public final class PushToTalkHandler {
             VoiceState.set(VoiceState.Kind.ERROR, UserMessage.of("friendai.voice.error.no_model"));
             return;
         }
+        java.util.concurrent.atomic.AtomicInteger generation = new java.util.concurrent.atomic.AtomicInteger();
+        StreamingSpeechToText.StreamingSession stream = null;
         try {
-            mic.start(voice.inputDevice, voice.maxRecordSec);
-            // Only a real recording supersedes an in-flight transcript; an ignored press keeps it.
+            if (recognizer instanceof StreamingSpeechToText streaming) {
+                stream = streaming.startStreaming(
+                        voice.language,
+                        partial -> mc.execute(() -> {
+                            int current = generation.get();
+                            if (current != 0
+                                    && recording == current
+                                    && VoiceRuntime.isCurrentSession(sessionId)
+                                    && VoiceState.current().kind() == VoiceState.Kind.RECORDING) {
+                                VoiceState.setPartial(partial);
+                            }
+                        }));
+            }
+            startCapture(voice, stream);
+            // Only a real recording supersedes an in-flight transcript; a failed press keeps it.
             recording = VoiceRuntime.nextCaptureGeneration();
+            generation.set(recording);
             recordingSession = sessionId;
             recordingRecognizer = recognizer;
+            recordingStream = stream;
             pressIgnored = false;
             VoiceState.set(VoiceState.Kind.RECORDING, null);
         } catch (Exception e) {
             FriendaiMod.LOGGER.warn("Could not open the microphone", e);
+            if (stream != null) {
+                stream.cancel();
+            }
             VoiceState.set(VoiceState.Kind.ERROR, UserMessage.of("friendai.voice.error.no_mic"));
         }
+    }
+
+    private void startCapture(ClientConfig.SttSection voice, StreamingSpeechToText.StreamingSession stream)
+            throws Exception {
+        if (stream == null) {
+            mic.start(voice.inputDevice, voice.maxRecordSec);
+            return;
+        }
+        mic.start(voice.inputDevice, voice.maxRecordSec, stream::feed);
     }
 
     private void onReleased(Minecraft mc) {
         ClientSessionId sessionId = recordingSession;
         SpeechToText recognizer = recordingRecognizer;
+        StreamingSpeechToText.StreamingSession stream = recordingStream;
         recordingSession = null;
         recordingRecognizer = null;
-        if (pressIgnored
-                || sessionId == null
-                || !VoiceRuntime.isCurrentSession(sessionId)
-                || !mic.hasPendingRecording()) {
-            mic.stop();
+        recordingStream = null;
+        RuntimeException captureFailure = mic.listenerFailure();
+        boolean pending = mic.hasPendingRecording();
+        byte[] pcm = mic.stop();
+        if (pressIgnored || sessionId == null || !VoiceRuntime.isCurrentSession(sessionId) || !pending) {
+            if (stream != null) {
+                stream.cancel();
+            }
             return;
         }
-        byte[] pcm = mic.stop();
+        if (captureFailure != null) {
+            FriendaiMod.LOGGER.warn("Speech capture stopped early", captureFailure);
+            if (stream != null) {
+                stream.cancel();
+            }
+            VoiceState.set(VoiceState.Kind.ERROR, VoiceErrors.userMessage(captureFailure));
+            return;
+        }
         if (pcm.length < MIN_RECORDING_BYTES) {
+            if (stream != null) {
+                stream.cancel();
+            }
             VoiceState.set(VoiceState.Kind.IDLE, null);
             return;
         }
         VoiceState.set(VoiceState.Kind.TRANSCRIBING, null);
         final int generation = recording;
         String language = FriendaiClient.clientConfig().voice.stt.language;
-        recognizer
-                .transcribe(PcmConverter.toFloat(pcm), language)
-                .whenComplete((text, error) -> mc.execute(() -> {
-                    if (!VoiceRuntime.isCurrentSession(sessionId) || generation != VoiceRuntime.captureGeneration()) {
-                        // A newer press owns the HUD state; if only a config change bumped the generation,
-                        // nobody else will clear the "transcribing" indicator.
-                        if (recording == generation) {
-                            VoiceState.set(VoiceState.Kind.IDLE, null);
-                        }
-                        return;
-                    }
-                    if (error != null) {
-                        FriendaiMod.LOGGER.warn("Speech recognition failed", error);
-                        VoiceState.set(VoiceState.Kind.ERROR, VoiceErrors.userMessage(error));
-                    } else {
-                        VoiceState.set(VoiceState.Kind.IDLE, null);
-                        if (text != null && !text.isBlank()) {
-                            onTranscript.accept(sessionId, text.strip());
-                        }
-                    }
-                }));
+        java.util.concurrent.CompletableFuture<String> transcript =
+                stream != null ? stream.finish() : recognizer.transcribe(PcmConverter.toFloat(pcm), language);
+        transcript.whenComplete((text, error) -> mc.execute(() -> {
+            if (!VoiceRuntime.isCurrentSession(sessionId) || generation != VoiceRuntime.captureGeneration()) {
+                // A newer press owns the HUD state; if only a config change bumped the generation,
+                // nobody else will clear the "transcribing" indicator.
+                if (recording == generation) {
+                    VoiceState.set(VoiceState.Kind.IDLE, null);
+                }
+                return;
+            }
+            if (error != null) {
+                FriendaiMod.LOGGER.warn("Speech recognition failed", error);
+                VoiceState.set(VoiceState.Kind.ERROR, VoiceErrors.userMessage(error));
+            } else {
+                VoiceState.set(VoiceState.Kind.IDLE, null);
+                if (text != null && !text.isBlank()) {
+                    onTranscript.accept(sessionId, text.strip());
+                }
+            }
+        }));
     }
 
     /** Resets key and recording state when the owning connection closes. */
@@ -150,6 +194,11 @@ public final class PushToTalkHandler {
             pressIgnored = true;
             recordingSession = null;
             recordingRecognizer = null;
+            StreamingSpeechToText.StreamingSession stream = recordingStream;
+            recordingStream = null;
+            if (stream != null) {
+                stream.cancel();
+            }
             mic.stop();
             VoiceState.set(VoiceState.Kind.IDLE, null);
         }

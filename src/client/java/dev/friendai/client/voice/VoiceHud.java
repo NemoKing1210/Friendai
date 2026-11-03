@@ -78,7 +78,10 @@ public final class VoiceHud {
 
     private static Component textOf(VoiceState.Snapshot state) {
         return switch (state.kind()) {
-            case RECORDING -> Component.translatable("friendai.voice.hud.recording");
+            case RECORDING ->
+                state.partial() == null || state.partial().isBlank()
+                        ? Component.translatable("friendai.voice.hud.recording")
+                        : Component.literal(state.partial());
             case TRANSCRIBING -> Component.translatable("friendai.voice.hud.transcribing");
             case ERROR -> state.message() == null ? null : Components.of(state.message());
             default -> null;
@@ -89,6 +92,10 @@ public final class VoiceHud {
             GuiGraphicsExtractor graphics, Font font, Component text, VoiceState.Kind kind, float visibility) {
         boolean transcribing = kind == VoiceState.Kind.TRANSCRIBING;
         boolean error = kind == VoiceState.Kind.ERROR;
+        int maxTextWidth = Math.max(24, graphics.guiWidth() - 16 - PADDING * 2 - INDICATOR_WIDTH - INDICATOR_GAP);
+        if (font.width(text) > maxTextWidth) {
+            text = Component.literal(font.plainSubstrByWidth(text.getString(), maxTextWidth));
+        }
         int width = PADDING * 2 + INDICATOR_WIDTH + INDICATOR_GAP + font.width(text);
         width = Math.min(width, graphics.guiWidth() - 16);
         int x = (graphics.guiWidth() - width) / 2;
