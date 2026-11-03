@@ -1,12 +1,16 @@
 package dev.friendai.features.inventory.minecraft.task;
 
+import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.navigation.minecraft.nav.MoveHelper;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.inventory.ItemMatcher;
+import java.util.ArrayList;
+import java.util.List;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
@@ -14,6 +18,7 @@ import net.minecraft.world.phys.Vec3;
 /** Walks up to the owner and drops items toward them. Gives what it has if it has fewer than asked. */
 public final class GiveItemsTask implements Task {
     private static final double GIVE_DISTANCE = 2.5;
+    private static final EquipmentSlot[] HANDS = {EquipmentSlot.MAINHAND, EquipmentSlot.OFFHAND};
 
     private final ItemMatcher matcher;
     private final int count;
@@ -42,7 +47,7 @@ public final class GiveItemsTask implements Task {
     @Override
     public TaskStatus tick(TaskContext c) {
         var companion = c.companion();
-        int have = InventoryOps.count(companion.inventory(), matcher);
+        int have = InventoryOps.count(companion.inventory(), matcher) + held(companion);
         if (have == 0) {
             summary = "I don't have " + itemLabel();
             return TaskStatus.FAILED;
@@ -62,13 +67,38 @@ public final class GiveItemsTask implements Task {
             return TaskStatus.RUNNING;
         }
         companion.getNavigation().stop();
+        int wanted = Math.min(count, have);
+        List<ItemStack> taken = new ArrayList<>(InventoryOps.remove(companion.inventory(), matcher, wanted));
+        int remaining = wanted - taken.stream().mapToInt(ItemStack::getCount).sum();
+        for (EquipmentSlot slot : HANDS) {
+            if (remaining <= 0) break;
+            ItemStack stack = companion.getItemBySlot(slot);
+            if (!matcher.test(stack)) continue;
+            int amount = Math.min(remaining, stack.getCount());
+            ItemStack copy = stack.copyWithCount(amount);
+            stack.shrink(amount);
+            companion.setItemSlot(slot, stack.isEmpty() ? ItemStack.EMPTY : stack);
+            taken.add(copy);
+            remaining -= amount;
+        }
         int gave = 0;
-        for (ItemStack taken : InventoryOps.remove(companion.inventory(), matcher, Math.min(count, have))) {
-            drop(c, owner, taken);
-            gave += taken.getCount();
+        for (ItemStack stack : taken) {
+            drop(c, owner, stack);
+            gave += stack.getCount();
         }
         summary = "gave " + gave + " " + itemLabel();
         return TaskStatus.SUCCESS;
+    }
+
+    private int held(CompanionEntity companion) {
+        int total = 0;
+        for (EquipmentSlot slot : HANDS) {
+            ItemStack stack = companion.getItemBySlot(slot);
+            if (matcher.test(stack)) {
+                total += stack.getCount();
+            }
+        }
+        return total;
     }
 
     private static void drop(TaskContext c, ServerPlayer owner, ItemStack stack) {

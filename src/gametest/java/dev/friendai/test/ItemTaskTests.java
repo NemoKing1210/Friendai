@@ -15,6 +15,7 @@ import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -160,6 +161,24 @@ public class ItemTaskTests {
                 .filter(e -> e.getItem().is(Items.COBBLESTONE))
                 .mapToInt(e -> e.getItem().getCount())
                 .sum();
+    }
+
+    @GameTest(maxTicks = 600)
+    public void giveDeliversAnItemHeldInTheMainHand(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 8.5, 2, 2.5);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(owner.getUUID());
+        c.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.STONE_AXE));
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(new GiveItemsTask(ItemMatcher.parse("minecraft:stone_axe").orElseThrow(), 1), "give_items");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(c.getMainHandItem().isEmpty(), "the axe must leave the hand");
+            h.assertTrue(result.summary.equals("gave 1 minecraft:stone_axe"), "summary was " + result.summary);
+        });
     }
 
     @GameTest(maxTicks = 400)
