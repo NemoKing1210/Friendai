@@ -1,22 +1,18 @@
 package dev.friendai.task.autonomy;
 
+import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.features.places.Place;
-import dev.friendai.features.places.PlaceKind;
+import dev.friendai.features.places.PlaceProtection;
 import dev.friendai.task.TaskContext;
-import java.util.Set;
 import net.minecraft.core.BlockPos;
 
 /**
  * Keeps free time's hands off the places the owner cares about: an autonomous job never breaks a block inside a
- * known place, takes only from containers inside one, and never builds over one. Owner orders are not affected.
+ * known place, takes only from containers inside one, and never builds over one. Owner orders are not affected, and
+ * a dig site the companion registered itself is a work area rather than owner property — see
+ * {@link PlaceProtection}.
  */
 public final class PlaceGuard {
-    /** Harvesting inside a farm is what these tools are for. */
-    static final Set<String> FARM_TOOLS = Set.of("farm", "tend_farm", "use_bonemeal");
-    /** These break only the crafting or cooking stations they placed themselves. */
-    static final Set<String> STATION_TOOLS =
-            Set.of("collect_smelted", "collect_station", "craft_item", "smelt_items", "cook_food");
-
     private PlaceGuard() {}
 
     /** True when the running autonomous job must not break the block at {@code pos}. */
@@ -32,16 +28,8 @@ public final class PlaceGuard {
         if (!c.autonomous() || !enabled(c)) {
             return null;
         }
-        String tool = c.execution() == null ? "" : c.execution().currentToolName();
-        if (STATION_TOOLS.contains(tool)) {
-            return null;
-        }
-        for (Place place : placesHere(c)) {
-            if (inside(place, pos) && !(place.kind() == PlaceKind.FARM && FARM_TOOLS.contains(tool))) {
-                return place;
-            }
-        }
-        return null;
+        return PlaceProtection.blocker(placesHere(c), dimension(c), toPos(pos), tool(c), true)
+                .orElse(null);
     }
 
     /** True when {@code pos} lies inside an owner-known place in the companion's dimension. */
@@ -51,7 +39,11 @@ public final class PlaceGuard {
 
     /** The first known place the box from {@code min} to {@code max} touches, or null. */
     public static Place overlapping(TaskContext context, BlockPos min, BlockPos max) {
+        String tool = tool(context);
         for (Place place : placesHere(context)) {
+            if (PlaceProtection.exempt(place, tool)) {
+                continue;
+            }
             int r = place.radius();
             if (max.getX() >= place.anchor().x() - r
                     && min.getX() <= place.anchor().x() + r
@@ -71,18 +63,29 @@ public final class PlaceGuard {
                 && context.serverSettings().autonomy().protectPlaces();
     }
 
+    private static String tool(TaskContext context) {
+        return context.execution() == null ? "" : context.execution().currentToolName();
+    }
+
+    private static String dimension(TaskContext context) {
+        return context.level().dimension().identifier().toString();
+    }
+
     private static java.util.List<Place> placesHere(TaskContext context) {
         var companion = context.companion();
         if (companion.ownerUuid() == null) {
             return java.util.List.of();
         }
-        String dimension = context.level().dimension().identifier().toString();
         return context.placeService().book(companion).all().stream()
-                .filter(p -> p.dimension().equals(dimension))
+                .filter(p -> p.dimension().equals(dimension(context)))
                 .toList();
     }
 
+    private static Pos toPos(BlockPos pos) {
+        return new Pos(pos.getX(), pos.getY(), pos.getZ());
+    }
+
     private static boolean inside(Place place, BlockPos pos) {
-        return place.contains(new dev.friendai.features.navigation.pathing.Pos(pos.getX(), pos.getY(), pos.getZ()));
+        return place.contains(toPos(pos));
     }
 }

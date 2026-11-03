@@ -694,6 +694,21 @@ public class FreeTimeTests {
         });
     }
 
+    @GameTest(maxTicks = 400)
+    public void anAutoMineDoesNotProtectItsOwnSite(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(5, 2, 5, Blocks.DIORITE);
+        CompanionEntity c = companion(h);
+        c.inventory().addItem(new ItemStack(Items.IRON_PICKAXE));
+        minePlace(h, c, "mine", 5, 2, 5, 8);
+        BreakTask inside = breakIn(c, h.absolutePos(new BlockPos(5, 2, 5)), true);
+        h.succeedWhen(() -> {
+            h.assertTrue(
+                    inside.last == dev.friendai.features.mining.minecraft.mining.BlockBreaker.State.BROKEN,
+                    "free time mines inside its own dig site: " + inside.last);
+        });
+    }
+
     @GameTest(maxTicks = 300)
     public void plannerFailureFallsBack(GameTestHelper h) {
         GameTestSupport.platform(h, 8);
@@ -956,6 +971,27 @@ public class FreeTimeTests {
                                 r,
                                 Set.of(),
                                 PlaceSource.MANUAL,
+                                c.ownerUuid(),
+                                ""),
+                        c.level().getGameTime());
+    }
+
+    /** A dig site the companion registered itself, like the one a finished `mine_blocks` job earns. */
+    private static void minePlace(GameTestHelper h, CompanionEntity c, String name, int x, int y, int z, int r) {
+        BlockPos anchor = h.absolutePos(new BlockPos(x, y, z));
+        GameTestSupport.runtime(c.level().getServer())
+                .placeService()
+                .book(c)
+                .remember(
+                        new PlaceValues(
+                                name,
+                                PlaceKind.MINE,
+                                "",
+                                c.level().dimension().identifier().toString(),
+                                new Pos(anchor.getX(), anchor.getY(), anchor.getZ()),
+                                r,
+                                Set.of(),
+                                PlaceSource.MINE,
                                 c.ownerUuid(),
                                 ""),
                         c.level().getGameTime());
