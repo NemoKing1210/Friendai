@@ -22,6 +22,8 @@ import net.minecraft.world.level.block.state.BlockState;
 public final class FellTreeSearchTask implements Task {
     private static final int TREE_SEARCH_WAIT_TICKS = 100;
     private static final int MAX_OBSERVATIONS = 1_024;
+    /** Rebuilding the observation maps every tick spends the same 1024 entries for no new evidence. */
+    private static final int SCAN_INTERVAL_TICKS = 5;
 
     private final BlockMatcher type;
     private final BlockPos origin;
@@ -32,6 +34,7 @@ public final class FellTreeSearchTask implements Task {
     private final BlockMatcher logs;
     private FellTreeTask delegate;
     private int waited;
+    private long lastScan;
     private String summary = "";
 
     public FellTreeSearchTask(BlockMatcher type, BlockPos origin, int radius, int limit, boolean collect) {
@@ -69,6 +72,11 @@ public final class FellTreeSearchTask implements Task {
                     + " blocks; use look_around or survey_area to look around";
             return TaskStatus.FAILED;
         }
+        long now = c.level().getGameTime();
+        if (lastScan != 0 && now - lastScan < SCAN_INTERVAL_TICKS) {
+            return TaskStatus.RUNNING;
+        }
+        lastScan = now;
         var resources = c.resources();
         int evidenceRadius = Math.min(128, c.companion().blockPosition().distManhattan(origin) + radius);
         Map<BlockPos, String> observed = new LinkedHashMap<>();

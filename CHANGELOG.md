@@ -13,6 +13,10 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 - `excavate` mines a bounded box, tunnel, descending stair, shaft or strip mine in one call, with the same protection, support, drop, tool and inventory rules as ordinary mining.
 - `mine_blocks` accepts `radius`, `exclude`, `until_item`/`until_count` and `require_tool`; `mine_block_at` accepts `vein`, `vein_limit` and `collect`; `fell_tree` accepts `structures`.
 
+### Changed
+
+- A tree search reuses its observation snapshot for a few ticks instead of rebuilding the cache every tick, and a long mining job no longer widens its evidence fetch with every refused block.
+
 ### Fixed
 
 - A vein neighbour above lava or with a full inventory is now refused with its reason instead of losing its drop.

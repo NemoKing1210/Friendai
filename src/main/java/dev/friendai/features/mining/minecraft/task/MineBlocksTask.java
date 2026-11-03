@@ -679,7 +679,8 @@ public final class MineBlocksTask implements Task {
 
     private int evidenceLimit(int wanted) {
         int supports = miningSession == null ? 0 : miningSession.protectedSupportCount();
-        return wanted + blacklist.size() + supports;
+        // A long job must not turn its growing blacklist into a growing evidence fetch on every rescan.
+        return Math.min(512, wanted + blacklist.size() + supports);
     }
 
     @Override
