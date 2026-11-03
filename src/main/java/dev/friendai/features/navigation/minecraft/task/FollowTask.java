@@ -182,7 +182,7 @@ public final class FollowTask implements Task {
     private LevelCellView terrain(CompanionEntity companion) {
         int now = companion.tickCount;
         if (terrain == null || now < terrainTick || now - terrainTick >= TERRAIN_TICKS) {
-            terrain = LevelCellView.terrain(companion);
+            terrain = LevelCellView.terrain(companion, 128);
             terrainTick = now;
         }
         return terrain;
@@ -220,6 +220,8 @@ public final class FollowTask implements Task {
 
     @Override
     public String saveData() {
-        return "";
+        // An explicit order must not turn into the quiet default activity after a restart; a checkpoint written
+        // before this flag existed carries "" and is read as explicit, which is what it was.
+        return quiet ? "quiet" : "loud";
     }
 }

@@ -10,6 +10,7 @@
 			"dev.friendai.test.FriendaiGameTests",
 			"dev.friendai.test.ProtocolAccessTests",
 			"dev.friendai.test.PathingTests",
+			"dev.friendai.test.NavigatorStateTests",
 			"dev.friendai.server.net.MovementDebugTests",
 			"dev.friendai.test.CompanionEntityTests",
 			"dev.friendai.test.CompanionDeathTests",

@@ -3,9 +3,7 @@ package dev.friendai.features.navigation.minecraft.nav;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.navigation.pathing.BlockList;
 import dev.friendai.features.navigation.pathing.CostModel;
-import dev.friendai.features.navigation.pathing.GoalPickup;
 import dev.friendai.features.navigation.pathing.GoalPoint;
-import dev.friendai.features.navigation.pathing.GoalReach;
 import dev.friendai.features.navigation.pathing.Node;
 import dev.friendai.features.navigation.pathing.Path;
 import dev.friendai.features.navigation.pathing.PathGoal;
@@ -22,7 +20,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
-import net.minecraft.server.level.ServerLevel;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -78,6 +75,10 @@ public final class Navigator {
     private int gatherRounds;
     /** The last search's summary, for the movement debug overlay. */
     private String lastSearch = "";
+    /** The context of the last tick, so a goal change can stop the gatherer with the task's own settings. */
+    private @Nullable TaskContext lastContext;
+    /** A stopped navigator stays parked until a new goal arrives; it never restarts a search on its own. */
+    private boolean stopped;
 
     public Navigator(TaskContext context) {
         this(context, true, null, null);
@@ -165,28 +166,14 @@ public final class Navigator {
         return lastSearch;
     }
 
-    /** The cells the goal asks for, for the movement debug overlay; a point goal gives the cell holding the point. */
+    /** The cells the goal asks for, for the movement debug overlay. The goal bounds its own list. */
     public List<Pos> goalCells() {
-        if (goal instanceof GoalPoint point) {
-            return List.of(
-                    new Pos((int) Math.floor(point.x()), (int) Math.floor(point.y()), (int) Math.floor(point.z())));
-        }
-        if (goal instanceof GoalReach reach) {
-            return reach.targets().subList(0, Math.min(reach.targets().size(), 64));
-        }
-        if (goal instanceof GoalPickup pickup) {
-            List<Pos> cells = new ArrayList<>();
-            for (var drop : pickup.drops()) {
-                cells.add(new Pos((int) Math.floor(drop.x()), (int) Math.floor(drop.y()), (int) Math.floor(drop.z())));
-            }
-            return cells.subList(0, Math.min(cells.size(), 64));
-        }
-        return List.of();
+        return goal == null ? List.of() : goal.cells();
     }
 
     /** A short description of the goal for the movement debug overlay. */
     public String goalText() {
-        return goal == null ? "none" : describe(goal);
+        return goal == null ? "none" : goal.label();
     }
 
     public PathGoal goal() {
@@ -199,7 +186,8 @@ public final class Navigator {
      */
     public void setGoal(PathGoal goal) {
         if (goal == null
-                || goal.equals(this.goal)
+                || !stopped
+                        && goal.equals(this.goal)
                         && (search != null
                                 || executor != null
                                 || state == State.SEARCHING
@@ -207,9 +195,13 @@ public final class Navigator {
             return;
         }
         if (gatherer != null) {
-            gatherer.stop(new TaskContext(companion, (ServerLevel) companion.level()));
+            // A gatherer that was never ticked owns nothing to stop; one that was knows its task's settings.
+            if (lastContext != null) {
+                gatherer.stop(lastContext);
+            }
             gatherer = null;
         }
+        stopped = false;
         this.goal = goal;
         searchNanos = 0;
         failedPlans = 0;
@@ -223,12 +215,18 @@ public final class Navigator {
     }
 
     public State tick(TaskContext c) {
+        lastContext = c;
         companion.noteNavigator(this);
-        if (state == State.ARRIVED || state == State.UNREACHABLE) {
+        if (stopped || state == State.ARRIVED || state == State.UNREACHABLE) {
             return state;
         }
         if (search != null) {
             stepSearch(c);
+            // The result of this tick's search is newer than the route it replaced: a stale executor tick must not
+            // report MOVING over an ARRIVED or UNREACHABLE answer.
+            if (state == State.ARRIVED || state == State.UNREACHABLE) {
+                return state;
+            }
         }
         if (executor != null) {
             return tickExecutor(c);
@@ -237,9 +235,7 @@ public final class Navigator {
             tickGathering(c);
             return state;
         }
-        if (state != State.ARRIVED && state != State.UNREACHABLE) {
-            state = State.SEARCHING;
-        }
+        state = State.SEARCHING;
         return state;
     }
 
@@ -255,8 +251,21 @@ public final class Navigator {
         }
         probing = false;
         search = null;
+        stopped = true;
+        state = State.SEARCHING;
         companion.getNavigation().stop();
         companion.setPathing(false);
+    }
+
+    /**
+     * Ends the route being walked. A terminal search result or a gathering trip owns the body from then on; leaving
+     * the old executor alive would let its next tick report MOVING over that decision.
+     */
+    private void abandonExecutor(TaskContext c) {
+        if (executor != null) {
+            executor.stop(c);
+            executor = null;
+        }
     }
 
     private void tickGathering(TaskContext c) {
@@ -281,24 +290,29 @@ public final class Navigator {
         LevelCellView view = new LevelCellView(companion, settings, CostModel.DEFAULTS, breakList);
         availableAtProbe = materials(settings).count(companion.inventory());
         probing = true;
+        searchNanos = 0;
         search = new PathSearch(
                 view,
                 CostModel.DEFAULTS,
                 goal,
                 node(),
-                new SearchOptions(settings.maxNodes(), 64, Integer.MAX_VALUE, 1, companion.canSprint()));
+                new SearchOptions(
+                        settings.maxNodes(), PathingConfig.SEARCH_RANGE, Integer.MAX_VALUE, 1, companion.canSprint()));
         state = State.SEARCHING;
     }
 
-    private void startGathering(TaskContext c, Path path) {
+    private void startGathering(TaskContext c, @Nullable Path path) {
+        // Gathering owns the body: the route it was replacing must not keep digging or building toward the old goal.
+        abandonExecutor(c);
         if (path == null || path.steps().isEmpty() || path.places() <= availableAtProbe) {
             state = State.UNREACHABLE;
             return;
         }
         int missing = path.places() - availableAtProbe;
         // A few spare blocks: an extra bridge cell or a pillar is cheaper to gather now than to walk back for.
-        int needed = Math.min(missing + 4, config().maxGatherBlocks());
-        gatherer = new MaterialGatherer(needed, avoidCells(path), settings, breakList, placeList);
+        PathingConfig route = config();
+        int needed = Math.min(missing + 4, route.maxGatherBlocks());
+        gatherer = new MaterialGatherer(needed, avoidCells(path), route, breakList, placeList);
         state = State.GATHERING;
     }
 
@@ -325,6 +339,11 @@ public final class Navigator {
 
     private void stepSearch(TaskContext c) {
         long budget = config().searchBudgetMs() * 1_000_000L;
+        if (executor != null) {
+            // The old route is walked in this tick as well, so the opportunistic re-plan takes half the budget: the
+            // whole tick then costs one search budget instead of two full phases.
+            budget = Math.max(1L, budget / 2);
+        }
         long begin = System.nanoTime();
         SearchResult result = search.step(budget, System::nanoTime);
         searchNanos += System.nanoTime() - begin;
@@ -336,7 +355,7 @@ public final class Navigator {
     private void handleSearchResult(TaskContext c, SearchResult result) {
         Path path = result.path();
         StringBuilder line =
-                new StringBuilder("path ").append(describe(goal())).append(": ").append(result.status());
+                new StringBuilder("path ").append(goal().label()).append(": ").append(result.status());
         line.append(", ")
                 .append(search.expanded())
                 .append(" nodes, ")
@@ -363,12 +382,14 @@ public final class Navigator {
                 && path != null
                 && path.steps().isEmpty()) {
             // The start node already is the goal: there is nothing to walk.
+            abandonExecutor(c);
             state = State.ARRIVED;
             return;
         }
         if (probed) {
             if (path == null || path.steps().isEmpty()) {
                 // A probe that finds no route at all cannot be a missing material: the companion is walled in.
+                abandonExecutor(c);
                 state = State.UNREACHABLE;
                 return;
             }
@@ -390,6 +411,7 @@ public final class Navigator {
                 || path == null
                 || path.steps().isEmpty()) {
             if (!mayPlace || !config().allowPlace() || gatherRounds >= GATHER_ROUNDS) {
+                abandonExecutor(c);
                 state = State.UNREACHABLE;
                 return;
             }
@@ -403,6 +425,7 @@ public final class Navigator {
             // carries: walking it would spend the block and strand the companion. Learn the price of the whole
             // passage (or the rest of it) and gather that instead.
             if (!mayPlace || !config().allowPlace() || gatherRounds >= GATHER_ROUNDS) {
+                abandonExecutor(c);
                 state = State.UNREACHABLE;
                 return;
             }
@@ -500,7 +523,9 @@ public final class Navigator {
         int placeable = mayPlace ? materials.count(companion.inventory()) : 0;
         double price = mayPlace ? materials.cheapestPrice(companion.inventory()) : 0.0;
         LevelCellView view = new LevelCellView(companion, settings, CostModel.DEFAULTS, breakList);
-        SearchOptions options = new SearchOptions(settings.maxNodes(), 64, placeable, price, companion.canSprint());
+        SearchOptions options = new SearchOptions(
+                settings.maxNodes(), PathingConfig.SEARCH_RANGE, placeable, price, companion.canSprint());
+        searchNanos = 0;
         search = new PathSearch(view, CostModel.DEFAULTS, goal, node(), options);
     }
 
@@ -529,19 +554,5 @@ public final class Navigator {
             y++;
         }
         return new Node(pos.getX(), y, pos.getZ());
-    }
-
-    private static String describe(PathGoal goal) {
-        if (goal instanceof GoalPoint point) {
-            return "point " + (int) Math.floor(point.x()) + " " + (int) Math.floor(point.y()) + " "
-                    + (int) Math.floor(point.z());
-        }
-        if (goal instanceof GoalReach reach) {
-            return reach.targets().size() == 1 ? "one cell" : reach.targets().size() + " cells";
-        }
-        if (goal instanceof GoalPickup pickup) {
-            return pickup.drops().size() == 1 ? "pickup" : pickup.drops().size() + " drops";
-        }
-        return "goal";
     }
 }

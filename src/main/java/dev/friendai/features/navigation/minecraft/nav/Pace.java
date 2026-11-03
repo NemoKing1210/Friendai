@@ -6,6 +6,8 @@ import dev.friendai.features.navigation.movement.PacePolicy;
 /** Applies the pace policy to one companion: turns sprinting on or off from its mode and situation. */
 public final class Pace {
     private final CompanionEntity companion;
+    /** A route asked for a running start into a leap; the sprint lasts until the route withdraws it. */
+    private boolean runUpRequested;
 
     public Pace(CompanionEntity companion) {
         this.companion = companion;
@@ -27,15 +29,29 @@ public final class Pace {
      */
     public void update(boolean following, double distance, double pathDistance) {
         boolean crouched = companion.body().sneaking() || companion.body().sitting();
-        boolean run = !crouched
-                && !companion.onClimbable()
-                && (following
-                        ? PacePolicy.shouldRun(
-                                companion.paceMode(), true, distance, companion.canSprint(), companion.isSprinting())
-                        : PacePolicy.shouldRunOnPath(
-                                companion.paceMode(), pathDistance, companion.canSprint(), companion.isSprinting()));
+        boolean policy = following
+                ? PacePolicy.shouldRun(
+                        companion.paceMode(), true, distance, companion.canSprint(), companion.isSprinting())
+                : PacePolicy.shouldRunOnPath(
+                        companion.paceMode(), pathDistance, companion.canSprint(), companion.isSprinting());
+        // The pace policy stays the only writer of the sprint flag: a leap's run-up is a request it honours, not a
+        // second writer that fights it every tick.
+        boolean run = companion.canSprint() && !crouched && !companion.onClimbable() && (runUpRequested || policy);
         if (run != companion.isSprinting()) {
             companion.setSprinting(run);
+        }
+    }
+
+    /**
+     * Asks for a running start into a leap, or withdraws the request once the leap is behind the route. It is applied
+     * here as well as honoured by {@link #update}: a route driven by its own navigator (an approach, a journey, a
+     * material gather) never ticks the move helper, so a request waiting for the next policy update would never land.
+     */
+    public void requestRunUp(boolean requested) {
+        this.runUpRequested = requested;
+        boolean sprint = requested && companion.canSprint();
+        if (sprint != companion.isSprinting()) {
+            companion.setSprinting(sprint);
         }
     }
 }

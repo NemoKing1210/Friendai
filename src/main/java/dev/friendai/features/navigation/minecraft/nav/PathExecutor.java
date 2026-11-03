@@ -16,7 +16,7 @@ import dev.friendai.features.navigation.pathing.PathStep;
 import dev.friendai.features.navigation.pathing.PathingConfig;
 import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.task.TaskContext;
-import dev.friendai.task.inventory.DropCollector;
+import dev.friendai.task.inventory.DropSettle;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -24,6 +24,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.FluidTags;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.ScaffoldingBlock;
 import net.minecraft.world.level.block.state.BlockState;
@@ -110,8 +111,10 @@ public final class PathExecutor {
     private int stepTicks;
     private int placeTicks;
     private int jumpTicks;
-    /** Ticks left in which a drop from a dug cell is picked up. Armed only by a break, so walking collects nothing. */
-    private int pickupTicks;
+    /** The drop of a just-broken cell, taken at the feet once the vanilla pickup delay has run out. */
+    private DropSettle settle;
+    /** Ticks between two pickup scans; the delay is ten ticks, so every other tick is enough and halves the scans. */
+    private int settlePhase;
 
     /** Horizontal velocity the airborne body is held to during a leap, or zero outside one. */
     private double leapVx;
@@ -210,9 +213,8 @@ public final class PathExecutor {
     public State tick(TaskContext c) {
         CompanionEntity companion = c.companion();
         companion.setPathing(true);
-        if (pickupTicks > 0) {
-            pickupTicks--;
-            DropCollector.pickupAtFeet(c, PICKUP_RADIUS, null);
+        if (settle != null && (settlePhase++ & 1) == 0 && settle.tick(c)) {
+            settle = null;
         }
         if (index < 0) {
             if (path.steps().isEmpty()) {
@@ -250,6 +252,7 @@ public final class PathExecutor {
             action.stop(c);
             action = null;
         }
+        settle = null;
         releaseRunUp(c.companion());
         c.companion().getNavigation().stop();
         c.companion().setPathing(false);
@@ -284,7 +287,8 @@ public final class PathExecutor {
     }
 
     private State check(TaskContext c) {
-        LevelCellView view = new LevelCellView(c.companion(), config, CostModel.DEFAULTS, breakList);
+        // A step check reads its own breaks and places and the cells around them: a handful, not a search's cache.
+        LevelCellView view = new LevelCellView(c.companion(), config, CostModel.DEFAULTS, breakList, 32);
         liveView = LevelCellView.liveTerrain(c.companion());
         for (int i = breaks.size() - 1; i >= 0; i--) {
             Pos pos = breaks.get(i);
@@ -332,7 +336,8 @@ public final class PathExecutor {
                 brokenBlocks++;
                 action = null;
                 breaks.remove(0);
-                pickupTicks = PICKUP_TICKS;
+                settle = new DropSettle(PICKUP_TICKS, PICKUP_RADIUS, null);
+                settlePhase = 0;
                 phase = breaks.isEmpty() ? (places.isEmpty() ? Phase.MOVE : Phase.PLACE) : Phase.BREAK;
                 yield State.RUNNING;
             }
@@ -378,11 +383,16 @@ public final class PathExecutor {
             against = new Pos(place.x(), place.y() - 1, place.z());
             face = Direction.UP;
         }
-        companion.hands().place(taken.get(), new BlockPos(against.x(), against.y(), against.z()), face);
+        InteractionResult result =
+                companion.hands().place(taken.get(), new BlockPos(against.x(), against.y(), against.z()), face);
         if (stateAt(c, place).canBeReplaced()) {
+            // Vanilla refused the placement (a protection rule, an occupied cell, a shape that does not fit). The
+            // stack went back to the inventory with the fake player's remainder, so this step costs time, not
+            // material, and the search re-plans around whatever is in the way.
             return fail(c);
         }
-        if (ledger != null) {
+        if (ledger != null && result.consumesAction()) {
+            // Record only what this route made: a cell someone else filled is not this route's to take down.
             ledger.record(new BlockPos(place.x(), place.y(), place.z()), taken.get());
         }
         places.remove(0);
@@ -405,9 +415,10 @@ public final class PathExecutor {
             // one: give the step up so the route is planned around the gap instead of walked off the edge.
             return fail(c);
         }
-        if (runUpDue(companion) && companion.canSprint() && !companion.isSprinting()) {
-            // The sprint starts a few blocks early: the leap itself leaves the ground within a few ticks.
-            companion.setSprinting(true);
+        if (runUpDue(companion) && companion.canSprint() && !runUpSprint) {
+            // The sprint starts a few blocks early: the leap itself leaves the ground within a few ticks. The pace
+            // owner applies it on its next update rather than a second writer toggling the flag back off.
+            companion.pace().requestRunUp(true);
             runUpSprint = true;
         }
         if (step.move() == Move.DOOR && !doorOpened) {
@@ -661,7 +672,7 @@ public final class PathExecutor {
     private void releaseRunUp(CompanionEntity companion) {
         if (runUpSprint) {
             runUpSprint = false;
-            companion.setSprinting(false);
+            companion.pace().requestRunUp(false);
         }
     }
 

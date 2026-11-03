@@ -7,10 +7,12 @@ import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import java.util.Locale;
+import java.util.Optional;
 import net.minecraft.world.phys.Vec3;
 
 public final class GoToTask implements Task {
     private final Vec3 target;
+    private final boolean sneaking;
     private static final double JOURNEY_DISTANCE = 64.0;
 
     private final MoveHelper mover = new MoveHelper(1.0, 1.5);
@@ -25,7 +27,32 @@ public final class GoToTask implements Task {
     /** @param sneak whether to crouch for the walk, which is slower but quieter */
     public GoToTask(Vec3 target, boolean sneak) {
         this.target = target;
+        this.sneaking = sneak;
         this.sneak = new SneakScope(sneak);
+    }
+
+    /** A restored walk: the destination and whether it was meant to be a quiet one. */
+    public record Checkpoint(double x, double y, double z, boolean sneaking) {
+
+        /**
+         * Reads the payload. Three numbers are a walk saved before the quiet flag existed, which was an ordinary
+         * walk; anything else this cannot read is not restored rather than guessed.
+         */
+        public static Optional<Checkpoint> decode(String data) {
+            String[] parts = data == null ? new String[0] : data.split(",");
+            if (parts.length != 3 && parts.length != 4) {
+                return Optional.empty();
+            }
+            try {
+                double x = Double.parseDouble(parts[0].strip());
+                double y = Double.parseDouble(parts[1].strip());
+                double z = Double.parseDouble(parts[2].strip());
+                boolean sneaking = parts.length == 4 && "1".equals(parts[3].strip());
+                return Optional.of(new Checkpoint(x, y, z, sneaking));
+            } catch (NumberFormatException invalid) {
+                return Optional.empty();
+            }
+        }
     }
 
     private String coords() {
@@ -111,6 +138,6 @@ public final class GoToTask implements Task {
 
     @Override
     public String saveData() {
-        return String.format(Locale.ROOT, "%f,%f,%f", target.x, target.y, target.z);
+        return String.format(Locale.ROOT, "%f,%f,%f,%d", target.x, target.y, target.z, sneaking ? 1 : 0);
     }
 }

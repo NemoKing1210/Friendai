@@ -57,6 +57,8 @@ public final class StayTask implements Task {
 
     @Override
     public String saveData() {
-        return "";
+        // The remaining budget, so a restart continues the wait instead of starting the whole timeout again. An
+        // unset budget (before start) stays empty, which means the configured timeout.
+        return maxTicks <= 0 ? "" : Integer.toString(Math.max(0, maxTicks - ticks));
     }
 }

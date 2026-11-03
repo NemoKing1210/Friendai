@@ -1,6 +1,7 @@
 package dev.friendai.features.navigation.movement;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import org.junit.jupiter.api.Test;
 
@@ -16,6 +17,21 @@ class PaceModeTest {
     void unknownOrNullIsAuto() {
         assertEquals(PaceMode.AUTO, PaceMode.parse(null));
         assertEquals(PaceMode.AUTO, PaceMode.parse("fast"));
+    }
+
+    @Test
+    void toleratesSurroundingWhitespaceFromAConfigFile() {
+        assertEquals(PaceMode.RUN, PaceMode.parse(" run "));
+        assertEquals(PaceMode.RUN, PaceMode.parseStrict(" run "));
+    }
+
+    @Test
+    void aStrictParseRefusesAnUnknownMode() {
+        IllegalArgumentException refused =
+                assertThrows(IllegalArgumentException.class, () -> PaceMode.parseStrict("sprint"));
+
+        assertEquals("unknown pace mode: sprint", refused.getMessage());
+        assertThrows(IllegalArgumentException.class, () -> PaceMode.parseStrict(null));
     }
 
     @Test

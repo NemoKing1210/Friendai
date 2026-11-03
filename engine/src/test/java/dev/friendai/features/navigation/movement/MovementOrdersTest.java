@@ -14,6 +14,11 @@ class MovementOrdersTest {
     }
 
     @Test
+    void aPortalTripIsAnOrderToo() {
+        assertTrue(MovementOrders.isOrder("travel_through_portal"));
+    }
+
+    @Test
     void workIsNotAnOrder() {
         assertFalse(MovementOrders.isOrder("mine_blocks"));
         assertFalse(MovementOrders.isOrder("jump"));

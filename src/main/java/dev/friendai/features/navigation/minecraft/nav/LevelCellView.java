@@ -71,7 +71,7 @@ public final class LevelCellView implements CellView {
     private final PathingConfig config;
     private final CostModel costs;
     private final BlockList breakList;
-    private final LongMap<Cell> cache = new LongMap<>(1024);
+    private final LongMap<Cell> cache;
     /** What breaking a block costs, per block state: independent of where the state stands. */
     private final Map<BlockState, BreakInfo> breakInfo = new HashMap<>();
 
@@ -86,7 +86,17 @@ public final class LevelCellView implements CellView {
      * never plan a dig or a placement, which skips the protection and tool lookups a search needs.
      */
     public static LevelCellView terrain(CompanionEntity companion) {
-        return new LevelCellView(companion, TERRAIN_ONLY, CostModel.DEFAULTS);
+        return terrain(companion, 1024);
+    }
+
+    /** A terrain view for a caller that reads a bounded few cells, such as a snap-down of at most 64 blocks. */
+    public static LevelCellView terrain(CompanionEntity companion, int cacheCapacity) {
+        return new LevelCellView(
+                companion,
+                TERRAIN_ONLY,
+                CostModel.DEFAULTS,
+                BlockList.parse(TERRAIN_ONLY.breakBlacklist(), ignored -> {}),
+                cacheCapacity);
     }
 
     /** Shared per-kind cells for the live view: it only answers kind questions, so these never vary. */
@@ -143,11 +153,21 @@ public final class LevelCellView implements CellView {
     }
 
     public LevelCellView(CompanionEntity companion, PathingConfig config, CostModel costs, BlockList breakList) {
+        this(companion, config, costs, breakList, 1024);
+    }
+
+    /**
+     * @param cacheCapacity how many cells this view is expected to read. A search reads thousands and keeps the
+     *     default; a per-step check reads a handful, and a 2048-slot table for three lookups is pure garbage.
+     */
+    public LevelCellView(
+            CompanionEntity companion, PathingConfig config, CostModel costs, BlockList breakList, int cacheCapacity) {
         this.companion = companion;
         this.level = (ServerLevel) companion.level();
         this.config = config;
         this.costs = costs;
         this.breakList = breakList;
+        this.cache = new LongMap<>(cacheCapacity);
     }
 
     @Override

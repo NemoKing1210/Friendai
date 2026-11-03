@@ -37,6 +37,12 @@ public final class MoveHelper {
     private Navigator navigator;
     private FlightNavigator flightNavigator;
     private Vec3 lastGoal;
+    /** The terrain view under a target that is being snapped to the ground; rebuilt every few ticks, not every call. */
+    private LevelCellView terrain;
+
+    private int terrainTick = Integer.MIN_VALUE;
+    /** How long the terrain view under a re-targeted goal is reused; an airborne owner asks on every tick. */
+    private static final int TERRAIN_TICKS = 5;
     /** Distance to the owner while following, or NaN: the pace policy runs automatic followers by it. */
     private double ownerDistance = Double.NaN;
 
@@ -138,7 +144,7 @@ public final class MoveHelper {
     }
 
     private GoalPoint goalFor(CompanionEntity companion, Vec3 target) {
-        LevelCellView view = LevelCellView.terrain(companion);
+        LevelCellView view = terrain(companion);
         int tx = (int) Math.floor(target.x);
         int ty = (int) Math.floor(target.y);
         int tz = (int) Math.floor(target.z);
@@ -149,6 +155,19 @@ public final class MoveHelper {
                 ? new Pos(tx, ty, tz)
                 : GoalPoint.snapDown(view, tx, ty, tz, snapDrop);
         return new GoalPoint(stand.x() + 0.5, stand.y(), stand.z() + 0.5, arriveDistance, VERTICAL);
+    }
+
+    /**
+     * The terrain view for this re-target. Snapping a moving target down happens every few blocks, so the view is
+     * kept for a few ticks instead of rebuilding a cache for each one.
+     */
+    private LevelCellView terrain(CompanionEntity companion) {
+        int now = companion.tickCount;
+        if (terrain == null || now < terrainTick || now - terrainTick >= TERRAIN_TICKS) {
+            terrain = LevelCellView.terrain(companion, 128);
+            terrainTick = now;
+        }
+        return terrain;
     }
 
     /** Node centres approximate a goal band; an exact positioning caller still needs the real feet inside it. */
@@ -204,6 +223,8 @@ public final class MoveHelper {
         sinceCheckpoint = 0;
         checkpointDistance = 0;
         lastGoal = null;
+        terrain = null;
+        terrainTick = Integer.MIN_VALUE;
     }
 
     public void stop(TaskContext c) {

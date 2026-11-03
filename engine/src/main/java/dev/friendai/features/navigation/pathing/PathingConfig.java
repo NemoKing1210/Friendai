@@ -17,6 +17,12 @@ public record PathingConfig(
         int maxNodes,
         int maxGatherBlocks) {
 
+    /**
+     * How far from the start a search may look, in blocks along each horizontal axis. Shared with the callers that
+     * size an expedition leg and with {@link SearchOptions#DEFAULTS}, so a search and the walk that feeds it agree.
+     */
+    public static final int SEARCH_RANGE = 64;
+
     public static final PathingConfig DEFAULTS = new PathingConfig(
             true,
             true,

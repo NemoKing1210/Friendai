@@ -5,6 +5,20 @@ import java.util.List;
 /** A goal of getting close enough to act on one of several blocks: a log to mine, a chest to open. */
 public record GoalReach(List<Pos> targets, double reach, double eyeHeight) implements PathGoal {
 
+    public GoalReach {
+        targets = List.copyOf(targets);
+    }
+
+    @Override
+    public String label() {
+        return targets.size() == 1 ? "one cell" : targets.size() + " cells";
+    }
+
+    @Override
+    public List<Pos> cells() {
+        return List.copyOf(targets.subList(0, Math.min(targets.size(), MAX_OVERLAY_CELLS)));
+    }
+
     @Override
     public boolean isGoal(Node n, CellView view) {
         return reachedTarget(n, view) != null;

@@ -1,5 +1,6 @@
 package dev.friendai.features.navigation.minecraft.tool;
 
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import dev.friendai.agent.tools.Cost;
 import dev.friendai.agent.tools.ToolGroup;
@@ -26,6 +27,16 @@ import net.minecraft.world.phys.Vec3;
 public final class MovementTools implements FeatureToolContributor {
     private static final String SET_PACE_HINT =
             "- To change how fast you travel, call set_pace: run when asked to hurry or run, walk when asked to slow down, auto to go back to the default.";
+    private static final String FOLLOW_HINT =
+            "- Use follow_player when the owner asks you to come along and keep up; use go_to for one named destination.";
+    private static final String STAY_HINT =
+            "- Use stay to wait where you are; it ends early when queued work is ready, and it is not a way to refuse following.";
+    private static final String GO_TO_HINT =
+            "- Use go_to for one destination the owner named; it may dig and bridge, and reports a failure when no route exists.";
+    private static final String PORTAL_HINT =
+            "- Use travel_through_portal only when a lit portal is within 16 blocks; the companion walks into it and never builds one.";
+    private static final String JUMP_HINT =
+            "- Use jump for a single hop; put several jump steps in one plan for repeats.";
 
     public MovementTools() {}
 
@@ -40,20 +51,24 @@ public final class MovementTools implements FeatureToolContributor {
                             return new FollowTask(false);
                         },
                         false,
-                        new TaskToolDefinition.QueueTraits(true, null))
+                        new TaskToolDefinition.QueueTraits(true, null),
+                        FOLLOW_HINT)
                 .withCheckpoint("follow", NavigationCheckpoints::follow));
         registry.registerTask(task(
                         "stay",
-                        "Wait in this spot for a few minutes; queued work resumes when the wait ends. Not for 'don't follow me': "
+                        "Wait where you are until the wait ends or until queued work is ready. Not for 'don't follow me': "
                                 + "that is set_follow_mode with mode=off, which leaves your work running.",
                         SchemaBuilder.object().build(),
                         (c, a) -> new StayTask(),
                         false,
-                        new TaskToolDefinition.QueueTraits(true, null))
-                .withCheckpoint("stay", NavigationCheckpoints::stay));
+                        new TaskToolDefinition.QueueTraits(true, null),
+                        STAY_HINT)
+                .withCheckpoint("stay", NavigationCheckpoints::stay)
+                .asCreativeSafe());
         registry.registerTask(task(
                         "go_to",
-                        "Walk to the given coordinates, or to the owner with target=owner.",
+                        "Walk to the given coordinates, or to where the owner stands right now with target=owner. To keep "
+                                + "following them, use follow_player instead.",
                         SchemaBuilder.object()
                                 .number("x", "Target X coordinate")
                                 .number("y", "Target Y coordinate")
@@ -63,26 +78,33 @@ public final class MovementTools implements FeatureToolContributor {
                                 .build(),
                         MovementTools::goTo,
                         true,
-                        new TaskToolDefinition.QueueTraits(true, null))
+                        new TaskToolDefinition.QueueTraits(true, null),
+                        GO_TO_HINT)
                 .withCheckpoint("go_to", NavigationCheckpoints::goTo));
         registry.registerTask(task(
-                "travel_through_portal",
-                "Walk into an existing lit nether portal to the other dimension. It never teleports directly; a missing "
-                        + "lit portal is a typed failure.",
-                SchemaBuilder.object()
-                        .enumeration("dimension", "Destination", "the_nether", "overworld")
-                        .required("dimension")
-                        .build(),
-                (c, a) -> new TravelThroughPortalTask(a.get("dimension").getAsString()),
-                false,
-                new TaskToolDefinition.QueueTraits(true, null)));
+                        "travel_through_portal",
+                        "Walk into a lit nether portal within 16 blocks and wait for vanilla to move you to the other "
+                                + "dimension. It never teleports you there and never builds a portal; no lit portal in range "
+                                + "is a plain failure.",
+                        SchemaBuilder.object()
+                                .enumeration("dimension", "Destination", "the_nether", "overworld")
+                                .required("dimension")
+                                .build(),
+                        MovementTools::portal,
+                        false,
+                        new TaskToolDefinition.QueueTraits(true, null),
+                        PORTAL_HINT)
+                .withCheckpoint("travel_through_portal", NavigationCheckpoints::travelThroughPortal));
         registry.registerTask(task(
-                "jump",
-                "Jump once from the ground. Use it when the player asks you to jump or hop; for several jumps in a row, put several jump steps in one plan.",
-                SchemaBuilder.object().build(),
-                (c, a) -> new JumpTask(),
-                true,
-                TaskToolDefinition.QueueTraits.DEFAULT));
+                        "jump",
+                        "Jump once from the ground. Use it when the player asks you to jump or hop; for several jumps in a row, put several jump steps in one plan.",
+                        SchemaBuilder.object().build(),
+                        (c, a) -> new JumpTask(),
+                        true,
+                        TaskToolDefinition.QueueTraits.DEFAULT,
+                        JUMP_HINT)
+                .asCreativeSafe()
+                .withCheckpoint("jump", NavigationCheckpoints::jump));
         registry.registerTool(
                 new Tool<>() {
                     @Override
@@ -105,7 +127,7 @@ public final class MovementTools implements FeatureToolContributor {
 
                     @Override
                     public ToolResult execute(CompanionEntity companion, JsonObject args) {
-                        PaceMode mode = PaceMode.parse(args.get("mode").getAsString());
+                        PaceMode mode = PaceMode.parseStrict(args.get("mode").getAsString());
                         companion.setPaceMode(mode);
                         return ToolResult.ok("pace: " + mode.label());
                     }
@@ -119,31 +141,70 @@ public final class MovementTools implements FeatureToolContributor {
             JsonObject schema,
             TaskToolDefinition.Factory factory,
             boolean plannable,
-            TaskToolDefinition.QueueTraits queueTraits) {
-        return new TaskToolDefinition(name, description, schema, factory, plannable, queueTraits, metadata(name, ""));
+            TaskToolDefinition.QueueTraits queueTraits,
+            String hint) {
+        return new TaskToolDefinition(name, description, schema, factory, plannable, queueTraits, metadata(name, hint));
     }
 
     private static ToolMeta metadata(String name, String hint) {
         return new ToolMeta(name, ToolGroup.MOVEMENT, false, hint, List.of(), Cost.MEDIUM);
     }
 
-    private static Task goTo(CompanionEntity companion, JsonObject args) {
+    /**
+     * A portal trip is checked before the walk: a destination the game cannot deliver must not send the companion into
+     * a portal to find out, which would move it a world away from where the order expected it.
+     */
+    static Task portal(CompanionEntity companion, JsonObject args) {
+        String dimension = args.get("dimension").getAsString();
+        if (!TravelThroughPortalTask.isSupportedDestination(dimension)) {
+            throw new IllegalArgumentException("destination must be the_nether or overworld");
+        }
+        return new TravelThroughPortalTask(dimension);
+    }
+
+    static Task goTo(CompanionEntity companion, JsonObject args) {
         boolean sneak = args.has("sneak") && args.get("sneak").getAsBoolean();
         if (args.has("target")) {
+            if (args.has("x") || args.has("y") || args.has("z")) {
+                throw new IllegalArgumentException("give either target=owner or x,y,z, not both");
+            }
             Vec3 owner = companion
                     .owner()
                     .map(player -> player.position())
                     .orElseThrow(() -> new IllegalArgumentException("the owner is not around"));
             return new GoToTask(owner, sneak);
         }
-        if (args.has("x") && args.has("y") && args.has("z")) {
-            return new GoToTask(
-                    new Vec3(
-                            args.get("x").getAsDouble(),
-                            args.get("y").getAsDouble(),
-                            args.get("z").getAsDouble()),
-                    sneak);
+        return new GoToTask(
+                point(args, companion.level().getMinY(), companion.level().getMaxY()), sneak);
+    }
+
+    /**
+     * The coordinate triple a walk asks for, checked before a task exists: a non-finite or out-of-world target would
+     * otherwise spend a whole search budget, a material probe and a gathering round before failing.
+     */
+    static Vec3 point(JsonObject args, int minY, int maxY) {
+        double x = coordinate(args, "x");
+        double y = coordinate(args, "y");
+        double z = coordinate(args, "z");
+        if (y < minY || y > maxY) {
+            throw new IllegalArgumentException(
+                    "y must be within the current dimension height (" + minY + ".." + maxY + ")");
         }
-        throw new IllegalArgumentException("need x,y,z or target=owner");
+        return new Vec3(x, y, z);
+    }
+
+    private static double coordinate(JsonObject args, String field) {
+        JsonElement value = args.get(field);
+        if (value == null) {
+            throw new IllegalArgumentException("need x,y,z or target=owner");
+        }
+        if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isNumber()) {
+            throw new IllegalArgumentException(field + " must be a finite number");
+        }
+        double number = value.getAsDouble();
+        if (!Double.isFinite(number)) {
+            throw new IllegalArgumentException(field + " must be a finite number");
+        }
+        return number;
     }
 }

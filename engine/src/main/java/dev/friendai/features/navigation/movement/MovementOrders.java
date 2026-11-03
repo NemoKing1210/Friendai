@@ -12,7 +12,7 @@ import java.util.Set;
  */
 public final class MovementOrders {
     /** Tool names of the movement orders, as registered in {@code MovementTools}. */
-    public static final Set<String> TOOLS = Set.of("stay", "follow_player", "go_to");
+    public static final Set<String> TOOLS = Set.of("stay", "follow_player", "go_to", "travel_through_portal");
 
     private MovementOrders() {}
 

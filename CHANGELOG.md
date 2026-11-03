@@ -6,6 +6,20 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.195.1] - 2026-11-03
+
+### Fixed
+
+- A new destination the companion already stands in now ends navigation at once instead of walking the previous route to its end first, and a stopped route stays stopped.
+- Walking to coordinates that are not finite numbers or lie outside the world height now fails immediately, instead of searching, gathering material and giving up.
+- A portal trip fails fast when the companion cannot walk into the portal, checks its destination before it sets off, and walks into the frame instead of teleporting into it.
+- A portal is looked for only in loaded chunks, so asking for a portal trip no longer generates the surrounding chunks on the server thread.
+- A quiet walk, an explicit "follow me" and a wait keep their flags and remaining time across a restart, and an interrupted jump or portal trip is restored with its plan.
+
+### Changed
+
+- `stay` and `jump` now work for a trusted player in creative mode; `go_to`, `follow_player` and `travel_through_portal` stay owner-gated because they can dig, build or cross a dimension.
+
 ## [0.195.0] - 2026-11-03
 
 ### Changed

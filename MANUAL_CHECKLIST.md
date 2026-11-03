@@ -418,6 +418,7 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] Dismiss the companion, restart: no companion chunk is loaded.
 - [ ] `companion.chunkLoading.enabled: false` in `config/friendai-server.json`, `/friendai reload`: the companion unloads when the owner walks away.
 - [ ] The companion follows the owner through a nether portal: the old dimension's chunk unloads and the new one stays loaded.
+- [ ] Ask it to "go to the nether through the portal" beside a lit portal: it walks into the frame, vanilla moves it, and it reports arriving in `minecraft:the_nether`. With no lit portal within 16 blocks it says so instead of walking off.
 
 ## Experience
 
