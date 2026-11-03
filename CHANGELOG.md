@@ -8,9 +8,16 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [0.197.1] - 2026-11-03
 
+### Changed
+
+- `survey_area` now shows what the companion can actually see, with coordinates; a hidden block stays unseen.
+- A search strategy that does not apply to a resource is refused before a task starts, and the refusal names the allowed strategies.
+- A build request now receives planning guidance for shared materials and handing the owner their share.
+
 ### Fixed
 
 - A stone search now reports the reason it stopped, keeps its search budget while a plan waits, and lets a failed step in a plan be replaced instead of clearing the whole plan.
+- The companion can give an item it is holding, and its mining hints point to a search tool that can find a buried resource.
 
 ## [0.197.0] - 2026-11-03
 
