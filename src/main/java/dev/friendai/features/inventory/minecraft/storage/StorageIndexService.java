@@ -121,21 +121,27 @@ public final class StorageIndexService implements StorageAccess {
         }
         for (ResourceKnowledge.ContainerObservation observation :
                 books.apply(owner).containerObservations()) {
-            int total = observation.slotsTotal() > 0 ? observation.slotsTotal() : 1;
-            int used = observation.slotsTotal() > 0 ? Math.min(observation.slotsUsed(), total) : total;
-            index.observe(new ContainerRecord(
-                    new StorageKey(
-                            observation.location().dimension(),
-                            observation.location().pos().x(),
-                            observation.location().pos().y(),
-                            observation.location().pos().z()),
-                    observation.kind().isBlank() ? "container" : observation.kind(),
-                    observation.observedTick(),
-                    used,
-                    total,
-                    observation.items()));
+            index.observe(toRecord(observation));
         }
         return index;
+    }
+
+
+    /** Maps one knowledge observation to the query record; legacy slot-less rows read as unknown capacity. */
+    static ContainerRecord toRecord(ResourceKnowledge.ContainerObservation observation) {
+        int total = observation.slotsTotal() > 0 ? observation.slotsTotal() : 27;
+        int used = observation.slotsTotal() > 0 ? Math.min(observation.slotsUsed(), total) : 0;
+        return new ContainerRecord(
+                new StorageKey(
+                        observation.location().dimension(),
+                        observation.location().pos().x(),
+                        observation.location().pos().y(),
+                        observation.location().pos().z()),
+                observation.kind().isBlank() ? "container" : observation.kind(),
+                observation.observedTick(),
+                used,
+                total,
+                observation.items());
     }
 
     static Set<String> ids(String idOrTag) {

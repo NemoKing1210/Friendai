@@ -199,7 +199,7 @@ public final class StorageTools implements FeatureToolContributor {
                     name,
                     ToolGroup.STORAGE,
                     false,
-                    "- Use one move_items call to shift a known quantity between two containers instead of take_items then store_items.",
+                    "",
                     List.of(),
                     Cost.MEDIUM);
         }
@@ -208,7 +208,7 @@ public final class StorageTools implements FeatureToolContributor {
                     name,
                     ToolGroup.STORAGE,
                     false,
-                    "- Use before take_items or store_items when you do not know which container holds the item.",
+                    "",
                     List.of(),
                     Cost.LOW);
         }

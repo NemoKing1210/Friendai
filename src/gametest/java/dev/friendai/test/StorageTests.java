@@ -824,4 +824,68 @@ public class StorageTests {
                     "both records must be updated");
         });
     }
+
+    @GameTest
+    public void aSingleChestIsNotMergedIntoAnAdjacentDoubleChest(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        BlockState left = Blocks.CHEST
+                .defaultBlockState()
+                .setValue(ChestBlock.FACING, Direction.NORTH)
+                .setValue(ChestBlock.TYPE, ChestType.LEFT);
+        h.setBlock(3, 2, 3, left);
+        h.setBlock(4, 2, 3, left.setValue(ChestBlock.TYPE, ChestType.RIGHT));
+        h.setBlock(5, 2, 3, left.setValue(ChestBlock.TYPE, ChestType.SINGLE));
+        BlockPos single = h.absolutePos(new BlockPos(5, 2, 3));
+        BlockPos merged = h.absolutePos(new BlockPos(4, 2, 3));
+        h.assertTrue(
+                ContainerAccess.canonicalChest(h.getLevel(), single).equals(single),
+                "a single chest must keep its own position");
+        h.assertTrue(
+                ContainerAccess.canonicalChest(h.getLevel(), merged)
+                        .equals(h.absolutePos(new BlockPos(3, 2, 3))),
+                "a merged chest must use the lower half");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 800)
+    public void moveItemsReturnsLeftoversToSource(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(3, 2, 3, Blocks.CHEST);
+        containerAt(h, 3, 2, 3).setItem(0, new ItemStack(Items.IRON_INGOT, 10));
+        h.setBlock(12, 2, 12, Blocks.CHEST);
+        fill(containerAt(h, 12, 2, 12), Items.DIRT, 27);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 6, 2, 6);
+        c.setOwner(java.util.UUID.randomUUID());
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(new MoveItemsTask(matcher("minecraft:iron_ingot"), 7,
+                h.absolutePos(new BlockPos(3, 2, 3)), h.absolutePos(new BlockPos(12, 2, 12))), "move_items");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.FAILED, "not failed: " + result.status + " " + result.summary);
+            h.assertTrue(containerAt(h, 3, 2, 3).getItem(0).getCount() == 10, "the source must get every item back");
+            h.assertTrue(result.summary.contains("went back to the source"),
+                    "the summary must name the returned items: " + result.summary);
+            h.assertTrue(result.summary.contains("7"), "the summary must name the count: " + result.summary);
+        });
+    }
+
+    @GameTest(maxTicks = 800)
+    public void moveItemsNamesTheMissingTarget(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(3, 2, 3, Blocks.CHEST);
+        containerAt(h, 3, 2, 3).setItem(0, new ItemStack(Items.IRON_INGOT, 10));
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 6, 2, 6);
+        c.setOwner(java.util.UUID.randomUUID());
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(new MoveItemsTask(matcher("minecraft:iron_ingot"), 7,
+                h.absolutePos(new BlockPos(3, 2, 3)), h.absolutePos(new BlockPos(12, 2, 12))), "move_items");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.FAILED, "not failed: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.contains("no storage container"),
+                    "the refusal must name the missing target: " + result.summary);
+        });
+    }
 }

@@ -160,14 +160,14 @@ public final class ToolCatalog {
                 "move_items",
                 ToolGroup.STORAGE,
                 false,
-                "- Use one move_items call to shift a known quantity between two containers instead of take_items then store_items.",
+                "",
                 List.of(),
                 Cost.MEDIUM));
         metas.add(new ToolMeta(
                 "find_stored_item",
                 ToolGroup.STORAGE,
                 false,
-                "- Use before take_items or store_items when you do not know which container holds the item.",
+                "",
                 List.of(),
                 Cost.LOW));
         group(metas, ToolGroup.CRAFTING, Cost.MEDIUM, "craft_item", "get_recipe");

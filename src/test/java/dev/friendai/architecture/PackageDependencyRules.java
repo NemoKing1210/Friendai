@@ -75,6 +75,7 @@ final class PackageDependencyRules {
             new FeatureDependency("inventory", "acquisition"),
             new FeatureDependency("inventory", "navigation"),
             new FeatureDependency("inventory", "placements"),
+            new FeatureDependency("inventory", "knowledge"),
             new FeatureDependency("inventory", "places"),
             new FeatureDependency("inventory", "storage"),
             new FeatureDependency("inventory", "survival"),

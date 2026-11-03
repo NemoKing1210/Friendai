@@ -161,7 +161,8 @@ public final class ContainerAccess {
      */
     public static BlockPos canonicalChest(ServerLevel level, BlockPos position) {
         BlockState origin = level.getBlockState(position);
-        if (!(origin.getBlock() instanceof ChestBlock)) return position;
+        if (!(origin.getBlock() instanceof ChestBlock)
+                || origin.getValue(ChestBlock.TYPE) == ChestType.SINGLE) return position;
         BlockPos connected = ChestBlock.getConnectedBlockPos(position, origin);
         if (connected.equals(position)) return position;
         return canonicalChest(position, candidate -> {

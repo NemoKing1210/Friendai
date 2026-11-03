@@ -76,9 +76,19 @@ public final class MoveItemsTask implements Task {
         }
         TaskStatus status = session.tick(c, this::work);
         if (status == TaskStatus.RUNNING) return TaskStatus.RUNNING;
+        String sessionFailure = session.failureSummary();
         session = null;
         if (status == TaskStatus.FAILED) {
             finished = true;
+            BlockPos attempted = target();
+            if (attempted != null && ContainerAccess.at(c.level(), attempted).isEmpty()) {
+                c.storage().forget(c.companion(), c.level(), attempted);
+            }
+            String reason = sessionFailure == null || sessionFailure.isBlank() ? summary : sessionFailure;
+            if (moved > 0) {
+                reason += "; " + moved + " " + matcher.label() + " are still in my inventory";
+            }
+            summary = reason;
             return TaskStatus.FAILED;
         }
         switch (phase) {
@@ -170,12 +180,19 @@ public final class MoveItemsTask implements Task {
 
     private TaskStatus finish() {
         finished = true;
+        int returned = moved - inserted - leftover;
         if (inserted == 0 && failure != null) {
             summary = failure;
+            if (returned > 0) {
+                summary += "; " + returned + " went back to the source";
+            }
             return TaskStatus.FAILED;
         }
         summary = "moved " + inserted + " " + matcher.label() + " from the container at " + coords(from)
                 + " to the container at " + coords(to);
+        if (returned > 0) {
+            summary += "; " + returned + " went back to the source";
+        }
         if (leftover > 0) {
             summary += "; " + leftover + " still in my inventory";
         }
