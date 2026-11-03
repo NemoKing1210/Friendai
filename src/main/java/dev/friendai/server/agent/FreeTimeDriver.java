@@ -261,10 +261,41 @@ public final class FreeTimeDriver {
         if (shift == null) {
             return;
         }
-        service().finishShift(owner, false, reason, now(), stopWhen);
-        reportShiftEnd(owner, companion, shift, false, reason, stopWhen);
+        finishShift(owner, companion, shift, false, reason, stopWhen, now(), true);
         release(companion, shift.planId(), reason);
         facts.invalidate(owner);
+    }
+
+    /**
+     * Closes a shift once: saves the end, writes the durable record and, when asked, tells the owner. Every path that
+     * ends a shift goes through here, so no shift is left with a start and no end in the log.
+     */
+    private void finishShift(
+            UUID owner,
+            CompanionEntity companion,
+            Shift shift,
+            boolean success,
+            String summary,
+            ShiftStopWhen stopWhen,
+            long nowMillis,
+            boolean report) {
+        var diagnosis = success || summary == null || summary.isBlank()
+                ? null
+                : new dev.friendai.agent.recover.RecoveryAdvisor().diagnose("", summary, Set.of());
+        service().finishShift(owner, success, summary, nowMillis, stopWhen);
+        brains.logFreeTime(FreeTimeLogEvents.end(
+                owner,
+                companion.getUUID(),
+                brains.logSession(owner),
+                shift == null ? 0L : shift.planId(),
+                success,
+                stopWhen.name(),
+                summary,
+                diagnosis == null ? "" : diagnosis.kind().name(),
+                diagnosis == null ? "" : diagnosis.detail()));
+        if (report) {
+            reportShiftEnd(owner, companion, shift, success, summary, stopWhen);
+        }
     }
 
     /** One short translated line when a shift ends; an absent owner hears it when they come back. */
@@ -349,25 +380,15 @@ public final class FreeTimeDriver {
                 now,
                 config.get().autonomy.toSettings(),
                 stopWhen);
-        service()
-                .finishShift(owner, outcome.record().success(), outcome.record().summary(), now, stopWhen);
-        brains.logFreeTime(FreeTimeLogEvents.end(
-                owner,
-                companion.getUUID(),
-                brains.logSession(owner),
-                planId,
-                outcome.record().success(),
-                stopWhen.name(),
-                outcome.record().summary(),
-                diagnosis == null ? "" : diagnosis.kind().name(),
-                diagnosis == null ? "" : diagnosis.detail()));
-        reportShiftEnd(
+        finishShift(
                 owner,
                 companion,
                 shift,
                 outcome.record().success(),
                 outcome.record().summary(),
-                stopWhen);
+                stopWhen,
+                now,
+                true);
         outcome.lesson().ifPresent(lesson -> service().addLesson(owner, lesson));
         brains.skillOutcome(
                 owner,
@@ -501,15 +522,22 @@ public final class FreeTimeDriver {
         switch (decision) {
             case ShiftPolicy.CloseStale ignored -> {
                 Shift shift = state.shift();
-                service().finishShift(owner, false, "plan is gone", nowMillis, ShiftStopWhen.WORK_CONFLICTS);
-                reportShiftEnd(owner, companion, shift, false, "plan is gone", ShiftStopWhen.WORK_CONFLICTS);
+                finishShift(
+                        owner, companion, shift, false, "plan is gone", ShiftStopWhen.WORK_CONFLICTS, nowMillis, true);
             }
             case ShiftPolicy.Expired ignored -> {
                 Shift shift = state.shift();
                 if (shift != null) {
                     release(companion, shift.planId(), "ran out of time");
-                    service().finishShift(owner, false, ShiftOutcome.TIME_UP, nowMillis, ShiftStopWhen.BUDGET_SPENT);
-                    reportShiftEnd(owner, companion, shift, false, ShiftOutcome.TIME_UP, ShiftStopWhen.BUDGET_SPENT);
+                    finishShift(
+                            owner,
+                            companion,
+                            shift,
+                            false,
+                            ShiftOutcome.TIME_UP,
+                            ShiftStopWhen.BUDGET_SPENT,
+                            nowMillis,
+                            true);
                     budget(owner).succeeded(); // the plan ran; a timeout is not an unanswered director
                 }
             }
@@ -780,20 +808,15 @@ public final class FreeTimeDriver {
                             : Optional.empty();
                     if (refused.isPresent()) {
                         Shift shift = state.shift();
-                        service()
-                                .finishShift(
-                                        owner,
-                                        false,
-                                        "the queue already holds this work",
-                                        now(),
-                                        ShiftStopWhen.WORK_CONFLICTS);
-                        reportShiftEnd(
+                        finishShift(
                                 owner,
                                 companion,
                                 shift,
                                 false,
                                 "the queue already holds this work",
-                                ShiftStopWhen.WORK_CONFLICTS);
+                                ShiftStopWhen.WORK_CONFLICTS,
+                                now(),
+                                true);
                         brains.plannerDebug(owner, "planner disposition=refused: " + refused.get());
                         return;
                     }
@@ -832,6 +855,13 @@ public final class FreeTimeDriver {
                                     queue(owner, companion, state.shift().goal(), template.get(), minutes, taskTools);
                             if (fallback.isPresent()) {
                                 service().linkPlan(owner, fallback.get());
+                                brains.logFreeTime(FreeTimeLogEvents.start(
+                                        owner,
+                                        companion.getUUID(),
+                                        brains.logSession(owner),
+                                        fallback.get(),
+                                        state.shift().need().name(),
+                                        state.shift().goal()));
                                 facts.invalidate(owner);
                                 budget(owner).failed();
                                 brains.plannerDebug(owner, "planner disposition=queued fallback");
@@ -840,14 +870,19 @@ public final class FreeTimeDriver {
                         }
                         // The need did not fail, the planner could not draft work for it: only the director backs off.
                         Shift shift = state.shift();
-                        service().finishShift(owner, false, "no plan: " + reason, now, ShiftStopWhen.WORK_CONFLICTS);
                         // One line, not two: when the owner asked for this shift they get the specific failure reason
                         // instead of the generic end report, which would say the same thing twice.
+                        finishShift(
+                                owner,
+                                companion,
+                                shift,
+                                false,
+                                "no plan: " + reason,
+                                ShiftStopWhen.WORK_CONFLICTS,
+                                now,
+                                !speakFailure);
                         if (speakFailure) {
                             tell(owner, companion, dev.friendai.agent.plan.PlanFailure.ownerMessage(ownerError));
-                        } else {
-                            reportShiftEnd(
-                                    owner, companion, shift, false, "no plan: " + reason, ShiftStopWhen.WORK_CONFLICTS);
                         }
                         budget(owner).failed();
                         return;
@@ -916,8 +951,7 @@ public final class FreeTimeDriver {
 
     private void interrupt(UUID owner, CompanionEntity companion, Shift shift, Need need, long nowMillis) {
         String reason = "interrupted by " + need.kind().name().toLowerCase(java.util.Locale.ROOT);
-        service().finishShift(owner, false, reason, nowMillis, ShiftStopWhen.WORK_CONFLICTS);
-        reportShiftEnd(owner, companion, shift, false, reason, ShiftStopWhen.WORK_CONFLICTS);
+        finishShift(owner, companion, shift, false, reason, ShiftStopWhen.WORK_CONFLICTS, nowMillis, true);
         release(companion, shift.planId(), "interrupted by free time");
     }
 

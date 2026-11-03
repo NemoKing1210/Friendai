@@ -295,7 +295,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
 
     /** Records a direct, translated chat line in the same bounded log as brain deliveries. */
     void logDirectDelivery(UUID owner, String translationKey) {
-        debug.logOf(owner).add(LogKind.ASSISTANT, "direct delivery: " + translationKey);
+        // The pipeline feeds the same ring from the record below, so the line is added once.
         CompanionSession session = session(owner);
         CompanionEntity companion = session.companion();
         debug.pipeline()

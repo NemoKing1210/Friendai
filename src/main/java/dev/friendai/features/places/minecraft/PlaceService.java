@@ -173,11 +173,9 @@ public final class PlaceService {
             if (outcome.decision() == PlaceAutoRegistration.Decision.SKIP) {
                 return;
             }
-            Place existing = outcome.decision() == PlaceAutoRegistration.Decision.UPDATE
-                    ? book(companion).byId(outcome.targetId()).orElse(null)
-                    : null;
-            int below = existing == null ? candidate.below() : existing.below();
-            int above = existing == null ? candidate.above() : existing.above();
+            // A refreshed place describes the dig that just finished, the same box its anchor and radius come from.
+            int below = candidate.below();
+            int above = candidate.above();
             PlaceValues values = new PlaceValues(
                     outcome.name(),
                     candidate.kind(),

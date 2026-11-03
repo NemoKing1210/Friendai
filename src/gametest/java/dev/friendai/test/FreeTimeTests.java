@@ -13,6 +13,7 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.features.inventory.minecraft.task.DepositTask;
 import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.features.places.PlaceCandidate;
 import dev.friendai.features.places.PlaceKind;
 import dev.friendai.features.places.PlaceSource;
 import dev.friendai.features.places.PlaceValues;
@@ -63,6 +64,18 @@ public class FreeTimeTests {
         ExecutionCoordinator r = new ExecutionCoordinator(c, () -> 300, () -> false);
         r.setEventSink(result);
         return r;
+    }
+
+    /** Whether the owner's debug ring holds a durable line starting with {@code prefix}. */
+    private static boolean logged(GameTestHelper h, UUID owner, String prefix) {
+        return GameTestSupport.runtime(h.getLevel().getServer())
+                .sessions()
+                .debug()
+                .logOf(owner)
+                .query(new dev.friendai.foundation.diagnostics.DebugLog.Query(
+                        java.util.Set.of(dev.friendai.foundation.diagnostics.LogKind.TASK), 0, 0, 500, false))
+                .stream()
+                .anyMatch(entry -> entry.text().startsWith(prefix));
     }
 
     /** A companion with its own owner, so its place book is not shared with other tests. */
@@ -357,6 +370,47 @@ public class FreeTimeTests {
         });
     }
 
+    @GameTest(maxTicks = 100)
+    public void anUpdatedMineFollowsTheNewDig(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = companion(h);
+        var places = GameTestSupport.runtime(c.level().getServer()).placeService();
+        String dimension = c.level().dimension().identifier().toString();
+        BlockPos first = h.absolutePos(new BlockPos(4, 70, 4));
+        BlockPos second = h.absolutePos(new BlockPos(4, 66, 4));
+        places.autoRegister(
+                c,
+                new PlaceCandidate(
+                        PlaceKind.MINE,
+                        "stone",
+                        "",
+                        dimension,
+                        new Pos(first.getX(), first.getY(), first.getZ()),
+                        2,
+                        PlaceSource.MINE,
+                        1,
+                        1));
+        places.autoRegister(
+                c,
+                new PlaceCandidate(
+                        PlaceKind.MINE,
+                        "stone",
+                        "",
+                        dimension,
+                        new Pos(second.getX(), second.getY(), second.getZ()),
+                        2,
+                        PlaceSource.MINE,
+                        4,
+                        0));
+        var mine = places.book(c).all().stream()
+                .filter(place -> place.kind() == PlaceKind.MINE)
+                .findFirst()
+                .orElseThrow();
+        h.assertValueEqual(4, mine.below(), "the updated mine follows the new dig: below");
+        h.assertValueEqual(0, mine.above(), "the updated mine follows the new dig: above");
+        h.succeed();
+    }
+
     /** A shift states its purpose, budget and stop condition while it runs, and the audit records how it ended. */
     @GameTest(maxTicks = 400)
     public void ownerPauseStopsTheShift(GameTestHelper h) {
@@ -387,6 +441,7 @@ public class FreeTimeTests {
                             || c.executionCoordinator().queue().planStatus(plan)
                                     != dev.friendai.execution.queue.PlanStatus.ACTIVE,
                     "the shift plan is released");
+            h.assertTrue(logged(h, owner, "shift ended:"), "the shift end is written to the log: " + state);
             driver(h).stop(owner, "test over");
         });
     }
@@ -532,6 +587,16 @@ public class FreeTimeTests {
             var state = driver(h).state(owner);
             h.assertTrue(state.on(), "free time starts after the idle spell");
             h.assertValueEqual(state.origin(), dev.friendai.agent.autonomy.FreeTime.Origin.IDLE, "origin");
+            long direct = GameTestSupport.runtime(h.getLevel().getServer())
+                    .sessions()
+                    .debug()
+                    .logOf(owner)
+                    .query(new dev.friendai.foundation.diagnostics.DebugLog.Query(
+                            java.util.Set.of(dev.friendai.foundation.diagnostics.LogKind.ASSISTANT), 0, 0, 500, false))
+                    .stream()
+                    .filter(entry -> entry.text().startsWith("direct delivery: friendai.freetime.idle_start"))
+                    .count();
+            h.assertTrue(direct == 1, "one ring entry per direct line, not " + direct);
             driver(h).stop(owner, "test over");
         });
     }
@@ -732,6 +797,11 @@ public class FreeTimeTests {
             h.assertTrue(
                     state.shift() == null || state.shift().planId() != 0,
                     "a remaining shift has a linked plan: " + state);
+            if (state.shift() != null) {
+                h.assertTrue(
+                        logged(h, owner, "shift started:"),
+                        "the fallback plan's start is written to the log: " + state);
+            }
             if (state.shift() == null) {
                 h.assertTrue(
                         !state.history().isEmpty()
