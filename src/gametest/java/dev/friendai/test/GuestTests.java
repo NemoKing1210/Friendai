@@ -77,6 +77,9 @@ public class GuestTests {
         }
 
         @Override
+        public void say(UserMessage message) {}
+
+        @Override
         public void thinking(boolean on) {}
 
         @Override

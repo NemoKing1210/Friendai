@@ -121,6 +121,18 @@ public final class CompanionSpeaker implements Speaker {
         return end == text.length() ? text : text.substring(0, end);
     }
 
+    /** A line the mod composed itself: sent to the owner as a translatable component, so it follows their language. */
+    @Override
+    public void say(UserMessage message) {
+        ServerPlayer player = server.getPlayerList().getPlayer(owner);
+        if (player != null) {
+            player.sendSystemMessage(Component.literal("<")
+                    .append(CompanionNames.styled(name.get()))
+                    .append(Component.literal("> "))
+                    .append(Components.of(message)));
+        }
+    }
+
     @Override
     public void thinking(boolean on) {
         thinkingSink.accept(on);

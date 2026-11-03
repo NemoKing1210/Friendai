@@ -23,6 +23,12 @@ public interface Speaker {
     default void streamSentence(
             long streamId, long sessionId, long sequence, String text, boolean last, UUID addressee) {}
 
+    /**
+     * A line the mod composed itself, as a translation key with arguments, spoken like a reply. It exists so a
+     * turn that the model ends silently can still tell the owner what happened.
+     */
+    void say(UserMessage message);
+
     void thinking(boolean on);
 
     void error(UserMessage message);

@@ -22,6 +22,7 @@ import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolExecutor;
 import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.features.trading.TradingTurnPort;
+import dev.friendai.foundation.text.UserMessage;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -113,6 +114,9 @@ public final class CompanionBrain {
     private int step;
     private TurnKind turnKind = TurnKind.PLAYER;
     private long turnSeq;
+    /** The event that opened the running turn, so a silent answer can be replaced by a line the mod knows. */
+    private BrainEvent turnEvent;
+
     private final List<String> turnPlayerTexts = new ArrayList<>();
     private String lastOwnerText;
     private long lastOwnerAtMillis;
@@ -489,6 +493,7 @@ public final class CompanionBrain {
         }
         turnKind = turnPlayerTexts.isEmpty() ? TurnKind.EVENT : TurnKind.PLAYER;
         long startedTurn = ++turnSeq;
+        turnEvent = batch.get(0);
         observe(o -> o.onTurnStart(startedTurn));
         AccessLevel level = access.accessOf(principal);
         beginHistory(principal, level);
@@ -787,6 +792,7 @@ public final class CompanionBrain {
             memory.add(Message.assistant(remembered, calls));
         }
         if (calls.isEmpty()) {
+            answerIdleGoal(spoken);
             endTurn();
             return;
         }
@@ -912,6 +918,18 @@ public final class CompanionBrain {
         while (recentSpeech.size() > RECENT_SPEECH_LINES) {
             recentSpeech.removeLast();
         }
+    }
+
+    /**
+     * A turn opened by the queue-idle goal nudge exists to repair the plan or to say what blocks it. When the
+     * model answers silently the owner sees a companion that stands still and says nothing, so the blocked
+     * line comes from the mod instead.
+     */
+    private void answerIdleGoal(String spoken) {
+        if (spoken != null || !(turnEvent instanceof BrainEvent.GoalTick tick)) {
+            return;
+        }
+        speaker.say(UserMessage.of("friendai.companion.goal_blocked", tick.goal()));
     }
 
     private void endTurn() {

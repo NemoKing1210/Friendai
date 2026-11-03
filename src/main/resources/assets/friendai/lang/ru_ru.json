@@ -31,6 +31,7 @@
   "friendai.inventory.unavailable": "Сейчас нельзя открыть инвентарь компаньона.",
   "friendai.companion.died": "%s погиб. Призови снова: /friendai summon",
   "friendai.companion.too_far": "Компаньон слишком далеко, чтобы вас услышать.",
+  "friendai.companion.goal_blocked": "Я застрял на «%s»: в очереди ничего нет, нужно твоё решение.",
 
   "friendai.command.stopped": "Остановился.",
   "friendai.local_order.follow": "Иду за тобой.",

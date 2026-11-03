@@ -78,6 +78,9 @@ public class BrainServiceTests {
         }
 
         @Override
+        public void say(UserMessage message) {}
+
+        @Override
         public void thinking(boolean on) {}
 
         @Override
@@ -240,6 +243,9 @@ public class BrainServiceTests {
             public void say(String text) {
                 said.add(text);
             }
+
+            @Override
+            public void say(UserMessage message) {}
 
             @Override
             public void thinking(boolean on) {}

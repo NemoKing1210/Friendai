@@ -42,6 +42,9 @@ public class PlannerTests {
         }
 
         @Override
+        public void say(dev.friendai.foundation.text.UserMessage message) {}
+
+        @Override
         public void thinking(boolean on) {}
 
         @Override

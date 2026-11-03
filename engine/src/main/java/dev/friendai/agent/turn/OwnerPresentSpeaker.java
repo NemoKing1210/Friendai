@@ -32,6 +32,13 @@ public final class OwnerPresentSpeaker implements Speaker {
     }
 
     @Override
+    public void say(UserMessage message) {
+        if (ownerOnline.getAsBoolean()) {
+            inner.say(message);
+        }
+    }
+
+    @Override
     public void thinking(boolean on) {
         inner.thinking(on);
     }

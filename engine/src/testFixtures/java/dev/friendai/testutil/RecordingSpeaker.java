@@ -10,6 +10,7 @@ public final class RecordingSpeaker implements Speaker {
     public final List<String> said = new ArrayList<>();
     public final List<UUID> addressees = new ArrayList<>();
     public final List<UserMessage> errors = new ArrayList<>();
+    public final List<UserMessage> messages = new ArrayList<>();
     public final List<Boolean> thinkingLog = new ArrayList<>();
     public final List<Streamed> streamed = new ArrayList<>();
 
@@ -31,6 +32,11 @@ public final class RecordingSpeaker implements Speaker {
     public void streamSentence(
             long streamId, long sessionId, long sequence, String text, boolean last, UUID addressee) {
         streamed.add(new Streamed(streamId, sessionId, sequence, text, last, addressee));
+    }
+
+    @Override
+    public void say(UserMessage message) {
+        messages.add(message);
     }
 
     @Override

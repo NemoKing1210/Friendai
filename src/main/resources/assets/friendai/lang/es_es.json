@@ -31,6 +31,7 @@
   "friendai.inventory.unavailable": "El inventario del compañero no se puede abrir ahora mismo.",
   "friendai.companion.died": "%s ha muerto. Invócalo de nuevo: /friendai summon",
   "friendai.companion.too_far": "Tu compañero está demasiado lejos para oírte.",
+  "friendai.companion.goal_blocked": "Estoy atascado con \"%s\": no hay nada en cola y necesito tu decisión.",
 
   "friendai.command.stopped": "Detenido.",
   "friendai.local_order.follow": "Te sigo.",

@@ -698,6 +698,20 @@ class CompanionBrainTest {
     }
 
     @Test
+    void theIdleGoalNudgeIsAnsweredWhenTheModelStaysSilent() {
+        gateway.enqueue(text("[silent]"));
+        brain.post(new BrainEvent.GoalTick("stone tools", List.of("stone pickaxe")));
+        assertEquals(List.of(UserMessage.of("friendai.companion.goal_blocked", "stone tools")), speaker.messages);
+    }
+
+    @Test
+    void aPlayerTurnStaysSilentWhenTheModelSaysSo() {
+        gateway.enqueue(text("[silent]"));
+        brain.post(said("just checking in"));
+        assertTrue(speaker.messages.isEmpty(), "the fallback belongs to goal nudges only: " + speaker.messages);
+    }
+
+    @Test
     void errorIsReportedAndBrainRecovers() {
         gateway.enqueueFailure(new LlmException(LlmErrorKind.AUTH, "bad key"));
         brain.post(said("hi"));

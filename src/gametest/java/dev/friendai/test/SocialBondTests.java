@@ -305,6 +305,9 @@ public class SocialBondTests {
             public void say(String text) {}
 
             @Override
+            public void say(UserMessage message) {}
+
+            @Override
             public void thinking(boolean on) {}
 
             @Override

@@ -90,6 +90,9 @@ public class CompanionDeathTests {
         }
 
         @Override
+        public void say(UserMessage message) {}
+
+        @Override
         public void thinking(boolean on) {}
 
         @Override
