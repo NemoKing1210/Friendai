@@ -120,6 +120,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
     private final DebugService debug;
     private final PlannerAdapter planners;
     private final FreeTimeDriver freeTime;
+    private final RoutineDriver routines;
     private long lastAgentCheck;
     private ServerConfig config;
 
@@ -138,6 +139,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
             PlacedService placedService,
             ResourceCandidates resources,
             dev.friendai.agent.autonomy.FreeTimeService freeTimeService,
+            dev.friendai.agent.routine.RoutineRepository routineRepository,
             dev.friendai.features.trading.minecraft.tool.TradingToolAccess tradingToolAccess,
             TrustAccess trustAccess,
             dev.friendai.features.knowledge.search.SearchHintStore searchHints,
@@ -278,7 +280,8 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                         placeService,
                         placedService,
                         selfAccess,
-                        storage),
+                        storage,
+                        companion -> routines()),
                 () -> settings.get().tasks().mineCollectDrops(),
                 () -> settings.get().tasks().fellCollectDrops());
         this.tools = builtins.registry();
@@ -288,11 +291,17 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
         this.taskTools = builtins.taskTools();
         this.freeTime = new FreeTimeDriver(
                 server, this, () -> this.config, settings, freeTimeService, places, placeService, taskTools, planTools);
+        this.routines = new RoutineDriver(server, this, () -> this.config, routineRepository, planTools);
         reload(initial);
     }
     /** Free time: the companion working on its own. */
     public FreeTimeDriver freeTime() {
         return freeTime;
+    }
+
+    /** The owner's one recurring routine. */
+    public RoutineDriver routines() {
+        return routines;
     }
 
     /** Records a direct, translated chat line in the same bounded log as brain deliveries. */
@@ -756,6 +765,9 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
             return;
         }
         lastAgentCheck = now;
+        // Routines are tracked even when autonomy is passive: a paused occurrence must be reported once, and a
+        // running owner-scheduled plan must reach its safe boundary.
+        routines.tick();
         dev.friendai.agent.turn.AgentSettings.Autonomy autonomy =
                 dev.friendai.agent.turn.AgentSettings.Autonomy.parse(config.agent.autonomy);
         if (autonomy == dev.friendai.agent.turn.AgentSettings.Autonomy.PASSIVE) {

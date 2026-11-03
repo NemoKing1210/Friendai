@@ -23,6 +23,7 @@ import java.util.List;
  * @param goalUnmet the subset of {@code goalCriteria} the world does not confirm yet
  * @param goalId the primary goal's id, or 0 when there is none; the menu edits that goal by id
  * @param currentPhase the running task's lifecycle phase name (see {@code TaskPhase}), empty when nothing runs
+ * @param routine the owner's routine: name, next due and last outcome, empty when there is none
  */
 public record CompanionSnapshot(
         boolean present,
@@ -57,7 +58,8 @@ public record CompanionSnapshot(
         List<String> goalUnmet,
         boolean workPaused,
         long goalId,
-        String currentPhase) {
+        String currentPhase,
+        String routine) {
     public static final int MAX_ACTIVITY = 200;
     public static final int MAX_NEXT = 160;
     public static final int MAX_BUDGET = 80;
@@ -65,6 +67,8 @@ public record CompanionSnapshot(
     public static final int MAX_BOND_TIER = 24;
     /** Longest lifecycle phase name; the enum's names are all shorter. */
     public static final int MAX_PHASE = 16;
+
+    public static final int MAX_ROUTINE = 800;
 
     public static final int MAX_LIST_ENTRIES = 6;
     public static final int MAX_LIST_TEXT = 160;
@@ -271,6 +275,7 @@ public record CompanionSnapshot(
                 goalUnmet,
                 workPaused,
                 goalId,
+                "",
                 "");
     }
 
@@ -286,6 +291,7 @@ public record CompanionSnapshot(
         goalCriteria = cut(goalCriteria);
         goalUnmet = cut(goalUnmet);
         currentPhase = cut(currentPhase, MAX_PHASE);
+        routine = cut(routine, MAX_ROUTINE);
     }
 
     /** Every shorter constructor ends here, so a caller that knows nothing about the feelings block stays unchanged. */

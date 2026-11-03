@@ -115,7 +115,8 @@ public final class SnapshotBuilder {
                         .map(entity -> entity.executionCoordinator().manualPause())
                         .orElse(false),
                 feeling.goalId(),
-                phaseOf(c));
+                phaseOf(c),
+                runtime.sessions().routines().status(owner));
     }
 
     /**

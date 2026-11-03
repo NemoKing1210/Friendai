@@ -445,6 +445,9 @@ final class ControlTab extends StatefulMenuTab {
         if (s.freeTimeOn()) {
             addFreeTime(rows, s);
         }
+        if (!s.routine().isBlank()) {
+            rows.add(new Row("friendai.menu.activity.routine", Ui.ACCENT, s.routine()));
+        }
         int labelWidth = 54;
         for (Row row : rows) {
             labelWidth = Math.max(labelWidth, font.width(Component.translatable(row.key())) + 8);

@@ -95,6 +95,7 @@
 				"GoalTests",
 				"GoalTickTests",
 				"FreeTimeTests",
+				"RoutineTests",
 				"ExperienceTests",
 				"BodyLanguageTests",
 				"MemoryTests",

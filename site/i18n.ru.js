@@ -668,5 +668,7 @@ const RU = {
   "Idle watchdog": "Сторожевой таймер простоя",
   "Closes stuck shifts.": "Закрывает зависшие смены.",
   "Away summary": "Сводка об отсутствии",
+  "Routines": "Расписания",
+  "One owner-set timetable with a phase or interval, saved across restarts.": "Одно расписание владельца с фазой дня или интервалом, сохраняется между перезапусками.",
   "Tells you what happened.": "Рассказывает, что произошло."
 };

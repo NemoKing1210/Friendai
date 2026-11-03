@@ -467,7 +467,8 @@ const MEM_CARDS = [
     hub: { label: "Autonomy", icon: "🎯", color: COLORS.nether, desc: "Owner work, an active owner goal and the quiet period after you speak always come first." },
     color: COLORS.nether, items: [
       "~Primary goal|With criteria and a replan budget.", "~Background goals|Up to three more.", "~Lessons|Up to five short notes.", "~Reflex shifts|Hunger, sleep, shelter, unload, farm.",
-      "~Director shifts|LLM chooses, budgeted per hour.", "~Fallback ladder|Wood, stone, iron, diamond.", "~Idle watchdog|Closes stuck shifts.", "~Away summary|Tells you what happened." ] }
+      "~Director shifts|LLM chooses, budgeted per hour.", "~Fallback ladder|Wood, stone, iron, diamond.", "~Idle watchdog|Closes stuck shifts.", "~Away summary|Tells you what happened.",
+      "~Routines|One owner-set timetable with a phase or interval, saved across restarts." ] }
 ];
 
 const ARCH_FLOW = {

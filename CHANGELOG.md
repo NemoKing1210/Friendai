@@ -6,6 +6,17 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.200.0] - 2026-11-03
+
+### Added
+
+- Owner routines: one saved timetable per owner with a game-time phase or interval and up to eight existing tool steps. `set_routine`, `list_routines` and `cancel_routine` manage it, and the menu shows the next due time and last result.
+- A due routine enters the normal queue, waits behind an owner order, survives a restart, and skips a window missed while the server was off instead of replaying it.
+
+### Changed
+
+- Disabling autonomy stops new routine dispatches; a plan already running is allowed to finish and one status line explains the pause.
+
 ## [0.199.0] - 2026-11-03
 
 ### Added

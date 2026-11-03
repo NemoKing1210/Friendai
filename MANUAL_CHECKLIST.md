@@ -49,6 +49,13 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] An owner order during free time runs first; free time resumes about a minute after the owner goes quiet.
 - [ ] Leave the companion idle for five minutes: it says it will get on with its own things and starts free time.
 - [ ] Log out during free time and log back in: the "While you were away" summary arrives once.
+- [ ] Ask for a routine ("every morning feed the cows and mine ten logs"): `set_routine` accepts one phase or interval, `list_routines` shows the next due in game ticks, and the menu's **Routine** row shows the same.
+- [ ] Let the phase arrive: the routine's plan enters the normal queue, the companion does the work, and exactly one outcome line appears. Repeating ticks and a restart do not repeat the work or the line.
+- [ ] Give an owner order just before the routine is due: the order runs first, the routine waits, and it starts after the order is gone.
+- [ ] Move time past a routine window with the server off (or `/time set` forward): the missed occurrence is skipped, not replayed; moving time backward does not fire it twice.
+- [ ] `cancel_routine` clears the routine and stops its plan; `list_routines` then says there is no routine.
+- [ ] Disable autonomy while a routine plan is running: the plan finishes at its safe boundary, one paused line appears, and no new occurrence starts. Re-enabling resumes the timetable.
+- [ ] Check the Routine row in each of the eight shipped languages; long routine names and status text stay inside the panel.
 - [ ] The Settings tab's free-time switch toggles it and shows the current activity (or "choosing an activity" while the director decides), in both UI languages.
 - [ ] Tell the companion "don't follow me" while free time runs: it stops walking after you, keeps working, and the Toggles tab shows "Following: off" after a relog. "Follow me" switches it back on.
 

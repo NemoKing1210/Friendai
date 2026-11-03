@@ -22,7 +22,8 @@ public final class ServerTickPipeline {
                 services.goalStore(),
                 services.freeTimeStore(),
                 services.socialMemoryStore(),
-                services.terrainStore());
+                services.terrainStore(),
+                services.routines());
     }
 
     public void tick(ServerRuntime runtime) {

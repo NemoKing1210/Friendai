@@ -227,6 +227,15 @@ A complex request, or a failed plan with replans left, is first drafted by a sep
 | `planner` | none | Name of a profile to use for planning; empty uses the active profile. |
 | `plannerTimeoutSec` | `60` | How long a planner call may take (10–300). |
 
+## Routines
+
+Ask for a timetable in chat, for example “every morning feed the cows and mine ten logs”. The companion records one routine per owner: a name, a game-time phase (`morning`, `day`, `evening`, `night`) or an interval in game minutes, and one to eight steps made of existing tools. `list_routines` shows the next due time and the last result; `cancel_routine` removes it.
+
+- Due work enters the ordinary queue with your authority. It never goes ahead of an owner order, and a running free-time shift is stopped at its safe boundary — except a safety reflex (survival, shelter, hunger), which is left alone.
+- A window missed while the server was off is skipped, never replayed, so a long absence cannot build a backlog. A `/time` jump only moves the next due tick forward.
+- The routine and its last outcome are saved under `<world>/friendai/routines/`. A crash between queueing the plan and saving the routine is reported as `interrupted` and is not repeated.
+- Disabling autonomy stops new dispatches; work already queued is allowed to finish. `list_routines` and the menu's **Routine** row show the next due time and the last result.
+
 ## Trading
 
 The owner can ask the companion to find loaded villagers, wandering traders and adult piglins, inspect exact vanilla offers, query remembered prices and preview explicit spending limits. Market notes are saved per owner under `<world>/friendai/trading/`; quotes and locations expire independently, and every purchase rechecks the live merchant offer. Orders use the companion's own reputation and inventory and never refresh stock or change professions by force.

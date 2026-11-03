@@ -121,7 +121,8 @@ public final class CompanionSnapshotProtocolCodec {
                 snapshot.goalUnmet(),
                 snapshot.workPaused(),
                 snapshot.goalId(),
-                snapshot.currentPhase());
+                snapshot.currentPhase(),
+                snapshot.routine() == null ? "" : snapshot.routine());
     }
 
     private static void validate(CompanionSnapshotView snapshot) {
@@ -193,6 +194,7 @@ public final class CompanionSnapshotProtocolCodec {
         if (!snapshot.currentPhase().isEmpty() && !PHASES.contains(snapshot.currentPhase()))
             throw new ProtocolDataException(DecodeResult.Reason.INVALID_FIELD);
         text(snapshot.currentPhase(), 16);
+        text(snapshot.routine() == null ? "" : snapshot.routine(), 2_400);
     }
 
     private static void text(String value, int maxBytes) {
