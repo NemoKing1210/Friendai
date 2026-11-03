@@ -153,12 +153,7 @@ public final class ContainerAccess {
         ResourceKnowledge book = context.ownerKnowledge();
         book.invalidateContainer(location);
         book.recordContainer(new ResourceKnowledge.ContainerObservation(
-                location,
-                items,
-                tick,
-                shortLabel(level, canonical),
-                used,
-                container.getContainerSize()));
+                location, items, tick, shortLabel(level, canonical), used, container.getContainerSize()));
     }
 
     /**
@@ -172,14 +167,12 @@ public final class ContainerAccess {
         return canonicalChest(position, candidate -> {
             if (!candidate.equals(connected)) return false;
             BlockState other = level.getBlockState(candidate);
-            return other.getBlock() instanceof ChestBlock
-                    && other.getValue(ChestBlock.TYPE) != ChestType.SINGLE;
+            return other.getBlock() instanceof ChestBlock && other.getValue(ChestBlock.TYPE) != ChestType.SINGLE;
         });
     }
 
     public static BlockPos canonicalChest(BlockPos position, Predicate<BlockPos> otherHalfAt) {
-        for (BlockPos candidate :
-                List.of(position.west(), position.east(), position.north(), position.south())) {
+        for (BlockPos candidate : List.of(position.west(), position.east(), position.north(), position.south())) {
             if (otherHalfAt.test(candidate)) {
                 return lower(position, candidate);
             }

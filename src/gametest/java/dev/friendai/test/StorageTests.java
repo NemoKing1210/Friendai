@@ -642,12 +642,10 @@ public class StorageTests {
         h.succeedWhen(() -> {
             if (phase[0] == 0) {
                 checkRunner.tick();
-                h.assertTrue(
-                        check.status == TaskStatus.SUCCESS, "not finished: " + check.status + " " + check.summary);
+                h.assertTrue(check.status == TaskStatus.SUCCESS, "not finished: " + check.status + " " + check.summary);
                 h.setBlock(6, 2, 6, Blocks.AIR);
                 takeRunner.start(
-                        new TakeItemsTask(
-                                matcher("minecraft:iron_ingot"), 1, h.absolutePos(new BlockPos(6, 2, 6))),
+                        new TakeItemsTask(matcher("minecraft:iron_ingot"), 1, h.absolutePos(new BlockPos(6, 2, 6))),
                         "take_items");
                 phase[0] = 1;
                 return;
@@ -657,7 +655,11 @@ public class StorageTests {
             h.assertTrue(
                     GameTestSupport.runtime(h)
                             .storage()
-                            .find(c, Set.of("minecraft:iron_ingot"), 1, c.level().getGameTime())
+                            .find(
+                                    c,
+                                    Set.of("minecraft:iron_ingot"),
+                                    1,
+                                    c.level().getGameTime())
                             .isEmpty(),
                     "the record must be forgotten");
         });
@@ -677,7 +679,9 @@ public class StorageTests {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
             var ids = GameTestSupport.runtime(h).storage().itemIds("#minecraft:planks");
-            var stored = GameTestSupport.runtime(h).storage().find(c, ids, 1, c.level().getGameTime());
+            var stored = GameTestSupport.runtime(h)
+                    .storage()
+                    .find(c, ids, 1, c.level().getGameTime());
             h.assertTrue(stored.size() == 1 && stored.getFirst().count() == 8, "index was " + stored);
         });
     }
@@ -700,8 +704,7 @@ public class StorageTests {
         h.succeedWhen(() -> {
             if (phase[0] == 0) {
                 checkRunner.tick();
-                h.assertTrue(
-                        check.status == TaskStatus.SUCCESS, "not finished: " + check.status + " " + check.summary);
+                h.assertTrue(check.status == TaskStatus.SUCCESS, "not finished: " + check.status + " " + check.summary);
                 takeRunner.start(new TakeItemsTask(matcher("minecraft:iron_ingot"), 4, null), "take_items");
                 phase[0] = 1;
                 return;
@@ -729,8 +732,7 @@ public class StorageTests {
         h.succeedWhen(() -> {
             if (phase[0] == 0) {
                 checkRunner.tick();
-                h.assertTrue(
-                        check.status == TaskStatus.SUCCESS, "not finished: " + check.status + " " + check.summary);
+                h.assertTrue(check.status == TaskStatus.SUCCESS, "not finished: " + check.status + " " + check.summary);
                 containerAt(h, 12, 2, 3).setItem(0, ItemStack.EMPTY);
                 takeRunner.start(new TakeItemsTask(matcher("minecraft:iron_ingot"), 4, null), "take_items");
                 phase[0] = 1;
@@ -744,7 +746,11 @@ public class StorageTests {
             h.assertTrue(
                     GameTestSupport.runtime(h)
                             .storage()
-                            .find(c, Set.of("minecraft:iron_ingot"), 1, c.level().getGameTime())
+                            .find(
+                                    c,
+                                    Set.of("minecraft:iron_ingot"),
+                                    1,
+                                    c.level().getGameTime())
                             .isEmpty(),
                     "the emptied record must be refreshed");
         });
@@ -768,8 +774,7 @@ public class StorageTests {
         h.succeedWhen(() -> {
             if (phase[0] == 0) {
                 checkRunner.tick();
-                h.assertTrue(
-                        check.status == TaskStatus.SUCCESS, "not finished: " + check.status + " " + check.summary);
+                h.assertTrue(check.status == TaskStatus.SUCCESS, "not finished: " + check.status + " " + check.summary);
                 storeRunner.start(new StoreItemsTask(null, Integer.MAX_VALUE, null), "store_items");
                 phase[0] = 1;
                 return;
@@ -779,7 +784,8 @@ public class StorageTests {
             h.assertTrue(
                     containerAt(h, 12, 2, 3).getItem(0).is(Items.ANDESITE),
                     "the andesite must go to the recorded empty chest, not the full near one");
-            h.assertTrue(containerAt(h, 3, 2, 6).getItem(0).is(Items.DIRT), "the full unrecorded chest stays untouched");
+            h.assertTrue(
+                    containerAt(h, 3, 2, 6).getItem(0).is(Items.DIRT), "the full unrecorded chest stays untouched");
         });
     }
 
@@ -793,16 +799,29 @@ public class StorageTests {
         c.setOwner(java.util.UUID.randomUUID());
         Result result = new Result();
         ExecutionCoordinator runner = runner(c, result);
-        runner.start(new MoveItemsTask(matcher("minecraft:iron_ingot"), 7,
-                h.absolutePos(new BlockPos(3, 2, 3)), h.absolutePos(new BlockPos(12, 2, 12))), "move_items");
+        runner.start(
+                new MoveItemsTask(
+                        matcher("minecraft:iron_ingot"),
+                        7,
+                        h.absolutePos(new BlockPos(3, 2, 3)),
+                        h.absolutePos(new BlockPos(12, 2, 12))),
+                "move_items");
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
             h.assertTrue(containerAt(h, 3, 2, 3).getItem(0).getCount() == 3, "source must keep 3");
             h.assertTrue(containerAt(h, 12, 2, 12).getItem(0).getCount() == 7, "target must hold 7");
             var runtime = GameTestSupport.runtime(h);
-            h.assertTrue(runtime.storage().find(c, Set.of("minecraft:iron_ingot"), 1,
-                    c.level().getGameTime()).size() == 2, "both records must be updated");
+            h.assertTrue(
+                    runtime.storage()
+                                    .find(
+                                            c,
+                                            Set.of("minecraft:iron_ingot"),
+                                            1,
+                                            c.level().getGameTime())
+                                    .size()
+                            == 2,
+                    "both records must be updated");
         });
     }
 }

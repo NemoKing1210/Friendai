@@ -15,11 +15,8 @@ public final class StorageText {
     }
 
     public static String found(String label, int total, List<StoredCandidate> rows) {
-        StringBuilder text = new StringBuilder()
-                .append(total)
-                .append(' ')
-                .append(label)
-                .append(" recorded: ");
+        StringBuilder text =
+                new StringBuilder().append(total).append(' ').append(label).append(" recorded: ");
         for (int i = 0; i < rows.size(); i++) {
             if (i > 0) {
                 text.append("; ");

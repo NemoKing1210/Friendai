@@ -36,8 +36,7 @@ public interface StorageAccess {
         }
 
         @Override
-        public List<StoredCandidate> find(
-                CompanionEntity companion, Set<String> itemIds, int minCount, long nowTick) {
+        public List<StoredCandidate> find(CompanionEntity companion, Set<String> itemIds, int minCount, long nowTick) {
             return List.of();
         }
 

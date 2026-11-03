@@ -167,7 +167,6 @@ public final class DepositTask implements Task {
                 .map(PlaceQuery.Result::place);
     }
 
-
     private List<BlockPos> orderByIndex(TaskContext c, List<BlockPos> found) {
         if (found.isEmpty()) {
             return List.of();
@@ -177,8 +176,7 @@ public final class DepositTask implements Task {
         Map<StorageKey, BlockPos> byKey = new LinkedHashMap<>();
         for (BlockPos pos : found) {
             BlockPos canonical = ContainerAccess.canonicalChest(c.level(), pos);
-            byKey.put(
-                    new StorageKey(dimension, canonical.getX(), canonical.getY(), canonical.getZ()), pos);
+            byKey.put(new StorageKey(dimension, canonical.getX(), canonical.getY(), canonical.getZ()), pos);
         }
         Set<String> ids = depositableIds(c);
         List<ContainerRecord> recorded = c.storage().records(companion).stream()
@@ -186,8 +184,8 @@ public final class DepositTask implements Task {
                 .toList();
         BlockPos origin = companion.blockPosition();
         List<BlockPos> ordered = new ArrayList<>();
-        for (ContainerRecord record : StorageTargets.depositOrder(
-                recorded, dimension, ids, origin.getX(), origin.getY(), origin.getZ())) {
+        for (ContainerRecord record :
+                StorageTargets.depositOrder(recorded, dimension, ids, origin.getX(), origin.getY(), origin.getZ())) {
             ordered.add(byKey.get(record.key()));
         }
         for (BlockPos pos : found) {

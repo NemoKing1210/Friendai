@@ -113,8 +113,7 @@ public final class MoveItemsTask implements Task {
     private TaskStatus work(TaskContext c, BlockPos position, Container container) {
         return switch (phase) {
             case TAKE -> {
-                ContainerTransfer.Result result =
-                        ContainerTransfer.take(c, position, container, matcher, count);
+                ContainerTransfer.Result result = ContainerTransfer.take(c, position, container, matcher, count);
                 moved = result.moved();
                 summary = result.summary();
                 ContainerAccess.recordContents(c, position, container);

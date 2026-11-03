@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.198.0] - 2026-11-03
+
+### Added
+
+- The companion remembers what it saw inside containers, tells you where an item is, and can move items between containers in one call.
+
 ## [0.197.1] - 2026-11-03
 
 ### Changed

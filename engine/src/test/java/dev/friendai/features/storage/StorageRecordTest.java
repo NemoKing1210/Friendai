@@ -20,9 +20,11 @@ class StorageRecordTest {
     @Test
     void aRecordSortsCountsAndCountsMatchingIds() {
         var key = new StorageKey("minecraft:overworld", 4, 64, -7);
-        var record = new ContainerRecord(
-                key, "chest", 10, 2, 27, Map.of("minecraft:stone", 2, "minecraft:iron_ingot", 5));
-        assertEquals(List.of("minecraft:iron_ingot", "minecraft:stone"), List.copyOf(record.counts().keySet()));
+        var record =
+                new ContainerRecord(key, "chest", 10, 2, 27, Map.of("minecraft:stone", 2, "minecraft:iron_ingot", 5));
+        assertEquals(
+                List.of("minecraft:iron_ingot", "minecraft:stone"),
+                List.copyOf(record.counts().keySet()));
         assertEquals(5, record.countOf(Set.of("minecraft:iron_ingot")));
         assertEquals(7, record.countOf(Set.of("minecraft:iron_ingot", "minecraft:stone")));
         assertEquals(25, record.freeSlots());
@@ -32,11 +34,12 @@ class StorageRecordTest {
     void invalidRecordsAreRejected() {
         var key = new StorageKey("minecraft:overworld", 0, 0, 0);
         assertThrows(IllegalArgumentException.class, () -> new StorageKey(" ", 0, 0, 0));
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(
+                IllegalArgumentException.class,
                 () -> new ContainerRecord(key, "chest", 1, 0, 27, Map.of("minecraft:stone", 0)));
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(
+                IllegalArgumentException.class,
                 () -> new ContainerRecord(key, "chest", 1, 28, 27, Map.of("minecraft:stone", 1)));
-        assertThrows(IllegalArgumentException.class,
-                () -> new ContainerRecord(key, " ", 1, 0, 27, Map.of()));
+        assertThrows(IllegalArgumentException.class, () -> new ContainerRecord(key, " ", 1, 0, 27, Map.of()));
     }
 }

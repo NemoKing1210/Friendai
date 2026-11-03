@@ -72,7 +72,8 @@ abstract class ContainerTaskBase implements Task {
             container = openedContainer;
             return work(context);
         });
-        if (status == TaskStatus.FAILED && containerPos != null
+        if (status == TaskStatus.FAILED
+                && containerPos != null
                 && ContainerAccess.at(c.level(), containerPos).isEmpty()) {
             c.storage().forget(c.companion(), c.level(), containerPos);
         }

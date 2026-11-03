@@ -67,8 +67,7 @@ class StorageToolsTest {
         }
 
         @Override
-        public List<StoredCandidate> find(
-                CompanionEntity companion, Set<String> itemIds, int minCount, long nowTick) {
+        public List<StoredCandidate> find(CompanionEntity companion, Set<String> itemIds, int minCount, long nowTick) {
             return matches;
         }
 

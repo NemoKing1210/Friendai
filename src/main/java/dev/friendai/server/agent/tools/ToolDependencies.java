@@ -1,8 +1,8 @@
 package dev.friendai.server.agent.tools;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.features.inventory.minecraft.storage.StorageAccess;
 import dev.friendai.features.instructions.minecraft.tool.SkillToolAccess;
+import dev.friendai.features.inventory.minecraft.storage.StorageAccess;
 import dev.friendai.features.memory.CompanionProfileRepository;
 import dev.friendai.features.memory.minecraft.tool.MemoryAccess;
 import dev.friendai.features.memory.minecraft.tool.SelfAccess;

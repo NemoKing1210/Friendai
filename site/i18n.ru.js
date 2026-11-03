@@ -212,7 +212,7 @@ const RU = {
 
   /* ---- Inventory ---- */
   "Inventory & Storage": "Инвентарь и хранилища",
-  "A 27-slot inventory plus six gear slots, and shared container logic for chests and barrels.": "Инвентарь на 27 слотов плюс шесть слотов снаряжения и общая логика контейнеров для сундуков и бочек.",
+  "A 27-slot inventory plus six gear slots, shared container logic, and a bounded memory of containers the companion has opened.": "Инвентарь на 27 слотов, шесть слотов снаряжения, общая логика контейнеров и ограниченная память о контейнерах, которые компаньон открывал.",
   "List what it carries.": "Показать, что он несёт.",
   "Open the inventory view.": "Открыть окно инвентаря.",
   "Equip gear.": "Надеть снаряжение.",
@@ -223,6 +223,8 @@ const RU = {
   "Take items out of a container.": "Достать предметы из контейнера.",
   "Look inside a container.": "Заглянуть в контейнер.",
   "Deposit into the nearest storage.": "Сложить в ближайшее хранилище.",
+  "Report where you last saw an item in a recorded container.": "Сообщить, где предмет последний раз видели в запомненном контейнере.",
+  "Move a known quantity between two containers in one call.": "Перенести известное количество между двумя контейнерами за один вызов.",
   "Equipment picker": "Выбор снаряжения",
   "Armor and weapon loadout.": "Набор брони и оружия.",
   "Owner-only window": "Окно только для владельца",

@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
@@ -65,7 +64,8 @@ class StorageIndexTest {
             counts.put("minecraft:item" + i, i + 1);
         }
         index.observe(record(0, "chest", 1, 9, 27, counts));
-        var stored = index.record(new StorageKey("minecraft:overworld", 0, 64, 0)).orElseThrow();
+        var stored =
+                index.record(new StorageKey("minecraft:overworld", 0, 64, 0)).orElseThrow();
         assertEquals(8, stored.counts().size());
         assertEquals("minecraft:item8", stored.counts().keySet().iterator().next());
         assertEquals(0, index.total(Set.of("minecraft:item0")));

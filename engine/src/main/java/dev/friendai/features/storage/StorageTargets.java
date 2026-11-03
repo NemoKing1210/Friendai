@@ -35,11 +35,9 @@ public final class StorageTargets {
                 eligible.add(record);
             }
         }
-        eligible.sort(Comparator.comparing(
-                        (ContainerRecord record) -> stale(record, nowTick, limits))
+        eligible.sort(Comparator.comparing((ContainerRecord record) -> stale(record, nowTick, limits))
                 .thenComparingLong(record -> distanceSq(record, x, y, z))
-                .thenComparing(Comparator.comparingInt(
-                                (ContainerRecord record) -> record.countOf(itemIds))
+                .thenComparing(Comparator.comparingInt((ContainerRecord record) -> record.countOf(itemIds))
                         .reversed())
                 .thenComparing(StorageTargets::compareKeys));
         return eligible.stream().findFirst();
@@ -56,11 +54,10 @@ public final class StorageTargets {
                 eligible.add(record);
             }
         }
-        eligible.sort(Comparator.comparing(
-                        (ContainerRecord record) -> stale(record, nowTick, limits))
+        eligible.sort(Comparator.comparing((ContainerRecord record) -> stale(record, nowTick, limits))
                 .thenComparingLong(record -> distanceSq(record, x, y, z))
-                .thenComparing(Comparator.comparingInt(ContainerRecord::freeSlots)
-                        .reversed())
+                .thenComparing(
+                        Comparator.comparingInt(ContainerRecord::freeSlots).reversed())
                 .thenComparing(StorageTargets::compareKeys));
         return eligible.stream().findFirst();
     }
@@ -72,13 +69,11 @@ public final class StorageTargets {
             return List.of();
         }
         List<StoredCandidate> sorted = new ArrayList<>(candidates);
-        sorted.sort(Comparator.comparing(
-                        (StoredCandidate candidate) ->
-                                !candidate.record().key().dimension().equals(dimension))
+        sorted.sort(Comparator.comparing((StoredCandidate candidate) ->
+                        !candidate.record().key().dimension().equals(dimension))
                 .thenComparing(StoredCandidate::stale)
                 .thenComparingLong(candidate -> distanceSq(candidate.record(), x, y, z))
-                .thenComparing(Comparator.comparingInt(StoredCandidate::count)
-                        .reversed())
+                .thenComparing(Comparator.comparingInt(StoredCandidate::count).reversed())
                 .thenComparing(candidate -> candidate.record().key().dimension())
                 .thenComparingInt(candidate -> candidate.record().key().x())
                 .thenComparingInt(candidate -> candidate.record().key().y())

@@ -36,8 +36,7 @@ class StorageTextTest {
                 text.startsWith("37 minecraft:iron_ingot recorded: 32 in a chest at 12 64 -3 "
                         + "(minecraft:overworld, checked 120 ticks ago)"),
                 text);
-        assertTrue(
-                text.contains("5 in a barrel at 1 64 2 (minecraft:overworld, checked 800 ticks ago, stale)"), text);
+        assertTrue(text.contains("5 in a barrel at 1 64 2 (minecraft:overworld, checked 800 ticks ago, stale)"), text);
     }
 
     @Test

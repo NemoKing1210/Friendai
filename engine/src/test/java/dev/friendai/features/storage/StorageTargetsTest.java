@@ -16,8 +16,7 @@ class StorageTargetsTest {
         var index = new StorageIndex(limits);
         index.observe(record(1, 0, 0, 399, 1, Map.of("minecraft:iron_ingot", 5)));
         index.observe(record(8, 0, 0, 990, 1, Map.of("minecraft:iron_ingot", 5)));
-        var target = StorageTargets.take(
-                        index, OVERWORLD, 0, 64, 0, Set.of("minecraft:iron_ingot"), 1, 1_000, limits)
+        var target = StorageTargets.take(index, OVERWORLD, 0, 64, 0, Set.of("minecraft:iron_ingot"), 1, 1_000, limits)
                 .orElseThrow();
         assertEquals(8, target.key().x());
     }
@@ -34,8 +33,7 @@ class StorageTargetsTest {
                 27,
                 Map.of("minecraft:iron_ingot", 5)));
         index.observe(record(2, 0, 0, 100, 1, Map.of("minecraft:iron_ingot", 5)));
-        var target = StorageTargets.take(
-                        index, OVERWORLD, 0, 64, 0, Set.of("minecraft:iron_ingot"), 1, 1_000, limits)
+        var target = StorageTargets.take(index, OVERWORLD, 0, 64, 0, Set.of("minecraft:iron_ingot"), 1, 1_000, limits)
                 .orElseThrow();
         assertEquals(OVERWORLD, target.key().dimension());
         assertFalse(StorageTargets.take(
@@ -63,8 +61,7 @@ class StorageTargetsTest {
                         .x());
     }
 
-    private static ContainerRecord record(
-            int x, int y, int z, long seen, int used, Map<String, Integer> counts) {
+    private static ContainerRecord record(int x, int y, int z, long seen, int used, Map<String, Integer> counts) {
         return new ContainerRecord(new StorageKey(OVERWORLD, x, y, z), "chest", seen, used, 27, counts);
     }
 
@@ -75,8 +72,7 @@ class StorageTargetsTest {
         index.observe(record(1, 0, 0, 10, 27, Map.of("minecraft:stone", 64)));
         index.observe(record(2, 0, 0, 10, 1, Map.of("minecraft:iron_ingot", 5)));
         index.observe(record(3, 0, 0, 10, 1, Map.of()));
-        var ordered = StorageTargets.depositOrder(
-                index.records(), OVERWORLD, "minecraft:iron_ingot", 0, 0, 0);
+        var ordered = StorageTargets.depositOrder(index.records(), OVERWORLD, "minecraft:iron_ingot", 0, 0, 0);
         assertEquals(2, ordered.get(0).key().x());
         assertEquals(3, ordered.get(1).key().x());
         assertEquals(1, ordered.get(2).key().x());

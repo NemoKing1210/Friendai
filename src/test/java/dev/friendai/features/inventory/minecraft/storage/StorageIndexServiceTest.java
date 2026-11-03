@@ -21,7 +21,8 @@ class StorageIndexServiceTest {
 
     @Test
     void unavailableFindsNothing() {
-        assertTrue(StorageAccess.UNAVAILABLE.find(null, Set.of("minecraft:iron_ingot"), 1, 0)
+        assertTrue(StorageAccess.UNAVAILABLE
+                .find(null, Set.of("minecraft:iron_ingot"), 1, 0)
                 .isEmpty());
     }
 

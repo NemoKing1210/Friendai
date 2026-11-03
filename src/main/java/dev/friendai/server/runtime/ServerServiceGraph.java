@@ -158,8 +158,7 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
                 KnowledgeLimits.DEFAULTS,
                 writer));
         this.storageService = new dev.friendai.features.inventory.minecraft.storage.StorageIndexService(
-                owner -> knowledge.book(owner),
-                () -> dev.friendai.features.storage.StorageLimits.DEFAULTS);
+                owner -> knowledge.book(owner), () -> dev.friendai.features.storage.StorageLimits.DEFAULTS);
         this.places = resources.own(new PlaceStore(
                 server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("places"),
                 PlaceLimits.DEFAULTS,

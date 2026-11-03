@@ -59,8 +59,7 @@ public final class StorageIndexService implements StorageAccess {
     }
 
     @Override
-    public List<StoredCandidate> find(
-            CompanionEntity companion, Set<String> itemIds, int minCount, long nowTick) {
+    public List<StoredCandidate> find(CompanionEntity companion, Set<String> itemIds, int minCount, long nowTick) {
         StorageIndex index = book(companion);
         BlockPos position = companion.blockPosition();
         return StorageTargets.ordered(
@@ -123,9 +122,7 @@ public final class StorageIndexService implements StorageAccess {
         for (ResourceKnowledge.ContainerObservation observation :
                 books.apply(owner).containerObservations()) {
             int total = observation.slotsTotal() > 0 ? observation.slotsTotal() : 1;
-            int used = observation.slotsTotal() > 0
-                    ? Math.min(observation.slotsUsed(), total)
-                    : total;
+            int used = observation.slotsTotal() > 0 ? Math.min(observation.slotsUsed(), total) : total;
             index.observe(new ContainerRecord(
                     new StorageKey(
                             observation.location().dimension(),

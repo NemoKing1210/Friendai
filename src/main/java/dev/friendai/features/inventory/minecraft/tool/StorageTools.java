@@ -21,10 +21,10 @@ import dev.friendai.server.execution.tools.FeatureToolContributor;
 import dev.friendai.server.execution.tools.FeatureToolRegistry;
 import dev.friendai.server.execution.tools.TaskToolDefinition;
 import dev.friendai.task.inventory.ItemMatcher;
-import net.minecraft.core.BlockPos;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import net.minecraft.core.BlockPos;
 
 /** Moving items between the companion's inventory, storage containers and remembered places. */
 public final class StorageTools implements FeatureToolContributor {
@@ -171,8 +171,7 @@ public final class StorageTools implements FeatureToolContributor {
                 boolean freshOnly = args.has("fresh_only")
                         && !args.get("fresh_only").isJsonNull()
                         && args.get("fresh_only").getAsBoolean();
-                List<StoredCandidate> all =
-                        access.find(companion, ids, minCount, access.nowTick(companion));
+                List<StoredCandidate> all = access.find(companion, ids, minCount, access.nowTick(companion));
                 if (all.isEmpty()) {
                     return ToolResult.ok(StorageText.noRecord(label));
                 }

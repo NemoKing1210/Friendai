@@ -387,8 +387,15 @@ public final class ResourceKnowledge {
         for (KnowledgeFile.ContainerRecord record : file.containers()) {
             var location =
                     new ResourceObservation.Location(record.dimension(), new Pos(record.x(), record.y(), record.z()));
-            book.containers.put(location, new ContainerObservation(
-                    location, record.items(), record.observedTick(), record.kind(), record.used(), record.total()));
+            book.containers.put(
+                    location,
+                    new ContainerObservation(
+                            location,
+                            record.items(),
+                            record.observedTick(),
+                            record.kind(),
+                            record.used(),
+                            record.total()));
         }
         return book;
     }
