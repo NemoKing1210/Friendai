@@ -12,7 +12,7 @@ package dev.friendai.features.navigation.pathing;
 public record SearchOptions(int maxNodes, int maxRange, int placeable, double placePrice, boolean runningJumps) {
 
     /** The defaults the server config falls back to. */
-    public static final SearchOptions DEFAULTS = new SearchOptions(20_000, 64, 0, 1);
+    public static final SearchOptions DEFAULTS = new SearchOptions(20_000, PathingConfig.SEARCH_RANGE, 0, 1);
 
     /** A search for a caller that has no body to ask about food: every move stays available. */
     public SearchOptions(int maxNodes, int maxRange, int placeable, double placePrice) {

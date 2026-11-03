@@ -114,6 +114,7 @@
 			"name": "misc",
 			"classes": [
 				"PathingTests",
+				"NavigatorStateTests",
 				"MovementDebugTests",
 				"CompanionEntityTests",
 				"CompanionDeathTests",
