@@ -82,18 +82,19 @@ public final class MovementTools implements FeatureToolContributor {
                         GO_TO_HINT)
                 .withCheckpoint("go_to", NavigationCheckpoints::goTo));
         registry.registerTask(task(
-                "travel_through_portal",
-                "Walk into a lit nether portal within 16 blocks and wait for vanilla to move you to the other "
-                        + "dimension. It never teleports you there and never builds a portal; no lit portal in range "
-                        + "is a plain failure.",
-                SchemaBuilder.object()
-                        .enumeration("dimension", "Destination", "the_nether", "overworld")
-                        .required("dimension")
-                        .build(),
-                (c, a) -> new TravelThroughPortalTask(a.get("dimension").getAsString()),
-                false,
-                new TaskToolDefinition.QueueTraits(true, null),
-                PORTAL_HINT));
+                        "travel_through_portal",
+                        "Walk into a lit nether portal within 16 blocks and wait for vanilla to move you to the other "
+                                + "dimension. It never teleports you there and never builds a portal; no lit portal in range "
+                                + "is a plain failure.",
+                        SchemaBuilder.object()
+                                .enumeration("dimension", "Destination", "the_nether", "overworld")
+                                .required("dimension")
+                                .build(),
+                        (c, a) -> new TravelThroughPortalTask(a.get("dimension").getAsString()),
+                        false,
+                        new TaskToolDefinition.QueueTraits(true, null),
+                        PORTAL_HINT)
+                .withCheckpoint("travel_through_portal", NavigationCheckpoints::travelThroughPortal));
         registry.registerTask(task(
                         "jump",
                         "Jump once from the ground. Use it when the player asks you to jump or hop; for several jumps in a row, put several jump steps in one plan.",
@@ -102,7 +103,8 @@ public final class MovementTools implements FeatureToolContributor {
                         true,
                         TaskToolDefinition.QueueTraits.DEFAULT,
                         JUMP_HINT)
-                .asCreativeSafe());
+                .asCreativeSafe()
+                .withCheckpoint("jump", NavigationCheckpoints::jump));
         registry.registerTool(
                 new Tool<>() {
                     @Override

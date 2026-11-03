@@ -113,4 +113,9 @@ public final class TravelThroughPortalTask implements Task {
     public String resultSummary() {
         return summary;
     }
+
+    @Override
+    public String saveData() {
+        return targetDimension;
+    }
 }
