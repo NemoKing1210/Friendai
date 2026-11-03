@@ -6,7 +6,9 @@ import dev.friendai.features.navigation.minecraft.nav.Navigator;
 import dev.friendai.features.navigation.pathing.GoalPoint;
 import dev.friendai.task.TaskContext;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
+import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
@@ -92,6 +94,36 @@ public class NavigatorStateTests {
             // not look like a search already in progress.
             navigator.setGoal(new GoalPoint(far.x, far.y, far.z, 1.0, 2.0));
             h.assertTrue(navigator.searching(), "a new goal must restart a stopped navigator");
+        });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void aDirectlyDrivenRouteStillSprintsIntoALeap(GameTestHelper h) {
+        int base = 240;
+        GameTestSupport.platformAt(h, base, 16);
+        // A two-block trench across the whole platform: the jump is the only way over, and it needs a run-up.
+        for (int z = 0; z < 16; z++) {
+            for (int y = base - 4; y <= base; y++) {
+                h.setBlock(new BlockPos(8, y, z), Blocks.AIR);
+                h.setBlock(new BlockPos(9, y, z), Blocks.AIR);
+            }
+        }
+        CompanionEntity c = walker(h, 2, base + 1, 8);
+        TaskContext context = new TaskContext(c, h.getLevel());
+        Navigator navigator = new Navigator(context, true);
+        Vec3 goal = h.absoluteVec(new Vec3(13.5, base + 1, 8.5));
+        navigator.setGoal(new GoalPoint(goal.x, goal.y, goal.z, 1.0, 2.0));
+
+        h.succeedWhen(() -> {
+            navigator.tick(context);
+            h.assertFalse(
+                    navigator.state() == Navigator.State.UNREACHABLE,
+                    "the gap must still be walkable: " + navigator.lastSearch());
+            // Sprinting is what pays for the leap: a walking jump costs 0.05 exhaustion, a running one 0.2.
+            h.assertTrue(
+                    c.hunger().exhaustion() > 0.15f,
+                    "a route driven by its own navigator must still sprint into the leap: " + navigator.state()
+                            + " exhaustion " + c.hunger().exhaustion());
         });
     }
 }

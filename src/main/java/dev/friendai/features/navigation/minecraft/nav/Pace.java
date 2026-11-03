@@ -42,8 +42,16 @@ public final class Pace {
         }
     }
 
-    /** Asks for a running start into a leap, or withdraws the request once the leap is behind the route. */
+    /**
+     * Asks for a running start into a leap, or withdraws the request once the leap is behind the route. It is applied
+     * here as well as honoured by {@link #update}: a route driven by its own navigator (an approach, a journey, a
+     * material gather) never ticks the move helper, so a request waiting for the next policy update would never land.
+     */
     public void requestRunUp(boolean requested) {
         this.runUpRequested = requested;
+        boolean sprint = requested && companion.canSprint();
+        if (sprint != companion.isSprinting()) {
+            companion.setSprinting(sprint);
+        }
     }
 }
