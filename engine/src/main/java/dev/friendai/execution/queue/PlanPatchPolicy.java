@@ -25,7 +25,12 @@ public final class PlanPatchPolicy {
         }
         PlanRecord plan = queue.plan(job.planId()).orElse(null);
         if (plan == null) return Optional.of("unknown plan #" + job.planId());
-        if (plan.cursor() == null) return Optional.empty();
+        if (plan.cursor() == null) {
+            if (JobQueue.terminal(job) && job.state() != JobState.FAILED && job.state() != JobState.CANCELLED) {
+                return Optional.of("#" + jobId + " is already terminal");
+            }
+            return Optional.empty();
+        }
         if (JobQueue.terminal(job)) return Optional.of("#" + jobId + " is already terminal");
         PlanCursor cursor = plan.cursor();
         if (cursor != null

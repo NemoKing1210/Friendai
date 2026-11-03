@@ -4,8 +4,7 @@
     "name": "Smart planning",
     "description": "When planning work, inspect facts and order concrete steps.",
     "turnKinds": [
-      "planning",
-      "chat"
+      "planning"
     ],
     "triggers": [
       "make",

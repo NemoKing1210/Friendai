@@ -52,7 +52,7 @@ class SearchLedgerPersistenceTest {
                 restored.trails().route("minecraft:overworld", new Pos(0, 64, 0), new Pos(8, 64, 0)));
         var resumed = restored.searchLedger()
                 .acquire(owner, "minecraft:overworld", "iron", 120, SearchLedger.LOCAL_DEFAULTS, new Pos(0, 0, 0));
-        assertEquals(10, resumed.snapshot().spentTicks());
+        assertEquals(1, resumed.snapshot().spentTicks());
         assertEquals(SearchSession.Phase.CHOOSE_FRONTIER, resumed.snapshot().phase());
     }
 

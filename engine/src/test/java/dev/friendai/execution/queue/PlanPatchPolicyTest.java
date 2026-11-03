@@ -20,6 +20,15 @@ class PlanPatchPolicyTest {
     }
 
     @Test
+    void aFlatDoneStepIsRejected() {
+        JobQueue queue = new JobQueue(QueueLimits.DEFAULTS);
+        long plan = queue.addPlan("p", List.of(step()), PlanOptions.DEFAULT).planId();
+        long job = queue.jobsOfPlan(plan).getFirst().id();
+        queue.finish(job, "done");
+        assertTrue(PlanPatchPolicy.reject(queue, job).orElseThrow().contains("terminal"));
+    }
+
+    @Test
     void aFlatFailedStepIsPatchable() {
         JobQueue queue = new JobQueue(QueueLimits.DEFAULTS);
         long plan = queue.addPlan("p", List.of(step()), PlanOptions.DEFAULT).planId();

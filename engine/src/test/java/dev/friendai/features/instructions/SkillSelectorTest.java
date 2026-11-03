@@ -89,6 +89,10 @@ class SkillSelectorTest {
         assertTrue(
                 selected.skills().stream().anyMatch(s -> s.id().equals("builtin:smart-planning")),
                 selected.skills().stream().map(InstructionSkill::id).toList().toString());
+        assertTrue(
+                selected.skills().stream().anyMatch(s -> s.id().equals("builtin:social-and-privacy")),
+                "planning must not evict the privacy skill: "
+                        + selected.skills().stream().map(InstructionSkill::id).toList());
     }
 
     @Test
