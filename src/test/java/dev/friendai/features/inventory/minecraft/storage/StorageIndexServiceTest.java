@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.friendai.features.storage.StorageLimits;
+import dev.friendai.task.interact.ContainerAccess;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
 import org.junit.jupiter.api.Test;
@@ -14,8 +15,8 @@ class StorageIndexServiceTest {
         var origin = new BlockPos(6, 64, 6);
         assertEquals(
                 new BlockPos(5, 64, 6),
-                StorageIndexService.canonicalChest(origin, pos -> pos.equals(new BlockPos(5, 64, 6))));
-        assertEquals(origin, StorageIndexService.canonicalChest(origin, pos -> false));
+                ContainerAccess.canonicalChest(origin, pos -> pos.equals(new BlockPos(5, 64, 6))));
+        assertEquals(origin, ContainerAccess.canonicalChest(origin, pos -> false));
     }
 
     @Test

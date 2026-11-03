@@ -57,6 +57,7 @@ public final class TakeItemsTask extends ContainerTaskBase {
     @Override
     protected TaskStatus work(TaskContext c) {
         ContainerTransfer.Result result = ContainerTransfer.take(c, containerPos, container, matcher, count);
+        ContainerAccess.recordContents(c, containerPos, container);
         summary = result.summary();
         return result.status();
     }

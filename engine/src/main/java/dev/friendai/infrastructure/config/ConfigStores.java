@@ -30,8 +30,7 @@ public final class ConfigStores {
                     ADDITIVE, // 17 -> 18: mining drop protection
                     ADDITIVE, // 18 -> 19: transcript retention and memory compaction
                     ADDITIVE, // 19 -> 20: ambient speech, enabled by default
-                    ADDITIVE, // 20 -> 21: logging, normal by default
-                    ADDITIVE)); // 21 -> 22: observed container index, empty until the first observation
+                    ADDITIVE)); // 20 -> 21: logging, normal by default
     private static final ConfigMigration CLIENT = new ConfigMigration(
             1,
             List.of(

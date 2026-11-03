@@ -44,11 +44,20 @@ public final class ResourceKnowledge {
     }
 
     public record ContainerObservation(
-            ResourceObservation.Location location, Map<String, Integer> items, long observedTick) {
+            ResourceObservation.Location location,
+            Map<String, Integer> items,
+            long observedTick,
+            String kind,
+            int slotsUsed,
+            int slotsTotal) {
         public ContainerObservation {
             Objects.requireNonNull(location, "location");
             items = Map.copyOf(items);
             if (observedTick < 0) throw new IllegalArgumentException("observedTick must not be negative");
+            if (kind == null) kind = "";
+            if (slotsUsed < 0 || slotsTotal < 0 || slotsUsed > slotsTotal && slotsTotal > 0) {
+                throw new IllegalArgumentException("invalid container slots");
+            }
             if (items.size() > 16_384
                     || items.entrySet().stream()
                             .anyMatch(entry -> entry.getKey() == null
@@ -57,6 +66,11 @@ public final class ResourceKnowledge {
                                     || entry.getValue() < 1
                                     || entry.getValue() > 1_000_000))
                 throw new IllegalArgumentException("invalid container contents");
+        }
+
+        /** A legacy observation whose slot counts were not recorded. */
+        public ContainerObservation(ResourceObservation.Location location, Map<String, Integer> items, long tick) {
+            this(location, items, tick, "", 0, 0);
         }
     }
 
@@ -271,7 +285,10 @@ public final class ResourceKnowledge {
                         observation.location().pos().y(),
                         observation.location().pos().z(),
                         observation.items(),
-                        observation.observedTick()))
+                        observation.observedTick(),
+                        observation.kind(),
+                        observation.slotsUsed(),
+                        observation.slotsTotal()))
                 .toList();
         return new KnowledgeFile(
                 Math.max(logicalTick, searchLedger.logicalTick()),
@@ -370,7 +387,8 @@ public final class ResourceKnowledge {
         for (KnowledgeFile.ContainerRecord record : file.containers()) {
             var location =
                     new ResourceObservation.Location(record.dimension(), new Pos(record.x(), record.y(), record.z()));
-            book.containers.put(location, new ContainerObservation(location, record.items(), record.observedTick()));
+            book.containers.put(location, new ContainerObservation(
+                    location, record.items(), record.observedTick(), record.kind(), record.used(), record.total()));
         }
         return book;
     }

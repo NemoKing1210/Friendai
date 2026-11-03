@@ -12,6 +12,7 @@ import dev.friendai.task.TaskStatus;
 import dev.friendai.task.interact.ContainerAccess;
 import dev.friendai.task.interact.ContainerSession;
 import dev.friendai.task.inventory.ItemMatcher;
+import java.util.Set;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -601,5 +602,82 @@ public class StorageTests {
                 ChestBlockEntity.getOpenCount(h.getLevel(), target) == 0,
                 "the lid must close after work throws, openers " + ChestBlockEntity.getOpenCount(h.getLevel(), target));
         h.succeed();
+    }
+
+    @GameTest(maxTicks = 400)
+    public void checkContainerRecordsContents(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(6, 2, 6, Blocks.CHEST);
+        Container chest = containerAt(h, 6, 2, 6);
+        chest.setItem(0, new ItemStack(Items.IRON_INGOT, 5));
+        chest.setItem(1, new ItemStack(Items.STONE, 2));
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(java.util.UUID.randomUUID());
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(new CheckContainerTask(h.absolutePos(new BlockPos(6, 2, 6))), "check_container");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            var stored = GameTestSupport.runtime(h)
+                    .storage()
+                    .find(c, Set.of("minecraft:iron_ingot"), 1, c.level().getGameTime());
+            h.assertTrue(stored.size() == 1 && stored.getFirst().count() == 5, "index was " + stored);
+        });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void brokenContainerIsForgotten(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(6, 2, 6, Blocks.CHEST);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(java.util.UUID.randomUUID());
+        Result check = new Result();
+        Result take = new Result();
+        ExecutionCoordinator checkRunner = runner(c, check);
+        ExecutionCoordinator takeRunner = runner(c, take);
+        checkRunner.start(new CheckContainerTask(h.absolutePos(new BlockPos(6, 2, 6))), "check_container");
+        int[] phase = {0};
+        h.succeedWhen(() -> {
+            if (phase[0] == 0) {
+                checkRunner.tick();
+                h.assertTrue(
+                        check.status == TaskStatus.SUCCESS, "not finished: " + check.status + " " + check.summary);
+                h.setBlock(6, 2, 6, Blocks.AIR);
+                takeRunner.start(
+                        new TakeItemsTask(
+                                matcher("minecraft:iron_ingot"), 1, h.absolutePos(new BlockPos(6, 2, 6))),
+                        "take_items");
+                phase[0] = 1;
+                return;
+            }
+            takeRunner.tick();
+            h.assertTrue(take.status == TaskStatus.FAILED, "not failed: " + take.status + " " + take.summary);
+            h.assertTrue(
+                    GameTestSupport.runtime(h)
+                            .storage()
+                            .find(c, Set.of("minecraft:iron_ingot"), 1, c.level().getGameTime())
+                            .isEmpty(),
+                    "the record must be forgotten");
+        });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void tagQueryFindsRecordedPlanks(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(6, 2, 6, Blocks.CHEST);
+        containerAt(h, 6, 2, 6).setItem(0, new ItemStack(Items.OAK_PLANKS, 8));
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(java.util.UUID.randomUUID());
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(new CheckContainerTask(h.absolutePos(new BlockPos(6, 2, 6))), "check_container");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            var ids = GameTestSupport.runtime(h).storage().itemIds("#minecraft:planks");
+            var stored = GameTestSupport.runtime(h).storage().find(c, ids, 1, c.level().getGameTime());
+            h.assertTrue(stored.size() == 1 && stored.getFirst().count() == 8, "index was " + stored);
+        });
     }
 }

@@ -17,7 +17,6 @@ import java.util.Optional;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.Container;
 import org.junit.jupiter.api.Test;
 
 class StorageToolsTest {
@@ -58,9 +57,6 @@ class StorageToolsTest {
     private static final class FakeAccess implements StorageAccess {
         private Set<String> ids = Set.of();
         private List<StoredCandidate> matches = List.of();
-
-        @Override
-        public void observe(CompanionEntity companion, ServerLevel level, BlockPos position, Container container) {}
 
         @Override
         public void forget(CompanionEntity companion, ServerLevel level, BlockPos position) {}

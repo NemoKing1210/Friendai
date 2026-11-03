@@ -43,7 +43,6 @@ public final class ServerTickPipeline {
         services.places().flushIfDue();
         services.placed().flushIfDue();
         services.trading().flushIfDue();
-        services.storageStore().flushIfDue();
         ownerRecordFlush.tick();
         runtime.debugStream().tick(runtime);
         runtime.memoryViewStream().tick(runtime);

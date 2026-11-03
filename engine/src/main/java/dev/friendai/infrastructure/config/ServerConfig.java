@@ -7,7 +7,6 @@ import dev.friendai.features.memory.MemoryLimits;
 import dev.friendai.features.mining.MiningRuntimeSettings;
 import dev.friendai.features.navigation.pathing.PathingConfig;
 import dev.friendai.features.social.InteractionStyle;
-import dev.friendai.features.storage.StorageLimits;
 import dev.friendai.foundation.diagnostics.ConfigException;
 import dev.friendai.foundation.diagnostics.LogCategory;
 import dev.friendai.foundation.diagnostics.LogLevel;
@@ -22,7 +21,7 @@ import java.util.function.Function;
 
 /** friendai-server.json. */
 public class ServerConfig {
-    public static final int VERSION = 22;
+    public static final int VERSION = 21;
 
     public int version = VERSION;
     public String activeProfile = "main";
@@ -35,7 +34,6 @@ public class ServerConfig {
     public PathingSection pathing = new PathingSection();
     public MiningSection mining = new MiningSection();
     public PlacesSection places = new PlacesSection();
-    public StorageSection storage = new StorageSection();
     public StructuresSection structures = new StructuresSection();
     public AgentSection agent = new AgentSection();
     public AutonomySection autonomy = new AutonomySection();
@@ -284,17 +282,6 @@ public class ServerConfig {
         public int plannerLimit = 40;
     }
 
-    /** How much observed-container evidence the companion keeps and when it counts as stale. */
-    public static class StorageSection {
-        public int maxContainers = 256;
-        public int maxKindsPerContainer = 64;
-        public int staleAfterTicks = 24_000;
-
-        public StorageLimits toLimits() {
-            return new StorageLimits(maxContainers, maxKindsPerContainer, staleAfterTicks);
-        }
-    }
-
     /** Free time: when the companion may work on its own, how often it asks the model, and what it protects. */
     public static class AutonomySection {
         public boolean enabled = true;
@@ -336,15 +323,6 @@ public class ServerConfig {
     /** Fills missing sections and clamps ranges. Returns English descriptions of what was fixed, for the log. */
     public List<String> validate() {
         List<String> problems = new ArrayList<>();
-        if (storage == null) {
-            storage = new StorageSection();
-            problems.add("storage was missing");
-        }
-        storage.maxContainers = clamp(problems, "storage.maxContainers", storage.maxContainers, 16, 1024);
-        storage.maxKindsPerContainer =
-                clamp(problems, "storage.maxKindsPerContainer", storage.maxKindsPerContainer, 8, 256);
-        storage.staleAfterTicks =
-                clamp(problems, "storage.staleAfterTicks", storage.staleAfterTicks, 600, 240_000);
         if (logging == null) {
             logging = new LoggingSection();
             problems.add("logging was missing");

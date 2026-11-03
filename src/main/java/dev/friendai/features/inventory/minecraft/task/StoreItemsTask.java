@@ -98,6 +98,7 @@ public final class StoreItemsTask extends ContainerTaskBase {
         }
         inventory.setChanged();
         container.setChanged();
+        ContainerAccess.recordContents(c, containerPos, container);
 
         if (stored.isEmpty()) {
             summary = "the " + ContainerAccess.shortLabel(c.level(), containerPos) + " at " + coords() + " is full";

@@ -1,20 +1,23 @@
 package dev.friendai.features.inventory.minecraft.storage;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.knowledge.ResourceKnowledge;
+import dev.friendai.features.knowledge.ResourceObservation;
+import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.features.storage.ContainerRecord;
 import dev.friendai.features.storage.StorageIndex;
 import dev.friendai.features.storage.StorageKey;
 import dev.friendai.features.storage.StorageLimits;
-import dev.friendai.features.storage.StorageRepository;
 import dev.friendai.features.storage.StorageTargets;
 import dev.friendai.features.storage.StoredCandidate;
+import dev.friendai.task.interact.ContainerAccess;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.function.Predicate;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -22,42 +25,19 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.TagKey;
-import net.minecraft.world.Container;
 import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.block.ChestBlock;
-import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.block.state.properties.ChestType;
 
-/** Server-thread adapter over the owner's observed-container index. It never scans the world. */
+/**
+ * Builds the query view over the container observations the knowledge store already records after every
+ * authorized interaction. It never scans the world and never writes a second record.
+ */
 public final class StorageIndexService implements StorageAccess {
-    private final StorageRepository repository;
+    private final Function<UUID, ResourceKnowledge> books;
     private final Supplier<StorageLimits> limits;
 
-    public StorageIndexService(StorageRepository repository, Supplier<StorageLimits> limits) {
-        this.repository = Objects.requireNonNull(repository, "repository");
+    public StorageIndexService(Function<UUID, ResourceKnowledge> books, Supplier<StorageLimits> limits) {
+        this.books = Objects.requireNonNull(books, "books");
         this.limits = Objects.requireNonNull(limits, "limits");
-    }
-
-    @Override
-    public void observe(CompanionEntity companion, ServerLevel level, BlockPos position, Container container) {
-        UUID owner = companion.ownerUuid();
-        if (owner == null || position == null || container == null) {
-            return;
-        }
-        String dimension = dimension(level);
-        ContainerRecord base = snapshot(dimension, kind(level, position), container, level.getGameTime());
-        BlockPos canonical = canonicalChest(position, candidate -> isOtherHalf(level, position, candidate));
-        ContainerRecord record = new ContainerRecord(
-                new StorageKey(dimension, canonical.getX(), canonical.getY(), canonical.getZ()),
-                base.kind(),
-                base.lastSeenTick(),
-                base.slotsUsed(),
-                base.slotsTotal(),
-                base.counts());
-        StorageIndex index = repository.index(owner);
-        index.observe(record);
-        repository.save(owner, index);
     }
 
     @Override
@@ -66,11 +46,11 @@ public final class StorageIndexService implements StorageAccess {
         if (owner == null || position == null) {
             return;
         }
-        String dimension = dimension(level);
-        BlockPos canonical = canonicalChest(position, candidate -> isOtherHalf(level, position, candidate));
-        StorageIndex index = repository.index(owner);
-        index.forget(new StorageKey(dimension, canonical.getX(), canonical.getY(), canonical.getZ()));
-        repository.save(owner, index);
+        BlockPos canonical = ContainerAccess.canonicalChest(level, position);
+        books.apply(owner)
+                .invalidateContainer(new ResourceObservation.Location(
+                        level.dimension().identifier().toString(),
+                        new Pos(canonical.getX(), canonical.getY(), canonical.getZ())));
     }
 
     @Override
@@ -128,44 +108,32 @@ public final class StorageIndexService implements StorageAccess {
         return companion.level().getGameTime();
     }
 
-    /** The owner's book; a companion without an owner gets a fresh in-memory index. */
+    /** The owner's query view, built from the knowledge store's container observations. */
     StorageIndex book(CompanionEntity companion) {
+        StorageIndex index = new StorageIndex(limits.get());
         UUID owner = companion.ownerUuid();
-        return owner == null ? new StorageIndex(limits.get()) : repository.index(owner);
-    }
-
-    static ContainerRecord snapshot(String dimension, String kind, Container container, long gameTick) {
-        int used = 0;
-        java.util.Map<String, Integer> counts = new java.util.LinkedHashMap<>();
-        for (int slot = 0; slot < container.getContainerSize(); slot++) {
-            ItemStack stack = container.getItem(slot);
-            if (stack.isEmpty()) {
-                continue;
-            }
-            used++;
-            counts.merge(
-                    BuiltInRegistries.ITEM.getKey(stack.getItem()).toString(), stack.getCount(), Integer::sum);
+        if (owner == null) {
+            return index;
         }
-        return new ContainerRecord(
-                new StorageKey(dimension, 0, 0, 0),
-                kind,
-                gameTick,
-                used,
-                container.getContainerSize(),
-                counts);
-    }
-
-    /**
-     * The half of a double chest with the lower x, then the lower z; a single chest keeps its own position.
-     */
-    static BlockPos canonicalChest(BlockPos position, Predicate<BlockPos> otherHalfAt) {
-        for (BlockPos candidate :
-                List.of(position.west(), position.east(), position.north(), position.south())) {
-            if (otherHalfAt.test(candidate)) {
-                return lower(position, candidate);
-            }
+        for (ResourceKnowledge.ContainerObservation observation :
+                books.apply(owner).containerObservations()) {
+            int total = observation.slotsTotal() > 0 ? observation.slotsTotal() : 1;
+            int used = observation.slotsTotal() > 0
+                    ? Math.min(observation.slotsUsed(), total)
+                    : total;
+            index.observe(new ContainerRecord(
+                    new StorageKey(
+                            observation.location().dimension(),
+                            observation.location().pos().x(),
+                            observation.location().pos().y(),
+                            observation.location().pos().z()),
+                    observation.kind().isBlank() ? "container" : observation.kind(),
+                    observation.observedTick(),
+                    used,
+                    total,
+                    observation.items()));
         }
-        return position;
+        return index;
     }
 
     static Set<String> ids(String idOrTag) {
@@ -192,34 +160,5 @@ public final class StorageIndexService implements StorageAccess {
 
     private static String dimension(net.minecraft.world.level.Level level) {
         return level.dimension().identifier().toString();
-    }
-
-    private static String kind(ServerLevel level, BlockPos position) {
-        return BuiltInRegistries.BLOCK
-                .getKey(level.getBlockState(position).getBlock())
-                .getPath();
-    }
-
-    private static boolean isOtherHalf(ServerLevel level, BlockPos origin, BlockPos candidate) {
-        BlockState originState = level.getBlockState(origin);
-        if (!(originState.getBlock() instanceof ChestBlock)) {
-            return false;
-        }
-        if (!ChestBlock.getConnectedBlockPos(origin, originState).equals(candidate)) {
-            return false;
-        }
-        BlockState candidateState = level.getBlockState(candidate);
-        return candidateState.getBlock() instanceof ChestBlock
-                && candidateState.getValue(ChestBlock.TYPE) != ChestType.SINGLE;
-    }
-
-    private static BlockPos lower(BlockPos left, BlockPos right) {
-        if (left.getX() != right.getX()) {
-            return left.getX() < right.getX() ? left : right;
-        }
-        if (left.getZ() != right.getZ()) {
-            return left.getZ() < right.getZ() ? left : right;
-        }
-        return left;
     }
 }

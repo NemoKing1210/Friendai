@@ -4,6 +4,7 @@ import dev.friendai.debug.DebugTarget;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.task.interact.ContainerAccess;
 import dev.friendai.task.interact.ContainerSession;
 import java.util.List;
 import java.util.Optional;
@@ -71,6 +72,10 @@ abstract class ContainerTaskBase implements Task {
             container = openedContainer;
             return work(context);
         });
+        if (status == TaskStatus.FAILED && containerPos != null
+                && ContainerAccess.at(c.level(), containerPos).isEmpty()) {
+            c.storage().forget(c.companion(), c.level(), containerPos);
+        }
         if (status == TaskStatus.FAILED && summary.isEmpty()) summary = session.failureSummary();
         return status;
     }
