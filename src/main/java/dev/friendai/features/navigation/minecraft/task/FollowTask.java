@@ -182,7 +182,7 @@ public final class FollowTask implements Task {
     private LevelCellView terrain(CompanionEntity companion) {
         int now = companion.tickCount;
         if (terrain == null || now < terrainTick || now - terrainTick >= TERRAIN_TICKS) {
-            terrain = LevelCellView.terrain(companion);
+            terrain = LevelCellView.terrain(companion, 128);
             terrainTick = now;
         }
         return terrain;
