@@ -18,7 +18,7 @@ const CATS = [
   { id: "movement", domain: "hands", name: "Movement", icon: "👟", color: COLORS.grass,
     desc: "Block-grid A* pathfinding that walks, falls, swims, climbs, digs, pillars and bridges within a per-tick time budget.",
     items: [
-      "follow_player|Follow the owner at a chosen distance.", "stay|Hold the current position.", "go_to|Pathfind to coordinates.", "travel_through_portal|Walk into a lit nether portal within 16 blocks.",
+      "follow_player|Follow the owner at a chosen distance.", "stay|Hold the current position.", "go_to|Pathfind to coordinates.", "travel_through_portal|Walk through a lit portal, or build and light one from carried obsidian and flint; it records a return anchor.",
       "jump|Jump once.", "set_pace|Auto, walk or run pace.", "set_follow_mode|Choose whether it follows when idle.",
       "step|Move by a relative offset.", "back_away|Retreat from a target.", "approach|Walk up to a player, mob or block.",
       "circle|Circle around a point.", "set_follow_distance|How close it stays to the owner.",
@@ -116,7 +116,8 @@ const CATS = [
       "remember|Store a fact.", "recall|Read facts back.", "forget|Delete a fact.", "trust_player|Raise a player to trusted (needs confirmation).", "request_help|Ask another owner's companion for bounded help.", "accept_help|Accept the named help only.", "decline_help|Decline with no transfer.", "offer_handoff|Offer an exact item quantity at a meeting point.", "accept_handoff|Accept only the named transfer.", "replan_plan|Ask the planner to repair one stalled plan.",
       "untrust_player|Lower trust.", "set_name|Rename the companion.", "use_skill|Load an instruction skill once.", "list_skills|List the owner's skills with ids, versions and on/off state.", "skill_help|Read the skill-authoring checklist and its limits.", "manage_skill|Propose a skill after a finished goal.",
       "read_log|Read your recent activity log (owner only).", "logs_search|Search the durable log files by level, category, event, turn or task (owner only).", "recent_chat|Read recent conversations with a player.", "memory_overview|See facts with ids and how full each book is.", "compress_memory|Merge duplicate facts safely, dry run first (owner only).", "reset_manner|Drop a manner the owner dislikes and never drift back into it (owner only).",
-      "~Access levels|GUEST < TRUSTED < OWNER on every tool.", "~Language learning|Learns your language after a few samples.", "~Skills advise only|They never change permissions." ] },
+      "~Access levels|GUEST < TRUSTED < OWNER on every tool.", "~Language learning|Learns your language after a few samples.", "~Skills advise only|They never change permissions.",
+      "~Opt-in retrieval|Default off; caller-visible facts selected by a local word match within a bounded budget." ] },
   { id: "places", domain: "mind", name: "Places", icon: "📍", color: COLORS.diamond,
     desc: "A book of named places. Autonomous work never breaks inside your places and takes only from containers in one; dig sites it registered itself are work areas.",
     items: [
@@ -137,6 +138,7 @@ const CATS = [
     desc: "Push-to-talk speech recognition. Local audio never leaves the machine unless you pick a cloud provider.",
     items: [
       "~Push-to-talk|16 kHz, 16-bit, mono capture.", "~Local Whisper|tiny, base or small, size and SHA-256 checked.",
+      "~Wake word|Off by default; an explicitly armed local detector, with bounded pre-wake audio.",
       "~Parakeet V3|25 European languages, offline.", "~Nemotron 3.5|Streaming partials, 19 locales.", "~GigaAM v3|Russian with punctuation, offline.",
       "~Verified bundles|Pinned revision, size and SHA-256, atomic install.", "~OpenAI STT|Cloud recognition.",
       "~Groq STT|Cloud recognition.", "~Yandex STT|Cloud recognition.", "~Key in headers|Keys never go in URLs or logs." ] },
@@ -456,7 +458,7 @@ const MEM_CARDS = [
   { title: "Settings & caches", sub: "config/ and the game directory",
     hub: { label: "Settings", icon: "⚙️", color: COLORS.iron, desc: "API keys may be written as env:NAME so they never sit in a file." },
     color: COLORS.iron, items: [
-      "~Server config v19|Tasks, agent, places, autonomy, chunk loading, build pace.", "~Client config v8|Voice recognition and synthesis, UI.",
+      "~Server config v22|Tasks, agent, places, autonomy, chunk loading, build pace.", "~Client config v9|Voice recognition and synthesis, UI.",
       "~Automatic config upgrades|Validated upgrades with unique backups; unknown and future formats stay read-only.", "~Speech models|Whisper plus Parakeet, Nemotron and GigaAM; pinned hashes.",
       "~Piper voices|Five catalogued voices.", "~Skins|Fetched and cached by hash.", "~Atomic save|Temp file then move." ] },
   { title: "The memory book", sub: "What it remembers and who may see it",

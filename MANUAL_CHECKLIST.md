@@ -140,6 +140,10 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] "Test recording" recognizes English speech.
 - [ ] "Test recording" recognizes Russian speech.
 - [ ] Hold **V** in a world and say "mine two logs": the chat shows the voice line, the companion replies and does it.
+- [ ] Wake word off by default: no listening indicator, the microphone stays closed, and pressing **V** still works.
+- [ ] Enable the wake word and arm it: the HUD shows the listening state, the 5.5 MB bundle downloads once, and saying the chosen phrase starts recording; the post-wake transcript follows the configured local/cloud route.
+- [ ] Say a different phrase near the armed client: no turn, no chat line, and the detector re-arms after the cooldown.
+- [ ] Disarm, open a screen, disconnect, press **V**, or let the companion speak while armed: monitoring stops/defers, and a late or cancelled detection sends no turn. Confirm pre-wake audio is not written under `<game dir>/friendai` or uploaded.
 - [ ] Hold **V** while speaking: the capsule is centered horizontally above the hotbar, its dot pulses and the bars follow your voice; after release the waiting dots animate while transcribing.
 - [ ] No microphone / no model: the HUD shows a hint and nothing else breaks.
 - [ ] Local recognition with each Whisper model (`tiny`, `base` and `small`).
@@ -216,6 +220,15 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] `/friendai memory forget <id>` and `/friendai memory clear world` work; messages read correctly in English and Russian.
 - [ ] Settings → Memory → off, then `/friendai reload`: the companion no longer remembers; `/friendai memory` says memory is off.
 
+## Memory retrieval
+
+- [ ] `memory.retrieval` is `off` by default: the prompt uses the ordinary bounded memory block and no derived index is written.
+- [ ] Set `memory.retrieval=lexical`, reload, and ask a question whose words appear in one remembered fact: that fact is selected, the block says it is a word match rather than meaning, and no unselected fact is rendered.
+- [ ] Ask as a guest: owner-private facts are never selected or embedded; only facts the guest may see can appear.
+- [ ] Forget the selected fact, then ask again: it is not retrievable, and the next request rebuilds the index without its vector.
+- [ ] Delete or corrupt the memory file's derived section: the owner's facts stay readable and the prompt falls back without an error.
+- [ ] Restart the server: a valid index is reused; a stale or unknown-version index is rebuilt or ignored, never trusted blindly.
+
 ## Places
 
 - [ ] "Remember this as home": `remember_place` stores it; `/friendai place list` and the Places tab show it, and after a server restart it is still there (`<world>/friendai/places/<uuid>.json`).
@@ -225,6 +238,14 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] Remember a place in the Nether, return to the Overworld and ask the companion to go there: `go_to_place` refuses, saying the place is in `minecraft:the_nether` and that it cannot cross dimensions.
 - [ ] Fill the book to `places.maxPlaces`, then ask to remember one more: the tool refuses and says to forget one first; renaming an existing place still works.
 - [ ] `/friendai place add`, `info`, `rename` and `remove` work for the owner, and their replies read correctly in English and Russian.
+
+## Portal travel
+
+- [ ] Stand in the Overworld with 10 obsidian and a flint and steel, no lit portal within 16 blocks, and ask the companion to travel to the Nether: it builds and lights a frame, walks into it, arrives safely, and `find_place` shows a `return portal` place in the Overworld.
+- [ ] Remove or rename that place, then travel again: the companion does not recreate or rewrite it silently and falls back to the nearest portal.
+- [ ] Ask for the End: one typed refusal naming the unsupported route; no blocks are placed and the companion does not move dimension.
+- [ ] Cancel the task while it walks or builds: navigation stops, no turn is sent, and no chunk lease remains held.
+- [ ] Repeat the trip after a restart or the companion's death: the recorded anchor is still used and the destination landing is revalidated.
 
 ## Companion control menu
 

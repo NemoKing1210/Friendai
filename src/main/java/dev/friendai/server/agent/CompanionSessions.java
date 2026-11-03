@@ -15,6 +15,7 @@ import dev.friendai.agent.turn.BrainSettings;
 import dev.friendai.agent.turn.CompanionBrain;
 import dev.friendai.agent.turn.DebugLogObserver;
 import dev.friendai.agent.turn.LlmGateway;
+import dev.friendai.agent.turn.MemorySource;
 import dev.friendai.agent.turn.Persona;
 import dev.friendai.agent.turn.Speaker;
 import dev.friendai.debug.DebugService;
@@ -41,6 +42,8 @@ import dev.friendai.features.memory.Subject;
 import dev.friendai.features.memory.minecraft.tool.MemoryAccess;
 import dev.friendai.features.memory.minecraft.tool.SelfAccess;
 import dev.friendai.features.memory.minecraft.tool.TrustAccess;
+import dev.friendai.features.memory.retrieval.MemoryRetrieval;
+import dev.friendai.features.memory.retrieval.RetrievalCache;
 import dev.friendai.features.memory.transcript.TranscriptBook;
 import dev.friendai.features.memory.transcript.TranscriptLimits;
 import dev.friendai.features.memory.transcript.TranscriptObserver;
@@ -1262,6 +1265,9 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
         Speaker effective = session.speakerWrapper()
                 .apply(new dev.friendai.agent.turn.OwnerPresentSpeaker(
                         speaker, () -> companion.owner().isPresent()));
+        // One retrieval cache per companion session. A session belongs to one owner, and a session switch builds a
+        // new cache, so an index built for one principal can never be published into another one.
+        RetrievalCache retrievalCache = new RetrievalCache();
         CompanionBrain brain = new CompanionBrain(
                 () -> new Persona(
                         companion.getName().getString(),
@@ -1281,26 +1287,48 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                 effective,
                 scheduler,
                 AccessResolver.of(owner, p -> memory.book(owner).isTrusted(p)),
-                caller -> {
-                    String memoryText = config.memory.enabled
-                            ? MemoryPromptRenderer.render(
-                                    memory.book(owner),
+                new MemorySource() {
+                    @Override
+                    public String describe(Caller caller) {
+                        return describe(caller, "");
+                    }
+
+                    @Override
+                    public String describe(Caller caller, String playerText) {
+                        if (!config.memory.enabled) {
+                            return "";
+                        }
+                        MemoryBook book = memory.book(owner);
+                        String memoryText = MemoryRetrieval.prompt(
+                                book,
+                                owner,
+                                caller,
+                                playerText,
+                                config.memory.retrievalSettings(),
+                                retrievalCache,
+                                gateways.redactor());
+                        if (memoryText.isEmpty()) {
+                            // Retrieval off, no backend, a missing or stale index, or nothing selected: the ordinary
+                            // bounded book renders exactly as it did before.
+                            memoryText = MemoryPromptRenderer.render(
+                                    book,
                                     owner,
                                     caller,
                                     config.memory.limits(),
                                     config.memory.compactAtPercent,
-                                    gateways.redactor())
-                            : "";
-                    String continuity = continuity(owner, session, caller);
-                    String social = InteractionStyle.appendTo(
-                            config.companion.interactionStyle,
-                            dev.friendai.features.social.BondPrompt.line(
-                                    companion.bondTier(),
-                                    companion.syncedMood(),
-                                    companion.bondReasons(),
-                                    companion.traits(),
-                                    caller.access() == AccessLevel.OWNER && owner.equals(caller.uuid())));
-                    return joinBlocks(memoryText, continuity, social);
+                                    gateways.redactor());
+                        }
+                        String continuity = continuity(owner, session, caller);
+                        String social = InteractionStyle.appendTo(
+                                config.companion.interactionStyle,
+                                dev.friendai.features.social.BondPrompt.line(
+                                        companion.bondTier(),
+                                        companion.syncedMood(),
+                                        companion.bondReasons(),
+                                        companion.traits(),
+                                        caller.access() == AccessLevel.OWNER && owner.equals(caller.uuid())));
+                        return joinBlocks(memoryText, continuity, social);
+                    }
                 },
                 toolCatalog);
         brain.setTradingTurnPort(session.tradingAuthority());

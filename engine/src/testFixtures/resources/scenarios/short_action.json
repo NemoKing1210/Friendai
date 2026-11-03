@@ -1,0 +1,10 @@
+{
+  "name": "short_action",
+  "access": "owner",
+  "playerSays": "Mine three coal.",
+  "replies": [
+    {"text": "", "tools": ["mine_blocks"]},
+    {"text": "Mined three coal.", "tools": []}
+  ],
+  "expect": {"maxRequests": 2, "toolsCalled": ["mine_blocks"], "maxRepeatedToolCalls": 0, "spokenContains": ["three coal"]}
+}

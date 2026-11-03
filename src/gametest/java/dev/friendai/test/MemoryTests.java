@@ -14,7 +14,9 @@ import dev.friendai.agent.turn.Speaker;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.features.memory.Category;
 import dev.friendai.features.memory.MemoryBook;
+import dev.friendai.features.memory.Subject;
 import dev.friendai.foundation.text.UserMessage;
+import dev.friendai.infrastructure.config.ServerConfig;
 import dev.friendai.server.agent.chat.ChatRouter;
 import dev.friendai.server.runtime.ServerRuntime;
 import dev.friendai.server.runtime.ServerRuntimeRegistry;
@@ -139,6 +141,57 @@ public class MemoryTests {
                                     && owner.getUUID().equals(f.authorUuid())
                                     && f.category() == Category.PREFERENCE),
                     "no preference fact: " + book.allFacts());
+        });
+    }
+
+    @GameTest(maxTicks = 200)
+    public void lexicalRetrievalPutsOnlyTheMatchingFactInThePrompt(GameTestHelper h) {
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        var server = h.getLevel().getServer();
+        ServerRuntime state = GameTestSupport.runtime(server);
+        CompanionManager.get(server).summon(owner);
+        MemoryBook book = state.memory().book(owner.getUUID());
+        book.addFact(
+                Subject.WORLD,
+                Category.PLACE,
+                "The lake is north of the base",
+                owner.getUUID(),
+                owner.getName().getString(),
+                0,
+                state.config().memory.limits());
+        book.addFact(
+                Subject.player(owner.getUUID()),
+                Category.NOTE,
+                "Keeps diamonds under the bed",
+                owner.getUUID(),
+                owner.getName().getString(),
+                0,
+                state.config().memory.limits());
+
+        // The operator opts in to the lexical backend and asks for one fact at most. The config object is shared with
+        // the running sessions, which read it per turn, so the switch is restored before the test finishes: other
+        // tests in the same server must see the shipped default.
+        ServerConfig retrieval = state.config();
+        retrieval.memory.retrieval = "lexical";
+        retrieval.memory.retrievalTopK = 1;
+        retrieval.memory.retrievalMaxChars = 600;
+        h.assertTrue(retrieval.validate().isEmpty(), "retrieval settings should validate");
+        state.sessions().reload(retrieval);
+
+        Script script = new Script().text("North of here.");
+        state.sessions().setGatewayOverride(owner.getUUID(), script);
+        state.sessions().sendMessage(owner.getUUID(), owner.getName().getString(), "Where is the lake?");
+        h.succeedWhen(() -> {
+            h.assertTrue(script.requests.size() >= 1, "requests so far: " + script.requests.size());
+            String system = script.requests.get(script.requests.size() - 1).system();
+            retrieval.memory.retrieval = "off";
+            retrieval.memory.retrievalTopK = 5;
+            state.sessions().reload(retrieval);
+            h.assertTrue(system.contains("The lake is north of the base"), "prompt was " + system);
+            h.assertTrue(system.contains("word match, not meaning"), "the block must label the lexical backend");
+            h.assertFalse(
+                    system.contains("Keeps diamonds under the bed"),
+                    "an unselected fact reached the prompt: " + system);
         });
     }
 

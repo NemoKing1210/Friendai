@@ -1,0 +1,13 @@
+{
+  "name": "hour_passive",
+  "access": "owner",
+  "eventKind": "free_time",
+  "event": "stock the food chest",
+  "autonomy": "passive",
+  "simulatedTicks": 72000,
+  "replies": [
+    {"text": "", "tools": ["choose_activity"]},
+    {"text": "[silent]", "tools": []}
+  ],
+  "expect": {"maxRequests": 0, "toolsNotCalled": ["choose_activity"], "nothingSpoken": true, "maxClarifications": 0}
+}

@@ -1,6 +1,7 @@
 package dev.friendai.features.memory;
 
 import dev.friendai.features.social.BondState;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -29,6 +30,14 @@ public final class MemoryBook {
     private final Map<UUID, dev.friendai.features.social.Traits> traits = new LinkedHashMap<>();
     /** Item id to allowed: true when the owner allowed a food the companion refuses by default, false to ban one. */
     private final TreeMap<String, Boolean> foodRules = new TreeMap<>();
+    /**
+     * Derived retrieval vectors per owner. A cache beside the facts, never a source of truth: it is only read while it
+     * matches the current facts and is dropped as soon as one is added, edited or forgotten.
+     */
+    private final Map<UUID, dev.friendai.features.memory.retrieval.RetrievalIndex> retrievalIndexes =
+            new LinkedHashMap<>();
+    /** This book belongs to one owner; the cap only guards against a caller storing an index for others. */
+    private static final int MAX_RETRIEVAL_OWNERS = 4;
 
     private int nextId = 1;
     private long revision;
@@ -254,6 +263,79 @@ public final class MemoryBook {
     /** Every journal, in insertion order. Package-private: the record codec is the only writer. */
     Map<UUID, dev.friendai.features.social.HappeningJournal> journals() {
         return Collections.unmodifiableMap(new LinkedHashMap<>(journals));
+    }
+
+    /**
+     * The owner's derived retrieval index, but only while it still covers exactly the facts in this book. A derived
+     * index is a cache, not a source of truth: an add, edit or forget moves the digest, so the stale index is dropped
+     * here and rebuilt on demand, and a forgotten fact's vectors never reach disk.
+     */
+    public Optional<dev.friendai.features.memory.retrieval.RetrievalIndex> retrievalIndex(UUID owner) {
+        if (owner == null) {
+            return Optional.empty();
+        }
+        var index = retrievalIndexes.get(owner);
+        if (index == null) {
+            return Optional.empty();
+        }
+        if (!index.matchesFacts(retrievalFactsDigest())) {
+            retrievalIndexes.remove(owner);
+            return Optional.empty();
+        }
+        return Optional.of(index);
+    }
+
+    /**
+     * Stores the derived index for one owner, or forgets it when {@code index} is null. An index that does not match
+     * the current facts is refused rather than stored, and the revision moves only when the stored value changed, so a
+     * reader that rebuilds the same index twice does not make the book look dirty forever.
+     *
+     * @return whether the stored value changed
+     */
+    public boolean putRetrievalIndex(UUID owner, dev.friendai.features.memory.retrieval.RetrievalIndex index) {
+        if (owner == null) {
+            return false;
+        }
+        if (index == null) {
+            return retrievalIndexes.remove(owner) != null;
+        }
+        if (!index.matchesFacts(retrievalFactsDigest())) {
+            return false;
+        }
+        var previous = retrievalIndexes.put(owner, index);
+        while (retrievalIndexes.size() > MAX_RETRIEVAL_OWNERS) {
+            retrievalIndexes.remove(retrievalIndexes.keySet().iterator().next());
+        }
+        if (index.equals(previous)) {
+            return false;
+        }
+        dirty = true;
+        revision++;
+        return true;
+    }
+
+    /** The indexes still matching the facts, keyed by owner. Package-private: the record codec is the only writer. */
+    Map<UUID, dev.friendai.features.memory.retrieval.RetrievalIndex> retrievalIndexes() {
+        long facts = retrievalFactsDigest();
+        Map<UUID, dev.friendai.features.memory.retrieval.RetrievalIndex> fresh = new LinkedHashMap<>();
+        retrievalIndexes.forEach((owner, index) -> {
+            if (index.matchesFacts(facts)) {
+                fresh.put(owner, index);
+            }
+        });
+        return Collections.unmodifiableMap(fresh);
+    }
+
+    /** The digest of the bounded fact set an index may cover: ascending id, capped like the index itself. */
+    private long retrievalFactsDigest() {
+        List<dev.friendai.features.memory.retrieval.RetrievalIndex.Source> sources = new ArrayList<>();
+        for (Fact fact : facts.values()) {
+            if (sources.size() == dev.friendai.features.memory.retrieval.RetrievalIndex.MAX_ENTRIES) {
+                break;
+            }
+            sources.add(new dev.friendai.features.memory.retrieval.RetrievalIndex.Source(fact.id(), fact.text()));
+        }
+        return dev.friendai.features.memory.retrieval.RetrievalIndex.digest(sources);
     }
 
     public Optional<Fact> fact(int id) {
@@ -558,6 +640,15 @@ public final class MemoryBook {
             UUID owner = parseUuid(entry.getKey());
             if (owner != null && entry.getValue() != null) {
                 book.bonds.put(owner, entry.getValue());
+            }
+        }
+        // A derived index is restored only while it still covers the facts just loaded; a stale one is dropped, and
+        // the next prompt rebuilds it. Its write bumps the revision, which is overwritten below by the stored one.
+        for (Map.Entry<String, dev.friendai.features.memory.retrieval.RetrievalIndex> entry :
+                record.retrieval().entrySet()) {
+            UUID owner = parseUuid(entry.getKey());
+            if (owner != null) {
+                book.putRetrievalIndex(owner, entry.getValue());
             }
         }
         book.revision = Math.max(0, record.revision());

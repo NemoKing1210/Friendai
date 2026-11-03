@@ -14,6 +14,7 @@ import dev.friendai.client.ui.PauseMenuButton;
 import dev.friendai.client.voice.PushToTalkHandler;
 import dev.friendai.client.voice.VoiceHud;
 import dev.friendai.client.voice.VoiceRuntime;
+import dev.friendai.client.voice.WakeWordHandler;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.menu.FriendaiMenus;
 import dev.friendai.protocol.speech.SpeechRequest;
@@ -117,5 +118,52 @@ public class FriendaiClient implements ClientModInitializer {
                 (sessionId, text) -> CompanionRequests.send(sessionId, new SpeechRequest.Transcript(text)));
         RUNTIME.registerPushToTalk(pushToTalk);
         pushToTalk.register();
+
+        WakeWordHandler wake = new WakeWordHandler(
+                VoiceRuntime.mic(),
+                () -> clientConfig().voice.stt.inputDevice,
+                WAKE_HOST,
+                FriendaiClient::clientConfig,
+                VoiceRuntime::stt,
+                RUNTIME::sessionId,
+                (sessionId, text) -> CompanionRequests.send(sessionId, new SpeechRequest.Transcript(text)),
+                () -> VoiceRuntime.wakeDetector(clientConfig().voice.wake.phrase));
+        pushToTalk.onCapture(wake::setPushToTalkCapturing);
+        RUNTIME.registerWakeWord(wake);
+        ClientTickEvents.END_CLIENT_TICK.register(client -> wake.tick());
     }
+
+    /**
+     * The game-side facts hands-free listening needs. It is kept out of {@link WakeWordHandler} so the pipeline can be
+     * unit-tested without a Minecraft client: every condition that may stop the microphone lives here, reading the
+     * live configuration rather than a copy of it.
+     */
+    private static final WakeWordHandler.Host WAKE_HOST = new WakeWordHandler.Host() {
+        @Override
+        public boolean canListen() {
+            dev.friendai.infrastructure.config.ClientConfig config = clientConfig();
+            net.minecraft.client.Minecraft minecraft = net.minecraft.client.Minecraft.getInstance();
+            return RUNTIME.sessionId() != null
+                    && minecraft.gui.screen() == null
+                    && minecraft.player != null
+                    && config.voice.stt.enabled
+                    && config.voice.wake.enabled
+                    && !SpeechRuntime.isSpeaking();
+        }
+
+        @Override
+        public boolean isCurrent(dev.friendai.presentation.companion.ClientSessionId session, int generation) {
+            return VoiceRuntime.isCurrentOperation(session, generation);
+        }
+
+        @Override
+        public int nextGeneration() {
+            return VoiceRuntime.nextCaptureGeneration();
+        }
+
+        @Override
+        public void execute(Runnable task) {
+            net.minecraft.client.Minecraft.getInstance().execute(task);
+        }
+    };
 }

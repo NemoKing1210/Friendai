@@ -38,6 +38,9 @@ public final class NavigationCheckpoints {
     }
 
     public static Optional<Task> travelThroughPortal(TaskState state, TaskContext context) {
-        return Optional.of(new TravelThroughPortalTask(state.data()));
+        // An empty or garbled destination must not restore: the task would only fail its first tick.
+        return TravelThroughPortalTask.isSupportedDestination(state.data())
+                ? Optional.of(new TravelThroughPortalTask(state.data()))
+                : Optional.empty();
     }
 }

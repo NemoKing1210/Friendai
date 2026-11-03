@@ -1,9 +1,14 @@
 package dev.friendai.agent.eval;
 
 import dev.friendai.agent.llm.model.LlmResponse;
+import dev.friendai.agent.llm.model.Message;
 import dev.friendai.agent.llm.model.ToolCall;
+import dev.friendai.agent.llm.model.ToolSpec;
 import dev.friendai.agent.turn.AccessResolver;
+import dev.friendai.agent.turn.AgentSettings;
+import dev.friendai.agent.turn.AgentSettings.Autonomy;
 import dev.friendai.agent.turn.BrainEvent;
+import dev.friendai.agent.turn.BrainObserver;
 import dev.friendai.agent.turn.BrainSettings;
 import dev.friendai.agent.turn.CompanionBrain;
 import dev.friendai.agent.turn.LlmGateway;
@@ -20,6 +25,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 /** Runs a {@link Scenario} against a real {@link CompanionBrain} with scripted fakes and judges the outcome. */
 public final class ScenarioRunner {
@@ -34,7 +40,17 @@ public final class ScenarioRunner {
     public static final List<String> NARRATION_MARKERS =
             List.of("done", "finished", "built", "collected", "crafted", "delivered", "completed");
 
-    /** What happened during the run, in observable counters only. */
+    /**
+     * What happened during the run, in observable counters only.
+     *
+     * <p>Payload fields ({@code systemChars}, {@code historyMessages}, {@code historyChars}, {@code toolSpecs},
+     * {@code toolSpecBytes}) are sums over every request in the run. They are {@code null}, not zero, when the run
+     * made no request: nothing was sent, so nothing was measured. {@code simulatedTicks} is {@code null} when the
+     * fixture did not ask for a simulated clock. Usage fields are {@code null} when no completed response carried a
+     * usage envelope; {@code syntheticUsage} marks the scripted {@code Usage(0, 0)} values, which are never provider
+     * spend. Every list is copied and every value comes from the run, so two runs of one fixture can be compared with
+     * record equality.
+     */
     public record Result(
             int requests,
             List<String> toolsCalled,
@@ -43,15 +59,47 @@ public final class ScenarioRunner {
             int narration,
             int repeatedToolCalls,
             boolean silent,
-            List<String> failures) {
+            List<String> failures,
+            Integer systemChars,
+            Integer historyMessages,
+            Integer historyChars,
+            Integer toolSpecs,
+            Integer toolSpecBytes,
+            Integer retries,
+            Integer errors,
+            Integer cancelledRequests,
+            Integer simulatedTicks,
+            boolean syntheticUsage,
+            Integer usageInputTokens,
+            Integer usageOutputTokens,
+            int usageSources,
+            List<String> outcomes,
+            Autonomy autonomy,
+            int promptBudget) {
         public Result {
             toolsCalled = List.copyOf(toolsCalled);
             spoken = List.copyOf(spoken);
             failures = List.copyOf(failures);
+            outcomes = List.copyOf(outcomes);
         }
 
         public boolean passed() {
             return failures.isEmpty();
+        }
+
+        /** The judged outcome, for the baseline table. */
+        public String outcome() {
+            return passed() ? "pass" : "fail";
+        }
+
+        /** Where the numbers come from: a scripted fake or a live provider, and whether usage is measured or synthetic. */
+        public String provenance() {
+            if (syntheticUsage) {
+                return usageSources == 0
+                        ? "scripted FakeGateway; usage unknown (synthetic gateway)"
+                        : "scripted FakeGateway; usage synthetic";
+            }
+            return usageSources == 0 ? "live provider; usage unknown" : "live provider; usage provider-reported";
         }
     }
 
@@ -67,11 +115,21 @@ public final class ScenarioRunner {
     public static Result run(Scenario s, LlmGateway live) {
         FakeGateway gateway = new FakeGateway();
         AtomicInteger liveRequests = new AtomicInteger();
+        AtomicInteger liveUsageSources = new AtomicInteger();
+        AtomicLong liveInputTokens = new AtomicLong();
+        AtomicLong liveOutputTokens = new AtomicLong();
         LlmGateway used = live == null
                 ? gateway
                 : (system, messages, specs) -> {
                     liveRequests.incrementAndGet();
-                    return live.complete(system, messages, specs);
+                    return live.complete(system, messages, specs).thenApply(response -> {
+                        if (response != null && response.usage() != null) {
+                            liveUsageSources.incrementAndGet();
+                            liveInputTokens.addAndGet(response.usage().inputTokens());
+                            liveOutputTokens.addAndGet(response.usage().outputTokens());
+                        }
+                        return response;
+                    });
                 };
         AtomicInteger ids = new AtomicInteger();
         CompletableFuture<LlmResponse> interrupted = null;
@@ -84,6 +142,7 @@ public final class ScenarioRunner {
         }
         FakeToolExecutor tools = new FakeToolExecutor();
         RecordingSpeaker speaker = new RecordingSpeaker();
+        ManualScheduler scheduler = new ManualScheduler();
         Set<UUID> trusted = new HashSet<>();
         String access = s.access() == null ? "owner" : s.access();
         UUID speakerId = access.equals("owner") ? OWNER : OTHER;
@@ -92,14 +151,22 @@ public final class ScenarioRunner {
         }
         CompanionBrain brain = new CompanionBrain(
                 () -> new Persona("Friendai", "friendly", "auto"),
-                () -> new BrainSettings(8, 30, 0, 0),
+                ScenarioRunner::brainSettings,
                 () -> used,
                 tools,
                 () -> "Position: 0 64 0",
                 speaker,
-                new ManualScheduler(),
+                scheduler,
                 AccessResolver.of(OWNER, trusted::contains));
-        brain.post(eventFor(s, speakerId));
+        Meter meter = new Meter();
+        brain.setObserver(meter);
+        brain.setAgentSettings(() -> agentSettings(s));
+        String suppressed = suppressedByAutonomy(s);
+        if (suppressed == null) {
+            brain.post(eventFor(s, speakerId));
+        } else {
+            meter.outcomes.add("dropped: " + suppressed);
+        }
         if (s.followUpEvent() != null && !s.followUpEvent().isBlank()) {
             brain.post(new BrainEvent.WorldNotice(s.followUpEvent()));
         }
@@ -110,7 +177,19 @@ public final class ScenarioRunner {
                     : s.replies().getFirst();
             interrupted.complete(responseFor(first, ids));
         }
+        int simulatedTicks = s.simulatedTicks() == null ? 0 : s.simulatedTicks();
+        for (int tick = 0; tick < simulatedTicks; tick++) {
+            scheduler.advance(Scenario.MILLIS_PER_TICK);
+        }
+
         int requests = live == null ? gateway.requests.size() : liveRequests.get();
+        FakeGateway.Payload payload = live == null ? gateway.payload() : meter.payload;
+        FakeGateway.UsageTotal usage = gateway.usageTotal();
+        int usageSources = live == null ? usage.sources() : liveUsageSources.get();
+        Integer usageInput =
+                usageSources == 0 ? null : live == null ? usage.inputTokens() : (int) liveInputTokens.get();
+        Integer usageOutput =
+                usageSources == 0 ? null : live == null ? usage.outputTokens() : (int) liveOutputTokens.get();
         List<String> called = List.copyOf(tools.executed);
         List<String> spoken = List.copyOf(speaker.said);
         int clarifications = clarifications(spoken);
@@ -121,7 +200,104 @@ public final class ScenarioRunner {
             failures = new ArrayList<>(failures);
             failures.add("a cancelled turn must have no effect; tools=" + called + " spoken=" + spoken);
         }
-        return new Result(requests, called, spoken, clarifications, narration, repeated, spoken.isEmpty(), failures);
+        boolean sent = requests > 0;
+        return new Result(
+                requests,
+                called,
+                spoken,
+                clarifications,
+                narration,
+                repeated,
+                spoken.isEmpty(),
+                failures,
+                sent ? payload.systemChars() : null,
+                sent ? payload.historyMessages() : null,
+                sent ? payload.historyChars() : null,
+                sent ? payload.toolSpecs() : null,
+                sent ? payload.toolSpecBytes() : null,
+                live == null ? gateway.retries() : null,
+                meter.errors,
+                count(meter.outcomes, "cancelled"),
+                s.simulatedTicks() == null ? null : simulatedTicks,
+                live == null,
+                usageInput,
+                usageOutput,
+                usageSources,
+                meter.outcomes,
+                s.autonomyLevel(),
+                s.effectivePromptBudget());
+    }
+
+    /** The harness's fixed brain budget: eight tool steps and thirty history messages, no cooldowns. */
+    private static BrainSettings brainSettings() {
+        return new BrainSettings(8, 30, 0, 0);
+    }
+
+    /** The settings the real server installs on the brain, with the fixture's autonomy and prompt budget. */
+    private static AgentSettings agentSettings(Scenario s) {
+        AgentSettings defaults = AgentSettings.DEFAULTS;
+        return new AgentSettings(
+                defaults.toolRouting(),
+                s.autonomyLevel(),
+                defaults.maxReplans(),
+                defaults.goalTickSec(),
+                s.effectivePromptBudget(),
+                defaults.plannerTimeoutSec());
+    }
+
+    /**
+     * The autonomy ceiling the real drivers apply before an event is generated. A passive companion starts no free
+     * time, and only an autonomous one posts the "ask what to do next" nudge; world notices and player messages are
+     * not filtered here.
+     */
+    private static String suppressedByAutonomy(Scenario s) {
+        if (s.playerSays() != null) {
+            return null;
+        }
+        if ("free_time".equals(s.eventKind()) && s.autonomyLevel() == Autonomy.PASSIVE) {
+            return "free time at PASSIVE";
+        }
+        if ("idle".equals(s.eventKind()) && s.autonomyLevel() != Autonomy.AUTONOMOUS) {
+            return "idle nudge below AUTONOMOUS";
+        }
+        return null;
+    }
+
+    private static int count(List<String> values, String wanted) {
+        int found = 0;
+        for (String value : values) {
+            if (wanted.equals(value)) {
+                found++;
+            }
+        }
+        return found;
+    }
+
+    /** Aggregates the exact requests the brain sent and the turn outcomes it reported. */
+    private static final class Meter implements BrainObserver {
+        FakeGateway.Payload payload = FakeGateway.Payload.ZERO;
+        final List<String> outcomes = new ArrayList<>();
+        int errors;
+
+        @Override
+        public void onRequest(String system, List<Message> messages, List<ToolSpec> tools) {
+            payload = payload.plus(FakeGateway.measure(system, messages, tools));
+        }
+
+        @Override
+        public void onTurnEnd(long turn, String outcome) {
+            outcomes.add(outcome);
+        }
+
+        @Override
+        public void onEventDropped(BrainEvent event, String reason) {
+            outcomes.add("dropped: " + reason);
+        }
+
+        @Override
+        public void onError(Throwable error) {
+            errors++;
+        }
     }
 
     /** Builds the gateway response for one scripted reply, numbering the tool calls so ids stay unique. */

@@ -35,6 +35,7 @@ import dev.friendai.features.speech.stt.SttPresets;
 import dev.friendai.features.speech.tts.TtsPresets;
 import dev.friendai.features.speech.tts.VoiceModel;
 import dev.friendai.features.speech.tts.VoiceModels;
+import dev.friendai.features.speech.wake.WakeModelCatalog;
 import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.infrastructure.config.ClientConfig;
 import dev.friendai.infrastructure.config.SecretResolver;
@@ -2098,6 +2099,7 @@ public final class FriendaiConfigScreen {
         recognition.add(sttLanguage);
         recognition.add(inputDeviceOption(stt));
         recognition.add(maxRecord);
+        recognition.addAll(wakeOptions(client));
         recognition.add(sttTest);
 
         Option<Boolean> ttsEnabled = booleanOption(
@@ -2194,6 +2196,41 @@ public final class FriendaiConfigScreen {
                         .options(synthesis)
                         .build())
                 .build();
+    }
+
+    /**
+     * Hands-free listening: off by default, one of the phrases the installed bundle can actually detect, and how much
+     * pre-wake audio the bounded ring keeps. The phrase list is the catalogue's, because the spotter matches tokens,
+     * not arbitrary text.
+     */
+    private static List<Option<?>> wakeOptions(ClientConfig client) {
+        WakeModelCatalog.WakeModel model = WakeModelCatalog.defaultModel();
+        List<String> phrases =
+                model.phrases().stream().map(WakeModelCatalog.WakePhrase::text).toList();
+        Option<Boolean> enabled = booleanOption(
+                "friendai.config.voice.wake.enabled",
+                "friendai.config.voice.wake.enabled.tooltip",
+                false,
+                () -> client.voice.wake.enabled,
+                value -> client.voice.wake.enabled = value);
+        Option<String> phrase = Option.<String>createBuilder()
+                .name(tr("friendai.config.voice.wake.phrase"))
+                .description(OptionDescription.of(tr("friendai.config.voice.wake.phrase.tooltip")))
+                .binding(
+                        model.defaultPhrase().text(),
+                        () -> client.voice.wake.phrase,
+                        value -> client.voice.wake.phrase = value)
+                .controller(o -> CyclingListControllerBuilder.<String>create(o)
+                        .values(phrases)
+                        .valueFormatter(Component::literal))
+                .build();
+        Option<Integer> preRoll = Option.<Integer>createBuilder()
+                .name(tr("friendai.config.voice.wake.pre_roll"))
+                .description(OptionDescription.of(tr("friendai.config.voice.wake.pre_roll.tooltip")))
+                .binding(2, () -> client.voice.wake.preRollSec, value -> client.voice.wake.preRollSec = value)
+                .controller(o -> IntegerFieldControllerBuilder.create(o).range(1, 5))
+                .build();
+        return List.of(enabled, phrase, preRoll);
     }
 
     private static List<Option<?>> localRecognitionOptions(

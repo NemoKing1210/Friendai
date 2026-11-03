@@ -22,3 +22,9 @@ silence.json
 second_language.json
 menu_agreement.json
 one_call_multi_item.json
+short_action.json
+eight_step_objective.json
+repairable_failure.json
+hour_passive.json
+hour_assistive.json
+hour_autonomous.json

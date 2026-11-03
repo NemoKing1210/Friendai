@@ -7,6 +7,7 @@ import dev.friendai.features.speech.ResolvedStt;
 import dev.friendai.features.speech.VoiceReadiness;
 import dev.friendai.features.speech.stt.LocalSttCatalog;
 import dev.friendai.features.speech.stt.LocalSttCatalog.LocalSttModel;
+import dev.friendai.features.speech.wake.WakeModelCatalog;
 import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.infrastructure.config.ClientConfig;
 import dev.friendai.infrastructure.config.VoiceConfig;
@@ -48,6 +49,10 @@ public final class VoiceRuntime {
     private static final LocalSttBundleManager MANAGER =
             new LocalSttBundleManager(FabricLoader.getInstance().getGameDir(), HTTP);
 
+    /** The wake-word bundle installer; it downloads one small bundle and is shared by every listening session. */
+    private static final WakeBundleManager WAKE_BUNDLES =
+            new WakeBundleManager(FabricLoader.getInstance().getGameDir(), HTTP);
+
     private static final MicCapture MIC = new MicCapture();
 
     private static SpeechToText current;
@@ -67,6 +72,19 @@ public final class VoiceRuntime {
 
     public static LocalSttBundleManager manager() {
         return MANAGER;
+    }
+
+    public static WakeBundleManager wakeBundles() {
+        return WAKE_BUNDLES;
+    }
+
+    /**
+     * One wake-word detector for one listening session. The detector loads its native model on its own worker, which
+     * it releases when the handler disarms, so a phrase change or a disconnect leaves nothing running.
+     */
+    public static WakeWordHandler.Detector wakeDetector(String phrase) {
+        return new SherpaKeywordDetector(
+                WakeModelCatalog.defaultModel(), WAKE_BUNDLES, phrase, worker("friendai-wake-kws"));
     }
 
     /** The recognizer for the configured provider, or one that reports "not ready" when it is unavailable. */
@@ -190,6 +208,7 @@ public final class VoiceRuntime {
             captureGeneration++;
             MIC.close();
             closeRecognizer();
+            WAKE_BUNDLES.close();
             currentCloud = null;
             currentCloudKey = null;
         }

@@ -6,6 +6,7 @@ import dev.friendai.agent.tools.Cost;
 import dev.friendai.agent.tools.ToolGroup;
 import dev.friendai.agent.tools.ToolMeta;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.SchemaBuilder;
 import dev.friendai.execution.tool.Tool;
 import dev.friendai.execution.tool.ToolResult;
@@ -34,7 +35,9 @@ public final class MovementTools implements FeatureToolContributor {
     private static final String GO_TO_HINT =
             "- Use go_to for one destination the owner named; it may dig and bridge, and reports a failure when no route exists.";
     private static final String PORTAL_HINT =
-            "- Use travel_through_portal only when a lit portal is within 16 blocks; the companion walks into it and never builds one.";
+            "- Use travel_through_portal to go to the nether or back to the overworld. It walks into a lit portal within"
+                    + " 16 blocks, builds and lights one from 10 obsidian and flint and steel when none is near, and"
+                    + " records a return portal before leaving.";
     private static final String JUMP_HINT =
             "- Use jump for a single hop; put several jump steps in one plan for repeats.";
 
@@ -83,9 +86,11 @@ public final class MovementTools implements FeatureToolContributor {
                 .withCheckpoint("go_to", NavigationCheckpoints::goTo));
         registry.registerTask(task(
                         "travel_through_portal",
-                        "Walk into a lit nether portal within 16 blocks and wait for vanilla to move you to the other "
-                                + "dimension. It never teleports you there and never builds a portal; no lit portal in range "
-                                + "is a plain failure.",
+                        "Travel to another dimension through a portal. Enter a lit portal within "
+                                + "16 blocks, or build and light a nether portal from 10 obsidian and "
+                                + "flint and steel when there is none; a build without those materials "
+                                + "fails plainly. The trip records a return portal before leaving and "
+                                + "never teleports you directly. The End is not supported.",
                         SchemaBuilder.object()
                                 .enumeration("dimension", "Destination", "the_nether", "overworld")
                                 .required("dimension")
@@ -93,7 +98,8 @@ public final class MovementTools implements FeatureToolContributor {
                         MovementTools::portal,
                         false,
                         new TaskToolDefinition.QueueTraits(true, null),
-                        PORTAL_HINT)
+                        PORTAL_HINT,
+                        AccessLevel.OWNER)
                 .withCheckpoint("travel_through_portal", NavigationCheckpoints::travelThroughPortal));
         registry.registerTask(task(
                         "jump",
@@ -143,7 +149,34 @@ public final class MovementTools implements FeatureToolContributor {
             boolean plannable,
             TaskToolDefinition.QueueTraits queueTraits,
             String hint) {
-        return new TaskToolDefinition(name, description, schema, factory, plannable, queueTraits, metadata(name, hint));
+        return task(name, description, schema, factory, plannable, queueTraits, hint, AccessLevel.TRUSTED);
+    }
+
+    /**
+     * A task tool with an explicit minimum access. A trip that may build and cross a dimension is owner work, not
+     * something a trusted guest's order should start.
+     */
+    private static TaskToolDefinition task(
+            String name,
+            String description,
+            JsonObject schema,
+            TaskToolDefinition.Factory factory,
+            boolean plannable,
+            TaskToolDefinition.QueueTraits queueTraits,
+            String hint,
+            AccessLevel minAccess) {
+        return new TaskToolDefinition(
+                name,
+                description,
+                schema,
+                factory,
+                null,
+                plannable,
+                minAccess,
+                queueTraits,
+                true,
+                true,
+                metadata(name, hint));
     }
 
     private static ToolMeta metadata(String name, String hint) {
@@ -158,6 +191,11 @@ public final class MovementTools implements FeatureToolContributor {
         String dimension = args.get("dimension").getAsString();
         if (!TravelThroughPortalTask.isSupportedDestination(dimension)) {
             throw new IllegalArgumentException("destination must be the_nether or overworld");
+        }
+        String source = companion.level().dimension().identifier().toString();
+        if (!TravelThroughPortalTask.isSupportedSource(source)) {
+            throw new IllegalArgumentException(
+                    "portal travel is not supported from " + source + "; only the overworld and the nether");
         }
         return new TravelThroughPortalTask(dimension);
     }

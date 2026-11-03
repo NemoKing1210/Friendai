@@ -169,6 +169,19 @@ public final class SpeechRuntime {
         });
     }
 
+    /**
+     * True while a reply is queued or being spoken. Hands-free listening uses it to stand down: with open speakers the
+     * companion's own voice would otherwise reach the microphone and wake it up.
+     */
+    public static boolean isSpeaking() {
+        if (playingPlan != null) {
+            return true;
+        }
+        synchronized (LOCK) {
+            return QUEUE.size() > 0;
+        }
+    }
+
     /** Drops what is queued and cuts off what is playing. */
     public static void stop() {
         synchronized (LOCK) {

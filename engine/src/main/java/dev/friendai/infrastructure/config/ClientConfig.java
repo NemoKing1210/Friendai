@@ -4,6 +4,7 @@ import dev.friendai.features.speech.VoicePreset;
 import dev.friendai.features.speech.stt.SttPresets;
 import dev.friendai.features.speech.tts.TtsPresets;
 import dev.friendai.features.speech.tts.VoiceModels;
+import dev.friendai.features.speech.wake.WakeModelCatalog;
 import dev.friendai.foundation.diagnostics.LogCategory;
 import dev.friendai.foundation.diagnostics.LogSettings;
 import java.util.LinkedHashMap;
@@ -13,7 +14,7 @@ import org.slf4j.LoggerFactory;
 
 /** friendai-client.json. */
 public class ClientConfig {
-    public static final int CURRENT_VERSION = 8;
+    public static final int CURRENT_VERSION = 9;
 
     private static final Logger LOGGER = LoggerFactory.getLogger("friendai/config");
     public int version = CURRENT_VERSION;
@@ -49,8 +50,22 @@ public class ClientConfig {
     public static class VoiceSection {
         public SttSection stt = new SttSection();
         public TtsSection tts = new TtsSection();
+        /** Hands-free listening; off until the owner asks for it in the settings. */
+        public WakeSection wake = new WakeSection();
         /** Ask the server for streamed replies; off buffers the complete response before anything is spoken. */
         public boolean streamReplies = true;
+    }
+
+    /**
+     * Hands-free wake word. Off by default: the microphone stays closed until the owner enables it, and then it is
+     * only open while a session exists, no screen is up and the companion is not speaking.
+     */
+    public static class WakeSection {
+        public boolean enabled = false;
+        /** One of the phrases the detector bundle carries; an unknown value falls back to the bundle's first one. */
+        public String phrase = WakeModelCatalog.defaultModel().defaultPhrase().text();
+        /** Seconds of listening audio kept in the bounded pre-roll, so the first syllable is not clipped. */
+        public int preRollSec = 2;
     }
 
     /** Speech recognition: one local Whisper model or one cloud preset at a time. */
@@ -125,8 +140,12 @@ public class ClientConfig {
         if (voice.tts == null) {
             voice.tts = new TtsSection();
         }
+        if (voice.wake == null) {
+            voice.wake = new WakeSection();
+        }
         validateStt(voice.stt);
         validateTts(voice.tts);
+        validateWake(voice.wake);
     }
 
     private static void validateStt(SttSection stt) {
@@ -166,6 +185,16 @@ public class ClientConfig {
             }
             blankToNull(settings);
         }
+    }
+
+    private static void validateWake(WakeSection wake) {
+        // Only a phrase the shipped bundle can detect is accepted; anything else silently becomes the default.
+        wake.phrase = WakeModelCatalog.defaultModel()
+                .phrase(wake.phrase)
+                .map(phrase -> phrase.text())
+                .orElseGet(() -> WakeModelCatalog.defaultModel().defaultPhrase().text());
+        // A stored or hand-edited 0 means the field was never set, not the clamping minimum.
+        wake.preRollSec = wake.preRollSec <= 0 ? 2 : Math.min(5, wake.preRollSec);
     }
 
     private static void validateTts(TtsSection tts) {

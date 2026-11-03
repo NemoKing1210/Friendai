@@ -7,6 +7,8 @@ import dev.friendai.foundation.text.UserMessage;
 public final class VoiceState {
     public enum Kind {
         IDLE,
+        /** Hands-free listening for the wake word; the microphone is open but nothing is being transcribed. */
+        LISTENING,
         RECORDING,
         TRANSCRIBING,
         ERROR

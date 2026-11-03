@@ -8,6 +8,7 @@ import dev.friendai.client.skin.SkinCache;
 import dev.friendai.client.tts.SpeechRuntime;
 import dev.friendai.client.voice.PushToTalkHandler;
 import dev.friendai.client.voice.VoiceRuntime;
+import dev.friendai.client.voice.WakeWordHandler;
 import dev.friendai.infrastructure.config.ServerConfig;
 import dev.friendai.presentation.companion.ClientSessionId;
 import dev.friendai.protocol.ClientRequest;
@@ -28,6 +29,7 @@ public final class ClientRuntime implements AutoCloseable {
     private final ClientConfigurationCoordinator configuration;
     private CompanionClientSession companionSession;
     private PushToTalkHandler pushToTalk;
+    private WakeWordHandler wakeWord;
     private ClientSessionId protocolSessionId;
     private ProtocolClientRequestGate protocolGate;
 
@@ -94,11 +96,16 @@ public final class ClientRuntime implements AutoCloseable {
         lifecycle.ownSession(id, MovementDebugState::reset);
         lifecycle.ownSession(id, SkinCache::clear);
         PushToTalkHandler handler;
+        WakeWordHandler wake;
         synchronized (this) {
             handler = pushToTalk;
+            wake = wakeWord;
         }
         if (handler != null) {
             lifecycle.ownSession(id, () -> handler.onDisconnect(id));
+        }
+        if (wake != null) {
+            lifecycle.ownSession(id, () -> wake.onDisconnect(id));
         }
         return id;
     }
@@ -151,6 +158,20 @@ public final class ClientRuntime implements AutoCloseable {
             pushToTalk = handler;
             current = companionSession == null ? null : companionSession.id();
         }
+        if (current != null) {
+            lifecycle.ownSession(current, () -> handler.onDisconnect(current));
+        }
+    }
+
+    /** Hands-free listening belongs to the client process, and its microphone to the current connection. */
+    public void registerWakeWord(WakeWordHandler handler) {
+        Objects.requireNonNull(handler, "handler");
+        ClientSessionId current;
+        synchronized (this) {
+            wakeWord = handler;
+            current = companionSession == null ? null : companionSession.id();
+        }
+        lifecycle.ownApplication(handler::close);
         if (current != null) {
             lifecycle.ownSession(current, () -> handler.onDisconnect(current));
         }

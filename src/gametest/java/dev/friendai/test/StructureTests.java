@@ -13,6 +13,11 @@ import dev.friendai.features.construction.special.SpecialStructure;
 import dev.friendai.features.construction.special.StructureBook;
 import dev.friendai.features.construction.special.StructureSnapshot;
 import dev.friendai.features.navigation.minecraft.task.TravelThroughPortalTask;
+import dev.friendai.features.places.Place;
+import dev.friendai.features.places.PlaceFile;
+import dev.friendai.features.places.PlaceKind;
+import dev.friendai.features.places.PlaceLimits;
+import dev.friendai.features.places.PlaceRegistry;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskStatus;
@@ -133,6 +138,7 @@ public class StructureTests {
     private static final class Result implements TaskEventSink {
         TaskStatus status;
         String summary = "";
+        int cancelled;
 
         @Override
         public void onFinished(int id, String toolName, TaskStatus status, String summary) {
@@ -141,16 +147,69 @@ public class StructureTests {
         }
 
         @Override
-        public void onCancelled(int id, String toolName, String reason) {}
+        public void onCancelled(int id, String toolName, String reason) {
+            cancelled++;
+        }
 
         @Override
         public void onNotice(String text) {}
     }
 
     private static ExecutionCoordinator runner(CompanionEntity companion, Result result) {
-        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 600, () -> false);
+        return runner(companion, result, 600);
+    }
+
+    private static ExecutionCoordinator runner(CompanionEntity companion, Result result, int timeoutSec) {
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> timeoutSec, () -> false);
         runner.setEventSink(result);
         return runner;
+    }
+
+    /** An owner of its own, so a recorded place never collides with another test's book. */
+    private static UUID owner(GameTestHelper h, CompanionEntity companion) {
+        var player = GameTestSupport.onlinePlayer(h, "portal", 1, 2, 1, true);
+        companion.setOwner(player.id());
+        return player.id();
+    }
+
+    /** A lit portal frame at a test-relative site, with the blocks vanilla would have placed on ignition. */
+    private static void litPortalAt(GameTestHelper h, int x, int y, int z) {
+        StructureSite site = new StructureSite(h.absolutePos(new BlockPos(x, y, z)), Rotation.NONE);
+        SpecialStructure portal = structure("nether_portal");
+        for (var block : portal.body().blocks()) {
+            h.getLevel()
+                    .setBlock(
+                            site.pos(portal, new Offset(block.x(), block.y(), block.z())),
+                            Blocks.OBSIDIAN.defaultBlockState(),
+                            3);
+        }
+        for (int dx = 1; dx <= 2; dx++) {
+            for (int dy = 1; dy <= 3; dy++) {
+                h.setBlock(x + dx, y + dy, z, Blocks.NETHER_PORTAL);
+            }
+        }
+    }
+
+    /**
+     * GameTests share one world, so a portal an earlier test built in a neighbouring cell can sit inside the 16-block
+     * search of this one. Clear those lit blocks; frames stay and nothing a later test owns has been built yet.
+     */
+    private static void clearStrayPortals(GameTestHelper h, CompanionEntity companion) {
+        BlockPos origin = companion.blockPosition();
+        var level = h.getLevel();
+        for (int dx = -16; dx <= 16; dx++) {
+            for (int dz = -16; dz <= 16; dz++) {
+                if (!level.hasChunkAt(origin.offset(dx, 0, dz))) {
+                    continue;
+                }
+                for (int dy = -4; dy <= 4; dy++) {
+                    BlockPos at = origin.offset(dx, dy, dz);
+                    if (level.getBlockState(at).is(Blocks.NETHER_PORTAL)) {
+                        level.removeBlock(at, false);
+                    }
+                }
+            }
+        }
     }
 
     private static SpecialStructureTask task(GameTestHelper h, String id, int x, int y, int z) {
@@ -345,6 +404,9 @@ public class StructureTests {
     public void a_portal_task_walks_through_the_lit_portal(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 10, 2, 10);
+        owner(h, c);
+        c.executionCoordinator().setPaused(true);
+        clearStrayPortals(h, c);
         c.inventory().addItem(new ItemStack(Items.OBSIDIAN, 10));
         c.inventory().addItem(new ItemStack(Items.COBBLESTONE, 16));
         c.inventory().addItem(new ItemStack(Items.FLINT_AND_STEEL, 1));
@@ -439,5 +501,82 @@ public class StructureTests {
             h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
             h.assertTrue(h.getBlockState(new BlockPos(4, 3, 3)).is(Blocks.NETHER_PORTAL), "the portal should be lit");
         });
+    }
+
+    @GameTest(maxTicks = 6000)
+    public void portal_trip_builds_lights_and_records_the_return_anchor(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 10, 2, 10);
+        UUID ownerId = owner(h, c);
+        c.executionCoordinator().setPaused(true);
+        clearStrayPortals(h, c);
+        c.inventory().addItem(new ItemStack(Items.OBSIDIAN, 10));
+        c.inventory().addItem(new ItemStack(Items.COBBLESTONE, 16));
+        c.inventory().addItem(new ItemStack(Items.FLINT_AND_STEEL, 1));
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result, 1800);
+        runner.start(new TravelThroughPortalTask("the_nether"), "travel_through_portal");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
+            h.assertTrue(
+                    c.level().dimension().identifier().toString().equals("minecraft:the_nether"),
+                    "still in " + c.level().dimension().identifier() + " at " + c.blockPosition());
+            PlaceRegistry book = GameTestSupport.runtime(h).places().book(ownerId);
+            Place anchor = book.find("return portal", "minecraft:overworld").orElse(null);
+            h.assertTrue(
+                    anchor != null && anchor.kind() == PlaceKind.PORTAL,
+                    "the return anchor should be a portal place, got " + anchor);
+            PlaceRegistry reloaded = PlaceFile.decode(PlaceFile.encode(book), PlaceLimits.DEFAULTS);
+            h.assertTrue(
+                    reloaded.find("return portal", "minecraft:overworld").isPresent(),
+                    "the return anchor should survive a save and reload");
+        });
+    }
+
+    @GameTest(maxTicks = 600)
+    public void a_portal_build_without_materials_is_a_typed_refusal(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 10, 2, 10);
+        owner(h, c);
+        c.executionCoordinator().setPaused(true);
+        clearStrayPortals(h, c);
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(new TravelThroughPortalTask("the_nether"), "travel_through_portal");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.FAILED, "status " + result.status);
+            h.assertTrue(result.summary.contains("minecraft:obsidian"), "summary was " + result.summary);
+            h.assertTrue(
+                    c.level().dimension().identifier().toString().equals("minecraft:overworld"),
+                    "a refused trip must not move the companion to "
+                            + c.level().dimension().identifier());
+        });
+    }
+
+    @GameTest(maxTicks = 1200)
+    public void a_cancelled_portal_trip_stops_without_a_turn(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 10, 2, 10);
+        owner(h, c);
+        c.executionCoordinator().setPaused(true);
+        clearStrayPortals(h, c);
+        litPortalAt(h, 3, 2, 3);
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(new TravelThroughPortalTask("the_nether"), "travel_through_portal");
+        for (int tick = 0; tick < 5; tick++) {
+            runner.tick();
+        }
+        runner.stop("cancelled by the test");
+        h.assertValueEqual(result.cancelled, 1, "the running trip should be cancelled, not finished");
+        h.assertTrue(result.status == null, "a cancelled task reports no finished status, got " + result.status);
+        h.assertTrue(
+                c.level().dimension().identifier().toString().equals("minecraft:overworld"),
+                "the companion must stay in the overworld, now in "
+                        + c.level().dimension().identifier());
+        h.assertTrue(c.getNavigation().isDone(), "navigation should be stopped by the cancel");
+        h.succeed();
     }
 }

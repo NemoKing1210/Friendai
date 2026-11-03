@@ -1,5 +1,6 @@
 package dev.friendai.features.memory;
 
+import dev.friendai.features.memory.retrieval.RetrievalIndex;
 import dev.friendai.features.social.BondState;
 import dev.friendai.features.social.Happening;
 import dev.friendai.features.social.HappeningJournal;
@@ -10,12 +11,16 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Immutable persisted memory snapshot, on-disk format 4: format 3 plus the owner's drifted manner.
+ * Immutable persisted memory snapshot, on-disk format 5: format 4 plus the owner's derived retrieval index.
  *
  * <p>The bond entry for one owner is a {@link BondState}, whose component names ({@code points}, {@code lastDay},
  * {@code awardedToday}, {@code reasons}, {@code peaks}) are the persisted field names. A format 1 file has no bond
  * map and reads as the current format with nothing lost: the fields it carries keep their values and the newer maps
  * start empty, which is a migration read. Any newer version is kept as read so the store still refuses it.
+ *
+ * <p>The {@code retrieval} map is a derived cache, not a source of truth: it holds numbers only (never fact text) and
+ * {@link RetrievalIndex#matchesFacts} decides whether a stored index still describes these facts. A format 4 file has
+ * no such map and gains an empty one, so old files read unchanged and the index is rebuilt on demand.
  */
 public record MemoryRecord(
         int formatVersion,
@@ -26,8 +31,9 @@ public record MemoryRecord(
         Map<String, Boolean> foodRules,
         Map<String, BondState> bonds,
         Map<String, List<Happening>> happenings,
-        Map<String, Traits> traits) {
-    public static final int FORMAT_VERSION = 4;
+        Map<String, Traits> traits,
+        Map<String, RetrievalIndex> retrieval) {
+    public static final int FORMAT_VERSION = 5;
 
     /** The oldest format this build can read; everything between it and the current version is migrated on read. */
     private static final int OLDEST_FORMAT = 1;
@@ -41,7 +47,7 @@ public record MemoryRecord(
             List<FactEntry> facts,
             Map<String, Boolean> foodRules,
             Map<String, BondState> bonds) {
-        this(formatVersion, revision, nextId, players, facts, foodRules, bonds, Map.of(), Map.of());
+        this(formatVersion, revision, nextId, players, facts, foodRules, bonds, Map.of(), Map.of(), Map.of());
     }
 
     /** The shape before the traits map, so a reader that only knows the journal keeps compiling. */
@@ -54,7 +60,21 @@ public record MemoryRecord(
             Map<String, Boolean> foodRules,
             Map<String, BondState> bonds,
             Map<String, List<Happening>> happenings) {
-        this(formatVersion, revision, nextId, players, facts, foodRules, bonds, happenings, Map.of());
+        this(formatVersion, revision, nextId, players, facts, foodRules, bonds, happenings, Map.of(), Map.of());
+    }
+
+    /** The shape before the derived retrieval index, so a reader that only knows traits keeps compiling. */
+    public MemoryRecord(
+            int formatVersion,
+            long revision,
+            int nextId,
+            List<PlayerEntry> players,
+            List<FactEntry> facts,
+            Map<String, Boolean> foodRules,
+            Map<String, BondState> bonds,
+            Map<String, List<Happening>> happenings,
+            Map<String, Traits> traits) {
+        this(formatVersion, revision, nextId, players, facts, foodRules, bonds, happenings, traits, Map.of());
     }
 
     public MemoryRecord {
@@ -65,6 +85,7 @@ public record MemoryRecord(
         bonds = copyBonds(bonds);
         happenings = copyHappenings(happenings);
         traits = copyTraits(traits);
+        retrieval = copyRetrieval(retrieval);
     }
 
     public static MemoryRecord capture(MemoryBook book) {
@@ -85,8 +106,19 @@ public record MemoryRecord(
                         happenings.put(owner.toString(), journal.recent(HappeningJournal.MAX_ENTRIES)));
         Map<String, Traits> traits = new LinkedHashMap<>();
         book.traits().forEach((owner, value) -> traits.put(owner.toString(), value));
+        Map<String, RetrievalIndex> retrieval = new LinkedHashMap<>();
+        book.retrievalIndexes().forEach((owner, index) -> retrieval.put(owner.toString(), index));
         return new MemoryRecord(
-                FORMAT_VERSION, book.revision(), file.nextId, players, facts, rules, bonds, happenings, traits);
+                FORMAT_VERSION,
+                book.revision(),
+                file.nextId,
+                players,
+                facts,
+                rules,
+                bonds,
+                happenings,
+                traits,
+                retrieval);
     }
 
     public MemoryFile toFile() {
@@ -161,6 +193,23 @@ public record MemoryRecord(
                     .toList();
             if (!bounded.isEmpty()) {
                 copied.put(owner, bounded);
+            }
+        });
+        return Collections.unmodifiableMap(copied);
+    }
+
+    /**
+     * Copies the derived indexes without null or unusable entries, keeping the owner order. An index that no longer
+     * covers the facts is dropped here, so a forgotten fact's vectors never reach disk.
+     */
+    private static Map<String, RetrievalIndex> copyRetrieval(Map<String, RetrievalIndex> retrieval) {
+        if (retrieval == null || retrieval.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, RetrievalIndex> copied = new LinkedHashMap<>();
+        retrieval.forEach((owner, index) -> {
+            if (owner != null && !owner.isBlank() && index != null && index.isUsable()) {
+                copied.put(owner, index);
             }
         });
         return Collections.unmodifiableMap(copied);
