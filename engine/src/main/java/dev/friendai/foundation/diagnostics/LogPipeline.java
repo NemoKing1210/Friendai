@@ -27,7 +27,7 @@ public final class LogPipeline {
 
     /** Sends one draft and returns the sequence it was given. */
     public long emit(LogRecord draft) {
-        LogRecord redacted = redact(draft);
+        LogRecord redacted = LogRecordBounds.apply(redact(draft));
         long assigned = sequence.incrementAndGet();
         LogRecord record = new LogRecord(
                 assigned,

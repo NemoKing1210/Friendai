@@ -135,15 +135,15 @@ public final class LogJson {
         if (record.kind() != null) {
             object.addProperty("kind", record.kind().name());
         }
-        object.addProperty("event", record.event());
+        object.addProperty("event", cap(record.event(), LogLimits.MAX_EVENT_CHARS, truncated));
         addUuid(object, "owner", record.owner());
         addUuid(object, "companion", record.companion());
-        object.addProperty("session", cap(record.session(), 16, truncated));
+        object.addProperty("session", cap(record.session(), LogLimits.MAX_SESSION_CHARS, truncated));
         object.addProperty("turn", record.turn());
         object.addProperty("plan", record.plan());
         object.addProperty("job", record.job());
         object.addProperty("task", record.task());
-        object.addProperty("toolCall", cap(record.toolCall(), 64, truncated));
+        object.addProperty("toolCall", cap(record.toolCall(), LogLimits.MAX_TOOL_CALL_CHARS, truncated));
         object.addProperty("cause", record.cause());
         object.addProperty("durationMs", record.durationMs());
         if (record.data() != null && !record.data().isEmpty()) {
@@ -163,7 +163,7 @@ public final class LogJson {
         object.addProperty("msg", cap(record.message(), LogLimits.MAX_MESSAGE_CHARS, truncated));
         if (record.error() != null) {
             JsonObject error = new JsonObject();
-            error.addProperty("type", cap(record.error().type(), 80, truncated));
+            error.addProperty("type", cap(record.error().type(), LogLimits.MAX_ERROR_TYPE_CHARS, truncated));
             error.addProperty("msg", cap(record.error().message(), LogLimits.MAX_MESSAGE_CHARS, truncated));
             error.addProperty("stack", cap(record.error().stack(), LogLimits.MAX_STACK_CHARS, truncated));
             int frames = Math.min(record.error().frames(), LogLimits.MAX_STACK_FRAMES);
