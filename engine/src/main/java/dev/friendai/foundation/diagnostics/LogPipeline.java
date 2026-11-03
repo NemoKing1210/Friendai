@@ -60,6 +60,14 @@ public final class LogPipeline {
         return assigned;
     }
 
+    /**
+     * Reserves the next sequence for a record that reaches a sink without passing through {@link #emit}, such as a
+     * writer-generated loss marker or a bridged logger record. The pipeline stays the one sequence owner.
+     */
+    public long reserveSequence() {
+        return sequence.incrementAndGet();
+    }
+
     /** How many sink deliveries threw; a broken sink never reaches gameplay or stops the other sinks. */
     public long sinkFailures() {
         return sinkFailures.get();

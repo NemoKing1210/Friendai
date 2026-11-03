@@ -2,6 +2,7 @@ package dev.friendai.agent.turn;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -12,6 +13,7 @@ import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.foundation.diagnostics.LogCategory;
+import dev.friendai.foundation.diagnostics.LogContext;
 import dev.friendai.foundation.diagnostics.LogEvents;
 import dev.friendai.foundation.diagnostics.LogKind;
 import dev.friendai.foundation.diagnostics.LogLevel;
@@ -45,6 +47,49 @@ class StructuredLogObserverTest {
 
     private static ToolCall call(String name) {
         return new ToolCall("call-1", name, null, "{\"count\":3}", null);
+    }
+
+    @Test
+    void everyToolCallCapturesItsOwnContextAndTheRecordTrace() {
+        Recall sink = new Recall();
+        DebugLogObserver observer =
+                new DebugLogObserver(OWNER, COMPANION, "s1", pipeline(sink, LogLevel.INFO), "trace-1");
+        observer.onTurnStart(4);
+        ToolCall first = new ToolCall("call-a", "mine_block_at", null, "{}", null);
+        ToolCall second = new ToolCall("call-b", "give_items", null, "{}", null);
+
+        observer.onToolCall(first);
+        LogContext firstContext = observer.contextForToolCall("call-a");
+        observer.onToolCall(second);
+        LogContext secondContext = observer.contextForToolCall("call-b");
+
+        assertEquals("mine_block_at", firstContext.toolCall());
+        assertEquals("give_items", secondContext.toolCall());
+        assertEquals(4L, firstContext.turn());
+        assertEquals("trace-1", firstContext.trace());
+        assertEquals(firstContext.trace(), secondContext.trace());
+        assertEquals(sink.records.get(1).seq(), firstContext.cause(), "a queued task descends from its tool.call");
+        assertEquals(sink.records.get(2).seq(), secondContext.cause());
+        assertEquals("trace-1", sink.records.get(1).data().get("trace"));
+        assertEquals("trace-1", sink.records.get(0).data().get("trace"));
+    }
+
+    @Test
+    void anOlderCallNeverBorrowsANewerCallsContext() {
+        Recall sink = new Recall();
+        DebugLogObserver observer =
+                new DebugLogObserver(OWNER, COMPANION, "s1", pipeline(sink, LogLevel.INFO), "trace-2");
+        observer.onTurnStart(4);
+        observer.onToolCall(new ToolCall("call-a", "mine_block_at", null, "{}", null));
+        observer.onToolCall(new ToolCall("call-b", "give_items", null, "{}", null));
+
+        LogContext stale = observer.contextForToolCall("call-a");
+
+        assertEquals("", stale.toolCall(), "an unreachable call gets a detached root, not call-b");
+        assertNotEquals("give_items", stale.toolCall());
+        assertEquals(4L, stale.turn());
+        assertEquals("trace-2", stale.trace());
+        assertEquals(sink.records.get(0).seq(), stale.cause(), "the root still descends from the turn");
     }
 
     @Test

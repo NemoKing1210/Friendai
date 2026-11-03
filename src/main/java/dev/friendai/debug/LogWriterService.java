@@ -147,6 +147,7 @@ public final class LogWriterService implements LogSink, AutoCloseable {
     private final int controlReserve;
     private final int detailReserve;
     private volatile UnaryOperator<String> redactor;
+    private volatile java.util.function.LongSupplier sequenceSource = () -> 0L;
     private volatile LogSettings settings;
     private volatile boolean closed;
     private volatile boolean failed;
@@ -288,6 +289,14 @@ public final class LogWriterService implements LogSink, AutoCloseable {
 
     public void update(LogSettings settings) {
         if (settings != null) this.settings = settings;
+    }
+
+    /**
+     * Shares the diagnostic pipeline's sequence allocator, so a record that reaches a sink directly (a loss marker
+     * or a bridged logger record) still carries one pipeline sequence instead of zero.
+     */
+    public void useSequenceSource(java.util.function.LongSupplier source) {
+        if (source != null) this.sequenceSource = source;
     }
 
     /** Installs the runtime secret redactor once the gateway knows the configured keys. */
@@ -516,7 +525,8 @@ public final class LogWriterService implements LogSink, AutoCloseable {
         }
     }
 
-    private void write(LogRecord record) throws IOException {
+    private void write(LogRecord incoming) throws IOException {
+        LogRecord record = incoming.seq() == 0L ? withSequence(incoming, sequenceSource.getAsLong()) : incoming;
         if (!settings.allows(record)) return;
         Path path = pathFor(record);
         if (path == null) return;
@@ -538,6 +548,30 @@ public final class LogWriterService implements LogSink, AutoCloseable {
         if (file.bytes >= settings.maxFileBytes()) {
             rotate(path, file, record.owner());
         }
+    }
+
+    private static LogRecord withSequence(LogRecord record, long seq) {
+        if (seq == 0L) return record;
+        return new LogRecord(
+                seq,
+                record.timeMillis(),
+                record.level(),
+                record.category(),
+                record.kind(),
+                record.event(),
+                record.owner(),
+                record.companion(),
+                record.session(),
+                record.turn(),
+                record.plan(),
+                record.job(),
+                record.task(),
+                record.toolCall(),
+                record.cause(),
+                record.durationMs(),
+                record.message(),
+                record.data(),
+                record.error());
     }
 
     private LogRecord redact(LogRecord record) {

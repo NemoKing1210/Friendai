@@ -4,7 +4,9 @@ import dev.friendai.agent.llm.model.ToolCall;
 import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.foundation.diagnostics.DebugLog;
 import dev.friendai.foundation.diagnostics.LogCategory;
+import dev.friendai.foundation.diagnostics.LogContext;
 import dev.friendai.foundation.diagnostics.LogError;
+import dev.friendai.foundation.diagnostics.LogEventData;
 import dev.friendai.foundation.diagnostics.LogEvents;
 import dev.friendai.foundation.diagnostics.LogKind;
 import dev.friendai.foundation.diagnostics.LogLevel;
@@ -25,6 +27,8 @@ public final class DebugLogObserver implements BrainObserver {
     private final UUID companion;
     private final String session;
     private final LogPipeline pipeline;
+    private final String trace;
+    private volatile ToolCallSnapshot lastToolCall;
     private long turn;
     private long turnStartSeq;
     private long lastRequestSeq;
@@ -37,14 +41,36 @@ public final class DebugLogObserver implements BrainObserver {
         this.companion = null;
         this.session = "";
         this.pipeline = null;
+        this.trace = opaqueTrace();
     }
 
     public DebugLogObserver(UUID owner, UUID companion, String session, LogPipeline pipeline) {
+        this(owner, companion, session, pipeline, opaqueTrace());
+    }
+
+    /** {@code trace} is the opaque session token every record and invocation of this brain carries. */
+    public DebugLogObserver(UUID owner, UUID companion, String session, LogPipeline pipeline, String trace) {
         this.legacy = null;
         this.owner = owner;
         this.companion = companion;
         this.session = session == null ? "" : session;
         this.pipeline = pipeline;
+        this.trace = trace == null || trace.isBlank() ? opaqueTrace() : trace;
+    }
+
+    /** The captured context of the tool call just observed, so the executor can run under it. */
+    public LogContext contextForToolCall(String callId) {
+        String id = callId == null ? "" : callId;
+        ToolCallSnapshot snapshot = lastToolCall;
+        if (!id.isEmpty() && snapshot != null && id.equals(snapshot.id())) {
+            return snapshot.context();
+        }
+        // An unknown or mismatched call gets a detached root: never another call's provenance.
+        return new LogContext(trace, turn, 0L, 0L, 0L, 0L, 0L, 0L, "", turnStartSeq);
+    }
+
+    private static String opaqueTrace() {
+        return UUID.randomUUID().toString().replace("-", "").substring(0, 16);
     }
 
     @Override
@@ -173,16 +199,19 @@ public final class DebugLogObserver implements BrainObserver {
         String args = call.rawArguments() == null ? "" : call.rawArguments();
         String message =
                 instruction ? name + " [instruction fields omitted]" : includesBodies() ? name + " " + args : name;
+        String callId = call.id() == null ? "" : call.id();
         lastToolCallSeq = emit(
                 LogLevel.INFO,
                 LogCategory.TOOL,
                 LogKind.TOOL_CALL,
                 LogEvents.TOOL_CALL,
                 turnStartSeq,
-                call.id() == null ? "" : call.id(),
+                callId,
                 message,
                 Map.of("tool", name),
                 null);
+        lastToolCall = new ToolCallSnapshot(
+                callId, new LogContext(trace, turn, 0L, 0L, 0L, 0L, 0L, 0L, name, lastToolCallSeq));
     }
 
     @Override
@@ -350,15 +379,21 @@ public final class DebugLogObserver implements BrainObserver {
             Map<String, String> data,
             LogError error) {
         if (pipeline == null) return 0L;
+        Map<String, String> facts = data;
+        if (!trace.isEmpty()) {
+            facts = LogEventData.build(new LogContext(trace, turn, 0L, 0L, 0L, 0L, 0L, 0L, "", cause), data);
+        }
         return pipeline.emit(new LogRecord(
                 0L, 0L, level, category, kind, event, owner, companion, session, turn, 0L, 0L, 0L, toolCall, cause, -1L,
-                message, data, error));
+                message, facts, error));
     }
 
     private static String preview(String text) {
         String flat = text == null ? "" : text.replace('\n', ' ').replace('\r', ' ');
         return flat.length() <= 120 ? flat : flat.substring(0, 120) + "…";
     }
+
+    private record ToolCallSnapshot(String id, LogContext context) {}
 
     private static int frames(Throwable error) {
         return error == null || error.getStackTrace() == null ? 0 : error.getStackTrace().length;

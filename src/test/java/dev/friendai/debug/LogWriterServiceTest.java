@@ -287,6 +287,22 @@ class LogWriterServiceTest {
     }
 
     @Test
+    void aBridgedRecordTakesTheSharedAllocatorSequenceOnce(@TempDir Path root) throws IOException {
+        AtomicLong sequence = new AtomicLong(100L);
+        try (LogWriterService writer = writer(root, LogWriterScope.SERVER, settings(LogLevel.INFO), 64)) {
+            writer.useSequenceSource(sequence::incrementAndGet);
+            writer.offer(record(0L, LogCategory.SERVER, null));
+            assertEquals(
+                    LogFlushResult.Status.FLUSHED, writer.flushStatus().join().status());
+        }
+        String text =
+                Files.readString(jsonl(root.resolve("server").resolve(DAY)).get(0), StandardCharsets.UTF_8);
+        assertTrue(text.contains("\"seq\":101"), "a bridged record must carry one pipeline sequence: " + text);
+        assertFalse(text.contains("\"seq\":0"), "no written record may keep sequence zero");
+        assertEquals(101L, sequence.get());
+    }
+
+    @Test
     void aDisabledWriterReportsDisabledRatherThanADurableFlush(@TempDir Path root) throws IOException {
         try (LogWriterService writer = writer(root, LogWriterScope.SERVER, settings(null), 64)) {
             writer.offer(record(1, LogCategory.SERVER, null));

@@ -1,6 +1,7 @@
 package dev.friendai.execution.queue;
 
 import com.google.gson.JsonObject;
+import dev.friendai.foundation.diagnostics.LogContext;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -346,7 +347,8 @@ public final class JobQueue {
                         target.result(),
                         target.retryAtTick(),
                         target.principal(),
-                        target.creativeSensitive()));
+                        target.creativeSensitive(),
+                        target.diagnostic()));
         return Result.ok("inserted prerequisite #" + id + " before #" + beforeId);
     }
 
@@ -384,6 +386,18 @@ public final class JobQueue {
         nextOrder += 100;
         jobs.put(id, job);
         return job;
+    }
+
+    /**
+     * Attaches the invocation that produced a freshly queued job. Runtime-only: the save codec never writes it, so a
+     * restored job starts from {@link LogContext#NONE}.
+     */
+    public Job stampProvenance(long id, LogContext context) {
+        Job job = jobs.get(id);
+        if (job == null || context == null || context == LogContext.NONE) return job;
+        Job stamped = job.withDiagnostic(context);
+        jobs.put(id, stamped);
+        return stamped;
     }
 
     /** Replaces an unstarted structured plan's tree and cursor after a validated patch. */
@@ -488,7 +502,8 @@ public final class JobQueue {
                         result,
                         retryAt,
                         old.principal(),
-                        old.creativeSensitive()));
+                        old.creativeSensitive(),
+                        old.diagnostic()));
     }
     /** Returns a job that was running when the world saved, but has no live task, to the pending pool. */
     public void requeue(long id) {
@@ -579,7 +594,8 @@ public final class JobQueue {
                         job.result(),
                         job.retryAtTick(),
                         job.principal(),
-                        job.creativeSensitive()));
+                        job.creativeSensitive(),
+                        job.diagnostic()));
         return Result.ok("#" + id + " priority is now " + priority);
     }
 
@@ -620,7 +636,8 @@ public final class JobQueue {
                                 job.result(),
                                 job.retryAtTick(),
                                 job.principal(),
-                                job.creativeSensitive()));
+                                job.creativeSensitive(),
+                                job.diagnostic()));
         return Result.ok("plan #" + planId + " priority is now " + priority);
     }
 
@@ -661,7 +678,8 @@ public final class JobQueue {
                         job.result(),
                         job.retryAtTick(),
                         principal,
-                        creativeSensitive));
+                        creativeSensitive,
+                        job.diagnostic()));
         return Result.ok("updated #" + id);
     }
 
@@ -828,7 +846,8 @@ public final class JobQueue {
                 result,
                 retryAt,
                 j.principal(),
-                j.creativeSensitive());
+                j.creativeSensitive(),
+                j.diagnostic());
     }
 
     public Result cancelPlan(long planId) {

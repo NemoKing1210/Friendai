@@ -18,11 +18,13 @@ import dev.friendai.execution.queue.QueueText;
 import dev.friendai.execution.queue.QueuedStep;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
+import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.features.creative.CreativeAction;
 import dev.friendai.features.creative.CreativeActionContext;
 import dev.friendai.features.navigation.minecraft.task.FollowTask;
 import dev.friendai.features.navigation.movement.MovementOrders;
 import dev.friendai.features.places.PlaceCandidate;
+import dev.friendai.foundation.diagnostics.LogContext;
 import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.server.creative.CreativeModeService;
 import dev.friendai.server.execution.ActiveTaskController.ActiveTask;
@@ -77,7 +79,10 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     /** The last direct job the companion started, kept so the owner can retry it once it stopped or failed. */
     private Started lastStarted;
 
-    private record Started(long jobId, QueuedStep step, StepFactory factory) {}
+    /** The tool invocation the runner is executing right now; runner-local, never read by a worker. */
+    private LogContext invocationContext = LogContext.NONE;
+
+    private record Started(long jobId, QueuedStep step, StepFactory factory, LogContext context) {}
 
     private final List<String> pendingNotices = new java.util.ArrayList<>();
     private final ArrayDeque<java.util.function.Consumer<TaskEventSink>> pendingEvents = new ArrayDeque<>();
@@ -372,7 +377,8 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
                 .job(last.jobId())
                 .filter(job -> !dev.friendai.execution.queue.JobQueue.terminal(job))
                 .isPresent()) return false;
-        enqueue(last.step(), last.factory);
+        long jobId = enqueue(last.step(), last.factory);
+        queueDriver.queue().stampProvenance(jobId, last.context());
         return true;
     }
 
@@ -380,10 +386,33 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         return inTransition(() -> enqueueActive(step, factory));
     }
 
+    /** The invocation the runner is inside, so a job queued by a tool call can keep its provenance. */
+    public LogContext currentLogContext() {
+        return invocationContext;
+    }
+
+    /**
+     * Runs one synchronous tool call under an explicit diagnostic scope and restores the previous scope afterwards,
+     * even when it throws or re-enters. This is runner-local state owned by {@code DiagnosticToolExecutor}; it is not
+     * a thread local and queued work never keeps it.
+     */
+    public ToolResult withLogContext(LogContext context, Supplier<ToolResult> body) {
+        LogContext previous = invocationContext;
+        invocationContext = context == null ? LogContext.NONE : context;
+        try {
+            return body.get();
+        } finally {
+            invocationContext = previous;
+        }
+    }
+
     private long enqueueActive(QueuedStep step, StepFactory factory) {
         syncSettings();
         requireCreativeAuthorization(step.principal(), step.creativeSensitive());
         Job job = queueDriver.enqueue(step);
+        if (invocationContext != LogContext.NONE) {
+            job = queueDriver.queue().stampProvenance(job.id(), invocationContext);
+        }
         queueDriver.addFactory(job.id(), factory);
         wakeQueue();
         if (activeTask() == null || activeTask().defaultActivity() || movementOrder(activeTask())) startNextQueued();
@@ -414,6 +443,9 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
             throw new IllegalArgumentException("steps and queueDriver.factories differ");
         for (QueuedStep step : steps) requireCreativeAuthorization(step.principal(), step.creativeSensitive());
         JobQueue.Added added = queueDriver.enqueuePlan(goal, steps, options);
+        if (invocationContext != LogContext.NONE) {
+            for (long jobId : added.jobIds()) queueDriver.queue().stampProvenance(jobId, invocationContext);
+        }
         for (int i = 0; i < stepFactories.size(); i++)
             queueDriver.addFactory(added.jobIds().get(i), stepFactories.get(i));
         prepare.accept(added.planId());
@@ -978,7 +1010,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
                 return startNextQueued();
             }
         }
-        if (job.planId() == 0) lastStarted = new Started(job.id(), step(job), factory);
+        if (job.planId() == 0) lastStarted = new Started(job.id(), step(job), factory, job.diagnostic());
         try {
             ServerSettings settings = settingsSupplier.get();
             Task task = factory.create(

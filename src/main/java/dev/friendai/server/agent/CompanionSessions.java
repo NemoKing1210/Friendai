@@ -164,6 +164,10 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                         ? dev.friendai.foundation.diagnostics.LogSettings.off()
                         : config.logging.toSettings(),
                 fileLog);
+        if (fileLog instanceof dev.friendai.debug.LogWriterService writer) {
+            writer.useSequenceSource(debug.pipeline()::reserveSequence);
+        }
+        emitStreamStart();
         this.planners = new PlannerAdapter(scheduler, debug, gateways, () -> this.config, settings);
         MemoryAccess memoryAccess = new MemoryAccess() {
             @Override
@@ -1149,6 +1153,46 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
         }
     }
 
+    /** Announces the server stream once: boot, scope and the versions an investigator correlates files with. */
+    private void emitStreamStart() {
+        java.util.Map<String, String> data = new java.util.LinkedHashMap<>();
+        data.put("boot", dev.friendai.foundation.diagnostics.LogNames.bootId());
+        data.put("scope", "server");
+        data.put("mod", modVersion());
+        debug.pipeline()
+                .emit(new dev.friendai.foundation.diagnostics.LogRecord(
+                        0L,
+                        0L,
+                        dev.friendai.foundation.diagnostics.LogLevel.INFO,
+                        dev.friendai.foundation.diagnostics.LogCategory.SERVER,
+                        null,
+                        dev.friendai.foundation.diagnostics.LogEvents.STREAM_START,
+                        null,
+                        null,
+                        "",
+                        0L,
+                        0L,
+                        0L,
+                        0L,
+                        "",
+                        0L,
+                        -1L,
+                        "server stream started",
+                        data,
+                        null));
+    }
+
+    private static String modVersion() {
+        try {
+            return net.fabricmc.loader.api.FabricLoader.getInstance()
+                    .getModContainer("friendai")
+                    .map(container -> container.getMetadata().getVersion().getFriendlyString())
+                    .orElse("");
+        } catch (RuntimeException unavailable) {
+            return "";
+        }
+    }
+
     /** An owner's stop or follow order also ends free time: both mean "leave your own work". */
     private dev.friendai.execution.tool.ToolExecutor endsFreeTime(
             UUID owner, dev.friendai.execution.tool.ToolExecutor inner) {
@@ -1250,6 +1294,10 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
         Speaker effective = session.speakerWrapper()
                 .apply(new dev.friendai.agent.turn.OwnerPresentSpeaker(
                         speaker, () -> companion.owner().isPresent()));
+        String logSession = Long.toString(System.currentTimeMillis(), 36);
+        session.logSession(logSession);
+        DebugLogObserver debugObserver =
+                new DebugLogObserver(owner, companion.getUUID(), logSession, debug.pipeline(), logSession);
         CompanionBrain brain = new CompanionBrain(
                 () -> new Persona(
                         companion.getName().getString(),
@@ -1264,7 +1312,8 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                         config.brain.cooldownMs,
                         config.chat.guestCooldownMs),
                 () -> gateways.main(session),
-                endsFreeTime(owner, tools.bind(companion)),
+                new DiagnosticToolExecutor(
+                        endsFreeTime(owner, tools.bind(companion)), debugObserver, companion.executionCoordinator()),
                 new CompanionPerception(companion, perceptionContext),
                 effective,
                 scheduler,
@@ -1316,10 +1365,8 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                 false,
                 companion.combatController().state()
                         != dev.friendai.features.combat.minecraft.CombatController.State.IDLE));
-        String logSession = Long.toString(System.currentTimeMillis(), 36);
-        session.logSession(logSession);
         brain.setObserver(BrainObservers.of(
-                new DebugLogObserver(owner, companion.getUUID(), logSession, debug.pipeline()),
+                debugObserver,
                 new dev.friendai.agent.turn.BrainObserver() {
                     @Override
                     public void onReply(Caller caller, String text) {
