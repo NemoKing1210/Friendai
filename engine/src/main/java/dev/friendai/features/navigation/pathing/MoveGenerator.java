@@ -188,10 +188,12 @@ public final class MoveGenerator {
     private boolean gapColumn(int x, int y, int z) {
         Node cell = new Node(x, y, z);
         boolean walkable = standable(view, cell) && view.at(cell.pos()).kind() != Cell.Kind.WATER;
+        // The flight path must have no collision at all: a shut door is enterable for a walk that opens it, but a
+        // leap crosses the cell at speed and cannot open anything on the way.
         return !walkable
-                && enterable(view.at(x, y, z))
-                && enterable(view.at(x, y + 1, z))
-                && enterable(view.at(x, y + 2, z));
+                && view.at(x, y, z).free()
+                && view.at(x, y + 1, z).free()
+                && view.at(x, y + 2, z).free();
     }
 
     /** How many cells right below the take-off level the column leaves open, at most {@code limit}. */
@@ -206,7 +208,7 @@ public final class MoveGenerator {
     /** Whether the cells over a landing lower than the take-off are open up to the height the body flew in at. */
     private boolean openAbove(Node landing, int top) {
         for (int y = landing.y() + 2; y <= top; y++) {
-            if (!enterable(view.at(landing.x(), y, landing.z()))) {
+            if (!view.at(landing.x(), y, landing.z()).free()) {
                 return false;
             }
         }

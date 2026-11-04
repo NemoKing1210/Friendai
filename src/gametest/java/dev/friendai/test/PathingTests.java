@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Optional;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.FluidTags;
@@ -43,7 +44,10 @@ import net.minecraft.world.entity.Pose;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.DoorHingeSide;
+import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
@@ -217,6 +221,52 @@ public class PathingTests {
         }
         h.assertTrue(cellAt(view, h, 2, 2, 2).breakTicks() > 0, "stone outside the wall stays breakable");
         h.succeed();
+    }
+
+    @GameTest(maxTicks = 800)
+    public void walksThroughAClosedDoor(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        for (int z = 0; z <= 15; z++) {
+            for (int y = 2; y <= 3; y++) {
+                if (z != 8) {
+                    h.setBlock(new BlockPos(8, y, z), Blocks.STONE);
+                }
+            }
+        }
+        doorAt(h, 8, 2, 8, false);
+
+        CompanionEntity c = walker(h, 2, 2, 8);
+        LevelCellView shut = new LevelCellView(c, PathingConfig.DEFAULTS, CostModel.DEFAULTS);
+        h.assertTrue(cellAt(shut, h, 8, 2, 8).kind() == Cell.Kind.DOOR, "a shut door is a cell the walk can open");
+
+        doorAt(h, 8, 2, 8, true);
+        LevelCellView opened = new LevelCellView(c, PathingConfig.DEFAULTS, CostModel.DEFAULTS);
+        h.assertTrue(
+                cellAt(opened, h, 8, 2, 8).kind() == Cell.Kind.PASSABLE,
+                "an open door is a passage, not a wall the route turns back from");
+
+        // Shut again for the walk: the route has to open it and keep the step it planned.
+        doorAt(h, 8, 2, 8, false);
+        Outcome out = new Outcome();
+        walkTo(c, h, out, 12.5, 2, 8.5);
+        h.succeedWhen(() -> {
+            h.assertTrue(out.status == TaskStatus.SUCCESS, "go_to did not finish: " + out.why());
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(8, 2, 8)).getValue(DoorBlock.OPEN),
+                    "the door is still shut; paths: " + out.debug);
+        });
+    }
+
+    private static void doorAt(GameTestHelper h, int x, int y, int z, boolean open) {
+        // The wall runs north-south, so the doorway runs east-west and the door's own facing must match it.
+        BlockState lower = Blocks.OAK_DOOR
+                .defaultBlockState()
+                .setValue(DoorBlock.FACING, Direction.EAST)
+                .setValue(DoorBlock.HINGE, DoorHingeSide.LEFT)
+                .setValue(DoorBlock.OPEN, open)
+                .setValue(DoorBlock.HALF, DoubleBlockHalf.LOWER);
+        h.setBlock(new BlockPos(x, y, z), lower);
+        h.setBlock(new BlockPos(x, y + 1, z), lower.setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER));
     }
 
     @GameTest(maxTicks = 100)

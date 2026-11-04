@@ -28,7 +28,6 @@ import net.minecraft.world.InteractionResult;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.ScaffoldingBlock;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 
 /**
  * Walks one planned route step by step: re-checks the world, digs the cells the plan wanted gone, places the blocks
@@ -402,6 +401,17 @@ public final class PathExecutor {
         return State.RUNNING;
     }
 
+    /**
+     * Whether the step enters a shut wooden door or gate at its feet or head. The search offers every step kind into
+     * such a cell — a walk, a diagonal, a leap or a dug rise — so the door is opened for any of them, not only for a
+     * step the planner happened to label as one.
+     */
+    private static boolean closedDoorAhead(TaskContext c, PathStep step) {
+        BlockPos foot = new BlockPos(step.to().x(), step.to().y(), step.to().z());
+        return LevelCellView.isClosedDoor(c.level().getBlockState(foot))
+                || LevelCellView.isClosedDoor(c.level().getBlockState(foot.above()));
+    }
+
     private State move(TaskContext c, PathStep step) {
         CompanionEntity companion = c.companion();
         if (!guard.allowMove(c, step)) {
@@ -421,24 +431,18 @@ public final class PathExecutor {
             companion.pace().requestRunUp(true);
             runUpSprint = true;
         }
-        if (step.move() == Move.DOOR && !doorOpened) {
+        if (!doorOpened && closedDoorAhead(c, step)) {
             doorOpened = true;
             BlockPos foot = new BlockPos(step.to().x(), step.to().y(), step.to().z());
             companion.hands().use(foot);
             BlockPos head = foot.above();
-            BlockState headState = c.level().getBlockState(head);
-            if (headState.hasProperty(BlockStateProperties.OPEN) && !headState.getValue(BlockStateProperties.OPEN)) {
+            if (LevelCellView.isClosedDoor(c.level().getBlockState(head))) {
                 companion.hands().use(head);
             }
         }
-        if (step.move() == Move.DOOR) {
-            BlockPos foot = new BlockPos(step.to().x(), step.to().y(), step.to().z());
-            for (BlockPos pos : List.of(foot, foot.above())) {
-                BlockState state = c.level().getBlockState(pos);
-                if (state.hasProperty(BlockStateProperties.OPEN) && !state.getValue(BlockStateProperties.OPEN)) {
-                    return State.RUNNING;
-                }
-            }
+        if (closedDoorAhead(c, step)) {
+            // A move into a shut door is a collision: hold the step until the open state has reached the server.
+            return State.RUNNING;
         }
         FeetTarget target = feetTarget(c, step);
         boolean climbing = step.move() == Move.CLIMB;

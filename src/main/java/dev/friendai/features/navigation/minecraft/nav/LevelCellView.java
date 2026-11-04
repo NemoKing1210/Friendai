@@ -229,6 +229,11 @@ public final class LevelCellView implements CellView {
         if (isClosedDoor(state)) {
             return Cell.Kind.DOOR;
         }
+        if (isOpenDoor(state)) {
+            // An open door or gate still has a thin collision panel, but the doorway itself is walked through. Read
+            // as solid, it would turn into a wall the moment the route opened it.
+            return Cell.Kind.PASSABLE;
+        }
         if (isClimbable(state)) {
             return Cell.Kind.CLIMBABLE;
         }
@@ -247,11 +252,18 @@ public final class LevelCellView implements CellView {
         return config.allowPlace() && companion.hands().canInteract(pos);
     }
 
-    private static boolean isClosedDoor(BlockState state) {
+    static boolean isClosedDoor(BlockState state) {
         if (!state.is(BlockTags.WOODEN_DOORS) && !state.is(BlockTags.FENCE_GATES)) {
             return false;
         }
         return !state.hasProperty(BlockStateProperties.OPEN) || !state.getValue(BlockStateProperties.OPEN);
+    }
+
+    /** Whether the block is a wooden door or a gate standing open, which is walked through like a passage. */
+    static boolean isOpenDoor(BlockState state) {
+        return (state.is(BlockTags.WOODEN_DOORS) || state.is(BlockTags.FENCE_GATES))
+                && state.hasProperty(BlockStateProperties.OPEN)
+                && state.getValue(BlockStateProperties.OPEN);
     }
 
     private static boolean isClimbable(BlockState state) {

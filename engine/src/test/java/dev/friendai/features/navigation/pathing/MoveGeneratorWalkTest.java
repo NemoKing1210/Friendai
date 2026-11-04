@@ -314,6 +314,19 @@ class MoveGeneratorWalkTest {
     }
 
     @Test
+    void doesNotLeapThroughAClosedDoor() {
+        // A shut door is a cell a walk opens, but a leap crosses it at speed: the panel stops the body. Its upper half
+        // is the cell the flight path would pass through here, so the gap is not leapt.
+        GridCellView door = new GridCellView("...", "#D#", ".D.", "...", "...");
+        assertNull(stepTo(stepsFrom(door, new Node(0, 2, 0)), 2, 2, 0));
+
+        GridCellView air = new GridCellView("...", "#.#", "...", "...", "...");
+        assertEquals(
+                Move.JUMP_GAP,
+                stepTo(stepsFrom(air, new Node(0, 2, 0)), 2, 2, 0).move());
+    }
+
+    @Test
     void avoidsHazard() {
         GridCellView view = new GridCellView("###", ".^.", "...");
         assertTrue(stepTo(stepsFrom(view, new Node(0, 1, 0)), 1, 1, 0) == null);
