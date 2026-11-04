@@ -136,6 +136,12 @@ public final class ServerRuntime implements AutoCloseable {
         }
     }
 
+    /** Rebinds the owner's negotiated protocol session after vanilla replaced the player on respawn. */
+    public void onOwnerRespawned(ServerPlayer oldPlayer, ServerPlayer newPlayer) {
+        if (!acceptingWork) return;
+        if (protocolConnections != null) protocolConnections.replacePlayer(oldPlayer, newPlayer);
+    }
+
     /** Clears connection-scoped publishers and suspends the owner's agent work. */
     public void onOwnerLeft(ServerPlayer player) {
         if (protocolConnections != null) protocolConnections.leave(player);

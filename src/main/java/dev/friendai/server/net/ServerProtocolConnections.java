@@ -98,6 +98,17 @@ public final class ServerProtocolConnections implements AutoCloseable {
         return true;
     }
 
+    /**
+     * Rebinds the negotiated session to the replacement body vanilla creates on respawn or a dimension change. The
+     * client negotiated once per connection, so the session id, capabilities and request sequence stay as they are;
+     * only the player instance the connection is looked up by changes.
+     */
+    public void replacePlayer(ServerPlayer oldPlayer, ServerPlayer newPlayer) {
+        Connection connection = connections.get(oldPlayer.getUUID());
+        if (connection == null || connection.player() != oldPlayer) return;
+        connections.put(oldPlayer.getUUID(), new Connection(newPlayer, connection.sessionId(), connection.gate()));
+    }
+
     /** Releases the matching player's connection session and rate-limit history on disconnect. */
     public void leave(ServerPlayer player) {
         Connection connection = current(player).orElse(null);

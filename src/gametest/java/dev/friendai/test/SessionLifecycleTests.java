@@ -32,6 +32,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
 
 /** Lifecycle and owner-isolation guarantees for per-owner companion sessions. */
 public class SessionLifecycleTests {
@@ -116,6 +117,21 @@ public class SessionLifecycleTests {
                 h.succeed();
             });
         });
+    }
+
+    @GameTest(maxTicks = 80)
+    public void respawnedOwnerKeepsTheNegotiatedProtocolSession(GameTestHelper h) {
+        GameTestSupport.OnlinePlayer owner = GameTestSupport.onlinePlayer(h, "respawn-owner", 2, 2, 2, true);
+        var server = h.getLevel().getServer();
+        var connections = GameTestSupport.runtime(server).protocolConnections();
+        UUID session = connections.sessionId(owner.player()).orElse(null);
+        h.assertTrue(session != null, "an online owner should have a protocol session");
+
+        ServerPlayer replacement = server.getPlayerList().respawn(owner.player(), false, Entity.RemovalReason.KILLED);
+        h.assertTrue(
+                connections.sessionId(replacement).filter(session::equals).isPresent(),
+                "the replacement player vanilla creates on respawn must keep the negotiated session");
+        h.succeed();
     }
 
     @GameTest(maxTicks = 160)

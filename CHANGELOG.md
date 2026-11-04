@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.208.3] - 2026-11-04
+
+### Fixed
+
+- After you die and respawn, the companion menu, voice input and companion settings keep working instead of going silent for the rest of the session.
+
 ## [0.208.2] - 2026-11-04
 
 ### Fixed

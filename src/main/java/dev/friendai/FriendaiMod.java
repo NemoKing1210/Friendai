@@ -8,6 +8,7 @@ import dev.friendai.server.net.FriendaiNetworking;
 import dev.friendai.server.runtime.ServerRuntime;
 import dev.friendai.server.runtime.ServerRuntimeRegistry;
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
@@ -65,6 +66,12 @@ public class FriendaiMod implements ModInitializer {
         });
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
             ServerRuntimeRegistry.find(server).ifPresent(runtime -> runtime.onOwnerLeft(handler.getPlayer()));
+        });
+        // Vanilla replaces the ServerPlayer instance on respawn and on the End-portal return while the connection
+        // stays; without rebinding, every request and view of that player is rejected for the rest of the session.
+        ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) -> {
+            ServerRuntimeRegistry.find(newPlayer.level().getServer())
+                    .ifPresent(runtime -> runtime.onOwnerRespawned(oldPlayer, newPlayer));
         });
         LOGGER.info("Friendai initialized");
     }
