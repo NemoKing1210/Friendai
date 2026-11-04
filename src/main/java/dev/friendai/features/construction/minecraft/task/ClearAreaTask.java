@@ -14,6 +14,7 @@ import dev.friendai.features.navigation.minecraft.nav.Approach;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.task.inventory.DropCollector;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.EnumSet;
@@ -26,6 +27,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.Vec3;
 
 /**
  * Clears a box around a point: vegetation and snow by default, water sources with an empty bucket, and stray solid
@@ -36,8 +38,9 @@ import net.minecraft.world.level.block.state.BlockState;
  *
  * <p>One run is bounded in time: {@link #DEFAULT_TICK_BUDGET} counted ticks of cell work across all cells, plus at most
  * two ticks around the stop (the scan tick is not counted and the budget is checked while a cell is active), and
- * {@link #CELL_TICKS} ticks per cell. An area asked too large therefore cannot hold the companion for an hour, and a
- * run that spends its budget reports the cells it did not reach for another pass.
+ * {@link #CELL_TICKS} ticks per cell. After the last cell it spends one bounded pickup round taking what it broke, so a
+ * plot is not left littered with drops that would despawn. An area asked too large therefore cannot hold the companion
+ * for an hour, and a run that spends its budget reports the cells it did not reach for another pass.
  */
 public final class ClearAreaTask implements Task {
     /** One task is bounded so an area asked too large cannot run for an hour. */
@@ -70,6 +73,7 @@ public final class ClearAreaTask implements Task {
     private String summary = "";
     private BlockBreaker breaker;
     private Approach waterApproach;
+    private DropCollector sweep;
     private ClearCell current;
     private Block currentBlock;
     private FireHands fireHands;
@@ -130,6 +134,17 @@ public final class ClearAreaTask implements Task {
             var companion = c.companion();
             int next = ClearPlan.nextIndex(queue, companion.getX(), companion.getEyeY(), companion.getZ());
             if (next < 0) {
+                // What was broken lies at the feet or a few blocks away: take it before reporting the run. An empty
+                // plot still finishes at once, and a run that spent its budget does not extend it with a sweep.
+                if (clearedTotal == 0 || ticksSpent >= tickBudget) {
+                    return finish();
+                }
+                if (sweep == null) {
+                    sweep = new DropCollector(Vec3.atCenterOf(center), radius + 2);
+                }
+                if (sweep.tick(c) == DropCollector.State.COLLECTING) {
+                    return TaskStatus.RUNNING;
+                }
                 return finish();
             }
             current = queue.remove(next);
@@ -365,6 +380,10 @@ public final class ClearAreaTask implements Task {
 
     @Override
     public void stop(TaskContext c) {
+        if (sweep != null) {
+            sweep.stop(c);
+            sweep = null;
+        }
         if (waterApproach != null) {
             waterApproach.stop(c);
             waterApproach = null;

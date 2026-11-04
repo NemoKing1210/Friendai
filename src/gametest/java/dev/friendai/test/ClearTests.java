@@ -191,6 +191,29 @@ public class ClearTests {
         });
     }
 
+    /** What the run breaks is picked up, not left on the ground to despawn. Dirt drops by hand. */
+    @GameTest(maxTicks = 600)
+    public void clearPicksUpWhatItBreaks(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        h.setBlock(3, 2, 2, Blocks.DIRT);
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(companion, result);
+        runner.start(clear(h, 2, 2, 2, true), "clear_area");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status != null, "still running");
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(3, 2, 2)).isAir(),
+                    "dirt at 3,2,2: " + h.getBlockState(new BlockPos(3, 2, 2)));
+            h.assertTrue(
+                    companion.inventory().countItem(Items.DIRT) == 1,
+                    "the broken dirt must be in the inventory, found "
+                            + companion.inventory().countItem(Items.DIRT));
+        });
+    }
+
     /**
      * Working from the outside in opens the inside of a dense canopy; starting at the top left the buried cells
      * "out of sight" and the task ran on with the cells it could not reach.

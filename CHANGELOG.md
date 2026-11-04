@@ -10,6 +10,7 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 - `clear_area` walks to a water source instead of only taking the sources within arm's reach.
 - One `clear_area` call is limited to five minutes of work and says how many cells are left for the next pass.
+- `clear_area` picks up what it breaks instead of leaving the drops on the ground.
 
 ### Fixed
 
