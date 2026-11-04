@@ -131,17 +131,14 @@ public final class ClearAreaTask implements Task {
             case WORKING -> {
                 return TaskStatus.RUNNING;
             }
-            case BROKEN -> cleared.merge(current.kind(), 1, Integer::sum);
+            case BROKEN -> {
+                cleared.merge(current.kind(), 1, Integer::sum);
+                unreachableStreak = 0;
+            }
             case GONE -> skip(ClearSkip.CHANGED);
             case PROTECTED -> skip(ClearSkip.PROTECTED);
-            case UNREACHABLE -> skip(ClearSkip.UNREACHABLE);
+            case UNREACHABLE -> unreachable();
             case OUT_OF_SIGHT -> skip(ClearSkip.OUT_OF_SIGHT);
-        }
-        unreachableStreak = result == BlockBreaker.State.BROKEN ? 0 : unreachableStreak;
-        if (result == BlockBreaker.State.UNREACHABLE && ++unreachableStreak >= MAX_UNREACHABLE_STREAK) {
-            // The nearest cells of this kind are all out of reach, so the rest (higher, farther) are no easier.
-            skipped.merge(ClearSkip.UNREACHABLE, queue.size(), Integer::sum);
-            queue.clear();
         }
         breaker = null;
         current = null;
@@ -169,18 +166,37 @@ public final class ClearAreaTask implements Task {
         result.skipped().forEach((reason, count) -> skipped.merge(reason, count, Integer::sum));
         scanned = true;
     }
+
     /**
      * Walks to a water source before scooping it, so a source farther than the bucket's reach is still taken instead
      * of being reported as water left behind. The walk shares the cell's {@link #CELL_TICKS} budget with the break.
      */
     private TaskStatus approachWater(TaskContext c) {
         if (waterApproach == null) {
-            waterApproach = new Approach(pos(current));
+            BlockPos target = pos(current);
+            BlockState state = c.level().getBlockState(target);
+            if (!state.is(Blocks.WATER) || !state.getFluidState().isSource()) {
+                // The source drained, froze or was taken between the scan and now, so the walk would prove nothing.
+                skip(ClearSkip.CHANGED);
+                current = null;
+                return TaskStatus.RUNNING;
+            }
+            if (fireHands == null) {
+                fireHands = new FireHands(c);
+            }
+            // No empty bucket means no walk: the first source already filled it, and every later one would fail the
+            // same way after the trip.
+            if (!fireHands.hasEmptyBucket()) {
+                skip(ClearSkip.NO_BUCKET);
+                current = null;
+                return TaskStatus.RUNNING;
+            }
+            waterApproach = new Approach(target);
         }
         if (++cellTicks > CELL_TICKS) {
             waterApproach.stop(c);
             waterApproach = null;
-            skip(ClearSkip.UNREACHABLE);
+            unreachable();
             current = null;
             return TaskStatus.RUNNING;
         }
@@ -191,7 +207,7 @@ public final class ClearAreaTask implements Task {
             case UNREACHABLE -> {
                 waterApproach.stop(c);
                 waterApproach = null;
-                skip(ClearSkip.UNREACHABLE);
+                unreachable();
                 current = null;
             }
             case IN_REACH -> {
@@ -231,6 +247,18 @@ public final class ClearAreaTask implements Task {
 
     private void skip(ClearSkip reason) {
         skipped.merge(reason, 1, Integer::sum);
+    }
+
+    /**
+     * Records one cell the companion could not reach, and after {@link #MAX_UNREACHABLE_STREAK} in a row gives up on
+     * the rest of the queue: the nearest remaining cells are no easier than the ones just skipped.
+     */
+    private void unreachable() {
+        skip(ClearSkip.UNREACHABLE);
+        if (++unreachableStreak >= MAX_UNREACHABLE_STREAK) {
+            skipped.merge(ClearSkip.UNREACHABLE, queue.size(), Integer::sum);
+            queue.clear();
+        }
     }
 
     private TaskStatus finish() {
