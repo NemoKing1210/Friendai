@@ -397,7 +397,8 @@ public final class ActiveTaskController {
                 base.execution(),
                 active.creativeActionContext(),
                 active.settings(),
-                active.logContext());
+                active.logContext(),
+                base.structureBuilder());
     }
 
     private void safeStop(Task task, TaskContext taskContext, String reason) {

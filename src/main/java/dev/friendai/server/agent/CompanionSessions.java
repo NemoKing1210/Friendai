@@ -29,6 +29,7 @@ import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolRegistry;
 import dev.friendai.execution.tool.ToolResult;
+import dev.friendai.features.construction.minecraft.build.ConstructionStructureBuilder;
 import dev.friendai.features.instructions.minecraft.tool.SkillToolAccess;
 import dev.friendai.features.memory.Category;
 import dev.friendai.features.memory.CompanionProfileRepository;
@@ -1552,6 +1553,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
             return board.view(plan, facts, tools, companion.level().getGameTime(), planQueued);
         });
         AgentEvents agent = new AgentEvents(owner, companion, session);
+        companion.executionCoordinator().setStructureBuilder(new ConstructionStructureBuilder());
         companion.executionCoordinator().setRepairFactory((context, args) -> {
             var definition = taskTools.get("obtain_item");
             if (definition == null) throw new IllegalStateException("obtain_item is unavailable");

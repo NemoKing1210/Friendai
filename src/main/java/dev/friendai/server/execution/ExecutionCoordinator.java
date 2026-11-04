@@ -72,6 +72,8 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     private TaskEventSink eventSink;
 
     private java.util.function.BiFunction<TaskContext, JsonObject, Task> repairFactory;
+    private dev.friendai.task.structure.StructureBuilder structureBuilder =
+            new dev.friendai.features.construction.minecraft.build.ConstructionStructureBuilder();
     private final java.util.Set<String> repairRequests = new java.util.HashSet<>();
     private int idleRepairAttempts;
     private int idleRepairInserted;
@@ -147,6 +149,11 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
 
     public void setRepairFactory(java.util.function.BiFunction<TaskContext, JsonObject, Task> factory) {
         this.repairFactory = factory;
+    }
+
+    /** Supplies special-structure construction through every task context this coordinator creates. */
+    public void setStructureBuilder(dev.friendai.task.structure.StructureBuilder builder) {
+        this.structureBuilder = builder == null ? dev.friendai.task.structure.StructureBuilder.NONE : builder;
     }
 
     public int idleRepairAttempts() {
@@ -1501,7 +1508,8 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     }
 
     private TaskContext context(ServerSettings settings, CreativeActionContext actionContext) {
-        return new TaskContext(companion, (ServerLevel) companion.level(), this, actionContext, settings);
+        return new TaskContext(companion, (ServerLevel) companion.level(), this, actionContext, settings)
+                .withStructureBuilder(structureBuilder);
     }
 
     private CreativeActionContext actionContext(Caller caller, boolean creativeSensitive) {

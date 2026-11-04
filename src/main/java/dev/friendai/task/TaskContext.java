@@ -38,6 +38,7 @@ import dev.friendai.server.instructions.SkillService;
 import dev.friendai.server.memory.TrustConfirmations;
 import dev.friendai.server.runtime.ServerRuntime;
 import dev.friendai.server.runtime.ServerRuntimeRegistry;
+import dev.friendai.task.structure.StructureBuilder;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -51,8 +52,20 @@ public record TaskContext(
         ExecutionCoordinator execution,
         CreativeActionContext creativeActionContext,
         ServerSettings serverSettings,
-        LogContext logContext) {
+        LogContext logContext,
+        StructureBuilder structureBuilder) {
     private static final FoodSubtaskFactory FOOD_SUBTASKS = new MinecraftFoodSubtaskFactory();
+
+    /** The historical shape: a context without captured diagnostic provenance or a structure builder. */
+    public TaskContext(
+            CompanionEntity companion,
+            ServerLevel level,
+            ExecutionCoordinator execution,
+            CreativeActionContext creativeActionContext,
+            ServerSettings serverSettings,
+            LogContext logContext) {
+        this(companion, level, execution, creativeActionContext, serverSettings, logContext, StructureBuilder.NONE);
+    }
 
     /** The historical shape: a context without captured diagnostic provenance. */
     public TaskContext(
@@ -66,11 +79,18 @@ public record TaskContext(
 
     public TaskContext {
         logContext = logContext == null ? LogContext.NONE : logContext;
+        structureBuilder = structureBuilder == null ? StructureBuilder.NONE : structureBuilder;
     }
 
     /** The same world context carrying another diagnostic identity; authority and settings are untouched. */
     public TaskContext withLogContext(LogContext context) {
-        return new TaskContext(companion, level, execution, creativeActionContext, serverSettings, context);
+        return new TaskContext(
+                companion, level, execution, creativeActionContext, serverSettings, context, structureBuilder);
+    }
+
+    /** The same world context with the runtime's structure builder; authority and settings are untouched. */
+    public TaskContext withStructureBuilder(StructureBuilder builder) {
+        return new TaskContext(companion, level, execution, creativeActionContext, serverSettings, logContext, builder);
     }
 
     public TaskContext(

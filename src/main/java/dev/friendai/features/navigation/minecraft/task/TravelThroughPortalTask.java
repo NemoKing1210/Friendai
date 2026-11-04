@@ -3,9 +3,6 @@ package dev.friendai.features.navigation.minecraft.task;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
-import dev.friendai.features.construction.minecraft.task.SpecialStructureTask;
-import dev.friendai.features.construction.special.SpecialStructure;
-import dev.friendai.features.construction.special.StructureBook;
 import dev.friendai.features.navigation.minecraft.nav.MoveHelper;
 import dev.friendai.features.places.PlaceValues;
 import dev.friendai.features.places.PortalRoutePolicy;
@@ -20,8 +17,8 @@ import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
-import dev.friendai.task.structure.StructureSite;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
@@ -89,7 +86,7 @@ public final class TravelThroughPortalTask implements Task {
     private Phase phase = Phase.PREPARE;
     private BlockPos portal;
     private BlockPos walkTarget;
-    private SpecialStructureTask builder;
+    private Task builder;
     private boolean builtHere;
     private int phaseTicks;
     private String summary = "";
@@ -216,12 +213,14 @@ public final class TravelThroughPortalTask implements Task {
     }
 
     private TaskStatus startBuilding(TaskContext c) {
-        BlockPos site = clearPortalSite(c.level(), c.companion());
+        BlockPos site = clearPortalSite(c);
         if (site == null) {
             summary = "there is no clear 4 by 5 spot within " + SITE_RADIUS + " blocks to build a nether portal";
             return TaskStatus.FAILED;
         }
-        builder = new SpecialStructureTask(portalStructure(), site, Rotation.NONE, 4);
+        builder = c.structureBuilder()
+                .build(PORTAL_STRUCTURE, site, Rotation.NONE, 4)
+                .orElseThrow(() -> new IllegalStateException("no structure builder for " + PORTAL_STRUCTURE));
         builder.start(c);
         phase = Phase.BUILD;
         phaseTicks = 0;
@@ -561,9 +560,10 @@ public final class TravelThroughPortalTask implements Task {
      * A bounded walk from the companion over loaded chunks only, choosing the first free portal footprint with a
      * solid floor. The builder re-checks the site, so this is a head start, not a trust.
      */
-    private static BlockPos clearPortalSite(ServerLevel level, CompanionEntity companion) {
+    private static BlockPos clearPortalSite(TaskContext c) {
+        ServerLevel level = c.level();
+        CompanionEntity companion = c.companion();
         BlockPos center = companion.blockPosition();
-        SpecialStructure structure = portalStructure();
         AABB own = companion.getBoundingBox();
         for (int radius = 2; radius <= SITE_RADIUS; radius++) {
             for (int dx = -radius; dx <= radius; dx++) {
@@ -573,7 +573,8 @@ public final class TravelThroughPortalTask implements Task {
                     }
                     for (int dy = -1; dy <= 1; dy++) {
                         BlockPos origin = center.offset(dx, dy, dz);
-                        if (clearFootprint(level, structure, origin, own)) {
+                        Optional<AABB> volume = c.structureBuilder().volume(PORTAL_STRUCTURE, origin, Rotation.NONE);
+                        if (volume.isPresent() && clearFootprint(level, volume.get(), own)) {
                             return origin;
                         }
                     }
@@ -583,9 +584,7 @@ public final class TravelThroughPortalTask implements Task {
         return null;
     }
 
-    private static boolean clearFootprint(ServerLevel level, SpecialStructure structure, BlockPos origin, AABB own) {
-        StructureSite site = new StructureSite(origin, Rotation.NONE);
-        AABB box = site.box(structure);
+    private static boolean clearFootprint(ServerLevel level, AABB box, AABB own) {
         if (!level.hasChunkAt(BlockPos.containing(box.minX, box.minY, box.minZ))
                 || !level.hasChunkAt(BlockPos.containing(box.maxX - 1, box.maxY - 1, box.maxZ - 1))
                 || own.intersects(box)) {
@@ -686,10 +685,6 @@ public final class TravelThroughPortalTask implements Task {
             lowest = lowest.below();
         }
         return lowest;
-    }
-
-    private static SpecialStructure portalStructure() {
-        return StructureBook.withBuiltins().get(PORTAL_STRUCTURE).orElseThrow();
     }
 
     /** The server level for a destination the route supports; null when the server has no such world. */
