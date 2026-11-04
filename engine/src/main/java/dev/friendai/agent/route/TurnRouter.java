@@ -12,7 +12,8 @@ import java.util.regex.Pattern;
 
 /**
  * Decides, without a model call, what a turn is for. The rules are deliberately blunt: anything unclear is an
- * ordinary action with every group unlocked, so a wrong guess costs tokens but never capability.
+ * ordinary action with every group unlocked, so a wrong guess costs tokens but never capability. Planning is a
+ * second, equally blunt decision from {@link PlanningPolicy}, made from the mode and score this class resolved.
  */
 public final class TurnRouter {
     /** Longest player text looked at; the rest is ignored. */
@@ -21,9 +22,15 @@ public final class TurnRouter {
     static final int GOAL_SCORE = 2;
 
     private final IntentVocabulary vocabulary;
+    private final PlanningPolicy planningPolicy;
 
     public TurnRouter(IntentVocabulary vocabulary) {
+        this(vocabulary, new PlanningPolicy());
+    }
+
+    public TurnRouter(IntentVocabulary vocabulary, PlanningPolicy planningPolicy) {
         this.vocabulary = vocabulary;
+        this.planningPolicy = planningPolicy;
     }
 
     /** True only when the text contains a recognized trading action verb, not merely a trading topic. */
@@ -36,14 +43,21 @@ public final class TurnRouter {
 
     public RouteDecision route(RouteSignals s) {
         if (s.planBlockedOrFailed()) {
-            return new RouteDecision(TurnMode.RECOVERY, all(), s.hasActiveGoal(), "a plan failed or needs a decision");
+            return new RouteDecision(
+                    TurnMode.RECOVERY,
+                    all(),
+                    plan(TurnMode.RECOVERY, s, "", 0, false, false),
+                    "a plan failed or needs a decision");
         }
         String text = s.playerText().length() > MAX_TEXT ? s.playerText().substring(0, MAX_TEXT) : s.playerText();
         String lower = text.toLowerCase(Locale.ROOT).strip();
         if (s.turn() == TurnKind.EVENT || lower.isEmpty()) {
-            return s.turn() == TurnKind.EVENT
-                    ? new RouteDecision(TurnMode.EVENT, all(), false, "no player message")
-                    : new RouteDecision(TurnMode.ACTION, all(), false, "empty player message");
+            TurnMode mode = s.turn() == TurnKind.EVENT ? TurnMode.EVENT : TurnMode.ACTION;
+            return new RouteDecision(
+                    mode,
+                    all(),
+                    plan(mode, s, text, 0, false, false),
+                    s.turn() == TurnKind.EVENT ? "no player message" : "empty player message");
         }
         List<String> tokens = tokens(lower);
         Map<String, Set<ToolGroup>> verbs = vocabulary.verbsIn(tokens);
@@ -56,39 +70,77 @@ public final class TurnRouter {
             return new RouteDecision(
                     TurnMode.CHAT,
                     EnumSet.of(ToolGroup.INFO, ToolGroup.MEMORY, ToolGroup.INVENTORY),
-                    false,
+                    plan(TurnMode.CHAT, s, text, 0, false, false),
                     "a shopping advice question, not an order");
         }
         if (question && groups.contains(ToolGroup.TRADING) && vocabulary.startsWithQuestionMarker(lower, tokens)) {
             Set<ToolGroup> chatGroups =
                     EnumSet.of(ToolGroup.INFO, ToolGroup.MEMORY, ToolGroup.INVENTORY, ToolGroup.TRADING);
             return new RouteDecision(
-                    TurnMode.CHAT, chatGroups, false, "a question about remembered market facts, not an order");
+                    TurnMode.CHAT,
+                    chatGroups,
+                    plan(TurnMode.CHAT, s, text, 0, false, false),
+                    "a question about remembered market facts, not an order");
         }
         if (question && verbs.isEmpty()) {
             Set<ToolGroup> chatGroups = EnumSet.of(ToolGroup.INFO, ToolGroup.MEMORY, ToolGroup.INVENTORY);
             if (groups.contains(ToolGroup.TRADING)) chatGroups.add(ToolGroup.TRADING);
-            return new RouteDecision(TurnMode.CHAT, chatGroups, false, "a question with no action in it");
+            return new RouteDecision(
+                    TurnMode.CHAT,
+                    chatGroups,
+                    plan(TurnMode.CHAT, s, text, 0, false, false),
+                    "a question with no action in it");
         }
-        int score = kinds(verbs.values())
-                + (vocabulary.hasComplexMarker(lower) ? 1 : 0)
-                + (vocabulary.hasPlanRequest(lower) ? 1 : 0);
+        int kinds = kinds(verbs.values());
+        boolean complex = vocabulary.hasComplexMarker(lower);
+        boolean planRequest = vocabulary.hasPlanRequest(lower);
+        int score = kinds + (complex ? 1 : 0) + (planRequest ? 1 : 0);
         if (!s.hasActiveGoal() && score >= GOAL_SCORE) {
             groups.add(ToolGroup.MOVEMENT);
             groups.add(ToolGroup.INFO);
             return new RouteDecision(
                     TurnMode.GOAL,
                     groups.isEmpty() ? all() : groups,
-                    true,
+                    plan(TurnMode.GOAL, s, text, kinds, complex, planRequest),
                     "several kinds of work (score " + score + ")");
         }
         if (groups.isEmpty()) {
-            return new RouteDecision(TurnMode.ACTION, all(), false, "no recognized words");
+            return new RouteDecision(
+                    TurnMode.ACTION,
+                    all(),
+                    plan(TurnMode.ACTION, s, text, kinds, complex, planRequest),
+                    "no recognized words");
         }
         // Movement and the read-only info tools (find_trees, find_blocks, player_view) help every action.
         groups.add(ToolGroup.MOVEMENT);
         groups.add(ToolGroup.INFO);
-        return new RouteDecision(TurnMode.ACTION, groups, false, "matched " + groups);
+        return new RouteDecision(
+                TurnMode.ACTION,
+                groups,
+                plan(TurnMode.ACTION, s, text, kinds, complex, planRequest),
+                "matched " + groups);
+    }
+
+    private PlanningDecision plan(
+            TurnMode mode, RouteSignals s, String text, int kinds, boolean complex, boolean planRequest) {
+        return planningPolicy.beforeTurn(new PlanSignals(
+                mode,
+                text,
+                kinds,
+                complex,
+                planRequest,
+                s.hasActiveGoal(),
+                s.goalHasNoQueuedWork(),
+                s.goalUnmet(),
+                s.troubledPlanQueued(),
+                s.freeTimeShift(),
+                s.ownerCaller(),
+                s.budgetSpent(),
+                s.troubledPlanId(),
+                s.failure(),
+                s.goalId(),
+                s.unmet(),
+                s.shiftId()));
     }
 
     private static Set<ToolGroup> all() {

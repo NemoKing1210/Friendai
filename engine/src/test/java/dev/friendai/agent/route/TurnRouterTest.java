@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.friendai.agent.plan.PlanSubject;
 import dev.friendai.agent.tools.ToolGroup;
 import dev.friendai.agent.turn.TurnKind;
 import java.util.List;
@@ -13,14 +14,22 @@ class TurnRouterTest {
     private final TurnRouter router = new TurnRouter(IntentVocabulary.load());
 
     private RouteDecision player(String text, boolean goal) {
-        return router.route(new RouteSignals(TurnKind.PLAYER, text, goal, false, 0));
+        return route(TurnKind.PLAYER, text, goal, false, 0, true, false);
+    }
+
+    private RouteDecision route(
+            TurnKind kind, String text, boolean goal, boolean blocked, int steps, boolean owner, boolean troubled) {
+        return router.route(new RouteSignals(
+                kind, text, goal, blocked, steps, owner, troubled, false, false, false, false, 3L, "", 0L, List.of(),
+                0L));
     }
 
     @Test
     void blockedEventRoutesToRecovery() {
-        RouteDecision d = router.route(new RouteSignals(TurnKind.EVENT, "", true, true, 3));
+        RouteDecision d = route(TurnKind.EVENT, "", true, true, 3, true, true);
         assertEquals(TurnMode.RECOVERY, d.mode());
-        assertTrue(d.wantPlanner(), "an active goal may be replanned");
+        assertTrue(d.wantPlanner(), "a queued troubled plan may be replanned");
+        assertEquals(new PlanSubject.TroubledPlan(3, ""), d.planning().subject());
         assertEquals(ToolGroup.values().length, d.groups().size());
     }
 
@@ -148,16 +157,31 @@ class TurnRouterTest {
 
     @Test
     void eventTurnRoutesToEvent() {
-        RouteDecision d = router.route(new RouteSignals(TurnKind.EVENT, "", false, false, 0));
+        RouteDecision d = route(TurnKind.EVENT, "", false, false, 0, true, false);
         assertEquals(TurnMode.EVENT, d.mode());
         assertFalse(d.wantPlanner());
     }
 
     @Test
-    void activeGoalSuppressesWantPlanner() {
+    void anOwnerOrderOverAnActiveGoalStillPlans() {
         RouteDecision d = player("build a house and bring iron", true);
-        assertFalse(d.wantPlanner());
         assertEquals(TurnMode.ACTION, d.mode());
+        assertEquals(PlanNeed.REQUIRED, d.planning().need());
+        assertTrue(d.wantPlanner());
+        assertEquals(
+                new PlanSubject.OwnerOrder("build a house and bring iron"),
+                d.planning().subject());
+    }
+
+    @Test
+    void planningDecisionMatchesTheRouter() {
+        assertEquals(
+                PlanNeed.REQUIRED,
+                player("build a house and bring iron", false).planning().need());
+        assertEquals(PlanNeed.NONE, player("mine some iron", false).planning().need());
+        assertEquals(
+                PlanNeed.NONE, player("where is the village?", false).planning().need());
+        assertTrue(player("build a house and bring iron", false).wantPlanner());
     }
 
     @Test

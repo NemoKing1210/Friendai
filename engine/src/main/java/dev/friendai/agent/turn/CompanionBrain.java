@@ -12,6 +12,7 @@ import dev.friendai.agent.plan.PlanProposal;
 import dev.friendai.agent.plan.PlannerInput;
 import dev.friendai.agent.recover.FailureHandler;
 import dev.friendai.agent.route.IntentVocabulary;
+import dev.friendai.agent.route.PlanningDecision;
 import dev.friendai.agent.route.RouteDecision;
 import dev.friendai.agent.route.RouteSignals;
 import dev.friendai.agent.route.TurnMode;
@@ -133,7 +134,8 @@ public final class CompanionBrain {
     /** The tool groups this turn may use; widened by request_tools, reset at every turn start. */
     private final Set<ToolGroup> visibleGroups = EnumSet.allOf(ToolGroup.class);
 
-    private RouteDecision decision = new RouteDecision(TurnMode.ACTION, EnumSet.allOf(ToolGroup.class), false, "none");
+    private RouteDecision decision =
+            new RouteDecision(TurnMode.ACTION, EnumSet.allOf(ToolGroup.class), PlanningDecision.none("none"), "none");
 
     private static final class SpokenLine {
         private final String text;
@@ -538,12 +540,25 @@ public final class CompanionBrain {
                 .toList();
         boolean planTrouble = !troubledPlans.isEmpty();
         ownsTroubledPlan = troubledPlans.stream().anyMatch(plannerPort::ownsPlan);
+        boolean budgetSpent =
+                batch.stream().anyMatch(event -> event.toPromptLine().contains(BUDGET_SPENT));
         decision = router.route(new RouteSignals(
                 turnKind,
                 String.join("\n", turnPlayerTexts),
                 !goalSource.view(candidateCaller).isEmpty(),
                 planTrouble,
-                0));
+                0,
+                level == AccessLevel.OWNER,
+                ownsTroubledPlan,
+                false,
+                false,
+                false,
+                budgetSpent,
+                troubledPlans.isEmpty() ? 0L : troubledPlans.get(0),
+                "",
+                0L,
+                List.of(),
+                0L));
         // Only an explicit owner trade action may mint a spend scope. Topics, fallback routing and queued
         // work cannot turn a read-only question into authority behind the chat tool filter.
         turnCaller = tradingTurnPort.begin(

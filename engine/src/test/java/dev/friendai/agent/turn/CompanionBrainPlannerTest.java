@@ -265,10 +265,12 @@ class CompanionBrainPlannerTest {
     }
 
     @Test
-    void failedPlanWithoutAGoalSkipsThePlanner() {
+    void failedPlanWithoutAGoalStillReachesThePlannerPort() {
+        port.hasGoal = false;
         gateway.enqueue(text("[silent]"));
         brain.post(new BrainEvent.PlanBlocked(5, "house", 7, "build_structure", "missing materials", 3));
-        assertTrue(port.failures.isEmpty());
+        assertEquals(1, port.failures.size(), "a troubled plan is replanned without an active goal");
+        assertTrue(port.appliedFor.isEmpty(), "nothing is applied when the port has no input for the plan");
     }
 
     @Test
