@@ -73,6 +73,20 @@ public record ClearPlan(List<ClearCell> cells, int skipped) {
         return best;
     }
 
+    /**
+     * Removes every remaining cell of {@code kind} and returns how many went, leaving the order of the other kinds
+     * intact. A null kind or an empty list changes nothing. A kind the companion cannot reach can therefore be given
+     * up without abandoning the snow or stray blocks that come after it.
+     */
+    public static int dropKind(List<ClearCell> remaining, ClearKind kind) {
+        if (remaining == null || kind == null || remaining.isEmpty()) {
+            return 0;
+        }
+        int before = remaining.size();
+        remaining.removeIf(cell -> cell.kind() == kind);
+        return before - remaining.size();
+    }
+
     private static int rank(ClearKind kind) {
         return switch (kind) {
             case VEGETATION -> 0;

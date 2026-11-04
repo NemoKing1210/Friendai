@@ -15,6 +15,7 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ### Fixed
 
+- `clear_area` no longer stops clearing snow and stray blocks because some leaves were out of reach.
 - Clearing an area that holds only lava, flowing water or water you asked to leave no longer reports the job as failed.
 - `clear_area` no longer generates terrain to read an area that is not loaded; it reports the unloaded part.
 - `place_block` at a target in unloaded terrain reports it instead of generating the chunks to look at it.

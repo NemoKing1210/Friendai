@@ -2,6 +2,7 @@ package dev.friendai.features.construction.blueprint;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
@@ -79,6 +80,24 @@ class ClearPlanTest {
         List<ClearCell> remaining = List.of(cell(9, 1, 0, ClearKind.VEGETATION), cell(0, 1, 0, ClearKind.SNOW));
         assertEquals(0, ClearPlan.nextIndex(remaining, 0, 1, 0));
         assertEquals(-1, ClearPlan.nextIndex(List.of(), 0, 0, 0));
+    }
+
+    @Test
+    void droppingOneKindLeavesTheOthersInOrder() {
+        List<ClearCell> remaining = new ArrayList<>(List.of(
+                cell(0, 3, 0, ClearKind.VEGETATION),
+                cell(1, 3, 0, ClearKind.SNOW),
+                cell(2, 3, 0, ClearKind.VEGETATION),
+                cell(3, 3, 0, ClearKind.BLOCK)));
+        assertEquals(2, ClearPlan.dropKind(remaining, ClearKind.VEGETATION));
+        assertEquals(List.of(cell(1, 3, 0, ClearKind.SNOW), cell(3, 3, 0, ClearKind.BLOCK)), remaining);
+    }
+
+    @Test
+    void droppingAKindThatIsNotThereChangesNothing() {
+        List<ClearCell> remaining = new ArrayList<>(List.of(cell(0, 3, 0, ClearKind.VEGETATION)));
+        assertEquals(0, ClearPlan.dropKind(remaining, ClearKind.WATER));
+        assertEquals(List.of(cell(0, 3, 0, ClearKind.VEGETATION)), remaining);
     }
 
     @Test

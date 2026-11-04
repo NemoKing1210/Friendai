@@ -49,7 +49,7 @@ public final class ClearAreaTask implements Task {
     public static final int DEFAULT_TICK_BUDGET = 6_000;
     /** How long one cell may keep the companion walking and breaking before it is given up as unreachable. */
     static final int CELL_TICKS = 300;
-    /** How many cells in a row may be out of reach before the rest of the area is given up as unreachable. */
+    /** How many cells of one kind in a row may be out of reach before the rest of that kind is given up. */
     static final int MAX_UNREACHABLE_STREAK = 3;
 
     private final BlockPos center;
@@ -66,6 +66,7 @@ public final class ClearAreaTask implements Task {
     private int cellTicks;
     private int ticksSpent;
     private int unreachableStreak;
+    private ClearKind streakKind;
     private int planned;
     private int left;
     private int solidsLeft;
@@ -178,7 +179,7 @@ public final class ClearAreaTask implements Task {
             }
             case BROKEN -> {
                 recordCleared(current.kind());
-                unreachableStreak = 0;
+                resetUnreachableStreak();
             }
             case GONE -> skip(ClearSkip.CHANGED);
             case PROTECTED -> skip(ClearSkip.PROTECTED);
@@ -285,6 +286,7 @@ public final class ClearAreaTask implements Task {
         }
         if (fireHands.recoverSource(pos) == null) {
             recordCleared(ClearKind.WATER);
+            resetUnreachableStreak();
         } else {
             skip(ClearSkip.WATER_LEFT);
         }
@@ -305,15 +307,28 @@ public final class ClearAreaTask implements Task {
     }
 
     /**
-     * Records one cell the companion could not reach, and after {@link #MAX_UNREACHABLE_STREAK} in a row gives up on
-     * the rest of the queue: the nearest remaining cells are no easier than the ones just skipped.
+     * Records one cell the companion could not reach, and after {@link #MAX_UNREACHABLE_STREAK} of that kind in a row
+     * gives up on the rest of that kind: the nearest remaining cells of it are no easier than the ones just skipped.
+     * The queue lists one kind after another, so the streak belongs to the kind being worked and starts over whenever
+     * that kind changes or a cell is cleared.
      */
     private void unreachable() {
+        ClearKind kind = current.kind();
+        if (kind != streakKind) {
+            streakKind = kind;
+            unreachableStreak = 0;
+        }
         skip(ClearSkip.UNREACHABLE);
         if (++unreachableStreak >= MAX_UNREACHABLE_STREAK) {
-            skip(ClearSkip.UNREACHABLE, queue.size());
-            queue.clear();
+            // The current cell is already counted above; add only the cells of this kind still ahead of it.
+            skip(ClearSkip.UNREACHABLE, ClearPlan.dropKind(queue, kind));
+            unreachableStreak = 0;
         }
+    }
+
+    private void resetUnreachableStreak() {
+        unreachableStreak = 0;
+        streakKind = null;
     }
 
     private TaskStatus finish() {
