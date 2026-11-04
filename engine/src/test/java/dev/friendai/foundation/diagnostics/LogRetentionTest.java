@@ -48,8 +48,34 @@ class LogRetentionTest {
                     null,
                     LogFileKind.BOOT));
         }
-        List<Path> deleted = LogRetention.plan(files, limits(3_000_000L, 7, 20), now, Set.of());
+        List<Path> deleted = LogRetention.plan(files, limits(3_000_000L, 7, 20), now, Set.of())
+                .delete();
         assertEquals(List.of(files.get(0).path(), files.get(1).path()), deleted);
+    }
+
+    @Test
+    void activeBytesCountTowardTheCapButAreNeverDeleted() {
+        long now = 1_000_000_000L;
+        LogFileInfo active = file("open.jsonl", 80L, now, null, LogFileKind.BOOT);
+        LogFileInfo idle = file("idle.jsonl", 30L, now - 5_000L, null, LogFileKind.BOOT);
+        LogRetention.Result plan =
+                LogRetention.plan(List.of(active, idle), limits(100L, 7, 20), now, Set.of(active.path()));
+        assertEquals(List.of(idle.path()), plan.delete(), "the idle file must go; the open one may not");
+        assertEquals(80L, plan.retainedBytes(), "an open file still occupies the disk");
+        assertEquals(100L, plan.cap());
+    }
+
+    @Test
+    void anOverfullSetOfOpenFilesReportsAnOverflow() {
+        long now = 1_000_000_000L;
+        LogFileInfo open = file("open.jsonl", 120L, now, null, LogFileKind.BOOT);
+        LogFileInfo idle = file("idle.jsonl", 10L, now - 5_000L, null, LogFileKind.BOOT);
+        LogRetention.Result plan =
+                LogRetention.plan(List.of(open, idle), limits(100L, 7, 20), now, Set.of(open.path()));
+        assertEquals(List.of(idle.path()), plan.delete());
+        assertTrue(
+                plan.retainedBytes() > plan.cap(),
+                "nothing else can be deleted, so the caller must report " + plan.retainedBytes());
     }
 
     @Test
@@ -57,7 +83,8 @@ class LogRetentionTest {
         long now = 10 * DAY;
         LogFileInfo old = file("old.jsonl", 10L, now - 11 * DAY, null, LogFileKind.BOOT);
         LogFileInfo recent = file("recent.jsonl", 10L, now - 5 * DAY, null, LogFileKind.BOOT);
-        List<Path> deleted = LogRetention.plan(List.of(old, recent), limits(1_000_000L, 7, 20), now, Set.of());
+        List<Path> deleted = LogRetention.plan(List.of(old, recent), limits(1_000_000L, 7, 20), now, Set.of())
+                .delete();
         assertEquals(List.of(old.path()), deleted);
     }
 
@@ -73,7 +100,8 @@ class LogRetentionTest {
         }
         LogFileInfo other = file("b.jsonl", 10L, now - 1000L, OTHER, LogFileKind.SESSION);
         files.add(other);
-        List<Path> deleted = LogRetention.plan(files, limits(1_000_000L, 30, 2), now, Set.of());
+        List<Path> deleted = LogRetention.plan(files, limits(1_000_000L, 30, 2), now, Set.of())
+                .delete();
         assertEquals(List.of(ownerA.get(0).path(), ownerA.get(1).path()), deleted);
         assertTrue(!deleted.contains(other.path()));
     }
@@ -86,7 +114,8 @@ class LogRetentionTest {
             files.add(file("f" + i + ".jsonl", 1_000_000L, now - (4 - i) * 1000L, null, LogFileKind.BOOT));
         }
         List<Path> deleted = LogRetention.plan(
-                files, limits(0L, 7, 20), now, Set.of(files.get(0).path()));
+                        files, limits(0L, 7, 20), now, Set.of(files.get(0).path()))
+                .delete();
         assertEquals(
                 List.of(files.get(1).path(), files.get(2).path(), files.get(3).path()), deleted);
     }
@@ -98,7 +127,10 @@ class LogRetentionTest {
                 file("a.jsonl", 1_000_000L, now - 3000L, null, LogFileKind.BOOT),
                 file("b.jsonl", 1_000_000L, now - 2000L, null, LogFileKind.BOOT),
                 file("c.jsonl", 1_000_000L, now - 1000L, null, LogFileKind.BOOT));
-        assertEquals(List.of(), LogRetention.plan(files, limits(3_000_000L, 7, 20), now, Set.of()));
+        assertEquals(
+                List.of(),
+                LogRetention.plan(files, limits(3_000_000L, 7, 20), now, Set.of())
+                        .delete());
     }
 
     @Test
@@ -106,12 +138,15 @@ class LogRetentionTest {
         long now = 1_000_000_000L;
         LogFileInfo b = file("b.jsonl", 1_000_000L, now, null, LogFileKind.BOOT);
         LogFileInfo a = file("a.jsonl", 1_000_000L, now, null, LogFileKind.BOOT);
-        List<Path> deleted = LogRetention.plan(List.of(b, a), limits(1_000_000L, 7, 20), now, Set.of());
+        List<Path> deleted = LogRetention.plan(List.of(b, a), limits(1_000_000L, 7, 20), now, Set.of())
+                .delete();
         assertEquals(List.of(a.path()), deleted);
     }
 
     @Test
     void emptyInputReturnsEmpty() {
-        assertEquals(List.of(), LogRetention.plan(List.of(), limits(1, 1, 1), 1L, Set.of()));
+        assertEquals(
+                List.of(),
+                LogRetention.plan(List.of(), limits(1, 1, 1), 1L, Set.of()).delete());
     }
 }

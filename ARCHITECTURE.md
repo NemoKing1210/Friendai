@@ -446,7 +446,10 @@ figures for those fixtures are a recorded coverage gap, not a fabricated zero.
 `logs/friendai/` is the durable diagnostics tree, not an owner store: the root `debug/LogWriterService` writes
 `server/`, `owners/<uuid>/` and `client/` JSONL files with one daemon thread, rotates them at
 `logging.maxFileBytes`, prunes by `logging.maxTotalBytes`, `retentionDays` and `maxSessionsPerOwner`, and writes a
-generated `.md` digest beside each closed file. `LogPipeline` redacts and fans records out; `FriendaiLogAppender`
+generated `.md` digest beside each closed file. Retention counts every file on disk — open ones included — and treats a
+digest as part of its JSONL: the two are deleted together, an orphan digest goes on its own, and a set of open files that
+alone exceeds the cap is reported once instead of growing silently. A day rollover closes the previous day's writers, so
+they stop being protected from pruning. `LogPipeline` redacts and fans records out; `FriendaiLogAppender`
 adds `warn`/`error` from `friendai*` loggers. `/friendai diagnose` bundles stay separate under
 `logs/friendai/diagnostics/`.
 

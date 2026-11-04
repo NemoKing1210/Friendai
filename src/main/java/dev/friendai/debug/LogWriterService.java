@@ -31,6 +31,8 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -153,6 +155,9 @@ public final class LogWriterService implements LogSink, AutoCloseable {
     private volatile boolean failed;
     private volatile String failureCode = "";
     private volatile Path currentFile;
+    /** One overflow warning per process: the condition does not change until active files rotate. */
+    private boolean retentionOverflowLogged;
+
     private volatile long processedThrough;
     private volatile long lastFlush;
     private long nextTicket;
@@ -633,6 +638,7 @@ public final class LogWriterService implements LogSink, AutoCloseable {
         if (!readmeWritten) {
             writeReadme();
         }
+        closeOtherDays(path);
         prune();
         String header = LogJson.encodeHeader(header(owner));
         Writer writer = io.open(path);
@@ -664,11 +670,32 @@ public final class LogWriterService implements LogSink, AutoCloseable {
                 startedMillis);
     }
 
+    /** A day change opens a new directory; the previous day's writers must be closed or pruning can never reclaim them. */
+    private void closeOtherDays(Path path) {
+        String day = path.getParent().getFileName().toString();
+        for (Map.Entry<Path, OpenFile> entry : List.copyOf(open.entrySet())) {
+            Path openPath = entry.getKey();
+            if (openPath.getParent() == null
+                    || openPath.getParent().getFileName().toString().equals(day)) {
+                continue;
+            }
+            OpenFile file = open.remove(openPath);
+            if (file == null) continue;
+            flush(file);
+            try {
+                io.close(file.writer);
+            } catch (IOException ignored) {
+                errors.incrementAndGet();
+            }
+            if (settings.digest()) writeDigest(file.path);
+        }
+    }
+
     private OpenFile rotate(Path path, OpenFile file, UUID owner) throws IOException {
         flush(file);
         io.close(file.writer);
         open.remove(path);
-        if (settings.digest()) writeDigest(path);
+        if (settings.digest()) writeDigest(file.path);
         int part = 2;
         Path next;
         do {
@@ -761,24 +788,27 @@ public final class LogWriterService implements LogSink, AutoCloseable {
             roots.add(root.resolve("client"));
         }
         List<LogFileInfo> files = new ArrayList<>();
+        Map<Path, Long> digests = new LinkedHashMap<>();
         for (Path stream : roots) {
             if (!Files.isDirectory(stream)) continue;
             try (var paths = Files.walk(stream)) {
-                paths.filter(Files::isRegularFile)
-                        .filter(path -> path.toString().endsWith(".jsonl"))
-                        .forEach(path -> {
-                            try {
-                                BasicFileAttributes attributes = Files.readAttributes(path, BasicFileAttributes.class);
-                                files.add(new LogFileInfo(
-                                        path,
-                                        attributes.size(),
-                                        attributes.lastModifiedTime().toMillis(),
-                                        ownerOf(path),
-                                        underOwners(path) ? LogFileKind.SESSION : LogFileKind.BOOT));
-                            } catch (IOException ignored) {
-                                // A file that cannot be read is left alone.
-                            }
-                        });
+                for (Path path : paths.filter(Files::isRegularFile).toList()) {
+                    try {
+                        BasicFileAttributes attributes = Files.readAttributes(path, BasicFileAttributes.class);
+                        if (path.toString().endsWith(".jsonl")) {
+                            files.add(new LogFileInfo(
+                                    path,
+                                    attributes.size(),
+                                    attributes.lastModifiedTime().toMillis(),
+                                    ownerOf(path),
+                                    underOwners(path) ? LogFileKind.SESSION : LogFileKind.BOOT));
+                        } else if (path.toString().endsWith(".md")) {
+                            digests.put(path, attributes.size());
+                        }
+                    } catch (IOException ignored) {
+                        // A file that cannot be read is left alone.
+                    }
+                }
             } catch (IOException ignored) {
                 // Pruning is best effort.
             }
@@ -787,19 +817,59 @@ public final class LogWriterService implements LogSink, AutoCloseable {
         for (OpenFile file : open.values()) {
             active.add(file.path);
         }
-        List<Path> remove = LogRetention.plan(
-                files,
+        // A digest belongs to its JSONL: the budget counts both, and neither outlives the other.
+        List<LogFileInfo> accounted = new ArrayList<>(files.size());
+        Map<Path, Path> digestOf = new LinkedHashMap<>();
+        for (LogFileInfo file : files) {
+            Path digest = file.path()
+                    .resolveSibling(
+                            LogNames.digestName(file.path().getFileName().toString()));
+            Long bytes = digests.remove(digest);
+            digestOf.put(file.path(), digest);
+            accounted.add(new LogFileInfo(
+                    file.path(),
+                    file.bytes() + (bytes == null ? 0L : bytes),
+                    file.modifiedMillis(),
+                    file.owner(),
+                    file.kind()));
+        }
+        LogRetention.Result plan = LogRetention.plan(
+                accounted,
                 new LogRetention.Limits(
                         settings.maxTotalBytes(), settings.retentionDays(), settings.maxSessionsPerOwner()),
                 clock.getAsLong(),
                 active);
         int removed = 0;
-        for (Path path : remove) {
+        Set<Path> gone = new LinkedHashSet<>();
+        for (Path path : plan.delete()) {
             try {
                 if (Files.deleteIfExists(path)) removed++;
             } catch (IOException ignored) {
                 // A locked or in-use file is retried next time.
             }
+            gone.add(path);
+            Path digest = digestOf.get(path);
+            if (digest != null) {
+                try {
+                    if (Files.deleteIfExists(digest)) removed++;
+                } catch (IOException ignored) {
+                    // Retried next time with the next prune.
+                }
+            }
+        }
+        for (Path orphan : digests.keySet()) {
+            try {
+                if (Files.deleteIfExists(orphan)) removed++;
+            } catch (IOException ignored) {
+                // A digest without its log is useless; the next prune retries.
+            }
+        }
+        if (plan.retainedBytes() > plan.cap() && !retentionOverflowLogged) {
+            retentionOverflowLogged = true;
+            FriendaiMod.LOGGER.warn(
+                    "Log retention is over its byte cap: {} bytes retained of {}; active files cannot be deleted",
+                    plan.retainedBytes(),
+                    plan.cap());
         }
         return removed;
     }

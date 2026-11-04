@@ -12,16 +12,20 @@ import java.util.UUID;
 
 /**
  * Decides which files to delete. Pure: the writer supplies the file list, the clock and its open files. Age, the
- * per-owner session count and the total size are applied in that order, and an active file is never selected.
+ * per-owner session count and the total size are applied in that order. An active file is never selected, but its bytes
+ * still count toward the cap: a set of open files larger than the budget cannot be bounded by deleting others.
  */
 public final class LogRetention {
     public record Limits(long maxTotalBytes, int retentionDays, int maxSessionsPerOwner) {}
+
+    /** The deletion plan plus what would remain, so the caller can report an overflow it cannot fix by deleting. */
+    public record Result(List<Path> delete, long retainedBytes, long cap) {}
 
     private static final long DAY_MILLIS = 86_400_000L;
 
     private LogRetention() {}
 
-    public static List<Path> plan(List<LogFileInfo> files, Limits limits, long nowMillis, Set<Path> activeFiles) {
+    public static Result plan(List<LogFileInfo> files, Limits limits, long nowMillis, Set<Path> activeFiles) {
         Set<Path> active = activeFiles == null ? Set.of() : activeFiles;
         List<LogFileInfo> candidates = new ArrayList<>();
         for (LogFileInfo file : files) {
@@ -65,7 +69,13 @@ public final class LogRetention {
             remaining.removeIf(file -> gone.contains(file.path()));
         }
 
+        // Active files cannot be deleted, but their bytes are on disk: the budget covers every retained file.
         long total = 0L;
+        for (LogFileInfo file : files) {
+            if (file != null && active.contains(file.path())) {
+                total += file.bytes();
+            }
+        }
         for (LogFileInfo file : remaining) {
             total += file.bytes();
         }
@@ -83,6 +93,13 @@ public final class LogRetention {
         for (LogFileInfo file : ordered) {
             paths.add(file.path());
         }
-        return paths;
+        long retained = 0L;
+        Set<Path> deleting = new LinkedHashSet<>(paths);
+        for (LogFileInfo file : files) {
+            if (file != null && !deleting.contains(file.path())) {
+                retained += file.bytes();
+            }
+        }
+        return new Result(paths, retained, cap);
     }
 }

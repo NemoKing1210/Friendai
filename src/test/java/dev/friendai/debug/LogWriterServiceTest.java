@@ -186,6 +186,39 @@ class LogWriterServiceTest {
                     .count();
             assertEquals(1, headers, "only the first line of " + file + " may be a header");
             assertTrue(Files.size(file) <= 1024L, "a part must stay near the cap: " + file);
+            assertTrue(
+                    Files.exists(file.resolveSibling(dev.friendai.foundation.diagnostics.LogNames.digestName(
+                            file.getFileName().toString()))),
+                    "each part gets its own digest beside it: " + file);
+        }
+    }
+
+    @Test
+    void aDayChangeClosesThePreviousDaysStream(@TempDir Path root) throws IOException {
+        AtomicLong clock = new AtomicLong(NOW);
+        LogSettings settings = settings(LogLevel.INFO);
+        try (LogWriterService writer = new LogWriterService(
+                root,
+                LogWriterScope.SERVER,
+                "7f3c",
+                "0.160.0",
+                "26.3",
+                uuid -> "Alex",
+                settings,
+                text -> text,
+                clock::get,
+                64)) {
+            writer.offer(record(1, LogCategory.SERVER, null));
+            writer.flushNow().join();
+            Path firstDay = root.resolve("server").resolve(DAY);
+            clock.addAndGet(86_400_000L);
+            writer.offer(record(2, LogCategory.SERVER, null));
+            writer.flushNow().join();
+            Path firstFile = jsonl(firstDay).getFirst();
+            assertTrue(
+                    Files.exists(firstFile.resolveSibling(dev.friendai.foundation.diagnostics.LogNames.digestName(
+                            firstFile.getFileName().toString()))),
+                    "closing yesterday's stream writes its digest, so retention can reclaim it");
         }
     }
 
