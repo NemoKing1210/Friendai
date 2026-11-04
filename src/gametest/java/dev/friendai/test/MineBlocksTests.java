@@ -5,9 +5,11 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.features.inventory.minecraft.task.PickupItemsTask;
 import dev.friendai.features.mining.MiningBounds;
+import dev.friendai.features.mining.minecraft.mining.BlockBreaker;
 import dev.friendai.features.mining.minecraft.mining.BlockFilter;
 import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
 import dev.friendai.features.mining.minecraft.mining.MiningSession;
+import dev.friendai.features.mining.minecraft.mining.SoftCover;
 import dev.friendai.features.mining.minecraft.task.MineBlockAtTask;
 import dev.friendai.features.mining.minecraft.task.MineBlocksTask;
 import dev.friendai.server.execution.ExecutionCoordinator;
@@ -606,6 +608,41 @@ public class MineBlocksTests {
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
             h.assertTrue(countBlocks(h, Blocks.OAK_LOG, new BlockPos(6, 2, 2)) == 0, "the log must be mined");
             h.assertTrue(h.getBlockState(new BlockPos(5, 2, 2)).is(Blocks.OAK_LEAVES), "the leaves must stay");
+        });
+    }
+
+    /** A breaker allowed to dig must break the leaf that hides the log it was sent for. */
+    @GameTest(maxTicks = 600)
+    public void breakerDigsCoverToReachALog(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        buryLog(h);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        BlockPos target = h.absolutePos(new BlockPos(6, 2, 2));
+        var breaker = new BlockBreaker(
+                List.of(target),
+                state -> state.is(Blocks.OAK_LOG),
+                true,
+                false,
+                true,
+                false,
+                null,
+                SoftCover::isCover);
+        TaskContext context = new TaskContext(c, h.getLevel());
+        h.succeedWhen(() -> {
+            breaker.tick(context);
+            h.assertTrue(h.getBlockState(new BlockPos(6, 2, 2)).isAir(), "the covered log must be cut");
+            int left = 0;
+            for (BlockPos leaf : List.of(
+                    new BlockPos(6, 3, 2),
+                    new BlockPos(5, 2, 2),
+                    new BlockPos(7, 2, 2),
+                    new BlockPos(6, 2, 1),
+                    new BlockPos(6, 2, 3))) {
+                if (h.getBlockState(leaf).is(Blocks.OAK_LEAVES)) {
+                    left++;
+                }
+            }
+            h.assertTrue(left < 5, "the cover hiding the log must be broken");
         });
     }
 

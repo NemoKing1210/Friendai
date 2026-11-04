@@ -1,5 +1,6 @@
 package dev.friendai.features.navigation.pathing;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -73,5 +74,20 @@ public record PathingConfig(
     public PathingConfig withActions(boolean allowBreak, boolean allowPlace) {
         return new PathingConfig(
                 allowBreak, allowPlace, breakBlacklist, placeBlacklist, searchBudgetMs, maxNodes, maxGatherBlocks);
+    }
+
+    /**
+     * A copy that also refuses to dig the named blocks. A caller whose own work owns those blocks, such as a feller
+     * whose route must never cut the trunk it is felling, adds them here instead of walking through them.
+     */
+    public PathingConfig withAdditionalBreaks(List<String> blocks) {
+        List<String> extended = new ArrayList<>(breakBlacklist);
+        for (String block : blocks) {
+            if (!extended.contains(block)) {
+                extended.add(block);
+            }
+        }
+        return new PathingConfig(
+                allowBreak, allowPlace, extended, placeBlacklist, searchBudgetMs, maxNodes, maxGatherBlocks);
     }
 }

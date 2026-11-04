@@ -179,16 +179,14 @@ public class TreeFellingTests {
             h.setBlock(p, Blocks.OAK_LOG);
             logs.add(p);
         }
-        // Wall every climb column the planner may pick, leaving only the companion's own cell free (blocked above it).
+        // Wall every climb column the planner may pick, leaving only the companion's own column open: it has no
+        // material to pillar with and no side of the trunk is reachable, so the logs must be cut from the ground.
         for (int x = 4; x <= 8; x++) {
             for (int z = 4; z <= 8; z++) {
-                if (x == 6 && z == 6) {
+                if ((x == 6 && z == 6) || (x == 5 && z == 6)) {
                     continue;
                 }
                 for (int y = 2; y <= 4; y++) {
-                    if (x == 5 && z == 6 && y == 2) {
-                        continue;
-                    }
                     h.setBlock(new BlockPos(x, y, z), Blocks.DIRT);
                 }
             }
@@ -735,6 +733,70 @@ public class TreeFellingTests {
             ToolResult result = run(tools, anonymous, "find_trees", "{\"near\":\"self\",\"radius\":16}");
             h.assertTrue(!result.error(), result.content());
             h.assertTrue(result.content().contains("acacia_log"), result.content());
+        });
+    }
+
+    /** A log walled in by stone is not a log behind leaves: the feller must not dig the stone. */
+    @GameTest(maxTicks = 1200)
+    public void doesNotDigStoneToReachALog(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(new BlockPos(6, 2, 6), Blocks.OAK_LOG);
+        h.setBlock(new BlockPos(6, 3, 6), Blocks.STONE);
+        h.setBlock(new BlockPos(5, 2, 6), Blocks.STONE);
+        h.setBlock(new BlockPos(7, 2, 6), Blocks.STONE);
+        h.setBlock(new BlockPos(6, 2, 5), Blocks.STONE);
+        h.setBlock(new BlockPos(6, 2, 7), Blocks.STONE);
+        // Close enough for the ground fallback to try the breaker; further away it would refuse before digging.
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 4, 2, 6);
+        c.inventory().addItem(new ItemStack(Items.DIRT, 16));
+        List<BlockPos> cells = List.of(new BlockPos(6, 2, 6));
+        Result result = new Result();
+        ExecutionCoordinator runner =
+                start(c, result, new FellTreeTask(info(h, cells, "oak_log", 1), oak(), 0, false), 120);
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.FAILED, "status " + result.status + " " + result.summary);
+            h.assertTrue(h.getBlockState(new BlockPos(6, 2, 6)).is(Blocks.OAK_LOG), "the log must stay");
+            h.assertTrue(h.getBlockState(new BlockPos(6, 3, 6)).is(Blocks.STONE), "the stone must stay");
+            h.assertTrue(h.getBlockState(new BlockPos(5, 2, 6)).is(Blocks.STONE), "the stone must stay");
+        });
+    }
+
+    /** The trunk of the test tree is wrapped in persistent leaves; every log must still come down. */
+    @GameTest(maxTicks = 3000)
+    public void leafCoveredLogIsUncoveredAndCut(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        List<BlockPos> logs = new java.util.ArrayList<>();
+        for (int y = 2; y <= 5; y++) {
+            BlockPos p = new BlockPos(6, y, 6);
+            h.setBlock(p, Blocks.SPRUCE_LOG);
+            logs.add(p);
+        }
+        for (int y = 3; y <= 5; y++) {
+            leaf(h, 5, y, 6);
+            leaf(h, 7, y, 6);
+            leaf(h, 6, y, 5);
+            leaf(h, 6, y, 7);
+        }
+        leaf(h, 6, 6, 6);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.DIRT, 16));
+        Result result = new Result();
+        ExecutionCoordinator runner = start(
+                c,
+                result,
+                new FellTreeTask(
+                        info(h, logs, "spruce_log", 4),
+                        BlockMatcher.parse("minecraft:spruce_log").orElseThrow(),
+                        0,
+                        true),
+                300);
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
+            for (BlockPos p : logs) {
+                h.assertTrue(h.getBlockState(p).isAir(), "log left at " + p + "; " + result.summary);
+            }
         });
     }
 

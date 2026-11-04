@@ -48,6 +48,8 @@ public final class BlockBreaker {
     private final boolean digToTarget;
     /** Whether the breaker may remove a temporary block directly beneath the companion. */
     private final boolean allowBreakingSupport;
+    /** The blocks the breaker may dig away to uncover the target; leaves and vines for a feller. */
+    private final Predicate<BlockState> diggable;
 
     private final Approach approach;
     /** A precise stance goal: interaction reach alone does not put the eyes around the obstruction. */
@@ -143,6 +145,22 @@ public final class BlockBreaker {
             boolean digToTarget,
             boolean allowBreakingSupport,
             PlacementLedger ledger) {
+        this(candidates, stillValid, requireSight, mayPlace, digToTarget, allowBreakingSupport, ledger, state -> true);
+    }
+
+    /**
+     * @param diggable which blocks may be dug away to uncover the target; the target itself is always excluded. A
+     *     feller passes {@link SoftCover#isCover} so it never mines stone or dirt to reach a log.
+     */
+    public BlockBreaker(
+            Collection<BlockPos> candidates,
+            Predicate<BlockState> stillValid,
+            boolean requireSight,
+            boolean mayPlace,
+            boolean digToTarget,
+            boolean allowBreakingSupport,
+            PlacementLedger ledger,
+            Predicate<BlockState> diggable) {
         if (candidates.isEmpty()) {
             throw new IllegalArgumentException("BlockBreaker needs at least one candidate");
         }
@@ -151,7 +169,8 @@ public final class BlockBreaker {
         this.requireSight = requireSight;
         this.digToTarget = digToTarget;
         this.allowBreakingSupport = allowBreakingSupport;
-        this.approach = new Approach(this.candidates, mayPlace, ledger, requireSight && !digToTarget);
+        this.diggable = diggable;
+        this.approach = new Approach(this.candidates, mayPlace, ledger, requireSight, digToTarget ? diggable : null);
     }
 
     /** The candidate the breaker settled on, or null while it is still walking. */
@@ -162,6 +181,15 @@ public final class BlockBreaker {
     /** Every block this breaker may break, so the caller can blacklist them together. */
     public List<BlockPos> candidates() {
         return candidates;
+    }
+
+    /**
+     * Blocks the walking route may never dig, as ids or {@code #tag}s. A feller protects its logs here: the route
+     * would otherwise tunnel through the trunk and destroy a log the task never records as cut.
+     */
+    public BlockBreaker protectRoute(List<String> blocks) {
+        approach.avoidBreaking(blocks);
+        return this;
     }
 
     public State tick(TaskContext c) {
@@ -216,6 +244,11 @@ public final class BlockBreaker {
             return State.PROTECTED;
         }
         if (requireSight && !Sight.canSee(c.level(), companion, target)) {
+            // Breaking the cover where the companion stands is one block of work; stepping to another stance can
+            // walk it off a scaffold beside a crown, so try the dig first and move only when nothing may be dug.
+            if (digToTarget && dig(c)) {
+                return State.WORKING;
+            }
             if (!viewFailed && viewApproach == null) {
                 BlockPos view = Sight.viewSpot(c.level(), companion, target);
                 if (view != null) {
@@ -240,10 +273,8 @@ public final class BlockBreaker {
                 viewFailed = true;
             }
             if (!Sight.canSee(c.level(), companion, target)) {
-                if (!digToTarget || !dig(c)) {
-                    return State.OUT_OF_SIGHT;
-                }
-                return State.WORKING;
+                // dig() above already reported that there is nothing this breaker may break to uncover it.
+                return State.OUT_OF_SIGHT;
             }
         }
         if (viewApproach != null) {
@@ -255,16 +286,26 @@ public final class BlockBreaker {
         return State.WORKING;
     }
 
-    /** Digs away the block that hides the target; true while there is something left to dig. */
+    /** Digs away a block that hides the target; true while there is something left to dig. */
     private boolean dig(TaskContext c) {
         if (dug >= MAX_DUG) {
             return false;
         }
         var companion = c.companion();
-        BlockPos obstruction = Sight.firstBlockOnRay(c.level(), companion, target);
-        if (obstruction == null
-                || c.level().getBlockState(obstruction).getDestroySpeed(c.level(), obstruction) < 0
-                || !companion.hands().canInteract(obstruction)) {
+        BlockPos obstruction = null;
+        // Sight hides the target from any of the aims a player may use; the centre ray often meets a solid block of
+        // the structure while a side face is only behind cover, so look for diggable cover across the same aims.
+        for (BlockPos candidate : Sight.obstructions(c.level(), companion, target)) {
+            BlockState state = c.level().getBlockState(candidate);
+            if (state.getDestroySpeed(c.level(), candidate) < 0
+                    || !companion.hands().canInteract(candidate)
+                    || !diggable.test(state)) {
+                continue;
+            }
+            obstruction = candidate;
+            break;
+        }
+        if (obstruction == null) {
             return false;
         }
         if (digAction == null || !obstruction.equals(digging)) {

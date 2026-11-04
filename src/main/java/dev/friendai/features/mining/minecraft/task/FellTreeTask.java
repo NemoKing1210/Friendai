@@ -9,6 +9,7 @@ import dev.friendai.features.construction.minecraft.build.Scaffold;
 import dev.friendai.features.construction.minecraft.build.ScaffoldCleanupTask;
 import dev.friendai.features.mining.minecraft.mining.BlockBreaker;
 import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
+import dev.friendai.features.mining.minecraft.mining.SoftCover;
 import dev.friendai.features.mining.minecraft.mining.TreeFinder;
 import dev.friendai.features.mining.tree.CanopyRescue;
 import dev.friendai.features.mining.tree.FellPlan;
@@ -65,6 +66,8 @@ public final class FellTreeTask implements Task {
     private static final int MAX_LEAVES_PER_DROP = 3;
     /** How often the cut looks for a stranded drop, in ticks. */
     private static final int RESCUE_SCAN_TICKS = 10;
+    /** How many logs one frame may walk down through while looking for the log that hides the planned one. */
+    private static final int MAX_BLOCKER_DEPTH = 32;
     /** How far below a leaf the rescue looks for the cell the item will land on. */
     private static final int MAX_LANDING_SCAN = 32;
     /** How long the end of the cut waits for the last drops to settle and be rescued, in ticks. */
@@ -75,6 +78,12 @@ public final class FellTreeTask implements Task {
      * reporting a tree as done with its logs still on the ground.
      */
     private static final int MAX_SWEEP_ROUNDS = 4;
+
+    /**
+     * A route never digs a log. The trunk is cut by this task's own breaker, in order and recorded; a route that
+     * tunnels through the tree destroys a log the felling never accounts for and cannot report.
+     */
+    private static final List<String> PROTECTED_ROUTE_BLOCKS = List.of("#minecraft:logs");
 
     private enum Phase {
         WALK,
@@ -96,6 +105,8 @@ public final class FellTreeTask implements Task {
     private final Set<BlockPos> remaining;
     /** Every log this task has ever counted, so a log found later is counted once. */
     private final Set<BlockPos> known;
+    /** The logs this felling cut itself; a stage log that is already air and in here was cut out of order. */
+    private final Set<BlockPos> taken = new HashSet<>();
     /** Logs that will not be cut, and why. */
     private final Map<BlockPos, String> blacklist = new LinkedHashMap<>();
     /** Logs that left the world or changed before they were reached: skipped, never counted as felled. */
@@ -122,6 +133,9 @@ public final class FellTreeTask implements Task {
     private MoveHelper mover;
     private Scaffold scaffold;
     private BlockBreaker breaker;
+    /** The log the current breaker is aimed at; it may be a log that hides the planned one, cut first. */
+    private BlockPos breaking;
+
     private DropCollector sweep;
     /** The leaf being broken for a stranded drop, the drop it is for, and the drops given up on. */
     private BlockBreaker rescue;
@@ -423,7 +437,8 @@ public final class FellTreeTask implements Task {
                 continue;
             }
             if (clearable(state) && c.companion().hands().canInteract(cell) && !PlaceGuard.protects(c, cell)) {
-                breaker = new BlockBreaker(cell, FellTreeTask::clearable, false, false);
+                breaker = new BlockBreaker(cell, FellTreeTask::clearable, false, false)
+                        .protectRoute(PROTECTED_ROUTE_BLOCKS);
                 return TaskStatus.RUNNING;
             }
             refusal = "I can't climb through " + blockId(c.level(), cell) + " at " + coords(cell);
@@ -506,8 +521,11 @@ public final class FellTreeTask implements Task {
             }
             chunkWait = 0;
             if (!matcher.test(c.level().getBlockState(target))) {
-                skipped.put(target, "changed");
-                remaining.remove(target);
+                // A log this felling already cut to uncover the one above it is done, not missing.
+                if (!taken.contains(target)) {
+                    skipped.put(target, "changed");
+                    remaining.remove(target);
+                }
                 logIndex++;
                 continue;
             }
@@ -516,42 +534,66 @@ public final class FellTreeTask implements Task {
                 continue;
             }
             if (breaker == null) {
-                breaker = new BlockBreaker(List.of(target), matcher::test, false, false, false, false);
+                breaking = blockerFirst(c, target);
+                breaker = new BlockBreaker(
+                                List.of(breaking), matcher::test, true, false, true, false, null, SoftCover::isCover)
+                        .protectRoute(PROTECTED_ROUTE_BLOCKS);
             }
-            BlockPos reached = breaker.target() != null ? breaker.target() : target;
+            BlockPos aimed = breaking;
             switch (breaker.tick(c)) {
                 case WORKING -> {
                     return TaskStatus.RUNNING;
                 }
                 case BROKEN -> {
-                    BlockPos broken = breaker.target();
                     breaker = null;
-                    lastBroken = broken;
-                    remaining.remove(broken);
+                    breaking = null;
+                    lastBroken = aimed;
+                    taken.add(aimed);
+                    remaining.remove(aimed);
                     cutCount++;
-                    recordDrops(c, broken);
-                    adopt(c, broken);
-                    logIndex++;
+                    recordDrops(c, aimed);
+                    adopt(c, aimed);
+                    if (aimed.equals(target)) {
+                        logIndex++;
+                    }
                 }
                 case GONE -> {
                     breaker = null;
-                    logIndex++;
+                    breaking = null;
+                    if (aimed.equals(target)) {
+                        logIndex++;
+                    }
                 }
                 case UNREACHABLE -> {
                     breaker = null;
-                    blacklist.put(reached, "out of reach");
-                    logIndex++;
+                    breaking = null;
+                    if (blockerRevealed(c, aimed)) {
+                        return TaskStatus.RUNNING;
+                    }
+                    blacklist.put(aimed, "out of reach");
+                    if (aimed.equals(target)) {
+                        logIndex++;
+                    }
                 }
                 case PROTECTED -> {
                     breaker = null;
-                    String reason = protection(c, reached);
-                    blacklist.put(reached, reason.isEmpty() ? "protected" : reason);
-                    logIndex++;
+                    breaking = null;
+                    String reason = protection(c, aimed);
+                    blacklist.put(aimed, reason.isEmpty() ? "protected" : reason);
+                    if (aimed.equals(target)) {
+                        logIndex++;
+                    }
                 }
                 case OUT_OF_SIGHT -> {
                     breaker = null;
-                    blacklist.put(reached, "out of sight");
-                    logIndex++;
+                    breaking = null;
+                    if (blockerRevealed(c, aimed)) {
+                        return TaskStatus.RUNNING;
+                    }
+                    blacklist.put(aimed, "out of sight");
+                    if (aimed.equals(target)) {
+                        logIndex++;
+                    }
                 }
             }
         }
@@ -575,39 +617,48 @@ public final class FellTreeTask implements Task {
                 break;
             }
             if (breaker == null) {
-                breaker = new BlockBreaker(List.of(target), matcher::test, false, false, false, false);
+                breaking = blockerFirst(c, target);
+                breaker = new BlockBreaker(
+                                List.of(breaking), matcher::test, true, false, true, false, null, SoftCover::isCover)
+                        .protectRoute(PROTECTED_ROUTE_BLOCKS);
             }
-            BlockPos reached = breaker.target() != null ? breaker.target() : target;
+            BlockPos aimed = breaking;
             switch (breaker.tick(c)) {
                 case WORKING -> {
                     return TaskStatus.RUNNING;
                 }
                 case BROKEN -> {
-                    BlockPos broken = breaker.target();
                     breaker = null;
-                    lastBroken = broken;
-                    remaining.remove(broken);
+                    breaking = null;
+                    lastBroken = aimed;
+                    taken.add(aimed);
+                    remaining.remove(aimed);
                     cutCount++;
-                    recordDrops(c, broken);
-                    adopt(c, broken);
+                    recordDrops(c, aimed);
+                    adopt(c, aimed);
                 }
                 case GONE -> {
                     breaker = null;
-                    remaining.remove(target);
-                    skipped.put(target, "gone");
+                    breaking = null;
+                    if (remaining.remove(target) && !taken.contains(target)) {
+                        skipped.put(target, "gone");
+                    }
                 }
                 case UNREACHABLE -> {
                     breaker = null;
-                    blacklist.put(reached, "out of reach");
+                    breaking = null;
+                    blacklist.put(aimed, "out of reach");
                 }
                 case PROTECTED -> {
                     breaker = null;
-                    String reason = protection(c, reached);
-                    blacklist.put(reached, reason.isEmpty() ? "protected" : reason);
+                    breaking = null;
+                    String reason = protection(c, aimed);
+                    blacklist.put(aimed, reason.isEmpty() ? "protected" : reason);
                 }
                 case OUT_OF_SIGHT -> {
                     breaker = null;
-                    blacklist.put(reached, "out of sight");
+                    breaking = null;
+                    blacklist.put(aimed, "out of sight");
                 }
             }
         }
@@ -636,6 +687,54 @@ public final class FellTreeTask implements Task {
                     + " not there when reached";
         }
         return finish(c, status, text);
+    }
+
+    /**
+     * The log to cut next: {@code target} itself, or the lowest log of this felling that hides it. Crown-first order
+     * asks for the far top corner of a wide trunk from below, where the logs underneath hide it from every aim; they
+     * belong to the same tree, so the lowest one is cut first and the planned log follows. Cover is skipped: the
+     * breaker clears leaves itself. Returns the current log when something else hides it, so the breaker reports the
+     * refusal for the log the plan asked for.
+     */
+    private BlockPos blockerFirst(TaskContext c, BlockPos target) {
+        BlockPos current = target;
+        for (int depth = 0; depth < MAX_BLOCKER_DEPTH; depth++) {
+            if (Sight.canSee(c.level(), c.companion(), current)) {
+                return current;
+            }
+            BlockPos next = null;
+            for (BlockPos blocker : Sight.obstructions(c.level(), c.companion(), current)) {
+                BlockState state = c.level().getBlockState(blocker);
+                if (SoftCover.isCover(state)) {
+                    continue;
+                }
+                if (!remaining.contains(blocker)
+                        || blacklist.containsKey(blocker)
+                        || !matcher.test(state)
+                        || c.companion().getEyePosition().distanceTo(Vec3.atCenterOf(blocker)) > Approach.REACH) {
+                    return current;
+                }
+                if (next == null || blocker.getY() < next.getY()) {
+                    next = blocker;
+                }
+            }
+            if (next == null) {
+                return current;
+            }
+            current = next;
+        }
+        return current;
+    }
+
+    /**
+     * Whether clearing the cover just revealed an own log in front of {@code aimed}: the breaker then gives up on the
+     * planned log, but the log that now hides it can be cut first and the planned one follows. The next tick recomputes
+     * the breaker from the planned target, so this only says "try again". A blocker that is already blacklisted is
+     * not offered again, so an unreachable pair cannot loop.
+     */
+    private boolean blockerRevealed(TaskContext c, BlockPos aimed) {
+        BlockPos blocker = blockerFirst(c, aimed);
+        return !blocker.equals(aimed) && remaining.contains(blocker) && !blacklist.containsKey(blocker);
     }
 
     /** Removes the column from the top down before the task finishes. */
@@ -778,7 +877,8 @@ public final class FellTreeTask implements Task {
         producedDrops.add(drop.getUUID());
         rescueAttempts.put(drop.getUUID(), attempts + 1);
         rescuing = drop.getUUID();
-        rescue = new BlockBreaker(List.of(leaf), state -> state.is(BlockTags.LEAVES), true, false, false);
+        rescue = new BlockBreaker(List.of(leaf), state -> state.is(BlockTags.LEAVES), true, false, false)
+                .protectRoute(PROTECTED_ROUTE_BLOCKS);
         return true;
     }
 
@@ -969,6 +1069,7 @@ public final class FellTreeTask implements Task {
         if (breaker != null) {
             breaker.stop(c);
             breaker = null;
+            breaking = null;
         }
         if (sweep != null) {
             sweep.stop(c);
@@ -999,6 +1100,16 @@ public final class FellTreeTask implements Task {
     public String describe() {
         BlockPos base = tree.base();
         return "felling " + label + " tree at " + base.getX() + " " + base.getY() + " " + base.getZ();
+    }
+
+    @Override
+    public String debugStatus() {
+        return "phase=" + phase + " climbFeet=" + (climb != null ? climb.climbFeetY() : "-") + " stage="
+                + stageIndex + "/" + stages.size() + " stageFeet="
+                + (stageIndex < stages.size() ? stages.get(stageIndex).feetY() : -1) + " log=" + logIndex
+                + " breaker=" + (breaker != null ? String.valueOf(breaker.target()) : "-") + " placed="
+                + (scaffold != null ? scaffold.used() : -1) + " attempted=" + cutCount + "/" + total + " refusal="
+                + refusal;
     }
 
     @Override

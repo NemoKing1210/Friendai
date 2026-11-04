@@ -31,4 +31,19 @@ class PathingConfigTest {
         assertTrue(base.allowBreak());
         assertTrue(base.allowPlace());
     }
+
+    @Test
+    void additionalBreaksExtendTheBlacklistAfterTheConfiguredEntries() {
+        PathingConfig base =
+                new PathingConfig(true, true, List.of("minecraft:obsidian"), List.of("minecraft:planks"), 7, 123, 9);
+
+        PathingConfig wider = base.withAdditionalBreaks(List.of("#minecraft:logs", "minecraft:obsidian"));
+
+        assertEquals(List.of("minecraft:obsidian", "#minecraft:logs"), wider.breakBlacklist());
+        assertEquals(base.placeBlacklist(), wider.placeBlacklist());
+        assertEquals(base.searchBudgetMs(), wider.searchBudgetMs());
+        assertEquals(base.maxNodes(), wider.maxNodes());
+        assertEquals(base.maxGatherBlocks(), wider.maxGatherBlocks());
+        assertEquals(List.of("minecraft:obsidian"), base.breakBlacklist());
+    }
 }

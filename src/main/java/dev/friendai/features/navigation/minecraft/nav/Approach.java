@@ -2,13 +2,16 @@ package dev.friendai.features.navigation.minecraft.nav;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.navigation.pathing.GoalReach;
+import dev.friendai.features.navigation.pathing.PathingConfig;
 import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.task.TaskContext;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
@@ -54,10 +57,14 @@ public final class Approach {
     private final boolean mayPlace;
     /** Whether reaching the block also requires a clear line of sight to it. */
     private final boolean requireSight;
+    /** What the caller may break to uncover the block; cover does not hide it from a stance. Null when nothing. */
+    private final Predicate<BlockState> cover;
     /** Where blocks placed by the route are remembered, or null when they are not the caller's to remove. */
     private final PlacementLedger ledger;
     /** Cells a caller needs to reserve for future work, such as the rest of a blueprint being built. */
     private final Set<BlockPos> excludedFlightCells;
+    /** Blocks the planned route must never dig, even when the target lies behind them. */
+    private List<String> additionalBreaks = List.of();
 
     private Navigator navigator;
     private FlightNavigator flightNavigator;
@@ -95,12 +102,25 @@ public final class Approach {
      *     obstruction, so an occluded stance still counts as a reach.
      */
     public Approach(Collection<BlockPos> candidates, boolean mayPlace, PlacementLedger ledger, boolean requireSight) {
-        this(candidates, mayPlace, Set.of(), ledger, requireSight);
+        this(candidates, mayPlace, Set.of(), ledger, requireSight, null);
+    }
+
+    /**
+     * @param cover what the caller may break to uncover the block, such as the leaves a feller clears; a stance whose
+     *     only obstructions are such blocks counts as a reach. Null keeps the plain sight rule.
+     */
+    public Approach(
+            Collection<BlockPos> candidates,
+            boolean mayPlace,
+            PlacementLedger ledger,
+            boolean requireSight,
+            Predicate<BlockState> cover) {
+        this(candidates, mayPlace, Set.of(), ledger, requireSight, cover);
     }
 
     /** Excludes planned cells from creative flight landings so an approach cannot trap the companion in a build. */
     public Approach(Collection<BlockPos> candidates, boolean mayPlace, Set<BlockPos> excludedFlightCells) {
-        this(candidates, mayPlace, excludedFlightCells, null, true);
+        this(candidates, mayPlace, excludedFlightCells, null, true, null);
     }
 
     private Approach(
@@ -109,18 +129,38 @@ public final class Approach {
             Set<BlockPos> excludedFlightCells,
             PlacementLedger ledger,
             boolean requireSight) {
+        this(candidates, mayPlace, excludedFlightCells, ledger, requireSight, null);
+    }
+
+    private Approach(
+            Collection<BlockPos> candidates,
+            boolean mayPlace,
+            Set<BlockPos> excludedFlightCells,
+            PlacementLedger ledger,
+            boolean requireSight,
+            Predicate<BlockState> cover) {
         if (candidates.isEmpty()) {
             throw new IllegalArgumentException("Approach needs at least one candidate");
         }
         this.candidates = List.copyOf(candidates);
         this.mayPlace = mayPlace;
         this.requireSight = requireSight;
+        this.cover = cover;
         this.ledger = ledger;
         this.excludedFlightCells = Set.copyOf(excludedFlightCells);
     }
     /** The block the companion reached, or the first candidate before it got there. */
     public BlockPos target() {
         return reached != null ? reached : candidates.get(0);
+    }
+
+    /**
+     * Blocks the walking route must never dig, as block ids or {@code #tag}s. A feller passes its logs: the trunk is
+     * cut in order by its own breaker, and a route that tunnels through it removes a log the task never records.
+     */
+    public Approach avoidBreaking(List<String> blocks) {
+        this.additionalBreaks = List.copyOf(blocks);
+        return this;
     }
 
     /** Uses authorized creative flight when available; survival approaches keep their walking and planning path. */
@@ -177,7 +217,7 @@ public final class Approach {
         }
         if (phase == Phase.PLAN) {
             if (navigator == null) {
-                navigator = new Navigator(context, mayPlace, null, ledger);
+                navigator = new Navigator(context, mayPlace, routeConfig(context), ledger);
                 navigator.setGoal(goal(companion));
                 companion.getNavigation().stop();
             }
@@ -213,6 +253,11 @@ public final class Approach {
     private void enterLastWalk() {
         phase = Phase.LAST_WALK;
         resetWalk();
+    }
+
+    /** The task's settings, narrowed by what this route may not dig; null means "use the task's own". */
+    private PathingConfig routeConfig(TaskContext context) {
+        return additionalBreaks.isEmpty() ? null : context.pathingConfig().withAdditionalBreaks(additionalBreaks);
     }
 
     private void resetWalk() {
@@ -340,12 +385,32 @@ public final class Approach {
                 continue;
             }
             double distance = eye.distanceTo(Vec3.atCenterOf(candidate));
-            if (distance <= bestDistance && (!requireSight || Sight.canSee(level, companion, candidate))) {
+            if (distance <= bestDistance
+                    && (!requireSight
+                            || Sight.canSee(level, companion, candidate)
+                            || coverOnly(level, companion, candidate))) {
                 best = candidate;
                 bestDistance = distance;
             }
         }
         return best;
+    }
+
+    /** Whether everything hiding the block from the companion is something it may break to uncover it. */
+    private boolean coverOnly(ServerLevel level, CompanionEntity companion, BlockPos candidate) {
+        if (cover == null) {
+            return false;
+        }
+        List<BlockPos> obstructions = Sight.obstructions(level, companion, candidate);
+        if (obstructions.isEmpty()) {
+            return false;
+        }
+        for (BlockPos blocker : obstructions) {
+            if (!cover.test(level.getBlockState(blocker))) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private BlockPos nearest(CompanionEntity companion) {

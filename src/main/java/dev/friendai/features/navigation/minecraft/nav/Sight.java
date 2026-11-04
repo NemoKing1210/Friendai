@@ -1,6 +1,8 @@
 package dev.friendai.features.navigation.minecraft.nav;
 
 import dev.friendai.entity.CompanionEntity;
+import java.util.ArrayList;
+import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -43,29 +45,68 @@ public final class Sight {
         // A target without a collision shape (a vine, tall grass) cannot itself stop the ray; a collider met after
         // its centre lies behind it and is not an obstruction either.
         if (isColliding(level, pos)) {
-            return hit.getBlockPos();
+            return hit.getBlockPos().immutable();
         }
         double targetDistance = viewer.getEyePosition().distanceToSqr(Vec3.atCenterOf(pos));
         return hit.getLocation().distanceToSqr(viewer.getEyePosition()) <= targetDistance + EPSILON
-                ? hit.getBlockPos()
+                ? hit.getBlockPos().immutable()
                 : null;
     }
 
     /** Whether a ray from {@code eye} meets pos before any other block. */
     public static boolean canSeeFrom(ServerLevel level, Entity viewer, Vec3 eye, BlockPos pos) {
-        Vec3 center = Vec3.atCenterOf(pos);
-        if (meets(level, viewer, eye, center, pos)) {
-            return true;
-        }
-        // A player may aim at any part of the block: a block beside the feet with stone above it hides its centre
-        // behind that stone, but its side face is in plain view.
-        for (Direction side : Direction.values()) {
-            Vec3 face = center.add(side.getStepX() * FACE_AIM, side.getStepY() * FACE_AIM, side.getStepZ() * FACE_AIM);
-            if (meets(level, viewer, eye, face, pos)) {
+        for (Vec3 aim : aims(pos)) {
+            if (meets(level, viewer, eye, aim, pos)) {
                 return true;
             }
         }
         return false;
+    }
+
+    /**
+     * The blocks that hide part of {@code pos} from the viewer, one per aim canSee tries, without repeats. A feller
+     * asks this because the centre ray may meet a log of the tree while a side face is only behind a leaf, and the
+     * leaf is what a player would break.
+     */
+    public static List<BlockPos> obstructions(ServerLevel level, Entity viewer, BlockPos pos) {
+        Vec3 eye = viewer.getEyePosition();
+        List<BlockPos> found = new ArrayList<>();
+        for (Vec3 aim : aims(pos)) {
+            BlockPos blocker = obstruction(level, viewer, eye, aim, pos);
+            if (blocker == null) {
+                continue;
+            }
+            // The hit position is mutable and reused by the next raycast; callers keep it past this call.
+            BlockPos stable = blocker.immutable();
+            if (!found.contains(stable)) {
+                found.add(stable);
+            }
+        }
+        return found;
+    }
+
+    /** The aim points canSee tries: the centre first, then a point just inside each face. */
+    private static List<Vec3> aims(BlockPos pos) {
+        Vec3 center = Vec3.atCenterOf(pos);
+        List<Vec3> aims = new ArrayList<>(7);
+        aims.add(center);
+        for (Direction side : Direction.values()) {
+            aims.add(center.add(side.getStepX() * FACE_AIM, side.getStepY() * FACE_AIM, side.getStepZ() * FACE_AIM));
+        }
+        return aims;
+    }
+
+    /** The block that stops the ray to one aim point, or null when the ray reaches pos or nothing is in the way. */
+    private static BlockPos obstruction(ServerLevel level, Entity viewer, Vec3 eye, Vec3 aim, BlockPos pos) {
+        BlockHitResult hit = raycast(level, viewer, eye, aim);
+        if (hit.getType() != HitResult.Type.BLOCK || hit.getBlockPos().equals(pos)) {
+            return null;
+        }
+        // A target without a collision shape cannot itself stop the ray; a collider met at or after its aim point lies
+        // behind it and is not an obstruction either.
+        return isColliding(level, pos) || hit.getLocation().distanceToSqr(eye) <= aim.distanceToSqr(eye) + EPSILON
+                ? hit.getBlockPos()
+                : null;
     }
 
     private static boolean meets(ServerLevel level, Entity viewer, Vec3 eye, Vec3 aim, BlockPos pos) {
