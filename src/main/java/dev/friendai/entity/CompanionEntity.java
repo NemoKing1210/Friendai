@@ -134,6 +134,9 @@ public class CompanionEntity extends PathfinderMob {
 
     private dev.friendai.features.social.Traits traits = dev.friendai.features.social.Traits.NEUTRAL;
     private boolean traitsLoaded;
+    /** The hand-overs this body performed itself: server-only, not synced and not saved. */
+    private dev.friendai.features.inventory.DeliveredLedger delivered =
+            dev.friendai.features.inventory.DeliveredLedger.EMPTY;
 
     private int moodTicks;
     // The last face input tuple that reached the debug log, plus when it was sampled; runtime only.
@@ -668,6 +671,16 @@ public class CompanionEntity extends PathfinderMob {
         if (!stack.isEmpty()) {
             setGuaranteedDrop(slot);
         }
+    }
+
+    /** What this body handed over recently, for a {@code delivered} criterion that has no owner inventory to read. */
+    public dev.friendai.features.inventory.DeliveredLedger delivered() {
+        return delivered;
+    }
+
+    /** Records one hand-over; the ledger keeps only its newest entries, so this never grows without bound. */
+    public void recordDelivery(dev.friendai.features.inventory.DeliveredLedger.Entry entry) {
+        delivered = delivered.record(entry);
     }
     /** The armor, hands and combat settings, as one LLM-facing line. */
     public String equipmentText() {

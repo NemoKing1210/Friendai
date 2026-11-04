@@ -9,6 +9,7 @@ import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.inventory.ItemMatcher;
 import java.util.ArrayList;
 import java.util.List;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.item.ItemEntity;
@@ -108,8 +109,14 @@ public final class GiveItemsTask implements Task {
         }
         int gave = 0;
         for (ItemStack stack : taken) {
-            drop(c, owner, stack);
+            ItemEntity drop = drop(c, owner, stack);
             gave += stack.getCount();
+            // The companion's own hand-over is evidence while the drop exists; the owner's pickup is confirmation.
+            companion.recordDelivery(new dev.friendai.features.inventory.DeliveredLedger.Entry(
+                    BuiltInRegistries.ITEM.getKey(stack.getItem()).toString(),
+                    stack.getCount(),
+                    c.level().getGameTime(),
+                    drop.getUUID()));
         }
         summary = "gave " + gave + " " + itemLabel();
         emitEvidence(c, available, bag, inMain, inOff, pickedUp, gave);

@@ -10,6 +10,7 @@ import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.inventory.ItemMatcher;
+import dev.friendai.task.queue.CompanionGuardFacts;
 import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
@@ -236,6 +237,44 @@ public class ItemTaskTests {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.FAILED, "expected a failure: " + result.status);
             h.assertTrue(result.summary.equals("I don't have minecraft:stone_axe"), "summary was " + result.summary);
+        });
+    }
+
+    /**
+     * A `delivered` goal criterion asks whether the owner has the item. The companion's own drop at their feet is
+     * the evidence while it lies there; once it is gone the criterion has nothing to stand on again.
+     */
+    @GameTest(maxTicks = 600)
+    public void deliveredCriterionIsMetByTheCompanionsOwnDrop(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 4.5, 2, 2.5);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(owner.getUUID());
+        c.inventory().addItem(new ItemStack(Items.STONE_AXE));
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(new GiveItemsTask(ItemMatcher.parse("minecraft:stone_axe").orElseThrow(), 1), "give_items");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertValueEqual(owner.getInventory().countItem(Items.STONE_AXE), 0, "the owner did not pick it up");
+            List<ItemEntity> drops = h
+                    .getLevel()
+                    .getEntitiesOfClass(ItemEntity.class, new AABB(owner.blockPosition()).inflate(8))
+                    .stream()
+                    .filter(e -> e.isAlive() && e.getItem().is(Items.STONE_AXE))
+                    .toList();
+            h.assertFalse(drops.isEmpty(), "nothing was dropped for the owner");
+            h.assertTrue(
+                    new CompanionGuardFacts(c).ownerCountItems("minecraft:stone_axe") >= 1,
+                    "a drop at the owner's feet is not counted as a delivery");
+            drops.forEach(ItemEntity::discard);
+            CompanionGuardFacts afterwards = new CompanionGuardFacts(c);
+            afterwards.refresh();
+            h.assertValueEqual(
+                    afterwards.ownerCountItems("minecraft:stone_axe"),
+                    0,
+                    "a drop that is no longer in the world proves nothing");
         });
     }
 
