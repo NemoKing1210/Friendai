@@ -75,8 +75,8 @@ public final class ClearScan {
                         skipped.merge(ClearSkip.PROTECTED, 1, Integer::sum);
                         continue;
                     }
-                    if (breakList.isEmpty()
-                            || breakList.matches(
+                    if (!breakList.isEmpty()
+                            && breakList.matches(
                                     LevelCellView.idOf(state.getBlock()),
                                     tagsByBlock.computeIfAbsent(
                                             state.getBlock(),

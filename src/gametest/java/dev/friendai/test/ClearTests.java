@@ -2,7 +2,10 @@ package dev.friendai.test;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.features.construction.clear.ClearSkip;
+import dev.friendai.features.construction.minecraft.build.ClearScan;
 import dev.friendai.features.construction.minecraft.task.ClearAreaTask;
+import dev.friendai.features.navigation.pathing.BlockList;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskStatus;
@@ -345,6 +348,35 @@ public class ClearTests {
             }
         }
         return false;
+    }
+
+    /**
+     * The config lets a player empty the break blacklist, and an empty list must mean "nothing is blacklisted": the
+     * scan offers the plain block. A list that names the block still skips it and counts one blacklisted cell.
+     */
+    @GameTest(maxTicks = 100)
+    public void anEmptyBreakBlacklistStillScansAndANamedOneSkips(GameTestHelper h) {
+        GameTestSupport.platform(h, 5);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        h.setBlock(3, 2, 3, Blocks.DIRT);
+        BlockPos pos = h.absolutePos(new BlockPos(3, 2, 3));
+        ClearScan.Result empty =
+                ClearScan.scan(h.getLevel(), companion, pos, pos, true, true, BlockList.parse(List.of(), entry -> {}));
+        h.assertTrue(
+                empty.candidates().stream()
+                        .anyMatch(cell -> cell.x() == pos.getX() && cell.y() == pos.getY() && cell.z() == pos.getZ()),
+                "the dirt must be a candidate with an empty blacklist: " + empty);
+        h.assertTrue(
+                empty.skipped().getOrDefault(ClearSkip.BLACKLISTED, 0) == 0,
+                "an empty blacklist may not skip a cell: " + empty);
+        ClearScan.Result named = ClearScan.scan(
+                h.getLevel(), companion, pos, pos, true, true, BlockList.parse(List.of("minecraft:dirt"), entry -> {}));
+        h.assertTrue(
+                named.candidates().stream()
+                        .noneMatch(cell -> cell.x() == pos.getX() && cell.y() == pos.getY() && cell.z() == pos.getZ()),
+                "the dirt must not be a candidate when the blacklist names it: " + named);
+        h.assertTrue(named.skipped().get(ClearSkip.BLACKLISTED) == 1, "the blacklisted cell must be counted: " + named);
+        h.succeed();
     }
 
     @GameTest(maxTicks = 200)
