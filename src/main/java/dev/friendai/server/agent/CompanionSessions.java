@@ -1594,7 +1594,13 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
 
             @Override
             public void onPlanBlocked(
-                    long planId, String goal, long jobId, String toolName, String reason, int remaining) {
+                    long planId,
+                    String goal,
+                    long jobId,
+                    String toolName,
+                    String reason,
+                    int remaining,
+                    boolean remainingExact) {
                 if (!isCurrent(session, companion)) return;
                 emitTask(dev.friendai.execution.log.TaskLogEvents.queueBlock(
                         owner, companion.getUUID(), logSession, planId, jobId, toolName, reason, remaining));
@@ -1613,6 +1619,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                                 toolName,
                                 reason,
                                 remaining,
+                                remainingExact,
                                 agent.extra(false, planId, toolName, reason)));
             }
 

@@ -20,6 +20,14 @@ class BrainEventExtraTest {
     }
 
     @Test
+    void aLowerBoundSaysAtLeast() {
+        assertEquals(
+                "[event] plan #2 needs a decision at job #5 (go_to): can't reach 1 2 3; "
+                        + "at least 2 step(s) remain. Use queue_edit to repair the plan.",
+                new BrainEvent.PlanBlocked(2, "house", 5, "go_to", "can't reach 1 2 3", 2, false, "").toPromptLine());
+    }
+
+    @Test
     void aReplanNamesThePlanAndItsReason() {
         assertEquals(
                 "[event] replan stalled plan #2: missing pickaxe. Keep the plan's completed work and repair only what remains.",

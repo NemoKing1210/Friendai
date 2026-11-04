@@ -1185,8 +1185,9 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
                 activeTask() != null && activeTask().jobId() > 0);
     }
 
-    void publishPlanBlocked(long plan, String goal, long jobId, String tool, String reason, int remaining) {
-        emit(sink -> sink.onPlanBlocked(plan, goal, jobId, tool, reason, remaining));
+    void publishPlanBlocked(
+            long plan, String goal, long jobId, String tool, String reason, int remaining, boolean remainingExact) {
+        emit(sink -> sink.onPlanBlocked(plan, goal, jobId, tool, reason, remaining, remainingExact));
     }
 
     void publishPlanFinished(long id, String goal, boolean success, String summary) {

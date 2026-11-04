@@ -201,6 +201,11 @@ public final class QueueText {
         return "cleared " + plans + (plans == 1 ? " plan and " : " plans and ") + jobs + (jobs == 1 ? " job" : " jobs");
     }
 
+    /** How much work a blocked plan still has, as the model reads it; a lower bound says so. */
+    public static String remainingSteps(int steps, boolean exact) {
+        return (exact ? "" : "at least ") + steps + " step(s) remain";
+    }
+
     /** Human-readable, bounded view of the interpreter position and repeat counters. */
     public static String planProgress(PlanRecord plan) {
         var cursor = plan.cursor();

@@ -111,16 +111,30 @@ public sealed interface BrainEvent {
     }
 
     record PlanBlocked(
-            long planId, String goal, long jobId, String toolName, String reason, int remaining, String extra)
+            long planId,
+            String goal,
+            long jobId,
+            String toolName,
+            String reason,
+            int remaining,
+            boolean remainingExact,
+            String extra)
             implements BrainEvent {
         public PlanBlocked(long planId, String goal, long jobId, String toolName, String reason, int remaining) {
-            this(planId, goal, jobId, toolName, reason, remaining, "");
+            this(planId, goal, jobId, toolName, reason, remaining, true, "");
+        }
+
+        public PlanBlocked(
+                long planId, String goal, long jobId, String toolName, String reason, int remaining, String extra) {
+            this(planId, goal, jobId, toolName, reason, remaining, true, extra);
         }
 
         @Override
         public String toPromptLine() {
             return "[event] plan #" + planId + " needs a decision at job #" + jobId + " (" + toolName
-                    + "): " + reason + "; " + remaining + " step(s) remain. Use queue_edit to repair the plan."
+                    + "): " + reason + "; "
+                    + dev.friendai.execution.queue.QueueText.remainingSteps(remaining, remainingExact)
+                    + ". Use queue_edit to repair the plan."
                     + withExtra(extra);
         }
     }

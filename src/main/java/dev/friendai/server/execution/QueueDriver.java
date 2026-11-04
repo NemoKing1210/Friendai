@@ -416,13 +416,23 @@ public final class QueueDriver {
     void notifyBlocked(long planId, long jobId, String reason) {
         Job job = queue.job(jobId).orElse(null);
         if (job == null) return;
-        String goal = queue.plan(planId).map(PlanRecord::goal).orElse("");
-        int remaining = (int) queue.jobsOfPlan(planId).stream()
-                .filter(candidate -> candidate.state() == JobState.PENDING)
-                .count();
+        PlanRecord plan = queue.plan(planId).orElse(null);
+        String goal = plan == null ? "" : plan.goal();
+        // A structured plan emits its jobs one step at a time, so the pending count is not the work left; the
+        // interpreter's committed path is. A flat plan has no path to count and keeps its pending jobs.
+        PlanInterpreter.Remaining remaining;
+        if (plan == null || plan.definition() == null) {
+            long pending = queue.jobsOfPlan(planId).stream()
+                    .filter(candidate -> candidate.state() == JobState.PENDING)
+                    .count();
+            remaining = PlanInterpreter.remaining((int) Math.min(Integer.MAX_VALUE, pending));
+        } else {
+            remaining = PlanInterpreter.remaining(plan.definition(), plan.cursor(), coordinator.planFacts(plan));
+        }
         String bounded = QueueText.truncate(reason, QueueText.MAX_BLOCKED_REASON);
         blockedPlans.put(planId, bounded);
-        coordinator.publishPlanBlocked(planId, goal, jobId, job.tool(), bounded, remaining);
+        coordinator.publishPlanBlocked(
+                planId, goal, jobId, job.tool(), bounded, remaining.actions(), remaining.exact());
     }
 
     void finishPlan(long id, String summary, boolean success) {

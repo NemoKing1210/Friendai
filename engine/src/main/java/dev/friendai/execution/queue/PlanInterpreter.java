@@ -33,6 +33,65 @@ public final class PlanInterpreter {
 
     public record Transition(PlanCursor cursor, Event event) {}
 
+    /**
+     * How many actions a plan still has to emit, and whether that number is the whole truth.
+     *
+     * <p>{@code exact} is false when the count is a lower bound: a conditional or repeat whose guard the snapshot
+     * cannot settle, a path that fails on the way, or no facts at all to evaluate a guard with.
+     */
+    public record Remaining(int actions, boolean exact) {
+        public Remaining {
+            actions = Math.max(0, actions);
+        }
+    }
+
+    /** A flat plan has no conditional path: its pending jobs are exactly the work left. */
+    public static Remaining remaining(int pendingJobs) {
+        return new Remaining(pendingJobs, true);
+    }
+
+    /**
+     * Counts the actions the plan would emit from {@code cursor} if every step succeeded, by driving the same
+     * {@link #advance} the queue uses. The input cursor is never mutated. Without facts no guard can be settled, so
+     * only the leading unconditional actions are counted and the answer is a lower bound.
+     */
+    public static Remaining remaining(PlanDefinition plan, PlanCursor cursor, GuardFacts facts) {
+        if (plan == null) return new Remaining(0, false);
+        PlanCursor from = cursor == null ? PlanCursor.start(0, 0) : cursor;
+        if (facts == null) return withoutFacts(plan, from);
+        int actions = from.pendingActionPath().isEmpty() ? 0 : 1;
+        PlanCursor walk = from;
+        ActionResult result =
+                from.pendingActionPath().isEmpty() ? new ActionResult.None() : new ActionResult.Succeeded();
+        for (int transitions = 0; transitions <= MAX_CONTROL_TRANSITIONS_PER_ADVANCE; transitions++) {
+            Transition transition = advance(plan, walk, facts, result);
+            if (transition.event() instanceof Event.Complete) return new Remaining(actions, true);
+            if (transition.event() instanceof Event.Failed) return new Remaining(actions, false);
+            actions++;
+            if (transition.cursor().equals(walk)) return new Remaining(actions, false);
+            walk = transition.cursor();
+            result = new ActionResult.Succeeded();
+        }
+        return new Remaining(actions, false);
+    }
+
+    private static Remaining withoutFacts(PlanDefinition plan, PlanCursor cursor) {
+        int actions = cursor.pendingActionPath().isEmpty() ? 0 : 1;
+        if (cursor.stack().isEmpty()) return new Remaining(actions, false);
+        PlanCursor.Frame frame = cursor.stack().getLast();
+        List<PlanNode> sequence;
+        try {
+            sequence = resolveSequence(plan, frame.route());
+        } catch (RuntimeException e) {
+            return new Remaining(actions, false);
+        }
+        for (int index = frame.nextIndex(); index < sequence.size(); index++) {
+            if (!(sequence.get(index) instanceof PlanNode.Action)) break;
+            actions++;
+        }
+        return new Remaining(actions, false);
+    }
+
     public static Transition advance(PlanDefinition plan, PlanCursor cursor, GuardFacts facts, ActionResult result) {
         if (plan == null || cursor == null || facts == null || result == null)
             throw new IllegalArgumentException("interpreter input");

@@ -24,6 +24,21 @@ public interface TaskEventSink {
 
     default void onPlanBlocked(long planId, String goal, long jobId, String toolName, String reason, int remaining) {}
 
+    /**
+     * The same notification, saying whether {@code remaining} is the whole path or a lower bound a conditional plan
+     * could not settle. A listener that does not care keeps the six-argument form.
+     */
+    default void onPlanBlocked(
+            long planId,
+            String goal,
+            long jobId,
+            String toolName,
+            String reason,
+            int remaining,
+            boolean remainingExact) {
+        onPlanBlocked(planId, goal, jobId, toolName, reason, remaining);
+    }
+
     default void onNotice(String text) {}
 
     default void onPlace(PlaceCandidate candidate, String toolName) {}
