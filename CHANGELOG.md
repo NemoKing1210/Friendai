@@ -6,6 +6,10 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+### Changed
+
+- `clear_area` walks to a water source instead of only taking the sources within arm's reach.
+
 ### Fixed
 
 - Clearing an area that holds only lava, flowing water or water you asked to leave no longer reports the job as failed.

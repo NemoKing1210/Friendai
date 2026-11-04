@@ -116,6 +116,27 @@ public class ClearTests {
     }
 
     @GameTest(maxTicks = 600)
+    public void aWaterSourceIsTakenAfterWalkingToIt(GameTestHelper h) {
+        GameTestSupport.platform(h, 32);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        h.setBlock(10, 2, 2, Blocks.WATER);
+        companion.inventory().addItem(new ItemStack(Items.BUCKET, 1));
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(companion, result);
+        runner.start(new ClearAreaTask(companion.blockPosition(), 8, 0, 1, true, false), "clear_area");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status != null, "still running");
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(10, 2, 2)).isAir(),
+                    "water at 10,2,2: " + h.getBlockState(new BlockPos(10, 2, 2)));
+            h.assertTrue(companion.inventory().countItem(Items.WATER_BUCKET) == 1, "a water bucket must come back");
+            h.assertTrue(result.summary.contains("water"), result.summary);
+        });
+    }
+
+    @GameTest(maxTicks = 600)
     public void waterWithoutABucketIsLeftAndReported(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);

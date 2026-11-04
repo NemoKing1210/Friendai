@@ -10,6 +10,7 @@ import dev.friendai.features.construction.clear.ClearSkip;
 import dev.friendai.features.construction.minecraft.build.ClearScan;
 import dev.friendai.features.fire.minecraft.FireHands;
 import dev.friendai.features.mining.minecraft.mining.BlockBreaker;
+import dev.friendai.features.navigation.minecraft.nav.Approach;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
@@ -57,6 +58,7 @@ public final class ClearAreaTask implements Task {
     private boolean scanned;
     private String summary = "";
     private BlockBreaker breaker;
+    private Approach waterApproach;
     private ClearCell current;
     private Block currentBlock;
     private FireHands fireHands;
@@ -103,8 +105,7 @@ public final class ClearAreaTask implements Task {
             current = queue.remove(next);
             cellTicks = 0;
             if (current.kind() == ClearKind.WATER) {
-                scoop(c);
-                return TaskStatus.RUNNING;
+                return approachWater(c);
             }
             BlockPos pos = pos(current);
             BlockState state = c.level().getBlockState(pos);
@@ -116,6 +117,9 @@ public final class ClearAreaTask implements Task {
             currentBlock = state.getBlock();
             breaker = new BlockBreaker(pos, s -> s.is(currentBlock));
             return TaskStatus.RUNNING;
+        }
+        if (current.kind() == ClearKind.WATER) {
+            return approachWater(c);
         }
         BlockBreaker.State result = breaker.tick(c);
         if (result == BlockBreaker.State.WORKING && ++cellTicks > CELL_TICKS) {
@@ -165,6 +169,39 @@ public final class ClearAreaTask implements Task {
         result.skipped().forEach((reason, count) -> skipped.merge(reason, count, Integer::sum));
         scanned = true;
     }
+    /**
+     * Walks to a water source before scooping it, so a source farther than the bucket's reach is still taken instead
+     * of being reported as water left behind. The walk shares the cell's {@link #CELL_TICKS} budget with the break.
+     */
+    private TaskStatus approachWater(TaskContext c) {
+        if (waterApproach == null) {
+            waterApproach = new Approach(pos(current));
+        }
+        if (++cellTicks > CELL_TICKS) {
+            waterApproach.stop(c);
+            waterApproach = null;
+            skip(ClearSkip.UNREACHABLE);
+            current = null;
+            return TaskStatus.RUNNING;
+        }
+        switch (waterApproach.tick(c)) {
+            case MOVING -> {
+                return TaskStatus.RUNNING;
+            }
+            case UNREACHABLE -> {
+                waterApproach.stop(c);
+                waterApproach = null;
+                skip(ClearSkip.UNREACHABLE);
+                current = null;
+            }
+            case IN_REACH -> {
+                waterApproach = null;
+                scoop(c);
+            }
+        }
+        return TaskStatus.RUNNING;
+    }
+
     /** Takes one water source with an empty bucket, through the same path that puts fires out. */
     private void scoop(TaskContext c) {
         BlockPos pos = pos(current);
@@ -257,6 +294,10 @@ public final class ClearAreaTask implements Task {
 
     @Override
     public void stop(TaskContext c) {
+        if (waterApproach != null) {
+            waterApproach.stop(c);
+            waterApproach = null;
+        }
         if (breaker != null) {
             breaker.stop(c);
             breaker = null;
