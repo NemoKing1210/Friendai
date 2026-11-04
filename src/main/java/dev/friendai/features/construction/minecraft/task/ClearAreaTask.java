@@ -34,9 +34,10 @@ import net.minecraft.world.level.block.state.BlockState;
  * still apply. Chests, furnaces and other block entities are never touched; neither is the block the companion
  * stands on.
  *
- * <p>One run is bounded in time: at most {@link #DEFAULT_TICK_BUDGET} ticks across all cells and {@link #CELL_TICKS}
- * ticks per cell, so an area asked too large cannot hold the companion for an hour. A run that spends its budget
- * reports the cells it did not reach for another pass.
+ * <p>One run is bounded in time: {@link #DEFAULT_TICK_BUDGET} counted ticks of cell work across all cells, plus at most
+ * two ticks around the stop (the scan tick is not counted and the budget is checked while a cell is active), and
+ * {@link #CELL_TICKS} ticks per cell. An area asked too large therefore cannot hold the companion for an hour, and a
+ * run that spends its budget reports the cells it did not reach for another pass.
  */
 public final class ClearAreaTask implements Task {
     /** One task is bounded so an area asked too large cannot run for an hour. */
@@ -57,6 +58,8 @@ public final class ClearAreaTask implements Task {
     private final EnumMap<ClearKind, Integer> cleared = new EnumMap<>(ClearKind.class);
     private final EnumMap<ClearSkip, Integer> skipped = new EnumMap<>(ClearSkip.class);
     private final List<ClearCell> queue = new ArrayList<>();
+    private int clearedTotal;
+    private int skippedTotal;
     private int cellTicks;
     private int ticksSpent;
     private int unreachableStreak;
@@ -159,7 +162,7 @@ public final class ClearAreaTask implements Task {
                 return TaskStatus.RUNNING;
             }
             case BROKEN -> {
-                cleared.merge(current.kind(), 1, Integer::sum);
+                recordCleared(current.kind());
                 unreachableStreak = 0;
             }
             case GONE -> skip(ClearSkip.CHANGED);
@@ -190,7 +193,7 @@ public final class ClearAreaTask implements Task {
         planned = plan.cells().size();
         left = plan.skipped();
         solidsLeft = result.solidBlocksLeft();
-        result.skipped().forEach((reason, count) -> skipped.merge(reason, count, Integer::sum));
+        result.skipped().forEach(this::skip);
         scanned = true;
     }
 
@@ -266,14 +269,24 @@ public final class ClearAreaTask implements Task {
             return;
         }
         if (fireHands.recoverSource(pos) == null) {
-            cleared.merge(ClearKind.WATER, 1, Integer::sum);
+            recordCleared(ClearKind.WATER);
         } else {
             skip(ClearSkip.WATER_LEFT);
         }
     }
 
+    private void recordCleared(ClearKind kind) {
+        cleared.merge(kind, 1, Integer::sum);
+        clearedTotal++;
+    }
+
     private void skip(ClearSkip reason) {
-        skipped.merge(reason, 1, Integer::sum);
+        skip(reason, 1);
+    }
+
+    private void skip(ClearSkip reason, int count) {
+        skipped.merge(reason, count, Integer::sum);
+        skippedTotal += count;
     }
 
     /**
@@ -283,7 +296,7 @@ public final class ClearAreaTask implements Task {
     private void unreachable() {
         skip(ClearSkip.UNREACHABLE);
         if (++unreachableStreak >= MAX_UNREACHABLE_STREAK) {
-            skipped.merge(ClearSkip.UNREACHABLE, queue.size(), Integer::sum);
+            skip(ClearSkip.UNREACHABLE, queue.size());
             queue.clear();
         }
     }
@@ -369,21 +382,13 @@ public final class ClearAreaTask implements Task {
 
     @Override
     public long progressStamp() {
-        return (long) clearedTotal() + skippedTotal() + (current == null ? 0 : 1);
+        return (long) clearedTotal + skippedTotal + (current == null ? 0 : 1);
     }
 
     @Override
     public String debugStatus() {
-        return "clearing " + (planned - queue.size()) + "/" + planned + ", " + clearedTotal() + " cleared, "
-                + skippedTotal() + " skipped";
-    }
-
-    private int clearedTotal() {
-        return cleared.values().stream().mapToInt(Integer::intValue).sum();
-    }
-
-    private int skippedTotal() {
-        return skipped.values().stream().mapToInt(Integer::intValue).sum();
+        return "clearing " + (planned - queue.size()) + "/" + planned + ", " + clearedTotal + " cleared, "
+                + skippedTotal + " skipped";
     }
 
     @Override
