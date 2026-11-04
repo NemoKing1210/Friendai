@@ -34,9 +34,6 @@ import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.autonomy.PlaceGuard;
-import dev.friendai.task.interact.ContainerAccess;
-import dev.friendai.task.interact.ContainerSession;
-import dev.friendai.task.interact.ContainerTransfer;
 import dev.friendai.task.interact.PlaceSpot;
 import dev.friendai.task.inventory.CreativeItemLease;
 import dev.friendai.task.inventory.InventoryOps;
@@ -52,7 +49,6 @@ import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -133,6 +129,58 @@ public final class BuildTask implements Task {
     private final boolean gather;
 
     private final ObtainFactory obtainFactory;
+    private final BuildMaterialSupply supply = new BuildMaterialSupply(new BuildMaterialSupply.Host() {
+        @Override
+        public TaskStatus fail(TaskContext context, PlacementRefusal refusal, boolean siteFailure) {
+            return BuildTask.this.fail(context, refusal, siteFailure);
+        }
+
+        @Override
+        public int attempt(BlockPos pos) {
+            return BuildTask.this.attempt(pos);
+        }
+
+        @Override
+        public List<Placement.PlacedSpec> remaining(ServerLevel level) {
+            return BuildTask.this.remaining(level);
+        }
+
+        @Override
+        public Site.SiteReport site() {
+            return site;
+        }
+
+        @Override
+        public BlockPos origin() {
+            return origin;
+        }
+
+        @Override
+        public String itemId(Item item) {
+            return BuildTask.this.itemId(item);
+        }
+
+        @Override
+        public Pos toPos(BlockPos pos) {
+            return BuildTask.this.toPos(pos);
+        }
+
+        @Override
+        public void materialsReady() {
+            // Every material is in hand: clear the site first when it needs it, then the foundation or the plan.
+            phase = site.toClear().isEmpty() ? (foundation.isEmpty() ? Phase.PLACE : Phase.FOUNDATION) : Phase.CLEAR;
+        }
+
+        @Override
+        public boolean gather() {
+            return gather;
+        }
+
+        @Override
+        public ObtainFactory obtainFactory() {
+            return obtainFactory;
+        }
+    });
     private final int tickLimit;
     /** The file id of this build: kept across a reload so the same in-progress file is resumed. */
     private final String id;
@@ -162,20 +210,6 @@ public final class BuildTask implements Task {
     private int placedCount;
     private int clearedCount;
     private int foundationCount;
-
-    private ContainerSession takeSession;
-    private ItemMatcher takeMatcher;
-    private int takeCount;
-    private BlockPos takeTarget;
-    private final Set<BlockPos> exhaustedStorage = new HashSet<>();
-
-    /** The obtain task working on one missing material; null when none is running. */
-    private Task gatherTask;
-
-    private Item gatherItem;
-    private int gatherCount;
-    /** Materials already asked an obtain task for, so a short result cannot start the same request again. */
-    private final Set<Item> gathered = new HashSet<>();
 
     /** Temporary support and pillar blocks; null until the check starts. */
     private Scaffold scaffold;
@@ -562,123 +596,7 @@ public final class BuildTask implements Task {
      * site is cleared or a block is placed, so a failed gather leaves the world untouched.
      */
     private TaskStatus take(TaskContext c) {
-        if (takeSession != null) {
-            TaskStatus status = takeSession.tick(c, (context, position, container) -> {
-                ContainerTransfer.Result result =
-                        ContainerTransfer.take(context, position, container, takeMatcher, takeCount);
-                return result.status();
-            });
-            if (status == TaskStatus.RUNNING) {
-                return TaskStatus.RUNNING;
-            }
-            if (status == TaskStatus.FAILED && takeTarget != null) {
-                exhaustedStorage.add(takeTarget);
-            }
-            takeSession = null;
-            takeMatcher = null;
-            takeCount = 0;
-            takeTarget = null;
-            return TaskStatus.RUNNING;
-        }
-        if (gatherTask != null) {
-            TaskStatus status = gatherTask.tick(c);
-            if (status == TaskStatus.RUNNING) {
-                return TaskStatus.RUNNING;
-            }
-            String obtainSummary = gatherTask.resultSummary();
-            Item item = gatherItem;
-            int count = gatherCount;
-            gatherTask = null;
-            gatherItem = null;
-            if (status == TaskStatus.FAILED) {
-                return fail(
-                        c,
-                        new PlacementRefusal.OutOfMaterial(toPos(origin), itemId(item), obtainSummary, attempt(origin)),
-                        true);
-            }
-            // A gather that reports success but leaves the item short falls through to the usual materials failure;
-            // the gathered set keeps the same request from being started again.
-            return TaskStatus.RUNNING;
-        }
-        Map<Item, Integer> missing = missing(c);
-        if (missing.isEmpty()) {
-            phase = site.toClear().isEmpty() ? (foundation.isEmpty() ? Phase.PLACE : Phase.FOUNDATION) : Phase.CLEAR;
-            return TaskStatus.RUNNING;
-        }
-        for (Map.Entry<Item, Integer> entry : missing.entrySet()) {
-            BlockPos container = storageWith(c, entry.getKey());
-            if (container == null) {
-                continue;
-            }
-            ItemMatcher matcher = ItemMatcher.parse(itemId(entry.getKey())).orElseThrow();
-            takeSession = new ContainerSession(
-                    container,
-                    null,
-                    false,
-                    () -> "no storage container at " + container,
-                    position -> "there is no chest, barrel or other storage at " + position.getX() + " "
-                            + position.getY() + " " + position.getZ());
-            takeMatcher = matcher;
-            takeCount = entry.getValue();
-            takeTarget = container;
-            return TaskStatus.RUNNING;
-        }
-        if (gather) {
-            for (Map.Entry<Item, Integer> entry : missing.entrySet()) {
-                if (!gathered.add(entry.getKey())) {
-                    continue;
-                }
-                gatherItem = entry.getKey();
-                gatherCount = entry.getValue();
-                gatherTask = obtainFactory.create(itemId(gatherItem), gatherCount);
-                gatherTask.start(c);
-                return TaskStatus.RUNNING;
-            }
-        }
-        return fail(c, missingRefusal(missing), true);
-    }
-
-    private Map<Item, Integer> missing(TaskContext c) {
-        if (c.canUseCreativeAction(CreativeAction.FREE_MATERIALS)) {
-            return Map.of();
-        }
-        Map<Item, Integer> needed = Materials.needed(remaining(c.level()), site.foundation());
-        Map<Item, Integer> have = Materials.carried(c.companion());
-        Map<Item, Integer> missing = new LinkedHashMap<>();
-        for (Map.Entry<Item, Integer> entry : needed.entrySet()) {
-            int lack = entry.getValue() - have.getOrDefault(entry.getKey(), 0);
-            if (lack > 0) {
-                missing.put(entry.getKey(), lack);
-            }
-        }
-        return missing;
-    }
-
-    private BlockPos storageWith(TaskContext context, Item item) {
-        ItemMatcher matcher = ItemMatcher.parse(itemId(item)).orElse(null);
-        if (matcher == null) {
-            return null;
-        }
-        for (BlockPos pos : ContainerAccess.known(context, Materials.STORAGE_RADIUS)) {
-            if (!exhaustedStorage.contains(pos)) {
-                return pos;
-            }
-        }
-        return null;
-    }
-
-    private PlacementRefusal missingRefusal(Map<Item, Integer> missing) {
-        String first = "unknown";
-        StringBuilder detail = new StringBuilder();
-        for (Map.Entry<Item, Integer> entry : missing.entrySet()) {
-            if (detail.length() == 0) {
-                first = itemId(entry.getKey());
-            } else {
-                detail.append(", ");
-            }
-            detail.append(entry.getValue()).append(" × ").append(itemId(entry.getKey()));
-        }
-        return new PlacementRefusal.OutOfMaterial(toPos(origin), first, "need " + detail, attempt(origin));
+        return supply.tick(c);
     }
 
     private TaskStatus clear(TaskContext c) {
@@ -1457,14 +1375,16 @@ public final class BuildTask implements Task {
 
     private TaskStatus finish(TaskContext c) {
         String selected = parts.isEmpty() || structure == null ? "" : " (" + structure.describe(parts) + ")";
-        summary = "built " + blueprint.name() + " at " + coords(origin) + " facing "
-                + Placement.facingFor(rotation).getSerializedName() + ": " + placedCount + " placed" + selected
-                + ", " + clearedCount + " cleared, " + foundationCount + " foundation" + recoverySuffix();
+        summary = BuildReport.finished(
+                blueprint.name(),
+                coords(origin),
+                Placement.facingFor(rotation).getSerializedName(),
+                placedCount,
+                selected,
+                clearedCount,
+                foundationCount,
+                selfRecoveries);
         return complete(c, TaskStatus.SUCCESS);
-    }
-
-    private String recoverySuffix() {
-        return selfRecoveries == 0 ? "" : ", " + selfRecoveries + " self-blocked recoveries";
     }
 
     /**
@@ -1528,7 +1448,7 @@ public final class BuildTask implements Task {
         this.refusal = refusal;
         // A site check happens before any work, so the owner gets the bare cause; a placement refusal says what to do
         // next as well, because the build is already half done.
-        summary = refusal.describe() + (siteFailure ? "" : "; " + refusal.remedy()) + resumeHint(c) + recoverySuffix();
+        summary = BuildReport.failed(refusal, siteFailure, resumeHint(c), selfRecoveries);
         return complete(c, TaskStatus.FAILED);
     }
 
@@ -1537,20 +1457,13 @@ public final class BuildTask implements Task {
             return reject(c, "the site cannot be used");
         }
         this.refusal = refusals.getFirst();
-        StringBuilder text = new StringBuilder();
-        for (PlacementRefusal refusal : refusals) {
-            if (text.length() > 0) {
-                text.append("; ");
-            }
-            text.append(refusal.describe());
-        }
-        summary = text + resumeHint(c) + recoverySuffix();
+        summary = BuildReport.failed(refusals, resumeHint(c), selfRecoveries);
         return complete(c, TaskStatus.FAILED);
     }
 
     /** A failure that is not a placement decision: a configuration problem or a cleanup result. */
     private TaskStatus reject(TaskContext c, String text) {
-        summary = text + recoverySuffix();
+        summary = BuildReport.plain(text, selfRecoveries);
         return complete(c, TaskStatus.FAILED);
     }
 
@@ -1604,12 +1517,7 @@ public final class BuildTask implements Task {
         if (approach != null) {
             approach.stop(c);
         }
-        if (takeSession != null) {
-            takeSession.stop(c);
-        }
-        if (gatherTask != null) {
-            gatherTask.stop(c);
-        }
+        supply.stop(c);
         if (scaffold != null) {
             scaffold.stop();
         }
@@ -1701,8 +1609,8 @@ public final class BuildTask implements Task {
             detail = "Build foundation";
         } else if (phase == Phase.PLACE) {
             pos = currentPos;
-        } else if (phase == Phase.TAKE && takeTarget != null) {
-            pos = takeTarget;
+        } else if (phase == Phase.TAKE && supply.target() != null) {
+            pos = supply.target();
             detail = "Take materials from storage";
         }
         if (pos == null) {
