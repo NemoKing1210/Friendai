@@ -2,6 +2,7 @@ package dev.friendai.agent.turn;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.friendai.agent.llm.model.LlmResponse;
@@ -157,6 +158,35 @@ class CompanionBrainStreamTest {
                 speaker.streamed.stream().map(RecordingSpeaker.Streamed::text).reduce("", String::concat));
         assertEquals(1, speaker.said.size(), "the full reply reaches chat once");
         assertTrue(speaker.said.getFirst().contains("Hello there. Second."));
+    }
+
+    @Test
+    void everyStreamedRequestCarriesAFreshValidIdentity() {
+        StreamingGateway gateway = new StreamingGateway();
+        gateway.steps.add(new Step(
+                List.of(new StreamDelta.Text("One."), new StreamDelta.Done()),
+                new LlmResponse("One.", List.of(), StopReason.END, null)));
+        gateway.steps.add(new Step(
+                List.of(new StreamDelta.Text("Two."), new StreamDelta.Done()),
+                new LlmResponse("Two.", List.of(), StopReason.END, null)));
+        FakeToolExecutor tools = new FakeToolExecutor();
+        RecordingSpeaker speaker = new RecordingSpeaker();
+        CompanionBrain brain = brain(gateway, tools, speaker);
+
+        brain.post(new BrainEvent.PlayerSaid(OWNER, "Steve", "one", BrainEvent.Source.CHAT));
+        brain.post(new BrainEvent.PlayerSaid(OWNER, "Steve", "two", BrainEvent.Source.CHAT));
+
+        assertEquals(4, speaker.streamed.size(), speaker.streamed.toString());
+        for (int i = 0; i < speaker.streamed.size(); i++) {
+            RecordingSpeaker.Streamed streamed = speaker.streamed.get(i);
+            assertTrue(streamed.streamId() >= 1 && streamed.sessionId() >= 1, "a positive identity: " + streamed);
+            assertEquals(streamed.streamId(), streamed.sessionId(), "one identity per request: " + streamed);
+            assertEquals(i % 2, streamed.sequence(), "each request restarts its sequence: " + streamed);
+        }
+        assertNotEquals(
+                speaker.streamed.get(0).streamId(),
+                speaker.streamed.get(2).streamId(),
+                "a second reply must not reuse the first reply's stream: " + speaker.streamed);
     }
 
     @Test

@@ -355,6 +355,14 @@ public final class CompanionBrain {
     private int earlySequence;
     private boolean earlyIncomplete;
     private String earlyText = "";
+    /**
+     * Identity of the current streamed request. The protocol needs a positive id, and the client deduplicates by it,
+     * so every model request gets a fresh one: reusing the generation counter made it zero on a fresh brain and equal
+     * for every later reply, which the speech client dropped as a duplicate.
+     */
+    private long speechStream;
+
+    private long streamSeq;
 
     public boolean isSkillFreeTimeTurn() {
         return skillFreeTimeTurn;
@@ -773,6 +781,7 @@ public final class CompanionBrain {
                 earlySequence = 0;
                 earlyIncomplete = false;
                 earlyText = "";
+                speechStream = ++streamSeq;
                 future = streaming
                         .completeStreaming(
                                 system,
@@ -804,15 +813,16 @@ public final class CompanionBrain {
         }
         String text = accumulator.text();
         earlyText = text;
-        offerEarly(gen, speechPolicy.offer(text, guardParity(text)));
+        offerEarly(speechPolicy.offer(text, guardParity(text)));
     }
 
-    private void offerEarly(int gen, StreamSpeechPolicy.Decision decision) {
+    private void offerEarly(StreamSpeechPolicy.Decision decision) {
         switch (decision) {
             case StreamSpeechPolicy.Speak speak -> {
                 if (!speak.text().isBlank() || speak.last()) {
                     String text = earlySequence == 0 || speak.text().isBlank() ? speak.text() : " " + speak.text();
-                    speaker.streamSentence(gen, gen, earlySequence++, text, speak.last(), turnCaller.uuid());
+                    speaker.streamSentence(
+                            speechStream, speechStream, earlySequence++, text, speak.last(), turnCaller.uuid());
                 }
             }
             case StreamSpeechPolicy.StopIncomplete ignored -> {
@@ -878,13 +888,13 @@ public final class CompanionBrain {
                 if (streamedTurn) {
                     speaker.say(spoken);
                     if (speechPolicy != null && !earlyIncomplete) {
-                        offerEarly(generation, speechPolicy.finish(earlyText.isBlank() ? raw : "", guardParity(raw)));
+                        offerEarly(speechPolicy.finish(earlyText.isBlank() ? raw : "", guardParity(raw)));
                     } else if (speechPolicy == null) {
                         List<String> sentences = dev.friendai.features.speech.tts.SpeechText.cleanAndSplit(spoken, 300);
                         for (int i = 0; i < sentences.size(); i++) {
                             speaker.streamSentence(
-                                    generation,
-                                    generation,
+                                    speechStream,
+                                    speechStream,
                                     earlySequence++,
                                     sentences.get(i),
                                     i == sentences.size() - 1,

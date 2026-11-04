@@ -31,6 +31,11 @@ public final class RecordingSpeaker implements Speaker {
     @Override
     public void streamSentence(
             long streamId, long sessionId, long sequence, String text, boolean last, UUID addressee) {
+        // The speech view and the client's stream buffer both reject this identity; a fake that accepted it would
+        // hide a bug the real speaker throws on.
+        if (streamId < 1 || sessionId < 1 || sequence < 0) {
+            throw new IllegalArgumentException("stream identity");
+        }
         streamed.add(new Streamed(streamId, sessionId, sequence, text, last, addressee));
     }
 

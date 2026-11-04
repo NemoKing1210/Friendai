@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.208.5] - 2026-11-04
+
+### Fixed
+
+- The companion's replies are voiced again: a streamed reply now passes the owner-presence wrapper and carries a valid, fresh stream identity, so the speech client no longer drops it as stale or duplicated.
+
 ## [0.208.4] - 2026-11-04
 
 ### Fixed
