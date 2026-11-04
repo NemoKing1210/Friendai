@@ -606,6 +606,7 @@ class ArchitectureRulesTest {
 
         List<DependencyEdge> edges = ArchitectureFixtures.collectCompiledProjectEdges(PROJECT_ROOT, classpath);
         List<Set<String>> actualCycles = FeatureGraph.cycles(edges);
+        CouplingReport.write(PROJECT_ROOT, edges, actualCycles);
 
         assertEquals(
                 List.of(),
