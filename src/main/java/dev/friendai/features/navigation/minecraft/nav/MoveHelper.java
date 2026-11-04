@@ -5,6 +5,7 @@ import dev.friendai.foundation.spatial.Cell;
 import dev.friendai.foundation.spatial.GoalPoint;
 import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.task.TaskContext;
+import dev.friendai.world.movement.LevelCellView;
 import net.minecraft.world.entity.PathfinderMob;
 import net.minecraft.world.phys.Vec3;
 

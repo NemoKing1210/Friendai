@@ -1,7 +1,6 @@
 package dev.friendai.features.navigation.minecraft.task;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.features.navigation.minecraft.nav.LevelCellView;
 import dev.friendai.features.navigation.minecraft.nav.MoveHelper;
 import dev.friendai.features.navigation.minecraft.nav.ResourceJourney;
 import dev.friendai.foundation.spatial.GoalPoint;
@@ -9,6 +8,7 @@ import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.world.movement.LevelCellView;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.phys.Vec3;
 

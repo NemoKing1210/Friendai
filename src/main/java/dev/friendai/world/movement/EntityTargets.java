@@ -1,4 +1,4 @@
-package dev.friendai.features.navigation.minecraft.nav;
+package dev.friendai.world.movement;
 
 import dev.friendai.entity.CompanionEntity;
 import java.util.Comparator;

@@ -15,6 +15,7 @@ import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.foundation.spatial.SearchOptions;
 import dev.friendai.foundation.spatial.SearchResult;
 import dev.friendai.task.TaskContext;
+import dev.friendai.world.movement.LevelCellView;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;

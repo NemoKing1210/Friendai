@@ -389,9 +389,7 @@ class ArchitectureRulesTest {
                 edge(
                         "dev.friendai.features.fire.minecraft.task.ExtinguishFireTask",
                         "dev.friendai.features.mining.minecraft.mining.BlockBreaker"),
-                edge(
-                        "dev.friendai.features.fire.minecraft.FireScan",
-                        "dev.friendai.features.navigation.minecraft.nav.LevelCellView"),
+                edge("dev.friendai.features.fire.minecraft.FireScan", "dev.friendai.world.movement.LevelCellView"),
                 edge(
                         "dev.friendai.features.navigation.minecraft.tool.RelativeMovementTools",
                         "dev.friendai.features.interaction.minecraft.task.ApproachTask"),

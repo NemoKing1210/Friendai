@@ -1,4 +1,4 @@
-package dev.friendai.features.navigation.minecraft.nav;
+package dev.friendai.world.movement;
 
 import dev.friendai.entity.CompanionEntity;
 import java.util.ArrayList;
@@ -146,7 +146,7 @@ public final class Sight {
                     Vec3 candidateEye =
                             new Vec3(candidate.getX() + 0.5, candidate.getY() + eyeHeight, candidate.getZ() + 0.5);
                     double distance = candidateEye.distanceToSqr(eye);
-                    if (distance >= bestDistance || candidateEye.distanceTo(target) > Approach.REACH) {
+                    if (distance >= bestDistance || candidateEye.distanceTo(target) > Reach.DISTANCE) {
                         continue;
                     }
                     if (!clearLine(level, companion, eye, candidateEye)

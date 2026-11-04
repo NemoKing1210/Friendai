@@ -5,6 +5,8 @@ import dev.friendai.foundation.spatial.GoalReach;
 import dev.friendai.foundation.spatial.PathingConfig;
 import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.task.TaskContext;
+import dev.friendai.world.movement.Reach;
+import dev.friendai.world.movement.Sight;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
@@ -32,7 +34,7 @@ public final class Approach {
     }
 
     /** How close the companion's eyes must be to the block centre to act on it. */
-    public static final double REACH = 4.0;
+    public static final double REACH = Reach.DISTANCE;
     /** Up to this eye distance a plain walk goes first; planning is for blocks the walk cannot bring within reach. */
     private static final double WALK_FIRST_DISTANCE = 8.0;
     /** How many ticks of walking the last metre may take without progress. */

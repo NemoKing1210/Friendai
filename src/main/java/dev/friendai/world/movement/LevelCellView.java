@@ -1,4 +1,4 @@
-package dev.friendai.features.navigation.minecraft.nav;
+package dev.friendai.world.movement;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.foundation.spatial.BlockList;
@@ -252,7 +252,7 @@ public final class LevelCellView implements CellView {
         return config.allowPlace() && companion.hands().canInteract(pos);
     }
 
-    static boolean isClosedDoor(BlockState state) {
+    public static boolean isClosedDoor(BlockState state) {
         if (!state.is(BlockTags.WOODEN_DOORS) && !state.is(BlockTags.FENCE_GATES)) {
             return false;
         }

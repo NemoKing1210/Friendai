@@ -4,6 +4,7 @@ import dev.friendai.foundation.spatial.BlockList;
 import dev.friendai.foundation.spatial.MaterialPrices;
 import dev.friendai.foundation.spatial.MaterialReserve;
 import dev.friendai.foundation.spatial.PathingConfig;
+import dev.friendai.world.movement.LevelCellView;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
