@@ -151,6 +151,27 @@ public class PlaceBlockTests {
     }
 
     @GameTest
+    public void placeInUnloadedTerrainIsReported(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.END_STONE));
+        int before = h.getLevel().getChunkSource().getLoadedChunksCount();
+        BlockPos target = h.absolutePos(new BlockPos(2, 2, 2)).offset(2000, 0, 0);
+        h.assertFalse(h.getLevel().hasChunkAt(target), "the target chunk should start unloaded");
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        PlaceBlockTask task = place(Items.END_STONE, target);
+        runner.start(task, "place_block");
+        runner.tick();
+        h.assertTrue(result.status == TaskStatus.FAILED, "should fail: " + result.status);
+        h.assertTrue(result.summary.endsWith("is in a chunk that is not loaded"), "summary was " + result.summary);
+        h.assertTrue(
+                h.getLevel().getChunkSource().getLoadedChunksCount() == before, "the failed look must not load chunks");
+        h.assertTrue(c.inventory().countItem(Items.END_STONE) == 1, "the item must stay in the bag");
+        h.succeed();
+    }
+
+    @GameTest
     public void placeWithoutItemFails(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);

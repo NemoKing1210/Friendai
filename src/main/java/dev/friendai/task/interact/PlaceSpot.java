@@ -29,6 +29,9 @@ public final class PlaceSpot {
         if (pos.getY() < level.getMinY() || pos.getY() > level.getMaxY()) {
             return Optional.of("y is outside the world");
         }
+        if (!level.hasChunkAt(pos)) {
+            return Optional.of(coords(pos) + " is in a chunk that is not loaded");
+        }
         BlockState state = level.getBlockState(pos);
         if (!state.canBeReplaced()) {
             return Optional.of(coords(pos) + " is occupied by " + BuiltInRegistries.BLOCK.getKey(state.getBlock()));
@@ -43,6 +46,9 @@ public final class PlaceSpot {
 
     /** A clickable neighbour face for pos: solid face below first, then the four sides, then above. */
     public static Optional<Spot> spotAt(ServerLevel level, BlockPos pos) {
+        if (!level.hasChunkAt(pos)) {
+            return Optional.empty();
+        }
         for (Direction direction : NEIGHBOURS) {
             BlockPos against = pos.relative(direction);
             Direction face = direction.getOpposite();
