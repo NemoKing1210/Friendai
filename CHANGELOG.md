@@ -16,6 +16,7 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 - `clear_area` no longer generates terrain to read an area that is not loaded; it reports the unloaded part.
 - `place_block` at a target in unloaded terrain reports it instead of generating the chunks to look at it.
 - `light_area` counts a torch you are holding and cannot be asked for an unbounded radius.
+- `light_area` no longer spends torches on open, sunlit ground and no longer misses a dark spot behind a wall.
 
 ## [0.204.0] - 2026-11-04
 

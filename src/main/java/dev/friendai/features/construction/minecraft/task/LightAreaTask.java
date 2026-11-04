@@ -22,7 +22,6 @@ import net.minecraft.world.level.block.Blocks;
 public final class LightAreaTask implements Task {
     public static final int MAX_TORCHES = 16;
     public static final int DARK_BELOW = 8;
-    public static final int LIT_DISTANCE = 5;
     public static final int WAIT_TICKS = 5;
     private final int radius;
     private final ItemMatcher torch = ItemMatcher.parse("minecraft:torch").orElseThrow();
@@ -166,7 +165,7 @@ public final class LightAreaTask implements Task {
                     if (c.level().getBrightness(LightLayer.BLOCK, pos) >= DARK_BELOW) {
                         continue;
                     }
-                    if (litByTorch(pos)) {
+                    if (c.level().getBrightness(LightLayer.SKY, pos) > 0) {
                         continue;
                     }
                     double distance = from.distSqr(pos);
@@ -178,18 +177,6 @@ public final class LightAreaTask implements Task {
             }
         }
         return Optional.ofNullable(best);
-    }
-
-    private boolean litByTorch(BlockPos pos) {
-        for (BlockPos torchPos : placed) {
-            int distance = Math.abs(torchPos.getX() - pos.getX())
-                    + Math.abs(torchPos.getY() - pos.getY())
-                    + Math.abs(torchPos.getZ() - pos.getZ());
-            if (distance <= LIT_DISTANCE) {
-                return true;
-            }
-        }
-        return false;
     }
 
     @Override
