@@ -75,6 +75,96 @@ public final class DebugLogObserver implements BrainObserver {
     }
 
     @Override
+    public void onRouteDecision(dev.friendai.agent.route.RouteDecision decision) {
+        if (decision == null) return;
+        var planning = decision.planning();
+        String subject = PlannerAttempt.kind(planning.subject());
+        if (legacy != null) {
+            legacy.add(LogKind.PLANNER, "route " + decision.mode() + ": plan " + planning.need() + " " + subject);
+            return;
+        }
+        Map<String, String> data = new java.util.LinkedHashMap<>();
+        data.put("mode", decision.mode() == null ? "" : decision.mode().name());
+        data.put("reason", decision.reason());
+        data.put("groups", Integer.toString(decision.groups().size()));
+        data.put("need", planning.need().name());
+        data.put("planningReason", planning.reason());
+        data.put("subject", subject);
+        long subjectId = PlannerAttempt.id(planning.subject());
+        if (subjectId > 0) data.put("subjectId", Long.toString(subjectId));
+        emit(
+                LogLevel.INFO,
+                LogCategory.BRAIN,
+                LogKind.PLANNER,
+                LogEvents.ROUTE_DECISION,
+                turnStartSeq,
+                "",
+                "route " + data.get("mode") + " (" + planning.reason() + "): plan " + planning.need() + " " + subject,
+                data,
+                null);
+    }
+
+    @Override
+    public void onPlannerAttempt(PlannerAttempt attempt) {
+        if (attempt == null) return;
+        if (legacy != null) {
+            legacy.add(LogKind.PLANNER, "planner " + attempt.disposition() + " " + attempt.subjectKind());
+            return;
+        }
+        if (pipeline == null) return;
+        pipeline.emit(plannerRecord(owner, companion, session, trace, turn, turnStartSeq, attempt));
+    }
+
+    /**
+     * One durable planner record. The subject is written as a kind token and an id; an order's text, a plan's JSON
+     * and a provider message never reach the log.
+     */
+    public static LogRecord plannerRecord(
+            UUID owner, UUID companion, String session, String trace, long turn, long cause, PlannerAttempt attempt) {
+        Map<String, String> data = new java.util.LinkedHashMap<>();
+        data.put("subject", attempt.subjectKind());
+        if (attempt.subjectId() > 0) data.put("subjectId", Long.toString(attempt.subjectId()));
+        data.put("attempt", Integer.toString(attempt.attempt()));
+        data.put("disposition", attempt.disposition());
+        if (!attempt.failureCode().isEmpty()) data.put("failure", attempt.failureCode());
+        String traceToken = trace == null ? "" : trace;
+        if (!traceToken.isEmpty()) {
+            data = LogEventData.build(new LogContext(traceToken, turn, 0L, 0L, 0L, 0L, 0L, 0L, "", cause), data);
+        }
+        String subject = attempt.subjectKind() + (attempt.subjectId() > 0 ? " #" + attempt.subjectId() : "");
+        return new LogRecord(
+                0L,
+                0L,
+                LogLevel.INFO,
+                LogCategory.BRAIN,
+                LogKind.PLANNER,
+                plannerEvent(attempt.disposition()),
+                owner,
+                companion,
+                session,
+                turn,
+                Math.max(0L, attempt.planId()),
+                0L,
+                0L,
+                "",
+                cause,
+                attempt.durationMs(),
+                "planner " + attempt.disposition() + " " + subject
+                        + (attempt.failureCode().isEmpty() ? "" : " " + attempt.failureCode()),
+                data,
+                null);
+    }
+
+    private static String plannerEvent(String disposition) {
+        return switch (disposition) {
+            case "request" -> LogEvents.PLAN_REQUEST;
+            case "delivered" -> LogEvents.PLAN_DELIVERED;
+            case "fallback" -> LogEvents.PLAN_FALLBACK;
+            default -> LogEvents.PLAN_FAILED;
+        };
+    }
+
+    @Override
     public void onTurnStart(long turn) {
         this.turn = turn;
         turnStartSeq = emit(

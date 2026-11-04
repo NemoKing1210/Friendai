@@ -35,6 +35,16 @@ public final class BrainObservers implements BrainObserver {
     }
 
     @Override
+    public void onRouteDecision(dev.friendai.agent.route.RouteDecision decision) {
+        each(o -> o.onRouteDecision(decision));
+    }
+
+    @Override
+    public void onPlannerAttempt(PlannerAttempt attempt) {
+        each(o -> o.onPlannerAttempt(attempt));
+    }
+
+    @Override
     public void onTurnStart(long turn) {
         each(o -> o.onTurnStart(turn));
     }

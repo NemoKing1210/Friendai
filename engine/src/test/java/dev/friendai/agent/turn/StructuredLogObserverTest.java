@@ -10,6 +10,12 @@ import dev.friendai.agent.llm.RequestAttempt;
 import dev.friendai.agent.llm.model.LlmResponse;
 import dev.friendai.agent.llm.model.ToolCall;
 import dev.friendai.agent.llm.model.Usage;
+import dev.friendai.agent.plan.PlanSubject;
+import dev.friendai.agent.route.PlanNeed;
+import dev.friendai.agent.route.PlanningDecision;
+import dev.friendai.agent.route.RouteDecision;
+import dev.friendai.agent.route.TurnMode;
+import dev.friendai.agent.tools.ToolGroup;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolResult;
@@ -233,6 +239,66 @@ class StructuredLogObserverTest {
                 .findFirst()
                 .orElseThrow();
         assertEquals(LogKind.RESPONSE, response.kind());
+    }
+
+    @Test
+    void routeAndPlannerDecisionsBecomePlanRecordsWithoutTheOrderText() {
+        Recall sink = new Recall();
+        DebugLogObserver observer =
+                new DebugLogObserver(OWNER, COMPANION, "s1", pipeline(sink, LogLevel.INFO), "trace-1");
+        observer.onTurnStart(2);
+        observer.onRouteDecision(new RouteDecision(
+                TurnMode.GOAL,
+                Set.of(ToolGroup.BUILDING),
+                new PlanningDecision(PlanNeed.REQUIRED, new PlanSubject.OwnerOrder("build a house"), "several-kinds"),
+                "several kinds of work"));
+        observer.onPlannerAttempt(
+                new PlannerAttempt(new PlanSubject.OwnerOrder("build a house"), 1, "request", "", -1L, 0L));
+        observer.onPlannerAttempt(
+                new PlannerAttempt(new PlanSubject.OwnerOrder("build a house"), 1, "delivered", "", 42L, 5L));
+
+        List<LogRecord> records = sink.records;
+        assertEquals(
+                List.of(
+                        LogEvents.TURN_START,
+                        LogEvents.ROUTE_DECISION,
+                        LogEvents.PLAN_REQUEST,
+                        LogEvents.PLAN_DELIVERED),
+                records.stream().map(LogRecord::event).toList());
+        LogRecord route = records.get(1);
+        assertEquals(LogKind.PLANNER, route.kind());
+        assertEquals(LogCategory.BRAIN, route.category());
+        assertEquals("GOAL", route.data().get("mode"));
+        assertEquals("REQUIRED", route.data().get("need"));
+        assertEquals("owner_order", route.data().get("subject"));
+        assertEquals("several-kinds", route.data().get("planningReason"));
+        assertEquals("1", route.data().get("groups"));
+        LogRecord delivered = records.get(3);
+        assertEquals(5L, delivered.plan(), "the queued plan is a structured field, not just text");
+        assertEquals(42L, delivered.durationMs());
+        assertEquals("1", delivered.data().get("attempt"));
+        assertEquals("delivered", delivered.data().get("disposition"));
+        assertFalse(records.stream().anyMatch(r -> String.valueOf(r.message()).contains("build a house")));
+        assertFalse(records.stream()
+                .anyMatch(r -> r.data().values().stream().anyMatch(value -> value.contains("build a house"))));
+    }
+
+    @Test
+    void aPlannerFailureAndItsFallbackAreDistinctRecords() {
+        Recall sink = new Recall();
+        DebugLogObserver observer =
+                new DebugLogObserver(OWNER, COMPANION, "s1", pipeline(sink, LogLevel.INFO), "trace-1");
+        PlanSubject subject = new PlanSubject.ActiveGoal(4, List.of("2 logs missing"));
+        observer.onPlannerAttempt(new PlannerAttempt(subject, 1, "failed", "REQUEST_FAILED", 7L, 0L));
+        observer.onPlannerAttempt(new PlannerAttempt(subject, 1, "fallback", "transport", 7L, 0L));
+
+        assertEquals(
+                List.of(LogEvents.PLAN_FAILED, LogEvents.PLAN_FALLBACK),
+                sink.records.stream().map(LogRecord::event).toList());
+        assertEquals("REQUEST_FAILED", sink.records.get(0).data().get("failure"));
+        assertEquals("transport", sink.records.get(1).data().get("failure"));
+        assertEquals("active_goal", sink.records.get(0).data().get("subject"));
+        assertEquals("4", sink.records.get(0).data().get("subjectId"));
     }
 
     @Test

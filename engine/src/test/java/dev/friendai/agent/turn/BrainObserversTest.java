@@ -16,6 +16,18 @@ class BrainObserversTest {
         int responses;
         int starts;
         int ends;
+        int routes;
+        int plannerAttempts;
+
+        @Override
+        public void onRouteDecision(dev.friendai.agent.route.RouteDecision decision) {
+            routes++;
+        }
+
+        @Override
+        public void onPlannerAttempt(PlannerAttempt attempt) {
+            plannerAttempts++;
+        }
 
         @Override
         public void onRequest(String system, List<Message> messages, List<ToolSpec> tools) {
@@ -55,6 +67,24 @@ class BrainObserversTest {
         assertEquals(1, second.starts);
         assertEquals(1, first.ends);
         assertEquals(1, second.ends);
+    }
+
+    @Test
+    void bothObserversReceiveRoutingAndPlannerCallbacks() {
+        Recall first = new Recall();
+        Recall second = new Recall();
+        BrainObserver both = BrainObservers.of(first, second);
+        both.onRouteDecision(new dev.friendai.agent.route.RouteDecision(
+                dev.friendai.agent.route.TurnMode.ACTION,
+                java.util.Set.of(),
+                dev.friendai.agent.route.PlanningDecision.none("no-plan-occasion"),
+                ""));
+        both.onPlannerAttempt(new PlannerAttempt(
+                new dev.friendai.agent.plan.PlanSubject.OwnerOrder("mine 3 logs"), 1, "request", "", -1L, 0L));
+        assertEquals(1, first.routes);
+        assertEquals(1, second.routes);
+        assertEquals(1, first.plannerAttempts);
+        assertEquals(1, second.plannerAttempts);
     }
 
     @Test

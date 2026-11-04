@@ -47,4 +47,10 @@ public interface BrainObserver {
 
     /** A late reply or attempt of a request whose turn already moved on; it had no speech or tool effect. */
     default void onRequestDiscarded(long requestId, String reason) {}
+
+    /** The turn was routed: mode, tool groups and whether a plan belongs to it. Once per turn, before any request. */
+    default void onRouteDecision(dev.friendai.agent.route.RouteDecision decision) {}
+
+    /** One planner consultation: the request, then its outcome. The subject is logged by kind and id only. */
+    default void onPlannerAttempt(PlannerAttempt attempt) {}
 }

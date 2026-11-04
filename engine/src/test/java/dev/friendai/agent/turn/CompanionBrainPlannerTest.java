@@ -212,6 +212,31 @@ class CompanionBrainPlannerTest {
     }
 
     @Test
+    void aPlannedTurnRecordsItsRouteAndPlannerAnswer() {
+        List<String> recorded = new ArrayList<>();
+        brain.setObserver(new BrainObserver() {
+            @Override
+            public void onRouteDecision(dev.friendai.agent.route.RouteDecision decision) {
+                recorded.add("route:" + decision.planning().need() + ":"
+                        + decision.planning().subject().getClass().getSimpleName());
+            }
+
+            @Override
+            public void onPlannerAttempt(PlannerAttempt attempt) {
+                recorded.add("plan:" + attempt.disposition() + ":" + attempt.planId());
+            }
+        });
+        gateway.enqueue(text("On it."));
+
+        brain.post(said("build a house and bring iron"));
+
+        assertEquals(
+                List.of("route:REQUIRED:OwnerOrder", "plan:request:0", "plan:delivered:5"),
+                recorded,
+                "one routing record and the planner's start and outcome");
+    }
+
+    @Test
     void aStoppedTurnTellsThePlannerItWasCancelled() {
         port.answer = new CompletableFuture<>();
         brain.post(said(BUILD_AND_BRING));

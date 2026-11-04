@@ -90,8 +90,8 @@ public final class LogWriterService implements LogSink, AutoCloseable {
             `msg`, `data`, `error`. `cause` is the `seq` of the record that caused this one, so a chain is followed
             backwards from an error to the turn that started it. A blank `cause` or an unknown one is a root.
 
-            The event names are a closed set (`turn.start`, `tool.call`, `task.finish`, `llm.error`, `log.dropped`,
-            ...). `logs_search` reads the same files for the companion; the settings screen owns level, categories
+            The event names are a closed set (`turn.start`, `route.decision`, `plan.request`, `plan.delivered`,
+            `tool.call`, `task.finish`, `llm.error`, `log.dropped`, ...). `logs_search` reads the same files for the companion; the settings screen owns level, categories
             and retention. `.md` files are generated digests; delete them and they are rebuilt from the JSONL.
 
             Examples:

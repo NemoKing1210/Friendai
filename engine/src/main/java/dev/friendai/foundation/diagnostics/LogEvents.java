@@ -24,6 +24,11 @@ public final class LogEvents {
     public static final String LLM_ATTEMPT = "llm.attempt";
     public static final String LLM_RETRY = "llm.retry";
     public static final String LLM_DISCARDED = "llm.discarded";
+    public static final String ROUTE_DECISION = "route.decision";
+    public static final String PLAN_REQUEST = "plan.request";
+    public static final String PLAN_DELIVERED = "plan.delivered";
+    public static final String PLAN_FAILED = "plan.failed";
+    public static final String PLAN_FALLBACK = "plan.fallback";
     public static final String TASK_START = "task.start";
     public static final String TASK_PROGRESS = "task.progress";
     public static final String TASK_PHASE = "task.phase";
@@ -82,6 +87,11 @@ public final class LogEvents {
             LLM_ATTEMPT,
             LLM_RETRY,
             LLM_DISCARDED,
+            ROUTE_DECISION,
+            PLAN_REQUEST,
+            PLAN_DELIVERED,
+            PLAN_FAILED,
+            PLAN_FALLBACK,
             TASK_START,
             TASK_PROGRESS,
             TASK_PHASE,

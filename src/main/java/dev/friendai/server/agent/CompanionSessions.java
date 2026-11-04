@@ -17,6 +17,7 @@ import dev.friendai.agent.turn.DebugLogObserver;
 import dev.friendai.agent.turn.LlmGateway;
 import dev.friendai.agent.turn.MemorySource;
 import dev.friendai.agent.turn.Persona;
+import dev.friendai.agent.turn.PlannerAttempt;
 import dev.friendai.agent.turn.Speaker;
 import dev.friendai.debug.DebugService;
 import dev.friendai.entity.CompanionEntity;
@@ -355,6 +356,27 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
     /** Emits a free-time record through the same durable pipeline as task records. */
     public void logFreeTime(dev.friendai.foundation.diagnostics.LogRecord record) {
         debug.pipeline().emit(record);
+    }
+
+    /**
+     * Emits one planner record for a consultation the server drives itself — a free-time shift — through the same
+     * durable pipeline as the brain's own planner records.
+     */
+    public void logPlanner(UUID owner, PlannerAttempt attempt) {
+        if (attempt == null) return;
+        String logSession = session(owner).logSession();
+        debug.pipeline()
+                .emit(DebugLogObserver.plannerRecord(
+                        owner,
+                        CompanionManager.get(server)
+                                .find(owner)
+                                .map(CompanionEntity::getUUID)
+                                .orElse(null),
+                        logSession,
+                        logSession,
+                        0L,
+                        0L,
+                        attempt));
     }
 
     Supplier<PerceptionContext> perceptionContext() {

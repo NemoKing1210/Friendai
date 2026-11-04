@@ -65,6 +65,8 @@ public final class CompanionBrain {
     /** The id a successful {@code set_goal} result reports, so the new goal can be planned for. */
     private static final java.util.regex.Pattern SET_GOAL_ID =
             java.util.regex.Pattern.compile("\\bgoal #(\\d{1,9})\\b");
+    /** The plan id a queued plan reports, for the durable planner record only; never for control flow. */
+    private static final java.util.regex.Pattern PLAN_ID = java.util.regex.Pattern.compile("\\bplan #(\\d{1,9})\\b");
     /** How many queued events one guest may have waiting for a turn. */
     public static final int MAX_PENDING_PER_GUEST = 2;
     /** How long a spoken line and the owner's coordinate question stay relevant. */
@@ -579,6 +581,7 @@ public final class CompanionBrain {
                 goalView.unmet(),
                 0L);
         decision = router.route(turnSignals);
+        observe(o -> o.onRouteDecision(decision));
         // Only an explicit owner trade action may mint a spend scope. Topics, fallback routing and queued
         // work cannot turn a read-only question into authority behind the chat tool filter.
         turnCaller = tradingTurnPort.begin(
@@ -634,6 +637,10 @@ public final class CompanionBrain {
         // A free-time shift is planned by its driver, not by the chat turn.
         PlanningDecision planning = decision.planning();
         if (planning.need() != PlanNeed.REQUIRED || planning.subject() == null) {
+            if (planning.need() == PlanNeed.REQUIRED) {
+                // The policy asked for a plan but named nothing to plan: the turn carries on without one.
+                observe(o -> o.onPlannerAttempt(new PlannerAttempt(null, 1, "fallback", "no-subject", 0L, 0L)));
+            }
             requestStep(generation);
         } else if (planning.subject() instanceof PlanSubject.TroubledPlan trouble) {
             if (ownsTroubledPlan && !lines.contains(BUDGET_SPENT)) {
@@ -663,9 +670,12 @@ public final class CompanionBrain {
             input = Optional.empty();
         }
         if (input.isEmpty()) {
+            observe(o -> o.onPlannerAttempt(new PlannerAttempt(subject, 1, "fallback", "no-input", 0L, 0L)));
             requestStep(gen);
             return;
         }
+        observe(o -> o.onPlannerAttempt(new PlannerAttempt(subject, 1, "request", "", -1L, 0L)));
+        long started = System.nanoTime();
         CompletableFuture<PlanProposal> future;
         try {
             future = plannerPort.propose(input.get(), () -> gen != generation);
@@ -681,12 +691,16 @@ public final class CompanionBrain {
             if (gen != generation) {
                 return;
             }
+            long durationMs = (System.nanoTime() - started) / 1_000_000L;
             if (error != null || proposal == null) {
                 Throwable cause = error == null ? null : PlanFailure.unwrap(error);
                 PlanFailure.Code code = cause instanceof PlannerException planner
                         ? planner.failure().code()
                         : PlanFailure.Code.REQUEST_FAILED;
                 LOGGER.info("Planner gave no plan: {}", code);
+                observe(o -> o.onPlannerAttempt(new PlannerAttempt(subject, 1, "failed", code.name(), durationMs, 0L)));
+                String reason = fallbackReason(cause);
+                observe(o -> o.onPlannerAttempt(new PlannerAttempt(subject, 1, "fallback", reason, durationMs, 0L)));
                 plannerNote = "no plan was drafted (" + code + "); plan the next step yourself";
             } else {
                 ToolResult applied;
@@ -694,6 +708,14 @@ public final class CompanionBrain {
                     applied = plannerPort.apply(turnCaller, subject, proposal);
                 } catch (RuntimeException e) {
                     applied = ToolResult.error("could not queue the plan");
+                }
+                long planId = applied.error() ? 0L : planIdIn(applied.content());
+                if (applied.error()) {
+                    observe(o ->
+                            o.onPlannerAttempt(new PlannerAttempt(subject, 1, "fallback", "rejected", durationMs, 0L)));
+                } else {
+                    observe(o ->
+                            o.onPlannerAttempt(new PlannerAttempt(subject, 1, "delivered", "", durationMs, planId)));
                 }
                 plannerNote = applied.error()
                         ? "the planner's plan could not be queued (" + applied.content() + "); plan it yourself"
@@ -939,6 +961,22 @@ public final class CompanionBrain {
         String text = result.content() == null ? "" : result.content();
         var match = SET_GOAL_ID.matcher(text);
         return match.find() ? Long.parseLong(match.group(1)) : 0;
+    }
+
+    /** The plan id the queue reports in a result line; zero when the text does not carry one. */
+    private static long planIdIn(String content) {
+        var match = PLAN_ID.matcher(content == null ? "" : content);
+        return match.find() ? Long.parseLong(match.group(1)) : 0L;
+    }
+
+    /** Why the turn goes on without a plan, as the durable record names it. */
+    private static String fallbackReason(Throwable cause) {
+        if (!(cause instanceof PlannerException planner)) return "transport";
+        return switch (planner.failure().code()) {
+            case REQUEST_FAILED -> "transport";
+            case CANCELLED -> "cancelled";
+            default -> "parse";
+        };
     }
 
     /** The plan an event reports as failed or blocked, or -1 for anything else (a stop or cancel is not trouble). */

@@ -808,21 +808,28 @@ public final class FreeTimeDriver {
     private void requestPlan(UUID owner, CompanionEntity companion, long shiftId, int minutes, boolean speakFailure) {
         int epoch = planEpoch.getOrDefault(owner, 0);
         Caller caller = ownerCaller(owner);
-        Optional<dev.friendai.agent.plan.PlannerInput> input = brains.plannerInputs(owner, companion)
-                .build(new dev.friendai.agent.plan.PlanSubject.FreeTimeShift(shiftId), caller, "");
+        dev.friendai.agent.plan.PlanSubject subject = new dev.friendai.agent.plan.PlanSubject.FreeTimeShift(shiftId);
+        Optional<dev.friendai.agent.plan.PlannerInput> input =
+                brains.plannerInputs(owner, companion).build(subject, caller, "");
         if (input.isEmpty()) {
             brains.plannerDebug(owner, "planner disposition=given up: the shift ended before it could be planned");
+            logPlanner(owner, subject, "fallback", "no-input", 0L, 0L);
             return;
         }
         planning.add(owner);
+        logPlanner(owner, subject, "request", "", -1L, 0L);
+        long startedAt = System.nanoTime();
         brains.propose(owner, input.get(), true)
                 .whenComplete((proposal, error) -> brains.onServerThread(() -> {
+                    long durationMs = (System.nanoTime() - startedAt) / 1_000_000L;
                     if (epoch != planEpoch.getOrDefault(owner, 0)) {
+                        logPlanner(owner, subject, "fallback", "stale", durationMs, 0L);
                         return; // a teleport, a dismissal or a stop made this answer stale
                     }
                     planning.remove(owner);
                     FreeTime state = service().state(owner);
                     if (!state.on() || state.shift() == null || state.shift().id() != shiftId) {
+                        logPlanner(owner, subject, "fallback", "stale", durationMs, 0L);
                         return; // stopped or replaced while the planner was thinking
                     }
                     Optional<String> refused = error == null && proposal != null
@@ -840,6 +847,7 @@ public final class FreeTimeDriver {
                                 now(),
                                 true);
                         brains.plannerDebug(owner, "planner disposition=refused: " + refused.get());
+                        logPlanner(owner, subject, "fallback", "refused", durationMs, 0L);
                         return;
                     }
                     Optional<Long> plan = error != null || proposal == null
@@ -864,6 +872,10 @@ public final class FreeTimeDriver {
                                 error == null && proposal != null
                                         ? "planner disposition=queue refused: the proposed plan was refused by the queue"
                                         : "planner disposition=given up");
+                        String code = cause instanceof dev.friendai.agent.plan.PlannerException failure
+                                ? failure.failure().code().name()
+                                : (proposal != null ? "STEPS_INVALID" : "REQUEST_FAILED");
+                        logPlanner(owner, subject, "failed", code, durationMs, 0L);
                         // The director may keep its hour moving with a deterministic template. An owner-requested
                         // draft must report the planner failure and end without guessing at a different plan.
                         AutonomyFacts f = facts.build(companion, owner, now, placeService);
@@ -887,6 +899,7 @@ public final class FreeTimeDriver {
                                 facts.invalidate(owner);
                                 budget(owner).failed();
                                 brains.plannerDebug(owner, "planner disposition=queued fallback");
+                                logPlanner(owner, subject, "fallback", "template", durationMs, fallback.get());
                                 return;
                             }
                         }
@@ -907,8 +920,10 @@ public final class FreeTimeDriver {
                             tell(owner, companion, dev.friendai.agent.plan.PlanFailure.ownerMessage(ownerError));
                         }
                         budget(owner).failed();
+                        logPlanner(owner, subject, "fallback", "none", durationMs, 0L);
                         return;
                     }
+                    logPlanner(owner, subject, "delivered", "", durationMs, plan.get());
                     service().linkPlan(owner, plan.get());
                     brains.logFreeTime(FreeTimeLogEvents.start(
                             owner,
@@ -920,6 +935,18 @@ public final class FreeTimeDriver {
                     facts.invalidate(owner);
                     brains.plannerDebug(owner, "planner disposition=queued plan #" + plan.get());
                 }));
+    }
+
+    /** One durable planner record for the shift's consultation; the subject carries the shift id, never its text. */
+    private void logPlanner(
+            UUID owner,
+            dev.friendai.agent.plan.PlanSubject subject,
+            String disposition,
+            String code,
+            long durationMs,
+            long planId) {
+        brains.logPlanner(
+                owner, new dev.friendai.agent.turn.PlannerAttempt(subject, 1, disposition, code, durationMs, planId));
     }
 
     private void interrupt(UUID owner, CompanionEntity companion, Shift shift, Need need, long nowMillis) {
