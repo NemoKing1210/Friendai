@@ -4,7 +4,7 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.navigation.minecraft.nav.LevelCellView;
 import dev.friendai.features.navigation.minecraft.nav.MoveHelper;
 import dev.friendai.features.navigation.minecraft.nav.ResourceJourney;
-import dev.friendai.features.navigation.pathing.GoalPoint;
+import dev.friendai.foundation.spatial.GoalPoint;
 import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;

@@ -2,6 +2,7 @@ package dev.friendai.features.navigation.pathing;
 
 import dev.friendai.foundation.spatial.CellView;
 import dev.friendai.foundation.spatial.Move;
+import dev.friendai.foundation.spatial.Path;
 import dev.friendai.foundation.spatial.PathStep;
 import java.util.ArrayList;
 import java.util.List;

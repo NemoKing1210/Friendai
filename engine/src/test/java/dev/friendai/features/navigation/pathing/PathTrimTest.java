@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.friendai.foundation.spatial.Move;
 import dev.friendai.foundation.spatial.Node;
+import dev.friendai.foundation.spatial.Path;
 import dev.friendai.foundation.spatial.PathStep;
 import dev.friendai.foundation.spatial.Pos;
 import java.util.ArrayList;

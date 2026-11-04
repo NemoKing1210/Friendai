@@ -1,19 +1,19 @@
 package dev.friendai.features.navigation.minecraft.nav;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.features.navigation.pathing.GoalPoint;
-import dev.friendai.features.navigation.pathing.Path;
-import dev.friendai.features.navigation.pathing.PathGoal;
 import dev.friendai.features.navigation.pathing.PathSearch;
 import dev.friendai.features.navigation.pathing.PathSmoother;
-import dev.friendai.features.navigation.pathing.SearchOptions;
-import dev.friendai.features.navigation.pathing.SearchResult;
 import dev.friendai.foundation.spatial.BlockList;
 import dev.friendai.foundation.spatial.CostModel;
+import dev.friendai.foundation.spatial.GoalPoint;
 import dev.friendai.foundation.spatial.Node;
+import dev.friendai.foundation.spatial.Path;
+import dev.friendai.foundation.spatial.PathGoal;
 import dev.friendai.foundation.spatial.PathStep;
 import dev.friendai.foundation.spatial.PathingConfig;
 import dev.friendai.foundation.spatial.Pos;
+import dev.friendai.foundation.spatial.SearchOptions;
+import dev.friendai.foundation.spatial.SearchResult;
 import dev.friendai.task.TaskContext;
 import java.util.ArrayList;
 import java.util.HashSet;

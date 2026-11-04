@@ -4,7 +4,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 import dev.friendai.foundation.spatial.CostModel;
+import dev.friendai.foundation.spatial.GoalPoint;
 import dev.friendai.foundation.spatial.Node;
+import dev.friendai.foundation.spatial.PathGoal;
+import dev.friendai.foundation.spatial.SearchOptions;
+import dev.friendai.foundation.spatial.SearchResult;
 import dev.friendai.testutil.GridCellView;
 import org.junit.jupiter.api.Test;
 

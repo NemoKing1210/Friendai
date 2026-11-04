@@ -1,8 +1,8 @@
 package dev.friendai.features.navigation.minecraft.nav;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.features.navigation.pathing.BreakProgress;
 import dev.friendai.foundation.spatial.BlockList;
+import dev.friendai.foundation.spatial.BreakProgress;
 import dev.friendai.foundation.spatial.Cell;
 import dev.friendai.foundation.spatial.CellView;
 import dev.friendai.foundation.spatial.CostModel;

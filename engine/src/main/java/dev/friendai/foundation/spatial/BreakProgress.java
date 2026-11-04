@@ -1,4 +1,4 @@
-package dev.friendai.features.navigation.pathing;
+package dev.friendai.foundation.spatial;
 
 public final class BreakProgress {
     private BreakProgress() {}

@@ -1,4 +1,4 @@
-package dev.friendai.features.navigation.pathing;
+package dev.friendai.foundation.spatial;
 
 /** The outcome of one search call. {@code path} is null unless the status is {@code FOUND} or {@code PARTIAL}. */
 public record SearchResult(Status status, Path path) {

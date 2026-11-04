@@ -5,10 +5,14 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.friendai.foundation.spatial.CostModel;
+import dev.friendai.foundation.spatial.GoalPoint;
 import dev.friendai.foundation.spatial.Move;
 import dev.friendai.foundation.spatial.Node;
+import dev.friendai.foundation.spatial.Path;
 import dev.friendai.foundation.spatial.PathStep;
 import dev.friendai.foundation.spatial.Pos;
+import dev.friendai.foundation.spatial.SearchOptions;
+import dev.friendai.foundation.spatial.SearchResult;
 import dev.friendai.testutil.GridCellView;
 import java.util.List;
 import java.util.Optional;

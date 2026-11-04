@@ -1,6 +1,6 @@
 package dev.friendai.features.mining.minecraft.mining;
 
-import dev.friendai.features.navigation.pathing.BreakProgress;
+import dev.friendai.foundation.spatial.BreakProgress;
 import dev.friendai.task.TaskContext;
 import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;

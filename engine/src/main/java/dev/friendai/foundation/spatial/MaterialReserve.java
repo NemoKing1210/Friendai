@@ -1,4 +1,4 @@
-package dev.friendai.features.navigation.pathing;
+package dev.friendai.foundation.spatial;
 
 import java.util.LinkedHashMap;
 import java.util.Map;

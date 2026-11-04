@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.friendai.foundation.spatial.CostModel;
+import dev.friendai.foundation.spatial.DropPoint;
+import dev.friendai.foundation.spatial.GoalPickup;
 import dev.friendai.foundation.spatial.Node;
 import java.util.List;
 import org.junit.jupiter.api.Test;

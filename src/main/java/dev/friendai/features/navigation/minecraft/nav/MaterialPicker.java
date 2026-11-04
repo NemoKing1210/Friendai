@@ -1,8 +1,8 @@
 package dev.friendai.features.navigation.minecraft.nav;
 
-import dev.friendai.features.navigation.pathing.MaterialPrices;
-import dev.friendai.features.navigation.pathing.MaterialReserve;
 import dev.friendai.foundation.spatial.BlockList;
+import dev.friendai.foundation.spatial.MaterialPrices;
+import dev.friendai.foundation.spatial.MaterialReserve;
 import dev.friendai.foundation.spatial.PathingConfig;
 import java.util.Map;
 import java.util.Optional;

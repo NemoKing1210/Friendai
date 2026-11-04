@@ -145,8 +145,8 @@ public class CompanionEntity extends PathfinderMob {
     private dev.friendai.features.inventory.DeliveredLedger delivered =
             dev.friendai.features.inventory.DeliveredLedger.EMPTY;
     /** The material the planned work still needs, composed by the runner on transitions; server-only. */
-    private dev.friendai.features.navigation.pathing.MaterialReserve materialReserve =
-            dev.friendai.features.navigation.pathing.MaterialReserve.EMPTY;
+    private dev.friendai.foundation.spatial.MaterialReserve materialReserve =
+            dev.friendai.foundation.spatial.MaterialReserve.EMPTY;
 
     private int moodTicks;
     // The last face input tuple that reached the debug log, plus when it was sampled; runtime only.
@@ -706,13 +706,13 @@ public class CompanionEntity extends PathfinderMob {
     }
 
     /** The material the remaining queued work still needs; every block-spending path asks before it takes one. */
-    public dev.friendai.features.navigation.pathing.MaterialReserve materialReserve() {
+    public dev.friendai.foundation.spatial.MaterialReserve materialReserve() {
         return materialReserve;
     }
 
     /** Replaces the reserve; the runner composes it, nothing else writes it. */
-    public void setMaterialReserve(dev.friendai.features.navigation.pathing.MaterialReserve reserve) {
-        materialReserve = reserve == null ? dev.friendai.features.navigation.pathing.MaterialReserve.EMPTY : reserve;
+    public void setMaterialReserve(dev.friendai.foundation.spatial.MaterialReserve reserve) {
+        materialReserve = reserve == null ? dev.friendai.foundation.spatial.MaterialReserve.EMPTY : reserve;
     }
     /** The armor, hands and combat settings, as one LLM-facing line. */
     public String equipmentText() {

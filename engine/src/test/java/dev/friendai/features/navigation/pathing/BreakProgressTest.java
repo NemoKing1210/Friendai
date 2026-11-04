@@ -2,6 +2,7 @@ package dev.friendai.features.navigation.pathing;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import dev.friendai.foundation.spatial.BreakProgress;
 import org.junit.jupiter.api.Test;
 
 class BreakProgressTest {

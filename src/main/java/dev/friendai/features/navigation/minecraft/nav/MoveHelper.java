@@ -1,8 +1,8 @@
 package dev.friendai.features.navigation.minecraft.nav;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.features.navigation.pathing.GoalPoint;
 import dev.friendai.foundation.spatial.Cell;
+import dev.friendai.foundation.spatial.GoalPoint;
 import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.task.TaskContext;
 import net.minecraft.world.entity.PathfinderMob;

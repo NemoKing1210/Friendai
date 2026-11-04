@@ -2,8 +2,8 @@ package dev.friendai.features.trading.minecraft.task;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.navigation.minecraft.nav.Navigator;
-import dev.friendai.features.navigation.pathing.GoalReach;
 import dev.friendai.features.trading.TraderRecord;
+import dev.friendai.foundation.spatial.GoalReach;
 import dev.friendai.foundation.spatial.PathingConfig;
 import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.task.TaskContext;

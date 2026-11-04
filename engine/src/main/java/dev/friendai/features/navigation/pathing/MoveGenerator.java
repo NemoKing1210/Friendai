@@ -6,8 +6,10 @@ import dev.friendai.foundation.spatial.CostModel;
 import dev.friendai.foundation.spatial.LeapPhysics;
 import dev.friendai.foundation.spatial.Move;
 import dev.friendai.foundation.spatial.Node;
+import dev.friendai.foundation.spatial.PathGoal;
 import dev.friendai.foundation.spatial.PathStep;
 import dev.friendai.foundation.spatial.Pos;
+import dev.friendai.foundation.spatial.Standable;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -67,22 +69,11 @@ public final class MoveGenerator {
      * below, or swimming in water. Never inside a hazard or an unloaded cell.
      */
     public static boolean standable(CellView view, Node n) {
-        Cell foot = view.at(n.pos());
-        Cell head = view.at(n.head());
-        if (!enterable(foot) || !enterable(head)) {
-            return false;
-        }
-        if (foot.kind() == Cell.Kind.WATER) {
-            return true;
-        }
-        return view.at(n.support()).supports();
+        return Standable.at(view, n);
     }
 
     private static boolean enterable(Cell cell) {
-        if (cell.hazard()) {
-            return false;
-        }
-        return cell.free() || cell.kind() == Cell.Kind.DOOR;
+        return Standable.enterable(cell);
     }
 
     public void neighbours(Node from, int placedSoFar, int placeable, int headUnderwater, Consumer<PathStep> out) {

@@ -1,6 +1,4 @@
-package dev.friendai.features.navigation.pathing;
-
-import dev.friendai.foundation.spatial.PathingConfig;
+package dev.friendai.foundation.spatial;
 
 /**
  * What one search may do: how many nodes it may expand, how far from the start it may look, how many blocks the

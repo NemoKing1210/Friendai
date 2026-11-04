@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 import dev.friendai.foundation.spatial.CostModel;
+import dev.friendai.foundation.spatial.GoalPoint;
 import dev.friendai.foundation.spatial.Move;
 import dev.friendai.foundation.spatial.Node;
 import dev.friendai.foundation.spatial.PathStep;

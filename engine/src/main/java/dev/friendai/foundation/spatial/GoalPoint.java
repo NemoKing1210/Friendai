@@ -1,9 +1,5 @@
-package dev.friendai.features.navigation.pathing;
+package dev.friendai.foundation.spatial;
 
-import dev.friendai.foundation.spatial.CellView;
-import dev.friendai.foundation.spatial.CostModel;
-import dev.friendai.foundation.spatial.Node;
-import dev.friendai.foundation.spatial.Pos;
 import java.util.List;
 import java.util.Optional;
 
@@ -66,7 +62,7 @@ public record GoalPoint(double x, double y, double z, double horizontal, double 
     public static Optional<Pos> groundBelow(CellView view, int x, int y, int z, int maxDrop) {
         for (int i = 0; i <= maxDrop; i++) {
             Node node = new Node(x, y - i, z);
-            if (MoveGenerator.standable(view, node)) {
+            if (Standable.at(view, node)) {
                 return Optional.of(node.pos());
             }
         }

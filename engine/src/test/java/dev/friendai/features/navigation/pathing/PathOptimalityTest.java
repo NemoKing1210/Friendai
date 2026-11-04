@@ -3,8 +3,13 @@ package dev.friendai.features.navigation.pathing;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import dev.friendai.foundation.spatial.CostModel;
+import dev.friendai.foundation.spatial.GoalPoint;
+import dev.friendai.foundation.spatial.GoalReach;
 import dev.friendai.foundation.spatial.Node;
+import dev.friendai.foundation.spatial.PathGoal;
 import dev.friendai.foundation.spatial.Pos;
+import dev.friendai.foundation.spatial.SearchOptions;
+import dev.friendai.foundation.spatial.SearchResult;
 import dev.friendai.testutil.GridCellView;
 import java.util.Collections;
 import java.util.Comparator;

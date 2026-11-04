@@ -1,7 +1,7 @@
 package dev.friendai.features.navigation.minecraft.nav;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.features.navigation.pathing.GoalReach;
+import dev.friendai.foundation.spatial.GoalReach;
 import dev.friendai.foundation.spatial.PathingConfig;
 import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.task.TaskContext;

@@ -3,7 +3,7 @@ package dev.friendai.test;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.features.navigation.minecraft.nav.Navigator;
-import dev.friendai.features.navigation.pathing.GoalPoint;
+import dev.friendai.foundation.spatial.GoalPoint;
 import dev.friendai.task.TaskContext;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;

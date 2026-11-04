@@ -8,6 +8,8 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.friendai.foundation.spatial.CostModel;
+import dev.friendai.foundation.spatial.GoalPoint;
+import dev.friendai.foundation.spatial.GoalReach;
 import dev.friendai.foundation.spatial.Node;
 import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.testutil.GridCellView;

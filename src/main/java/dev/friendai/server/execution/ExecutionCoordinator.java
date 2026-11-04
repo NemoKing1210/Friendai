@@ -808,7 +808,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     }
 
     /** The plan's remaining steps and the running task's own need, the larger of the two per item. */
-    private dev.friendai.features.navigation.pathing.MaterialReserve composeMaterialReserve() {
+    private dev.friendai.foundation.spatial.MaterialReserve composeMaterialReserve() {
         java.util.List<QueuedStep> remaining = new java.util.ArrayList<>();
         for (Job job : queueDriver.queue().jobs()) {
             if (job.state() == JobState.DONE
@@ -829,8 +829,8 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         if (active != null) {
             taskNeeds = active.task().materialNeeds(context());
         }
-        dev.friendai.features.navigation.pathing.MaterialReserve composed =
-                dev.friendai.features.navigation.pathing.MaterialReserve.compose(planNeeds, taskNeeds);
+        dev.friendai.foundation.spatial.MaterialReserve composed =
+                dev.friendai.foundation.spatial.MaterialReserve.compose(planNeeds, taskNeeds);
         if (!(companion.level() instanceof ServerLevel level) || composed.isEmpty()) {
             return composed;
         }
@@ -842,7 +842,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
                 withDrops.merge(item, entry.getValue(), Math::max);
             }
         }
-        return dev.friendai.features.navigation.pathing.MaterialReserve.of(withDrops);
+        return dev.friendai.foundation.spatial.MaterialReserve.of(withDrops);
     }
 
     /** One clock.gap per observed gap over a second; the reason stays unknown, it is never inferred as a pause. */

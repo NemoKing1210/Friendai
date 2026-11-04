@@ -94,7 +94,7 @@ public record TaskContext(
     }
 
     /** The material the remaining queued work still needs; a pillar, bridge or platform must not spend it. */
-    public dev.friendai.features.navigation.pathing.MaterialReserve materialReserve() {
+    public dev.friendai.foundation.spatial.MaterialReserve materialReserve() {
         return companion.materialReserve();
     }
 

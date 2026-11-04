@@ -1,10 +1,5 @@
-package dev.friendai.features.navigation.pathing;
+package dev.friendai.foundation.spatial;
 
-import dev.friendai.foundation.spatial.CellView;
-import dev.friendai.foundation.spatial.CostModel;
-import dev.friendai.foundation.spatial.LineOfSight;
-import dev.friendai.foundation.spatial.Node;
-import dev.friendai.foundation.spatial.Pos;
 import java.util.List;
 
 /** A goal of getting close enough to act on one of several blocks: a log to mine, a chest to open. */
