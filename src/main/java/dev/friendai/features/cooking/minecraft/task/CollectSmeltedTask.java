@@ -98,8 +98,9 @@ public final class CollectSmeltedTask implements Task {
     }
 
     private static FurnaceJob jobAt(CompanionEntity companion, BlockPos pos) {
+        String dimension = companion.level().dimension().identifier().toString();
         for (FurnaceJob job : companion.furnaceJobs().all()) {
-            if (job.pos().equals(pos)) {
+            if (job.pos().equals(pos) && job.dimension().equals(dimension)) {
                 return job;
             }
         }

@@ -114,8 +114,8 @@ public final class VoiceRuntime {
         }
         try {
             if (wanted.whisper()) {
-                WhisperLocalStt whisper =
-                        new WhisperLocalStt(MANAGER.file(wanted, wanted.files().get(0)));
+                WhisperLocalStt whisper = new WhisperLocalStt(
+                        MANAGER.file(wanted, wanted.files().get(0)), () -> MANAGER.verifyInstalled(wanted));
                 if (!whisper.isReady()) {
                     whisper.close();
                     return NOT_READY;

@@ -106,6 +106,28 @@ public class CookingTests {
                 h.getLevel().getBlockEntity(pos(h, x, y, z));
     }
 
+    /** An unloaded chunk is not an absent furnace: the job waits until the furnace can be seen again. */
+    @GameTest(maxTicks = 40)
+    public void anUnloadedFurnaceKeepsItsJob(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        BlockPos far = h.absolutePos(new BlockPos(30_000, 2, 30_000));
+        c.furnaceJobs()
+                .add(new FurnaceJob(
+                        far,
+                        h.getLevel().dimension().identifier().toString(),
+                        Station.FURNACE,
+                        "minecraft:iron_ore",
+                        "minecraft:iron_ingot",
+                        0,
+                        false));
+        java.util.List<String> notices = new java.util.ArrayList<>();
+        c.furnaceJobs().tick(c, notices::add);
+        h.assertValueEqual(c.furnaceJobs().all().size(), 1, "an unloaded chunk must not drop the job: " + notices);
+        h.assertTrue(notices.isEmpty(), "an unloaded furnace is not news: " + notices);
+        h.succeed();
+    }
+
     @GameTest
     public void busyFurnaceIsNotFree(GameTestHelper h) {
         net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity furnace = furnaceAt(h, 2, 2, 2);
@@ -159,7 +181,14 @@ public class CookingTests {
         Result result = new Result();
         c.executionCoordinator().setEventSink(result);
         c.furnaceJobs()
-                .add(new FurnaceJob(pos, Station.FURNACE, "minecraft:raw_gold", "minecraft:gold_ingot", 1, false));
+                .add(new FurnaceJob(
+                        pos,
+                        h.getLevel().dimension().identifier().toString(),
+                        Station.FURNACE,
+                        "minecraft:raw_gold",
+                        "minecraft:gold_ingot",
+                        1,
+                        false));
         String expected =
                 "the furnace at " + coords(pos) + " finished: 1 minecraft:gold_ingot ready (use collect_smelted)";
         h.succeedWhen(() -> h.assertTrue(result.notices.contains(expected), "notices: " + result.notices));
@@ -174,7 +203,15 @@ public class CookingTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 4);
         Result result = new Result();
         c.executionCoordinator().setEventSink(result);
-        c.furnaceJobs().add(new FurnaceJob(pos, Station.FURNACE, "minecraft:kelp", "minecraft:dried_kelp", 2, false));
+        c.furnaceJobs()
+                .add(new FurnaceJob(
+                        pos,
+                        h.getLevel().dimension().identifier().toString(),
+                        Station.FURNACE,
+                        "minecraft:kelp",
+                        "minecraft:dried_kelp",
+                        2,
+                        false));
         String expected = "the furnace at " + coords(pos) + " stopped: out of fuel, 1 minecraft:kelp left";
         h.succeedWhen(() -> h.assertTrue(result.notices.contains(expected), "notices: " + result.notices));
     }
@@ -187,7 +224,14 @@ public class CookingTests {
         Result result = new Result();
         c.executionCoordinator().setEventSink(result);
         c.furnaceJobs()
-                .add(new FurnaceJob(pos, Station.FURNACE, "minecraft:raw_gold", "minecraft:gold_ingot", 1, false));
+                .add(new FurnaceJob(
+                        pos,
+                        h.getLevel().dimension().identifier().toString(),
+                        Station.FURNACE,
+                        "minecraft:raw_gold",
+                        "minecraft:gold_ingot",
+                        1,
+                        false));
         h.setBlock(2, 2, 2, Blocks.AIR);
         String expected = "the furnace at " + coords(pos) + " is gone; the job for minecraft:gold_ingot was dropped";
         h.succeedWhen(() -> {

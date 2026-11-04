@@ -40,10 +40,47 @@ class WhisperLocalSttTest {
 
         assertEquals("recognized speech", result.join());
         assertTrue(deliveredResults.isEmpty());
-        assertEquals(List.of("transcribe", "close"), backend.operations);
+        assertEquals(List.of("open", "transcribe", "close"), backend.operations);
         assertSame(backend.context, backend.transcribedContext);
         assertSame(backend.context, backend.closedContext);
         assertEquals(1, backend.closeCount.get());
+    }
+
+    @Test
+    void theModelIsOpenedOnTheWorkerAndOnlyAfterVerification() {
+        var backend = new FakeBackend();
+        var executor = new ManualExecutorService();
+        var verified = new AtomicInteger();
+        var stt = new WhisperLocalStt(Path.of("fake-model.bin"), backend, executor, () -> {
+            verified.incrementAndGet();
+            return true;
+        });
+
+        assertTrue(stt.isReady(), "a lazy recognizer is ready to try, not loaded yet");
+        assertTrue(backend.operations.isEmpty(), "constructing it must not touch native code: " + backend.operations);
+
+        var result = stt.transcribe(new float[] {0.5f, -0.5f}, "en");
+        executor.runAll();
+
+        assertEquals("recognized speech", result.join());
+        assertEquals(List.of("open", "transcribe"), backend.operations, "open runs on the worker before use");
+        assertEquals(1, verified.get(), "verification runs once, before the native open");
+        stt.close();
+        executor.runAll();
+        assertEquals(1, verified.get(), "a closed recognizer does not reopen");
+    }
+
+    @Test
+    void aFailedVerificationNeverOpensTheModel() {
+        var backend = new FakeBackend();
+        var executor = new ManualExecutorService();
+        var stt = new WhisperLocalStt(Path.of("fake-model.bin"), backend, executor, () -> false);
+
+        var result = stt.transcribe(new float[] {0.5f, -0.5f}, "en");
+        executor.runAll();
+
+        assertTrue(result.isCompletedExceptionally(), "an unverified model must not transcribe");
+        assertTrue(backend.operations.isEmpty(), "no native open: " + backend.operations);
     }
 
     private static final class FakeBackend implements WhisperLocalStt.Backend {
@@ -56,6 +93,7 @@ class WhisperLocalSttTest {
         @Override
         public Object open(Path model) {
             assertEquals(Path.of("fake-model.bin"), model);
+            operations.add("open");
             return context;
         }
 

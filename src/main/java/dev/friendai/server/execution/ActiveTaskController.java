@@ -241,6 +241,8 @@ public final class ActiveTaskController {
 
     public void resumeFrozen(ActiveTask active) {
         if (active == null) return;
+        // The interrupt ran on this runner while the task was frozen; that time is not the task's stall time.
+        active.progress().rebase(frozenElapsed);
         current = new ActiveTask(
                 active.id(),
                 active.jobId(),

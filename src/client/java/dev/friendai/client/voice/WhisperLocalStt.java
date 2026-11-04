@@ -12,48 +12,105 @@ import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.BooleanSupplier;
 
-/** Local speech recognition with whisper.cpp. If the native library cannot load, {@link #isReady()} is false. */
+/**
+ * Local speech recognition with whisper.cpp. The model is verified and opened on the recognizer's own worker on first
+ * use, never on the calling thread: a large model must not stall a client tick, and a modified install must be refused
+ * before native code sees it.
+ */
 public final class WhisperLocalStt implements SpeechToText, AutoCloseable {
+    private final Path model;
     private final Backend backend;
     private final ExecutorService executor;
+    private final BooleanSupplier verified;
     private Object context;
     private boolean closed;
 
     public WhisperLocalStt(Path model) {
-        this(model, new JniBackend(), Executors.newSingleThreadExecutor(r -> {
-            Thread thread = new Thread(r, "friendai-whisper");
-            thread.setDaemon(true);
-            return thread;
-        }));
+        this(model, () -> true);
+    }
+
+    public WhisperLocalStt(Path model, BooleanSupplier verified) {
+        this(
+                model,
+                new JniBackend(),
+                Executors.newSingleThreadExecutor(r -> {
+                    Thread thread = new Thread(r, "friendai-whisper");
+                    thread.setDaemon(true);
+                    return thread;
+                }),
+                verified);
     }
 
     WhisperLocalStt(Path model, Backend backend, ExecutorService executor) {
+        this(model, backend, executor, () -> true);
+    }
+
+    WhisperLocalStt(Path model, Backend backend, ExecutorService executor, BooleanSupplier verified) {
+        this.model = Objects.requireNonNull(model, "model");
         this.backend = Objects.requireNonNull(backend, "backend");
         this.executor = Objects.requireNonNull(executor, "executor");
+        this.verified = Objects.requireNonNull(verified, "verified");
+    }
+
+    @Override
+    public synchronized boolean isReady() {
+        return !closed;
+    }
+
+    @Override
+    public CompletableFuture<String> transcribe(float[] samples16k, String language) {
+        synchronized (this) {
+            if (closed) {
+                return CompletableFuture.failedFuture(new IllegalStateException("speech recognition is not ready"));
+            }
+        }
+        String activeLanguage = language == null || language.isBlank() ? "auto" : language;
+        return CompletableFuture.supplyAsync(
+                () -> {
+                    Object activeContext = prepare();
+                    if (activeContext == null) {
+                        throw new IllegalStateException("speech recognition is not ready");
+                    }
+                    try {
+                        return backend.transcribe(activeContext, samples16k, activeLanguage);
+                    } finally {
+                        closeIfClosedWithPendingWork();
+                    }
+                },
+                executor);
+    }
+
+    /** Work accepted before a disconnect still finishes; a context opened for it is then closed instead of leaked. */
+    private synchronized void closeIfClosedWithPendingWork() {
+        if (!closed || context == null) {
+            return;
+        }
+        Object closing = context;
+        context = null;
+        try {
+            backend.close(closing);
+        } catch (RuntimeException | UnsatisfiedLinkError failure) {
+            FriendaiMod.LOGGER.warn("Could not close local speech recognition", failure);
+        }
+    }
+
+    /** Runs on the worker: verify once, then open once. */
+    private synchronized Object prepare() {
+        if (context != null) {
+            return context;
+        }
+        if (!verified.getAsBoolean()) {
+            FriendaiMod.LOGGER.warn("The local speech model failed verification; not loading it");
+            return null;
+        }
         try {
             context = backend.open(model);
         } catch (Exception | UnsatisfiedLinkError failure) {
             FriendaiMod.LOGGER.warn("Could not start local speech recognition", failure);
         }
-    }
-
-    @Override
-    public synchronized boolean isReady() {
-        return !closed && context != null;
-    }
-
-    @Override
-    public synchronized CompletableFuture<String> transcribe(float[] samples16k, String language) {
-        Object activeContext = context;
-        if (closed || activeContext == null) {
-            return CompletableFuture.failedFuture(new IllegalStateException("speech recognition is not ready"));
-        }
-
-        Backend activeBackend = backend;
-        String activeLanguage = language == null || language.isBlank() ? "auto" : language;
-        return CompletableFuture.supplyAsync(
-                () -> activeBackend.transcribe(activeContext, samples16k, activeLanguage), executor);
+        return context;
     }
 
     @Override

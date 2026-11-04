@@ -44,6 +44,8 @@ public final class ServerProtocolConnections implements AutoCloseable {
     private RateLimiter controlLimiter = new RateLimiter(300, System::currentTimeMillis);
     private RateLimiter skinLimiter = new RateLimiter(300, System::currentTimeMillis);
     private RateLimiter voiceLimiter = new RateLimiter(1_000, System::currentTimeMillis);
+    private final dev.friendai.presentation.companion.MenuOpenCoalescer menuOpenCoalescer =
+            new dev.friendai.presentation.companion.MenuOpenCoalescer();
 
     public ServerProtocolConnections(MinecraftServer server) {
         this.server = server;
@@ -162,6 +164,10 @@ public final class ServerProtocolConnections implements AutoCloseable {
 
     public RateLimiter controlLimiter() {
         return controlLimiter;
+    }
+
+    public dev.friendai.presentation.companion.MenuOpenCoalescer menuOpenCoalescer() {
+        return menuOpenCoalescer;
     }
 
     public RateLimiter skinLimiter() {
