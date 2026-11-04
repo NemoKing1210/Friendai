@@ -512,6 +512,352 @@ const ARCH_CARDS = [
       "~Cheap per tick|Bounded work, resumable state." ] }
 ];
 
+/* ---- navigation: the map, then the internals ---- */
+const GROUPS = [
+  { id: "map", label: "The map" },
+  { id: "internals", label: "Internals" }
+];
+
+const SECTIONS = [
+  { id: "overview", group: "map", icon: "🗺️", label: "Overview" },
+  { id: "categories", group: "map", icon: "🧩", label: "Skills & Systems" },
+  { id: "flow", group: "map", icon: "➡️", label: "One Turn" },
+  { id: "memory", group: "map", icon: "🗂️", label: "Memory & Data" },
+  { id: "arch", group: "map", icon: "🏗️", label: "Architecture" },
+  { id: "tests", group: "internals", icon: "🧪", label: "Testing" },
+  { id: "logging", group: "internals", icon: "📝", label: "Logging" },
+  { id: "debug", group: "internals", icon: "🔍", label: "Debug & Diagnostics" },
+  { id: "protocol", group: "internals", icon: "📡", label: "Network Protocol" },
+  { id: "config", group: "internals", icon: "⚙️", label: "Config & Persistence" },
+  { id: "ci", group: "internals", icon: "🛠️", label: "Build, CI & Release" }
+];
+
+/* ---- reference pages: same card shape as MEM_CARDS, plus an optional pipeline graph ---- */
+const DOC = {
+  tests: {
+    title: "Two suites, one gate",
+    lead: "Pure logic is proven by unit tests, world behaviour by in-game GameTests, and both run in CI as one required check. While working, run only the group that covers your change; the full suite belongs to CI.",
+    graph: { w: 1200, h: 460, nodes: [
+      { id: "engine", x: 110, y: 230, label: "Engine unit tests", icon: "🧪", color: COLORS.amethyst, kind: "hub", desc: "`engine/src/test`: queue, planner, policies, LLM protocols, config migration. No Minecraft, no Fabric." },
+      { id: "root", x: 410, y: 230, label: "Root unit tests", icon: "🧱", color: COLORS.grass, kind: "hub", desc: "`src/test`: server adapters, tools and features, run without booting a game." },
+      { id: "game", x: 710, y: 230, label: "GameTests", icon: "🌍", color: COLORS.copper, kind: "hub", desc: "111 classes in the separate `friendai-gametest` mod, in one shared world, six CI shards." },
+      { id: "client", x: 1010, y: 350, label: "Client UI test", icon: "🖥️", color: COLORS.water, kind: "cat", desc: "`runClientGameTest` drives the real YACL screen and checks both UI languages." },
+      { id: "gate", x: 1010, y: 90, label: "CI gate", icon: "🚦", color: COLORS.gold, kind: "cat", desc: "The required check: unit suites, GameTest shards, formatting, packaging, shard map and docs links." }
+    ], edges: [
+      ["engine", "root"], ["root", "game"], ["game", "client", "display"],
+      ["game", "gate", "required", { curve: [40, -40] }], ["client", "gate", "required", { curve: [60, 0] }]
+    ] },
+    cards: [
+      { title: "Unit suites", sub: "JUnit 5, hand-written fakes, no mocking framework", color: COLORS.amethyst,
+        hub: { label: "Unit tests", icon: "🧪", color: COLORS.amethyst, desc: "Fast tests that pin behaviour, boundaries, state transitions and failure paths." },
+        items: [
+          "~Engine suite|`engine/src/test` proves pure logic: plan queue, pathfinding, combat policy, protocols, migrations.",
+          "~Root suite|`src/test` proves Minecraft-side adapters and features without starting a game.",
+          "~Test fixtures|`engine/src/testFixtures` holds reusable fakes; they never enter the shipped jar.",
+          "~Reusable fakes|`MockHttpServer`, `FakeGateway`, `FakeToolExecutor`, `ManualScheduler`, `GridCellView`, `RecordingSpeaker`.",
+          "~Package rules|`PackageDependencyRules` fails the build when the engine imports Minecraft.",
+          "~Scenario baselines|`ScenarioBaselineTest` replays JSON scenarios through the real turn loop with fakes."
+        ] },
+      { title: "GameTests", sub: "A separate mod, one shared world, six CI shards", color: COLORS.copper,
+        hub: { label: "GameTests", icon: "🌍", color: COLORS.copper, desc: "In-game tests that drive the real server thread, entity, tasks and world." },
+        items: [
+          "~Separate mod|`friendai-gametest` registers 111 classes in `src/gametest/resources/fabric.mod.json`.",
+          "~Shards|`.github/gametest-shards.json` splits them into six CI shards, one class per server boot.",
+          "~Shard check|`verifyGametestShards` fails a class that is missing, listed twice or unknown.",
+          "~Shared world|Each test owns its block type and arena; counts are filtered by type.",
+          "~GameTestSupport|`platform`, `platformAt`, `enclose` and `mockPlayerAt` build safe arenas and players.",
+          "~TaskTrace|Records one line per tick; a hang prints its last ticks and CI uploads the log.",
+          "~Filtered runs|One glob: `-Dfabric-api.gametest.filter=friendai-gametest:<class>_tests_*`."
+        ] },
+      { title: "What each kind proves", sub: "Golden files, language files, the tool catalog", color: COLORS.emerald,
+        hub: { label: "Proof", icon: "✅", color: COLORS.emerald, desc: "Each check guards a different failure, and each one can fail." },
+        items: [
+          "~Prompt goldens|`PromptGoldenTest` pins the system prompt; `updatePromptGolden` rewrites it on purpose.",
+          "~Language files|`LangFilesTest` compares every locale, every key and every placeholder, and flags unknown keys.",
+          "~Tool catalog|A GameTest fails until every registered tool has a catalog entry.",
+          "~Client UI|`runClientGameTest` checks fields, transitions, save/cancel/reset and all eight shipped languages.",
+          "~Break it once|A test written beside its code is proven by breaking the guarded line and watching the red.",
+          "~A green first run|Proves nothing on its own: that is why the break-it step is part of the batch."
+        ] },
+      { title: "The gates", sub: "What CI requires before anything merges", color: COLORS.gold,
+        hub: { label: "Gates", icon: "🚦", color: COLORS.gold, desc: "Nothing merges on a red or pending gate." },
+        items: [
+          "~CI gate|Unit suites, all GameTest shards, `spotlessCheck`, packaging, the shard map and docs links.",
+          "~Commit lint gate|Conventional commits and a conventional PR title.",
+          "~Docs links|`scripts/check-docs.sh` checks relative links, anchors and table cell counts.",
+          "~Workflow lint|`actionlint` and `shellcheck` over the workflows and scripts.",
+          "~Nightly|The whole suite in one server, the only cross-class run.",
+          "~Release|A tag must match `mod_version`, sit on `origin/main` and have a green CI run."
+        ] }
+    ]
+  },
+
+  logging: {
+    title: "One record per thing that happened",
+    lead: "Every brain turn, tool call, task and shift writes a durable JSONL record under `logs/friendai/`. The same record carries a `cause` link, so an error can be walked back to the turn that started it.",
+    graph: { w: 1200, h: 460, nodes: [
+      { id: "event", x: 110, y: 230, label: "Brain, tool, task, shift", icon: "📝", color: COLORS.grass, kind: "cat", desc: "Callers emit typed records: identity keys, level, category, event, bounded data." },
+      { id: "pipeline", x: 410, y: 230, label: "LogPipeline", icon: "🛡️", color: COLORS.amethyst, kind: "hub", desc: "Redacts secrets first, then truncates, then fans out to every sink." },
+      { id: "ring", x: 710, y: 90, label: "DebugLog ring", icon: "🔄", color: COLORS.iron, kind: "cat", desc: "Bounded live buffer behind the Log tab and `read_log`." },
+      { id: "files", x: 710, y: 230, label: "JSONL files", icon: "🗄️", color: COLORS.lapis, kind: "cat", desc: "Server, per-owner and client trees with rotation, retention and a generated digest." },
+      { id: "digest", x: 710, y: 370, label: "Digest .md", icon: "📄", color: COLORS.quartz, kind: "cat", desc: "A closed file's chain rendered as prose; safe to delete, regenerated on demand." },
+      { id: "read", x: 1010, y: 230, label: "Search and diagnose", icon: "🔎", color: COLORS.water, kind: "cat", desc: "`logs_search`, `/friendai diagnose`, the Log tab and the digest read the same records." }
+    ], edges: [
+      ["event", "pipeline"], ["pipeline", "ring"], ["pipeline", "files"], ["pipeline", "digest"],
+      ["ring", "read", "live", { curve: [-40, 0] }], ["files", "read"], ["digest", "read", "prose", { curve: [40, 0] }]
+    ] },
+    cards: [
+      { title: "Where the files are", sub: "`<gameDir>/logs/friendai/`", color: COLORS.lapis,
+        hub: { label: "Log tree", icon: "🗄️", color: COLORS.lapis, desc: "`/friendai logs path` and the Open log folder button are authoritative; the folder can be anywhere." },
+        items: [
+          "~server/<date>/boot-N.jsonl|Lifecycle records and every warn or error from `friendai*` loggers.",
+          "~owners/<uuid>/<date>/session-*.jsonl|One owner's brain, tool, task and queue records.",
+          "~client/<date>/client-N.jsonl|Client and speech records, written on the client only.",
+          "~diagnostics/diagnose-<UTC>/|The `/friendai diagnose` bundle.",
+          "~README.md|A generated one-page schema, event table and jq recipes.",
+          "~Singleplayer|The client folder equals the server folder only in singleplayer."
+        ] },
+      { title: "What a record holds", sub: "Fields worth knowing when you are reading", color: COLORS.amethyst,
+        hub: { label: "Record", icon: "🧾", color: COLORS.amethyst, desc: "One JSON object per line, with a header on line one." },
+        items: [
+          "~seq and cause|`cause` is the seq of the record that caused this one, so a chain is walkable backwards.",
+          "~Identity keys|`turn`, `plan`, `job`, `task`, `toolCall`, `trace`, `execution`, `request`.",
+          "~category and event|`brain`, `tool`, `task`, `queue`, `speech`, `log` and their event names.",
+          "~level|debug, info, warn, error.",
+          "~durationMs and data|Bounded values, redacted before they are truncated.",
+          "~Spans and timings|`TaskLogSpan`, `ExecutionTiming`, holds versus gaps, bounded stall snapshots."
+        ] },
+      { title: "Levels, retention and privacy", sub: "What is written, how much, and what never is", color: COLORS.redstone,
+        hub: { label: "Policy", icon: "🛡️", color: COLORS.redstone, desc: "Configured keys become `***` before any sink, on the pipeline and on the log4j bridge." },
+        items: [
+          "~off / normal / detailed / trace|`normal` records metadata only; `detailed` adds prompt and reply bodies after redaction.",
+          "~Rotation|8 MiB per file, then `-2` and `-3` parts.",
+          "~Retention|50 MiB total, 7 days, 20 sessions per owner by default.",
+          "~Never block|The writer drops records instead of stalling the server and writes one `log.dropped` line.",
+          "~Torn last line|A crash-truncated line is skipped by readers instead of breaking the file.",
+          "~Detailed is a decision|Do not raise it on a server carrying other people's chat without their knowledge."
+        ] },
+      { title: "Reading it back", sub: "Four ways in, one source of truth", color: COLORS.gold,
+        hub: { label: "Readers", icon: "🔎", color: COLORS.gold, desc: "The ring, the files and the bundle all project the same records." },
+        items: [
+          "~Log tab|Operator-only live tail with trace and execution prefixes; Pause freezes it.",
+          "~read_log|The companion reads its own recent ring, owner only.",
+          "~logs_search|Owner-only search by level, category, event, turn, task, trace, execution or request.",
+          "~Digest|A `.md` beside each closed file renders the same chain as prose.",
+          "~Commands|`/friendai logs path`, `level`, `prune`, `export`.",
+          "~Never paste unread|A bundle can hold coordinates and, at `detailed`, prompt text."
+        ] }
+    ]
+  },
+
+  debug: {
+    title: "Three answers to 'what just happened'" ,
+    lead: "The live ring answers now, the files answer after the fact, and a bundle answers a report. All three carry the same identity keys, so a menu row, a log line and an incident timeline line up.",
+    graph: { w: 1200, h: 460, nodes: [
+      { id: "q", x: 100, y: 230, label: "Something looks wrong", icon: "❓", color: COLORS.nether, kind: "cat", desc: "The companion did not do what you asked, stopped, or repeated itself." },
+      { id: "ring", x: 370, y: 90, label: "DebugLog ring", icon: "🔄", color: COLORS.iron, kind: "cat", desc: "Bounded live buffer, redacted then truncated; the Log tab tails it." },
+      { id: "files", x: 370, y: 230, label: "JSONL files", icon: "🗄️", color: COLORS.lapis, kind: "cat", desc: "The durable tree with `cause` links between records." },
+      { id: "trace", x: 370, y: 370, label: "TaskTrace", icon: "⏱️", color: COLORS.copper, kind: "cat", desc: "A tick-by-tick timeline written by a GameTest; a hang leaves it in the shard log." },
+      { id: "tab", x: 700, y: 90, label: "Log tab", icon: "📜", color: COLORS.gold, kind: "cat", desc: "Operator-only live view with pause." },
+      { id: "diag", x: 700, y: 230, label: "diagnose bundle", icon: "📦", color: COLORS.amethyst, kind: "hub", desc: "Manifest, event excerpt and incident timeline, bounded and partial-aware." },
+      { id: "artifact", x: 700, y: 370, label: "CI artifact", icon: "📎", color: COLORS.quartz, kind: "cat", desc: "A failing shard uploads `build/gametest-shards/<class>.log`." },
+      { id: "report", x: 1010, y: 230, label: "A report someone can act on", icon: "🐞", color: COLORS.water, kind: "cat", desc: "Evidence first: the failing record, its chain, and what the task was doing." }
+    ], edges: [
+      ["q", "ring"], ["q", "files"], ["q", "trace"], ["ring", "tab"], ["files", "diag"],
+      ["trace", "artifact"], ["tab", "report", "", { curve: [-30, 20] }], ["diag", "report"], ["artifact", "report", "", { curve: [30, 20] }]
+    ] },
+    cards: [
+      { title: "The live ring", sub: "What the operator sees while it happens", color: COLORS.iron,
+        hub: { label: "Live", icon: "🔄", color: COLORS.iron, desc: "A bounded buffer, not a file: it is fast, lossy and redacted." },
+        items: [
+          "~DebugLog|Bounded ring, redacted then truncated, and it never reuses the file sequence.",
+          "~Log tab|Operator tail with trace and execution prefixes; Pause freezes it.",
+          "~Debug tab|Incident bundle, session facts and the per-connection movement overlay switch.",
+          "~BrainObserver|`onReply` reports the text a player actually heard, not the draft.",
+          "~DebugLogObserver|Writes every prompt line, tool call, result, provider error and token usage."
+        ] },
+      { title: "The incident bundle", sub: "`/friendai diagnose [chat] [player]`", color: COLORS.amethyst,
+        hub: { label: "Bundle", icon: "📦", color: COLORS.amethyst, desc: "Written atomically into its own bounded directory with retention." },
+        items: [
+          "~manifest.json|Versions, masked config, session identity.",
+          "~events.jsonl|A record-boundary excerpt around the incident.",
+          "~incident.md|A bounded, partial-aware timeline of the same records.",
+          "~summary.txt and queue.txt|The queue, task history and the first thing to read.",
+          "~Two-second barrier|Waits at most two seconds for the writer, then says what is missing instead of lying.",
+          "~Redacted|Config masks and credential-free URLs, on every file in the bundle."
+        ] },
+      { title: "Finding the cause", sub: "From a symptom to the record that explains it", color: COLORS.copper,
+        hub: { label: "Method", icon: "🔎", color: COLORS.copper, desc: "Read the failing line, then walk `cause` backwards until it is zero." },
+        items: [
+          "~Find the error|`grep -h '\"level\":\"error\"' owners/<uuid>/*/*.jsonl | tail`.",
+          "~Follow the chain|`jq -c 'select(.seq==N or .cause==N)'` until `cause` is 0.",
+          "~Correlate|`turn` groups one chat turn; `task`, `job` and `plan` group execution.",
+          "~Widen only when needed|Then `/friendai diagnose`, not before.",
+          "~A hanging test|`TaskTrace` prints the last twelve ticks every six hundred failed ticks, at most twice.",
+          "~A stall|`TaskDiagnosticEpisode` records what the task was doing when it stalled."
+        ] },
+      { title: "Privacy when sharing", sub: "A bundle is evidence, not a transcript dump", color: COLORS.redstone,
+        hub: { label: "Sharing", icon: "🛡️", color: COLORS.redstone, desc: "Operator-gated on the server; an owner sees only their own subtree." },
+        items: [
+          "~Operator only|Brain log, prompt, perception text and debug tools are gated by `DebugAccess` on the server.",
+          "~Owner scope|`/friendai logs path` prints an owner their own subtree, an operator the root.",
+          "~Masks|Config values are masked; URLs carry no credentials.",
+          "~Keys never leak|Not in logs, chat, exception messages or `toString()`.",
+          "~Read before pasting|A `detailed` file can contain prompt and reply text."
+        ] }
+    ]
+  },
+
+  protocol: {
+    title: "One versioned protocol",
+    lead: "Client and server talk through one family and operation protocol over Fabric payloads. The codecs are pure, bounded and live in the engine; the Fabric wrappers only move bytes.",
+    graph: { w: 1400, h: 460, nodes: [
+      { id: "join", x: 90, y: 230, label: "Client joins", icon: "🚪", color: COLORS.quartz, kind: "cat", desc: "The server creates a pending session for the player." },
+      { id: "hello", x: 330, y: 230, label: "Hello S2C", icon: "📨", color: COLORS.water, kind: "cat", desc: "Bounded version and capability offer." },
+      { id: "accept", x: 570, y: 230, label: "Accept C2S", icon: "✅", color: COLORS.emerald, kind: "cat", desc: "Requests stay closed until the server accepts it; a pending handshake expires after 100 ticks." },
+      { id: "req", x: 810, y: 230, label: "Request C2S", icon: "📤", color: COLORS.gold, kind: "cat", desc: "Family and operation IDs, a monotonic request ID, a typed body, bounded." },
+      { id: "srv", x: 1050, y: 230, label: "Server dispatch", icon: "⚙️", color: COLORS.grass, kind: "hub", desc: "Validates the connection, family, sequence and bounds, then runs on the server thread." },
+      { id: "view", x: 1270, y: 90, label: "View S2C", icon: "📥", color: COLORS.amethyst, kind: "cat", desc: "One typed view frame with request correlation." },
+      { id: "apply", x: 1270, y: 370, label: "Client applies", icon: "🖥️", color: COLORS.water, kind: "cat", desc: "Hops to the client thread, verifies the captured session, then applies the matching view." }
+    ], edges: [
+      ["join", "hello"], ["hello", "accept"], ["accept", "req"], ["req", "srv"], ["srv", "view"], ["view", "apply"],
+      ["apply", "req", "next request", { flow: true, curve: [-60, 60] }]
+    ] },
+    cards: [
+      { title: "Handshake", sub: "Nothing is accepted before it completes", color: COLORS.emerald,
+        hub: { label: "Handshake", icon: "🤝", color: COLORS.emerald, desc: "A failed bootstrap disconnects the peer." },
+        items: [
+          "~ProtocolHelloS2CPayload|Bounded version and capability offer after join.",
+          "~ProtocolAcceptC2SPayload|Accepts the negotiated version and capability set.",
+          "~100 ticks|A pending handshake expires and its work is rejected.",
+          "~Capabilities|At most 32 unique entries, each name at most 64 bytes.",
+          "~Fail closed|Unknown versions, malformed frames, stale sessions and out-of-sequence requests are dropped."
+        ] },
+      { title: "Frames", sub: "Explicit families and operations, every one bounded", color: COLORS.gold,
+        hub: { label: "Frames", icon: "📦", color: COLORS.gold, desc: "Body formats and bounds live in the pure engine `protocol/` package." },
+        items: [
+          "~ProtocolRequestC2SPayload|Version, family, operation, monotonic request ID, typed body.",
+          "~ProtocolViewS2CPayload|One typed view with metadata and request correlation.",
+          "~Families|control, memory, places, instructions, trading, debug, speech.",
+          "~Threads|Dispatch hops onto the server thread; receivers hop to the client thread.",
+          "~Stale views|A frame from an old connection session is ignored, never applied."
+        ] },
+      { title: "What the client may see", sub: "Synced data only, filtered on the server", color: COLORS.water,
+        hub: { label: "Client data", icon: "🖥️", color: COLORS.water, desc: "A screen, HUD or renderer never reads server-only state." },
+        items: [
+          "~Synced entity data|Food, XP level and creative mode arrive as `EntityDataAccessor`s.",
+          "~Menu snapshot|`SnapshotBuilder` builds the state for the requester's own companion.",
+          "~Operator tabs|The brain log, prompt and perception text are filtered on the server.",
+          "~Map view|At most 128 cells, 32 sites and 32 roads, never the full grid.",
+          "~Inventory window|A vanilla container menu, not a custom payload."
+        ] },
+      { title: "Debug stream", sub: "Live views for the menu and the movement overlay", color: COLORS.iron,
+        hub: { label: "Stream", icon: "📡", color: COLORS.iron, desc: "A rejected frame closes that viewer's menu with a warning instead of escaping into the tick." },
+        items: [
+          "~10-tick cadence|Framed control views while the menu is open.",
+          "~Subscribe and close|One typed request, and the same path a disconnect and a ten-tick sweep take.",
+          "~Movement overlay|The active task's work snapshot plus independent route obstacle cells.",
+          "~Off by default|The overlay switch resets per connection and is never saved.",
+          "~Bounded|Cells are capped, and an optional codec section keeps true per-status counts."
+        ] }
+    ]
+  },
+
+  config: {
+    title: "Settings and saves that survive",
+    lead: "Configuration and owner records are versioned, validated and protected. A failed write never destroys the previous file, and a format nobody can read stays read-only instead of being guessed at.",
+    cards: [
+      { title: "Configuration", sub: "`config/friendai-server.json` and `config/friendai-client.json`", color: COLORS.gold,
+        hub: { label: "Config", icon: "⚙️", color: COLORS.gold, desc: "A key may be written as `env:NAME` so it never sits in a file." },
+        items: [
+          "~Server schema 22|Tasks, agent, places, autonomy, chunk loading, build pace, logging.",
+          "~Client schema 9|Voice recognition and synthesis, provider maps, UI preferences.",
+          "~Adjacent migrations|`ConfigMigration` steps from every supported version; its tests are the source of truth.",
+          "~Unknown and future|Left untouched; server startup uses in-memory defaults.",
+          "~Unique backups|A byte-exact `.vN.<id>.bak` before an atomic replacement.",
+          "~Extension fields|`ConfigJson` preserves unknown fields through later saves.",
+          "~Keys|`env:NAME` is preferred; keys never appear in logs, URLs or toasts."
+        ] },
+      { title: "Owner files", sub: "`<world>/friendai/` — one file per owner", color: COLORS.amethyst,
+        hub: { label: "Owner data", icon: "🗂️", color: COLORS.amethyst, desc: "Memory, profile, goals, free time, routines, places, placements, knowledge, trading and skills." },
+        items: [
+          "~OwnerFileStore|Lazy load, debounced flush, atomic replace, `.bak` on corruption.",
+          "~One writer|A single bounded writer is borrowed by every store and closed once.",
+          "~Typed status|Failure and read-only reasons carry no paths, values or exception text.",
+          "~Unsupported versions|Read-only and never overwritten, even when the backup succeeds.",
+          "~Independent revisions|Every record has its own format version and revision.",
+          "~Corrupt file|Backed up, then the original stays read-only."
+        ] },
+      { title: "What lives where", sub: "World save, owner books, game directory", color: COLORS.grass,
+        hub: { label: "Locations", icon: "📁", color: COLORS.grass, desc: "Diagnostics are not a store: `logs/friendai/` is written, rotated and pruned." },
+        items: [
+          "~World save|The companion entity, its inventory and hunger, anchors and the carry record.",
+          "~`<world>/friendai/`|Owner books and the conversation transcript.",
+          "~`config/`|Server and client settings.",
+          "~`<gameDir>/friendai/models/`|Speech models and voices, pinned by revision, size and SHA-256.",
+          "~Blueprints|`<world>/friendai/blueprints/<name>.json`.",
+          "~`logs/friendai/`|The diagnostics tree, described on the Logging page."
+        ] },
+      { title: "Rules for changing it", sub: "A schema change is a product decision", color: COLORS.redstone,
+        hub: { label: "Rules", icon: "📜", color: COLORS.redstone, desc: "Existing saves must keep loading, or the maintainer decides otherwise." },
+        items: [
+          "~Bump the format|And the mod version, in the same change.",
+          "~Test the chain|Every supported older version, plus defaults for new fields.",
+          "~Never guess|Older and future record formats are unsupported and untouched.",
+          "~Stay bounded|8 MiB read and write limits, capped collections, eviction.",
+          "~Update the table|The persistence table in `ARCHITECTURE.md` moves with the code."
+        ] }
+    ]
+  },
+
+  ci: {
+    title: "Build, gates and release",
+    lead: "What runs on your machine, what runs on a pull request, and what a tag has to satisfy. Java 25 is required; the first build downloads Minecraft and takes minutes.",
+    cards: [
+      { title: "Local commands", sub: "The ones used while working", color: COLORS.copper,
+        hub: { label: "Gradle", icon: "🛠️", color: COLORS.copper, desc: "Only one Gradle run per checkout at a time: builds share a lock and the `run/` directory." },
+        items: [
+          "~./gradlew test|Both unit suites; add `--tests '<pattern>'` for one group.",
+          "~./gradlew assemble verifyModArtifact|Compile every source set, package and inspect the jar; refreshes `test-builds/`.",
+          "~./gradlew runGameTest -D…filter=…|One class glob, one server boot, under a minute.",
+          "~./gradlew spotlessApply -PspotlessFiles=…|Formats only your files; the bare form is forbidden in a shared checkout.",
+          "~./gradlew exportTestJar and deployTestJar|Refresh the built jar, or copy it to `TEST_BUILD_PATH`.",
+          "~./gradlew build|The full gate. CI runs it; agents run the covering group instead."
+        ] },
+      { title: "CI jobs", sub: "Every pull request and every push to main", color: COLORS.emerald,
+        hub: { label: "CI", icon: "🚦", color: COLORS.emerald, desc: "The required check is `CI gate`, and it requires every job below." },
+        items: [
+          "~Workflow lint|`actionlint` and `shellcheck` over workflows and scripts.",
+          "~Docs links|Links, anchors and table shapes in the guides.",
+          "~Formatting|`spotlessCheck` over every Java file.",
+          "~Unit tests|Both suites, with a counted summary.",
+          "~Game tests|Six shards, one class per server, logs uploaded on failure.",
+          "~Build mod jar|Assemble, verify and upload the artifact.",
+          "~Commit lint gate|Conventional commits and a conventional PR title."
+        ] },
+      { title: "Release", sub: "A tag, a jar and a checksum", color: COLORS.gold,
+        hub: { label: "Release", icon: "🏷️", color: COLORS.gold, desc: "Tagging, merging and publishing are the maintainer's decision, never an agent's." },
+        items: [
+          "~mod_version|The single source of truth in `gradle.properties`.",
+          "~Tag|`vX.Y.Z` must equal `mod_version`.",
+          "~Guard rails|The tag must sit on `origin/main` and point at a commit with a green CI run.",
+          "~Artifact|One jar plus `friendai-X.Y.Z.jar.sha256`.",
+          "~Dry run|Dispatch the workflow with `dry_run: true` to build and verify without publishing.",
+          "~Check script|`scripts/check-release.sh vX.Y.Z` checks the version, tag, jar name and metadata."
+        ] },
+      { title: "Versioning", sub: "One bump per task, sized by the largest change", color: COLORS.lapis,
+        hub: { label: "Versions", icon: "🔢", color: COLORS.lapis, desc: "While the major version is 0, a breaking change bumps MINOR instead of MAJOR." },
+        items: [
+          "~PATCH|A fix, a tweak, a translation or a dependency patch.",
+          "~MINOR|A feature, a skill, a setting or a provider preset.",
+          "~No bump|docs, ci, test, style, chore and pure refactor changes.",
+          "~Changelog|One player-facing line per shipped change, in the same commit.",
+          "~Pre-1.0|Moving to 1.0.0 is the maintainer's call."
+        ] }
+    ]
+  }
+};
+
 /* ================= HELPERS ================= */
 const $ = (s, r = document) => r.querySelector(s);
 
@@ -619,6 +965,7 @@ function visNode(n) {
   else if (n.kind === "tool") { bg = "#c6c6c6"; border = n.color; fontColor = "#1b1b1b"; }
   else if (n.kind === "hub") { bg = "#7a4e25"; border = n.color; fontColor = "#ffffff"; size = 26; margin = 14; bw = 5; }
   else { bg = n.color; border = shade(n.color, -80); fontColor = lum(n.color) > 150 ? "#1b1b1b" : "#ffffff"; size = 22; margin = 10; }
+  if (n.pipeline) { size = Math.min(size, 18); margin = Math.min(margin, 8); }   // a pipeline sits at 100% zoom, so its labels stay compact
   const font = { face: FONT, size, color: fontColor };
   if (n.kind === "hub" || (n.kind === "cat" && fontColor === "#ffffff")) { font.strokeWidth = 3; font.strokeColor = "#000000"; }
   return {
@@ -657,6 +1004,7 @@ function renderGraph(box, g) {
     layout: { improvedLayout: false },
     physics: {
       solver: "forceAtlas2Based",
+      enabled: !g.pipeline,
       forceAtlas2Based: g.manual
         ? { gravitationalConstant: -1, centralGravity: 0, springConstant: 0.15, damping: 0.6, avoidOverlap: 1 }   // springs at rest length: the hand-made layout holds until something is dragged
         : { gravitationalConstant: -60, centralGravity: 0.0005, springConstant: 0.15, damping: 0.6, avoidOverlap: 1 },
@@ -718,7 +1066,7 @@ function renderGraph(box, g) {
     box.style.cursor = "grabbing";
     if (!p.nodes || !p.nodes.length) return;
     dragging = true;
-    net.setOptions({ physics: { enabled: true } });
+    if (!g.pipeline) net.setOptions({ physics: { enabled: true } });
   });
   net.on("dragEnd", (p) => {
     box.style.cursor = "default";
@@ -791,7 +1139,7 @@ const toolCount = (c) => c.items.filter((s) => !s.startsWith("~")).length;
 function buildStats() {
   const tools = new Set();
   CATS.forEach((c) => c.items.forEach((s) => { if (!s.startsWith("~")) tools.add(parseItem(s).label); }));
-  const stats = [[tools.size + "+", "tools"], [CATS.length, "categories"], ["5", "LLM protocols"], ["3", "access levels"], ["2", "languages"], ["3", "STT + 4 TTS engines"]];
+  const stats = [[tools.size + "+", "tools"], [CATS.length, "categories"], ["111", "GameTest classes"], ["6", "CI shards"], ["5", "LLM protocols"], ["3", "access levels"]];
   const box = $("#stats");
   box.textContent = "";
   stats.forEach(([v, l]) => {
@@ -832,10 +1180,10 @@ function overviewGraph() {
   return { w, h, nodes, edges };
 }
 
-function flowGraph(src) {
+function flowGraph(src, pipeline) {
   return {
-    w: src.w, h: src.h, manual: true,
-    nodes: src.nodes.map((n) => ({ ...n, label: t(n.label), desc: t(n.desc), typeLabel: t("Stage") })),
+    w: src.w, h: src.h, manual: true, pipeline: !!pipeline,
+    nodes: src.nodes.map((n) => ({ ...n, pipeline: !!pipeline, label: t(n.label), desc: t(n.desc), typeLabel: t("Stage") })),
     edges: src.edges.map(([a, b, label, o = {}]) => ({ a, b, label: label && t(label), arrow: true, ...o }))
   };
 }
@@ -845,7 +1193,6 @@ function openCategory(id) {
   currentCat = id;
   switchTab("categories");
   renderCategory();
-  window.scrollTo({ top: $("#tabs").offsetTop, behavior: "smooth" });
 }
 function renderCategory() {
   const c = CATS.find((x) => x.id === currentCat);
@@ -885,33 +1232,161 @@ function buildCards(containerId, cards, prefix) {
     c._box = canvas;
   });
 }
-function renderCards(cards) {
+function renderCards(cards, hubType = "Store") {
   cards.forEach((c) => {
     const w = c.wide ? 1100 : 640, h = c.wide ? 640 : 520;
-    renderGraph(c._box, radialGraph({ ...c.hub, typeLabel: "Store" }, c.items.map((s) => parseItem(s, false)), c.color, w, h));
+    renderGraph(c._box, radialGraph({ ...c.hub, typeLabel: hubType }, c.items.map((s) => parseItem(s, false)), c.color, w, h));
   });
 }
 
-/* ---- tabs ---- */
+/* ---- reference pages ---- */
+function buildDocSections() {
+  const host = $("#doc-sections");
+  host.textContent = "";
+  Object.keys(DOC).forEach((key) => {
+    const d = DOC[key];
+    const sec = document.createElement("section");
+    sec.id = "tab-" + key;
+    sec.className = "hidden";
+    const head = document.createElement("div");
+    head.className = "panel";
+    const h = document.createElement("h2"); h.textContent = t(d.title);
+    const p = document.createElement("p"); p.className = "lead"; richText(p, t(d.lead));
+    head.append(h, p);
+    if (d.graph) {
+      const gb = document.createElement("div"); gb.className = "graphbox";
+      const canvas = document.createElement("div");
+      canvas.className = "vis"; canvas.id = "g-" + key;
+      canvas.setAttribute("role", "img"); canvas.setAttribute("aria-label", t(d.title));
+      gb.append(canvas); head.append(gb);
+    }
+    sec.append(head);
+    if (d.cards && d.cards.length) {
+      const grid = document.createElement("div");
+      grid.className = "grid"; grid.id = "doc-" + key;
+      d.cards.forEach((c) => grid.append(docCard(c)));
+      sec.append(grid);
+    }
+    host.append(sec);
+  });
+}
+
+/* `code` spans are written with backticks in the data; render them as code, never as markup. */
+function richText(el, str) {
+  String(str).split("`").forEach((part, i) => {
+    if (!part) return;
+    if (i % 2) { const c = document.createElement("code"); c.textContent = part; el.append(c); }
+    else el.append(document.createTextNode(part));
+  });
+}
+
+/* A reference card is a scannable list: the map pages answer "what can it do", these answer "what is it called and what does it guard". */
+function docCard(c) {
+  const sec = document.createElement("section");
+  sec.className = "panel";
+  const h = document.createElement("h2"); h.textContent = t(c.title);
+  const p = document.createElement("p"); p.className = "lead"; p.style.fontSize = "21px"; p.style.margin = "0 0 10px"; richText(p, t(c.sub));
+  const hub = document.createElement("p"); hub.className = "hubnote"; richText(hub, t(c.hub.desc));
+  const ul = document.createElement("ul"); ul.className = "facts";
+  c.items.forEach((s) => {
+    const raw = s.startsWith("~") ? s.slice(1) : s;
+    const i = raw.indexOf("|");
+    const li = document.createElement("li");
+    const b = document.createElement("b"); richText(b, t(raw.slice(0, i)));
+    const span = document.createElement("span"); richText(span, t(raw.slice(i + 1)));
+    li.append(b, span);
+    li.title = t("Double-click to copy");
+    li.addEventListener("dblclick", () => copyLines([b.textContent, span.textContent]));
+    ul.append(li);
+  });
+  const copyCard = () => copyLines([t(c.title), t(c.sub), t(c.hub.desc)]);
+  [h, p, hub].forEach((el) => { el.title = t("Double-click to copy"); el.addEventListener("dblclick", copyCard); });
+  sec.append(h, p, hub, ul);
+  return sec;
+}
+
+function renderDoc(name) {
+  const d = DOC[name];
+  if (d.graph) renderGraph($("#g-" + name), flowGraph(d.graph, true));
+}
+
+/* ---- sidebar navigation ---- */
+function buildNav() {
+  const nav = $("#nav");
+  nav.textContent = "";
+  GROUPS.forEach((g) => {
+    const head = document.createElement("p");
+    head.className = "navgroup"; head.textContent = t(g.label); head.dataset.group = g.id;
+    nav.append(head);
+    SECTIONS.filter((s) => s.group === g.id).forEach((s) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "navitem"; b.dataset.tab = s.id;
+      b.setAttribute("aria-current", "false");
+      const i = document.createElement("i"); i.textContent = s.icon;
+      const span = document.createElement("span"); span.textContent = t(s.label);
+      b.append(i, span);
+      b.addEventListener("click", () => { switchTab(s.id); closeNav(); });
+      nav.append(b);
+    });
+  });
+  filterNav();
+}
+function filterNav() {
+  const q = ($("#navSearch").value || "").trim().toLowerCase();
+  document.querySelectorAll(".navitem").forEach((b) => b.classList.toggle("hide", !!q && !b.textContent.toLowerCase().includes(q)));
+  document.querySelectorAll(".navgroup").forEach((head) => {
+    let next = head.nextElementSibling, visible = false;
+    while (next && next.classList.contains("navitem")) { if (!next.classList.contains("hide")) visible = true; next = next.nextElementSibling; }
+    head.classList.toggle("hide", !visible);
+  });
+}
+function closeNav() {
+  document.body.classList.remove("navopen");
+  $("#backdrop").classList.add("hidden");
+  $("#navToggle").setAttribute("aria-expanded", "false");
+}
+function toggleNav() {
+  const open = !document.body.classList.contains("navopen");
+  document.body.classList.toggle("navopen", open);
+  $("#backdrop").classList.toggle("hidden", !open);
+  $("#navToggle").setAttribute("aria-expanded", String(open));
+  if (open) $("#navSearch").focus();
+}
+
+/* ---- sections ---- */
 let currentTab = "overview";
 function renderTab(name) {
   if (name === "overview") renderGraph($("#g-overview"), overviewGraph());
-  if (name === "categories") renderCategory();
-  if (name === "flow") renderGraph($("#g-flow"), flowGraph(FLOW));
-  if (name === "memory") renderCards(MEM_CARDS);
-  if (name === "arch") { renderGraph($("#g-arch"), flowGraph(ARCH_FLOW)); renderCards(ARCH_CARDS); }
+  else if (name === "categories") renderCategory();
+  else if (name === "flow") renderGraph($("#g-flow"), flowGraph(FLOW));
+  else if (name === "memory") renderCards(MEM_CARDS, "Store");
+  else if (name === "arch") { renderGraph($("#g-arch"), flowGraph(ARCH_FLOW)); renderCards(ARCH_CARDS, "Part"); }
+  else if (DOC[name]) renderDoc(name);
 }
 function switchTab(name) {
   currentTab = name;
-  document.querySelectorAll(".tab").forEach((t) => t.setAttribute("aria-selected", String(t.dataset.tab === name)));
-  ["overview", "categories", "flow", "memory", "arch"].forEach((id) => $("#tab-" + id).classList.toggle("hidden", id !== name));
+  document.querySelectorAll(".navitem").forEach((b) => {
+    const on = b.dataset.tab === name;
+    b.setAttribute("aria-current", String(on));
+    b.setAttribute("aria-selected", String(on));
+  });
+  document.querySelectorAll("#content > section, #doc-sections > section").forEach((s) => s.classList.toggle("hidden", s.id !== "tab-" + name));
+  const sec = SECTIONS.find((s) => s.id === name) || SECTIONS[0];
+  $("#crumb").textContent = t(sec.label);
   hideTip();
   renderTab(name);
   try { history.replaceState(null, "", "#" + name); } catch (e) { /* file:// or sandbox */ }
+  window.scrollTo({ top: 0, behavior: "auto" });
+}
+function step(dir) {
+  const i = Math.max(0, SECTIONS.findIndex((s) => s.id === currentTab));
+  const next = SECTIONS[(i + dir + SECTIONS.length) % SECTIONS.length];
+  switchTab(next.id);
+  closeNav();
 }
 
 /* ---- language switch ---- */
-const STATIC_TEXT = ".tab, #tab-overview h2, #tab-overview .lead, #tab-flow h2, #tab-flow .lead, #tab-arch > .panel h2, #tab-arch > .panel .lead, .legend span, footer";
+const STATIC_TEXT = "#tab-overview h2, #tab-overview .lead, #tab-flow h2, #tab-flow .lead, #tab-arch > .panel h2, #tab-arch > .panel .lead, .legend span, .brand .sub, .sidefoot, footer";
 function translateStatic() {
   document.querySelectorAll(STATIC_TEXT).forEach((el) => {
     el.childNodes.forEach((n) => {
@@ -923,14 +1398,25 @@ function translateStatic() {
   });
   document.documentElement.lang = LANG;
   document.querySelectorAll("#lang button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.lang === LANG)));
+  $("#navSearch").placeholder = t("Filter sections");
+  ["#prev", "#next"].forEach((id) => {
+    const label = id === "#prev" ? t("Previous section") : t("Next section");
+    $(id).title = label;
+    $(id).setAttribute("aria-label", label);
+  });
+  $("#navToggle").setAttribute("aria-label", t("Sections"));
+  $("#side").setAttribute("aria-label", t("Sections"));
+  $("#nav").setAttribute("aria-label", t("Sections"));
 }
 function buildDynamic() {
+  buildNav();
   buildStats();
   $("#chips").textContent = "";
   buildChips();
   ["#memory-grid", "#arch-grid"].forEach((id) => { $(id).textContent = ""; });
   buildCards("#memory-grid", MEM_CARDS, "m-");
   buildCards("#arch-grid", ARCH_CARDS, "a-");
+  buildDocSections();
 }
 function setLang(lang) {
   if (lang === LANG) return;
@@ -940,6 +1426,8 @@ function setLang(lang) {
   buildDynamic();
   hideTip();
   $("#toast").classList.remove("show");
+  const sec = SECTIONS.find((s) => s.id === currentTab) || SECTIONS[0];
+  $("#crumb").textContent = t(sec.label);
   renderTab(currentTab);
 }
 
@@ -966,9 +1454,19 @@ function boot() {
   translateStatic();
   buildDynamic();
   document.querySelectorAll("#lang button").forEach((b) => b.addEventListener("click", () => setLang(b.dataset.lang)));
-  document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => switchTab(t.dataset.tab)));
+  $("#prev").addEventListener("click", () => step(-1));
+  $("#next").addEventListener("click", () => step(1));
+  $("#navToggle").addEventListener("click", toggleNav);
+  $("#backdrop").addEventListener("click", closeNav);
+  $("#navSearch").addEventListener("input", filterNav);
+  $("#navSearch").addEventListener("keydown", (ev) => { if (ev.key === "Escape") { ev.currentTarget.value = ""; filterNav(); ev.currentTarget.blur(); } });
+  document.addEventListener("keydown", (ev) => {
+    const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(ev.target.tagName) || ev.target.isContentEditable;
+    if (ev.key === "/" && !typing) { ev.preventDefault(); $("#navSearch").focus(); }
+    else if (ev.key === "Escape" && !typing) closeNav();
+  });
   const initial = (location.hash || "").slice(1);
-  switchTab(["overview", "categories", "flow", "memory", "arch"].includes(initial) ? initial : "overview");
+  switchTab(SECTIONS.some((s) => s.id === initial) ? initial : "overview");
 }
 // measure text with the real fonts, but never wait forever for them
 let started = false;

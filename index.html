@@ -4,72 +4,85 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Friendai - Companion Map</title>
-<meta name="description" content="An interactive map of everything the Friendai Minecraft companion can do and remember.">
+<meta name="description" content="An interactive map of everything the Friendai Minecraft companion can do, remember, and how it is built: tools, one turn, memory, architecture, tests, logging, debugging and the network protocol.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="site/style.css">
 </head>
 <body>
-<div class="wrap">
-  <header class="hero">
-    <h1 class="logo">FRIEND<em>AI</em></h1>
+<a class="skip" href="#content">Skip to content</a>
+<button class="navtoggle" id="navToggle" type="button" aria-controls="side" aria-expanded="false" aria-label="Sections">&#9776;</button>
+<div class="backdrop hidden" id="backdrop"></div>
+
+<div class="app">
+  <aside class="side" id="side" aria-label="Sections">
+    <div class="brand">
+      <span class="logo">FRIEND<em>AI</em></span>
+      <span class="sub">COMPANION MAP</span>
+    </div>
     <div class="lang" id="lang" role="group" aria-label="Language"><button type="button" data-lang="en" aria-pressed="true">EN</button><button type="button" data-lang="ru" aria-pressed="false">RU</button></div>
+    <label class="searchbox" for="navSearch"><span aria-hidden="true">&#9906;</span><input id="navSearch" type="search" placeholder="Filter sections" autocomplete="off" spellcheck="false"></label>
+    <nav class="nav" id="nav" aria-label="Sections"></nav>
     <div class="stats" id="stats"></div>
-  </header>
+    <p class="sidefoot">BUILT FROM THE TOOL CATALOG AND ARCHITECTURE.MD</p>
+  </aside>
 
-  <nav class="tabs" role="tablist" id="tabs">
-    <button class="tab" role="tab" data-tab="overview" aria-selected="true">Overview</button>
-    <button class="tab" role="tab" data-tab="categories" aria-selected="false">Skills &amp; Systems</button>
-    <button class="tab" role="tab" data-tab="flow" aria-selected="false">One Turn</button>
-    <button class="tab" role="tab" data-tab="memory" aria-selected="false">Memory &amp; Data</button>
-    <button class="tab" role="tab" data-tab="arch" aria-selected="false">Architecture</button>
-  </nav>
+  <div class="main">
+    <header class="topbar">
+      <button class="pager" id="prev" type="button" aria-label="Previous section" title="Previous section">&#8249;</button>
+      <h1 id="crumb">Overview</h1>
+      <button class="pager" id="next" type="button" aria-label="Next section" title="Next section">&#8250;</button>
+    </header>
 
-  <main>
-    <section id="tab-overview" class="panel">
-      <h2>What the companion is</h2>
-      <p class="lead">One companion per owner. It hears you, thinks with an LLM of your choice, and acts in the world through tools. Every block below is a group of abilities; the three branches split what it does, how it thinks and how it talks.</p>
-      <div class="graphbox"><div id="g-overview" class="vis main" role="img" aria-label="Overview graph of companion capabilities"></div></div>
-      <div class="legend">
-        <span><i class="sw hub"></i> Companion / branch</span>
-        <span><i class="sw cat"></i> Category (click to open)</span>
-      </div>
-    </section>
+    <main id="content">
+      <section id="tab-overview" class="panel">
+        <h2>What the companion is</h2>
+        <p class="lead">One companion per owner. It hears you, thinks with an LLM of your choice, and acts in the world through tools. Every block below is a group of abilities; the three branches split what it does, how it thinks and how it talks.</p>
+        <div class="graphbox"><div id="g-overview" class="vis main" role="img" aria-label="Overview graph of companion capabilities"></div></div>
+        <div class="legend">
+          <span><i class="sw hub"></i> Companion / branch</span>
+          <span><i class="sw cat"></i> Category (click to open)</span>
+        </div>
+      </section>
 
-    <section id="tab-categories" class="panel hidden">
-      <h2 id="cat-title">Skills &amp; Systems</h2>
-      <p class="lead" id="cat-desc"></p>
-      <div class="chips" id="chips"></div>
-      <div class="graphbox"><div id="g-cat" class="vis main" role="img" aria-label="Category detail graph"></div></div>
-      <div class="legend">
-        <span><i class="sw tool"></i> Tool the LLM can call</span>
-        <span><i class="sw trait"></i> Built-in behaviour / feature</span>
-      </div>
-    </section>
+      <section id="tab-categories" class="panel hidden">
+        <h2 id="cat-title">Skills &amp; Systems</h2>
+        <p class="lead" id="cat-desc"></p>
+        <div class="chips" id="chips"></div>
+        <div class="graphbox"><div id="g-cat" class="vis main" role="img" aria-label="Category detail graph"></div></div>
+        <div class="legend">
+          <span><i class="sw tool"></i> Tool the LLM can call</span>
+          <span><i class="sw trait"></i> Built-in behaviour / feature</span>
+        </div>
+      </section>
 
-    <section id="tab-flow" class="panel hidden">
-      <h2>From a sentence to a block placed</h2>
-      <p class="lead">One chat or voice message becomes exactly one agent turn. Follow the arrows: dashed lines are feedback loops.</p>
-      <div class="graphbox"><div id="g-flow" class="vis main" role="img" aria-label="Flow of one chat turn"></div></div>
-    </section>
+      <section id="tab-flow" class="panel hidden">
+        <h2>From a sentence to a block placed</h2>
+        <p class="lead">One chat or voice message becomes exactly one agent turn. Follow the arrows: dashed lines are feedback loops.</p>
+        <div class="graphbox"><div id="g-flow" class="vis main" role="img" aria-label="Flow of one chat turn"></div></div>
+      </section>
 
-    <section id="tab-memory" class="hidden">
-      <div class="grid" id="memory-grid"></div>
-    </section>
+      <section id="tab-memory" class="hidden">
+        <div class="grid" id="memory-grid"></div>
+      </section>
 
-    <section id="tab-arch" class="hidden">
-      <div class="panel">
-        <h2>Three layers, one mod</h2>
-        <p class="lead">The server owns the companion; the client adds screens, voice and rendering; the pure-Java engine holds the logic and never imports Minecraft.</p>
-        <div class="graphbox"><div id="g-arch" class="vis main" role="img" aria-label="Architecture layers"></div></div>
-      </div>
-      <div class="grid" id="arch-grid"></div>
-    </section>
-  </main>
+      <section id="tab-arch" class="hidden">
+        <div class="panel">
+          <h2>Three layers, one mod</h2>
+          <p class="lead">The server owns the companion; the client adds screens, voice and rendering; the pure-Java engine holds the logic and never imports Minecraft.</p>
+          <div class="graphbox"><div id="g-arch" class="vis main" role="img" aria-label="Architecture layers"></div></div>
+        </div>
+        <div class="grid" id="arch-grid"></div>
+      </section>
 
-  <footer>BUILT FROM THE TOOL CATALOG AND ARCHITECTURE.MD &middot; MIT LICENSED</footer>
+      <div id="doc-sections"></div>
+    </main>
+
+    <footer>BUILT FROM THE TOOL CATALOG AND ARCHITECTURE.MD &middot; MIT LICENSED</footer>
+  </div>
 </div>
+
 <div id="tip" role="tooltip"></div>
 <div id="toast" role="status" aria-live="polite"></div>
 

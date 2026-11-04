@@ -32,8 +32,6 @@ const RU = {
   "categories": "категорий",
   "LLM protocols": "протоколов LLM",
   "access levels": "уровня доступа",
-  "languages": "языка",
-  "STT + 4 TTS engines": "STT + 4 TTS движка",
   "Zoom in": "Приблизить",
   "Zoom out": "Отдалить",
   "Fit": "Вписать",
@@ -685,3 +683,583 @@ const RU = {
   "One owner-set timetable with a phase or interval, saved across restarts.": "Одно расписание владельца с фазой дня или интервалом, сохраняется между перезапусками.",
   "Tells you what happened.": "Рассказывает, что произошло."
 };
+
+/* ---- reference pages: testing, logging, debugging, protocol, persistence, CI ---- */
+Object.assign(RU, {
+  /* ---- chrome ---- */
+  "The map": "Карта",
+  "Internals": "Внутренности",
+  "Filter sections": "Фильтр разделов",
+  "Previous section": "Предыдущий раздел",
+  "Next section": "Следующий раздел",
+  "Sections": "Разделы",
+  "GameTest classes": "классов GameTest",
+  "CI shards": "шардов CI",
+  "COMPANION MAP": "КАРТА КОМПАНЬОНА",
+  "BUILT FROM THE TOOL CATALOG AND ARCHITECTURE.MD": "СОБРАНО ИЗ КАТАЛОГА ИНСТРУМЕНТОВ И ARCHITECTURE.MD",
+  "Testing": "Тестирование",
+  "Logging": "Логирование",
+  "Debug & Diagnostics": "Отладка и диагностика",
+  "Network Protocol": "Сетевой протокол",
+  "Config & Persistence": "Настройки и сохранения",
+  "Build, CI & Release": "Сборка, CI и релиз",
+
+  /* ---- testing ---- */
+  "Two suites, one gate": "Два набора тестов, один шлюз",
+  "Pure logic is proven by unit tests, world behaviour by in-game GameTests, and both run in CI as one required check. While working, run only the group that covers your change; the full suite belongs to CI.":
+    "Чистая логика доказывается юнит-тестами, поведение в мире — GameTest'ами, и оба набора входят в один обязательный шлюз CI. Во время работы запускайте только группу, покрывающую изменение; полный прогон — дело CI.",
+  "Engine unit tests": "Юнит-тесты движка",
+  "`engine/src/test`: queue, planner, policies, LLM protocols, config migration. No Minecraft, no Fabric.":
+    "`engine/src/test`: очередь, планировщик, политики, протоколы LLM, миграции конфигурации. Без Minecraft и Fabric.",
+  "Root unit tests": "Юнит-тесты мода",
+  "`src/test`: server adapters, tools and features, run without booting a game.":
+    "`src/test`: серверные адаптеры, инструменты и фичи, без запуска игры.",
+  "111 classes in the separate `friendai-gametest` mod, in one shared world, six CI shards.":
+    "111 классов в отдельном моде `friendai-gametest`, в общем мире, шесть шардов CI.",
+  "Client UI test": "Тест клиентского интерфейса",
+  "`runClientGameTest` drives the real YACL screen and checks both UI languages.":
+    "`runClientGameTest` управляет настоящим экраном YACL и проверяет оба языка интерфейса.",
+  "The required check: unit suites, GameTest shards, formatting, packaging, shard map and docs links.":
+    "Обязательная проверка: юнит-наборы, шарды GameTest, форматирование, сборка, карта шардов и ссылки в документации.",
+  "display": "экран",
+  "required": "обязательно",
+  "Unit suites": "Юнит-наборы",
+  "JUnit 5, hand-written fakes, no mocking framework": "JUnit 5, рукописные фейки, без библиотек моков",
+  "Fast tests that pin behaviour, boundaries, state transitions and failure paths.":
+    "Быстрые тесты, закрепляющие поведение, границы, переходы состояний и пути отказа.",
+  "Engine suite": "Набор движка",
+  "`engine/src/test` proves pure logic: plan queue, pathfinding, combat policy, protocols, migrations.":
+    "`engine/src/test` доказывает чистую логику: очередь планов, поиск пути, боевая политика, протоколы, миграции.",
+  "Root suite": "Набор мода",
+  "`src/test` proves Minecraft-side adapters and features without starting a game.":
+    "`src/test` доказывает адаптеры и фичи на стороне Minecraft без запуска игры.",
+  "Test fixtures": "Тестовые фикстуры",
+  "`engine/src/testFixtures` holds reusable fakes; they never enter the shipped jar.":
+    "`engine/src/testFixtures` хранит переиспользуемые фейки; они не попадают в собранный jar.",
+  "Reusable fakes": "Переиспользуемые фейки",
+  "Package rules": "Правила пакетов",
+  "`PackageDependencyRules` fails the build when the engine imports Minecraft.":
+    "`PackageDependencyRules` валит сборку, если движок импортирует Minecraft.",
+  "Scenario baselines": "Сценарные эталоны",
+  "`ScenarioBaselineTest` replays JSON scenarios through the real turn loop with fakes.":
+    "`ScenarioBaselineTest` прогоняет JSON-сценарии через настоящий цикл хода с фейками.",
+  "A separate mod, one shared world, six CI shards": "Отдельный мод, один общий мир, шесть шардов CI",
+  "In-game tests that drive the real server thread, entity, tasks and world.":
+    "Тесты в игре, которые работают с настоящим серверным потоком, сущностью, задачами и миром.",
+  "Separate mod": "Отдельный мод",
+  "`friendai-gametest` registers 111 classes in `src/gametest/resources/fabric.mod.json`.":
+    "`friendai-gametest` регистрирует 111 классов в `src/gametest/resources/fabric.mod.json`.",
+  "Shards": "Шарды",
+  "`.github/gametest-shards.json` splits them into six CI shards, one class per server boot.":
+    "`.github/gametest-shards.json` делит их на шесть шардов CI, по одному классу на запуск сервера.",
+  "Shard check": "Проверка шардов",
+  "`verifyGametestShards` fails a class that is missing, listed twice or unknown.":
+    "`verifyGametestShards` валит класс, которого нет в карте, который указан дважды или неизвестен.",
+  "Shared world": "Общий мир",
+  "Each test owns its block type and arena; counts are filtered by type.":
+    "Каждый тест берёт свой тип блока и свою арену; подсчёты фильтруются по типу.",
+  "`platform`, `platformAt`, `enclose` and `mockPlayerAt` build safe arenas and players.":
+    "`platform`, `platformAt`, `enclose` и `mockPlayerAt` строят безопасные арены и игроков.",
+  "Records one line per tick; a hang prints its last ticks and CI uploads the log.":
+    "Пишет строку на тик; зависание печатает последние тики, а CI загружает лог.",
+  "Filtered runs": "Запуск с фильтром",
+  "One glob: `-Dfabric-api.gametest.filter=friendai-gametest:<class>_tests_*`.":
+    "Один глоб: `-Dfabric-api.gametest.filter=friendai-gametest:<class>_tests_*`.",
+  "What each kind proves": "Что доказывает каждый вид",
+  "Golden files, language files, the tool catalog": "Эталоны, языковые файлы, каталог инструментов",
+  "Proof": "Доказательство",
+  "Each check guards a different failure, and each one can fail.":
+    "Каждая проверка сторожит свой отказ, и каждая умеет падать.",
+  "Prompt goldens": "Эталоны промпта",
+  "`PromptGoldenTest` pins the system prompt; `updatePromptGolden` rewrites it on purpose.":
+    "`PromptGoldenTest` закрепляет системный промпт; `updatePromptGolden` переписывает его осознанно.",
+  "Language files": "Языковые файлы",
+  "`LangFilesTest` compares every locale, every key and every placeholder, and flags unknown keys.":
+    "`LangFilesTest` сравнивает все локали, все ключи и все подстановки и ловит неизвестные ключи.",
+  "Tool catalog": "Каталог инструментов",
+  "A GameTest fails until every registered tool has a catalog entry.":
+    "GameTest падает, пока у каждого зарегистрированного инструмента нет записи в каталоге.",
+  "Client UI": "Клиентский интерфейс",
+  "`runClientGameTest` checks fields, transitions, save/cancel/reset and all eight shipped languages.":
+    "`runClientGameTest` проверяет поля, переходы, сохранение, отмену, сброс и все восемь поставляемых языков.",
+  "Break it once": "Сломай один раз",
+  "A test written beside its code is proven by breaking the guarded line and watching the red.":
+    "Тест, написанный рядом с кодом, доказывается поломкой охраняемой строки и красным прогоном.",
+  "A green first run": "Зелёный первый прогон",
+  "Proves nothing on its own: that is why the break-it step is part of the batch.":
+    "Сам по себе ничего не доказывает: поэтому шаг «сломай» входит в ту же пачку.",
+  "The gates": "Шлюзы",
+  "What CI requires before anything merges": "Что требует CI до слияния",
+  "Gates": "Шлюзы",
+  "Nothing merges on a red or pending gate.": "Ничего не сливается на красном или незавершённом шлюзе.",
+  "Unit suites, all GameTest shards, `spotlessCheck`, packaging, the shard map and docs links.":
+    "Юнит-наборы, все шарды GameTest, `spotlessCheck`, сборка, карта шардов и ссылки в документации.",
+  "Commit lint gate": "Шлюз коммитов",
+  "Conventional commits and a conventional PR title.": "Conventional commits и conventional заголовок PR.",
+  "Docs links": "Проверка ссылок",
+  "`scripts/check-docs.sh` checks relative links, anchors and table cell counts.":
+    "`scripts/check-docs.sh` проверяет относительные ссылки, якоря и число ячеек в таблицах.",
+  "Workflow lint": "Линт воркфлоу",
+  "`actionlint` and `shellcheck` over the workflows and scripts.":
+    "`actionlint` и `shellcheck` по воркфлоу и скриптам.",
+  "`actionlint` and `shellcheck` over workflows and scripts.":
+    "`actionlint` и `shellcheck` по воркфлоу и скриптам.",
+  "Nightly": "Ночной прогон",
+  "The whole suite in one server, the only cross-class run.":
+    "Весь набор в одном сервере — единственный прогон, где классы встречаются.",
+  "A tag must match `mod_version`, sit on `origin/main` and have a green CI run.":
+    "Тег должен совпадать с `mod_version`, стоять на `origin/main` и иметь зелёный прогон CI."
+});
+
+/* ---- logging ---- */
+Object.assign(RU, {
+  "One record per thing that happened": "Одна запись на каждое событие",
+  "Every brain turn, tool call, task and shift writes a durable JSONL record under `logs/friendai/`. The same record carries a `cause` link, so an error can be walked back to the turn that started it.":
+    "Каждый ход, вызов инструмента, задача и смена пишут долговечную запись JSONL в `logs/friendai/`. У записи есть ссылка `cause`, поэтому ошибку можно проследить назад до хода, который её начал.",
+  "Brain, tool, task, shift": "Мозг, инструмент, задача, смена",
+  "Callers emit typed records: identity keys, level, category, event, bounded data.":
+    "Источники пишут типизированные записи: ключи идентичности, уровень, категорию, событие, ограниченные данные.",
+  "Redacts secrets first, then truncates, then fans out to every sink.":
+    "Сначала вычищает секреты, потом обрезает, потом раздаёт во все приёмники.",
+  "DebugLog ring": "Кольцо DebugLog",
+  "Bounded live buffer behind the Log tab and `read_log`.":
+    "Ограниченный живой буфер для вкладки Log и `read_log`.",
+  "JSONL files": "Файлы JSONL",
+  "Server, per-owner and client trees with rotation, retention and a generated digest.":
+    "Деревья сервера, владельцев и клиента с ротацией, хранением и сгенерированным дайджестом.",
+  "Digest .md": "Дайджест .md",
+  "A closed file's chain rendered as prose; safe to delete, regenerated on demand.":
+    "Цепочка закрытого файла, изложенная прозой; можно удалять, создаётся заново.",
+  "Search and diagnose": "Поиск и диагностика",
+  "`logs_search`, `/friendai diagnose`, the Log tab and the digest read the same records.":
+    "`logs_search`, `/friendai diagnose`, вкладка Log и дайджест читают одни и те же записи.",
+  "live": "живой",
+  "prose": "прозой",
+  "Where the files are": "Где лежат файлы",
+  "Log tree": "Дерево логов",
+  "`/friendai logs path` and the Open log folder button are authoritative; the folder can be anywhere.":
+    "`/friendai logs path` и кнопка открытия папки — истина в последней инстанции; папка может быть где угодно.",
+  "Lifecycle records and every warn or error from `friendai*` loggers.":
+    "Записи жизненного цикла и все warn/error логгеров `friendai*`.",
+  "One owner's brain, tool, task and queue records.":
+    "Записи мозга, инструментов, задач и очереди одного владельца.",
+  "Client and speech records, written on the client only.":
+    "Клиентские записи и записи речи — только на клиенте.",
+  "The `/friendai diagnose` bundle.": "Пакет `/friendai diagnose`.",
+  "A generated one-page schema, event table and jq recipes.":
+    "Сгенерированная одностраничная схема, таблица событий и рецепты jq.",
+  "Singleplayer": "Одиночная игра",
+  "The client folder equals the server folder only in singleplayer.":
+    "Папка клиента совпадает с папкой сервера только в одиночной игре.",
+  "What a record holds": "Что содержит запись",
+  "Fields worth knowing when you are reading": "Поля, которые стоит знать при чтении",
+  "Record": "Запись",
+  "One JSON object per line, with a header on line one.":
+    "Один JSON-объект на строку, заголовок в первой строке.",
+  "seq and cause": "seq и cause",
+  "`cause` is the seq of the record that caused this one, so a chain is walkable backwards.":
+    "`cause` — это seq записи, вызвавшей эту, так что цепочку можно идти назад.",
+  "Identity keys": "Ключи идентичности",
+  "category and event": "категория и событие",
+  "`brain`, `tool`, `task`, `queue`, `speech`, `log` and their event names.":
+    "`brain`, `tool`, `task`, `queue`, `speech`, `log` и имена их событий.",
+  "level": "уровень",
+  "durationMs and data": "durationMs и данные",
+  "Bounded values, redacted before they are truncated.":
+    "Ограниченные значения, вычищенные до обрезки.",
+  "Spans and timings": "Спаны и тайминги",
+  "`TaskLogSpan`, `ExecutionTiming`, holds versus gaps, bounded stall snapshots.":
+    "`TaskLogSpan`, `ExecutionTiming`, удержания против пауз, ограниченные снимки зависаний.",
+  "Levels, retention and privacy": "Уровни, хранение и приватность",
+  "What is written, how much, and what never is": "Что пишется, сколько и что — никогда",
+  "Policy": "Политика",
+  "Configured keys become `***` before any sink, on the pipeline and on the log4j bridge.":
+    "Настроенные ключи становятся `***` до любого приёмника — и в конвейере, и в мосте log4j.",
+  "`normal` records metadata only; `detailed` adds prompt and reply bodies after redaction.":
+    "`normal` пишет только метаданные; `detailed` добавляет тексты промпта и ответа после вычистки.",
+  "Rotation": "Ротация",
+  "8 MiB per file, then `-2` and `-3` parts.": "8 МиБ на файл, затем части `-2` и `-3`.",
+  "Retention": "Хранение",
+  "50 MiB total, 7 days, 20 sessions per owner by default.":
+    "50 МиБ всего, 7 дней, 20 сессий на владельца по умолчанию.",
+  "Never block": "Никогда не блокирует",
+  "The writer drops records instead of stalling the server and writes one `log.dropped` line.":
+    "Писатель теряет записи вместо остановки сервера и пишет одну строку `log.dropped`.",
+  "Torn last line": "Оборванная последняя строка",
+  "A crash-truncated line is skipped by readers instead of breaking the file.":
+    "Обрезанная падением строка пропускается читателями, а не ломает файл.",
+  "Detailed is a decision": "Detailed — это решение",
+  "Do not raise it on a server carrying other people's chat without their knowledge.":
+    "Не поднимайте его на сервере с чужим чатом без ведома этих людей.",
+  "Reading it back": "Как это читать",
+  "Four ways in, one source of truth": "Четыре входа, один источник истины",
+  "Readers": "Читатели",
+  "The ring, the files and the bundle all project the same records.":
+    "Кольцо, файлы и пакет показывают одни и те же записи.",
+  "Log tab": "Вкладка Log",
+  "Operator-only live tail with trace and execution prefixes; Pause freezes it.":
+    "Живой хвост только для оператора, с префиксами trace и execution; Pause его замораживает.",
+  "The companion reads its own recent ring, owner only.":
+    "Компаньон читает своё недавнее кольцо, только владелец.",
+  "Owner-only search by level, category, event, turn, task, trace, execution or request.":
+    "Поиск только для владельца по уровню, категории, событию, ходу, задаче, trace, execution или запросу.",
+  "Digest": "Дайджест",
+  "A `.md` beside each closed file renders the same chain as prose.":
+    "`.md` рядом с каждым закрытым файлом излагает ту же цепочку прозой.",
+  "Commands": "Команды",
+  "Never paste unread": "Не вставляйте непрочитанное",
+  "A bundle can hold coordinates and, at `detailed`, prompt text.":
+    "Пакет может содержать координаты и, при `detailed`, текст промпта."
+});
+
+/* ---- debugging and diagnostics ---- */
+Object.assign(RU, {
+  "Three answers to 'what just happened'": "Три ответа на вопрос «что только что было»",
+  "The live ring answers now, the files answer after the fact, and a bundle answers a report. All three carry the same identity keys, so a menu row, a log line and an incident timeline line up.":
+    "Живое кольцо отвечает сейчас, файлы — после факта, а пакет — на отчёт. У всех трёх одни и те же ключи идентичности, поэтому строка меню, строка лога и таймлайн инцидента совпадают.",
+  "Something looks wrong": "Что-то не так",
+  "The companion did not do what you asked, stopped, or repeated itself.":
+    "Компаньон сделал не то, остановился или повторяется.",
+  "Bounded live buffer, redacted then truncated; the Log tab tails it.":
+    "Ограниченный живой буфер, вычищенный и обрезанный; вкладка Log следит за ним.",
+  "The durable tree with `cause` links between records.":
+    "Долговечное дерево со связями `cause` между записями.",
+  "A tick-by-tick timeline written by a GameTest; a hang leaves it in the shard log.":
+    "Таймлайн по тикам, который пишет GameTest; зависание оставляет его в логе шарда.",
+  "Operator-only live view with pause.": "Живой вид только для оператора, с паузой.",
+  "diagnose bundle": "Пакет diagnose",
+  "Manifest, event excerpt and incident timeline, bounded and partial-aware.":
+    "Манифест, выдержка событий и таймлайн инцидента — ограниченные и с пометкой о неполноте.",
+  "CI artifact": "Артефакт CI",
+  "A failing shard uploads `build/gametest-shards/<class>.log`.":
+    "Упавший шард загружает `build/gametest-shards/<class>.log`.",
+  "A report someone can act on": "Отчёт, по которому можно действовать",
+  "Evidence first: the failing record, its chain, and what the task was doing.":
+    "Сначала доказательства: упавшая запись, её цепочка и то, чем занималась задача.",
+  "The live ring": "Живое кольцо",
+  "What the operator sees while it happens": "Что видит оператор в момент события",
+  "Live": "Живое",
+  "A bounded buffer, not a file: it is fast, lossy and redacted.":
+    "Ограниченный буфер, а не файл: быстрый, с потерями и вычищенный.",
+  "Bounded ring, redacted then truncated, and it never reuses the file sequence.":
+    "Ограниченное кольцо, вычищенное и обрезанное; последовательность файла не переиспользуется.",
+  "Operator tail with trace and execution prefixes; Pause freezes it.":
+    "Хвост для оператора с префиксами trace и execution; Pause его замораживает.",
+  "Debug tab": "Вкладка Debug",
+  "Incident bundle, session facts and the per-connection movement overlay switch.":
+    "Пакет инцидента, факты сессии и переключатель оверлея движения для соединения.",
+  "`onReply` reports the text a player actually heard, not the draft.":
+    "`onReply` сообщает текст, который игрок действительно услышал, а не черновик.",
+  "Writes every prompt line, tool call, result, provider error and token usage.":
+    "Пишет каждую строку промпта, вызов инструмента, результат, ошибку провайдера и расход токенов.",
+  "The incident bundle": "Пакет инцидента",
+  "Bundle": "Пакет",
+  "Written atomically into its own bounded directory with retention.":
+    "Пишется атомарно в свой ограниченный каталог с хранением.",
+  "Versions, masked config, session identity.": "Версии, маскированный конфиг, идентичность сессии.",
+  "A record-boundary excerpt around the incident.": "Выдержка по границам записей вокруг инцидента.",
+  "A bounded, partial-aware timeline of the same records.":
+    "Ограниченный таймлайн тех же записей с пометкой о неполноте.",
+  "The queue, task history and the first thing to read.":
+    "Очередь, история задач и первое, что стоит прочитать.",
+  "Two-second barrier": "Двухсекундный барьер",
+  "Waits at most two seconds for the writer, then says what is missing instead of lying.":
+    "Ждёт писатель не больше двух секунд, потом честно говорит, чего не хватает.",
+  "Redacted": "Вычищено",
+  "Config masks and credential-free URLs, on every file in the bundle.":
+    "Маски конфига и URL без учётных данных — в каждом файле пакета.",
+  "Finding the cause": "Найти причину",
+  "From a symptom to the record that explains it": "От симптома к записи, которая его объясняет",
+  "Method": "Метод",
+  "Read the failing line, then walk `cause` backwards until it is zero.":
+    "Прочитайте упавшую строку, затем идите по `cause` назад, пока не станет ноль.",
+  "Find the error": "Найдите ошибку",
+  "Follow the chain": "Идите по цепочке",
+  "`jq -c 'select(.seq==N or .cause==N)'` until `cause` is 0.":
+    "`jq -c 'select(.seq==N or .cause==N)'`, пока `cause` не станет 0.",
+  "Correlate": "Сопоставьте",
+  "`turn` groups one chat turn; `task`, `job` and `plan` group execution.":
+    "`turn` группирует один ход; `task`, `job` и `plan` — исполнение.",
+  "Widen only when needed": "Расширяйте только при необходимости",
+  "Then `/friendai diagnose`, not before.": "Тогда `/friendai diagnose`, и не раньше.",
+  "A hanging test": "Зависший тест",
+  "`TaskTrace` prints the last twelve ticks every six hundred failed ticks, at most twice.":
+    "`TaskTrace` печатает последние двенадцать тиков каждые шестьсот неудачных, максимум дважды.",
+  "A stall": "Зависание",
+  "`TaskDiagnosticEpisode` records what the task was doing when it stalled.":
+    "`TaskDiagnosticEpisode` записывает, чем задача занималась в момент зависания.",
+  "Privacy when sharing": "Приватность при передаче",
+  "A bundle is evidence, not a transcript dump": "Пакет — это доказательство, а не дамп переписки",
+  "Sharing": "Передача",
+  "Operator-gated on the server; an owner sees only their own subtree.":
+    "На сервере только для оператора; владелец видит лишь своё поддерево.",
+  "Operator only": "Только оператор",
+  "Brain log, prompt, perception text and debug tools are gated by `DebugAccess` on the server.":
+    "Лог мозга, промпт, текст восприятия и отладочные инструменты закрыты `DebugAccess` на сервере.",
+  "Owner scope": "Область владельца",
+  "`/friendai logs path` prints an owner their own subtree, an operator the root.":
+    "`/friendai logs path` показывает владельцу его поддерево, оператору — корень.",
+  "Masks": "Маски",
+  "Config values are masked; URLs carry no credentials.":
+    "Значения конфига маскированы; в URL нет учётных данных.",
+  "Not in logs, chat, exception messages or `toString()`.":
+    "Ни в логах, ни в чате, ни в тексте исключений, ни в `toString()`.",
+  "Read before pasting": "Прочитайте перед вставкой",
+  "A `detailed` file can contain prompt and reply text.":
+    "Файл `detailed` может содержать текст промпта и ответа."
+});
+
+/* ---- network protocol ---- */
+Object.assign(RU, {
+  "One versioned protocol": "Один версионированный протокол",
+  "Client and server talk through one family and operation protocol over Fabric payloads. The codecs are pure, bounded and live in the engine; the Fabric wrappers only move bytes.":
+    "Клиент и сервер говорят через один протокол семейств и операций поверх Fabric-пейлоадов. Кодеки чистые, ограниченные и живут в движке; обёртки Fabric только переносят байты.",
+  "Client joins": "Клиент заходит",
+  "The server creates a pending session for the player.":
+    "Сервер создаёт ожидающую сессию для игрока.",
+  "Bounded version and capability offer.": "Ограниченное предложение версии и возможностей.",
+  "Requests stay closed until the server accepts it; a pending handshake expires after 100 ticks.":
+    "Запросы закрыты, пока сервер не примет; ожидающее рукопожатие истекает через 100 тиков.",
+  "Family and operation IDs, a monotonic request ID, a typed body, bounded.":
+    "ID семейства и операции, монотонный ID запроса, типизированное тело, всё ограничено.",
+  "Server dispatch": "Диспетчеризация на сервере",
+  "Validates the connection, family, sequence and bounds, then runs on the server thread.":
+    "Проверяет соединение, семейство, последовательность и границы, затем выполняет в серверном потоке.",
+  "One typed view frame with request correlation.":
+    "Один типизированный кадр вида с привязкой к запросу.",
+  "Client applies": "Клиент применяет",
+  "Hops to the client thread, verifies the captured session, then applies the matching view.":
+    "Переходит в клиентский поток, проверяет сохранённую сессию и применяет подходящий вид.",
+  "next request": "следующий запрос",
+  "Handshake": "Рукопожатие",
+  "Nothing is accepted before it completes": "До его завершения ничего не принимается",
+  "A failed bootstrap disconnects the peer.": "Неудачный бутстрап отключает собеседника.",
+  "Bounded version and capability offer after join.":
+    "Ограниченное предложение версии и возможностей после входа.",
+  "Accepts the negotiated version and capability set.":
+    "Принимает согласованные версию и набор возможностей.",
+  "A pending handshake expires and its work is rejected.":
+    "Ожидающее рукопожатие истекает, и его работа отклоняется.",
+  "Capabilities": "Возможности",
+  "At most 32 unique entries, each name at most 64 bytes.":
+    "Не более 32 уникальных записей, каждое имя не длиннее 64 байт.",
+  "Fail closed": "Отказ по умолчанию",
+  "Unknown versions, malformed frames, stale sessions and out-of-sequence requests are dropped.":
+    "Неизвестные версии, битые кадры, устаревшие сессии и запросы не по порядку отбрасываются.",
+  "Frames": "Кадры",
+  "Explicit families and operations, every one bounded": "Явные семейства и операции, каждая ограничена",
+  "Body formats and bounds live in the pure engine `protocol/` package.":
+    "Форматы тел и границы живут в чистом пакете движка `protocol/`.",
+  "Version, family, operation, monotonic request ID, typed body.":
+    "Версия, семейство, операция, монотонный ID запроса, типизированное тело.",
+  "One typed view with metadata and request correlation.":
+    "Один типизированный вид с метаданными и привязкой к запросу.",
+  "Families": "Семейства",
+  "control, memory, places, instructions, trading, debug, speech.":
+    "control, memory, places, instructions, trading, debug, speech.",
+  "Threads": "Потоки",
+  "Dispatch hops onto the server thread; receivers hop to the client thread.":
+    "Диспетчеризация переходит в серверный поток; получатели — в клиентский.",
+  "Stale views": "Устаревшие виды",
+  "A frame from an old connection session is ignored, never applied.":
+    "Кадр из старой сессии соединения игнорируется и никогда не применяется.",
+  "What the client may see": "Что может видеть клиент",
+  "Synced data only, filtered on the server": "Только синхронизированные данные, отфильтрованные на сервере",
+  "Client data": "Клиентские данные",
+  "A screen, HUD or renderer never reads server-only state.":
+    "Экран, HUD или рендерер никогда не читают серверное состояние.",
+  "Synced entity data": "Синхронизированные данные сущности",
+  "Food, XP level and creative mode arrive as `EntityDataAccessor`s.":
+    "Еда, уровень опыта и креатив приходят как `EntityDataAccessor`.",
+  "Menu snapshot": "Снимок меню",
+  "`SnapshotBuilder` builds the state for the requester's own companion.":
+    "`SnapshotBuilder` собирает состояние для компаньона самого запрашивающего.",
+  "Operator tabs": "Вкладки оператора",
+  "The brain log, prompt and perception text are filtered on the server.":
+    "Лог мозга, промпт и текст восприятия фильтруются на сервере.",
+  "Map view": "Вид карты",
+  "At most 128 cells, 32 sites and 32 roads, never the full grid.":
+    "Не более 128 клеток, 32 мест и 32 дорог, никогда не вся сетка.",
+  "Inventory window": "Окно инвентаря",
+  "A vanilla container menu, not a custom payload.": "Ванильное меню контейнера, а не свой пейлоад.",
+  "Debug stream": "Отладочный поток",
+  "Live views for the menu and the movement overlay": "Живые виды для меню и оверлея движения",
+  "Stream": "Поток",
+  "A rejected frame closes that viewer's menu with a warning instead of escaping into the tick.":
+    "Отклонённый кадр закрывает меню этого зрителя с предупреждением, а не утекает в тик.",
+  "10-tick cadence": "Шаг в 10 тиков",
+  "Framed control views while the menu is open.": "Кадры control-видов, пока меню открыто.",
+  "Subscribe and close": "Подписка и закрытие",
+  "One typed request, and the same path a disconnect and a ten-tick sweep take.":
+    "Один типизированный запрос и тот же путь, что у отключения и десятитиковой проверки.",
+  "Movement overlay": "Оверлей движения",
+  "The active task's work snapshot plus independent route obstacle cells.":
+    "Снимок работы активной задачи плюс независимые клетки препятствий маршрута.",
+  "The overlay switch resets per connection and is never saved.":
+    "Переключатель оверлея сбрасывается на соединение и никогда не сохраняется.",
+  "Bounded": "Ограничено",
+  "Cells are capped, and an optional codec section keeps true per-status counts.":
+    "Клетки ограничены, а необязательная секция кодека сохраняет настоящие счётчики по статусам."
+});
+
+/* ---- configuration and persistence ---- */
+Object.assign(RU, {
+  "Settings and saves that survive": "Настройки и сохранения, которые выживают",
+  "Configuration and owner records are versioned, validated and protected. A failed write never destroys the previous file, and a format nobody can read stays read-only instead of being guessed at.":
+    "Конфигурация и записи владельца версионированы, проверены и защищены. Неудачная запись никогда не уничтожает предыдущий файл, а формат, который никто не умеет читать, остаётся только для чтения, вместо того чтобы угадываться.",
+  "Configuration": "Конфигурация",
+  "Config": "Конфиг",
+  "A key may be written as `env:NAME` so it never sits in a file.":
+    "Ключ можно записать как `env:NAME`, чтобы он не лежал в файле.",
+  "Server schema 22": "Схема сервера 22",
+  "Tasks, agent, places, autonomy, chunk loading, build pace, logging.":
+    "Задачи, агент, места, автономность, загрузка чанков, темп стройки, логирование.",
+  "Client schema 9": "Схема клиента 9",
+  "Voice recognition and synthesis, provider maps, UI preferences.":
+    "Распознавание и синтез речи, карты провайдеров, настройки интерфейса.",
+  "Adjacent migrations": "Соседние миграции",
+  "`ConfigMigration` steps from every supported version; its tests are the source of truth.":
+    "`ConfigMigration` ведёт шаги от каждой поддерживаемой версии; его тесты — источник истины.",
+  "Unknown and future": "Неизвестные и будущие",
+  "Left untouched; server startup uses in-memory defaults.":
+    "Остаются нетронутыми; сервер стартует со значениями по умолчанию в памяти.",
+  "Unique backups": "Уникальные резервные копии",
+  "A byte-exact `.vN.<id>.bak` before an atomic replacement.":
+    "Байт-в-байт `.vN.<id>.bak` перед атомарной заменой.",
+  "Extension fields": "Поля расширений",
+  "`ConfigJson` preserves unknown fields through later saves.":
+    "`ConfigJson` сохраняет неизвестные поля при последующих записях.",
+  "Keys": "Ключи",
+  "`env:NAME` is preferred; keys never appear in logs, URLs or toasts.":
+    "`env:NAME` предпочтителен; ключи не попадают в логи, URL и тосты.",
+  "Owner files": "Файлы владельца",
+  "`<world>/friendai/` — one file per owner": "`<world>/friendai/` — один файл на владельца",
+  "Memory, profile, goals, free time, routines, places, placements, knowledge, trading and skills.":
+    "Память, профиль, цели, свободное время, рутины, места, постройки, знания, торговля и навыки.",
+  "Lazy load, debounced flush, atomic replace, `.bak` on corruption.":
+    "Ленивая загрузка, отложенная запись, атомарная замена, `.bak` при повреждении.",
+  "One writer": "Один писатель",
+  "A single bounded writer is borrowed by every store and closed once.":
+    "Единственный ограниченный писатель берётся всеми хранилищами и закрывается один раз.",
+  "Typed status": "Типизированный статус",
+  "Failure and read-only reasons carry no paths, values or exception text.":
+    "Причины отказа и «только чтение» не содержат путей, значений и текста исключений.",
+  "Unsupported versions": "Неподдерживаемые версии",
+  "Read-only and never overwritten, even when the backup succeeds.":
+    "Только для чтения и никогда не перезаписываются, даже если копия удалась.",
+  "Independent revisions": "Независимые ревизии",
+  "Every record has its own format version and revision.":
+    "У каждой записи своя версия формата и ревизия.",
+  "Corrupt file": "Повреждённый файл",
+  "Backed up, then the original stays read-only.": "Копируется, после чего оригинал остаётся только для чтения.",
+  "What lives where": "Что где лежит",
+  "World save, owner books, game directory": "Сохранение мира, книги владельца, каталог игры",
+  "Locations": "Расположения",
+  "Diagnostics are not a store: `logs/friendai/` is written, rotated and pruned.":
+    "Диагностика — не хранилище: `logs/friendai/` пишется, ротируется и чистится.",
+  "World save": "Сохранение мира",
+  "The companion entity, its inventory and hunger, anchors and the carry record.":
+    "Сущность компаньона, её инвентарь и голод, якоря и запись переноса.",
+  "Owner books and the conversation transcript.": "Книги владельца и стенограмма разговоров.",
+  "Server and client settings.": "Настройки сервера и клиента.",
+  "Speech models and voices, pinned by revision, size and SHA-256.":
+    "Модели и голоса речи, закреплённые ревизией, размером и SHA-256.",
+  "The diagnostics tree, described on the Logging page.":
+    "Дерево диагностики, описано на странице логирования.",
+  "Rules for changing it": "Правила изменения",
+  "A schema change is a product decision": "Смена схемы — продуктовое решение",
+  "Existing saves must keep loading, or the maintainer decides otherwise.":
+    "Существующие сохранения должны продолжать загружаться, или мейнтейнер решает иначе.",
+  "Bump the format": "Поднимите формат",
+  "And the mod version, in the same change.": "И версию мода, в том же изменении.",
+  "Test the chain": "Проверьте цепочку",
+  "Every supported older version, plus defaults for new fields.":
+    "Каждая поддерживаемая старая версия плюс значения по умолчанию для новых полей.",
+  "Never guess": "Не угадывайте",
+  "Older and future record formats are unsupported and untouched.":
+    "Старые и будущие форматы записей неподдерживаемы и не трогаются.",
+  "Stay bounded": "Держите границы",
+  "8 MiB read and write limits, capped collections, eviction.":
+    "Лимиты чтения и записи 8 МиБ, ограниченные коллекции, вытеснение.",
+  "Update the table": "Обновите таблицу",
+  "The persistence table in `ARCHITECTURE.md` moves with the code.":
+    "Таблица хранения в `ARCHITECTURE.md` движется вместе с кодом."
+});
+
+/* ---- build, CI and release ---- */
+Object.assign(RU, {
+  "Build, gates and release": "Сборка, шлюзы и релиз",
+  "What runs on your machine, what runs on a pull request, and what a tag has to satisfy. Java 25 is required; the first build downloads Minecraft and takes minutes.":
+    "Что запускается у вас, что на pull request и что должен выполнить тег. Нужна Java 25; первая сборка скачивает Minecraft и занимает минуты.",
+  "Local commands": "Локальные команды",
+  "The ones used while working": "Те, что нужны в работе",
+  "Only one Gradle run per checkout at a time: builds share a lock and the `run/` directory.":
+    "Только один запуск Gradle на checkout: сборки делят лок и каталог `run/`.",
+  "Both unit suites; add `--tests '<pattern>'` for one group.":
+    "Оба юнит-набора; добавьте `--tests '<pattern>'` для одной группы.",
+  "Compile every source set, package and inspect the jar; refreshes `test-builds/`.":
+    "Компилирует все сорсеты, пакует и проверяет jar; обновляет `test-builds/`.",
+  "One class glob, one server boot, under a minute.":
+    "Один глоб класса, один запуск сервера, меньше минуты.",
+  "Formats only your files; the bare form is forbidden in a shared checkout.":
+    "Форматирует только ваши файлы; голый вызов запрещён в общем checkout.",
+  "./gradlew exportTestJar and deployTestJar": "./gradlew exportTestJar и deployTestJar",
+  "Refresh the built jar, or copy it to `TEST_BUILD_PATH`.":
+    "Обновляет собранный jar или копирует его в `TEST_BUILD_PATH`.",
+  "The full gate. CI runs it; agents run the covering group instead.":
+    "Полный шлюз. Его запускает CI; агенты запускают покрывающую группу.",
+  "CI jobs": "Задачи CI",
+  "Every pull request and every push to main": "Каждый pull request и каждый пуш в main",
+  "The required check is `CI gate`, and it requires every job below.":
+    "Обязательная проверка — `CI gate`, и она требует все задачи ниже.",
+  "Links, anchors and table shapes in the guides.": "Ссылки, якоря и форма таблиц в руководствах.",
+  "Formatting": "Форматирование",
+  "`spotlessCheck` over every Java file.": "`spotlessCheck` по всем Java-файлам.",
+  "Both suites, with a counted summary.": "Оба набора с подсчитанной сводкой.",
+  "Game tests": "GameTest-тесты",
+  "Six shards, one class per server, logs uploaded on failure.":
+    "Шесть шардов, один класс на сервер, логи загружаются при падении.",
+  "Build mod jar": "Сборка jar мода",
+  "Assemble, verify and upload the artifact.": "Собрать, проверить и загрузить артефакт.",
+  "A tag, a jar and a checksum": "Тег, jar и контрольная сумма",
+  "Tagging, merging and publishing are the maintainer's decision, never an agent's.":
+    "Теги, слияния и публикация — решение мейнтейнера, никогда не агента.",
+  "The single source of truth in `gradle.properties`.":
+    "Единственный источник истины в `gradle.properties`.",
+  "Tag": "Тег",
+  "`vX.Y.Z` must equal `mod_version`.": "`vX.Y.Z` должен совпадать с `mod_version`.",
+  "Guard rails": "Ограждения",
+  "The tag must sit on `origin/main` and point at a commit with a green CI run.":
+    "Тег должен стоять на `origin/main` и указывать на коммит с зелёным прогоном CI.",
+  "Artifact": "Артефакт",
+  "One jar plus `friendai-X.Y.Z.jar.sha256`.": "Один jar плюс `friendai-X.Y.Z.jar.sha256`.",
+  "Dry run": "Пробный прогон",
+  "Dispatch the workflow with `dry_run: true` to build and verify without publishing.":
+    "Запустите воркфлоу с `dry_run: true`, чтобы собрать и проверить без публикации.",
+  "Check script": "Проверочный скрипт",
+  "`scripts/check-release.sh vX.Y.Z` checks the version, tag, jar name and metadata.":
+    "`scripts/check-release.sh vX.Y.Z` проверяет версию, тег, имя jar и метаданные.",
+  "Versioning": "Версионирование",
+  "One bump per task, sized by the largest change": "Один подъём версии на задачу, по самому крупному изменению",
+  "Versions": "Версии",
+  "While the major version is 0, a breaking change bumps MINOR instead of MAJOR.":
+    "Пока мажорная версия 0, ломающее изменение поднимает MINOR, а не MAJOR.",
+  "A fix, a tweak, a translation or a dependency patch.":
+    "Исправление, мелочь, перевод или патч зависимости.",
+  "A feature, a skill, a setting or a provider preset.":
+    "Фича, навык, настройка или пресет провайдера.",
+  "No bump": "Без подъёма",
+  "docs, ci, test, style, chore and pure refactor changes.":
+    "Изменения docs, ci, test, style, chore и чистый рефакторинг.",
+  "One player-facing line per shipped change, in the same commit.":
+    "Одна строка для игрока на каждое поставляемое изменение, в том же коммите.",
+  "Pre-1.0": "До 1.0",
+  "Moving to 1.0.0 is the maintainer's call.": "Переход на 1.0.0 — решение мейнтейнера."
+});
+
+/* ---- technical labels that still read as words ---- */
+Object.assign(RU, {
+  "Unit tests": "Юнит-тесты",
+  "Release": "Релиз",
+  "100 ticks": "100 тиков"
+});
