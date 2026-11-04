@@ -1,15 +1,15 @@
 package dev.friendai.agent.routine;
 
 import com.google.gson.JsonObject;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
 /**
  * One owner-defined recurring timetable: a bounded list of existing plannable tools and a game-time trigger.
  *
- * <p>The record is the durable occurrence state as well as the schedule: {@code nextDueTick} is the only clock, and
- * {@code lastPlanId}/{@code lastOutcome} join the routine to one ordinary queue plan. The pure type never reads the
+ * <p>The record is the durable occurrence state as well as the schedule: an interval is due at {@code nextDueTick},
+ * a phase at the start of {@code nextDueDay} (a day index on the day clock, which sleep and {@code /time set} move),
+ * and {@code lastPlanId}/{@code lastOutcome} join the routine to one ordinary queue plan. The pure type never reads the
  * world, the queue or the owner file; a server adapter fills those in.
  */
 public record Routine(
@@ -23,7 +23,8 @@ public record Routine(
         long lastStartedTick,
         long lastPlanId,
         Outcome lastOutcome,
-        String lastSummary) {
+        String lastSummary,
+        long nextDueDay) {
 
     public static final int MAX_NAME = 40;
     public static final int MAX_STEPS = 8;
@@ -48,15 +49,15 @@ public record Routine(
         lastPlanId = Math.max(0, lastPlanId);
         lastOutcome = lastOutcome == null ? Outcome.NONE : lastOutcome;
         lastSummary = cut(lastSummary, MAX_SUMMARY);
+        nextDueDay = Math.max(0, nextDueDay);
     }
 
     /** A fresh routine whose first occurrence is the next future trigger boundary. */
     public static Routine create(
             String name, Trigger trigger, List<Step> steps, int maxRuns, long nowGameTick, long dayTime) {
-        Routine routine = new Routine(
-                name, trigger, steps, maxRuns, 0, true, 0, 0, 0, Outcome.NONE, "");
+        Routine routine = new Routine(name, trigger, steps, maxRuns, 0, true, 0, 0, 0, Outcome.NONE, "", 0);
         validate(routine);
-        return routine.withNextDue(RoutineSchedule.nextAfter(trigger, nowGameTick, dayTime));
+        return routine.withNextDue(RoutineSchedule.nextFor(trigger, nowGameTick, dayTime));
     }
 
     /** Rejects a routine that cannot be scheduled or would produce an unbounded plan. */
@@ -92,8 +93,8 @@ public record Routine(
             case PhaseTrigger phase -> Objects.requireNonNull(phase.phase(), "phase");
             case IntervalTrigger interval -> {
                 if (interval.minutes() < MIN_INTERVAL_MINUTES || interval.minutes() > MAX_INTERVAL_MINUTES) {
-                    throw new IllegalArgumentException("routine interval must be "
-                            + MIN_INTERVAL_MINUTES + " to " + MAX_INTERVAL_MINUTES + " minutes");
+                    throw new IllegalArgumentException("routine interval must be " + MIN_INTERVAL_MINUTES + " to "
+                            + MAX_INTERVAL_MINUTES + " minutes");
                 }
             }
         }
@@ -106,33 +107,7 @@ public record Routine(
         return maxRuns > 0 && runs >= maxRuns;
     }
 
-    public Routine withNextDue(long tick) {
-        return new Routine(
-                name, trigger, steps, maxRuns, runs, enabled, tick, lastStartedTick, lastPlanId, lastOutcome, lastSummary);
-    }
-
-    /** The occurrence was accepted: its due tick advances before the plan is enqueued. */
-    public Routine started(long nowGameTick, long nextDue, long planId) {
-        return new Routine(
-                name,
-                trigger,
-                steps,
-                maxRuns,
-                runs + 1,
-                enabled,
-                nextDue,
-                nowGameTick,
-                planId,
-                Outcome.RUNNING,
-                "");
-    }
-
-    public Routine withPlan(long planId) {
-        return new Routine(
-                name, trigger, steps, maxRuns, runs, enabled, nextDueTick, lastStartedTick, planId, lastOutcome, lastSummary);
-    }
-
-    public Routine finished(Outcome outcome, String summary, long nextDue) {
+    public Routine withNextDue(long tick, long day) {
         return new Routine(
                 name,
                 trigger,
@@ -140,31 +115,125 @@ public record Routine(
                 maxRuns,
                 runs,
                 enabled,
-                nextDue,
+                tick,
+                lastStartedTick,
+                lastPlanId,
+                lastOutcome,
+                lastSummary,
+                day);
+    }
+
+    public Routine withNextDue(RoutineSchedule.Next next) {
+        return withNextDue(next.tick(), next.day());
+    }
+
+    /** The occurrence was accepted: its next due moment advances before the plan is enqueued. */
+    public Routine started(long nowGameTick, RoutineSchedule.Next next, long planId) {
+        return new Routine(
+                name,
+                trigger,
+                steps,
+                maxRuns,
+                runs + 1,
+                enabled,
+                next.tick(),
+                nowGameTick,
+                planId,
+                Outcome.RUNNING,
+                "",
+                next.day());
+    }
+
+    public Routine withPlan(long planId) {
+        return new Routine(
+                name,
+                trigger,
+                steps,
+                maxRuns,
+                runs,
+                enabled,
+                nextDueTick,
+                lastStartedTick,
+                planId,
+                lastOutcome,
+                lastSummary,
+                nextDueDay);
+    }
+
+    public Routine finished(Outcome outcome, String summary, RoutineSchedule.Next next) {
+        return new Routine(
+                name,
+                trigger,
+                steps,
+                maxRuns,
+                runs,
+                enabled,
+                next.tick(),
                 lastStartedTick,
                 0,
                 outcome,
-                summary);
+                summary,
+                next.day());
     }
 
-    public Routine skipped(long nextDue, String summary) {
+    public Routine skipped(RoutineSchedule.Next next, String summary) {
         return new Routine(
-                name, trigger, steps, maxRuns, runs, enabled, nextDue, lastStartedTick, 0, Outcome.SKIPPED, summary);
+                name,
+                trigger,
+                steps,
+                maxRuns,
+                runs,
+                enabled,
+                next.tick(),
+                lastStartedTick,
+                0,
+                Outcome.SKIPPED,
+                summary,
+                next.day());
     }
 
     public Routine withEnabled(boolean on) {
         return new Routine(
-                name, trigger, steps, maxRuns, runs, on, nextDueTick, lastStartedTick, lastPlanId, lastOutcome, lastSummary);
+                name,
+                trigger,
+                steps,
+                maxRuns,
+                runs,
+                on,
+                nextDueTick,
+                lastStartedTick,
+                lastPlanId,
+                lastOutcome,
+                lastSummary,
+                nextDueDay);
     }
 
     public Routine withOutcome(Outcome outcome, String summary) {
         return new Routine(
-                name, trigger, steps, maxRuns, runs, enabled, nextDueTick, lastStartedTick, lastPlanId, outcome, summary);
+                name,
+                trigger,
+                steps,
+                maxRuns,
+                runs,
+                enabled,
+                nextDueTick,
+                lastStartedTick,
+                lastPlanId,
+                outcome,
+                summary,
+                nextDueDay);
     }
 
-    /** The stable queue goal marker, so a crash between the queue write and the routine write adopts one plan. */
-    public String occurrenceMarker(long dueTick) {
-        return "routine:" + name + "#" + dueTick;
+    /**
+     * The stable queue goal marker, so a crash between the queue write and the routine write adopts one plan. A phase
+     * is identified by the day it belongs to, not by a game tick: the day clock is what sleep and time changes move.
+     */
+    public String occurrenceKey() {
+        return switch (trigger) {
+            case PhaseTrigger phase ->
+                "routine:" + name + "#phase:" + nextDueDay + ":" + phase.phase().name();
+            case IntervalTrigger ignored -> "routine:" + name + "#" + nextDueTick;
+        };
     }
 
     public static String cut(String value, int max) {

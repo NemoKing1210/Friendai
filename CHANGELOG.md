@@ -33,6 +33,7 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 - Log retention now counts every file on disk, including the ones it has open, and removes each generated digest together with its log; a fileset that cannot fit the configured cap is reported once.
 - Opening the companion menu, memory or places repeatedly no longer rebuilds the same snapshot several times in one tick, and those opens now pass the same rate limit as other menu requests.
 - Going back for the things a companion dropped walks to the death site first and then picks them up, and a partial pickup keeps the record so a later trip can finish it instead of forgetting the rest.
+- Morning and evening routines now follow the day clock: sleeping through the night no longer makes one skip its morning or run at the wrong phase, and `/time set` cannot make the same occurrence fire twice.
 
 ## [0.202.1] - 2026-11-04
 

@@ -140,15 +140,12 @@ public final class RoutineDriver {
             return;
         }
         pausedSaid.remove(owner);
-        if (!RoutineSchedule.due(now, routine.nextDueTick())) {
+        if (!due(routine, now, dayTime)) {
             return;
         }
-        if (RoutineSchedule.missed(routine.trigger(), now, routine.nextDueTick())) {
+        if (missed(routine, now, dayTime)) {
             routines.save(
-                    owner,
-                    routine.skipped(
-                            RoutineSchedule.advance(routine.trigger(), now, routine.nextDueTick()),
-                            "missed its window while the server was off"));
+                    owner, routine.skipped(next(routine, now, dayTime), "missed its window while the server was off"));
             return;
         }
         if (adoptOrFinishExisting(owner, companion, routine, now, false)) {
@@ -189,16 +186,13 @@ public final class RoutineDriver {
                         owner,
                         alreadyRunning
                                 ? routine.withPlan(plan.id())
-                                : routine.started(
-                                        now,
-                                        RoutineSchedule.advance(routine.trigger(), now, routine.nextDueTick()),
-                                        plan.id()));
+                                : routine.started(now, next(routine, now, dayTime()), plan.id()));
                 return true;
             }
             finish(
                     owner,
                     companion,
-                    routine.withNextDue(RoutineSchedule.advance(routine.trigger(), now, routine.nextDueTick())),
+                    routine.withNextDue(next(routine, now, dayTime())),
                     status == PlanStatus.DONE,
                     "plan #" + plan.id() + " " + status);
             return true;
@@ -210,7 +204,7 @@ public final class RoutineDriver {
             finish(
                     owner,
                     companion,
-                    routine.withNextDue(RoutineSchedule.advance(routine.trigger(), now, routine.nextDueTick())),
+                    routine.withNextDue(next(routine, now, dayTime())),
                     archive.success(),
                     archive.summary());
             return true;
@@ -224,8 +218,14 @@ public final class RoutineDriver {
      * occurrence is never adopted or reported again.
      */
     private static boolean matchesOccurrence(String goal, Routine routine, boolean alreadyRunning) {
+        if (goal == null) {
+            return false;
+        }
+        if (routine.trigger() instanceof Routine.PhaseTrigger) {
+            return goal.equals(routine.occurrenceKey());
+        }
         String prefix = "routine:" + routine.name() + "#";
-        if (goal == null || !goal.startsWith(prefix)) {
+        if (!goal.startsWith(prefix)) {
             return false;
         }
         long tick;
@@ -251,10 +251,7 @@ public final class RoutineDriver {
             routines.save(
                     owner,
                     routine.finished(
-                            Outcome.INTERRUPTED,
-                            "the plan was not recorded",
-                            RoutineSchedule.advance(
-                                    routine.trigger(), gameTime(), Math.max(1, routine.nextDueTick()))));
+                            Outcome.INTERRUPTED, "the plan was not recorded", next(routine, gameTime(), dayTime())));
             report(owner, companion, UserMessage.of("friendai.routine.interrupted", routine.name()));
             return true;
         }
@@ -274,10 +271,7 @@ public final class RoutineDriver {
                 routines.save(
                         owner,
                         routine.finished(
-                                Outcome.INTERRUPTED,
-                                "the plan is gone",
-                                RoutineSchedule.advance(
-                                        routine.trigger(), gameTime(), Math.max(1, routine.nextDueTick()))));
+                                Outcome.INTERRUPTED, "the plan is gone", next(routine, gameTime(), dayTime())));
                 report(owner, companion, UserMessage.of("friendai.routine.interrupted", routine.name()));
             }
             return true;
@@ -290,10 +284,37 @@ public final class RoutineDriver {
         return true;
     }
 
+    /** Whether this routine's occurrence is due now; a phase follows the day clock, an interval the game clock. */
+    private static boolean due(Routine routine, long now, long dayTime) {
+        return switch (routine.trigger()) {
+            case Routine.PhaseTrigger phase -> RoutineSchedule.phaseDue(phase, dayTime, routine.nextDueDay());
+            case Routine.IntervalTrigger ignored -> RoutineSchedule.due(now, routine.nextDueTick());
+        };
+    }
+
+    private static boolean missed(Routine routine, long now, long dayTime) {
+        return switch (routine.trigger()) {
+            case Routine.PhaseTrigger phase -> RoutineSchedule.phaseMissed(phase, dayTime, routine.nextDueDay());
+            case Routine.IntervalTrigger ignored ->
+                RoutineSchedule.missed(routine.trigger(), now, routine.nextDueTick());
+        };
+    }
+
+    /** The next occurrence after this one; neither a slept-through window nor a fixed 24k game-tick step. */
+    private static RoutineSchedule.Next next(Routine routine, long now, long dayTime) {
+        return switch (routine.trigger()) {
+            case Routine.PhaseTrigger phase -> RoutineSchedule.afterPhase(phase, now, dayTime, routine.nextDueDay());
+            case Routine.IntervalTrigger ignored ->
+                new RoutineSchedule.Next(
+                        RoutineSchedule.advance(routine.trigger(), now, Math.max(1, routine.nextDueTick())), 0);
+        };
+    }
+
     private void finish(UUID owner, CompanionEntity companion, Routine routine, boolean success, String summary) {
         boolean capped = routine.exhausted();
         Outcome outcome = capped && success ? Outcome.EXHAUSTED : success ? Outcome.SUCCEEDED : Outcome.FAILED;
-        Routine finished = routine.finished(outcome, Routine.cut(summary, Routine.MAX_SUMMARY), routine.nextDueTick())
+        Routine finished = routine.finished(
+                        outcome, Routine.cut(summary, Routine.MAX_SUMMARY), next(routine, gameTime(), dayTime()))
                 .withEnabled(!capped);
         routines.save(owner, finished);
         String key = capped && success
@@ -303,8 +324,8 @@ public final class RoutineDriver {
     }
 
     private void dispatch(UUID owner, CompanionEntity companion, Routine routine, long now) {
-        long nextDue = RoutineSchedule.advance(routine.trigger(), now, routine.nextDueTick());
-        Routine running = routine.started(now, nextDue, 0);
+        RoutineSchedule.Next next = next(routine, now, dayTime());
+        Routine running = routine.started(now, next, 0);
         // Save the intent first: a crash after this line becomes INTERRUPTED, never a replay.
         routines.save(owner, running);
         ToolResult result = QueueTools.addPlan(
@@ -318,8 +339,7 @@ public final class RoutineDriver {
         Matcher matcher = PLAN_ID.matcher(result.content());
         if (result.error() || !matcher.find()) {
             routines.save(
-                    owner,
-                    running.finished(Outcome.FAILED, Routine.cut(result.content(), Routine.MAX_SUMMARY), nextDue));
+                    owner, running.finished(Outcome.FAILED, Routine.cut(result.content(), Routine.MAX_SUMMARY), next));
             report(owner, companion, UserMessage.of("friendai.routine.failed", routine.name()));
             return;
         }
@@ -328,7 +348,7 @@ public final class RoutineDriver {
 
     private static JsonObject planArgs(Routine routine) {
         JsonObject args = new JsonObject();
-        args.addProperty("goal", routine.occurrenceMarker(routine.nextDueTick()));
+        args.addProperty("goal", routine.occurrenceKey());
         JsonArray steps = new JsonArray();
         for (Step step : routine.steps()) {
             JsonObject row = new JsonObject();

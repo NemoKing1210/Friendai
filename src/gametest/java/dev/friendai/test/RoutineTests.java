@@ -61,7 +61,7 @@ public final class RoutineTests {
         h.assertFalse(set.error(), set.content());
 
         Routine routine = driver.state(owner.id()).orElseThrow();
-        setClock(server, routine.nextDueTick());
+        setClockTo(server, routine);
         driver.tick();
 
         h.runAfterDelay(900, () -> {
@@ -93,7 +93,7 @@ public final class RoutineTests {
             }
 
             // The next occurrence must start a fresh plan, not read the archived plan from the previous one.
-            setClock(server, now.nextDueTick());
+            setClockTo(server, now);
             driver.tick();
             h.assertTrue(
                     c.executionCoordinator().queue().plans().stream()
@@ -131,7 +131,7 @@ public final class RoutineTests {
         long ownerPlanId = c.executionCoordinator().queue().plans().getFirst().id();
 
         Routine routine = driver.state(owner.id()).orElseThrow();
-        setClock(server, routine.nextDueTick());
+        setClockTo(server, routine);
         driver.tick();
         h.assertTrue(
                 c.executionCoordinator().queue().plans().stream()
@@ -165,7 +165,7 @@ public final class RoutineTests {
         ToolResult set = driver.set(c, caller, routine("morning", "interval_min", mineAt(log)));
         h.assertFalse(set.error(), set.content());
         Routine routine = driver.state(owner.id()).orElseThrow();
-        setClock(server, routine.nextDueTick());
+        setClockTo(server, routine);
         driver.tick();
         long planId = driver.state(owner.id()).orElseThrow().lastPlanId();
         h.assertTrue(planId > 0, "the routine queued its plan");
@@ -199,7 +199,7 @@ public final class RoutineTests {
                 driver.set(c, caller, routine("morning", "interval_min", mineAt(h.absolutePos(new BlockPos(8, 2, 8)))));
         h.assertFalse(set.error(), set.content());
         Routine routine = driver.state(owner.id()).orElseThrow();
-        setClock(server, routine.nextDueTick());
+        setClockTo(server, routine);
 
         ServerConfig original = runtime.config();
         ServerConfig disabled = ServerConfig.defaults();
@@ -269,6 +269,39 @@ public final class RoutineTests {
         return new Caller(owner, "", AccessLevel.OWNER);
     }
 
+    /** Sleeping through the night moves the day clock; a morning routine must still fire that morning, once. */
+    @GameTest(maxTicks = 600)
+    public void aMorningRoutineFollowsTheDayClockAcrossSleep(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        MinecraftServer server = h.getLevel().getServer();
+        ServerRuntime runtime = GameTestSupport.runtime(server);
+        var owner = GameTestSupport.onlinePlayer(h, "routine-sleep", 3, 2, 3, true);
+        CompanionEntity c = companion(h, owner.id());
+        h.setBlock(6, 2, 2, Blocks.OAK_LOG);
+        BlockPos log = h.absolutePos(new BlockPos(6, 2, 2));
+        var driver = runtime.sessions().routines();
+        ToolResult set = driver.set(c, caller(owner.id()), routine("sleepy", "morning", mineAt(log)));
+        h.assertFalse(set.error(), set.content());
+        Routine created = driver.state(owner.id()).orElseThrow();
+        long dueDay = created.nextDueDay();
+        h.assertTrue(dueDay > 0, "a phase routine carries the day it is next due: " + created);
+
+        // Sleep: the day clock jumps to the morning while the game clock stays where it was.
+        setGameTime(server, created.nextDueTick());
+        setDayTime(server, dueDay * Routine.DAY_TICKS);
+        driver.tick();
+        Routine after = driver.state(owner.id()).orElseThrow();
+        h.assertValueEqual(after.nextDueDay(), dueDay + 1, "the next occurrence is the following day: " + after);
+        h.assertTrue(after.lastOutcome() == Outcome.RUNNING, "the morning occurrence was not dispatched: " + after);
+        int plans = c.executionCoordinator().queue().planCount();
+
+        // The same morning is not dispatched twice.
+        driver.tick();
+        h.assertValueEqual(
+                c.executionCoordinator().queue().planCount(), plans, "the same morning fired twice: " + plans);
+        h.succeed();
+    }
+
     private static String mineAt(BlockPos pos) {
         return "{\"tool\":\"mine_block_at\",\"args\":\"{\\\"x\\\":" + pos.getX()
                 + ",\\\"y\\\":" + pos.getY() + ",\\\"z\\\":" + pos.getZ()
@@ -299,8 +332,31 @@ public final class RoutineTests {
     }
 
     private static void setClock(MinecraftServer server, long ticks) {
+        setGameTime(server, ticks);
+        setDayTime(server, ticks);
+    }
+
+    /** The game clock only: sleep and `/time set` do not move it the way the day clock moves. */
+    private static void setGameTime(MinecraftServer server, long ticks) {
         ServerLevel level = server.overworld();
         ((ServerLevelData) level.getLevelData()).setGameTime(ticks);
+    }
+
+    /** Puts both clocks on the routine's next due moment: a phase needs its day and window, an interval its tick. */
+    private static void setClockTo(MinecraftServer server, Routine routine) {
+        setGameTime(server, routine.nextDueTick());
+        if (routine.trigger() instanceof Routine.PhaseTrigger phase) {
+            setDayTime(
+                    server,
+                    routine.nextDueDay() * Routine.DAY_TICKS + phase.phase().start());
+        } else {
+            setDayTime(server, routine.nextDueTick());
+        }
+    }
+
+    /** The day clock; it can jump while the game clock does not. */
+    private static void setDayTime(MinecraftServer server, long ticks) {
+        ServerLevel level = server.overworld();
         level.dimensionType()
                 .defaultClock()
                 .ifPresent(clock -> server.clockManager().setTotalTicks(clock, ticks));

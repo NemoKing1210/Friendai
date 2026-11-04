@@ -35,6 +35,7 @@ public final class RoutineSave {
         root.addProperty("runs", routine.runs());
         root.addProperty("enabled", routine.enabled());
         root.addProperty("nextDue", routine.nextDueTick());
+        root.addProperty("nextDueDay", routine.nextDueDay());
         root.addProperty("lastStarted", routine.lastStartedTick());
         root.addProperty("lastPlan", routine.lastPlanId());
         root.addProperty("outcome", routine.lastOutcome().name());
@@ -79,7 +80,8 @@ public final class RoutineSave {
                     longValue(root, "lastStarted"),
                     longValue(root, "lastPlan"),
                     outcome(root),
-                    string(root, "summary"));
+                    string(root, "summary"),
+                    longValue(root, "nextDueDay"));
             Routine.validate(routine);
             return Optional.of(routine);
         } catch (RuntimeException broken) {
