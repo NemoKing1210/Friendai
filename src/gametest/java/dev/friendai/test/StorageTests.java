@@ -20,7 +20,9 @@ import net.minecraft.core.Direction;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.chat.Component;
+import net.minecraft.util.ProblemReporter;
 import net.minecraft.world.Container;
+import net.minecraft.world.LockCode;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
@@ -28,6 +30,7 @@ import net.minecraft.world.level.block.ChestBlock;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.ChestType;
+import net.minecraft.world.level.storage.TagValueInput;
 
 public class StorageTests {
     private static final class Result implements TaskEventSink {
@@ -358,6 +361,66 @@ public class StorageTests {
             h.assertTrue(
                     ChestBlockEntity.getOpenCount(h.getLevel(), h.absolutePos(new BlockPos(5, 2, 5))) == 0,
                     "the lid must be closed");
+        });
+    }
+
+    /** A chest whose lid cannot open is not a chest the companion may empty. */
+    @GameTest(maxTicks = 400)
+    public void blockedLidCannotBeOpened(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(6, 2, 6, Blocks.CHEST);
+        Container chest = containerAt(h, 6, 2, 6);
+        chest.setItem(0, new ItemStack(Items.IRON_NUGGET, 20));
+        h.setBlock(6, 3, 6, Blocks.STONE);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 4, 2, 4);
+        BlockPos target = h.absolutePos(new BlockPos(6, 2, 6));
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(new TakeItemsTask(matcher("minecraft:iron_nugget"), 3, target), "take_items");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status != null, "the task never finished");
+            h.assertValueEqual(result.status, TaskStatus.FAILED, "a blocked chest was opened: " + result.summary);
+            h.assertTrue(
+                    result.summary.contains("locked or blocked"),
+                    "the refusal must name the reason, got " + result.summary);
+            h.assertValueEqual(chest.getItem(0).getCount(), 20, "items left the blocked chest");
+            h.assertValueEqual(c.inventory().countItem(Items.IRON_NUGGET), 0, "the companion took items anyway");
+        });
+    }
+
+    /** A locked chest refuses like it does for a player: vanilla's own menu check decides. */
+    @GameTest(maxTicks = 400)
+    public void lockedChestCannotBeOpened(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(6, 2, 6, Blocks.CHEST);
+        Container chest = containerAt(h, 6, 2, 6);
+        chest.setItem(0, new ItemStack(Items.IRON_NUGGET, 20));
+        BlockPos absolute = h.absolutePos(new BlockPos(6, 2, 6));
+        ChestBlockEntity chestEntity = (ChestBlockEntity) h.getLevel().getBlockEntity(absolute);
+        var registry = h.getLevel().registryAccess();
+        net.minecraft.nbt.CompoundTag tag = chestEntity.saveWithFullMetadata(registry);
+        net.minecraft.nbt.CompoundTag lockTag = new net.minecraft.nbt.CompoundTag();
+        lockTag.putString("items", "minecraft:stick");
+        tag.put(LockCode.TAG_LOCK, lockTag);
+        chestEntity.loadWithComponents(TagValueInput.create(ProblemReporter.DISCARDING, registry, tag));
+        h.assertValueEqual(chest.getItem(0).getCount(), 20, "locking the chest must not touch its items");
+        h.assertTrue(
+                !chestEntity.canOpen(GameTestSupport.mockPlayerAt(h, 5, 2, 5)),
+                "the loaded lock does not refuse the fake player");
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 4, 2, 4);
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(new TakeItemsTask(matcher("minecraft:iron_nugget"), 3, absolute), "take_items");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status != null, "the task never finished");
+            h.assertValueEqual(result.status, TaskStatus.FAILED, "a locked chest was opened: " + result.summary);
+            h.assertTrue(
+                    result.summary.contains("locked or blocked"),
+                    "the refusal must name the reason, got " + result.summary);
+            h.assertValueEqual(chest.getItem(0).getCount(), 20, "items left the locked chest");
+            h.assertValueEqual(c.inventory().countItem(Items.IRON_NUGGET), 0, "the companion took items anyway");
         });
     }
 

@@ -35,8 +35,8 @@ public final class ContainerSession {
     private BlockPos position;
     private Approach approach;
     private Container container;
+    private CompanionHands.Storage storage;
     private boolean arrived;
-    private boolean opened;
     private String failureSummary = "";
 
     public ContainerSession(
@@ -102,9 +102,12 @@ public final class ContainerSession {
             failureSummary = coords(position) + " is " + ProtectionText.describe(context, position);
             return TaskStatus.FAILED;
         }
-        if (!opened) {
-            container.startOpen(context.companion().hands().player());
-            opened = true;
+        if (storage == null) {
+            storage = context.companion().hands().openStorage(position);
+            if (storage == null) {
+                failureSummary = coords(position) + " is locked or blocked";
+                return TaskStatus.FAILED;
+            }
         }
         boolean keepOpen = false;
         try {
@@ -147,9 +150,9 @@ public final class ContainerSession {
     }
 
     private void close(TaskContext context) {
-        if (opened && container != null) {
-            container.stopOpen(context.companion().hands().player());
-            opened = false;
+        if (storage != null) {
+            storage.close();
+            storage = null;
         }
     }
 

@@ -14,6 +14,7 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 - A social line batched with a failed task, a blocked plan or a goal nudge now reaches the model with its tools, so it can repair the work instead of answering in text.
 - A queued action no longer runs after the player who asked for it lost trust: the job is refused with the reason instead of breaking blocks or opening storage.
 - A tool or weapon the companion swaps out for a fight or a bite now waits in its inventory, so it is no longer lost when the companion dies, saves or reloads mid-swap; eating also holds the work queue, so a running task cannot empty the hand and be credited food that was never eaten.
+- The companion no longer empties a chest whose lid is blocked or that its owner locked: storage is opened through vanilla's own menu check, and a double chest is still read as one container.
 
 ## [0.202.1] - 2026-11-04
 

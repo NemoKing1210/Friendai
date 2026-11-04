@@ -14,6 +14,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Prediction;
+import net.minecraft.world.Container;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.MenuProvider;
@@ -26,7 +27,10 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.SwingAnimation;
 import net.minecraft.world.item.trading.Merchant;
 import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.block.ChestBlock;
+import net.minecraft.world.level.block.entity.BaseContainerBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.ChestType;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.Vec3;
@@ -211,6 +215,76 @@ public final class CompanionHands {
             hands.containerMenu = menu;
         }
         return hands.containerMenu;
+    }
+
+    /**
+     * Opens a storage block the way a player does: the vanilla menu provider decides whether it may be opened at all
+     * (a blocked lid and a locked block are refused there), and the caller then reads or writes the merged container —
+     * both halves of a double chest are one container by vanilla's own rules. The session owns the open/close
+     * animation and is closed exactly once.
+     */
+    public @Nullable Storage openStorage(BlockPos pos) {
+        FakePlayer hands = handsPlayer();
+        mirrorExperienceIn(hands);
+        BlockState state = level().getBlockState(pos);
+        MenuProvider provider = state.getMenuProvider(level(), pos);
+        if (provider == null) {
+            return null;
+        }
+        if (!mayOpenStorage(pos, state, hands)) {
+            return null;
+        }
+        AbstractContainerMenu menu = provider.createMenu(1, hands.getInventory(), hands);
+        if (menu == null) {
+            return null;
+        }
+        Container container = ContainerAccess.at(level(), pos).orElse(null);
+        if (container == null) {
+            return null;
+        }
+        hands.containerMenu = menu;
+        return new Storage(hands);
+    }
+
+    /** Vanilla's own lock rule for the block and, for a double chest, for the other half as well. */
+    private boolean mayOpenStorage(BlockPos pos, BlockState state, FakePlayer hands) {
+        if (!(level().getBlockEntity(pos) instanceof BaseContainerBlockEntity blockEntity)) {
+            return true;
+        }
+        if (!blockEntity.canOpen(hands)) {
+            return false;
+        }
+        if (state.hasProperty(ChestBlock.TYPE) && state.getValue(ChestBlock.TYPE) != ChestType.SINGLE) {
+            BlockPos other = ChestBlock.getConnectedBlockPos(pos, state);
+            return !(level().getBlockEntity(other) instanceof BaseContainerBlockEntity neighbour)
+                    || neighbour.canOpen(hands);
+        }
+        return true;
+    }
+
+    /**
+     * One storage container opened through the fake player. Transfers go through the container, not through menu
+     * slots, so closing only has to run vanilla's menu teardown once; it is idempotent.
+     */
+    public static final class Storage implements AutoCloseable {
+        private final FakePlayer viewer;
+        private boolean closed;
+
+        private Storage(FakePlayer viewer) {
+            this.viewer = viewer;
+        }
+
+        @Override
+        public void close() {
+            if (closed) {
+                return;
+            }
+            closed = true;
+            if (viewer.containerMenu != viewer.inventoryMenu) {
+                viewer.containerMenu.removed(viewer);
+                viewer.containerMenu = viewer.inventoryMenu;
+            }
+        }
     }
 
     /**
