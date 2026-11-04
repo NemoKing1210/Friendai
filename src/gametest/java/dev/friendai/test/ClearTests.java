@@ -379,6 +379,25 @@ public class ClearTests {
         h.succeed();
     }
 
+    /**
+     * The tool's default call centres the box on the companion and reaches one block down, so the block it stands on
+     * is inside the box. Leaving it is a refusal by design, not an attempt that failed, and a bare floor is a success.
+     */
+    @GameTest(maxTicks = 100)
+    public void aBareFloorIsNotAFailedRun(GameTestHelper h) {
+        GameTestSupport.platform(h, 5);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(companion, result);
+        runner.start(new ClearAreaTask(companion.blockPosition(), 1, 1, 1, true, false), "clear_area");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status != null, "still running");
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
+            h.assertTrue(result.summary.contains("left 1 (1 under my feet)"), result.summary);
+        });
+    }
+
     @GameTest(maxTicks = 200)
     public void anEmptyPlotSucceeds(GameTestHelper h) {
         GameTestSupport.platform(h, 16);

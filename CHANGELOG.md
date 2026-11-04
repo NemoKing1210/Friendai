@@ -23,6 +23,7 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 - `place_block` at a target in unloaded terrain reports it instead of generating the chunks to look at it.
 - `light_area` counts a torch you are holding and cannot be asked for an unbounded radius.
 - `light_area` no longer spends torches on open, sunlit ground and no longer misses a dark spot behind a wall.
+- Clearing a bare patch of ground no longer reports the job as failed because the block under the companion's feet was left alone.
 
 ## [0.204.0] - 2026-11-04
 

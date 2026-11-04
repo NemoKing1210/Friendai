@@ -10,8 +10,8 @@ import java.util.Set;
 
 /**
  * One clear-area run in counts: what was cleared, what it tried and failed to clear, and what it deliberately left
- * alone. Refusals by design — lava, flowing water, a water source the caller excluded, and a cell that changed before
- * the break — are not failures, so the task's status is a function of this record.
+ * alone. Refusals by design — lava, flowing water, a water source the caller excluded, a cell that changed before the
+ * break, and the block the companion stands on — are not failures, so the task's status is a function of this record.
  */
 public record ClearOutcome(
         Map<ClearKind, Integer> cleared,
@@ -19,8 +19,8 @@ public record ClearOutcome(
         Map<ClearSkip, Integer> leftByDesign,
         int solidBlocksLeft,
         int cellsLeftForNextPass) {
-    private static final Set<ClearSkip> BY_DESIGN =
-            EnumSet.of(ClearSkip.LAVA, ClearSkip.FLOWING, ClearSkip.NOT_WANTED, ClearSkip.CHANGED);
+    private static final Set<ClearSkip> BY_DESIGN = EnumSet.of(
+            ClearSkip.LAVA, ClearSkip.FLOWING, ClearSkip.NOT_WANTED, ClearSkip.CHANGED, ClearSkip.UNDER_FEET);
 
     public ClearOutcome {
         cleared = copyPositive(cleared, ClearKind.class);

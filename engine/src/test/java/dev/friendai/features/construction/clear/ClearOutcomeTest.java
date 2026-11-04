@@ -37,6 +37,16 @@ class ClearOutcomeTest {
     }
 
     @Test
+    void theBlockUnderTheFeetIsLeftByDesignNotFailed() {
+        ClearOutcome outcome = ClearOutcome.of(Map.of(), Map.of(ClearSkip.UNDER_FEET, 1), 0, 0);
+
+        assertEquals(0, outcome.failedTotal());
+        assertEquals(1, outcome.leftByDesignTotal());
+        assertFalse(outcome.failedRun());
+        assertFalse(outcome.nothingToDo());
+    }
+
+    @Test
     void attemptsThatDidNotWorkAreAFailureWhenNothingWasCleared() {
         ClearOutcome outcome = ClearOutcome.of(
                 Map.of(),
