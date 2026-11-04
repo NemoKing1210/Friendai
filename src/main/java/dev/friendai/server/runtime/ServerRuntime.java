@@ -252,6 +252,12 @@ public final class ServerRuntime implements AutoCloseable {
         return services.goalStore();
     }
 
+    /** Owner-store health for diagnostics; the same view the periodic flush reports transitions from. */
+    public java.util.Map<String, java.util.Map<java.util.UUID, dev.friendai.foundation.persistence.StoreWriteStatus>>
+            storeStatuses() {
+        return services.storeStatuses();
+    }
+
     public CompanionChunkLoader chunkLoader() {
         return services.chunkLoader();
     }

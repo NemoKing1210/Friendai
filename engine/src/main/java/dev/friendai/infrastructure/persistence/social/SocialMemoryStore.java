@@ -118,4 +118,9 @@ public final class SocialMemoryStore implements SocialMemoryRepository, AutoClos
             return MAX_BYTES;
         }
     }
+
+    /** Write status per loaded owner, for the runtime store-health view. */
+    public java.util.Map<java.util.UUID, dev.friendai.foundation.persistence.StoreWriteStatus> statuses() {
+        return store.statuses();
+    }
 }

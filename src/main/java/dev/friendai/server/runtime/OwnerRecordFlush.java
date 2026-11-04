@@ -1,5 +1,6 @@
 package dev.friendai.server.runtime;
 
+import dev.friendai.FriendaiMod;
 import dev.friendai.infrastructure.persistence.autonomy.FreeTimeStore;
 import dev.friendai.infrastructure.persistence.cartography.TerrainStore;
 import dev.friendai.infrastructure.persistence.goals.GoalStore;
@@ -9,6 +10,11 @@ import dev.friendai.infrastructure.persistence.social.SocialMemoryStore;
 
 /** Submits due owner-record snapshots to their shared bounded writer on each server tick. */
 public final class OwnerRecordFlush {
+    /** The health view reads statuses, not records: every five seconds is enough and keeps the common path cheap. */
+    private static final int HEALTH_EVERY_TICKS = 100;
+
+    private final dev.friendai.debug.StoreHealth health = new dev.friendai.debug.StoreHealth();
+    private int ticks;
     private final CompanionProfileStore profiles;
     private final GoalStore goals;
     private final FreeTimeStore freeTime;
@@ -48,6 +54,30 @@ public final class OwnerRecordFlush {
         terrain.flushIfDue();
         if (routines != null) {
             routines.flushIfDue();
+        }
+        if (++ticks % HEALTH_EVERY_TICKS == 0) {
+            reportHealth();
+        }
+    }
+
+    /** One line per changed store health; a normal dirty write is not news. */
+    private void reportHealth() {
+        java.util.Map<String, java.util.Map<java.util.UUID, dev.friendai.foundation.persistence.StoreWriteStatus>>
+                sources = new java.util.LinkedHashMap<>();
+        sources.put("profiles", profiles.statuses());
+        sources.put("goals", goals.statuses());
+        sources.put("free-time", freeTime.statuses());
+        sources.put("social", social.statuses());
+        sources.put("terrain", terrain.statuses());
+        if (routines != null) {
+            sources.put("routines", routines.statuses());
+        }
+        for (dev.friendai.debug.StoreHealth.Entry entry : health.transitions(sources)) {
+            if (entry.unhealthy()) {
+                FriendaiMod.LOGGER.warn("Owner store unhealthy: {}", entry.line());
+            } else {
+                FriendaiMod.LOGGER.info("Owner store healthy again: {}", entry.line());
+            }
         }
     }
 }

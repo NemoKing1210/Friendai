@@ -52,6 +52,10 @@ public final class DiagnosticCollector {
         summary.append("java: ").append(System.getProperty("java.version")).append('\n');
         summary.append("active profile: ").append(config.activeProfile).append('\n');
         summary.append("logs: ").append(runtime.fileLog().root()).append('\n');
+        String stores = StoreHealth.summary(runtime.storeStatuses(), owner.getUUID());
+        if (!stores.isBlank()) {
+            summary.append("persistence:\n").append(stores);
+        }
         var logStats = runtime.fileLog().stats();
         summary.append("log records: accepted ")
                 .append(logStats.accepted())

@@ -312,6 +312,20 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
         return goals;
     }
 
+    /** Every owner store's write status, keyed by a stable store name, for the runtime health view and diagnostics. */
+    public java.util.Map<String, java.util.Map<java.util.UUID, dev.friendai.foundation.persistence.StoreWriteStatus>>
+            storeStatuses() {
+        java.util.Map<String, java.util.Map<java.util.UUID, dev.friendai.foundation.persistence.StoreWriteStatus>>
+                sources = new java.util.LinkedHashMap<>();
+        sources.put("profiles", profiles.statuses());
+        sources.put("goals", goalStore.statuses());
+        sources.put("free-time", freeTimeStore.statuses());
+        sources.put("social", socialMemoryStore.statuses());
+        sources.put("terrain", terrainStore.statuses());
+        sources.put("routines", routines.statuses());
+        return sources;
+    }
+
     public GoalStore goalStore() {
         return goalStore;
     }

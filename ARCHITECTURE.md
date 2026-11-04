@@ -460,7 +460,11 @@ deleted world still leaves a trace. Trees written before 0.203.0 at the shared r
 `LogPipeline` redacts and fans records out; `FriendaiLogAppender` adds `warn`/`error` from `friendai*` loggers.
 
 Owner-file persistence uses the pure `StoreCodec<T>` contract (including bounded `Reader` decoding) and
-`StoreWriteStatus` with typed failure/read-only reasons. `OwnerFileStore<T>` lazily loads records and captures
+`StoreWriteStatus` with typed failure/read-only reasons. One runtime view, `debug/StoreHealth`, reads those statuses
+through `ServerRuntime.storeStatuses()`: it reports a store, owner, saved revision and reason only when the health
+changes (entering a failure or read-only protection, changing it, or recovering), so a full disk is visible as one log
+line instead of silent lag, and the same lines appear in `/friendai diagnose`; it never prints a path, a value or an
+exception message and never writes anything itself. `OwnerFileStore<T>` lazily loads records and captures
 immutable UTF-8 bytes plus their revision on the server thread. At most one snapshot per owner is pending;
 a completion records only its own saved revision. A later server-thread flush captures any newer revision,
 and final close repeats that capture/wait cycle until settled, failed, or its 30-second bound expires.

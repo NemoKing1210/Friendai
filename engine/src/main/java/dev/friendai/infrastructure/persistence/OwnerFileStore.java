@@ -293,6 +293,15 @@ public final class OwnerFileStore<T> implements AutoCloseable {
                 readOnly.get(owner));
     }
 
+    /** One status per loaded owner, for a runtime health view that must not read the records themselves. */
+    public synchronized java.util.Map<UUID, StoreWriteStatus> statuses() {
+        java.util.Map<UUID, StoreWriteStatus> out = new java.util.LinkedHashMap<>();
+        for (UUID owner : values.keySet()) {
+            out.put(owner, status(owner));
+        }
+        return out;
+    }
+
     /** Ordinary flushes capture snapshots without waiting for disk. */
     public synchronized void flushIfDue(long nowMillis) {
         if (closing || closed) return;

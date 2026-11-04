@@ -34,6 +34,7 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 - Opening the companion menu, memory or places repeatedly no longer rebuilds the same snapshot several times in one tick, and those opens now pass the same rate limit as other menu requests.
 - Going back for the things a companion dropped walks to the death site first and then picks them up, and a partial pickup keeps the record so a later trip can finish it instead of forgetting the rest.
 - Morning and evening routines now follow the day clock: sleeping through the night no longer makes one skip its morning or run at the wrong phase, and `/time set` cannot make the same occurrence fire twice.
+- A failing or read-only owner record is no longer silent: the game logs one line per change and `/friendai diagnose` names the store, revision and reason without paths or values.
 
 ## [0.202.1] - 2026-11-04
 
