@@ -81,6 +81,7 @@ public final class LogJson {
         object.addProperty("schema", SCHEMA);
         object.addProperty("kind", "header");
         object.addProperty("boot", header.boot());
+        object.addProperty("world", header.world());
         object.addProperty("mod", header.mod());
         object.addProperty("minecraft", header.minecraft());
         addUuid(object, "owner", header.owner());
@@ -113,6 +114,7 @@ public final class LogJson {
             return Optional.of(new LogFileHeader(
                     SCHEMA,
                     string(object, "boot"),
+                    string(object, "world"),
                     string(object, "mod"),
                     string(object, "minecraft"),
                     uuid(string(object, "owner")),

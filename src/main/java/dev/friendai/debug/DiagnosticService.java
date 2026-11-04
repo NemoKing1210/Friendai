@@ -126,6 +126,7 @@ public final class DiagnosticService implements AutoCloseable {
         LogFileHeader header = new LogFileHeader(
                 LogJson.SCHEMA,
                 snapshot.boot(),
+                "",
                 snapshot.mod(),
                 snapshot.minecraft(),
                 snapshot.owner(),

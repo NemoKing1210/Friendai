@@ -275,8 +275,22 @@ class LogJsonTest {
     @Test
     void roundTripsTheFileHeader() {
         LogFileHeader header = new LogFileHeader(
-                1, "7f3c", "0.160.0", "26.3", OWNER, "Alex", "normal", List.of("brain", "tool"), 1000L);
+                1, "7f3c", "New World", "0.160.0", "26.3", OWNER, "Alex", "normal", List.of("brain", "tool"), 1000L);
         assertEquals(Optional.of(header), LogJson.decodeHeader(LogJson.encodeHeader(header)));
+    }
+
+    @Test
+    void aHeaderNamesItsWorld() {
+        LogFileHeader header =
+                new LogFileHeader(1, "7f3c", "New World", "0.160.0", "26.3", OWNER, "Alex", "normal", List.of(), 1000L);
+        assertTrue(LogJson.encodeHeader(header).contains("\"world\":\"New World\""), LogJson.encodeHeader(header));
+    }
+
+    @Test
+    void aFileFromBeforeTheChangeStillDecodes() {
+        String line = "{\"schema\":1,\"kind\":\"header\",\"boot\":\"7f3c\",\"mod\":\"0.160.0\",\"minecraft\":\"26.3\","
+                + "\"name\":\"Alex\",\"level\":\"normal\",\"categories\":[],\"started\":1}";
+        assertEquals("", LogJson.decodeHeader(line).orElseThrow().world());
     }
 
     @Test
@@ -288,9 +302,9 @@ class LogJsonTest {
     @Test
     void recordsCarryASchema() {
         assertTrue(LogJson.encode(minimal()).contains("\"schema\":1"));
-        assertTrue(
-                LogJson.encodeHeader(new LogFileHeader(1, "7f3c", "0.160.0", "26.3", null, "", "normal", List.of(), 1L))
-                        .contains("\"schema\":1"));
+        assertTrue(LogJson.encodeHeader(
+                        new LogFileHeader(1, "7f3c", "", "0.160.0", "26.3", null, "", "normal", List.of(), 1L))
+                .contains("\"schema\":1"));
     }
 
     @Test

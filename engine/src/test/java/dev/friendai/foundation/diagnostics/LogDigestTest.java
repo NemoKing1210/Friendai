@@ -13,7 +13,16 @@ class LogDigestTest {
 
     private static LogFileHeader header() {
         return new LogFileHeader(
-                1, "7f3c", "0.160.0", "26.3", OWNER, "Alex", "normal", List.of("brain", "tool"), 1_700_000_000_000L);
+                1,
+                "7f3c",
+                "New World",
+                "0.160.0",
+                "26.3",
+                OWNER,
+                "Alex",
+                "normal",
+                List.of("brain", "tool"),
+                1_700_000_000_000L);
     }
 
     private static LogRecord record(

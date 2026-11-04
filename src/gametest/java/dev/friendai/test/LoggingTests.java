@@ -56,7 +56,17 @@ public class LoggingTests {
 
     private static LogWriterServiceHolder writer(Path root, LogSettings settings, UnaryOperator<String> redactor) {
         return new LogWriterServiceHolder(new dev.friendai.debug.LogWriterService(
-                root, LogWriterScope.SERVER, "7f3c", "0.192.0", "26.3", uuid -> "", settings, redactor, () -> NOW, 64));
+                root,
+                LogWriterScope.SERVER,
+                "7f3c",
+                "New World",
+                "0.192.0",
+                "26.3",
+                uuid -> "",
+                settings,
+                redactor,
+                () -> NOW,
+                64));
     }
 
     private record LogWriterServiceHolder(dev.friendai.debug.LogWriterService service) implements AutoCloseable {
@@ -71,6 +81,24 @@ public class LoggingTests {
         try (Stream<Path> paths = Files.walk(dir)) {
             return paths.filter(path -> path.toString().endsWith(".jsonl")).toList();
         }
+    }
+
+    @GameTest
+    public void server_logs_land_inside_the_world_folder(GameTestHelper h) {
+        var server = h.getLevel().getServer();
+        var runtime = dev.friendai.server.runtime.ServerRuntimeRegistry.getOrCreate(server);
+        Path expected = dev.friendai.debug.LogPaths.worldRoot(
+                server.getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT));
+        Path sharedRoot = dev.friendai.debug.LogPaths.gameRoot(
+                net.fabricmc.loader.api.FabricLoader.getInstance().getGameDir());
+        var fileLog = runtime.fileLog();
+        h.assertTrue(
+                fileLog.root().toAbsolutePath().equals(expected.toAbsolutePath()),
+                "writer root " + fileLog.root() + " is not " + expected);
+        h.assertFalse(
+                fileLog.root().toAbsolutePath().equals(sharedRoot.toAbsolutePath()),
+                "the server writer must not use the shared game root " + sharedRoot);
+        h.succeed();
     }
 
     @GameTest

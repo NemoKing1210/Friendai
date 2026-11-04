@@ -44,6 +44,8 @@ class LogWriterServiceTest {
     private static final UUID OWNER = UUID.fromString("00000000-0000-0000-0000-000000000001");
     private static final String DAY = "2023-11-14";
 
+    private static final String WORLD = "New World";
+
     private static LogSettings settings(LogLevel level) {
         return new LogSettings(level, Set.of(), 10_000_000L, 100_000_000L, 30, 20, true);
     }
@@ -51,7 +53,7 @@ class LogWriterServiceTest {
     private static LogWriterService writer(Path root, LogWriterScope scope, LogSettings settings, int queue) {
         UnaryOperator<String> redactor = text -> text.replace("SECRET", "***");
         return new LogWriterService(
-                root, scope, "7f3c", "0.160.0", "26.3", uuid -> "Alex", settings, redactor, () -> NOW, queue);
+                root, scope, "7f3c", WORLD, "0.160.0", "26.3", uuid -> "Alex", settings, redactor, () -> NOW, queue);
     }
 
     private static LogWriterService injected(
@@ -60,6 +62,7 @@ class LogWriterServiceTest {
                 root,
                 LogWriterScope.SERVER,
                 "7f3c",
+                WORLD,
                 "0.160.0",
                 "26.3",
                 uuid -> "Alex",
@@ -113,6 +116,19 @@ class LogWriterServiceTest {
             }
             Thread.onSpinWait();
         }
+    }
+
+    @Test
+    void namesTheWorldInEveryHeaderAndReportsItsRoot(@TempDir Path root) throws IOException {
+        try (LogWriterService writer = writer(root, LogWriterScope.SERVER, settings(LogLevel.INFO), 64)) {
+            assertEquals(root.toAbsolutePath(), writer.root().toAbsolutePath());
+            writer.offer(record(1, LogCategory.SERVER, null));
+            writer.flushNow().join();
+        }
+        List<Path> files = jsonl(root.resolve("server").resolve(DAY));
+        assertEquals(1, files.size());
+        String header = Files.readAllLines(files.get(0), StandardCharsets.UTF_8).get(0);
+        assertTrue(header.contains("\"world\":\"New World\""), header);
     }
 
     @Test
@@ -345,6 +361,7 @@ class LogWriterServiceTest {
                 root,
                 LogWriterScope.SERVER,
                 "7f3c",
+                WORLD,
                 "0.160.0",
                 "26.3",
                 uuid -> "Alex",

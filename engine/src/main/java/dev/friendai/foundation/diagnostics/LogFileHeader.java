@@ -7,6 +7,7 @@ import java.util.UUID;
 public record LogFileHeader(
         int schema,
         String boot,
+        String world,
         String mod,
         String minecraft,
         UUID owner,
@@ -16,6 +17,7 @@ public record LogFileHeader(
         long started) {
     public LogFileHeader {
         boot = boot == null ? "" : boot;
+        world = world == null ? "" : world;
         mod = mod == null ? "" : mod;
         minecraft = minecraft == null ? "" : minecraft;
         name = name == null ? "" : name;

@@ -41,7 +41,16 @@ class LogScanTest {
     private static Path write(Path dir, List<LogRecord> records) throws IOException {
         StringBuilder text = new StringBuilder();
         text.append(LogJson.encodeHeader(new LogFileHeader(
-                        1, "7f3c", "0.160.0", "26.3", null, "", "normal", List.of("task"), 1_700_000_000_000L)))
+                        1,
+                        "7f3c",
+                        "New World",
+                        "0.160.0",
+                        "26.3",
+                        null,
+                        "",
+                        "normal",
+                        List.of("task"),
+                        1_700_000_000_000L)))
                 .append('\n');
         for (LogRecord record : records) {
             text.append(LogJson.encode(record)).append('\n');

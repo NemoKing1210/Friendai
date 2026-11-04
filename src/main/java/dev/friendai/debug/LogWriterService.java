@@ -75,11 +75,13 @@ public final class LogWriterService implements LogSink, AutoCloseable {
             One JSON object per line. The first line of every file is a header (`"kind":"header"`) with the
             schema, boot, mod and Minecraft versions, the owner and the active level.
 
-            Tree:
+            Tree (this root is one world: `<world>/friendai/logs/`):
             - `server/<date>/boot-<boot>.jsonl` — server lifecycle and bridged logger warnings/errors.
             - `owners/<uuid>/<date>/session-<time>-<boot>.jsonl` — one owner's brain, tool, task and queue records.
-            - `client/<date>/client-<boot>.jsonl` — client-side records.
             - `diagnostics/` — `/friendai diagnose` bundles.
+
+            The client writer keeps its own tree at `<gameDir>/logs/friendai/client/`, beside `index.jsonl`,
+            which records one line per world load and close.
 
             Fields: `seq`, `timeMillis`, `level` (trace|debug|info|warn|error), `category`, `kind`, `event`,
             `owner`, `companion`, `session`, `turn`, `plan`, `job`, `task`, `toolCall`, `cause`, `durationMs`,
@@ -126,6 +128,7 @@ public final class LogWriterService implements LogSink, AutoCloseable {
     private final Path root;
     private final LogWriterScope scope;
     private final String boot;
+    private final String world;
     private final String modVersion;
     private final String minecraftVersion;
     private final Function<UUID, String> ownerNames;
@@ -163,6 +166,7 @@ public final class LogWriterService implements LogSink, AutoCloseable {
             Path root,
             LogWriterScope scope,
             String boot,
+            String world,
             String modVersion,
             String minecraftVersion,
             Function<UUID, String> ownerNames,
@@ -173,6 +177,7 @@ public final class LogWriterService implements LogSink, AutoCloseable {
                 root,
                 scope,
                 boot,
+                world,
                 modVersion,
                 minecraftVersion,
                 ownerNames,
@@ -186,6 +191,7 @@ public final class LogWriterService implements LogSink, AutoCloseable {
             Path root,
             LogWriterScope scope,
             String boot,
+            String world,
             String modVersion,
             String minecraftVersion,
             Function<UUID, String> ownerNames,
@@ -197,6 +203,7 @@ public final class LogWriterService implements LogSink, AutoCloseable {
                 root,
                 scope,
                 boot,
+                world,
                 modVersion,
                 minecraftVersion,
                 ownerNames,
@@ -213,6 +220,7 @@ public final class LogWriterService implements LogSink, AutoCloseable {
             Path root,
             LogWriterScope scope,
             String boot,
+            String world,
             String modVersion,
             String minecraftVersion,
             Function<UUID, String> ownerNames,
@@ -225,6 +233,7 @@ public final class LogWriterService implements LogSink, AutoCloseable {
         this.root = root;
         this.scope = scope;
         this.boot = boot;
+        this.world = world == null ? "" : world;
         this.modVersion = modVersion;
         this.minecraftVersion = minecraftVersion;
         this.ownerNames = ownerNames == null ? uuid -> "" : ownerNames;
@@ -302,6 +311,11 @@ public final class LogWriterService implements LogSink, AutoCloseable {
     /** Installs the runtime secret redactor once the gateway knows the configured keys. */
     public void updateRedactor(UnaryOperator<String> redactor) {
         if (redactor != null) this.redactor = redactor;
+    }
+
+    /** The root this writer owns: one world's tree for the server scope, the client tree for the client scope. */
+    public Path root() {
+        return root;
     }
 
     public LogWriterStats stats() {
@@ -655,6 +669,7 @@ public final class LogWriterService implements LogSink, AutoCloseable {
         return new LogFileHeader(
                 1,
                 boot,
+                world,
                 modVersion,
                 minecraftVersion,
                 owner,
@@ -853,7 +868,7 @@ public final class LogWriterService implements LogSink, AutoCloseable {
                     .orElse("");
             LogFileHeader header = LogJson.decodeHeader(first)
                     .orElse(new LogFileHeader(
-                            1, boot, modVersion, minecraftVersion, null, "", "off", List.of(), startedMillis));
+                            1, boot, world, modVersion, minecraftVersion, null, "", "off", List.of(), startedMillis));
             String text = LogDigest.render(header, scan.records(), 0L, scan.skippedLine(), MAX_DIGEST_CHARS);
             Files.writeString(
                     path.resolveSibling(LogNames.digestName(path.getFileName().toString())),

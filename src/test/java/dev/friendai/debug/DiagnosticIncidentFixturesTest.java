@@ -9,13 +9,13 @@ import dev.friendai.foundation.diagnostics.IncidentTimeline;
 import dev.friendai.foundation.diagnostics.LogCategory;
 import dev.friendai.foundation.diagnostics.LogEvents;
 import dev.friendai.foundation.diagnostics.LogFileHeader;
+import dev.friendai.foundation.diagnostics.LogFilter;
 import dev.friendai.foundation.diagnostics.LogJson;
 import dev.friendai.foundation.diagnostics.LogLevel;
 import dev.friendai.foundation.diagnostics.LogRecord;
 import dev.friendai.foundation.diagnostics.LogScan;
 import dev.friendai.foundation.diagnostics.LogScanResult;
 import dev.friendai.foundation.diagnostics.ScanLimits;
-import dev.friendai.foundation.diagnostics.LogFilter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -65,7 +65,8 @@ class DiagnosticIncidentFixturesTest {
     }
 
     private static LogFileHeader header() {
-        return new LogFileHeader(1, "boot-9", "0.200.0", "26.3", OWNER, "Alex", "normal", List.of("task"), 1L);
+        return new LogFileHeader(
+                1, "boot-9", "New World", "0.200.0", "26.3", OWNER, "Alex", "normal", List.of("task"), 1L);
     }
 
     private static Path write(Path dir, String name, LogFileHeader header, List<String> lines) throws IOException {
@@ -99,11 +100,17 @@ class DiagnosticIncidentFixturesTest {
                 dir,
                 "session-1.jsonl",
                 header(),
-                List.of(LogJson.encode(start), LogJson.encode(progress), "{\"schema\":1,\"truncated", "x".repeat(9_000)));
+                List.of(
+                        LogJson.encode(start),
+                        LogJson.encode(progress),
+                        "{\"schema\":1,\"truncated",
+                        "x".repeat(9_000)));
 
         LogScanResult scan = LogScan.scan(file, ScanLimits.DEFAULT, LogFilter.all(), 1_000, false);
         IncidentTimeline timeline = IncidentTimeline.build(
-                header(), scan.records(), new Completeness(scan.records().size(), 0, scan.skippedLine() ? 1 : 0, 0, 0L, 0, false));
+                header(),
+                scan.records(),
+                new Completeness(scan.records().size(), 0, scan.skippedLine() ? 1 : 0, 0, 0L, 0, false));
 
         assertEquals(2, scan.records().size(), "the torn and oversized lines are skipped, not fatal");
         assertTrue(scan.skippedLine(), "the scan reports that it skipped something");
@@ -123,17 +130,19 @@ class DiagnosticIncidentFixturesTest {
                 s1,
                 "session-1.jsonl",
                 header(),
-                List.of(LogJson.encode(record(
-                        14L, LogEvents.TASK_START, "s1", 0L, Map.of("execution", "1"), "one", 1_000L))));
+                List.of(LogJson.encode(
+                        record(14L, LogEvents.TASK_START, "s1", 0L, Map.of("execution", "1"), "one", 1_000L))));
         write(
                 s2,
                 "session-2.jsonl",
                 header(),
-                List.of(LogJson.encode(record(
-                        14L, LogEvents.TASK_START, "s2", 0L, Map.of("execution", "1"), "two", 2_000L))));
+                List.of(LogJson.encode(
+                        record(14L, LogEvents.TASK_START, "s2", 0L, Map.of("execution", "1"), "two", 2_000L))));
 
-        LogScanResult first = LogScan.scan(s1.resolve("session-1.jsonl"), ScanLimits.DEFAULT, LogFilter.all(), 100, false);
-        LogScanResult second = LogScan.scan(s2.resolve("session-2.jsonl"), ScanLimits.DEFAULT, LogFilter.all(), 100, false);
+        LogScanResult first =
+                LogScan.scan(s1.resolve("session-1.jsonl"), ScanLimits.DEFAULT, LogFilter.all(), 100, false);
+        LogScanResult second =
+                LogScan.scan(s2.resolve("session-2.jsonl"), ScanLimits.DEFAULT, LogFilter.all(), 100, false);
         List<LogRecord> mixed = new java.util.ArrayList<>();
         mixed.addAll(first.records());
         mixed.addAll(second.records());
@@ -145,16 +154,15 @@ class DiagnosticIncidentFixturesTest {
 
     @Test
     void aClockRollbackIsReportedAsZeroNotAsNegativeTime(@TempDir Path dir) throws IOException {
-        LogRecord start = record(
-                1L, LogEvents.TASK_START, "s1", 0L, Map.of("execution", "3"), "start", 5_000L);
+        LogRecord start = record(1L, LogEvents.TASK_START, "s1", 0L, Map.of("execution", "3"), "start", 5_000L);
         LogRecord finish = record(
                 2L, LogEvents.TASK_FINISH, "s1", 1L, Map.of("execution", "3", "activeTicks", "4"), "finish", 1_000L);
-        Path file = write(
-                dir, "session-1.jsonl", header(), List.of(LogJson.encode(start), LogJson.encode(finish)));
+        Path file = write(dir, "session-1.jsonl", header(), List.of(LogJson.encode(start), LogJson.encode(finish)));
 
         IncidentTimeline timeline = IncidentTimeline.build(
                 header(),
-                LogScan.scan(file, ScanLimits.DEFAULT, LogFilter.all(), 100, false).records(),
+                LogScan.scan(file, ScanLimits.DEFAULT, LogFilter.all(), 100, false)
+                        .records(),
                 Completeness.NONE);
 
         assertEquals(0L, timeline.executions().get(0).durationMs());
@@ -163,13 +171,13 @@ class DiagnosticIncidentFixturesTest {
 
     @Test
     void aCrashBeforeTheTerminalIsNeverReportedAsSuccess(@TempDir Path dir) throws IOException {
-        LogRecord start = record(
-                1L, LogEvents.TASK_START, "s1", 0L, Map.of("execution", "5"), "start", 1_000L);
+        LogRecord start = record(1L, LogEvents.TASK_START, "s1", 0L, Map.of("execution", "5"), "start", 1_000L);
         Path file = write(dir, "session-1.jsonl", header(), List.of(LogJson.encode(start)));
 
         IncidentTimeline timeline = IncidentTimeline.build(
                 header(),
-                LogScan.scan(file, ScanLimits.DEFAULT, LogFilter.all(), 100, false).records(),
+                LogScan.scan(file, ScanLimits.DEFAULT, LogFilter.all(), 100, false)
+                        .records(),
                 Completeness.NONE);
         String report = timeline.render(8_000);
 

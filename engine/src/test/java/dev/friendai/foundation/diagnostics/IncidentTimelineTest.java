@@ -15,7 +15,8 @@ class IncidentTimelineTest {
     private static final UUID OWNER = UUID.fromString("00000000-0000-0000-0000-0000000000aa");
 
     private static LogFileHeader header() {
-        return new LogFileHeader(1, "boot-1", "0.200.0", "26.3", OWNER, "Alex", "normal", List.of("task"), 1_000L);
+        return new LogFileHeader(
+                1, "boot-1", "New World", "0.200.0", "26.3", OWNER, "Alex", "normal", List.of("task"), 1_000L);
     }
 
     private static LogRecord record(

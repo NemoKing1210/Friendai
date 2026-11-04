@@ -49,12 +49,11 @@ public class FriendaiClient implements ClientModInitializer {
                 if (cloud.apiKey != null && !cloud.apiKey.isBlank()) secrets.add(cloud.apiKey);
             }
             fileLog = new dev.friendai.debug.LogWriterService(
-                    net.fabricmc.loader.api.FabricLoader.getInstance()
-                            .getGameDir()
-                            .resolve("logs")
-                            .resolve("friendai"),
+                    dev.friendai.debug.LogPaths.gameRoot(
+                            net.fabricmc.loader.api.FabricLoader.getInstance().getGameDir()),
                     dev.friendai.debug.LogWriterScope.CLIENT,
                     dev.friendai.foundation.diagnostics.LogNames.bootId(),
+                    "",
                     modVersion("friendai"),
                     modVersion("minecraft"),
                     uuid -> "",
