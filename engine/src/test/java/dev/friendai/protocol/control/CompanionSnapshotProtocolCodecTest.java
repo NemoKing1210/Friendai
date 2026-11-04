@@ -204,7 +204,8 @@ final class CompanionSnapshotProtocolCodecTest {
                 false,
                 0,
                 "",
-                "morning · next in 1200 ticks · last: succeeded");
+                "morning · next in 1200 ticks · last: succeeded",
+                true);
 
         byte[] encoded = CompanionSnapshotProtocolCodec.encodeForRecipient(producer, false, 6);
         DecodeResult.Valid<ProtocolView<CompanionSnapshotView>> decoded =
@@ -213,6 +214,7 @@ final class CompanionSnapshotProtocolCodecTest {
         assertEquals(
                 "morning · next in 1200 ticks · last: succeeded",
                 decoded.value().value().routine());
+        assertTrue(decoded.value().value().outline(), "the outline switch survives the snapshot round trip");
     }
 
     @Test

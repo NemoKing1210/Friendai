@@ -73,7 +73,8 @@ public final class CompanionSnapshotProtocolAdapter {
                 snapshot.workPaused(),
                 snapshot.goalId(),
                 snapshot.currentPhase(),
-                snapshot.routine());
+                snapshot.routine(),
+                snapshot.outline());
     }
 
     public static CompanionSnapshot fromProtocol(CompanionSnapshotView view) {
@@ -139,6 +140,7 @@ public final class CompanionSnapshotProtocolAdapter {
                 view.workPaused(),
                 view.goalId(),
                 view.currentPhase(),
-                view.routine());
+                view.routine(),
+                view.outline());
     }
 }

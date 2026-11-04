@@ -21,7 +21,8 @@ public final class DebugAccess {
         EDIT_PLACES,
         SET_CREATIVE_MODE,
         SET_FREE_TIME,
-        SET_FOLLOW_MODE
+        SET_FOLLOW_MODE,
+        TOGGLE_OUTLINE
     }
 
     private DebugAccess() {}
@@ -41,7 +42,8 @@ public final class DebugAccess {
                     EDIT_PLACES,
                     SET_CREATIVE_MODE,
                     SET_FREE_TIME,
-                    SET_FOLLOW_MODE -> true;
+                    SET_FOLLOW_MODE,
+                    TOGGLE_OUTLINE -> true;
             case VIEW_LOG, VIEW_PROMPT, SEND_MESSAGE, RUN_TOOL, VIEW_MOVEMENT -> operator;
         };
     }

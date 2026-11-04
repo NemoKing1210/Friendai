@@ -473,6 +473,7 @@ public final class ClientRequestCodec {
                 || request instanceof ControlRequest.Stop
                 || request instanceof ControlRequest.Teleport
                 || request instanceof ControlRequest.FreeTimeToggle
+                || request instanceof ControlRequest.ToggleOutline
                 || request instanceof ControlRequest.RetryLast
                 || request instanceof ControlRequest.QueueEdit)) {
             throw new IllegalArgumentException("unsupported control request");
@@ -502,6 +503,7 @@ public final class ClientRequestCodec {
             case 17 ->
                 new ControlRequest.QueueEdit(
                         in.readString(8), in.readLong(), in.readLong(), in.readLong(), in.readString(160));
+            case 18 -> new ControlRequest.ToggleOutline();
             default -> throw new ProtocolDataException(DecodeResult.Reason.UNKNOWN_OPERATION);
         };
         in.requireEnd();

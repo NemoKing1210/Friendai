@@ -28,8 +28,11 @@ public final class MovementDebugRenderer {
     private static final int TEXT = 0xFFE8E8E8;
     private static final int PANEL = 0xA0000000;
     private static final float LINE_WIDTH = 3f;
+    private static final int CELL_VISIBLE_DISTANCE = 64;
+    private static final long FAILURE_LOG_INTERVAL_NANOS = 10_000_000_000L;
 
-    private static boolean failed;
+    /** Rate limit for the warning only: one bad frame must not disable the overlay for the whole session. */
+    private static long lastFailureLogNanos;
 
     private MovementDebugRenderer() {}
 
@@ -55,13 +58,13 @@ public final class MovementDebugRenderer {
 
     private static void drawWorld() {
         var view = MovementDebugState.view();
-        if (view.isEmpty() || failed) {
+        if (view.isEmpty()) {
             return;
         }
         try {
             draw(view.get());
         } catch (RuntimeException e) {
-            disableAfterDrawingFailure(e);
+            reportDrawingFailure(e);
         }
     }
 
@@ -95,20 +98,18 @@ public final class MovementDebugRenderer {
                             TextGizmo.Style.forColorAndCentered(GOAL))
                     .setAlwaysOnTop();
         }
-        if (view.workSets().isEmpty()) {
-            for (var target : view.targets()) {
-                int color = actionColor(target.action());
-                Gizmos.cuboid(new BlockPos(target.x(), target.y(), target.z()), GizmoStyle.stroke(color, 3f))
-                        .setAlwaysOnTop();
-                String action = actionLabel(target.action());
-                String detail = detailLabel(target.detail());
-                String label = detail.isBlank() ? action : action + " · " + detail;
-                Gizmos.billboardText(
-                                clipLabel(label),
-                                new Vec3(target.x() + 0.5, target.y() + 1.35, target.z() + 0.5),
-                                TextGizmo.Style.forColorAndCentered(color))
-                        .setAlwaysOnTop();
-            }
+        for (var target : MovementDebug.targetsOutsideWorkSets(view.targets(), view.workSets())) {
+            int color = actionColor(target.action());
+            Gizmos.cuboid(new BlockPos(target.x(), target.y(), target.z()), GizmoStyle.stroke(color, 3f))
+                    .setAlwaysOnTop();
+            String action = actionLabel(target.action());
+            String detail = detailLabel(target.detail());
+            String label = detail.isBlank() ? action : action + " · " + detail;
+            Gizmos.billboardText(
+                            clipLabel(label),
+                            new Vec3(target.x() + 0.5, target.y() + 1.35, target.z() + 0.5),
+                            TextGizmo.Style.forColorAndCentered(color))
+                    .setAlwaysOnTop();
         }
         for (var set : view.workSets()) {
             var anchor = set.cells().stream()
@@ -153,13 +154,13 @@ public final class MovementDebugRenderer {
 
     private static void drawHud(GuiGraphicsExtractor graphics, DeltaTracker delta) {
         var view = MovementDebugState.view();
-        if (view.isEmpty() || failed) {
+        if (view.isEmpty()) {
             return;
         }
         try {
             drawHudPanel(graphics, view.get());
         } catch (RuntimeException e) {
-            disableAfterDrawingFailure(e);
+            reportDrawingFailure(e);
         }
     }
 
@@ -206,7 +207,7 @@ public final class MovementDebugRenderer {
             lines.add(
                     Component.translatable("friendai.debug.hud.facing", facing).getString());
         }
-        if (!view.targets().isEmpty() && view.workSets().isEmpty()) {
+        if (!view.targets().isEmpty()) {
             var target = view.targets().getFirst();
             String action = actionLabel(target.action());
             String detail = target.detail().isBlank() ? "" : " · " + detailLabel(target.detail());
@@ -252,7 +253,7 @@ public final class MovementDebugRenderer {
         if (mc.player == null || mc.gameRenderer == null) return false;
         Vec3 center = new Vec3(x + 0.5, y + 0.5, z + 0.5);
         Vec3 offset = center.subtract(mc.player.getEyePosition());
-        return offset.lengthSqr() <= 48 * 48 && mc.player.getLookAngle().dot(offset) > 0.0;
+        return offset.lengthSqr() <= CELL_VISIBLE_DISTANCE * CELL_VISIBLE_DISTANCE;
     }
 
     private static String lineValue(java.util.List<String> lines, String prefix) {
@@ -377,8 +378,12 @@ public final class MovementDebugRenderer {
         return line.length() <= 68 ? line : line.substring(0, 67) + "…";
     }
 
-    private static void disableAfterDrawingFailure(RuntimeException e) {
-        failed = true;
-        FriendaiMod.LOGGER.warn("Movement debug drawing failed and is disabled", e);
+    private static void reportDrawingFailure(RuntimeException e) {
+        long now = System.nanoTime();
+        if (now - lastFailureLogNanos < FAILURE_LOG_INTERVAL_NANOS) {
+            return;
+        }
+        lastFailureLogNanos = now;
+        FriendaiMod.LOGGER.warn("Movement debug drawing failed; the overlay stays on", e);
     }
 }

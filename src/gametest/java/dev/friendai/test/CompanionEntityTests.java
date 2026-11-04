@@ -1,6 +1,7 @@
 package dev.friendai.test;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.entity.CompanionLifeData;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.entity.LookAtOwnerGoal;
@@ -9,6 +10,7 @@ import dev.friendai.features.navigation.minecraft.task.StayTask;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtOps;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.ProblemReporter;
@@ -64,6 +66,27 @@ public class CompanionEntityTests {
                 player.getUUID().toString(),
                 "the owner id must reach the client, or the outline cannot tell whose companion this is");
         h.assertValueEqual(orphan.syncedOwner(), "", "a body with no owner syncs nothing");
+        h.succeed();
+    }
+
+    @GameTest
+    public void theOutlineSwitchBelongsToTheWorldAndDefaultsOff(GameTestHelper h) {
+        ServerPlayer player = mockPlayerHere(h);
+        CompanionEntity companion =
+                CompanionManager.get(h.getLevel().getServer()).summon(player);
+        h.assertFalse(companion.syncedOutline(), "a new companion is never outlined");
+        companion.setOutline(true);
+        h.assertTrue(companion.syncedOutline(), "the switch must reach the owner's client");
+        CompanionLifeData life =
+                GameTestSupport.runtime(h.getLevel().getServer()).companionLife();
+        h.assertTrue(life.outline(player.getUUID()), "the switch is stored with this world's companion");
+        CompoundTag saved = (CompoundTag) CompanionLifeData.TYPE
+                .codec()
+                .encodeStart(NbtOps.INSTANCE, life)
+                .getOrThrow();
+        CompanionLifeData loaded =
+                CompanionLifeData.TYPE.codec().parse(NbtOps.INSTANCE, saved).getOrThrow();
+        h.assertTrue(loaded.outline(player.getUUID()), "the switch must survive a world reload");
         h.succeed();
     }
 

@@ -252,8 +252,10 @@ and `cue(SpeechCue)` add a bounded eighty-tick reaction to a deed or to somethin
 is the only synced value: `DATA_MOOD` (`CompanionEntity.syncedMood`) reaches every tracking client, and
 `CompanionRenderer` draws one mark above the head and, for the owner's own companion farther than twelve blocks or out
 of sight, sets the render state's outline colour so the vanilla glow pass traces every model part; the owner is found
-through the synced owner id (`DATA_OWNER`) and the client's Display switches gate it, off by default and also reachable
-from the companion menu's Settings tab; the decision itself is the pure
+through the synced owner id (`DATA_OWNER`). The outline switch belongs to the world, not to the client: it is stored
+per owner in the world's `CompanionLifeData`, synced as `DATA_OUTLINE` (`CompanionEntity.syncedOutline`), starts off
+in every world, and is changed only through the typed CONTROL `ToggleOutline` request sent by the companion menu's
+Settings tab or the **Companion outline** key. The decision itself is the pure
 `presentation/companion/CompanionOutline.shouldDraw(...)`, so the rule is unit-tested without a frame.
 
 The bond is owner-private and never an accessor. `BondLedger` counts only deeds — shared work, a gift past its
@@ -506,8 +508,9 @@ files remain read-only until explicit repair, which makes a fresh backup before 
 | Data | Location | Notes |
 |---|---|---|
 | Server config | `config/friendai-server.json` | Schema 22; validated defaults and a unique `.vN.*.bak` before atomic replacement. `ConfigMigration` and its tests decide which older versions still upgrade; unknown/future versions and failed upgrades remain read-only; API keys may be `env:NAME`. |
-| Client config | `config/friendai-client.json` | Schema 9: recognition (`voice.stt`), synthesis (`voice.tts`), provider maps and UI preferences. The upgrade chain and its tests live with `ConfigMigration`; unknown/future versions remain untouched. |
+| Client config | `config/friendai-client.json` | Schema 10: recognition (`voice.stt`), synthesis (`voice.tts`), provider maps and UI preferences. Schema 10 drops the client-wide outline switch, which now lives with the world. The upgrade chain and its tests live with `ConfigMigration`; unknown/future versions remain untouched. |
 | Companion state | World save, `CompanionEntity` additional data | Owner, inventory, combat settings, pace mode, food/saturation/exhaustion, saved task. Equipment is in the superclass entity data. Hands, previews, station leases and furnace jobs are transient. |
+| Companion life | World `SavedData` `friendai:companion_life` | Per owner: the auto-respawn switch, the bed respawn point, the creative-mode switch, the follow-mode choice (empty until the owner makes it) and the outline switch. Every field is optional in the codec, so a record written before a field existed reads its default; the outline defaults to off. These are the companion menu's Settings switches, so they follow the world rather than the client. |
 | Companion carry | World `SavedData` `friendai:companion_carry` | Version 2, per owner: the body captured at death (body state only — the loot was already dropped and the inventory is empty) and the last five deaths (dimension, position, cause, killer, tick, the dropped item-entity UUIDs, a stack fallback, an `unrecoverable` flag and the respawn point), plus the owner's recovery refusal. Version 1 files read with no recovery facts. Applied on respawn or the next summon; the death log outlives the applied body, feeds one prompt line and is what `RecoverDropsTask` walks to. |
 | Companion anchors | World `SavedData` `friendai:companion_anchors` | Owner → dimension + chunk, used to load the companion on startup. The chunk ticket itself is runtime-only and never saved. |
 | Drifted manner | Memory book file, record format 5 | Per owner: five traits (humour, warmth, curiosity, energy, teasing), each 0–3, stepped one at a time by an applied memory compaction and dropped to zero by `dropTrait`. Rendered as one short tone clause in the prompt; it never changes a fact, a permission or a safety rule. |

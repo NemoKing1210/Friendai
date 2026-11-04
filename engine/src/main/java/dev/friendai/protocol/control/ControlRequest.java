@@ -14,6 +14,7 @@ public sealed interface ControlRequest extends ClientRequest
                 ControlRequest.SetAutoRespawn,
                 ControlRequest.SetCreativeMode,
                 ControlRequest.SetFollowMode,
+                ControlRequest.ToggleOutline,
                 ControlRequest.FreeTimeToggle,
                 ControlRequest.SendChat,
                 ControlRequest.InvokeTool,
@@ -93,6 +94,14 @@ public sealed interface ControlRequest extends ClientRequest
         @Override
         public int operationId() {
             return 11;
+        }
+    }
+
+    /** Flips this world's outline switch; the value itself is kept with the companion's other life preferences. */
+    record ToggleOutline() implements ControlRequest {
+        @Override
+        public int operationId() {
+            return 18;
         }
     }
 

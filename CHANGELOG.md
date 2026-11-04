@@ -6,12 +6,30 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
-## [0.207.1] - 2026-11-04
+## [0.208.2] - 2026-11-04
 
 ### Fixed
 
 - Wood gathering now fells one whole tree before moving on, clears the leaves between it and a log, and leaves no half-cut trunk behind.
 - A pointed log is taken down with its whole trunk, and a tree with long side branches is climbed from a column that reaches every branch.
+
+## [0.208.1] - 2026-11-04
+
+### Added
+
+- The movement overlay shows excavation work: the cells still to dig, the current cell and the catch platform under a drop.
+
+### Fixed
+
+- The operator movement overlay no longer blanks intermittently: a brief server stall, a dropped request or one failed drawing call no longer hides the route and the block highlights for the rest of the session.
+- Looking away from the work no longer hides its cells, and a task that reports both action targets and a work set now shows both instead of one replacing the other.
+- A task whose debug information fails no longer breaks the overlay or the server tick, and switching the overlay on when the server cannot accept it says so instead of showing a switch that does nothing.
+
+## [0.208.0] - 2026-11-04
+
+### Changed
+
+- **Show my companion through walls** now belongs to the world: each save remembers its own switch, it starts off in every world, and turning it on in one save no longer turns it on in another. Change it with the **Outline** switch in the companion menu or the **Companion outline** key; the **Display** settings no longer offer a second, client-wide copy.
 
 ## [0.207.0] - 2026-11-04
 

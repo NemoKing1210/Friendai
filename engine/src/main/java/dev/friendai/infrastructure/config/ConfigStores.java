@@ -42,7 +42,8 @@ public final class ConfigStores {
                     ADDITIVE, // 5 -> 6: streamed replies, enabled by default
                     ConfigStores::disableOutlineByDefault, // 6 -> 7: the outline is off unless asked for
                     ADDITIVE, // 7 -> 8: client logging, normal by default
-                    ADDITIVE)); // 8 -> 9: hands-free wake word, disabled by default
+                    ADDITIVE, // 8 -> 9: hands-free wake word, disabled by default
+                    ConfigStores::removeSocialOutline)); // 9 -> 10: the outline is stored with the companion
 
     private ConfigStores() {}
 
@@ -71,6 +72,11 @@ public final class ConfigStores {
      * file cannot tell a player's own choice from that old default; the mood mark keeps its own value.
      */
     private static void disableOutlineByDefault(JsonObject json) {
+        object(json, "social").remove("outline");
+    }
+
+    /** The outline moved into the world's companion preferences, so the client-wide copy is dropped. */
+    private static void removeSocialOutline(JsonObject json) {
         object(json, "social").remove("outline");
     }
 

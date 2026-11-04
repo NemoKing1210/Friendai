@@ -48,12 +48,12 @@ class LoggingConfigTest {
         Files.writeString(path, "{\"version\":7,\"social\":{\"outline\":true},\"future\":2}");
         var store = ConfigStores.client(path);
         ClientConfig config = store.load();
-        assertTrue(config.social.outline);
         assertEquals("normal", config.logging.level);
         store.save(config);
         JsonObject saved = json(path);
         assertEquals("normal", saved.getAsJsonObject("logging").get("level").getAsString());
         assertTrue(saved.has("future"));
+        assertFalse(saved.getAsJsonObject("social").has("outline"));
     }
 
     @Test

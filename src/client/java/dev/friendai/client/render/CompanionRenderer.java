@@ -3,7 +3,6 @@ package dev.friendai.client.render;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import dev.friendai.FriendaiMod;
-import dev.friendai.client.FriendaiClient;
 import dev.friendai.client.skin.SkinCache;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.social.Mood;
@@ -88,7 +87,7 @@ public class CompanionRenderer
         if (player == null) {
             return false;
         }
-        boolean enabled = FriendaiClient.clientConfig().social.outline;
+        boolean enabled = companion.syncedOutline();
         boolean ownerViewing = player.getUUID().toString().equals(companion.syncedOwner());
         if (!CompanionOutline.applies(enabled, ownerViewing)) {
             return false;

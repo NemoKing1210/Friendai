@@ -360,7 +360,6 @@ public final class SettingsModel {
         entries.add(advanced("friendai.config.mining.valuable_blocks", "mining", "valuable", "list", "blacklist"));
 
         // How the companion is drawn.
-        entries.add(basic("friendai.config.social.outline", "display", "outline", "highlight", "glow"));
         entries.add(basic("friendai.config.social.mood_mark", "display", "mood", "mark", "emotion"));
 
         // Voice: recognition and synthesis.

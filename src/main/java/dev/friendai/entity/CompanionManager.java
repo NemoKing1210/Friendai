@@ -103,6 +103,7 @@ public final class CompanionManager {
             return;
         }
         entity.syncCreativeModePreference();
+        entity.syncOutlinePreference();
         byOwner.put(owner, entity);
         runtime()
                 .skins()
