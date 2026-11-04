@@ -19,6 +19,7 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 - A free-time plan that arrives after the companion was teleported, dismissed or stopped is dropped instead of queueing work at the new position.
 - A skin picked in the appearance tab is no longer uploaded to a different server after a reconnect; the client says the connection changed instead.
 - A microphone preview that finishes late can no longer stop a recording that started after it.
+- A task that was frozen for another action no longer fails as stalled the moment it resumes.
 
 ## [0.202.1] - 2026-11-04
 

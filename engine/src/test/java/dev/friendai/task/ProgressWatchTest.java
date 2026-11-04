@@ -21,6 +21,19 @@ class ProgressWatchTest {
     }
 
     @Test
+    void aRebasedClockDoesNotCountTimeTheTaskCouldNotRun() {
+        ProgressWatch watch = new ProgressWatch(0);
+        assertEquals(ProgressWatch.Status.PROGRESS, watch.observe(1, -1, 0, 100, 40));
+        assertEquals(ProgressWatch.Status.STALLED, watch.observe(1, -1, 0, 150, 40), "without a rebase the gap stalls");
+        watch.rebase(50);
+        assertEquals(
+                ProgressWatch.Status.PROGRESS,
+                watch.observe(1, -1, 0, 160, 40),
+                "a frozen task resumes with its own elapsed time");
+        assertEquals(ProgressWatch.Status.STALLED, watch.observe(1, -1, 0, 205, 40));
+    }
+
+    @Test
     void aDeclaredWaitUsesItsOwnDeadline() {
         ProgressWatch watch = new ProgressWatch(0);
         assertEquals(ProgressWatch.Status.WAITING, watch.observe(1, 5, 20, 10, 20));

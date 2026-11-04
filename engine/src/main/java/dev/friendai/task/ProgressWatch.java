@@ -45,6 +45,16 @@ public final class ProgressWatch {
         return activeTick - lastChange >= Math.max(1, stallTicks) ? Status.STALLED : Status.PROGRESS;
     }
 
+    /**
+     * Moves the stall baseline forward by ticks the task was not allowed to run (a freeze or a hold), so the time an
+     * interrupter spent on the runner does not count as the task's own stall time.
+     */
+    public void rebase(int ticks) {
+        if (ticks > 0) {
+            lastChange += ticks;
+        }
+    }
+
     public int ticksSinceChange(int activeTick) {
         return Math.max(0, activeTick - lastChange);
     }
