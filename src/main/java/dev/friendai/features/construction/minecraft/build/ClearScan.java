@@ -8,6 +8,7 @@ import dev.friendai.features.navigation.minecraft.nav.LevelCellView;
 import dev.friendai.features.navigation.pathing.BlockList;
 import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -17,6 +18,7 @@ import net.minecraft.server.level.ServerChunkCache;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
@@ -49,6 +51,8 @@ public final class ClearScan {
         List<ClearCell> candidates = new ArrayList<>();
         EnumMap<ClearSkip, Integer> skipped = new EnumMap<>(ClearSkip.class);
         Set<Long> loaded = loadedChunks(level, min, max);
+        // Tags belong to the block, not to the state standing there, so one entry per block serves the whole scan.
+        Map<Block, Set<String>> tagsByBlock = new HashMap<>();
         int solids = 0;
         for (int x = min.getX(); x <= max.getX(); x++) {
             for (int y = min.getY(); y <= max.getY(); y++) {
@@ -71,7 +75,12 @@ public final class ClearScan {
                         skipped.merge(ClearSkip.PROTECTED, 1, Integer::sum);
                         continue;
                     }
-                    if (breakList.matches(LevelCellView.idOf(state.getBlock()), LevelCellView.tagsOf(state))) {
+                    if (breakList.isEmpty()
+                            || breakList.matches(
+                                    LevelCellView.idOf(state.getBlock()),
+                                    tagsByBlock.computeIfAbsent(
+                                            state.getBlock(),
+                                            block -> LevelCellView.tagsOf(block.defaultBlockState())))) {
                         skipped.merge(ClearSkip.BLACKLISTED, 1, Integer::sum);
                         continue;
                     }

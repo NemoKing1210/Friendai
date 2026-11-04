@@ -47,6 +47,11 @@ public final class BlockList {
         return new BlockList(Set.copyOf(ids), Set.copyOf(tags));
     }
 
+    /** Whether the list names neither a block id nor a tag, so it can never match. */
+    public boolean isEmpty() {
+        return ids.isEmpty() && tags.isEmpty();
+    }
+
     public boolean matches(String blockId, Set<String> blockTags) {
         if (ids.contains(blockId)) {
             return true;

@@ -27,4 +27,11 @@ class BlockListTest {
         BlockList list = BlockList.parse(List.of(), entry -> {});
         assertFalse(list.matches("minecraft:dirt", Set.of("minecraft:dirt")));
     }
+
+    @Test
+    void aListWithNoEntriesIsEmpty() {
+        assertTrue(BlockList.parse(List.of(), entry -> {}).isEmpty());
+        assertFalse(BlockList.parse(List.of("minecraft:bedrock"), entry -> {}).isEmpty());
+        assertFalse(BlockList.parse(List.of("#minecraft:logs"), entry -> {}).isEmpty());
+    }
 }
