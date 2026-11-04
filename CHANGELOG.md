@@ -6,6 +6,11 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+### Fixed
+
+- The companion hands over what you asked it to make: it walks over and drops the items at your feet instead of asking whether it should, and a tool it swapped out mid-job is picked up rather than reported missing.
+- Stone it mined for your tools no longer disappears into a pillar: a climb, a bridge or a catch platform leaves the material your plan still needs in the bag and says what it is short of.
+
 ## [0.204.0] - 2026-11-04
 
 ### Added

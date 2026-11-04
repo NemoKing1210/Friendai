@@ -68,6 +68,10 @@ public class MiningTests {
         TaskContext context = new TaskContext(c, h.getLevel());
         Scaffold.State state = scaffold.pillarTo(context, c.blockPosition().getY() + 2);
         h.assertTrue(state == Scaffold.State.FAILED, "a reserved stack must not be placed: " + state);
+        h.assertTrue(scaffold.reservedOnly(), "the failure must name the reserved material: " + scaffold.failure());
+        h.assertTrue(
+                scaffold.failure().equals("only 8 minecraft:cobblestone left, and the plan still needs it"),
+                "failure was " + scaffold.failure());
         h.assertValueEqual(c.inventory().countItem(Items.COBBLESTONE), 8, "the reserved cobblestone stays in the bag");
         h.assertTrue(scaffold.placed().isEmpty(), "no scaffold block may be placed");
         h.succeed();

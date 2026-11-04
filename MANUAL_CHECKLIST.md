@@ -16,6 +16,8 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 
 ## End to end with a real provider
 
+- [ ] "/friendai summon", then "сделай мне каменные инструменты" in a real session with a provider: the companion makes them, walks over, drops them at your feet and says the job is done without asking whether to hand them over; the goal's delivery criterion is confirmed by the drop and is not repeated as unconfirmed in the next replies.
+- [ ] Ask it to mine 20 stone for tools and watch it leave the pit: it does not pillar up on the stone it just mined — it digs out or says the cobblestone is reserved, and the stone is still in its bag afterwards.
 - [ ] `/friendai summon`, then "Friendai, mine 3 logs" next to trees: reply in chat, logs chopped, drops collected, result reported.
 - [ ] The same in Russian ("Friendai, добудь 3 дерева"): the companion answers in Russian.
 - [ ] "Friendai, chop that tree" next to a tall tree: it is felled from the lowest log up, the logs are collected and the result is reported.

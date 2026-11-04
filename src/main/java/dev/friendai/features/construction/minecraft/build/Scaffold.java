@@ -41,6 +41,8 @@ public final class Scaffold {
     }
     /** The failure text when the companion carries nothing left to scaffold with. */
     public static final String OUT_OF_MATERIAL = "I ran out of dirt or cobblestone for scaffolding";
+    /** The failure text when the bag holds the material but the planned work still needs it. */
+    public static final String RESERVED_ONLY_PREFIX = "only ";
     /** How many blocks one pillar may climb above where it started. */
     public static final int MAX_PILLAR = 16;
 
@@ -149,6 +151,28 @@ public final class Scaffold {
         return OUT_OF_MATERIAL.equals(failure);
     }
 
+    /** Whether the last failure was material the planned work still needs, which is not the same as having none. */
+    public boolean reservedOnly() {
+        return failure != null && failure.startsWith(RESERVED_ONLY_PREFIX);
+    }
+
+    /**
+     * Why no block can be spent: the reserve, named with what the bag actually holds, or the plain lack of material.
+     * The wording tells the model which remedy is open to it — mine more, gather dirt, or replan — without the mod
+     * choosing one.
+     */
+    private String materialFailure() {
+        int cobble = count(companion, Items.COBBLESTONE);
+        if (cobble > 0 && surplus(Items.COBBLESTONE) <= 0) {
+            return RESERVED_ONLY_PREFIX + cobble + " minecraft:cobblestone left, and the plan still needs it";
+        }
+        int dirt = count(companion, Items.DIRT);
+        if (dirt > 0 && surplus(Items.DIRT) <= 0) {
+            return RESERVED_ONLY_PREFIX + dirt + " minecraft:dirt left, and the plan still needs it";
+        }
+        return OUT_OF_MATERIAL;
+    }
+
     /**
      * Places one scaffold block at {@code below} so the block above it has a support face. Returns false when no
      * support can be placed there (no sturdy neighbour, the cell is not free, or no material).
@@ -190,7 +214,7 @@ public final class Scaffold {
         }
         CreativeItemLease lease = takeMaterial(context);
         if (lease == null) {
-            failure = OUT_OF_MATERIAL;
+            failure = materialFailure();
             return false;
         }
         lease.place(companion.hands(), spot.get().against(), spot.get().face());
@@ -249,7 +273,7 @@ public final class Scaffold {
             }
             CreativeItemLease lease = takeMaterial(context);
             if (lease == null) {
-                failure = OUT_OF_MATERIAL;
+                failure = materialFailure();
                 resetPillar();
                 return State.FAILED;
             }
@@ -290,7 +314,7 @@ public final class Scaffold {
             return State.FAILED;
         }
         if (!canScaffold(context)) {
-            failure = OUT_OF_MATERIAL;
+            failure = materialFailure();
             return State.FAILED;
         }
         pillarFeet = feet;

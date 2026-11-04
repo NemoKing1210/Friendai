@@ -62,7 +62,9 @@ public final class CatchPlatform {
             }
             Optional<ItemStack> taken = materials.takeCheapest(c.companion().inventory());
             if (taken.isEmpty()) {
-                failure = "no building material";
+                failure = materials.hasSpendable(c.companion().inventory())
+                        ? "no building material"
+                        : "the blocks I carry are still needed by the plan";
                 return State.REFUSED;
             }
             c.companion().hands().place(taken.get(), anchor.pos(), anchor.face());
