@@ -6,6 +6,14 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.207.0] - 2026-11-04
+
+### Added
+
+- The companion plans a multi-step order before it starts working, and keeps repairing a plan whose step failed instead of asking you after one attempt.
+- An order to a companion whose last plan failed is now replanned even when you had set no goal, and a plan the planner cannot deliver falls back to the companion acting on its own.
+- Route and planner decisions are recorded in the world log, so "why did it do that?" has an answer without reproducing the turn.
+
 ## [0.206.0] - 2026-11-04
 
 ### Changed

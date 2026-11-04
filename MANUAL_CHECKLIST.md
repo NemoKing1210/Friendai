@@ -35,6 +35,7 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] A plan that cannot finish (e.g. mine a block that is not nearby): the companion explains the blocked step and repairs the queue with `queue_edit`.
 - [ ] A real provider drives a 20+ step plan and moves or reprioritizes a pending job while it is running.
 - [ ] A failed step produces a plan decision event and the companion repairs it with `queue_edit` without resending the whole plan.
+- [ ] Give a two-kind order ("bring me ten oak logs and then build a three-block wall") with a real provider: the world log shows one `route.decision` naming an `owner_order` subject, then `plan.request` and `plan.delivered` with a plan id and a duration, and the first reply already works from the queued plan instead of one tool call at a time. With the provider unreachable, the same order shows `plan.failed` and `plan.fallback`, and the companion carries on without claiming a plan exists.
 - [ ] Reload a world mid-plan: ready work resumes, and a job whose tool disappeared reports that it needs repair.
 - [ ] `queue_show` remains readable with 50+ jobs and truncates long arguments and results.
 - [ ] A fight and a starving entry each interrupt the running queue job and resume it afterwards.
