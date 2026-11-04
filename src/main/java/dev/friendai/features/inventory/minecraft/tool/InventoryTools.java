@@ -159,8 +159,16 @@ public final class InventoryTools implements FeatureToolContributor {
     private static ToolMeta metadata(String name) {
         return switch (name) {
             case "get_inventory" -> new ToolMeta(name, ToolGroup.CORE, true, "", List.of(), Cost.LOW);
-            case "give_items", "drop_items", "equip_item" ->
-                new ToolMeta(name, ToolGroup.INVENTORY, false, "", List.of(), Cost.LOW);
+            case "give_items" ->
+                new ToolMeta(
+                        name,
+                        ToolGroup.INVENTORY,
+                        false,
+                        "- Use it to finish a job that was for the owner: their request is the permission to hand the items"
+                                + " over, so give them yourself instead of asking.",
+                        List.of(),
+                        Cost.LOW);
+            case "drop_items", "equip_item" -> new ToolMeta(name, ToolGroup.INVENTORY, false, "", List.of(), Cost.LOW);
             case "pickup_items" ->
                 new ToolMeta(
                         name,

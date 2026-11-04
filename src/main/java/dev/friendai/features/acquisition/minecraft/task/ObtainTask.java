@@ -207,6 +207,17 @@ public final class ObtainTask implements Task {
         return "obtain_item";
     }
 
+    /** The item this job was sent for is not path material while it is still being gathered. */
+    @Override
+    public java.util.Map<String, Integer> materialNeeds(TaskContext context) {
+        int missing = count - have(context.companion());
+        if (missing <= 0) {
+            return java.util.Map.of();
+        }
+        String id = ItemMatcher.parse(item).map(ItemMatcher::label).orElse("");
+        return id.isBlank() ? java.util.Map.of() : java.util.Map.of(id, missing);
+    }
+
     @Override
     public boolean hasTimeout() {
         return false;

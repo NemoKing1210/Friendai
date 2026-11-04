@@ -595,7 +595,7 @@ public final class MiningSession {
         PathingConfig config = context.pathingConfig().withActions(true, false);
         executor = new PathExecutor(
                 route,
-                new MaterialPicker(config, context.breakList(), context.placeList()),
+                new MaterialPicker(config, context.breakList(), context.placeList(), context.materialReserve()),
                 config,
                 guard(context),
                 null,

@@ -291,7 +291,9 @@ public final class DepositTask implements Task {
                     food == null ? 0 : food.nutrition(),
                     price));
         }
-        Map<Integer, Integer> keep = KeepPolicy.keep(slots, configuredKeepItems);
+        // The plan's own material stays home: storing it would leave a queued step without its ingredients.
+        Map<Integer, Integer> keep =
+                KeepPolicy.keep(slots, configuredKeepItems, c.materialReserve().asMap());
         Map<Integer, Integer> deposit = new java.util.LinkedHashMap<>();
         for (KeepPolicy.Slot slot : slots) {
             int count = slot.count() - keep.getOrDefault(slot.index(), 0);

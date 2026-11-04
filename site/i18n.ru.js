@@ -215,6 +215,7 @@ const RU = {
   "Open the inventory view.": "Открыть окно инвентаря.",
   "Equip gear.": "Надеть снаряжение.",
   "Hand items to a player.": "Передать предметы игроку.",
+  "Hand items to a player, and finish work the owner asked for without asking again.": "Передать предметы игроку и завершить работу, которую просил владелец, не переспрашивая.",
   "Drop items.": "Выбросить предметы.",
   "Throw an item.": "Бросить предмет.",
   "Store up to two stacks in one call.": "Положить до двух стаков за один вызов.",

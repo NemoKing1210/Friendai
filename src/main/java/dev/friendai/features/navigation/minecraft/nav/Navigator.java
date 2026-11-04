@@ -132,7 +132,7 @@ public final class Navigator {
     }
 
     private MaterialPicker materials(PathingConfig config) {
-        return new MaterialPicker(config, breakList, placeList);
+        return new MaterialPicker(config, breakList, placeList, companion.materialReserve());
     }
 
     public State state() {

@@ -72,7 +72,7 @@ const CATS = [
   { id: "inventory", domain: "hands", name: "Inventory & Storage", icon: "🎒", color: COLORS.amethyst,
     desc: "A 27-slot inventory plus six gear slots, shared container logic, and a bounded memory of containers the companion has opened.",
     items: [
-      "get_inventory|List what it carries.", "show_inventory|Open the inventory view.", "equip_item|Equip gear.", "give_items|Hand items to a player.",
+      "get_inventory|List what it carries.", "show_inventory|Open the inventory view.", "equip_item|Equip gear.", "give_items|Hand items to a player, and finish work the owner asked for without asking again.",
       "drop_items|Drop items.", "throw_item|Throw an item.", "store_items|Store up to two stacks in one call.", "take_items|Take items out of a container.",
       "check_container|Look inside a container.", "deposit_items|Deposit into the nearest storage.",
       "find_stored_item|Report where you last saw an item in a recorded container.", "move_items|Move a known quantity between two containers in one call.",

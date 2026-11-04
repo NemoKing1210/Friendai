@@ -93,6 +93,11 @@ public record TaskContext(
         return serverSettings.tasks();
     }
 
+    /** The material the remaining queued work still needs; a pillar, bridge or platform must not spend it. */
+    public dev.friendai.features.navigation.pathing.MaterialReserve materialReserve() {
+        return companion.materialReserve();
+    }
+
     public boolean tradingEnabled() {
         return serverSettings.trading().enabled();
     }

@@ -144,6 +144,17 @@ public final class MineBlocksTask implements Task {
         return "mine_blocks";
     }
 
+    /** The blocks this job was sent for are not path material: a climb must find its own. */
+    @Override
+    public java.util.Map<String, Integer> materialNeeds(TaskContext context) {
+        int remaining = count - mined;
+        String label = matcher.label();
+        if (remaining <= 0 || label.isBlank() || label.startsWith("#")) {
+            return java.util.Map.of();
+        }
+        return java.util.Map.of(label, remaining);
+    }
+
     @Override
     public List<DebugTarget> debugTargets() {
         if (miningSessionActive) {

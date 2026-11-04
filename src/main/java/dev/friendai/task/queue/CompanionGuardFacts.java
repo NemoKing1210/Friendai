@@ -16,6 +16,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
 
 /** One server-thread facts pass for queue guards. */
@@ -113,8 +114,26 @@ public final class CompanionGuardFacts implements GuardFacts {
             ItemStack stack = inventory.getItem(i);
             if (matcher.test(stack)) count += stack.getCount();
         }
+        // A drop the companion handed over at the owner's feet is evidence too, but only while it is still there:
+        // the owner's pickup is confirmation, and a despawned or destroyed stack proves nothing.
+        count = Math.max(count, delivered(matcher));
         ownerItemCounts.put(id, count);
         return count;
+    }
+
+    /** What the companion handed over recently and whose drop is still in the world. */
+    private int delivered(ItemMatcher matcher) {
+        if (companion.delivered().isEmpty()) {
+            return 0;
+        }
+        return companion
+                .delivered()
+                .count(
+                        matcher.label(),
+                        companion.level().getGameTime(),
+                        uuid -> companion.level().getEntity(uuid) instanceof ItemEntity item
+                                && !item.isRemoved()
+                                && matcher.test(item.getItem()));
     }
 
     @Override
