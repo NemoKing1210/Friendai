@@ -15,6 +15,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -23,6 +24,7 @@ import org.junit.jupiter.api.Test;
 
 class ArchitectureRulesTest {
     private static final Path PROJECT_ROOT = Path.of("").toAbsolutePath().normalize();
+    private static final Path KNOWN_FEATURE_CYCLES = PROJECT_ROOT.resolve("architecture/known-feature-cycles.txt");
     private static final Pattern GAME_TEST_ANNOTATION = Pattern.compile("(?m)^\\s*@GameTest(?:Generator)?\\b");
 
     @Test
@@ -586,7 +588,7 @@ class ArchitectureRulesTest {
         assertTrue(
                 PackageDependencyRules.validateEngineDependencies(engineEdges).isEmpty(),
                 "Engine class dependencies must exclude game, optional UI and native audio packages");
-        List<Violation> actual = PackageDependencyRules.validate(edges);
+        List<Violation> actual = PackageDependencyRules.validate(edges, readFeatureCycleBaseline());
         List<ArchitectureFixtures.LegacyEdge> documented =
                 ArchitectureFixtures.readLegacyEdges(PROJECT_ROOT.resolve("architecture/legacy-dependency-edges.tsv"));
         assertTrue(documented.isEmpty(), "No transitional class dependency exceptions are permitted");
@@ -595,6 +597,45 @@ class ArchitectureRulesTest {
                 .map(edge -> violation(edge.ruleId(), edge.sourceClass(), edge.targetClass()))
                 .collect(java.util.stream.Collectors.toSet());
         assertEquals(expected, Set.copyOf(actual), "Unexpected or stale class dependency exceptions");
+    }
+
+    @Test
+    void featureDependencyGraphHasOnlyKnownCycles() throws Exception {
+        String classpath = System.getProperty("friendai.architecture.classpath", "");
+        assertFalse(classpath.isBlank(), "Gradle must provide compiled project dependencies to jdeps");
+
+        List<DependencyEdge> edges = ArchitectureFixtures.collectCompiledProjectEdges(PROJECT_ROOT, classpath);
+        List<Set<String>> actualCycles = FeatureGraph.cycles(edges);
+
+        assertEquals(
+                List.of(),
+                FeatureGraph.violations(edges, readFeatureCycleBaseline()),
+                () -> "Feature cycles must be recorded in architecture/known-feature-cycles.txt: " + actualCycles);
+    }
+
+    private static List<Set<String>> readFeatureCycleBaseline() throws IOException {
+        if (!Files.isRegularFile(KNOWN_FEATURE_CYCLES)) {
+            return List.of();
+        }
+        List<Set<String>> baseline = new ArrayList<>();
+        for (String rawLine : Files.readAllLines(KNOWN_FEATURE_CYCLES)) {
+            int comment = rawLine.indexOf('#');
+            String line = (comment >= 0 ? rawLine.substring(0, comment) : rawLine).trim();
+            if (line.isEmpty()) {
+                continue;
+            }
+            Set<String> features = new LinkedHashSet<>();
+            for (String feature : line.split(",")) {
+                String trimmed = feature.trim();
+                if (!trimmed.isEmpty()) {
+                    features.add(trimmed);
+                }
+            }
+            if (features.size() > 1) {
+                baseline.add(features);
+            }
+        }
+        return baseline;
     }
 
     @Test
@@ -627,7 +668,7 @@ class ArchitectureRulesTest {
                     "Missing GameTest entrypoint: " + className);
         }
         assertEquals(
-                104, gameTestClasses.size(), "Update this inventory count when GameTest scope intentionally changes");
+                111, gameTestClasses.size(), "Update this inventory count when GameTest scope intentionally changes");
 
         try (Stream<Path> files = Files.walk(PROJECT_ROOT.resolve("src/gametest/java"))) {
             for (Path file :

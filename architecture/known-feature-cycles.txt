@@ -1,0 +1,3 @@
+# Known feature SCCs at 0.209.0 / 1ce4fef6. Deleted at the end of Wave 1.
+acquisition,combat,construction,cooking,crafting,farming,fire,inventory,knowledge,mining,navigation,placements,places,survival,trading
+memory,social

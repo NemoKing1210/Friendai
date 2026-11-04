@@ -157,6 +157,15 @@ final class PackageDependencyRules {
     }
 
     static List<Violation> validate(List<DependencyEdge> edges) {
+        return validate(edges, List.of(), false);
+    }
+
+    static List<Violation> validate(List<DependencyEdge> edges, List<Set<String>> featureCycleBaseline) {
+        return validate(edges, featureCycleBaseline, true);
+    }
+
+    private static List<Violation> validate(
+            List<DependencyEdge> edges, List<Set<String>> featureCycleBaseline, boolean checkFeatureCycles) {
         Set<Violation> violations = new LinkedHashSet<>();
         for (DependencyEdge edge : edges) {
             String source = edge.sourceClass();
@@ -211,6 +220,9 @@ final class PackageDependencyRules {
                     && target.equals("dev.friendai.task.TaskContext")) {
                 add(violations, "feature-task-context-leak", edge);
             }
+        }
+        if (checkFeatureCycles) {
+            violations.addAll(FeatureGraph.violations(edges, featureCycleBaseline));
         }
         return violations.stream().sorted(VIOLATION_ORDER).toList();
     }
