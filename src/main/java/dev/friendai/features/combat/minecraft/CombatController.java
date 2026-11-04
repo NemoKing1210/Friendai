@@ -15,11 +15,13 @@ import dev.friendai.features.combat.ThreatTable;
 import dev.friendai.features.combat.WeaponPolicy;
 import dev.friendai.features.inventory.minecraft.Equipment;
 import dev.friendai.features.navigation.movement.Facing;
-import dev.friendai.features.survival.HungerModel;
-import dev.friendai.features.survival.minecraft.Food;
+import dev.friendai.foundation.body.HungerModel;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskExecutionPort;
 import dev.friendai.task.inventory.DropCollector;
+import dev.friendai.world.food.EatingController;
+import dev.friendai.world.food.Food;
+import dev.friendai.world.targeting.Threats;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -63,7 +65,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 /** Reflex combat, ticked before the task runner: fight back, defend the owner, guard. */
-public final class CombatController {
+public final class CombatController implements EatingController {
     private TaskExecutionPort.Hold executionHold;
 
     public enum State {

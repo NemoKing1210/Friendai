@@ -16,12 +16,12 @@ import dev.friendai.features.memory.MemoryBook;
 import dev.friendai.features.navigation.minecraft.nav.Pace;
 import dev.friendai.features.navigation.minecraft.task.FollowTask;
 import dev.friendai.features.navigation.movement.PaceMode;
-import dev.friendai.features.survival.Difficulty;
 import dev.friendai.features.survival.ExperienceModel;
-import dev.friendai.features.survival.HungerModel;
 import dev.friendai.features.survival.minecraft.HungerWatcher;
 import dev.friendai.features.survival.minecraft.selfcare.SelfCareReflex;
 import dev.friendai.features.survival.minecraft.task.SleepTask;
+import dev.friendai.foundation.body.Difficulty;
+import dev.friendai.foundation.body.HungerModel;
 import dev.friendai.menu.FriendaiMenus;
 import dev.friendai.server.companion.CompanionExecution;
 import dev.friendai.server.companion.CompanionNames;
@@ -36,6 +36,7 @@ import dev.friendai.server.execution.persistence.TaskPersistenceCoordinator;
 import dev.friendai.server.runtime.ServerRuntimeRegistry;
 import dev.friendai.task.TaskExecutionPort;
 import dev.friendai.task.interact.CompanionHands;
+import dev.friendai.world.food.EatingController;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -404,6 +405,11 @@ public class CompanionEntity extends PathfinderMob {
 
     public CombatController combatController() {
         return combatController;
+    }
+
+    /** The live eating arbitration shared with the combat controller. */
+    public EatingController eatingController() {
+        return combatController();
     }
 
     public FireReflex fireReflex() {

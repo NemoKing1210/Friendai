@@ -1,7 +1,7 @@
-package dev.friendai.features.survival.minecraft;
+package dev.friendai.world.food;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.features.survival.HungerModel;
+import dev.friendai.foundation.body.HungerModel;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalInt;

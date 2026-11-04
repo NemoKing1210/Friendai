@@ -1,8 +1,8 @@
-package dev.friendai.features.combat.minecraft;
+package dev.friendai.world.targeting;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.features.combat.ThreatClass;
-import dev.friendai.features.combat.ThreatRules;
+import dev.friendai.foundation.targeting.ThreatClass;
+import dev.friendai.foundation.targeting.ThreatRules;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;

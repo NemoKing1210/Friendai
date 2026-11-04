@@ -14,7 +14,7 @@ import dev.friendai.features.inventory.minecraft.task.EquipTask;
 import dev.friendai.features.inventory.minecraft.task.GiveItemsTask;
 import dev.friendai.features.inventory.minecraft.task.PickupItemsTask;
 import dev.friendai.features.inventory.minecraft.task.ThrowItemTask;
-import dev.friendai.features.survival.HungerModel;
+import dev.friendai.foundation.body.HungerModel;
 import dev.friendai.server.execution.tools.FeatureToolContributor;
 import dev.friendai.server.execution.tools.FeatureToolRegistry;
 import dev.friendai.server.execution.tools.TaskToolDefinition;

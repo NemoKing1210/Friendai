@@ -335,10 +335,8 @@ class ArchitectureRulesTest {
                         "dev.friendai.features.creative.minecraft.CreativeItemCapability"),
                 edge(
                         "dev.friendai.features.inventory.minecraft.tool.InventoryTools",
-                        "dev.friendai.features.survival.HungerModel"),
-                edge(
-                        "dev.friendai.features.animals.minecraft.Animals",
-                        "dev.friendai.features.combat.minecraft.Threats"),
+                        "dev.friendai.foundation.body.HungerModel"),
+                edge("dev.friendai.features.animals.minecraft.Animals", "dev.friendai.world.targeting.Threats"),
                 edge(
                         "dev.friendai.features.animals.minecraft.task.LeadTask",
                         "dev.friendai.features.navigation.minecraft.nav.Approach"),
@@ -351,7 +349,7 @@ class ArchitectureRulesTest {
                         "dev.friendai.features.inventory.minecraft.Equipment"),
                 edge(
                         "dev.friendai.features.combat.minecraft.CombatController",
-                        "dev.friendai.features.survival.HungerModel"),
+                        "dev.friendai.foundation.body.HungerModel"),
                 edge(
                         "dev.friendai.features.survival.minecraft.task.EatTask",
                         "dev.friendai.features.combat.minecraft.CombatController"),
@@ -378,7 +376,7 @@ class ArchitectureRulesTest {
                         "dev.friendai.features.fire.minecraft.FireHands"),
                 edge(
                         "dev.friendai.features.interaction.minecraft.task.InteractEntityTask",
-                        "dev.friendai.features.combat.minecraft.Threats"),
+                        "dev.friendai.world.targeting.Threats"),
                 edge("dev.friendai.features.fire.minecraft.FireScan", "dev.friendai.features.crafting.Station"),
                 edge(
                         "dev.friendai.features.fire.minecraft.task.ExtinguishFireTask",

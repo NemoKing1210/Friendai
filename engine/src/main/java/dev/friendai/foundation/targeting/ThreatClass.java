@@ -1,4 +1,4 @@
-package dev.friendai.features.combat;
+package dev.friendai.foundation.targeting;
 
 /** What a mob is, before any permission or distance is considered. */
 public enum ThreatClass {

@@ -1,4 +1,4 @@
-package dev.friendai.features.survival;
+package dev.friendai.foundation.body;
 
 /**
  * A companion's food, saturation and exhaustion, ported from vanilla

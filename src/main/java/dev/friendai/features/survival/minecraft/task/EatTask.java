@@ -1,12 +1,12 @@
 package dev.friendai.features.survival.minecraft.task;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.features.combat.minecraft.CombatController;
-import dev.friendai.features.survival.HungerModel;
-import dev.friendai.features.survival.minecraft.Food;
+import dev.friendai.foundation.body.HungerModel;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.world.food.EatingController;
+import dev.friendai.world.food.Food;
 import java.util.Locale;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -42,7 +42,7 @@ public final class EatTask implements Task {
     @Override
     public TaskStatus tick(TaskContext c) {
         CompanionEntity companion = c.companion();
-        CombatController controller = companion.combatController();
+        EatingController controller = companion.eatingController();
         if (!started) {
             TaskStatus chosen = choose(companion);
             if (chosen != null) {

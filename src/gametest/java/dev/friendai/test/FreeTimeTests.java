@@ -109,7 +109,7 @@ public class FreeTimeTests {
     private static void drainHunger(GameTestHelper h, CompanionEntity c, int target) {
         while (c.hunger().food() > target) {
             c.hunger().addExhaustion(4.0f);
-            c.hunger().tick(dev.friendai.features.survival.Difficulty.NORMAL, true, c.getHealth(), c.getMaxHealth());
+            c.hunger().tick(dev.friendai.foundation.body.Difficulty.NORMAL, true, c.getHealth(), c.getMaxHealth());
         }
     }
 

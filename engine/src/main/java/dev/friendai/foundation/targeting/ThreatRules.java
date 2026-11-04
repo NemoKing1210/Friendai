@@ -1,4 +1,4 @@
-package dev.friendai.features.combat;
+package dev.friendai.foundation.targeting;
 
 import java.util.Set;
 

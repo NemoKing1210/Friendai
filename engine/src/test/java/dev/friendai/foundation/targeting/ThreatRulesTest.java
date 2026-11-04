@@ -1,4 +1,4 @@
-package dev.friendai.features.combat;
+package dev.friendai.foundation.targeting;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;

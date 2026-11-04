@@ -1,4 +1,4 @@
-package dev.friendai.features.survival;
+package dev.friendai.foundation.body;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;

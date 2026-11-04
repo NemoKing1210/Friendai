@@ -148,7 +148,7 @@ public class CombatPotionTests {
                 "the test potion was not in the inventory before the fight");
         float ownerHealth = owner.getHealth();
         h.assertTrue(
-                dev.friendai.features.combat.minecraft.Threats.isProtected(owner, c),
+                dev.friendai.world.targeting.Threats.isProtected(owner, c),
                 "the mock owner must count as a protected entity");
         h.assertTrue(
                 owner.distanceTo(zombie) <= 4.0,
