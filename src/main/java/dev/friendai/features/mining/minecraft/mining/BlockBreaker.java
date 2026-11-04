@@ -151,7 +151,7 @@ public final class BlockBreaker {
         this.requireSight = requireSight;
         this.digToTarget = digToTarget;
         this.allowBreakingSupport = allowBreakingSupport;
-        this.approach = new Approach(this.candidates, mayPlace, ledger);
+        this.approach = new Approach(this.candidates, mayPlace, ledger, requireSight && !digToTarget);
     }
 
     /** The candidate the breaker settled on, or null while it is still walking. */

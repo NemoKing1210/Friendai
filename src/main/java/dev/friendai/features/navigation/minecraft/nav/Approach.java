@@ -52,6 +52,8 @@ public final class Approach {
     private final List<BlockPos> candidates;
     /** Whether the route may pillar or bridge. Off for an approach that must not spend the caller's material. */
     private final boolean mayPlace;
+    /** Whether reaching the block also requires a clear line of sight to it. */
+    private final boolean requireSight;
     /** Where blocks placed by the route are remembered, or null when they are not the caller's to remove. */
     private final PlacementLedger ledger;
     /** Cells a caller needs to reserve for future work, such as the rest of a blueprint being built. */
@@ -80,29 +82,39 @@ public final class Approach {
      *     at the cost of the material in the companion's inventory.
      */
     public Approach(Collection<BlockPos> candidates, boolean mayPlace) {
-        this(candidates, mayPlace, Set.of(), null);
+        this(candidates, mayPlace, Set.of(), null, true);
     }
 
     /** @param ledger records blocks the route places, so a task that pillared to reach a block can remove it. */
     public Approach(Collection<BlockPos> candidates, boolean mayPlace, PlacementLedger ledger) {
-        this(candidates, mayPlace, Set.of(), ledger);
+        this(candidates, mayPlace, Set.of(), ledger, true);
+    }
+
+    /**
+     * @param requireSight whether the block must be visible from the stance. Off for a caller that may dig away an
+     *     obstruction, so an occluded stance still counts as a reach.
+     */
+    public Approach(Collection<BlockPos> candidates, boolean mayPlace, PlacementLedger ledger, boolean requireSight) {
+        this(candidates, mayPlace, Set.of(), ledger, requireSight);
     }
 
     /** Excludes planned cells from creative flight landings so an approach cannot trap the companion in a build. */
     public Approach(Collection<BlockPos> candidates, boolean mayPlace, Set<BlockPos> excludedFlightCells) {
-        this(candidates, mayPlace, excludedFlightCells, null);
+        this(candidates, mayPlace, excludedFlightCells, null, true);
     }
 
     private Approach(
             Collection<BlockPos> candidates,
             boolean mayPlace,
             Set<BlockPos> excludedFlightCells,
-            PlacementLedger ledger) {
+            PlacementLedger ledger,
+            boolean requireSight) {
         if (candidates.isEmpty()) {
             throw new IllegalArgumentException("Approach needs at least one candidate");
         }
         this.candidates = List.copyOf(candidates);
         this.mayPlace = mayPlace;
+        this.requireSight = requireSight;
         this.ledger = ledger;
         this.excludedFlightCells = Set.copyOf(excludedFlightCells);
     }
@@ -309,7 +321,7 @@ public final class Approach {
         List<Pos> targets = candidates.stream()
                 .map(pos -> new Pos(pos.getX(), pos.getY(), pos.getZ()))
                 .toList();
-        return new GoalReach(targets, REACH, companion.getEyeHeight());
+        return new GoalReach(targets, REACH, companion.getEyeHeight(), requireSight);
     }
 
     /**
@@ -328,7 +340,7 @@ public final class Approach {
                 continue;
             }
             double distance = eye.distanceTo(Vec3.atCenterOf(candidate));
-            if (distance <= bestDistance && Sight.canSee(level, companion, candidate)) {
+            if (distance <= bestDistance && (!requireSight || Sight.canSee(level, companion, candidate))) {
                 best = candidate;
                 bestDistance = distance;
             }

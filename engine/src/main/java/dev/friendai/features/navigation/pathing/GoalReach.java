@@ -3,10 +3,14 @@ package dev.friendai.features.navigation.pathing;
 import java.util.List;
 
 /** A goal of getting close enough to act on one of several blocks: a log to mine, a chest to open. */
-public record GoalReach(List<Pos> targets, double reach, double eyeHeight) implements PathGoal {
+public record GoalReach(List<Pos> targets, double reach, double eyeHeight, boolean requireSight) implements PathGoal {
 
     public GoalReach {
         targets = List.copyOf(targets);
+    }
+
+    public GoalReach(List<Pos> targets, double reach, double eyeHeight) {
+        this(targets, reach, eyeHeight, true);
     }
 
     @Override
@@ -56,7 +60,7 @@ public record GoalReach(List<Pos> targets, double reach, double eyeHeight) imple
         for (Pos target : targets) {
             if (!occupies(n, target)
                     && distance(n, target) <= reach
-                    && LineOfSight.clear(view, eyeX(n), eyeY(n), eyeZ(n), target)) {
+                    && (!requireSight || LineOfSight.clear(view, eyeX(n), eyeY(n), eyeZ(n), target))) {
                 return target;
             }
         }

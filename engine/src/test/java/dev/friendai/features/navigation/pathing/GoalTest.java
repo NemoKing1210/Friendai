@@ -90,6 +90,14 @@ class GoalTest {
     }
 
     @Test
+    void reachWithoutSightAcceptsAnOccludedStance() {
+        GridCellView v = new GridCellView("#####", ".....", "...G.", ".....");
+        GoalReach reach = new GoalReach(List.of(new Pos(4, 2, 0)), 4.0, 1.62, false);
+        assertEquals(new Pos(4, 2, 0), reach.reachedTarget(new Node(1, 1, 0), v));
+        assertTrue(reach.isGoal(new Node(1, 1, 0), v));
+    }
+
+    @Test
     void reachProtectsTargets() {
         GoalReach reach = new GoalReach(List.of(new Pos(4, 2, 0)), 4.0, 1.62);
         assertTrue(reach.protects(new Pos(4, 2, 0)));
