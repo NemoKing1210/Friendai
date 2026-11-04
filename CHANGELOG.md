@@ -6,6 +6,8 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.206.0] - 2026-11-04
+
 ### Changed
 
 - `clear_area` walks to a water source instead of only taking the sources within arm's reach.
