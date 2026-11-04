@@ -27,6 +27,15 @@ public final class PlanAuthority {
         return principal != null ? principal : owner;
     }
 
+    /**
+     * The principal a planner consultation runs as. A troubled plan runs as its own principal, resolved now from its
+     * jobs, so a guest's failed plan is never replanned with the owner's tool set and memory. Every other subject runs
+     * as the caller the turn already fixed: an owner order is the caller's own work.
+     */
+    public static UUID consultAs(PlanSubject subject, List<Job> jobs, UUID owner, UUID turnCaller) {
+        return subject instanceof PlanSubject.TroubledPlan ? principal(jobs, owner) : turnCaller;
+    }
+
     /** True when the caller may still run every step of the plan; a step whose requirement is unknown is not held. */
     public static boolean holds(List<Job> jobs, Caller caller, Function<String, AccessLevel> required) {
         if (caller == null) return false;

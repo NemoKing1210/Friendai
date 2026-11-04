@@ -42,15 +42,22 @@ public final class TurnRouter {
     }
 
     public RouteDecision route(RouteSignals s) {
+        // Read the player's words before the plan branch: a failed plan can arrive beside a new order, and the
+        // order is what the planner should plan. Empty text keeps the recovery turn's subject the troubled plan.
+        String text = s.playerText().length() > MAX_TEXT ? s.playerText().substring(0, MAX_TEXT) : s.playerText();
+        String lower = text.toLowerCase(Locale.ROOT).strip();
+        List<String> tokens = tokens(lower);
+        Map<String, Set<ToolGroup>> verbs = vocabulary.verbsIn(tokens);
+        int kinds = kinds(verbs.values());
+        boolean complex = vocabulary.hasComplexMarker(lower);
+        boolean planRequest = vocabulary.hasPlanRequest(lower);
         if (s.planBlockedOrFailed()) {
             return new RouteDecision(
                     TurnMode.RECOVERY,
                     all(),
-                    plan(TurnMode.RECOVERY, s, "", 0, false, false),
+                    plan(TurnMode.RECOVERY, s, text, kinds, complex, planRequest),
                     "a plan failed or needs a decision");
         }
-        String text = s.playerText().length() > MAX_TEXT ? s.playerText().substring(0, MAX_TEXT) : s.playerText();
-        String lower = text.toLowerCase(Locale.ROOT).strip();
         if (s.turn() == TurnKind.EVENT || lower.isEmpty()) {
             TurnMode mode = s.turn() == TurnKind.EVENT ? TurnMode.EVENT : TurnMode.ACTION;
             return new RouteDecision(
@@ -59,8 +66,6 @@ public final class TurnRouter {
                     plan(mode, s, text, 0, false, false),
                     s.turn() == TurnKind.EVENT ? "no player message" : "empty player message");
         }
-        List<String> tokens = tokens(lower);
-        Map<String, Set<ToolGroup>> verbs = vocabulary.verbsIn(tokens);
         Set<ToolGroup> groups = EnumSet.noneOf(ToolGroup.class);
         verbs.values().forEach(groups::addAll);
         groups.addAll(vocabulary.topicGroupsIn(tokens));
@@ -91,9 +96,6 @@ public final class TurnRouter {
                     plan(TurnMode.CHAT, s, text, 0, false, false),
                     "a question with no action in it");
         }
-        int kinds = kinds(verbs.values());
-        boolean complex = vocabulary.hasComplexMarker(lower);
-        boolean planRequest = vocabulary.hasPlanRequest(lower);
         int score = kinds + (complex ? 1 : 0) + (planRequest ? 1 : 0);
         if (!s.hasActiveGoal() && score >= GOAL_SCORE) {
             groups.add(ToolGroup.MOVEMENT);

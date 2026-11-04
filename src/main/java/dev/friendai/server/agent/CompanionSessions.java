@@ -978,7 +978,21 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                     session.planReplans().attempt(trouble.planId());
                 }
             }
-            return inputs.build(subject, caller, failure);
+            return inputs.build(subject, consultCaller(subject, caller), failure);
+        }
+
+        /**
+         * Who one consultation runs as. A troubled plan runs as its own principal, resolved from its jobs right now, so
+         * a guest's failed plan is replanned with that guest's tools and never with the owner's; every other subject
+         * runs as the caller the turn already fixed.
+         */
+        private Caller consultCaller(dev.friendai.agent.plan.PlanSubject subject, Caller turnCaller) {
+            List<dev.friendai.execution.queue.Job> jobs =
+                    subject instanceof dev.friendai.agent.plan.PlanSubject.TroubledPlan trouble
+                            ? companion.executionCoordinator().queue().jobsOfPlan(trouble.planId())
+                            : List.of();
+            UUID principal = dev.friendai.agent.plan.PlanAuthority.consultAs(subject, jobs, owner, turnCaller.uuid());
+            return currentCaller(companion, principal);
         }
 
         private boolean hasLinkedGoal(long planId) {
@@ -1019,14 +1033,15 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
             }
             if (proposal.targetPlanId() > 0) {
                 long planId = proposal.targetPlanId();
-                if (caller.uuid() != null) {
-                    var fresh = currentCaller(companion, caller.uuid());
-                    if (fresh.access().ordinal() < caller.access().ordinal()) {
-                        return ToolResult.error("access was revoked after the proposal");
-                    }
-                }
+                // The plan is repaired as its own principal: a guest's plan stays the guest's work.
+                Caller actor = consultCaller(subject, caller);
                 var plan = companion.executionCoordinator().queue().plan(planId).orElse(null);
                 if (plan == null) return ToolResult.error("plan #" + planId + " is no longer queued");
+                // Access or the tool set can change between propose and apply; re-check the whole plan now, so a
+                // proposal whose steps the principal can no longer run is refused instead of half-applied.
+                if (!ownsPlan(planId)) {
+                    return ToolResult.error("access was revoked after the proposal");
+                }
                 if (plan.definition() != null
                         && companion
                                 .executionCoordinator()
@@ -1057,7 +1072,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                 edit.addProperty("expected", proposal.targetFingerprint());
                 edit.add("steps", proposal.stepsJson());
                 ToolResult result = tools.bind(companion)
-                        .execute(new ToolCall("planner", "queue_edit", edit, edit.toString(), null), caller);
+                        .execute(new ToolCall("planner", "queue_edit", edit, edit.toString(), null), actor);
                 plannerDebug(
                         owner, result.error() ? "planner disposition=patch refused" : "planner disposition=patched");
                 return result;

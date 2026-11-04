@@ -51,6 +51,20 @@ class PlanAuthorityTest {
     }
 
     @Test
+    void aTroubledPlanIsConsultedAsItsOwnPrincipal() {
+        List<Job> jobs = List.of(job(1, "build_structure", JobState.FAILED, GUEST));
+        assertEquals(
+                GUEST,
+                PlanAuthority.consultAs(new PlanSubject.TroubledPlan(3, ""), jobs, OWNER, OWNER),
+                "a guest's failed plan is replanned with the guest's access, never the owner's");
+    }
+
+    @Test
+    void anOwnerOrderIsConsultedAsTheTurnsCaller() {
+        assertEquals(GUEST, PlanAuthority.consultAs(new PlanSubject.OwnerOrder("build"), List.of(), OWNER, GUEST));
+    }
+
+    @Test
     void aPlanWithNoJobsBelongsToTheOwner() {
         assertEquals(OWNER, PlanAuthority.principal(List.of(), OWNER));
     }

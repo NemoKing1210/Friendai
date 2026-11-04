@@ -34,6 +34,15 @@ class TurnRouterTest {
     }
 
     @Test
+    void anOwnerOrderInTheSameBatchAsAFailedPlanWinsThePlanner() {
+        RouteDecision d = route(TurnKind.PLAYER, "build a house and bring iron", true, true, 3, true, true);
+        assertEquals(TurnMode.RECOVERY, d.mode());
+        assertTrue(d.planning().subject() instanceof PlanSubject.OwnerOrder, "the owner's line is the plan's subject");
+        assertEquals("owner-line-first", d.planning().reason());
+        assertEquals(ToolGroup.values().length, d.groups().size());
+    }
+
+    @Test
     void twoObjectivesWithoutGoalRouteToGoalWithPlanner() {
         RouteDecision en = player("build a house and bring iron", false);
         assertEquals(TurnMode.GOAL, en.mode());
