@@ -24,7 +24,6 @@ import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.server.execution.tools.MinecraftObtainSubtaskFactory;
 import dev.friendai.task.TaskStatus;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -802,58 +801,76 @@ public class ObtainTests {
     @GameTest(maxTicks = 9600)
     public void batchObtainsStoneToolSet(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
-        // A dirt floor keeps the arena's only stone the wall the batch is meant to mine.
-        for (int x = 0; x < 16; x++) for (int z = 0; z < 16; z++) h.setBlock(x, 1, z, Blocks.DIRT);
-        List<BlockPos> stones = new ArrayList<>();
-        for (int x = 3; x <= 12; x += 3) for (int z = 2; z <= 11; z += 3) stones.add(new BlockPos(x, 2, z));
-        for (BlockPos stone : stones) h.setBlock(stone, Blocks.STONE);
-        BlockPos table = new BlockPos(13, 2, 12);
+        // The missing cobblestone comes from a chest rather than from mining: this test is about the batch planning
+        // one shared material demand and crafting only after it is met, and the mining path has its own tests.
+        BlockPos table = new BlockPos(4, 2, 2);
         h.setBlock(table, Blocks.CRAFTING_TABLE);
-        h.assertTrue(h.getBlockState(table).is(Blocks.CRAFTING_TABLE), "the table was not placed");
+        BlockPos chestPos = new BlockPos(5, 2, 3);
+        h.setBlock(chestPos, Blocks.CHEST);
+        Container chest = (Container) h.getLevel().getBlockEntity(h.absolutePos(chestPos));
+        h.assertTrue(chest != null, "the chest has no block entity");
+        chest.setItem(0, new ItemStack(Items.COBBLESTONE, 3));
+        chest.setChanged();
         var owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.setOwner(owner.getUUID());
         c.inventory().setItem(0, new ItemStack(Items.WOODEN_PICKAXE));
         c.inventory().setItem(1, new ItemStack(Items.STICK, 16));
         c.inventory().setItem(2, new ItemStack(Items.COBBLESTONE, 9));
-        for (BlockPos stone : stones) GameTestSupport.observeVisible(h, c, h.absolutePos(stone));
-        GameTestSupport.observeVisible(h, c, h.absolutePos(table));
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(table)), "crafting table should be visible");
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(chestPos)), "chest should be visible");
         var caller =
                 new Caller(owner.getUUID(), owner.getName().getString(), dev.friendai.execution.tool.AccessLevel.OWNER);
         Result result = new Result();
-        ExecutionCoordinator runner = batch(
-                c,
-                result,
-                new BatchObtainTask(
-                        List.of(
-                                new CraftPlanner.Target("minecraft:stone_pickaxe", 2),
-                                new CraftPlanner.Target("minecraft:stone_axe", 2)),
-                        true,
-                        true,
-                        64,
-                        9000,
-                        64,
-                        128,
-                        6000,
-                        "local",
-                        caller,
-                        null,
-                        new MinecraftObtainSubtaskFactory()));
+        ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 9600, () -> false);
+        runner.setEventSink(result);
+        runner.start(new CheckContainerTask(h.absolutePos(chestPos)), "check_container");
+        // 0: opening the chest, 1: running the batch, 2: done. Every phase that is not the last one fails its check
+        // on purpose, because succeedWhen stops the test the first time its body returns without an exception.
+        int[] phase = {0};
         TaskTrace.of(h, runner, c).succeedWhen(() -> {
-            for (BlockPos stone : stones)
-                if (h.getBlockState(stone).is(Blocks.STONE)) GameTestSupport.observeVisible(h, c, h.absolutePos(stone));
-            GameTestSupport.observeVisible(h, c, h.absolutePos(table));
-            runner.tick();
-            h.assertTrue(result.status != null, "the batch should finish");
-            h.assertTrue(
-                    result.status == TaskStatus.SUCCESS,
-                    result.summary + " table " + h.absolutePos(table) + " " + h.getBlockState(table) + " at "
-                            + c.blockPosition());
-            h.assertValueEqual(c.inventory().countItem(Items.STONE_PICKAXE), 2, "stone pickaxes");
-            h.assertValueEqual(c.inventory().countItem(Items.STONE_AXE), 2, "stone axes");
-            h.assertTrue(
-                    result.summary.startsWith("got 2 minecraft:stone_pickaxe, 2 minecraft:stone_axe in "),
-                    result.summary);
+            if (phase[0] == 0) {
+                runner.tick();
+                h.assertTrue(
+                        result.status == TaskStatus.SUCCESS,
+                        "the chest was not checked: " + result.status + " " + result.summary);
+                result.status = null;
+                result.summary = null;
+                runner.start(
+                        new BatchObtainTask(
+                                List.of(
+                                        new CraftPlanner.Target("minecraft:stone_pickaxe", 2),
+                                        new CraftPlanner.Target("minecraft:stone_axe", 2)),
+                                true,
+                                true,
+                                64,
+                                9000,
+                                64,
+                                128,
+                                6000,
+                                "local",
+                                caller,
+                                null,
+                                new MinecraftObtainSubtaskFactory()),
+                        "obtain_items");
+                phase[0] = 1;
+            } else {
+                GameTestSupport.observeVisible(h, c, h.absolutePos(table));
+                runner.tick();
+                h.assertTrue(result.status != null, "the batch should finish");
+                h.assertTrue(
+                        result.status == TaskStatus.SUCCESS,
+                        result.summary + " table " + h.absolutePos(table) + " " + h.getBlockState(table) + " at "
+                                + c.blockPosition());
+                h.assertValueEqual(c.inventory().countItem(Items.STONE_PICKAXE), 2, "stone pickaxes");
+                h.assertValueEqual(c.inventory().countItem(Items.STONE_AXE), 2, "stone axes");
+                h.assertTrue(chest.getItem(0).isEmpty(), "the batch never took the cobblestone it was short of");
+                h.assertTrue(
+                        result.summary.startsWith("got 2 minecraft:stone_pickaxe, 2 minecraft:stone_axe in "),
+                        result.summary);
+                phase[0] = 2;
+            }
+            h.assertTrue(phase[0] == 2, "still working");
         });
     }
 
