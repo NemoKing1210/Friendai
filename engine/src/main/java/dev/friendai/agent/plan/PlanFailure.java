@@ -13,7 +13,9 @@ public record PlanFailure(Code code, String detail, int attempt) {
         TRUNCATED,
         STEPS_INVALID,
         TOO_LARGE,
-        REQUEST_FAILED
+        REQUEST_FAILED,
+        /** The turn that asked for the plan was stopped, so no further attempt belongs to anyone. */
+        CANCELLED
     }
 
     public PlanFailure {
@@ -41,7 +43,8 @@ public record PlanFailure(Code code, String detail, int attempt) {
             case TRUNCATED -> UserMessage.of("friendai.freetime.no_plan.truncated");
             case STEPS_INVALID -> UserMessage.of("friendai.freetime.no_plan.rejected", rejectedStep(cause));
             case TOO_LARGE -> UserMessage.of("friendai.freetime.no_plan.too_large");
-            case REQUEST_FAILED -> UserMessage.of("friendai.freetime.no_plan.unavailable");
+            // A cancelled turn has nobody left to tell: the stop that cancelled it already answered the owner.
+            case REQUEST_FAILED, CANCELLED -> UserMessage.of("friendai.freetime.no_plan.unavailable");
         };
     }
 

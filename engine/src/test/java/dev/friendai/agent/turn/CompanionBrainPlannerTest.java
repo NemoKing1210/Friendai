@@ -50,6 +50,7 @@ class CompanionBrainPlannerTest {
         final List<Caller> appliedFor = new ArrayList<>();
         final List<PlanSubject> subjects = new ArrayList<>();
         final List<PlannerInput> proposed = new ArrayList<>();
+        final List<java.util.function.BooleanSupplier> cancellation = new ArrayList<>();
         boolean hasGoal = true;
         boolean owned = true;
 
@@ -76,6 +77,13 @@ class CompanionBrainPlannerTest {
         public CompletableFuture<PlanProposal> propose(PlannerInput input) {
             proposed.add(input);
             return answer;
+        }
+
+        @Override
+        public CompletableFuture<PlanProposal> propose(
+                PlannerInput input, java.util.function.BooleanSupplier cancelled) {
+            cancellation.add(cancelled);
+            return propose(input);
         }
 
         @Override
@@ -201,6 +209,15 @@ class CompanionBrainPlannerTest {
         assertEquals(0, gateway.requests.size(), "no model request after a stop");
         assertTrue(speaker.said.isEmpty());
         assertFalse(brain.isThinking());
+    }
+
+    @Test
+    void aStoppedTurnTellsThePlannerItWasCancelled() {
+        port.answer = new CompletableFuture<>();
+        brain.post(said(BUILD_AND_BRING));
+        assertTrue(!port.cancellation.getFirst().getAsBoolean(), "the planner works while the turn is live");
+        brain.cancel();
+        assertTrue(port.cancellation.getFirst().getAsBoolean(), "the planner is told the turn was stopped");
     }
 
     @Test

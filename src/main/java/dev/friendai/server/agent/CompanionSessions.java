@@ -81,6 +81,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import net.minecraft.server.MinecraftServer;
@@ -377,11 +378,21 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
     /** Asks the owner's planner (or its test override) for a plan; may complete on any thread. */
     CompletableFuture<dev.friendai.agent.plan.PlanProposal> propose(
             UUID owner, dev.friendai.agent.plan.PlannerInput input) {
-        return propose(owner, input, false);
+        return propose(owner, input, false, () -> false);
     }
 
     CompletableFuture<dev.friendai.agent.plan.PlanProposal> propose(
             UUID owner, dev.friendai.agent.plan.PlannerInput input, boolean autonomous) {
+        return propose(owner, input, autonomous, () -> false);
+    }
+
+    CompletableFuture<dev.friendai.agent.plan.PlanProposal> propose(
+            UUID owner, dev.friendai.agent.plan.PlannerInput input, BooleanSupplier cancelled) {
+        return propose(owner, input, false, cancelled);
+    }
+
+    CompletableFuture<dev.friendai.agent.plan.PlanProposal> propose(
+            UUID owner, dev.friendai.agent.plan.PlannerInput input, boolean autonomous, BooleanSupplier cancelled) {
         var companion = CompanionManager.get(server).find(owner);
         String task =
                 companion.map(c -> c.executionCoordinator().currentToolName()).orElse("");
@@ -399,7 +410,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                 true,
                 combat);
         return planners.propose(
-                session(owner), input.withInstructions(skillSession.sections(), config.agent.promptBudget));
+                session(owner), input.withInstructions(skillSession.sections(), config.agent.promptBudget), cancelled);
     }
     /** Creates the owner's brain if it does not exist yet, so its task listener is installed. */
     void ensureBrain(UUID owner) {
@@ -955,8 +966,14 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
         @Override
         public CompletableFuture<dev.friendai.agent.plan.PlanProposal> propose(
                 dev.friendai.agent.plan.PlannerInput input) {
+            return propose(input, () -> false);
+        }
+
+        @Override
+        public CompletableFuture<dev.friendai.agent.plan.PlanProposal> propose(
+                dev.friendai.agent.plan.PlannerInput input, BooleanSupplier cancelled) {
             return CompanionSessions.this
-                    .propose(owner, input)
+                    .propose(owner, input, cancelled)
                     .thenApply(proposal -> new dev.friendai.agent.plan.PlanProposal(
                             proposal.plan(),
                             proposal.stepsJson(),

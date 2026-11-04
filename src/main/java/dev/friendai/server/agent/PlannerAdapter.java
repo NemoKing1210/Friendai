@@ -10,6 +10,7 @@ import dev.friendai.foundation.diagnostics.LogKind;
 import dev.friendai.infrastructure.config.ServerConfig;
 import dev.friendai.server.configuration.ServerSettings;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 /** Adapts the selected planner profile and keeps planner diagnostics on the server thread. */
@@ -34,7 +35,13 @@ public final class PlannerAdapter {
     }
 
     public CompletableFuture<PlanProposal> propose(CompanionSession session, PlannerInput input) {
-        return plannerFor(session).propose(input);
+        return propose(session, input, () -> false);
+    }
+
+    /** The same consultation, abandoned when the turn that asked for it is stopped. */
+    public CompletableFuture<PlanProposal> propose(
+            CompanionSession session, PlannerInput input, BooleanSupplier cancelled) {
+        return plannerFor(session).propose(input, cancelled);
     }
 
     public String model() {

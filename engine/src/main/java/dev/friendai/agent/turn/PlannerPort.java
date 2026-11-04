@@ -7,6 +7,7 @@ import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolResult;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.BooleanSupplier;
 
 /**
  * What the brain needs to consult the planner: build the input for one subject from the world, ask, and queue the
@@ -43,6 +44,14 @@ public interface PlannerPort {
     Optional<PlannerInput> inputFor(PlanSubject subject, Caller caller, String failure);
 
     CompletableFuture<PlanProposal> propose(PlannerInput input);
+
+    /**
+     * The same consultation, told when the turn it serves has been stopped so it neither retries nor delivers. Ports
+     * that cannot observe the turn keep the plain behaviour.
+     */
+    default CompletableFuture<PlanProposal> propose(PlannerInput input, BooleanSupplier cancelled) {
+        return propose(input);
+    }
 
     /**
      * Queues the proposal with the caller's access. A subject that targets a queued plan repairs that plan; every

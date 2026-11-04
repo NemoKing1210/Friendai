@@ -668,7 +668,7 @@ public final class CompanionBrain {
         }
         CompletableFuture<PlanProposal> future;
         try {
-            future = plannerPort.propose(input.get());
+            future = plannerPort.propose(input.get(), () -> gen != generation);
         } catch (RuntimeException e) {
             future = CompletableFuture.failedFuture(e);
         }
