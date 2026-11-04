@@ -185,6 +185,22 @@ class GoalBoardTest {
     }
 
     @Test
+    void theViewCarriesTheGoalIdAndWhetherItsWorkIsQueued() {
+        GoalBoard board = new GoalBoard(3, 3);
+        long id = board.set(
+                        "wood",
+                        List.of(new Criterion("12 logs", Optional.of(new Guard.HasItem("minecraft:oak_log", 12)))),
+                        false,
+                        1)
+                .value()
+                .id();
+        GoalView idle = board.view("running", items(Map.of()), List.of(), 1);
+        assertEquals(id, idle.goalId());
+        assertFalse(idle.planQueued());
+        assertTrue(board.view("running", items(Map.of()), List.of(), 1, true).planQueued());
+    }
+
+    @Test
     void viewDerivesTheRiskFromThePlansTools() {
         GoalBoard board = new GoalBoard(3, 3);
         board.set("clear the yard", List.of(), false, 1);

@@ -22,6 +22,9 @@ public final class CompanionSession {
     private final TradingTurnAuthority tradingAuthority;
     private final OwnerProfileObserver profileObserver;
     private final Set<Long> replacedPlans = new HashSet<>();
+    /** Runtime-only replan budget for plans that have no goal to carry one. */
+    private final dev.friendai.agent.plan.ReplanBudget planReplans = new dev.friendai.agent.plan.ReplanBudget();
+
     private final ArrayDeque<String> verifiedFacts = new ArrayDeque<>();
     private CompanionEntity companion;
     private CompanionBrain brain;
@@ -97,6 +100,10 @@ public final class CompanionSession {
 
     Set<Long> replacedPlans() {
         return replacedPlans;
+    }
+
+    dev.friendai.agent.plan.ReplanBudget planReplans() {
+        return planReplans;
     }
 
     /** The last verified outcome facts, newest first: the planner must not re-prove them. */

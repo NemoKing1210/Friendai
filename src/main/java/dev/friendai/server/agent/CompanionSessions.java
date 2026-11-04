@@ -900,27 +900,56 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
     private final class GamePlannerPort implements dev.friendai.agent.turn.PlannerPort {
         private final UUID owner;
         private final CompanionEntity companion;
+        /** The owner's session, whose runtime replan budget planless plans spend. */
+        private final CompanionSession session;
 
         private final PlannerInputFactory inputs;
 
-        GamePlannerPort(UUID owner, CompanionEntity companion) {
+        GamePlannerPort(UUID owner, CompanionEntity companion, CompanionSession session) {
             this.owner = owner;
             this.companion = companion;
+            this.session = session;
             this.inputs = plannerInputs(owner, companion);
         }
 
+        /**
+         * A plan is owned when it is queued for this companion and its principal still holds every step's access.
+         * A plan whose owner was revoked is cancelled at activation instead of being replanned.
+         */
         @Override
         public boolean ownsPlan(long planId) {
-            return goals.board(owner)
-                    .primary()
-                    .map(goal -> goal.planId() == planId)
-                    .orElse(false);
+            var queue = companion.executionCoordinator().queue();
+            if (queue.plan(planId).isEmpty()) return false;
+            List<dev.friendai.execution.queue.Job> jobs = queue.jobsOfPlan(planId);
+            UUID principal = dev.friendai.agent.plan.PlanAuthority.principal(jobs, owner);
+            Caller resolved = currentCaller(companion, principal);
+            return dev.friendai.agent.plan.PlanAuthority.holds(jobs, resolved, this::requiredAccess);
+        }
+
+        private dev.friendai.execution.tool.AccessLevel requiredAccess(String tool) {
+            var definition = planTools.get(tool);
+            if (definition == null) definition = taskTools.get(tool);
+            return definition == null ? null : definition.minAccess();
         }
 
         @Override
         public Optional<dev.friendai.agent.plan.PlannerInput> inputFor(
                 dev.friendai.agent.plan.PlanSubject subject, Caller caller, String failure) {
+            if (subject instanceof dev.friendai.agent.plan.PlanSubject.TroubledPlan trouble) {
+                // A plan that follows a goal spends the goal's own replan budget; a planless one spends a
+                // runtime-only counter, so a plan cannot replan forever without a goal record to stop it.
+                if (!hasLinkedGoal(trouble.planId())) {
+                    if (session.planReplans().exhausted(trouble.planId(), config.agent.maxReplans)) {
+                        return Optional.empty();
+                    }
+                    session.planReplans().attempt(trouble.planId());
+                }
+            }
             return inputs.build(subject, caller, failure);
+        }
+
+        private boolean hasLinkedGoal(long planId) {
+            return goals.board(owner).all().stream().anyMatch(goal -> goal.planId() == planId);
         }
 
         @Override
@@ -1426,7 +1455,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                                 .player(uuid)
                                 .map(PlayerRecord::lastName)
                                 .orElse(""))));
-        brain.setPlannerPort(new GamePlannerPort(owner, companion));
+        brain.setPlannerPort(new GamePlannerPort(owner, companion, session));
         brain.setAgentSettings(() -> new dev.friendai.agent.turn.AgentSettings(
                 config.agent.toolRouting,
                 dev.friendai.agent.turn.AgentSettings.Autonomy.parse(config.agent.autonomy),
@@ -1442,6 +1471,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
             var primary = board.primary();
             String plan = "";
             List<String> tools = List.of();
+            boolean planQueued = false;
             if (primary.isPresent() && primary.get().planId() != 0) {
                 long planId = primary.get().planId();
                 var queued = companion.executionCoordinator().queue().plan(planId);
@@ -1456,10 +1486,16 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                                         .replace('_', ' ')
                         : "plan #" + planId + " is no longer queued";
                 tools = queued.map(CompanionSessions::toolsOf).orElse(List.of());
+                planQueued = queued.isPresent()
+                        && !companion
+                                .executionCoordinator()
+                                .queue()
+                                .jobsOfPlan(planId)
+                                .isEmpty();
             }
             var facts = new dev.friendai.task.queue.CompanionGuardFacts(companion);
             facts.refresh();
-            return board.view(plan, facts, tools, companion.level().getGameTime());
+            return board.view(plan, facts, tools, companion.level().getGameTime(), planQueued);
         });
         AgentEvents agent = new AgentEvents(owner, companion, session);
         companion.executionCoordinator().setRepairFactory((context, args) -> {
@@ -1525,6 +1561,8 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
             @Override
             public void onPlanFinished(long planId, String goal, boolean success, String summary) {
                 if (!isCurrent(session, companion)) return;
+                // A settled plan starts fresh if its id is ever reused, and its budget entry stops growing.
+                session.planReplans().settled(planId);
                 if (session.replacedPlans().remove(planId)
                         || freeTime.onPlanEnded(owner, companion, planId, success, summary)) {
                     return;

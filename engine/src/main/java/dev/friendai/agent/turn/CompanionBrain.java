@@ -1,5 +1,6 @@
 package dev.friendai.agent.turn;
 
+import dev.friendai.agent.goal.GoalView;
 import dev.friendai.agent.llm.RequestTelemetry;
 import dev.friendai.agent.llm.model.LlmResponse;
 import dev.friendai.agent.llm.model.Message;
@@ -556,22 +557,26 @@ public final class CompanionBrain {
         ownsTroubledPlan = troubledPlans.stream().anyMatch(plannerPort::ownsPlan);
         boolean budgetSpent =
                 batch.stream().anyMatch(event -> event.toPromptLine().contains(BUDGET_SPENT));
+        GoalView goalView = goalSource.view(candidateCaller);
+        boolean goalTickWithUnmet = batch.stream()
+                .anyMatch(event -> event instanceof BrainEvent.GoalTick tick
+                        && !tick.unmet().isEmpty());
         turnSignals = new RouteSignals(
                 turnKind,
                 String.join("\n", turnPlayerTexts),
-                !goalSource.view(candidateCaller).isEmpty(),
+                !goalView.isEmpty(),
                 planTrouble,
                 0,
                 level == AccessLevel.OWNER,
                 ownsTroubledPlan,
-                false,
-                false,
+                goalTickWithUnmet,
+                !goalView.planQueued(),
                 false,
                 budgetSpent,
                 troubledPlans.isEmpty() ? 0L : troubledPlans.get(0),
                 "",
-                0L,
-                List.of(),
+                goalView.goalId(),
+                goalView.unmet(),
                 0L);
         decision = router.route(turnSignals);
         // Only an explicit owner trade action may mint a spend scope. Topics, fallback routing and queued
@@ -625,18 +630,21 @@ public final class CompanionBrain {
         step = 0;
         plannedThisTurn = false;
         plannerNote = "";
-        // A plan-worthy owner order is planned before the model answers. A failed plan that still has replans left
-        // is replanned first too, as today.
+        // A plan-worthy owner order, an unmet active goal and a failed plan are planned before the model answers.
+        // A free-time shift is planned by its driver, not by the chat turn.
         PlanningDecision planning = decision.planning();
-        if (planning.need() == PlanNeed.REQUIRED && planning.subject() instanceof PlanSubject.OwnerOrder order) {
-            plan(generation, order, "");
-        } else if (planning.need() == PlanNeed.REQUIRED
-                && planning.subject() instanceof PlanSubject.TroubledPlan trouble
-                && ownsTroubledPlan
-                && !lines.contains(BUDGET_SPENT)) {
-            plan(generation, trouble, lines);
-        } else {
+        if (planning.need() != PlanNeed.REQUIRED || planning.subject() == null) {
             requestStep(generation);
+        } else if (planning.subject() instanceof PlanSubject.TroubledPlan trouble) {
+            if (ownsTroubledPlan && !lines.contains(BUDGET_SPENT)) {
+                plan(generation, trouble, lines);
+            } else {
+                requestStep(generation);
+            }
+        } else if (planning.subject() instanceof PlanSubject.FreeTimeShift) {
+            requestStep(generation);
+        } else {
+            plan(generation, planning.subject(), "");
         }
     }
 

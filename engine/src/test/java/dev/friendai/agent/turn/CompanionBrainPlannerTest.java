@@ -254,6 +254,39 @@ class CompanionBrainPlannerTest {
     }
 
     @Test
+    void aGoalTickPlansOnlyWhenTheGoalHasNoQueuedWork() {
+        java.util.concurrent.atomic.AtomicReference<GoalView> view =
+                new java.util.concurrent.atomic.AtomicReference<>(new GoalView(
+                        "stock the chest",
+                        List.of("2 logs missing"),
+                        "plan #5 active",
+                        "",
+                        RiskClass.CAREFUL,
+                        "",
+                        5,
+                        false));
+        brain.setGoalSource(caller -> view.get());
+        gateway.enqueue(text("Continuing."));
+        brain.post(new BrainEvent.GoalTick("stock the chest", List.of("2 logs missing")));
+        assertEquals(1, port.proposed.size(), "an unmet goal with no queued work is planned");
+        assertTrue(port.subjects.get(0) instanceof PlanSubject.ActiveGoal, "the active goal is the subject");
+        view.set(new GoalView(
+                "stock the chest", List.of("2 logs missing"), "plan #6 running", "", RiskClass.CAREFUL, "", 5, true));
+        gateway.enqueue(text("Continuing."));
+        brain.post(new BrainEvent.GoalTick("stock the chest", List.of("2 logs missing")));
+        assertEquals(1, port.proposed.size(), "a goal with queued work is not re-planned");
+    }
+
+    @Test
+    void aGoalTickWithoutUnmetCriteriaDoesNotPlan() {
+        brain.setGoalSource(caller ->
+                new GoalView("stock the chest", List.of(), "plan #5 active", "", RiskClass.CAREFUL, "", 5, false));
+        gateway.enqueue(text("Ok."));
+        brain.post(new BrainEvent.GoalTick("stock the chest", List.of()));
+        assertTrue(port.proposed.isEmpty());
+    }
+
+    @Test
     void aPlayerStopIsNotAReasonToReplan() {
         activeGoal();
         gateway.enqueue(text("[silent]"));
@@ -262,12 +295,12 @@ class CompanionBrainPlannerTest {
     }
 
     @Test
-    void aFailedPlanThatIsNotTheGoalsPlanIsLeftAlone() {
+    void aPlanWhoseAuthorityIsGoneIsLeftAlone() {
         activeGoal();
         port.owned = false;
         gateway.enqueue(text("[silent]"));
         brain.post(new BrainEvent.PlanBlocked(6, "errand", 9, "go_to", "can't reach 1 2 3", 1));
-        assertTrue(port.failures.isEmpty(), "plan #6 does not belong to the goal");
+        assertTrue(port.failures.isEmpty(), "a plan whose principal no longer holds it is not replanned");
     }
 
     @Test

@@ -198,6 +198,15 @@ public final class GoalBoard {
      * @param nowTick the game tick the deadline is measured against, so the prompt can say due or overdue
      */
     public GoalView view(String planStatus, GuardFacts facts, Collection<String> tools, long nowTick) {
+        return view(planStatus, facts, tools, nowTick, false);
+    }
+
+    /**
+     * The prompt view with the fact the planning policy needs: whether the goal's plan still has queued work. The
+     * board cannot see the queue, so the caller that can answers it.
+     */
+    public GoalView view(
+            String planStatus, GuardFacts facts, Collection<String> tools, long nowTick, boolean planQueued) {
         Optional<Goal> primary = primary();
         if (primary.isEmpty()) {
             return GoalView.EMPTY;
@@ -210,7 +219,9 @@ public final class GoalBoard {
                 planStatus == null ? "" : planStatus,
                 lessons.isEmpty() ? "" : lessons.get(lessons.size() - 1),
                 ToolRisk.of(tools),
-                GoalDeadline.describe(goal.deadlineTick(), nowTick));
+                GoalDeadline.describe(goal.deadlineTick(), nowTick),
+                goal.id(),
+                planQueued);
     }
 
     private void replace(Goal updated) {

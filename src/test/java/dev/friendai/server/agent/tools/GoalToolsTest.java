@@ -41,7 +41,7 @@ class GoalToolsTest {
 
         JsonObject setGoal = schema(tools, "set_goal");
         assertEquals(
-                Set.of("text", "criteria", "background", "deadline_minutes"),
+                Set.of("text", "criteria", "background", "deadline_minutes", "plan"),
                 setGoal.getAsJsonObject("properties").keySet());
         assertEquals(Set.of("text"), strings(setGoal.getAsJsonArray("required")));
         assertEquals(

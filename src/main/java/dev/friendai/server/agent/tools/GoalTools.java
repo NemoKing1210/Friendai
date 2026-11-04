@@ -54,7 +54,8 @@ public final class GoalTools implements FeatureToolContributor {
                         + "type delivered, item minecraft:oak_log, count 12 for items the owner now holds, or "
                         + "type block_at, block minecraft:oak_planks, x 10, y 64, z -3 for one exact position) when "
                         + "the world can check it by itself. One primary goal at a time; background:true adds one "
-                        + "of at most three side goals. deadline_minutes says how soon it is due.",
+                        + "of at most three side goals. deadline_minutes says how soon it is due. Pass plan to make "
+                        + "the goal follow a plan that is already queued; leave it out for a planless goal.",
                 SchemaBuilder.object()
                         .string("text", "The goal in one short sentence")
                         .array("criteria", "How you will know it is done", criterionSchema, 0, 6)
@@ -64,6 +65,7 @@ public final class GoalTools implements FeatureToolContributor {
                                 "Minutes from now the goal is due (1 to 10080); leave it out for no deadline",
                                 1,
                                 GoalDeadline.MAX_MINUTES)
+                        .integer("plan", "Queue plan this goal follows, when one is already queued")
                         .required("text")
                         .build(),
                 (companion, args) -> withBoard(companion, (owner, goals, board) -> {
@@ -78,7 +80,23 @@ public final class GoalTools implements FeatureToolContributor {
                             args.has("background") && args.get("background").getAsBoolean(),
                             now,
                             due.value());
-                    return result.ok() ? describe("set", result.value()) : ToolResult.error(result.error());
+                    if (!result.ok()) {
+                        return ToolResult.error(result.error());
+                    }
+                    Goal goal = result.value();
+                    if (args.has("plan")) {
+                        long planId = args.get("plan").getAsLong();
+                        if (companion
+                                .executionCoordinator()
+                                .queue()
+                                .plan(planId)
+                                .isEmpty()) {
+                            return ToolResult.ok("goal #" + goal.id() + " set; plan #" + planId
+                                    + " is not queued, so the goal stays planless: " + goal.text());
+                        }
+                        board.linkPlan(goal.id(), planId);
+                    }
+                    return describe("set", goal);
                 }));
         registerTool(
                 registry,
