@@ -900,15 +900,12 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
     private final class GamePlannerPort implements dev.friendai.agent.turn.PlannerPort {
         private final UUID owner;
         private final CompanionEntity companion;
-        /** The owner's session: self-cancelled plans and the facts earlier tasks verified. */
-        private final CompanionSession session;
 
         private final PlannerInputFactory inputs;
 
-        GamePlannerPort(UUID owner, CompanionEntity companion, CompanionSession session) {
+        GamePlannerPort(UUID owner, CompanionEntity companion) {
             this.owner = owner;
             this.companion = companion;
-            this.session = session;
             this.inputs = plannerInputs(owner, companion);
         }
 
@@ -921,21 +918,9 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
         }
 
         @Override
-        public Optional<dev.friendai.agent.plan.PlannerInput> input(Caller caller, String failure) {
-            var primary = goals.board(owner).primary();
-            if (primary.isEmpty() || primary.get().status() != dev.friendai.agent.goal.GoalStatus.ACTIVE) {
-                return Optional.empty();
-            }
-            return inputs.build(
-                    new dev.friendai.agent.plan.PlanSubject.ActiveGoal(
-                            primary.get().id(), List.of()),
-                    caller,
-                    failure);
-        }
-
-        @Override
-        public Optional<dev.friendai.agent.plan.PlannerInput> inputForPlan(Caller caller, long planId, String failure) {
-            return inputs.build(new dev.friendai.agent.plan.PlanSubject.TroubledPlan(planId, failure), caller, failure);
+        public Optional<dev.friendai.agent.plan.PlannerInput> inputFor(
+                dev.friendai.agent.plan.PlanSubject subject, Caller caller, String failure) {
+            return inputs.build(subject, caller, failure);
         }
 
         @Override
@@ -953,7 +938,10 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
         }
 
         @Override
-        public ToolResult apply(Caller caller, dev.friendai.agent.plan.PlanProposal proposal) {
+        public ToolResult apply(
+                Caller caller,
+                dev.friendai.agent.plan.PlanSubject subject,
+                dev.friendai.agent.plan.PlanProposal proposal) {
             if (proposal.targetPlanId() > 0 && !proposal.targetFingerprint().isBlank()) {
                 String current = dev.friendai.execution.queue.PlanFingerprint.of(
                         companion.executionCoordinator().queue(), proposal.targetPlanId());
@@ -1006,37 +994,44 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                         owner, result.error() ? "planner disposition=patch refused" : "planner disposition=patched");
                 return result;
             }
+            // A subject without a target plan never edits a goal's plan: it queues a new one beside it. The plan
+            // stays off the goal board, so a plan cannot manufacture a verified goal; the model links one itself.
             var board = goals.board(owner);
-            var primary = board.primary();
-            var executor = tools.bind(companion);
-            if (primary.isPresent()
-                    && primary.get().planId() != 0
-                    && companion
-                            .executionCoordinator()
-                            .queue()
-                            .plan(primary.get().planId())
-                            .isPresent()) {
-                long oldPlan = primary.get().planId();
-                // Unlink first and silence the plan's end event: cancelling must not count as a failure.
-                board.linkPlan(primary.get().id(), 0);
-                session.replacedPlans().add(oldPlan);
-                JsonObject cancel = new JsonObject();
-                cancel.addProperty("action", "cancel");
-                cancel.addProperty("plan", oldPlan);
-                executor.execute(new ToolCall("planner", "queue_edit", cancel, cancel.toString(), null), caller);
+            String goalText = objectiveText(subject, board);
+            if (goalText == null) {
+                return ToolResult.error("this planner subject cannot be queued");
             }
-            // queue_add links a new plan only to a goal that has none.
-            primary.ifPresent(goal -> board.linkPlan(goal.id(), 0));
             JsonObject add = new JsonObject();
-            add.addProperty(
-                    "goal", primary.map(dev.friendai.agent.goal.Goal::text).orElse("planned work"));
+            add.addProperty("goal", goalText);
             // Preserve the normalized tree; queue_add and plan_validate share the same parser and tool allowlist.
             add.add("steps", proposal.stepsJson());
-            ToolResult result =
-                    executor.execute(new ToolCall("planner", "queue_add", add, add.toString(), null), caller);
-            plannerDebug(owner, result.error() ? "planner disposition=upgrade refused" : "planner disposition=queued");
-            goals.save(owner);
+            ToolResult result = dev.friendai.server.execution.tools.QueueTools.addPlan(
+                    CompanionSessions.this, companion, caller, add, planTools, false, java.util.Set.of());
+            plannerDebug(owner, result.error() ? "planner disposition=queued refused" : "planner disposition=queued");
             return result;
+        }
+
+        /** The bounded goal text of a new plan, or null for a subject only a shift may queue. */
+        private String objectiveText(
+                dev.friendai.agent.plan.PlanSubject subject, dev.friendai.agent.goal.GoalBoard board) {
+            if (subject instanceof dev.friendai.agent.plan.PlanSubject.OwnerOrder order) {
+                return dev.friendai.agent.plan.PlannerObjective.forOrder(order.text())
+                        .text();
+            }
+            if (subject instanceof dev.friendai.agent.plan.PlanSubject.ModelGoal goal) {
+                return goalText(board, goal.goalId());
+            }
+            if (subject instanceof dev.friendai.agent.plan.PlanSubject.ActiveGoal goal) {
+                return goalText(board, goal.goalId());
+            }
+            return null;
+        }
+
+        private String goalText(dev.friendai.agent.goal.GoalBoard board, long goalId) {
+            var found = goalId > 0 ? board.find(goalId) : board.primary();
+            return found.filter(goal -> goal.status() == dev.friendai.agent.goal.GoalStatus.ACTIVE)
+                    .map(dev.friendai.agent.goal.Goal::text)
+                    .orElse(null);
         }
     }
 
@@ -1431,7 +1426,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                                 .player(uuid)
                                 .map(PlayerRecord::lastName)
                                 .orElse(""))));
-        brain.setPlannerPort(new GamePlannerPort(owner, companion, session));
+        brain.setPlannerPort(new GamePlannerPort(owner, companion));
         brain.setAgentSettings(() -> new dev.friendai.agent.turn.AgentSettings(
                 config.agent.toolRouting,
                 dev.friendai.agent.turn.AgentSettings.Autonomy.parse(config.agent.autonomy),

@@ -14,7 +14,10 @@ import dev.friendai.agent.goal.GoalStatus;
 import dev.friendai.agent.goal.GoalView;
 import dev.friendai.agent.goal.RiskClass;
 import dev.friendai.agent.llm.model.Message;
+import dev.friendai.agent.plan.PlanFailure;
 import dev.friendai.agent.plan.PlanProposal;
+import dev.friendai.agent.plan.PlanSubject;
+import dev.friendai.agent.plan.PlannerException;
 import dev.friendai.agent.plan.PlannerInput;
 import dev.friendai.agent.recover.FailureHandler;
 import dev.friendai.execution.queue.GuardAction;
@@ -45,6 +48,8 @@ class CompanionBrainPlannerTest {
     private static final class FakePort implements PlannerPort {
         final List<String> failures = new ArrayList<>();
         final List<Caller> appliedFor = new ArrayList<>();
+        final List<PlanSubject> subjects = new ArrayList<>();
+        final List<PlannerInput> proposed = new ArrayList<>();
         boolean hasGoal = true;
         boolean owned = true;
 
@@ -57,9 +62,10 @@ class CompanionBrainPlannerTest {
         ToolResult applyResult = ToolResult.ok("plan #5 added: 1 jobs");
 
         @Override
-        public Optional<PlannerInput> input(Caller caller, String failure) {
+        public Optional<PlannerInput> inputFor(PlanSubject subject, Caller caller, String failure) {
             failures.add(failure);
-            if (!hasGoal) {
+            subjects.add(subject);
+            if (!hasGoal && subject instanceof PlanSubject.ActiveGoal) {
                 return Optional.empty();
             }
             Goal goal = new Goal(1, "house", List.of(), GoalStatus.ACTIVE, 0, 0, List.of(), 0, false);
@@ -68,11 +74,12 @@ class CompanionBrainPlannerTest {
 
         @Override
         public CompletableFuture<PlanProposal> propose(PlannerInput input) {
+            proposed.add(input);
             return answer;
         }
 
         @Override
-        public ToolResult apply(Caller caller, PlanProposal proposal) {
+        public ToolResult apply(Caller caller, PlanSubject subject, PlanProposal proposal) {
             appliedFor.add(caller);
             return applyResult;
         }
@@ -137,7 +144,7 @@ class CompanionBrainPlannerTest {
     void goalTurnCallsPlannerAfterSetGoalAndShowsTheNoteOnce() {
         gateway.enqueue(calls("", call("g1", "set_goal")));
         gateway.enqueue(text("Planning it."));
-        brain.post(said(BUILD_AND_BRING));
+        brain.post(said("mine some stone"));
         assertEquals(1, port.failures.size(), "one planner consultation");
         assertEquals(OWNER, port.appliedFor.get(0).uuid());
         assertEquals(AccessLevel.OWNER, port.appliedFor.get(0).access(), "applied with the turn caller's access");
@@ -153,7 +160,7 @@ class CompanionBrainPlannerTest {
         gateway.enqueue(calls("", call("g1", "set_goal")));
         gateway.enqueue(calls("", call("s1", "stay")));
         gateway.enqueue(text("Done."));
-        brain.post(said(BUILD_AND_BRING));
+        brain.post(said("mine some stone"));
         assertTrue(gateway.requests.get(1).system().contains("Planner:"));
         assertFalse(gateway.requests.get(2).system().contains("Planner:"), "the note is consumed by one request");
     }
@@ -171,13 +178,12 @@ class CompanionBrainPlannerTest {
     void modelThatQueuedItsOwnPlanSkipsThePlanner() {
         gateway.enqueue(calls("", call("g1", "set_goal"), call("q1", "queue_add")));
         gateway.enqueue(text("Queued."));
-        brain.post(said(BUILD_AND_BRING));
+        brain.post(said("mine some stone"));
         assertTrue(port.failures.isEmpty());
     }
 
     @Test
     void simpleRequestNeverConsultsThePlanner() {
-        gateway.enqueue(calls("", call("g1", "set_goal")));
         gateway.enqueue(text("Ok."));
         brain.post(said("mine some stone"));
         assertTrue(port.failures.isEmpty());
@@ -186,13 +192,13 @@ class CompanionBrainPlannerTest {
     @Test
     void stopWhilePlanningDropsTheProposalSilently() {
         port.answer = new CompletableFuture<>();
-        gateway.enqueue(calls("", call("g1", "set_goal")));
         brain.post(said(BUILD_AND_BRING));
         assertTrue(brain.isThinking(), "waiting for the planner");
+        assertEquals(0, gateway.requests.size(), "the model is not asked while the planner works");
         brain.cancel();
         port.answer.complete(proposal());
         assertTrue(port.appliedFor.isEmpty(), "nothing is queued after a stop");
-        assertEquals(1, gateway.requests.size(), "no further model request");
+        assertEquals(0, gateway.requests.size(), "no model request after a stop");
         assertTrue(speaker.said.isEmpty());
         assertFalse(brain.isThinking());
     }
@@ -200,23 +206,23 @@ class CompanionBrainPlannerTest {
     @Test
     void plannerFailureFallsBackToTheModel() {
         port.answer = CompletableFuture.failedFuture(new IllegalStateException("401 key sk-secret"));
-        gateway.enqueue(calls("", call("g1", "set_goal")));
         gateway.enqueue(text("I will do it myself."));
         brain.post(said(BUILD_AND_BRING));
-        assertEquals(2, gateway.requests.size());
-        String second = gateway.requests.get(1).system();
-        assertTrue(second.contains("the planner is unavailable"), second);
-        assertFalse(second.contains("sk-secret"), "gateway details never reach the prompt");
+        assertEquals(1, gateway.requests.size());
+        String system = gateway.requests.get(0).system();
+        assertTrue(system.contains("no plan was drafted (REQUEST_FAILED)"), system);
+        assertTrue(system.contains("plan the next step yourself"), system);
+        assertFalse(system.contains("sk-secret"), "gateway details never reach the prompt");
         assertEquals(List.of("I will do it myself."), speaker.said);
     }
 
     @Test
     void rejectedPlanIsReportedToTheModel() {
         port.applyResult = ToolResult.error("Invalid plan: step 1: unknown tool 'teleport'");
-        gateway.enqueue(calls("", call("g1", "set_goal")));
         gateway.enqueue(text("Hm."));
         brain.post(said(BUILD_AND_BRING));
-        assertTrue(gateway.requests.get(1).system().contains("could not be queued"));
+        assertTrue(gateway.requests.get(0).system().contains("could not be queued"));
+        assertTrue(gateway.requests.get(0).system().contains("plan it yourself"));
     }
 
     @Test
@@ -265,12 +271,54 @@ class CompanionBrainPlannerTest {
     }
 
     @Test
-    void failedPlanWithoutAGoalStillReachesThePlannerPort() {
+    void failedPlanWithoutAGoalIsStillReplanned() {
         port.hasGoal = false;
         gateway.enqueue(text("[silent]"));
         brain.post(new BrainEvent.PlanBlocked(5, "house", 7, "build_structure", "missing materials", 3));
         assertEquals(1, port.failures.size(), "a troubled plan is replanned without an active goal");
-        assertTrue(port.appliedFor.isEmpty(), "nothing is applied when the port has no input for the plan");
+        assertEquals(1, port.appliedFor.size(), "the plan subject does not need a goal");
+    }
+
+    @Test
+    void aPlanWorthyOrderIsPlannedBeforeTheFirstRequest() {
+        gateway.enqueue(text("On it."));
+        brain.post(said("build a house and bring iron"));
+        assertEquals(1, port.proposed.size(), "the planner is asked before the model");
+        assertTrue(port.subjects.get(0) instanceof PlanSubject.OwnerOrder, "the order is the subject");
+        assertEquals(1, gateway.requests.size());
+        String system = gateway.requests.get(0).system();
+        assertTrue(system.contains("plan #5"), system);
+        assertTrue(system.contains("do not queue another"), system);
+    }
+
+    @Test
+    void aSimpleOrderDoesNotConsultThePlanner() {
+        gateway.enqueue(calls("", call("c1", "mine_blocks")));
+        brain.post(said("mine some iron"));
+        assertTrue(port.proposed.isEmpty());
+        assertTrue(port.failures.isEmpty());
+    }
+
+    @Test
+    void aFailedPlannerFallsBackToTheModel() {
+        port.answer = CompletableFuture.failedFuture(
+                new PlannerException(new PlanFailure(PlanFailure.Code.REQUEST_FAILED, "TIMEOUT", 1)));
+        gateway.enqueue(text("I will do it step by step."));
+        brain.post(said("build a house and bring iron"));
+        assertEquals(1, gateway.requests.size());
+        String system = gateway.requests.get(0).system();
+        assertTrue(system.contains("no plan was drafted (REQUEST_FAILED)"), system);
+        assertTrue(system.contains("plan the next step yourself"), system);
+    }
+
+    @Test
+    void toolSetShrinkAtApplyFallsBackToTheModel() {
+        port.applyResult = ToolResult.error("access was revoked after the proposal");
+        gateway.enqueue(text("I will plan it myself."));
+        brain.post(said("build a house and bring iron"));
+        String system = gateway.requests.get(0).system();
+        assertTrue(system.contains("could not be queued"), system);
+        assertTrue(system.contains("plan it yourself"), system);
     }
 
     @Test

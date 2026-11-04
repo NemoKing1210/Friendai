@@ -8,11 +8,16 @@ import dev.friendai.agent.llm.model.ToolCall;
 import dev.friendai.agent.llm.model.ToolSpec;
 import dev.friendai.agent.llm.stream.StreamAccumulator;
 import dev.friendai.agent.llm.stream.StreamingLlmGateway;
+import dev.friendai.agent.plan.PlanFailure;
 import dev.friendai.agent.plan.PlanProposal;
+import dev.friendai.agent.plan.PlanSubject;
+import dev.friendai.agent.plan.PlannerException;
 import dev.friendai.agent.plan.PlannerInput;
 import dev.friendai.agent.recover.FailureHandler;
 import dev.friendai.agent.route.IntentVocabulary;
+import dev.friendai.agent.route.PlanNeed;
 import dev.friendai.agent.route.PlanningDecision;
+import dev.friendai.agent.route.PlanningPolicy;
 import dev.friendai.agent.route.RouteDecision;
 import dev.friendai.agent.route.RouteSignals;
 import dev.friendai.agent.route.TurnMode;
@@ -56,6 +61,9 @@ public final class CompanionBrain {
     static final String CHOOSE_ACTIVITY = "choose_activity";
     /** The marker the failure handler puts in an event when no replans are left. */
     private static final String BUDGET_SPENT = FailureHandler.BUDGET_SPENT;
+    /** The id a successful {@code set_goal} result reports, so the new goal can be planned for. */
+    private static final java.util.regex.Pattern SET_GOAL_ID =
+            java.util.regex.Pattern.compile("\\bgoal #(\\d{1,9})\\b");
     /** How many queued events one guest may have waiting for a turn. */
     public static final int MAX_PENDING_PER_GUEST = 2;
     /** How long a spoken line and the owner's coordinate question stay relevant. */
@@ -96,7 +104,10 @@ public final class CompanionBrain {
     /** What the planner just did; shown once in the next request's Mission block. */
     private String plannerNote = "";
 
-    private long plannerPlanId;
+    /** The in-flight planner proposal, dropped by {@link #cancel()} like a late model response. */
+    private CompletableFuture<PlanProposal> plannerFuture;
+    /** The signals this turn was routed with, so the decision after the first response uses the same facts. */
+    private RouteSignals turnSignals;
     /** A social batch answers with words only: no schema is sent and no tool call is accepted. */
     private boolean socialTurn;
 
@@ -285,6 +296,9 @@ public final class CompanionBrain {
         // during the post-turn cooldown belong to no turn, and a delivered turn has already ended.
         if (thinking) observe(o -> o.onTurnEnd(cancelled, "cancelled"));
         generation++;
+        CompletableFuture<PlanProposal> planning = plannerFuture;
+        plannerFuture = null;
+        if (planning != null) planning.cancel(true);
         teachingContext = null;
         skillSession = SkillTurnSession.NONE;
         activePrincipal = null;
@@ -542,7 +556,7 @@ public final class CompanionBrain {
         ownsTroubledPlan = troubledPlans.stream().anyMatch(plannerPort::ownsPlan);
         boolean budgetSpent =
                 batch.stream().anyMatch(event -> event.toPromptLine().contains(BUDGET_SPENT));
-        decision = router.route(new RouteSignals(
+        turnSignals = new RouteSignals(
                 turnKind,
                 String.join("\n", turnPlayerTexts),
                 !goalSource.view(candidateCaller).isEmpty(),
@@ -558,7 +572,8 @@ public final class CompanionBrain {
                 "",
                 0L,
                 List.of(),
-                0L));
+                0L);
+        decision = router.route(turnSignals);
         // Only an explicit owner trade action may mint a spend scope. Topics, fallback routing and queued
         // work cannot turn a read-only question into authority behind the chat tool filter.
         turnCaller = tradingTurnPort.begin(
@@ -610,34 +625,31 @@ public final class CompanionBrain {
         step = 0;
         plannedThisTurn = false;
         plannerNote = "";
-        plannerPlanId = batch.stream()
-                .filter(event -> event instanceof BrainEvent.Replan)
-                .map(event -> ((BrainEvent.Replan) event).planId())
-                .findFirst()
-                .orElse(0L);
-        // A failed plan that still has replans left is worked out by the planner before the model answers.
-        if (decision.mode() == TurnMode.RECOVERY
-                && decision.wantPlanner()
+        // A plan-worthy owner order is planned before the model answers. A failed plan that still has replans left
+        // is replanned first too, as today.
+        PlanningDecision planning = decision.planning();
+        if (planning.need() == PlanNeed.REQUIRED && planning.subject() instanceof PlanSubject.OwnerOrder order) {
+            plan(generation, order, "");
+        } else if (planning.need() == PlanNeed.REQUIRED
+                && planning.subject() instanceof PlanSubject.TroubledPlan trouble
                 && ownsTroubledPlan
                 && !lines.contains(BUDGET_SPENT)) {
-            plan(generation, lines);
+            plan(generation, trouble, lines);
         } else {
             requestStep(generation);
         }
     }
 
     /**
-     * One planner consultation per turn. The reply is applied on the scheduler thread and shown to the model once,
-     * in the Mission block of the next request. A stop, dismissal or logout meanwhile bumps the generation, so a
-     * late proposal is dropped without touching the queue (rule 5).
+     * One planner consultation per turn for one subject. The reply is applied on the scheduler thread and shown to
+     * the model once, in the Mission block of the next request. A stop, dismissal or logout meanwhile bumps the
+     * generation, so a late proposal is dropped without touching the queue (rule 5).
      */
-    private void plan(int gen, String failure) {
+    private void plan(int gen, PlanSubject subject, String failure) {
         plannedThisTurn = true;
         Optional<PlannerInput> input;
         try {
-            input = plannerPlanId > 0
-                    ? plannerPort.inputForPlan(turnCaller, plannerPlanId, failure)
-                    : plannerPort.input(turnCaller, failure);
+            input = plannerPort.inputFor(subject, turnCaller, failure);
         } catch (RuntimeException e) {
             LOGGER.warn("Planner input failed", e);
             input = Optional.empty();
@@ -652,19 +664,26 @@ public final class CompanionBrain {
         } catch (RuntimeException e) {
             future = CompletableFuture.failedFuture(e);
         }
+        plannerFuture = future;
+        CompletableFuture<PlanProposal> handle = future;
         future.whenComplete((proposal, error) -> scheduler.execute(() -> {
+            if (plannerFuture == handle) {
+                plannerFuture = null;
+            }
             if (gen != generation) {
                 return;
             }
             if (error != null || proposal == null) {
-                LOGGER.info(
-                        "Planner gave no plan: {}",
-                        error == null ? "empty" : error.getClass().getSimpleName());
-                plannerNote = "no plan was drafted (the planner is unavailable); work out the next step yourself";
+                Throwable cause = error == null ? null : PlanFailure.unwrap(error);
+                PlanFailure.Code code = cause instanceof PlannerException planner
+                        ? planner.failure().code()
+                        : PlanFailure.Code.REQUEST_FAILED;
+                LOGGER.info("Planner gave no plan: {}", code);
+                plannerNote = "no plan was drafted (" + code + "); plan the next step yourself";
             } else {
                 ToolResult applied;
                 try {
-                    applied = plannerPort.apply(turnCaller, proposal);
+                    applied = plannerPort.apply(turnCaller, subject, proposal);
                 } catch (RuntimeException e) {
                     applied = ToolResult.error("could not queue the plan");
                 }
@@ -673,7 +692,8 @@ public final class CompanionBrain {
                         : "a plan was queued (" + applied.content() + "): " + proposal.rationale()
                                 + (proposal.expectedOutcome().isBlank()
                                         ? ""
-                                        : "; expected: " + proposal.expectedOutcome());
+                                        : "; expected: " + proposal.expectedOutcome())
+                                + "; run it, do not queue another";
             }
             requestStep(gen);
         }));
@@ -862,6 +882,7 @@ public final class CompanionBrain {
             return;
         }
         boolean goalSet = false;
+        long setGoalId = 0;
         boolean queuedByModel = false;
         boolean activityChosen = false;
         for (ToolCall call : calls) {
@@ -882,7 +903,10 @@ public final class CompanionBrain {
             ToolResult finalResult = result;
             observe(o -> o.onToolResult(call, finalResult));
             memory.add(Message.toolResult(call.id(), call.name(), result.content()));
-            goalSet |= !result.error() && "set_goal".equals(call.name());
+            if (!result.error() && "set_goal".equals(call.name())) {
+                goalSet = true;
+                setGoalId = goalIdIn(result);
+            }
             queuedByModel |= !result.error() && "queue_add".equals(call.name());
             activityChosen |= !result.error() && CHOOSE_ACTIVITY.equals(call.name());
         }
@@ -891,15 +915,22 @@ public final class CompanionBrain {
             endTurn();
             return;
         }
-        if (goalSet
-                && !queuedByModel
-                && !plannedThisTurn
-                && decision.mode() == TurnMode.GOAL
-                && decision.wantPlanner()) {
-            plan(gen, "");
+        PlanningDecision after = router.afterStep(
+                decision.mode(),
+                turnSignals.withGoal(setGoalId),
+                new PlanningPolicy.StepFacts(goalSet, queuedByModel, plannedThisTurn));
+        if (after.need() == PlanNeed.REQUIRED) {
+            plan(gen, after.subject(), "");
             return;
         }
         requestStep(gen);
+    }
+
+    /** The goal id a successful {@code set_goal} reports; zero when the text does not carry one. */
+    private static long goalIdIn(ToolResult result) {
+        String text = result.content() == null ? "" : result.content();
+        var match = SET_GOAL_ID.matcher(text);
+        return match.find() ? Long.parseLong(match.group(1)) : 0;
     }
 
     /** The plan an event reports as failed or blocked, or -1 for anything else (a stop or cancel is not trouble). */

@@ -1,6 +1,7 @@
 package dev.friendai.agent.turn;
 
 import dev.friendai.agent.plan.PlanProposal;
+import dev.friendai.agent.plan.PlanSubject;
 import dev.friendai.agent.plan.PlannerInput;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolResult;
@@ -8,13 +9,14 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * What the brain needs to consult the planner: build the input from the world, ask, and queue the answer. The
- * methods that touch the world run on the brain's scheduler thread; {@link #propose} may complete on any thread.
+ * What the brain needs to consult the planner: build the input for one subject from the world, ask, and queue the
+ * answer. The methods that touch the world run on the brain's scheduler thread; {@link #propose} may complete on any
+ * thread.
  */
 public interface PlannerPort {
     PlannerPort NONE = new PlannerPort() {
         @Override
-        public Optional<PlannerInput> input(Caller caller, String failure) {
+        public Optional<PlannerInput> inputFor(PlanSubject subject, Caller caller, String failure) {
             return Optional.empty();
         }
 
@@ -24,7 +26,7 @@ public interface PlannerPort {
         }
 
         @Override
-        public ToolResult apply(Caller caller, PlanProposal proposal) {
+        public ToolResult apply(Caller caller, PlanSubject subject, PlanProposal proposal) {
             return ToolResult.error("no planner");
         }
     };
@@ -34,19 +36,18 @@ public interface PlannerPort {
         return true;
     }
 
-    /** The planner input for the owner's primary goal, or empty when there is no goal or no planner. */
-    Optional<PlannerInput> input(Caller caller, String failure);
-
-    /** The planner input for a specific queued plan, independent of the primary goal. */
-    default Optional<PlannerInput> inputForPlan(Caller caller, long planId, String failure) {
-        return Optional.empty();
-    }
+    /**
+     * The planner input for one subject, or empty when its prerequisite is gone: no goal, no queued plan, or a shift
+     * that already ended.
+     */
+    Optional<PlannerInput> inputFor(PlanSubject subject, Caller caller, String failure);
 
     CompletableFuture<PlanProposal> propose(PlannerInput input);
 
     /**
-     * Queues the proposal with the caller's access, replacing the goal's current plan. Never throws for a bad
-     * plan: the result carries the error.
+     * Queues the proposal with the caller's access. A subject that targets a queued plan repairs that plan; every
+     * other subject enqueues a new plan and never touches the goal's own. Never throws for a bad plan: the result
+     * carries the error.
      */
-    ToolResult apply(Caller caller, PlanProposal proposal);
+    ToolResult apply(Caller caller, PlanSubject subject, PlanProposal proposal);
 }

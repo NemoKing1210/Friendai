@@ -85,10 +85,10 @@ public final class PlannerInputFactory {
         String reason = failure == null ? "" : failure;
         if (subject instanceof PlanSubject.OwnerOrder order) return order(order, caller, reason);
         if (subject instanceof PlanSubject.ModelGoal goal) {
-            return goalObjective(subject, goal.goalId(), List.of(), false, caller, reason);
+            return goalObjective(subject, goal.goalId(), List.of(), caller, reason);
         }
         if (subject instanceof PlanSubject.ActiveGoal goal) {
-            return goalObjective(subject, goal.goalId(), goal.unmet(), true, caller, reason);
+            return goalObjective(subject, goal.goalId(), goal.unmet(), caller, reason);
         }
         if (subject instanceof PlanSubject.TroubledPlan trouble) return plan(trouble, caller, reason);
         if (subject instanceof PlanSubject.FreeTimeShift shift) return shift(shift, caller, reason);
@@ -100,17 +100,16 @@ public final class PlannerInputFactory {
         return Optional.of(base(subject, PlannerObjective.forOrder(subject.text()), caller, failure, 0L, ""));
     }
 
+    /**
+     * A goal subject plans a new plan for the goal; it never targets the goal's current plan, because the policy only
+     * names a goal whose plan is absent or has no queued work. A zero id means the primary goal, which is what a
+     * {@code set_goal} response just created.
+     */
     private Optional<PlannerInput> goalObjective(
-            PlanSubject subject,
-            long goalId,
-            List<String> unmet,
-            boolean targetGoalPlan,
-            Caller caller,
-            String failure) {
+            PlanSubject subject, long goalId, List<String> unmet, Caller caller, String failure) {
         Goal goal = findGoal(goalId);
         if (goal == null || goal.status() != GoalStatus.ACTIVE) return Optional.empty();
-        long target = targetGoalPlan ? goal.planId() : 0L;
-        return Optional.of(base(subject, PlannerObjective.forGoal(goal, unmet), caller, failure, target, ""));
+        return Optional.of(base(subject, PlannerObjective.forGoal(goal, unmet), caller, failure, 0L, ""));
     }
 
     private Optional<PlannerInput> plan(PlanSubject.TroubledPlan subject, Caller caller, String failure) {
@@ -140,7 +139,8 @@ public final class PlannerInputFactory {
 
     private Goal findGoal(long goalId) {
         GoalBoard board = goals == null ? null : goals.get();
-        return board == null ? null : board.find(goalId).orElse(null);
+        if (board == null) return null;
+        return goalId > 0 ? board.find(goalId).orElse(null) : board.primary().orElse(null);
     }
 
     private PlannerInput base(
