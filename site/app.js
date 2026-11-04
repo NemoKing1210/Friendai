@@ -80,7 +80,7 @@ const CATS = [
   { id: "acquire", domain: "hands", name: "Resource Acquisition", icon: "🧭", color: COLORS.diamond,
     desc: "Ask for an item and it works out how: inventory, chests, craft, smelt, mine, hunt, harvest, shear, milk or explore.",
     items: [
-      "obtain_item|Get an item by any means.", "plan_obtain|Show the plan without doing it.", "search_resource|Explore to find a resource.",
+      "obtain_item|Get an item by any means.", "obtain_items|Gather every material for a set of items once, then craft them all.", "plan_obtain|Show the plan without doing it.", "search_resource|Explore to find a resource.",
       "known_resources|What it already knows about.", "search_hint|Give it a hint where to look.", "find_target|Resolve a search target.", "find_structure|Find a village, fortress or stronghold by markers.", "search_structure|Travel to a verified structure instance.",
       "~Obtain planner|Depth up to 8, nine step kinds.", "~Frontier search|Biome edges, water, hazards and trails.", "~Search budget|Gives up sensibly." ] },
   { id: "trading", domain: "hands", name: "Trading", icon: "💎", color: COLORS.lapis,
@@ -252,6 +252,7 @@ const CODE = {
   "move_items": ["src/main/java/dev/friendai/features/inventory/minecraft/task/MoveItemsTask.java"],
   "deposit_items": ["src/main/java/dev/friendai/features/inventory/minecraft/tool/StorageTools.java", "src/main/java/dev/friendai/features/inventory/minecraft/task/DepositTask.java"],
   "obtain_item": ["src/main/java/dev/friendai/features/acquisition/minecraft/tool/ObtainTools.java", "src/main/java/dev/friendai/features/acquisition/minecraft/task/ObtainTask.java"],
+  "obtain_items": ["src/main/java/dev/friendai/features/acquisition/minecraft/tool/ObtainTools.java", "src/main/java/dev/friendai/features/acquisition/minecraft/task/BatchObtainTask.java"],
   "plan_obtain": ["src/main/java/dev/friendai/features/acquisition/minecraft/tool/ObtainTools.java"],
   "search_resource": ["src/main/java/dev/friendai/features/knowledge/minecraft/tool/ResourceTools.java", "src/main/java/dev/friendai/features/acquisition/minecraft/task/SearchResourceTask.java"],
   "known_resources": ["src/main/java/dev/friendai/features/knowledge/minecraft/tool/ResourceTools.java"],

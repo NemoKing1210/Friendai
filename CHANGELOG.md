@@ -6,6 +6,16 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.205.0] - 2026-11-04
+
+### Added
+
+- Ask for a set of items at once and the companion gathers every raw material for the whole set once, then crafts them all, instead of mining the same resource again for each item: a tool set now costs one trip for cobblestone.
+
+### Fixed
+
+- The companion knows what its own finished plan did: the summary it reads afterwards names each step's result, so it no longer hands over a second tool set because the first delivery looked like it never happened, and `queue_show` can re-read a finished plan.
+
 ## [0.204.2] - 2026-11-04
 
 ### Fixed
