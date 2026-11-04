@@ -163,6 +163,18 @@ class MoveGeneratorWalkTest {
     }
 
     @Test
+    void doesNotLeapFromACoveredCell() {
+        // Vanilla cancels the jump when the cell above the head is filled, so a covered cell is never a take-off.
+        GridCellView roofed = new GridCellView("#.#", "...", "...", "#..");
+        assertNull(stepTo(stepsFrom(roofed, new Node(0, 1, 0)), 2, 1, 0));
+
+        GridCellView open = new GridCellView("#.#", "...", "...", "...");
+        assertEquals(
+                Move.JUMP_GAP,
+                stepTo(stepsFrom(open, new Node(0, 1, 0)), 2, 1, 0).move());
+    }
+
+    @Test
     void jumpsDownAcrossAWiderGapThanOnTheFlat() {
         // Falling gives the leap more flight than a landing on the same level.
         GridCellView view =
@@ -210,6 +222,31 @@ class MoveGeneratorWalkTest {
         List<PathStep> tired = new ArrayList<>();
         new MoveGenerator(view, COSTS, new GoalPoint(99, 99, 99, 0, 0)).neighbours(from, 0, 0, 8, tired::add);
         assertTrue(tired.stream().noneMatch(step -> step.headUnderwater() > 0));
+    }
+
+    @Test
+    void aLongFloodedShaftDoesNotResetTheBreathBudget() {
+        // No air above the head in this shaft, so rising is one more submerged stroke, not a surface to breathe at.
+        GridCellView shaft = new GridCellView("###", "~~~", "~~~", "~~~", "~~~", "~~~", "~~~", "~~~", "~~~");
+        List<PathStep> steps = new ArrayList<>();
+        new MoveGenerator(shaft, COSTS, new GoalPoint(99, 99, 99, 0, 0))
+                .neighbours(new Node(1, 1, 0), 0, 0, 4, steps::add);
+        PathStep up = stepTo(steps, 1, 2, 0);
+        assertEquals(Move.SWIM, up.move());
+        assertEquals(5, up.headUnderwater());
+    }
+
+    @Test
+    void aRisingStrokeWithinTheRemainingBreathClearsTheCount() {
+        // Three cells of water with air above the third: two rises reach the surface, and four spent strokes still
+        // leave room for them.
+        GridCellView lake = new GridCellView("###", "~~~", "~~~", "~~~", "...");
+        List<PathStep> steps = new ArrayList<>();
+        new MoveGenerator(lake, COSTS, new GoalPoint(99, 99, 99, 0, 0))
+                .neighbours(new Node(1, 1, 0), 0, 0, 4, steps::add);
+        PathStep up = stepTo(steps, 1, 2, 0);
+        assertEquals(Move.SWIM, up.move());
+        assertEquals(0, up.headUnderwater());
     }
 
     @Test
@@ -274,6 +311,19 @@ class MoveGeneratorWalkTest {
         PathStep step = stepTo(stepsFrom(view, new Node(0, 1, 0)), 1, 1, 0);
         assertEquals(Move.DOOR, step.move());
         assertEquals(COSTS.walk() + COSTS.door(), step.cost(), 1e-9);
+    }
+
+    @Test
+    void doesNotLeapThroughAClosedDoor() {
+        // A shut door is a cell a walk opens, but a leap crosses it at speed: the panel stops the body. Its upper half
+        // is the cell the flight path would pass through here, so the gap is not leapt.
+        GridCellView door = new GridCellView("...", "#D#", ".D.", "...", "...");
+        assertNull(stepTo(stepsFrom(door, new Node(0, 2, 0)), 2, 2, 0));
+
+        GridCellView air = new GridCellView("...", "#.#", "...", "...", "...");
+        assertEquals(
+                Move.JUMP_GAP,
+                stepTo(stepsFrom(air, new Node(0, 2, 0)), 2, 2, 0).move());
     }
 
     @Test

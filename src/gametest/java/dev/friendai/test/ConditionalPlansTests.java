@@ -263,6 +263,31 @@ public final class ConditionalPlansTests {
         });
     }
 
+    @GameTest
+    public void aCompletingPlanCarriesItsStepResults(GameTestHelper h) {
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ExecutionCoordinator runner = companion.executionCoordinator();
+        List<String> started = new ArrayList<>();
+        runner.enqueuePlan(
+                "carry results",
+                new PlanDefinition(List.of(action("work"))),
+                PlanOptions.DEFAULT,
+                Map.of("work", factory("work", started)));
+
+        h.succeedWhen(() -> {
+            runner.tick();
+            if (runner.queue().planCount() == 0) {
+                var archive = runner.queue().archives().getLast();
+                h.assertTrue(
+                        archive.summary().startsWith("conditional plan completed; #"),
+                        "the summary must carry the step results: " + archive.summary());
+                h.assertTrue(
+                        archive.summary().contains(" work: done"),
+                        "the summary must name the step's result: " + archive.summary());
+            }
+        });
+    }
+
     private static PlanNode.Action action(String tool) {
         return new PlanNode.Action(new QueuedStep(
                 tool, new JsonObject(), null, List.of(), GuardAction.WAIT, FailurePolicy.STOP_PLAN, 1, List.of()));

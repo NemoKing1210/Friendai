@@ -23,13 +23,10 @@ import dev.friendai.task.TaskStatus;
 import dev.friendai.task.interact.ContainerAccess;
 import dev.friendai.task.interact.ContainerSession;
 import dev.friendai.task.interact.ContainerTransfer;
-import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.inventory.ItemMatcher;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -207,6 +204,17 @@ public final class ObtainTask implements Task {
         return "obtain_item";
     }
 
+    /** The item this job was sent for is not path material while it is still being gathered. */
+    @Override
+    public java.util.Map<String, Integer> materialNeeds(TaskContext context) {
+        int missing = count - have(context.companion());
+        if (missing <= 0) {
+            return java.util.Map.of();
+        }
+        String id = ItemMatcher.parse(item).map(ItemMatcher::label).orElse("");
+        return id.isBlank() ? java.util.Map.of() : java.util.Map.of(id, missing);
+    }
+
     @Override
     public boolean hasTimeout() {
         return false;
@@ -330,7 +338,7 @@ public final class ObtainTask implements Task {
         ObtainPlan plan = ObtainPlanner.plan(
                 item,
                 count,
-                inventoryMap(companion),
+                AcquiredItems.inventoryMap(companion),
                 RecipeIndex.of(level),
                 DropIndex.of(level),
                 facts,
@@ -489,11 +497,7 @@ public final class ObtainTask implements Task {
     }
 
     private int have(CompanionEntity companion) {
-        ItemMatcher matcher = itemMatcher(item);
-        int held = matcher.test(companion.getMainHandItem())
-                ? companion.getMainHandItem().getCount()
-                : 0;
-        return InventoryOps.count(companion.inventory(), matcher) + held;
+        return AcquiredItems.have(companion, item);
     }
 
     private static int emptySlots(CompanionEntity companion) {
@@ -504,21 +508,6 @@ public final class ObtainTask implements Task {
             }
         }
         return empty;
-    }
-
-    private static Map<String, Integer> inventoryMap(CompanionEntity companion) {
-        Map<String, Integer> items = new LinkedHashMap<>();
-        for (int slot = 0; slot < companion.inventory().getContainerSize(); slot++) {
-            account(items, companion.inventory().getItem(slot));
-        }
-        account(items, companion.getMainHandItem());
-        return items;
-    }
-
-    private static void account(Map<String, Integer> items, ItemStack stack) {
-        if (!stack.isEmpty()) {
-            items.merge(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString(), stack.getCount(), Integer::sum);
-        }
     }
 
     private static ItemMatcher itemMatcher(String id) {
@@ -561,7 +550,7 @@ public final class ObtainTask implements Task {
         };
     }
 
-    private static void safeStop(Task task, TaskContext c) {
+    static void safeStop(Task task, TaskContext c) {
         try {
             task.stop(c);
         } catch (RuntimeException ignored) {

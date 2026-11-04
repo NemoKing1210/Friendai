@@ -6,6 +6,7 @@ import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.features.mining.minecraft.mining.BlockBreaker;
 import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
 import dev.friendai.features.mining.minecraft.task.MineBlocksTask;
+import dev.friendai.features.navigation.minecraft.nav.Approach;
 import dev.friendai.features.navigation.minecraft.nav.LevelCellView;
 import dev.friendai.features.navigation.minecraft.nav.MaterialPicker;
 import dev.friendai.features.navigation.minecraft.nav.MoveHelper;
@@ -36,6 +37,7 @@ import java.util.List;
 import java.util.Optional;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.FluidTags;
@@ -43,7 +45,10 @@ import net.minecraft.world.entity.Pose;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.DoorHingeSide;
+import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
@@ -126,6 +131,7 @@ public class PathingTests {
         h.setBlock(new BlockPos(4, 2, 2), Blocks.WATER);
         h.setBlock(new BlockPos(5, 2, 2), Blocks.MAGMA_BLOCK);
         h.setBlock(new BlockPos(6, 2, 2), Blocks.STONE_SLAB);
+        h.setBlock(new BlockPos(7, 2, 2), Blocks.CARPET.pick(net.minecraft.world.item.DyeColor.WHITE));
         h.setBlock(new BlockPos(2, 2, 5), Blocks.OAK_FENCE);
         h.setBlock(new BlockPos(3, 2, 5), Blocks.SCAFFOLDING);
         h.setBlock(new BlockPos(4, 2, 5), Blocks.OAK_LOG);
@@ -140,6 +146,9 @@ public class PathingTests {
         h.assertTrue(cellAt(bare, h, 4, 2, 2).placeable(), "water can be filled");
         h.assertTrue(cellAt(bare, h, 5, 2, 2).kind() == Cell.Kind.HAZARD, "magma");
         h.assertTrue(cellAt(bare, h, 6, 2, 2).kind() == Cell.Kind.PARTIAL, "slab");
+        h.assertTrue(Math.abs(cellAt(bare, h, 6, 2, 2).top() - 0.5) < 1.0e-6, "a bottom slab is half a block");
+        h.assertTrue(Math.abs(cellAt(bare, h, 7, 2, 2).top() - 0.0625) < 1.0e-6, "a carpet is a sixteenth");
+        h.assertTrue(Math.abs(cellAt(bare, h, 2, 2, 2).top() - 1.0) < 1.0e-6, "stone is a full block");
         h.assertTrue(cellAt(bare, h, 2, 2, 5).kind() == Cell.Kind.TALL, "fence");
         h.assertTrue(cellAt(bare, h, 3, 2, 5).kind() == Cell.Kind.CLIMBABLE, "scaffolding");
 
@@ -213,6 +222,128 @@ public class PathingTests {
         }
         h.assertTrue(cellAt(view, h, 2, 2, 2).breakTicks() > 0, "stone outside the wall stays breakable");
         h.succeed();
+    }
+
+    @GameTest(maxTicks = 800)
+    public void walksThroughAClosedDoor(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        for (int z = 0; z <= 15; z++) {
+            for (int y = 2; y <= 3; y++) {
+                if (z != 8) {
+                    h.setBlock(new BlockPos(8, y, z), Blocks.STONE);
+                }
+            }
+        }
+        doorAt(h, 8, 2, 8, false);
+
+        CompanionEntity c = walker(h, 2, 2, 8);
+        LevelCellView shut = new LevelCellView(c, PathingConfig.DEFAULTS, CostModel.DEFAULTS);
+        h.assertTrue(cellAt(shut, h, 8, 2, 8).kind() == Cell.Kind.DOOR, "a shut door is a cell the walk can open");
+
+        doorAt(h, 8, 2, 8, true);
+        LevelCellView opened = new LevelCellView(c, PathingConfig.DEFAULTS, CostModel.DEFAULTS);
+        h.assertTrue(
+                cellAt(opened, h, 8, 2, 8).kind() == Cell.Kind.PASSABLE,
+                "an open door is a passage, not a wall the route turns back from");
+
+        // Shut again for the walk: the route has to open it and keep the step it planned.
+        doorAt(h, 8, 2, 8, false);
+        Outcome out = new Outcome();
+        walkTo(c, h, out, 12.5, 2, 8.5);
+        h.succeedWhen(() -> {
+            h.assertTrue(out.status == TaskStatus.SUCCESS, "go_to did not finish: " + out.why());
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(8, 2, 8)).getValue(DoorBlock.OPEN),
+                    "the door is still shut; paths: " + out.debug);
+        });
+    }
+
+    @GameTest(maxTicks = 100)
+    public void approachDoesNotReachThroughAWall(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(new BlockPos(3, 2, 8), Blocks.STONE);
+        h.setBlock(new BlockPos(3, 3, 8), Blocks.STONE);
+        h.setBlock(new BlockPos(4, 2, 8), Blocks.STONE);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 8);
+        BlockPos target = h.absolutePos(new BlockPos(4, 2, 8));
+        TaskContext context = new TaskContext(c, h.getLevel());
+        h.assertTrue(
+                new Approach(target).tick(context) != Approach.State.IN_REACH,
+                "a block behind two stone blocks is not within reach");
+
+        h.setBlock(new BlockPos(3, 2, 8), Blocks.AIR);
+        h.setBlock(new BlockPos(3, 3, 8), Blocks.AIR);
+        h.assertTrue(
+                new Approach(target).tick(context) == Approach.State.IN_REACH,
+                "with the wall gone the same block is in reach");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 600)
+    public void goToDoesNotArriveAtTheFootOfAPillar(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        for (int y = 2; y <= 4; y++) {
+            h.setBlock(new BlockPos(8, y, 8), Blocks.STONE);
+        }
+        CompanionEntity c = walker(h, 2, 2, 8);
+        Outcome out = new Outcome();
+        walkTo(c, h, out, 8.5, 5, 8.5);
+        h.succeedWhen(() -> h.assertTrue(
+                out.status == TaskStatus.FAILED,
+                "the top of a three-block pillar is not reached from its foot: " + out.why()));
+    }
+
+    @GameTest(maxTicks = 500)
+    public void shallowWaterIsWadedNotSwum(GameTestHelper h) {
+        int floor = 240;
+        GameTestSupport.platformAt(h, floor, 14);
+        for (int x = 5; x <= 9; x++) {
+            for (int z = 1; z <= 5; z++) {
+                h.setBlock(new BlockPos(x, floor + 1, z), Blocks.WATER);
+            }
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, floor + 1, 3);
+        Outcome out = new Outcome();
+        walkTo(c, h, out, 11.5, floor + 1, 3.5);
+        boolean[] swam = {false};
+        h.onEachTick(() -> swam[0] |= c.isInWater() && c.getPose() == Pose.SWIMMING);
+        h.succeedWhen(() -> {
+            h.assertTrue(out.status == TaskStatus.SUCCESS, "did not cross the shallow pond: " + out.why());
+            h.assertFalse(swam[0], "a one-block pond is waded upright, not swum");
+        });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void deepWaterIsSwum(GameTestHelper h) {
+        int floor = 250;
+        GameTestSupport.platformAt(h, floor, 14);
+        for (int x = 5; x <= 9; x++) {
+            for (int z = 1; z <= 5; z++) {
+                h.setBlock(new BlockPos(x, floor + 1, z), Blocks.WATER);
+                h.setBlock(new BlockPos(x, floor + 2, z), Blocks.WATER);
+            }
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, floor + 1, 3);
+        Outcome out = new Outcome();
+        walkTo(c, h, out, 11.5, floor + 1, 3.5);
+        boolean[] swam = {false};
+        h.onEachTick(() -> swam[0] |= c.isInWater() && c.getPose() == Pose.SWIMMING);
+        h.succeedWhen(() -> {
+            h.assertTrue(out.status == TaskStatus.SUCCESS, "did not cross the deep channel: " + out.why());
+            h.assertTrue(swam[0], "a two-block channel is swum, not waded upright");
+        });
+    }
+
+    private static void doorAt(GameTestHelper h, int x, int y, int z, boolean open) {
+        // The wall runs north-south, so the doorway runs east-west and the door's own facing must match it.
+        BlockState lower = Blocks.OAK_DOOR
+                .defaultBlockState()
+                .setValue(DoorBlock.FACING, Direction.EAST)
+                .setValue(DoorBlock.HINGE, DoorHingeSide.LEFT)
+                .setValue(DoorBlock.OPEN, open)
+                .setValue(DoorBlock.HALF, DoubleBlockHalf.LOWER);
+        h.setBlock(new BlockPos(x, y, z), lower);
+        h.setBlock(new BlockPos(x, y + 1, z), lower.setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER));
     }
 
     @GameTest(maxTicks = 100)
@@ -534,6 +665,44 @@ public class PathingTests {
             h.assertTrue(state[0] == Navigator.State.ARRIVED, "not on carpet: " + state[0] + " at " + c.position());
             h.assertTrue(
                     Math.abs(c.getY() - (target.y - 0.9375)) < 0.1, "feet should rest on the carpet: " + c.position());
+        });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void navigatorDoesNotJumpOntoATwoBlockStackFromACarpet(GameTestHelper h) {
+        int floor = 180;
+        GameTestSupport.platformAt(h, floor, 12);
+        h.setBlock(new BlockPos(6, floor + 1, 2), Blocks.CARPET.pick(net.minecraft.world.item.DyeColor.WHITE));
+        h.setBlock(new BlockPos(7, floor + 1, 2), Blocks.STONE);
+        h.setBlock(new BlockPos(7, floor + 2, 2), Blocks.STONE);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 5, floor + 1, 2);
+        TaskContext context = new TaskContext(c, h.getLevel());
+        // No placement: the two-high stack has no walking route, and a pillar is not the answer under test.
+        Navigator navigator = new Navigator(context, false);
+        Vec3 target = h.absoluteVec(new Vec3(7.5, floor + 3, 2.5));
+        navigator.setGoal(new GoalPoint(target.x, target.y, target.z, 0.3, 0.5));
+        Navigator.State[] state = {Navigator.State.SEARCHING};
+        List<PathStep> impossible = new ArrayList<>();
+        h.onEachTick(() -> {
+            state[0] = navigator.tick(context);
+            Path plan = navigator.plan();
+            if (plan == null) {
+                return;
+            }
+            for (PathStep step : plan.steps()) {
+                // The carpet leaves the feet almost a block below its node, so this is a 1.94-block rise.
+                if (step.move() == Move.ASCEND
+                        && step.from().x() == 6
+                        && step.from().z() == 2
+                        && step.to().x() == 7
+                        && step.to().z() == 2) {
+                    impossible.add(step);
+                }
+            }
+        });
+        h.succeedWhen(() -> {
+            h.assertTrue(impossible.isEmpty(), "planned a jump two blocks high: " + impossible);
+            h.assertTrue(state[0] == Navigator.State.UNREACHABLE, "still " + state[0]);
         });
     }
 

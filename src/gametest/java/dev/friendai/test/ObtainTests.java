@@ -13,7 +13,9 @@ import dev.friendai.features.acquisition.ToolNeed;
 import dev.friendai.features.acquisition.WorldFacts;
 import dev.friendai.features.acquisition.minecraft.search.DropIndex;
 import dev.friendai.features.acquisition.minecraft.search.WorldScan;
+import dev.friendai.features.acquisition.minecraft.task.BatchObtainTask;
 import dev.friendai.features.acquisition.minecraft.task.ObtainTask;
+import dev.friendai.features.crafting.CraftPlanner;
 import dev.friendai.features.exploration.minecraft.task.ExploreTask;
 import dev.friendai.features.inventory.minecraft.task.CheckContainerTask;
 import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
@@ -192,6 +194,13 @@ public class ObtainTests {
         ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 2400, () -> false);
         runner.setEventSink(result);
         runner.start(task, "obtain_item");
+        return runner;
+    }
+
+    private static ExecutionCoordinator batch(CompanionEntity c, Result result, BatchObtainTask task) {
+        ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 9600, () -> false);
+        runner.setEventSink(result);
+        runner.start(task, "obtain_items");
         return runner;
     }
 
@@ -786,6 +795,116 @@ public class ObtainTests {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.FAILED, "not finished: " + result.status + " " + result.summary);
             h.assertTrue(result.summary.startsWith("gave up after 1 steps"), "summary was " + result.summary);
+        });
+    }
+
+    @GameTest(maxTicks = 9600)
+    public void batchObtainsStoneToolSet(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        // The missing cobblestone comes from a chest rather than from mining: this test is about the batch planning
+        // one shared material demand and crafting only after it is met, and the mining path has its own tests.
+        BlockPos table = new BlockPos(4, 2, 2);
+        h.setBlock(table, Blocks.CRAFTING_TABLE);
+        BlockPos chestPos = new BlockPos(5, 2, 3);
+        h.setBlock(chestPos, Blocks.CHEST);
+        Container chest = (Container) h.getLevel().getBlockEntity(h.absolutePos(chestPos));
+        h.assertTrue(chest != null, "the chest has no block entity");
+        chest.setItem(0, new ItemStack(Items.COBBLESTONE, 3));
+        chest.setChanged();
+        var owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(owner.getUUID());
+        c.inventory().setItem(0, new ItemStack(Items.WOODEN_PICKAXE));
+        c.inventory().setItem(1, new ItemStack(Items.STICK, 16));
+        c.inventory().setItem(2, new ItemStack(Items.COBBLESTONE, 9));
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(table)), "crafting table should be visible");
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(chestPos)), "chest should be visible");
+        var caller =
+                new Caller(owner.getUUID(), owner.getName().getString(), dev.friendai.execution.tool.AccessLevel.OWNER);
+        Result result = new Result();
+        ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 9600, () -> false);
+        runner.setEventSink(result);
+        runner.start(new CheckContainerTask(h.absolutePos(chestPos)), "check_container");
+        // 0: opening the chest, 1: running the batch, 2: done. Every phase that is not the last one fails its check
+        // on purpose, because succeedWhen stops the test the first time its body returns without an exception.
+        int[] phase = {0};
+        TaskTrace.of(h, runner, c).succeedWhen(() -> {
+            if (phase[0] == 0) {
+                runner.tick();
+                h.assertTrue(
+                        result.status == TaskStatus.SUCCESS,
+                        "the chest was not checked: " + result.status + " " + result.summary);
+                result.status = null;
+                result.summary = null;
+                runner.start(
+                        new BatchObtainTask(
+                                List.of(
+                                        new CraftPlanner.Target("minecraft:stone_pickaxe", 2),
+                                        new CraftPlanner.Target("minecraft:stone_axe", 2)),
+                                true,
+                                true,
+                                64,
+                                9000,
+                                64,
+                                128,
+                                6000,
+                                "local",
+                                caller,
+                                null,
+                                new MinecraftObtainSubtaskFactory()),
+                        "obtain_items");
+                phase[0] = 1;
+            } else {
+                GameTestSupport.observeVisible(h, c, h.absolutePos(table));
+                // Gathering the shared material comes before any crafting, so while the chest still holds the
+                // cobblestone the batch is short of, none of the set may exist yet.
+                if (!chest.getItem(0).isEmpty()) {
+                    h.assertValueEqual(
+                            c.inventory().countItem(Items.STONE_PICKAXE),
+                            0,
+                            "the batch crafted before gathering the cobblestone it was short of");
+                    h.assertValueEqual(
+                            c.inventory().countItem(Items.STONE_AXE),
+                            0,
+                            "the batch crafted before gathering the cobblestone it was short of");
+                }
+                runner.tick();
+                h.assertTrue(result.status != null, "the batch should finish");
+                h.assertTrue(
+                        result.status == TaskStatus.SUCCESS,
+                        result.summary + " table " + h.absolutePos(table) + " " + h.getBlockState(table) + " at "
+                                + c.blockPosition());
+                h.assertValueEqual(c.inventory().countItem(Items.STONE_PICKAXE), 2, "stone pickaxes");
+                h.assertValueEqual(c.inventory().countItem(Items.STONE_AXE), 2, "stone axes");
+                h.assertTrue(chest.getItem(0).isEmpty(), "the batch never took the cobblestone it was short of");
+                h.assertTrue(
+                        result.summary.startsWith("got 2 minecraft:stone_pickaxe, 2 minecraft:stone_axe in "),
+                        result.summary);
+                phase[0] = 2;
+            }
+            h.assertTrue(phase[0] == 2, "still working");
+        });
+    }
+
+    @GameTest(maxTicks = 600)
+    public void batchNamesWhatItCouldNotGet(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        Result result = new Result();
+        ExecutionCoordinator runner = batch(
+                c,
+                result,
+                new BatchObtainTask(
+                        List.of(new CraftPlanner.Target("minecraft:dragon_egg", 1)),
+                        false,
+                        false,
+                        new MinecraftObtainSubtaskFactory()));
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.FAILED, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(
+                    result.summary.startsWith("couldn't get 1 minecraft:dragon_egg for minecraft:dragon_egg:"),
+                    result.summary);
         });
     }
 

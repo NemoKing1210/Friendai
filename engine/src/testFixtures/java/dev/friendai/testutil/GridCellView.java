@@ -56,6 +56,8 @@ public final class GridCellView implements CellView {
             case 'g' -> new Cell(Cell.Kind.SOLID, 9, true, false);
             case 'G' -> new Cell(Cell.Kind.SOLID, -1, false, false);
             case '_' -> new Cell(Cell.Kind.PARTIAL, 30, false, false);
+            case 'f' -> new Cell(Cell.Kind.PARTIAL, 30, false, false, 0.9375);
+            case 'c' -> new Cell(Cell.Kind.PARTIAL, 30, false, false, 0.0625);
             case 'F' -> new Cell(Cell.Kind.TALL, -1, false, false);
             case '~' -> new Cell(Cell.Kind.WATER, -1, false, true);
             case 'L' -> new Cell(Cell.Kind.LAVA, -1, false, false);
@@ -84,7 +86,7 @@ public final class GridCellView implements CellView {
     /** Makes a cell unbreakable and unplaceable, as a protected or blacklisted block reads. Mutates and returns this. */
     public GridCellView protect(Pos p) {
         Cell cell = at(p.x(), p.y(), p.z());
-        overrides.put(pack(p.x(), p.y(), p.z()), new Cell(cell.kind(), -1, cell.falls(), false));
+        overrides.put(pack(p.x(), p.y(), p.z()), new Cell(cell.kind(), -1, cell.falls(), false, cell.top()));
         return this;
     }
 

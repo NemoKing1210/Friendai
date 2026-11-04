@@ -198,9 +198,12 @@ public final class TaskRestoreRegistry {
                 || job.tool().equals("find_target")
                 || job.tool().equals("find_structure")
                 || job.tool().equals("search_structure")) return true;
-        return job.tool().equals("obtain_item")
-                && job.args().has("explore")
-                && job.args().get("explore").getAsBoolean();
+        return explores(job) && (job.tool().equals("obtain_item") || job.tool().equals("obtain_items"));
+    }
+
+    /** An interrupted search is not resumed by guesswork: the job's own explore flag says it may look far away. */
+    private static boolean explores(Job job) {
+        return job.args().has("explore") && job.args().get("explore").getAsBoolean();
     }
 
     private Task create(TaskToolDefinition def, TaskContext context, UUID principal, JsonObject args) {

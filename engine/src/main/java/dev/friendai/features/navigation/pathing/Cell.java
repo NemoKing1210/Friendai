@@ -3,8 +3,34 @@ package dev.friendai.features.navigation.pathing;
 /**
  * What one block position means for movement. {@code breakTicks} is the time to break it with the best tool the
  * companion carries, or −1 when it may not be broken at all (unbreakable, blacklisted, protected).
+ *
+ * <p>{@code top} is the height of the surface a body stands on, in blocks above the cell's floor: 1 for a full
+ * block, 0.5 for a bottom slab, 0.0625 for a carpet. The grid puts the node above the support cell, so a shorter
+ * support leaves the feet lower than the node's level; the walker plans its climbs from that real height instead of
+ * assuming every standable cell is a full block.
  */
-public record Cell(Kind kind, int breakTicks, boolean falls, boolean placeable) {
+public record Cell(Kind kind, int breakTicks, boolean falls, boolean placeable, double top) {
+
+    /** The top of a full block. */
+    public static final double FULL_TOP = 1.0;
+    /** The top of a half-height block such as a bottom slab. */
+    public static final double HALF_TOP = 0.5;
+
+    /**
+     * A cell with the standing height of its kind. The Minecraft adapter passes the collision shape's real top; this
+     * keeps pure fixtures and callers that only classify a cell readable.
+     */
+    public Cell(Kind kind, int breakTicks, boolean falls, boolean placeable) {
+        this(kind, breakTicks, falls, placeable, defaultTop(kind));
+    }
+
+    private static double defaultTop(Kind kind) {
+        return switch (kind) {
+            case SOLID, CLIMBABLE -> FULL_TOP;
+            case PARTIAL -> HALF_TOP;
+            default -> 0.0;
+        };
+    }
 
     public enum Kind {
         /** Nothing here, or a replaceable plant that does not block movement. */

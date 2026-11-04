@@ -17,6 +17,7 @@ import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.features.acquisition.minecraft.tool.ObtainTools;
 import dev.friendai.features.construction.minecraft.tool.ConstructionTools;
 import dev.friendai.features.cooking.minecraft.tool.CookingTools;
+import dev.friendai.features.crafting.CraftPlanner;
 import dev.friendai.features.crafting.minecraft.tool.CraftingTools;
 import dev.friendai.features.farming.minecraft.tool.FarmingTools;
 import dev.friendai.features.interaction.minecraft.task.WaitTask;
@@ -208,6 +209,7 @@ class FeatureToolRegistryTest {
                 "mine_blocks",
                 "mine_block_at",
                 "obtain_item",
+                "obtain_items",
                 "plan_obtain",
                 "search_resource",
                 "find_target",
@@ -264,6 +266,23 @@ class FeatureToolRegistryTest {
                         .stream()
                         .map(value -> value.getAsString())
                         .toList());
+        TaskToolDefinition batch = registry.taskDefinitions().get("obtain_items");
+        assertEquals(AccessLevel.TRUSTED, batch.minAccess());
+        assertTrue(batch.restorable(), "a batch job survives a restart");
+        assertEquals(
+                List.of("local", "expedition"),
+                batch
+                        .schema()
+                        .getAsJsonObject("properties")
+                        .getAsJsonObject("scope")
+                        .getAsJsonArray("enum")
+                        .asList()
+                        .stream()
+                        .map(value -> value.getAsString())
+                        .toList());
+        var items = batch.schema().getAsJsonObject("properties").getAsJsonObject("items");
+        assertEquals(1, items.get("minItems").getAsInt());
+        assertEquals(CraftPlanner.MAX_TARGETS, items.get("maxItems").getAsInt());
 
         ToolCatalog catalog = ToolCatalog.defaults();
         for (var metadata : registry.catalogMetadata()) {

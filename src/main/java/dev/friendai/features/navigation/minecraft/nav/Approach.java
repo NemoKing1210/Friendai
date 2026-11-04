@@ -312,14 +312,23 @@ public final class Approach {
         return new GoalReach(targets, REACH, companion.getEyeHeight());
     }
 
-    /** The nearest candidate within reach of the eyes right now, or null. */
+    /**
+     * The nearest candidate the companion can act on right now, or null. "In reach" means the eyes are close enough
+     * <em>and</em> the block is in sight: an arm's length through a wall is not a reach, and neither is standing
+     * inside the target's own cell.
+     */
     private BlockPos nearestWithinReach(CompanionEntity companion) {
+        ServerLevel level = (ServerLevel) companion.level();
         Vec3 eye = companion.getEyePosition();
+        AABB body = companion.getBoundingBox();
         BlockPos best = null;
         double bestDistance = REACH;
         for (BlockPos candidate : candidates) {
+            if (body.intersects(new AABB(candidate))) {
+                continue;
+            }
             double distance = eye.distanceTo(Vec3.atCenterOf(candidate));
-            if (distance <= bestDistance) {
+            if (distance <= bestDistance && Sight.canSee(level, companion, candidate)) {
                 best = candidate;
                 bestDistance = distance;
             }

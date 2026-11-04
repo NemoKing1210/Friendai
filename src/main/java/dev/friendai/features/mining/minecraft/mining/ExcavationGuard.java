@@ -136,7 +136,7 @@ public final class ExcavationGuard implements PathExecutionGuard {
             }
             BlockState state = level.getBlockState(pos);
             if (state.getFluidState().is(FluidTags.WATER)) {
-                return new Cell(Cell.Kind.WATER, cell.breakTicks(), false, cell.placeable());
+                return new Cell(Cell.Kind.WATER, cell.breakTicks(), false, cell.placeable(), 0.0);
             }
             return cell;
         };

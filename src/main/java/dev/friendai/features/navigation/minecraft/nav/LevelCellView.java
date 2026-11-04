@@ -198,7 +198,24 @@ public final class LevelCellView implements CellView {
         FluidState fluid = state.getFluidState();
         Cell.Kind kind = kindOf(state, shape, fluid);
         boolean placeable = (kind == Cell.Kind.AIR || kind == Cell.Kind.WATER) && mayPlaceAt(pos);
-        return new Cell(kind, breakTicks(pos, state, kind), state.getBlock() instanceof FallingBlock, placeable);
+        return new Cell(
+                kind,
+                breakTicks(pos, state, kind),
+                state.getBlock() instanceof FallingBlock,
+                placeable,
+                topOf(kind, shape));
+    }
+
+    /**
+     * How high a body standing on this cell stands: the collision shape's top. A slab, a carpet or a snow layer is
+     * lower than the node above it, and a climbable column keeps the full height the grid already assumed for it.
+     */
+    private static double topOf(Cell.Kind kind, VoxelShape shape) {
+        return switch (kind) {
+            case SOLID, PARTIAL -> Math.min(Cell.FULL_TOP, shape.max(Direction.Axis.Y));
+            case CLIMBABLE -> Cell.FULL_TOP;
+            default -> 0.0;
+        };
     }
 
     /** The cell kind of a state, without the break time or placement rules a search needs. */
@@ -211,6 +228,11 @@ public final class LevelCellView implements CellView {
         }
         if (isClosedDoor(state)) {
             return Cell.Kind.DOOR;
+        }
+        if (isOpenDoor(state)) {
+            // An open door or gate still has a thin collision panel, but the doorway itself is walked through. Read
+            // as solid, it would turn into a wall the moment the route opened it.
+            return Cell.Kind.PASSABLE;
         }
         if (isClimbable(state)) {
             return Cell.Kind.CLIMBABLE;
@@ -230,11 +252,18 @@ public final class LevelCellView implements CellView {
         return config.allowPlace() && companion.hands().canInteract(pos);
     }
 
-    private static boolean isClosedDoor(BlockState state) {
+    static boolean isClosedDoor(BlockState state) {
         if (!state.is(BlockTags.WOODEN_DOORS) && !state.is(BlockTags.FENCE_GATES)) {
             return false;
         }
         return !state.hasProperty(BlockStateProperties.OPEN) || !state.getValue(BlockStateProperties.OPEN);
+    }
+
+    /** Whether the block is a wooden door or a gate standing open, which is walked through like a passage. */
+    static boolean isOpenDoor(BlockState state) {
+        return (state.is(BlockTags.WOODEN_DOORS) || state.is(BlockTags.FENCE_GATES))
+                && state.hasProperty(BlockStateProperties.OPEN)
+                && state.getValue(BlockStateProperties.OPEN);
     }
 
     private static boolean isClimbable(BlockState state) {

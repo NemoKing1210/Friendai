@@ -25,6 +25,43 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 - `light_area` no longer spends torches on open, sunlit ground and no longer misses a dark spot behind a wall.
 - Clearing a bare patch of ground no longer reports the job as failed because the block under the companion's feet was left alone.
 
+## [0.205.1] - 2026-11-04
+
+### Changed
+
+- The companion no longer plans a leap from under a ceiling and no longer digs a step it cannot climb: a heading, a dug route and a rising swim are measured against what the body can really clear, and blocks a dig brings down are cleared top-down so none drops into the space just opened.
+- A closed door on the route is opened and walked through instead of being treated as a wall and planned around.
+- The companion flies to a destination farther than 60 blocks by chaining bounded legs, and keeps following you in flight when you move: it adopts the new point once its current route has been flown instead of restarting the search every tick.
+
+### Fixed
+
+- The companion is no longer "reached" through a wall or a level above it: a chest, button or block behind a wall is out of reach, a `go_to` point counts as reached within one block instead of three, and reaching an entity compensates for its height, so it walks up to a target on a slab or above the foot of a pillar.
+- Pausing stops the body where it stands: a step, leap or swim already under way no longer carries it a block further.
+- A portal trip that never changes dimension now fails with a clear reason instead of hanging until the task watchdog gives up.
+
+## [0.205.0] - 2026-11-04
+
+### Added
+
+- Ask for a set of items at once and the companion gathers every raw material for the whole set once, then crafts them all, instead of mining the same resource again for each item: a tool set now costs one trip for cobblestone.
+
+### Fixed
+
+- The companion knows what its own finished plan did: the summary it reads afterwards names each step's result, so it no longer hands over a second tool set because the first delivery looked like it never happened, and `queue_show` can re-read a finished plan.
+
+## [0.204.2] - 2026-11-04
+
+### Fixed
+
+- The companion no longer jumps at a block two blocks high when it stands on a carpet, a slab, a snow layer or a path: a climb is planned by the real height of the surface under its feet, so it takes the step or the walkway instead of hopping against a wall it cannot reach.
+
+## [0.204.1] - 2026-11-04
+
+### Fixed
+
+- The companion hands over what you asked it to make: it walks over and drops the items at your feet instead of asking whether it should, and a tool it swapped out mid-job is picked up rather than reported missing.
+- Stone it mined for your tools no longer disappears into a pillar: a climb, a bridge or a catch platform leaves the material your plan still needs in the bag and says what it is short of, and a deposit keeps it too.
+
 ## [0.204.0] - 2026-11-04
 
 ### Added

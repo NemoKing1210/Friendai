@@ -92,7 +92,6 @@ public final class TravelThroughPortalTask implements Task {
     private SpecialStructureTask builder;
     private boolean builtHere;
     private int phaseTicks;
-    private boolean transitAttempted;
     private String summary = "";
     private String sourceDimension = "";
     private String outboundName = "";
@@ -123,7 +122,6 @@ public final class TravelThroughPortalTask implements Task {
         outbound.reset(c);
         phase = Phase.PREPARE;
         phaseTicks = 0;
-        transitAttempted = false;
         portal = null;
         walkTarget = null;
         builder = null;
@@ -389,6 +387,13 @@ public final class TravelThroughPortalTask implements Task {
             summary = "the portal moved me to " + now + " instead of " + normalize(targetDimension);
             return TaskStatus.FAILED;
         }
+        // The game notices the body in the portal on its next movement tick, so a dimension change is immediate when
+        // it happens. Waiting longer than the transit window means the teleport did not take, and the trip fails here
+        // rather than relying on the task progress watch.
+        if (++phaseTicks > TRANSIT_TIMEOUT) {
+            summary = "the portal did not take me to " + normalize(targetDimension) + " from " + sourceDimension;
+            return TaskStatus.FAILED;
+        }
         if (!(c.level().getBlockState(walkTarget).getBlock()
                 instanceof net.minecraft.world.level.block.Portal portal)) {
             summary = "the portal is no longer lit";
@@ -405,8 +410,8 @@ public final class TravelThroughPortalTask implements Task {
         }
         c.companion().setPortalCooldown();
         c.companion().teleport(transition);
-        transitAttempted = true;
-        phaseTicks = 0;
+        // The counter is not reset here: a teleport that leaves the body in the source dimension is exactly the case
+        // the transit window above exists to catch. Entering the phase and arriving both reset it.
         return TaskStatus.RUNNING;
     }
 

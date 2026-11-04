@@ -211,7 +211,7 @@ public final class ToolCatalog {
                 "lead_animals",
                 "harvest_honey",
                 "fish");
-        group(metas, ToolGroup.OBTAIN, Cost.HIGH, "obtain_item", "plan_obtain");
+        group(metas, ToolGroup.OBTAIN, Cost.HIGH, "obtain_item", "obtain_items", "plan_obtain");
         group(
                 metas,
                 ToolGroup.TRADING,
@@ -364,7 +364,12 @@ public final class ToolCatalog {
                 metas,
                 "obtain_item",
                 "- To get an item you don't have, prefer obtain_item over long hand-written plans; use plan_obtain to explain what it will take.\n"
-                        + "- In creative mode, obtain_item can supply a registered item directly for an authorized owner.");
+                        + "- In creative mode, obtain_item can supply a registered item directly for an authorized owner.\n"
+                        + "- For several items that share materials, use obtain_items so the raw materials are gathered once.");
+        hint(
+                metas,
+                "obtain_items",
+                "- For a set of items that share materials (a tool set, a set of builds), prefer obtain_items: it gathers every raw material once, then crafts them all.");
         hint(
                 metas,
                 "create_item",

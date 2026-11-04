@@ -82,6 +82,12 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     /** The tool invocation the runner is executing right now; runner-local, never read by a worker. */
     private LogContext invocationContext = LogContext.NONE;
 
+    /** How often the material reserve is recomposed while nothing transitions; one second of game time. */
+    private static final long MATERIAL_RESERVE_INTERVAL = 20L;
+
+    private long materialReserveTick = Long.MIN_VALUE;
+    private int materialReserveTaskId = -1;
+
     private final dev.friendai.foundation.diagnostics.DiagnosticClock diagnosticClock =
             dev.friendai.foundation.diagnostics.DiagnosticClock.system();
     private long lastTickWall = -1L;
@@ -178,6 +184,13 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     public void setManualPause(boolean paused) {
         manualPause = paused;
         if (paused) {
+            // Suspending stops the ticks, not the body: the move control keeps its last wanted point, so a body
+            // already walking would finish that step while its owner believes it paused. Halt it where it stands and
+            // let the task pick up from there.
+            companion.getNavigation().stop();
+            companion.getMoveControl().setWantedPosition(companion.getX(), companion.getY(), companion.getZ(), 0.0);
+            companion.setDeltaMovement(0.0, companion.getDeltaMovement().y, 0.0);
+            companion.setPathing(false);
             suspend();
             inTransition(this::flushEvents);
         } else {
@@ -775,7 +788,61 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
 
     public void tick() {
         reportClockGap();
+        refreshMaterialReserve();
         inTransition(this::tickActive);
+    }
+
+    /**
+     * Recomputes what the remaining queued work still needs and hands it to the companion. Transitions and a slow
+     * heartbeat only: composing it every tick would scan the queue and the loot tables sixty times a second.
+     */
+    private void refreshMaterialReserve() {
+        int taskId = currentId();
+        long now = companion.level().getGameTime();
+        if (taskId == materialReserveTaskId && now - materialReserveTick < MATERIAL_RESERVE_INTERVAL) {
+            return;
+        }
+        materialReserveTaskId = taskId;
+        materialReserveTick = now;
+        companion.setMaterialReserve(composeMaterialReserve());
+    }
+
+    /** The plan's remaining steps and the running task's own need, the larger of the two per item. */
+    private dev.friendai.features.navigation.pathing.MaterialReserve composeMaterialReserve() {
+        java.util.List<QueuedStep> remaining = new java.util.ArrayList<>();
+        for (Job job : queueDriver.queue().jobs()) {
+            if (job.state() == JobState.DONE
+                    || job.state() == JobState.FAILED
+                    || job.state() == JobState.SKIPPED
+                    || job.state() == JobState.CANCELLED) {
+                continue;
+            }
+            remaining.add(new QueuedStep(job.tool(), job.args(), null, null, null, null, 1, null));
+        }
+        java.util.Map<String, Integer> planNeeds = dev.friendai.execution.queue.PlanMaterials.needs(
+                remaining,
+                companion.level() instanceof ServerLevel level
+                        ? dev.friendai.features.navigation.minecraft.nav.PlanMaterialSource.forLevel(level)
+                        : null);
+        java.util.Map<String, Integer> taskNeeds = java.util.Map.of();
+        ActiveTask active = activeTask();
+        if (active != null) {
+            taskNeeds = active.task().materialNeeds(context());
+        }
+        dev.friendai.features.navigation.pathing.MaterialReserve composed =
+                dev.friendai.features.navigation.pathing.MaterialReserve.compose(planNeeds, taskNeeds);
+        if (!(companion.level() instanceof ServerLevel level) || composed.isEmpty()) {
+            return composed;
+        }
+        // A task names the block it is sent for; what that block yields is what the tool needs.
+        var source = dev.friendai.features.navigation.minecraft.nav.PlanMaterialSource.forLevel(level);
+        java.util.Map<String, Integer> withDrops = new java.util.LinkedHashMap<>(composed.asMap());
+        for (java.util.Map.Entry<String, Integer> entry : composed.asMap().entrySet()) {
+            for (String item : source.itemsFor(entry.getKey())) {
+                withDrops.merge(item, entry.getValue(), Math::max);
+            }
+        }
+        return dev.friendai.features.navigation.pathing.MaterialReserve.of(withDrops);
     }
 
     /** One clock.gap per observed gap over a second; the reason stays unknown, it is never inferred as a pause. */

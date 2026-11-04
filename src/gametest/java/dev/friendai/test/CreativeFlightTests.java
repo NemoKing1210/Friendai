@@ -21,6 +21,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.permissions.LevelBasedPermissionSet;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
@@ -171,9 +172,73 @@ public final class CreativeFlightTests {
         companion.executionCoordinator().start(new FlyToTask(targetPosition), "fly_to", caller(owner), true);
         h.succeedWhen(() -> {
             h.assertTrue(status[0] == TaskStatus.FAILED, "unloaded route status was " + status[0]);
-            h.assertTrue(summary[0].contains("loaded collision-safe"), "unexpected failure: " + summary[0]);
+            h.assertTrue(summary[0].contains("unloaded chunk"), "unexpected failure: " + summary[0]);
             h.assertFalse(companion.isNoGravity(), "failed route left no-gravity enabled");
         });
+    }
+
+    @GameTest(maxTicks = 900)
+    public void fliesFurtherThanTheSearchBoxInLegs(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
+        CompanionEntity companion = creativeCompanion(h, owner);
+        BlockPos start = h.absolutePos(new BlockPos(2, 160, 2));
+        companion.snapTo(start.getX() + 0.5, start.getY(), start.getZ() + 0.5, 0, 0);
+        // A flight search only sees loaded chunks, and the destination is a hundred blocks out: keep the corridor
+        // loaded so the test measures the search bound and not chunk loading.
+        GameTestSupport.keepLoaded(h, -8, -8, 108, 8);
+        Vec3 target = h.absoluteVec(new Vec3(102.5, 160, 2.5));
+        FlyToTask task = new FlyToTask(target);
+        companion.executionCoordinator().start(task, "fly_to", caller(owner), true);
+        h.succeedWhen(() -> {
+            h.assertTrue(
+                    companion.position().distanceTo(target) <= FlightTolerance.VALUE,
+                    "companion did not fly a hundred blocks; at " + companion.position() + "; result="
+                            + task.resultSummary() + "; route=" + task.navigationDebug());
+            h.assertTrue(task.resultSummary().startsWith("flew to "), "unexpected result: " + task.resultSummary());
+        });
+    }
+
+    @GameTest(maxTicks = 1600)
+    public void flightKeepsItsSearchWhenTheDestinationMoves(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 14, 2, 14);
+        CompanionEntity companion = creativeCompanion(h, owner);
+        BlockPos start = h.absolutePos(new BlockPos(2, 160, 2));
+        companion.snapTo(start.getX() + 0.5, start.getY(), start.getZ() + 0.5, 0, 0);
+        GameTestSupport.keepLoaded(h, -8, -28, 56, 28);
+        // A low wall across the way: going over it costs the search about five per-tick batches (a taller wall would
+        // exhaust the whole node budget). A destination that moves every tick used to restart that search before it
+        // could answer, so the companion never left the start.
+        for (int y = 155; y <= 165; y++) {
+            for (int z = -20; z <= 20; z++) h.setBlock(10, y, z, Blocks.STONE);
+        }
+        // The destination circles behind the wall at a block a tick, so it moves on every tick and never stops to be
+        // caught. The companion cannot match that speed; what it must do is keep flying, not stand at the start.
+        Vec3 center = h.absoluteVec(new Vec3(35.0, 160, 2.0));
+        double radius = 12.0;
+        Vec3 startPosition = companion.position();
+        companion.executionCoordinator().start(new StayTask(5000), "stay");
+        TaskContext context = new TaskContext(
+                companion,
+                h.getLevel(),
+                companion.executionCoordinator(),
+                new CreativeActionContext(owner.getUUID(), companion.creativeModeRevision()));
+        FlightNavigator navigator = new FlightNavigator();
+        int[] ticks = {0};
+        h.onEachTick(() -> {
+            double angle = (ticks[0] % 75) * (Math.PI * 2 / 75);
+            Vec3 requested = center.add(Math.cos(angle) * radius, 0.0, Math.sin(angle) * radius);
+            ticks[0]++;
+            if (navigator.tick(context, requested) == FlightNavigator.State.UNREACHABLE) {
+                h.fail("flight to a moving destination failed: " + navigator.diagnostic() + "; "
+                        + navigator.debugStatus());
+            }
+        });
+        h.succeedWhen(() -> h.assertTrue(
+                ticks[0] >= 150 && companion.position().distanceTo(startPosition) >= 6.0,
+                "flight never got going while the destination kept moving: " + companion.position() + " from "
+                        + startPosition + "; " + navigator.debugStatus()));
     }
 
     @GameTest(maxTicks = 400)

@@ -3,15 +3,20 @@ package dev.friendai.test;
 import dev.friendai.debug.DebugTarget;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.features.construction.minecraft.build.Scaffold;
 import dev.friendai.features.mining.MiningBounds;
 import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
 import dev.friendai.features.mining.minecraft.mining.BreakAction;
 import dev.friendai.features.mining.minecraft.mining.ExcavationGuard;
 import dev.friendai.features.mining.minecraft.task.MineBlockAtTask;
 import dev.friendai.features.mining.minecraft.task.MineBlocksTask;
+import dev.friendai.features.navigation.minecraft.nav.MaterialPicker;
 import dev.friendai.features.navigation.minecraft.nav.Sight;
+import dev.friendai.features.navigation.pathing.BlockList;
+import dev.friendai.features.navigation.pathing.MaterialReserve;
 import dev.friendai.features.navigation.pathing.Move;
 import dev.friendai.features.navigation.pathing.Node;
+import dev.friendai.features.navigation.pathing.PathingConfig;
 import dev.friendai.features.navigation.pathing.PathStep;
 import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.server.execution.ExecutionCoordinator;
@@ -19,6 +24,7 @@ import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
@@ -42,6 +48,101 @@ public class MiningTests {
 
         @Override
         public void onCancelled(int id, String toolName, String reason) {}
+    }
+
+    /** The companion alone on the platform, with a wall beside it so a block can be placed against something. */
+    private static CompanionEntity scaffoldCompanion(GameTestHelper h, ItemStack... bag) {
+        GameTestSupport.platform(h, 12);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        h.setBlock(new BlockPos(3, 2, 2), Blocks.STONE);
+        h.setBlock(new BlockPos(3, 3, 2), Blocks.STONE);
+        for (ItemStack stack : bag) {
+            c.inventory().addItem(stack);
+        }
+        return c;
+    }
+
+    /** The spendable count is the bag's total minus the reserve, however the stacks happen to be split. */
+    @GameTest(maxTicks = 20)
+    public void theSpendableCountSubtractsTheReserveAcrossStacks(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.COBBLESTONE, 64));
+        c.inventory().addItem(new ItemStack(Items.COBBLESTONE, 16));
+        PathingConfig config = PathingConfig.DEFAULTS;
+        MaterialPicker picker = new MaterialPicker(
+                config,
+                BlockList.parse(config.breakBlacklist(), ignored -> {}),
+                BlockList.parse(config.placeBlacklist(), ignored -> {}),
+                MaterialReserve.of(Map.of("minecraft:cobblestone", 8)));
+        h.assertValueEqual(picker.count(c.inventory()), 72, "80 carried in two stacks, 8 reserved");
+        h.succeed();
+    }
+
+    /** Material the plan still needs is not scaffold material, however much of it the bag holds. */
+    @GameTest(maxTicks = 100)
+    public void reservedCobblestoneIsNotSpentOnAPillar(GameTestHelper h) {
+        CompanionEntity c = scaffoldCompanion(h, new ItemStack(Items.COBBLESTONE, 8));
+        c.setMaterialReserve(MaterialReserve.of(Map.of("minecraft:cobblestone", 8)));
+        Scaffold scaffold = new Scaffold(c);
+        TaskContext context = new TaskContext(c, h.getLevel());
+        Scaffold.State state = scaffold.pillarTo(context, c.blockPosition().getY() + 2);
+        h.assertTrue(state == Scaffold.State.FAILED, "a reserved stack must not be placed: " + state);
+        h.assertTrue(scaffold.reservedOnly(), "the failure must name the reserved material: " + scaffold.failure());
+        h.assertTrue(
+                scaffold.failure().equals("only 8 minecraft:cobblestone left, and the plan still needs it"),
+                "failure was " + scaffold.failure());
+        h.assertValueEqual(c.inventory().countItem(Items.COBBLESTONE), 8, "the reserved cobblestone stays in the bag");
+        h.assertTrue(scaffold.placed().isEmpty(), "no scaffold block may be placed");
+        h.succeed();
+    }
+
+    /** Material the plan does not need is spent first: the climb uses what is free. */
+    @GameTest(maxTicks = 300)
+    public void freeDirtIsSpentBeforeReservedCobblestone(GameTestHelper h) {
+        CompanionEntity c = scaffoldCompanion(h, new ItemStack(Items.DIRT, 2), new ItemStack(Items.COBBLESTONE, 8));
+        c.setMaterialReserve(MaterialReserve.of(Map.of("minecraft:cobblestone", 8)));
+        Scaffold scaffold = new Scaffold(c);
+        TaskContext context = new TaskContext(c, h.getLevel());
+        int target = c.blockPosition().getY() + 2;
+        h.succeedWhen(() -> {
+            Scaffold.State state = scaffold.pillarTo(context, target);
+            h.assertTrue(state != Scaffold.State.FAILED, "the climb failed: " + scaffold.failure());
+            h.assertTrue(state == Scaffold.State.READY, "not up yet: " + state);
+            h.assertValueEqual(c.inventory().countItem(Items.COBBLESTONE), 8, "reserved cobblestone untouched");
+        });
+    }
+
+    /** Without a reserve the climb spends cobblestone as it always has. */
+    @GameTest(maxTicks = 300)
+    public void noReservePillarsWithCobblestone(GameTestHelper h) {
+        CompanionEntity c = scaffoldCompanion(h, new ItemStack(Items.COBBLESTONE, 8));
+        Scaffold scaffold = new Scaffold(c);
+        TaskContext context = new TaskContext(c, h.getLevel());
+        int target = c.blockPosition().getY() + 2;
+        h.succeedWhen(() -> {
+            Scaffold.State state = scaffold.pillarTo(context, target);
+            h.assertTrue(state != Scaffold.State.FAILED, "the climb failed: " + scaffold.failure());
+            h.assertTrue(state == Scaffold.State.READY, "not up yet: " + state);
+            h.assertTrue(scaffold.used() >= 2, "the climb placed " + scaffold.used() + " blocks");
+            h.assertTrue(c.inventory().countItem(Items.COBBLESTONE) < 8, "the climb spends cobblestone");
+        });
+    }
+
+    /** A mining job's own target is what the tools are made of, so it must not be spendable on a climb. */
+    @GameTest(maxTicks = 60)
+    public void aMiningJobReservesTheStoneItWasSentFor(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 300, () -> false);
+        runner.setEventSink(new Outcome());
+        runner.start(new MineBlocksTask(BlockMatcher.parse("minecraft:stone").orElseThrow(), 8, 16), "mine_blocks");
+        // One tick: the reserve is composed before the task runs, so it is observable even when the job then fails
+        // for want of stone in the structure.
+        runner.tick();
+        int reserved = companion.materialReserve().reserved("minecraft:cobblestone");
+        h.assertTrue(reserved >= 8, "reserved: " + companion.materialReserve());
+        h.succeed();
     }
 
     @GameTest(maxTicks = 20)

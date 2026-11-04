@@ -2,10 +2,13 @@ package dev.friendai.features.navigation.minecraft.nav;
 
 import dev.friendai.features.navigation.pathing.BlockList;
 import dev.friendai.features.navigation.pathing.MaterialPrices;
+import dev.friendai.features.navigation.pathing.MaterialReserve;
 import dev.friendai.features.navigation.pathing.PathingConfig;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
@@ -17,31 +20,57 @@ import net.minecraft.world.level.block.state.BlockState;
 /**
  * Chooses the blocks the companion uses to bridge and pillar: full, solid, non-falling blocks it is allowed to
  * place, cheapest material first so it spends dirt before planks.
+ *
+ * <p>Blocks the planned work still needs are not material: every count and every take asks the reserve first, so a
+ * mining job's cobblestone stays in the bag instead of becoming a pillar. An empty reserve is the old behaviour
+ * exactly and costs one {@code isEmpty} test.
  */
 public final class MaterialPicker {
 
     private final PathingConfig config;
     private final BlockList breakList;
     private final BlockList placeList;
+    private final MaterialReserve reserve;
 
     public MaterialPicker(PathingConfig config) {
-        this(config, breakList(config), placeList(config));
+        this(config, breakList(config), placeList(config), MaterialReserve.EMPTY);
     }
 
     public MaterialPicker(PathingConfig config, BlockList breakList, BlockList placeList) {
+        this(config, breakList, placeList, MaterialReserve.EMPTY);
+    }
+
+    public MaterialPicker(PathingConfig config, BlockList breakList, BlockList placeList, MaterialReserve reserve) {
         this.config = config;
         this.breakList = breakList;
         this.placeList = placeList;
+        this.reserve = reserve == null ? MaterialReserve.EMPTY : reserve;
     }
 
-    /** How many blocks the inventory holds that may be used as material. */
+    /** How many blocks the inventory holds that may be used as material, minus what the plan still needs. */
     public int count(SimpleContainer inventory) {
-        int total = 0;
+        if (reserve.isEmpty()) {
+            int total = 0;
+            for (int i = 0; i < inventory.getContainerSize(); i++) {
+                ItemStack stack = inventory.getItem(i);
+                if (!stack.isEmpty() && qualifies(stack)) {
+                    total += stack.getCount();
+                }
+            }
+            return total;
+        }
+        // The reserve is per item kind, so the stacks of one kind are added up before it is subtracted: counting
+        // each stack against the whole remainder would let a two-stack bag count as twice what it really frees.
+        Map<String, Integer> heldByItem = new java.util.LinkedHashMap<>();
         for (int i = 0; i < inventory.getContainerSize(); i++) {
             ItemStack stack = inventory.getItem(i);
             if (!stack.isEmpty() && qualifies(stack)) {
-                total += stack.getCount();
+                heldByItem.merge(itemId(stack), stack.getCount(), Integer::sum);
             }
+        }
+        int total = 0;
+        for (Map.Entry<String, Integer> entry : heldByItem.entrySet()) {
+            total += Math.min(entry.getValue(), reserve.free(entry.getKey(), entry.getValue()));
         }
         return total;
     }
@@ -52,7 +81,7 @@ public final class MaterialPicker {
         boolean found = false;
         for (int i = 0; i < inventory.getContainerSize(); i++) {
             ItemStack stack = inventory.getItem(i);
-            if (stack.isEmpty() || !qualifies(stack)) {
+            if (stack.isEmpty() || !qualifies(stack) || free(inventory, stack) <= 0) {
                 continue;
             }
             double price = price(stack);
@@ -64,13 +93,24 @@ public final class MaterialPicker {
         return best;
     }
 
+    /** Whether anything spendable is in the bag at all; false when every qualifying block is reserved. */
+    public boolean hasSpendable(SimpleContainer inventory) {
+        for (int i = 0; i < inventory.getContainerSize(); i++) {
+            ItemStack stack = inventory.getItem(i);
+            if (!stack.isEmpty() && qualifies(stack) && free(inventory, stack) > 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** Removes one of the cheapest usable blocks from the inventory and returns it. */
     public Optional<ItemStack> takeCheapest(SimpleContainer inventory) {
         int slot = -1;
         double best = Double.MAX_VALUE;
         for (int i = 0; i < inventory.getContainerSize(); i++) {
             ItemStack stack = inventory.getItem(i);
-            if (stack.isEmpty() || !qualifies(stack)) {
+            if (stack.isEmpty() || !qualifies(stack) || free(inventory, stack) <= 0) {
                 continue;
             }
             double price = price(stack);
@@ -91,6 +131,34 @@ public final class MaterialPicker {
             inventory.setItem(slot, stack);
         }
         return Optional.of(taken);
+    }
+
+    /**
+     * How many of this stack are spendable: its own count minus what is still owed of that item, clamped at zero. A
+     * reserve is per item kind, so the count of the whole inventory is what it is compared against.
+     */
+    private int free(SimpleContainer inventory, ItemStack stack) {
+        if (reserve.isEmpty()) {
+            return stack.getCount();
+        }
+        String id = itemId(stack);
+        return Math.min(stack.getCount(), reserve.free(id, held(inventory, id)));
+    }
+
+    private static String itemId(ItemStack stack) {
+        return BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+    }
+
+    /** How many of this item the inventory holds in total. */
+    private int held(SimpleContainer inventory, String itemId) {
+        int total = 0;
+        for (int i = 0; i < inventory.getContainerSize(); i++) {
+            ItemStack stack = inventory.getItem(i);
+            if (!stack.isEmpty() && itemId(stack).equals(itemId)) {
+                total += stack.getCount();
+            }
+        }
+        return total;
     }
 
     /** Whether one item of {@code stack} is a block worth placing on a path. */

@@ -24,7 +24,12 @@ public final class MoveHelper {
     private static final int REPATH_TICKS = 10;
     private static final int STUCK_CHECK_TICKS = 100;
     private static final double MIN_PROGRESS = 0.5;
-    private static final double VERTICAL = 3.0;
+    /**
+     * How far above or below the requested point a node still counts as the goal. One block allows a target on a step
+     * or a slab to be reached from the ground below it; a wider band let a body at the foot of a pillar "reach" a
+     * point three blocks over its head.
+     */
+    private static final double VERTICAL = 1.0;
 
     private final double speed;
     private final double arriveDistance;
@@ -181,9 +186,17 @@ public final class MoveHelper {
      * test is stricter than the goal band uses this instead of stopping wherever the band happened to end.
      */
     State align(TaskContext context, double x, double z) {
+        return align(context, x, z, arriveDistance);
+    }
+
+    /**
+     * The same walk with an explicit horizontal allowance, for a caller whose arrival test also covers height: the
+     * horizontal gap it must close is smaller when the target is above or below it.
+     */
+    State align(TaskContext context, double x, double z, double horizontalAllowance) {
         CompanionEntity companion = context.companion();
         double horizontal = Math.hypot(x - companion.getX(), z - companion.getZ());
-        if (horizontal <= arriveDistance) {
+        if (horizontal <= horizontalAllowance) {
             if (navigator != null) {
                 navigator.stop(context);
             }
@@ -196,7 +209,7 @@ public final class MoveHelper {
         }
         if (++sinceCheckpoint >= STUCK_CHECK_TICKS) {
             sinceCheckpoint = 0;
-            if (checkpointDistance - horizontal < Math.min(MIN_PROGRESS, arriveDistance)) {
+            if (checkpointDistance - horizontal < Math.min(MIN_PROGRESS, horizontalAllowance)) {
                 if (navigator != null) {
                     navigator.stop(context);
                 }

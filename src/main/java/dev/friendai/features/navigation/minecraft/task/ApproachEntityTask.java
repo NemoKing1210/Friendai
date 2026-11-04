@@ -106,6 +106,14 @@ public final class ApproachEntityTask implements Task {
         approach.stop(context);
     }
 
+    @Override
+    public void onTerminal(TaskContext context) {
+        // A finished or failed approach is not ticked again, so the route it left running would drive the body on its
+        // own; the terminal hook is the only place that closes it for a task the coordinator removed without a stop.
+        journeyStop(context);
+        approach.stop(context);
+    }
+
     private void journeyStop(TaskContext context) {
         if (journey != null) journey.stop(context);
         journey = null;
