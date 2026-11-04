@@ -330,6 +330,8 @@
   "friendai.menu.settings.outline.desc": "Zeichnet den Gefährten durch Wände nach, wenn er weit weg oder verdeckt ist.",
   "friendai.menu.settings.movement_debug.title": "Bewegungs-Overlay",
   "friendai.menu.settings.movement_debug.desc": "Zeichnet die geplante Route und die Arbeitszellen in der Welt. Nur Operatoren; bei jedem Start aus.",
+  "friendai.menu.settings.movement_debug.waiting": "Warte auf den Server…",
+  "friendai.menu.settings.movement_debug.unavailable": "Auf dieser Verbindung nicht verfügbar",
   "friendai.menu.tab.tasks": "Aufgaben",
   "friendai.menu.tab.memory": "Erinnerung",
   "friendai.menu.tab.places": "Orte",

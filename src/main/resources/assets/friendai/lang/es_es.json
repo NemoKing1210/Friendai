@@ -330,6 +330,8 @@
   "friendai.menu.settings.outline.desc": "Dibuja el contorno de tu compañero a través de paredes cuando está lejos u oculto.",
   "friendai.menu.settings.movement_debug.title": "Superposición de movimiento",
   "friendai.menu.settings.movement_debug.desc": "Dibuja la ruta planeada y las celdas de trabajo en el mundo. Solo operadores; desactivado en cada inicio.",
+  "friendai.menu.settings.movement_debug.waiting": "Esperando al servidor…",
+  "friendai.menu.settings.movement_debug.unavailable": "No disponible en esta conexión",
   "friendai.menu.tab.tasks": "Tareas",
   "friendai.menu.tab.memory": "Memoria",
   "friendai.menu.tab.places": "Lugares",

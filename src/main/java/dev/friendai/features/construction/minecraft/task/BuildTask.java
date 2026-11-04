@@ -5,6 +5,8 @@ import dev.friendai.debug.DebugTarget;
 import dev.friendai.debug.WorkCell;
 import dev.friendai.debug.WorkKind;
 import dev.friendai.debug.WorkSet;
+import dev.friendai.debug.WorkSetBudget;
+import dev.friendai.debug.WorkSetOrder;
 import dev.friendai.debug.WorkStatus;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.construction.blueprint.BlockSpec;
@@ -1717,35 +1719,72 @@ public final class BuildTask implements Task {
     @Override
     public List<WorkSet> debugWorkSets() {
         if (placed == null || placed.specs().isEmpty()) return List.of();
-        List<WorkCell> cells = new ArrayList<>();
+        // A large build is rescanned every four ticks: index the order once instead of calling indexOf per block.
+        Map<BlockSpec, Integer> orderIndex = WorkSetOrder.firstIndex(order);
+        List<WorkCell> active = new ArrayList<>();
+        List<WorkCell> finished = new ArrayList<>();
+        int doneCount = 0;
+        int nextCount = 0;
+        int pendingCount = 0;
         for (int i = 0; i < placed.specs().size(); i++) {
             Placement.PlacedSpec placedSpec = placed.specs().get(i);
             BlockSpec spec = buildPlan.blocks().get(i);
-            int index = order.indexOf(spec);
+            Integer index = orderIndex.get(spec);
             boolean deferredPending = deferred.contains(spec);
             WorkStatus status;
-            if (index < 0) status = WorkStatus.DONE;
+            if (index == null) status = WorkStatus.DONE;
             else if (current != null && current.equals(spec)) status = WorkStatus.NEXT;
             else if (index < cursor && !deferredPending) status = WorkStatus.DONE;
             else status = WorkStatus.PENDING;
-            cells.add(new WorkCell(
-                    placedSpec.pos().getX(),
-                    placedSpec.pos().getY(),
-                    placedSpec.pos().getZ(),
-                    DebugAction.PLACE,
-                    status,
-                    "Place build block"));
+            switch (status) {
+                case DONE -> {
+                    doneCount++;
+                    if (finished.size() < WorkSetBudget.MAX_WORK_CELLS) finished.add(workCell(placedSpec, status));
+                }
+                case NEXT -> {
+                    nextCount++;
+                    if (active.size() < WorkSetBudget.MAX_WORK_CELLS) active.add(workCell(placedSpec, status));
+                }
+                case PENDING -> {
+                    pendingCount++;
+                    if (active.size() < WorkSetBudget.MAX_WORK_CELLS) active.add(workCell(placedSpec, status));
+                }
+                case SKIPPED -> {
+                    // A build does not skip cells; the count stays part of the invariant only.
+                }
+            }
         }
-        int doneCount = (int)
-                cells.stream().filter(cell -> cell.status() == WorkStatus.DONE).count();
-        int nextCount = (int)
-                cells.stream().filter(cell -> cell.status() == WorkStatus.NEXT).count();
-        int pendingCount = (int) cells.stream()
-                .filter(cell -> cell.status() == WorkStatus.PENDING)
-                .count();
-        int totalCount = cells.size();
+        // Send the cells still to be placed first; finished cells only fill the remaining wire budget.
+        List<WorkCell> cells = new ArrayList<>(Math.min(WorkSetBudget.MAX_WORK_CELLS, active.size() + finished.size()));
+        for (WorkCell cell : active) {
+            if (cells.size() >= WorkSetBudget.MAX_WORK_CELLS) break;
+            cells.add(cell);
+        }
+        for (WorkCell cell : finished) {
+            if (cells.size() >= WorkSetBudget.MAX_WORK_CELLS) break;
+            cells.add(cell);
+        }
+        int totalCount = placed.specs().size();
         return List.of(new WorkSet(
-                blueprint.name(), WorkKind.BUILD, totalCount, doneCount, nextCount, pendingCount, 0, false, cells));
+                blueprint.name(),
+                WorkKind.BUILD,
+                totalCount,
+                doneCount,
+                nextCount,
+                pendingCount,
+                0,
+                cells.size() < totalCount,
+                cells));
+    }
+
+    private static WorkCell workCell(Placement.PlacedSpec placedSpec, WorkStatus status) {
+        return new WorkCell(
+                placedSpec.pos().getX(),
+                placedSpec.pos().getY(),
+                placedSpec.pos().getZ(),
+                DebugAction.PLACE,
+                status,
+                "Place build block");
     }
 
     @Override

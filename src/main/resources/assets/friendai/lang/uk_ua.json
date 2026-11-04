@@ -330,6 +330,8 @@
   "friendai.menu.settings.outline.desc": "Обводить помічника крізь стіни, коли він далеко або прихований.",
   "friendai.menu.settings.movement_debug.title": "Накладення руху",
   "friendai.menu.settings.movement_debug.desc": "Малює у світі запланований маршрут і робочі клітинки. Лише для операторів; після кожного запуску вимкнено.",
+  "friendai.menu.settings.movement_debug.waiting": "Очікування сервера…",
+  "friendai.menu.settings.movement_debug.unavailable": "Недоступно в цьому підключенні",
   "friendai.menu.tab.tasks": "Завдання",
   "friendai.menu.tab.memory": "Пам'ять",
   "friendai.menu.tab.places": "Місця",

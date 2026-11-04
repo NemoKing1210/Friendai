@@ -9,6 +9,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -104,6 +105,33 @@ public record MovementDebug(
     private static boolean appendTarget(List<DebugTarget> targets, DebugTarget target) {
         targets.add(target);
         return targets.size() < MAX_TARGETS;
+    }
+
+    /**
+     * The action targets no work set already shows. Both describe blocks at the same coordinates, so drawing every
+     * target as well would put two boxes and two labels on one block; a work-set cell wins because it also carries the
+     * cell's progress.
+     */
+    public static List<DebugTarget> targetsOutsideWorkSets(List<DebugTarget> targets, List<WorkSet> workSets) {
+        if (targets == null || targets.isEmpty()) {
+            return List.of();
+        }
+        if (workSets == null || workSets.isEmpty()) {
+            return List.copyOf(targets);
+        }
+        Set<Cell> covered = new HashSet<>();
+        for (WorkSet set : workSets) {
+            for (WorkCell cell : set.cells()) {
+                covered.add(new Cell(cell.x(), cell.y(), cell.z()));
+            }
+        }
+        List<DebugTarget> result = new ArrayList<>(targets.size());
+        for (DebugTarget target : targets) {
+            if (target != null && !covered.contains(new Cell(target.x(), target.y(), target.z()))) {
+                result.add(target);
+            }
+        }
+        return List.copyOf(result);
     }
 
     /** The next two pending queue jobs, ordered by their plan order. */

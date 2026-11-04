@@ -330,6 +330,8 @@
   "friendai.menu.settings.outline.desc": "Обводит спутника сквозь стены, когда он далеко или скрыт.",
   "friendai.menu.settings.movement_debug.title": "Отладка движения",
   "friendai.menu.settings.movement_debug.desc": "Рисует в мире маршрут и рабочие клетки. Только для операторов; при каждом запуске выключена.",
+  "friendai.menu.settings.movement_debug.waiting": "Ожидание сервера…",
+  "friendai.menu.settings.movement_debug.unavailable": "Недоступно в этом подключении",
   "friendai.menu.tab.tasks": "Задачи",
   "friendai.menu.tab.memory": "Память",
   "friendai.menu.tab.places": "Места",

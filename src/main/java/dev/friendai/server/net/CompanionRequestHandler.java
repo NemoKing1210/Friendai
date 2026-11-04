@@ -59,7 +59,7 @@ public final class CompanionRequestHandler {
             return;
         }
         if (request instanceof DebugRequest.MovementStreamSet movement) {
-            if (movement.enabled() && !mayOpen(runtime, owner, "movement", server)) return;
+            // A toggle is cheap and user-driven: it must not be dropped by the snapshot throughput gate.
             runtime.movementDebugStream().set(runtime, player, movement.enabled(), requestId);
             return;
         }

@@ -330,6 +330,8 @@
   "friendai.menu.settings.outline.desc": "同伴距离较远或被遮挡时，透过墙壁勾勒其轮廓。",
   "friendai.menu.settings.movement_debug.title": "移动叠加层",
   "friendai.menu.settings.movement_debug.desc": "在世界中绘制规划路线和作业格。仅限管理员；每次启动都默认关闭。",
+  "friendai.menu.settings.movement_debug.waiting": "正在等待服务器…",
+  "friendai.menu.settings.movement_debug.unavailable": "此连接不可用",
   "friendai.menu.tab.tasks": "任务",
   "friendai.menu.tab.memory": "记忆",
   "friendai.menu.tab.places": "地点",

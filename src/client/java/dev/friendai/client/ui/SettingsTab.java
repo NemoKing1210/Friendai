@@ -103,7 +103,7 @@ final class SettingsTab extends StatefulMenuTab {
                 "friendai.menu.settings.movement_debug.title",
                 "friendai.menu.settings.movement_debug.desc",
                 Ui.PURPLE,
-                SettingsTab::toggleMovementDebug);
+                this::toggleMovementDebug);
         outline = setting(
                 host,
                 "friendai.menu.settings.outline.title",
@@ -131,10 +131,13 @@ final class SettingsTab extends StatefulMenuTab {
     }
 
     /** Session-only: the overlay is off whenever a connection starts, so it never switches itself on. */
-    private static void toggleMovementDebug() {
+    private void toggleMovementDebug() {
         boolean on = !MovementDebugState.enabled();
-        MovementDebugState.setEnabled(on);
-        CompanionRequests.send(new DebugRequest.MovementStreamSet(on));
+        long request = CompanionRequests.send(new DebugRequest.MovementStreamSet(on));
+        MovementDebugState.setRequestFailed(request < 0);
+        if (request >= 0) {
+            MovementDebugState.setEnabled(on);
+        }
     }
 
     private void toggleAutoRespawn() {
@@ -158,7 +161,15 @@ final class SettingsTab extends StatefulMenuTab {
 
         movementDebug.visible = operator;
         apply(movementDebug, MovementDebugState.enabled(), connected && operator);
-        movementDebug.status = null;
+        if (MovementDebugState.requestFailed()) {
+            movementDebug.status = Component.translatable("friendai.menu.settings.movement_debug.unavailable");
+            movementDebug.statusColor = Ui.WARN;
+        } else if (MovementDebugState.awaitingView()) {
+            movementDebug.status = Component.translatable("friendai.menu.settings.movement_debug.waiting");
+            movementDebug.statusColor = Ui.DIM;
+        } else {
+            movementDebug.status = null;
+        }
 
         boolean hardcore = snapshot.map(s -> !s.autoRespawnAvailable()).orElse(false);
         autoRespawn.visible = present;

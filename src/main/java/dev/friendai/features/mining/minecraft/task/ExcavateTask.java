@@ -1,5 +1,12 @@
 package dev.friendai.features.mining.minecraft.task;
 
+import dev.friendai.debug.DebugAction;
+import dev.friendai.debug.DebugTarget;
+import dev.friendai.debug.WorkCell;
+import dev.friendai.debug.WorkKind;
+import dev.friendai.debug.WorkSet;
+import dev.friendai.debug.WorkSetBudget;
+import dev.friendai.debug.WorkStatus;
 import dev.friendai.features.construction.minecraft.build.ScaffoldCleanupTask;
 import dev.friendai.features.mining.MiningBounds;
 import dev.friendai.features.mining.excavation.ExcavationProgress;
@@ -329,6 +336,100 @@ public final class ExcavateTask implements Task {
             case "friendai.mining.inventory_full" -> "the inventory is full";
             default -> failure.key();
         };
+    }
+
+    @Override
+    public List<DebugTarget> debugTargets() {
+        List<DebugTarget> targets = new ArrayList<>();
+        BlockPos target = session == null ? null : session.target();
+        if (target == null && nextIndex < order.size()) {
+            Pos pending = order.get(nextIndex);
+            target = new BlockPos(pending.x(), pending.y(), pending.z());
+        }
+        if (target != null) {
+            targets.add(new DebugTarget(target.getX(), target.getY(), target.getZ(), DebugAction.BREAK, "Excavate"));
+        }
+        if (session != null) {
+            for (BlockPos cell : session.catchCells()) {
+                targets.add(new DebugTarget(cell.getX(), cell.getY(), cell.getZ(), DebugAction.PLACE, "catch"));
+            }
+        }
+        return targets;
+    }
+
+    @Override
+    public List<WorkSet> debugWorkSets() {
+        if (order.isEmpty()) {
+            return List.of();
+        }
+        BlockPos next = session == null ? null : session.target();
+        if (next == null && nextIndex < order.size()) {
+            Pos pending = order.get(nextIndex);
+            next = new BlockPos(pending.x(), pending.y(), pending.z());
+        }
+        int total = order.size();
+        int done = Math.min(progress.broken(), total);
+        int skipped = Math.min(progress.skipped(), total - done);
+        int nextCount = next == null ? 0 : Math.min(1, total - done - skipped);
+        int pending = total - done - skipped - nextCount;
+        List<WorkCell> cells = new ArrayList<>(Math.min(WorkSetBudget.MAX_WORK_CELLS, total));
+        if (nextCount == 1) {
+            cells.add(new WorkCell(
+                    next.getX(), next.getY(), next.getZ(), DebugAction.BREAK, WorkStatus.NEXT, "Excavate"));
+        }
+        int pendingAdded = 0;
+        if (session != null) {
+            for (BlockPos pos : session.targets()) {
+                if (pendingAdded >= pending || cells.size() >= WorkSetBudget.MAX_WORK_CELLS) break;
+                if (pos.equals(next)) continue;
+                cells.add(new WorkCell(
+                        pos.getX(), pos.getY(), pos.getZ(), DebugAction.BREAK, WorkStatus.PENDING, "Excavate"));
+                pendingAdded++;
+            }
+        }
+        for (int i = nextIndex; i < total; i++) {
+            if (pendingAdded >= pending || cells.size() >= WorkSetBudget.MAX_WORK_CELLS) break;
+            Pos pos = order.get(i);
+            if (next != null && pos.x() == next.getX() && pos.y() == next.getY() && pos.z() == next.getZ()) {
+                continue;
+            }
+            cells.add(new WorkCell(pos.x(), pos.y(), pos.z(), DebugAction.BREAK, WorkStatus.PENDING, "Excavate"));
+            pendingAdded++;
+        }
+        return List.of(new WorkSet(
+                ExcavationText.label(spec),
+                WorkKind.BLOCKS,
+                total,
+                done,
+                nextCount,
+                pending,
+                skipped,
+                cells.size() < total,
+                cells));
+    }
+
+    @Override
+    public String debugStatus() {
+        StringBuilder text = new StringBuilder("excavate ")
+                .append(progress.broken())
+                .append('/')
+                .append(spec.count())
+                .append(" broken, skipped ")
+                .append(progress.skipped());
+        if (sweep != null) {
+            text.append(", collecting drops");
+        }
+        if (cleanup != null) {
+            text.append(", cleaning up temporary blocks");
+        }
+        if (session != null) {
+            text.append(", ").append(session.phase());
+            String reason = session.debugReason();
+            if (!reason.isEmpty()) {
+                text.append(", ").append(reason);
+            }
+        }
+        return text.toString();
     }
 
     @Override

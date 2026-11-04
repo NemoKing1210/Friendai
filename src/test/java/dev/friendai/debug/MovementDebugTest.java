@@ -206,6 +206,26 @@ class MovementDebugTest {
     }
 
     @Test
+    void targetsCoveredByWorkCellsAreNotDrawnTwice() {
+        DebugTarget shared = new DebugTarget(1, 64, 1, DebugAction.PLACE, "build block");
+        DebugTarget other = new DebugTarget(9, 64, 9, DebugAction.USE, "chest");
+        WorkSet set = new WorkSet(
+                "build",
+                WorkKind.BUILD,
+                1,
+                0,
+                1,
+                0,
+                0,
+                false,
+                List.of(new WorkCell(1, 64, 1, DebugAction.PLACE, WorkStatus.NEXT, "build block")));
+
+        assertEquals(List.of(other), MovementDebug.targetsOutsideWorkSets(List.of(shared, other), List.of(set)));
+        assertEquals(List.of(shared, other), MovementDebug.targetsOutsideWorkSets(List.of(shared, other), List.of()));
+        assertEquals(List.of(), MovementDebug.targetsOutsideWorkSets(null, List.of(set)));
+    }
+
+    @Test
     void capsCombinedTargetsAtProtocolLimit() {
         List<DebugTarget> taskTargets = new ArrayList<>();
         for (int i = 0; i < MovementDebug.MAX_TARGETS + 5; i++) {

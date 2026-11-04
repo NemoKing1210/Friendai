@@ -478,9 +478,20 @@ public class CompanionEntity extends PathfinderMob {
         this.lastNavigator = navigator;
         this.lastNavigatorTick = level().getGameTime();
     }
-    /** The navigator that drove the companion within the last second, or null. */
+
+    /**
+     * The navigator that drove the companion within the last second, or the one that still owns a planned route. A task
+     * that mines, builds or fights stops ticking its navigator for many ticks while the route stays valid; a navigator
+     * that was stopped clears its executor, so {@code plan() == null} is the reliable "no route any more" signal.
+     */
     public dev.friendai.features.navigation.minecraft.nav.Navigator activeNavigator() {
-        return lastNavigator != null && level().getGameTime() - lastNavigatorTick <= 20 ? lastNavigator : null;
+        if (lastNavigator == null) {
+            return null;
+        }
+        if (lastNavigator.plan() != null) {
+            return lastNavigator;
+        }
+        return level().getGameTime() - lastNavigatorTick <= 20 ? lastNavigator : null;
     }
 
     public void setPathing(boolean pathing) {

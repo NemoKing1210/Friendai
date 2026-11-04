@@ -136,7 +136,9 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] Enable Debug as an operator; verify a large tree shows NEXT, pending and done logs, with totals that remain truthful when more than 256 cells are planned.
 - [ ] Inspect a vein, farm plot, build, exploration route and resource search; verify the whole task-owned work set appears beyond the single current target.
 - [ ] Confirm route break/place obstacles remain visible when the work-set cap is reached, and cell labels stay limited to each set and its NEXT cell.
-- [ ] Check readability and frame rate while facing the work set and while looking away; distant and behind-camera cells should be culled.
+- [ ] Check readability and frame rate while facing the work set and while looking away; distant cells should be culled, and cells behind the camera should stay visible.
+- [ ] Toggle the overlay while the world is still loading or the server is busy: the row says **Waiting for the server…** until data arrives, and a rejected switch does not turn the row on.
+- [ ] Run an excavation order: the region's cells, the current cell and any catch platform appear while it digs.
 - [ ] Disconnect and reconnect as an operator; the saved preference should restore after support/operator state arrives. Verify a non-operator receives no debug stream.
 
 ## Voice

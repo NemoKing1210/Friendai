@@ -330,6 +330,8 @@
   "friendai.menu.settings.outline.desc": "Outlines your companion through walls when it is far or hidden.",
   "friendai.menu.settings.movement_debug.title": "Movement overlay",
   "friendai.menu.settings.movement_debug.desc": "Draws the planned route and the work cells in the world. Operators only; off at every start.",
+  "friendai.menu.settings.movement_debug.waiting": "Waiting for the server…",
+  "friendai.menu.settings.movement_debug.unavailable": "Not available on this connection",
   "friendai.menu.tab.tasks": "Tasks",
   "friendai.menu.tab.memory": "Memory",
   "friendai.menu.tab.places": "Places",

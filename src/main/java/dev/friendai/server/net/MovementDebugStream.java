@@ -1,5 +1,6 @@
 package dev.friendai.server.net;
 
+import dev.friendai.FriendaiMod;
 import dev.friendai.debug.DebugService;
 import dev.friendai.debug.DebugTarget;
 import dev.friendai.debug.MovementDebug;
@@ -18,16 +19,23 @@ import dev.friendai.server.runtime.ServerRuntime;
 import dev.friendai.task.Task;
 import dev.friendai.transport.protocol.MovementDebugProtocolAdapter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Supplier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.phys.Vec3;
 
 /** Feeds the movement overlay to operators who switched it on: the route, the goal and the movement numbers. */
 public final class MovementDebugStream {
     private static final int INTERVAL_TICKS = 4;
+    /** A failing view is retried every interval; one line per ten seconds is enough to see it without flooding. */
+    private static final int FAILURE_LOG_INTERVAL_TICKS = 200;
+
+    private final Map<UUID, Long> lastFailureLog = new HashMap<>();
     private int counter;
 
     public MovementDebugStream() {}
@@ -40,11 +48,20 @@ public final class MovementDebugStream {
         DebugService debug = runtime.sessions().debug();
         for (UUID owner : debug.movementViewers()) {
             ServerPlayer player = server.getPlayerList().getPlayer(owner);
-            if (player == null || !Operators.isOperator(player)) {
-                debug.setMovementDebug(owner, false);
+            if (player == null) {
+                drop(debug, owner);
                 continue;
             }
-            send(runtime, player, true, 0);
+            boolean allowed = Operators.isOperator(player);
+            if (!allowed) {
+                drop(debug, owner);
+            }
+            try {
+                // A viewer that lost permission still gets the clear marker, so the client switch does not stay on.
+                send(runtime, player, allowed, 0);
+            } catch (RuntimeException failure) {
+                report(owner, failure, server.getTickCount());
+            }
         }
     }
 
@@ -55,24 +72,73 @@ public final class MovementDebugStream {
 
     public void set(ServerRuntime runtime, ServerPlayer player, boolean on, long requestId) {
         runtime.sessions().debug().setMovementDebug(player.getUUID(), on);
-        send(runtime, player, on, requestId);
+        try {
+            send(runtime, player, on, requestId);
+        } catch (RuntimeException failure) {
+            report(player.getUUID(), failure, runtime.server().getTickCount());
+        }
     }
 
     public void onDisconnect(ServerRuntime runtime, ServerPlayer player) {
         runtime.sessions().debug().setMovementDebug(player.getUUID(), false);
+        lastFailureLog.remove(player.getUUID());
+    }
+
+    private void drop(DebugService debug, UUID owner) {
+        debug.setMovementDebug(owner, false);
+        lastFailureLog.remove(owner);
     }
 
     private void send(ServerRuntime runtime, ServerPlayer player, boolean on, long requestId) {
-        MovementDebugView view = new MovementDebugView(
-                0, -1, List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+        MovementDebugView view = clearView();
         if (on) {
             Optional<CompanionEntity> companion = runtime.companions().find(player.getUUID());
             if (companion.isPresent()) {
-                view = MovementDebugProtocolAdapter.toProtocol(build(runtime, companion.get()));
+                view = MovementDebugProtocolAdapter.toProtocol(buildSafely(runtime, player, companion.get()));
             }
         }
-        runtime.protocolConnections()
-                .sendView(player, ProtocolFamily.DEBUG, MovementDebugProtocolViewCodec.encode(view, requestId));
+        byte[] frame;
+        try {
+            frame = MovementDebugProtocolViewCodec.encode(view, requestId);
+        } catch (RuntimeException encodingFailure) {
+            // A frame the codec rejects must not take the tick down: report it in-band with a minimal view.
+            report(player.getUUID(), encodingFailure, runtime.server().getTickCount());
+            frame = MovementDebugProtocolViewCodec.encode(
+                    failureView(player.getUUID(), runtime, encodingFailure), requestId);
+        }
+        if (!runtime.protocolConnections().sendView(player, ProtocolFamily.DEBUG, frame)) {
+            // The handshake may still be in flight; keep the viewer and retry on the next interval.
+            report(
+                    player.getUUID(),
+                    new IllegalStateException("debug view was not sent"),
+                    runtime.server().getTickCount());
+        }
+    }
+
+    /**
+     * One task's broken debug hook must not hide the route, the movement numbers or the other hooks: each read is
+     * guarded and its failure is reported as one line the operator can see.
+     */
+    MovementDebug buildSafely(ServerRuntime runtime, ServerPlayer player, CompanionEntity companion) {
+        try {
+            return build(runtime, companion);
+        } catch (RuntimeException failure) {
+            report(player.getUUID(), failure, runtime.server().getTickCount());
+            List<String> lines = new ArrayList<>();
+            lines.add("task: unavailable");
+            lines.add("debug: view unavailable (" + failure.getClass().getSimpleName() + ")");
+            return new MovementDebug(
+                    companion.getId(),
+                    -1,
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    lines,
+                    List.of(),
+                    List.of(),
+                    List.of());
+        }
     }
 
     static MovementDebug build(ServerRuntime runtime, CompanionEntity c) {
@@ -82,9 +148,11 @@ public final class MovementDebugStream {
         List<MovementDebug.Cell> places = new ArrayList<>();
         List<MovementDebug.Cell> goalCells = new ArrayList<>();
         List<String> lines = new ArrayList<>();
+        List<String> hookFailures = new ArrayList<>();
         int stepIndex = -1;
-        String task = c.executionCoordinator().current().map(Task::describe).orElse("none");
-        lines.add("task: " + task);
+        Task task = c.executionCoordinator().current().orElse(null);
+        String taskName = task == null ? "none" : guarded(hookFailures, "description", task::describe, "unavailable");
+        lines.add("task: " + taskName);
         c.executionCoordinator().currentQueueIntent().ifPresent(intent -> lines.add("intent: " + intent));
         var ownerId = c.ownerUuid();
         if (ownerId != null) {
@@ -162,10 +230,12 @@ public final class MovementDebugStream {
                 c.getYRot(),
                 c.getYHeadRot(),
                 c.getXRot()));
-        List<DebugTarget> targets = MovementDebug.combineTargets(
-                c.executionCoordinator().current().map(Task::debugTargets).orElse(List.of()), breaks, places);
-        String taskStatus =
-                c.executionCoordinator().current().map(Task::debugStatus).orElse("");
+        Supplier<List<DebugTarget>> targetReader = task == null ? null : task::debugTargets;
+        Supplier<String> statusReader = task == null ? null : task::debugStatus;
+        Supplier<List<WorkSet>> workSetReader = task == null ? null : task::debugWorkSets;
+        List<DebugTarget> taskTargets = guarded(hookFailures, "targets", targetReader, List.of());
+        List<DebugTarget> targets = MovementDebug.combineTargets(taskTargets, breaks, places);
+        String taskStatus = guarded(hookFailures, "status", statusReader, "");
         if (!taskStatus.isBlank()) {
             lines.add(
                     taskStatus.length() > MovementDebug.MAX_LINE_CHARS
@@ -173,13 +243,52 @@ public final class MovementDebugStream {
                             : taskStatus);
         }
         List<WorkSet> workSets = WorkSetBudget.select(
-                c.executionCoordinator().current().map(Task::debugWorkSets).orElse(List.of()),
+                guarded(hookFailures, "work sets", workSetReader, List.of()),
                 c.blockPosition().getX(),
                 c.blockPosition().getY(),
                 c.blockPosition().getZ());
         List<String> upcoming =
                 MovementDebug.upcomingSteps(c.executionCoordinator().queue().jobs());
+        // Keep hook failures near the top: the codec trims the oldest lines last, and these are the newest information.
+        lines.addAll(Math.min(1, lines.size()), hookFailures);
         return new MovementDebug(
                 c.getId(), stepIndex, route, breaks, places, goalCells, lines, targets, upcoming, workSets);
+    }
+
+    private static <T> T guarded(List<String> failures, String part, Supplier<T> read, T fallback) {
+        if (read == null) {
+            return fallback;
+        }
+        try {
+            T value = read.get();
+            return value == null ? fallback : value;
+        } catch (RuntimeException failure) {
+            failures.add(
+                    "debug: " + part + " unavailable (" + failure.getClass().getSimpleName() + ")");
+            return fallback;
+        }
+    }
+
+    private static MovementDebugView clearView() {
+        return new MovementDebugView(
+                0, -1, List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+    }
+
+    private static MovementDebugView failureView(UUID owner, ServerRuntime runtime, RuntimeException failure) {
+        int companionId =
+                runtime.companions().find(owner).map(CompanionEntity::getId).orElse(0);
+        List<String> lines =
+                List.of("debug: view unavailable (" + failure.getClass().getSimpleName() + ")");
+        return new MovementDebugView(
+                companionId, -1, List.of(), List.of(), List.of(), List.of(), lines, List.of(), List.of(), List.of());
+    }
+
+    private void report(UUID owner, RuntimeException failure, long tick) {
+        Long last = lastFailureLog.get(owner);
+        if (last != null && tick - last < FAILURE_LOG_INTERVAL_TICKS) {
+            return;
+        }
+        lastFailureLog.put(owner, tick);
+        FriendaiMod.LOGGER.warn("Movement debug update failed for {}", owner, failure);
     }
 }
