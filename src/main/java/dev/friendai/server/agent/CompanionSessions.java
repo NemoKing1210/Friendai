@@ -132,7 +132,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
     private final PlannerAdapter planners;
     private final FreeTimeDriver freeTime;
     private final RoutineDriver routines;
-    private long lastAgentCheck;
+    private final AgentIdleTick idleTick;
     private ServerConfig config;
 
     public CompanionSessions(
@@ -332,6 +332,16 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
         this.freeTime = new FreeTimeDriver(
                 server, this, () -> this.config, settings, freeTimeService, places, placeService, taskTools, planTools);
         this.routines = new RoutineDriver(server, this, () -> this.config, routineRepository, planTools);
+        this.idleTick = new AgentIdleTick(
+                server,
+                () -> this.config,
+                routines,
+                freeTime,
+                goals,
+                this::entryFor,
+                owner -> sessions.get(owner),
+                () -> List.copyOf(sessions.values()),
+                this::post);
         reload(initial);
         emitStreamStart();
     }
@@ -711,7 +721,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
 
     public void tick() {
         scheduler.tick();
-        agentTick();
+        idleTick.tick();
     }
 
     /** Cancels in-flight model work while the server and its owner-thread state are still available. */
@@ -726,115 +736,6 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
     public void close() {
         stopAcceptingWork();
         sessions.clear();
-    }
-
-    /** Once a second: nudge idle companions toward an unfinished goal, as the autonomy setting allows. */
-    private void agentTick() {
-        long now = server.getTickCount() * 50L;
-        if (now - lastAgentCheck < 1_000L) {
-            return;
-        }
-        lastAgentCheck = now;
-        // Routines are tracked even when autonomy is passive: a paused occurrence must be reported once, and a
-        // running owner-scheduled plan must reach its safe boundary.
-        routines.tick();
-        dev.friendai.agent.turn.AgentSettings.Autonomy autonomy =
-                dev.friendai.agent.turn.AgentSettings.Autonomy.parse(config.agent.autonomy);
-        if (autonomy == dev.friendai.agent.turn.AgentSettings.Autonomy.PASSIVE) {
-            return;
-        }
-        long wall = FreeTimeDriver.now();
-        for (CompanionEntity companion : CompanionManager.get(server).all()) {
-            UUID owner = companion.ownerUuid();
-            if (owner == null) {
-                continue;
-            }
-            var primary = goals.board(owner).primary();
-            // Free time needs the task listener a brain installs, even before the owner has said anything.
-            CompanionSession brain =
-                    freeTime.state(owner).on() ? entryFor(owner).orElse(null) : sessions.get(owner);
-            try {
-                freeTime.tick(
-                        owner,
-                        companion,
-                        brain != null && brain.hasPendingWork(),
-                        primary.isPresent() && primary.get().status() == dev.friendai.agent.goal.GoalStatus.ACTIVE,
-                        wall);
-            } catch (RuntimeException e) {
-                FriendaiMod.LOGGER.warn("Free time failed for {}", owner, e);
-            }
-        }
-        for (Map.Entry<UUID, CompanionSession> entry : new ArrayList<>(sessions.entrySet())) {
-            UUID owner = entry.getKey();
-            if (entry.getValue().brain() == null) continue;
-            CompanionEntity companion = CompanionManager.get(server).find(owner).orElse(null);
-            if (companion == null) {
-                continue;
-            }
-            var board = goals.board(owner);
-            var primary = board.primary();
-            boolean active = primary.isPresent() && primary.get().status() == dev.friendai.agent.goal.GoalStatus.ACTIVE;
-            long last = entry.getValue().lastGoalTick();
-            if (last == 0L) {
-                last = now;
-                entry.getValue().lastGoalTick(now);
-            }
-            boolean idle = queueIdleOrBlocked(companion);
-            if (!idle) {
-                entry.getValue().resetNudgeStreak(); // a new idle spell starts with a fresh interval
-            }
-            int streak = entry.getValue().nudgeStreak();
-            if (dev.friendai.agent.tick.NudgeBackoff.exhausted(streak)) {
-                continue;
-            }
-            var facts = new dev.friendai.agent.tick.TickFacts(
-                    active,
-                    idle,
-                    companion.owner().isPresent(),
-                    companion.executionCoordinator().paused()
-                            || companion.executionCoordinator().suspended()
-                            || companion.isSleeping()
-                            || companion.getTarget() != null,
-                    entry.getValue().isThinking(),
-                    now,
-                    last,
-                    autonomy,
-                    dev.friendai.agent.tick.NudgeBackoff.intervalSec(config.agent.goalTickSec, streak));
-            if (dev.friendai.agent.tick.GoalTickPolicy.shouldAskWhatNext(facts)) {
-                entry.getValue().lastGoalTick(now);
-                entry.getValue().incrementNudgeStreak();
-                post(owner, new BrainEvent.IdleNudge());
-            } else if (dev.friendai.agent.tick.GoalTickPolicy.shouldTick(facts)) {
-                entry.getValue().lastGoalTick(now);
-                entry.getValue().incrementNudgeStreak();
-                var guard = new dev.friendai.task.queue.CompanionGuardFacts(companion);
-                guard.refresh();
-                post(
-                        owner,
-                        new BrainEvent.GoalTick(
-                                primary.get().text(),
-                                board.unmet(primary.get().id(), guard).stream()
-                                        .map(dev.friendai.agent.goal.Criterion::text)
-                                        .toList()));
-            }
-        }
-    }
-
-    /** Nothing runs and no plan moves by itself; a plan waiting for a decision counts as blocked. */
-    private static boolean queueIdleOrBlocked(CompanionEntity companion) {
-        var runner = companion.executionCoordinator();
-        var queue = runner.queue();
-        if (queue.jobCount() == 0) {
-            return !runner.hasWork();
-        }
-        if (queue.active().isPresent()) {
-            return false;
-        }
-        boolean directWork = queue.jobs().stream()
-                .anyMatch(job -> job.planId() == 0 && !dev.friendai.execution.queue.JobQueue.terminal(job));
-        boolean planMoving = queue.plans().stream()
-                .anyMatch(plan -> queue.planStatus(plan.id()) == dev.friendai.execution.queue.PlanStatus.ACTIVE);
-        return !directWork && !planMoving;
     }
 
     /** Adds verified facts, a diagnosis and goal bookkeeping to the task and plan events of one companion. */
