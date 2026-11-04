@@ -1,0 +1,14 @@
+{
+  "name": "recovery_without_goal",
+  "access": "owner",
+  "eventKind": "plan_blocked",
+  "event": "placed 4 of 10 blocks; the rest need stone",
+  "planId": 5,
+  "plans": [
+    {"goal": "build the wall", "rationale": "gather the stone, then place the rest",
+     "expected": "ten blocks placed",
+     "steps": [{"tool": "obtain_item", "args": {"item": "minecraft:cobblestone", "count": 6}}]}
+  ],
+  "replies": [{"text": "I will gather the stone and carry on with the wall.", "tools": []}],
+  "expect": {"maxRequests": 1, "plannerConsulted": 1, "plansApplied": 1, "toolsNotCalled": ["queue_add"], "spokenContains": ["stone"]}
+}

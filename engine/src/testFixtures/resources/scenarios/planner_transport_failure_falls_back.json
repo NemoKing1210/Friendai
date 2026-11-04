@@ -1,0 +1,8 @@
+{
+  "name": "planner_transport_failure_falls_back",
+  "access": "owner",
+  "playerSays": "build a house and bring iron",
+  "plannerFailure": "REQUEST_FAILED",
+  "replies": [{"text": "I will start on the first part myself.", "tools": []}],
+  "expect": {"maxRequests": 2, "plannerConsulted": 1, "plansApplied": 0, "spokenNotContains": ["plan #"]}
+}

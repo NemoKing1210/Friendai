@@ -40,7 +40,10 @@ class ScenarioBaselineTest {
             "repairable_failure",
             "hour_passive",
             "hour_assistive",
-            "hour_autonomous");
+            "hour_autonomous",
+            "planning_first_order",
+            "recovery_without_goal",
+            "planner_transport_failure_falls_back");
 
     private static final Duration RUN_BOUND = Duration.ofSeconds(30);
 
@@ -91,12 +94,15 @@ class ScenarioBaselineTest {
                         + " reported (`delivered`, `error`, `cancelled`, or a dropped event).\n");
         report.append("- `provenance`: `scripted FakeGateway` for this test; `live provider` only when a live gateway"
                 + " answers.\n");
+        report.append("- `planner/plans`: times the brain asked the scripted planner for its input, and proposals it"
+                + " applied to the queue; a fixture with no scripted planner asks and applies none.\n");
         report.append("- `unknown`: the metric was not observed, for example payload fields in a run that made no"
                 + " request.\n\n");
         report.append(
                 "| fixture | scenario | autonomy | budget | requests | system chars | history msgs | history chars |"
-                        + " tools | tool bytes | ticks | usage | retries/errors/cancelled | outcome | provenance |\n");
-        report.append("|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|---|---|\n");
+                        + " tools | tool bytes | ticks | planner/plans | usage | retries/errors/cancelled | outcome |"
+                        + " provenance |\n");
+        report.append("|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|---|---|---|\n");
         for (Scenario scenario : scenarios) {
             ScenarioRunner.Result first = runBounded(scenario);
             ScenarioRunner.Result second = runBounded(scenario);
@@ -140,7 +146,8 @@ class ScenarioBaselineTest {
                 + result.promptBudget() + " | " + result.requests() + " | " + value(result.systemChars()) + " | "
                 + value(result.historyMessages()) + " | " + value(result.historyChars()) + " | "
                 + value(result.toolSpecs()) + " | " + value(result.toolSpecBytes()) + " | "
-                + value(result.simulatedTicks()) + " | " + usage(result) + " | " + value(result.retries()) + "/"
+                + value(result.simulatedTicks()) + " | " + result.plannerConsultations() + "/"
+                + result.plansApplied() + " | " + usage(result) + " | " + value(result.retries()) + "/"
                 + value(result.errors()) + "/" + value(result.cancelledRequests()) + " | " + outcome(result) + " | "
                 + result.provenance() + " |";
     }

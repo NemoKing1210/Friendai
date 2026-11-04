@@ -1,5 +1,6 @@
 package dev.friendai.agent.eval;
 
+import com.google.gson.JsonArray;
 import dev.friendai.agent.turn.AgentSettings;
 import dev.friendai.agent.turn.AgentSettings.Autonomy;
 import java.util.List;
@@ -22,6 +23,13 @@ import java.util.List;
  *
  * <p>{@code simulatedTicks} is how many 50 ms virtual scheduler ticks (20 ticks per second, one simulated hour =
  * 72,000) are advanced after the scripted events. Absent means the clock is not advanced.
+ *
+ * <p>{@code plans} scripts what the planner proposes, in order; {@code plannerFailure} makes every proposal fail with
+ * that {@link dev.friendai.agent.plan.PlanFailure.Code} name instead. Both absent means "no planner", so a fixture
+ * written before the port was scripted behaves exactly as it did: the brain falls back to planning itself.
+ *
+ * <p>{@code eventKind} {@code plan_blocked} posts a {@link dev.friendai.agent.turn.BrainEvent.PlanBlocked} for
+ * {@code planId} whose reason is {@code event}, which is how a fixture exercises a failed plan with no goal.
  */
 public record Scenario(
         String name,
@@ -36,7 +44,10 @@ public record Scenario(
         String language,
         String autonomy,
         Integer promptBudget,
-        Integer simulatedTicks) {
+        Integer simulatedTicks,
+        List<Plan> plans,
+        String plannerFailure,
+        Integer planId) {
 
     /** One simulated second of the virtual clock, in the ticks and milliseconds the scheduler uses. */
     public static final int TICKS_PER_SECOND = 20;
@@ -45,6 +56,7 @@ public record Scenario(
 
     public Scenario {
         replies = replies == null ? List.of() : List.copyOf(replies);
+        plans = plans == null ? List.of() : List.copyOf(plans);
         eventKind = eventKind == null || eventKind.isBlank() ? "world" : eventKind;
         language = language == null || language.isBlank() ? "en" : language;
         autonomy = autonomy == null || autonomy.isBlank() ? "assistive" : autonomy.strip();
@@ -70,6 +82,25 @@ public record Scenario(
         }
     }
 
+    /**
+     * One scripted planner answer. {@code steps} use the same node shape the planner's own prompt asks for
+     * ({@code {"tool": ..., "args": {...}}}, conditionals and repeats); a step's {@code args} object is accepted here
+     * because the fixture is data, and the runner normalizes it to the object string the queue parser expects.
+     */
+    public record Plan(String goal, String rationale, String expected, JsonArray steps) {
+        public Plan {
+            goal = goal == null ? "" : goal;
+            rationale = rationale == null ? "" : rationale;
+            expected = expected == null ? "" : expected;
+            steps = steps == null ? new JsonArray() : steps.deepCopy();
+        }
+
+        @Override
+        public JsonArray steps() {
+            return steps.deepCopy();
+        }
+    }
+
     /** What the run must show. Absent fields are not checked. */
     public record Expectations(
             Integer maxRequests,
@@ -79,7 +110,9 @@ public record Scenario(
             List<String> spokenNotContains,
             Boolean nothingSpoken,
             Integer maxClarifications,
-            Integer maxRepeatedToolCalls) {
+            Integer maxRepeatedToolCalls,
+            Integer plannerConsulted,
+            Integer plansApplied) {
         public Expectations {
             toolsCalled = toolsCalled == null ? List.of() : List.copyOf(toolsCalled);
             toolsNotCalled = toolsNotCalled == null ? List.of() : List.copyOf(toolsNotCalled);

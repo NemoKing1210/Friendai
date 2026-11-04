@@ -1,0 +1,12 @@
+{
+  "name": "planning_first_order",
+  "access": "owner",
+  "playerSays": "build a house and bring iron",
+  "plans": [
+    {"goal": "build a house and bring iron", "rationale": "gather, build, deliver",
+     "expected": "a house and iron delivered",
+     "steps": [{"tool": "obtain_item", "args": {"item": "minecraft:oak_log", "count": 16}}]}
+  ],
+  "replies": [{"text": "On it: gathering first.", "tools": []}],
+  "expect": {"maxRequests": 1, "plannerConsulted": 1, "plansApplied": 1, "toolsNotCalled": ["queue_add"], "spokenContains": ["gathering"]}
+}

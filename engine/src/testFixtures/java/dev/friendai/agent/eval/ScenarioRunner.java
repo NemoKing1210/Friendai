@@ -1,9 +1,19 @@
 package dev.friendai.agent.eval;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import dev.friendai.agent.goal.Goal;
+import dev.friendai.agent.goal.GoalStatus;
 import dev.friendai.agent.llm.model.LlmResponse;
 import dev.friendai.agent.llm.model.Message;
 import dev.friendai.agent.llm.model.ToolCall;
 import dev.friendai.agent.llm.model.ToolSpec;
+import dev.friendai.agent.plan.PlanFailure;
+import dev.friendai.agent.plan.PlanProposal;
+import dev.friendai.agent.plan.PlanSubject;
+import dev.friendai.agent.plan.PlannerException;
+import dev.friendai.agent.plan.PlannerInput;
 import dev.friendai.agent.turn.AccessResolver;
 import dev.friendai.agent.turn.AgentSettings;
 import dev.friendai.agent.turn.AgentSettings.Autonomy;
@@ -13,6 +23,11 @@ import dev.friendai.agent.turn.BrainSettings;
 import dev.friendai.agent.turn.CompanionBrain;
 import dev.friendai.agent.turn.LlmGateway;
 import dev.friendai.agent.turn.Persona;
+import dev.friendai.agent.turn.PlannerPort;
+import dev.friendai.execution.tool.Caller;
+import dev.friendai.execution.tool.QueueParser;
+import dev.friendai.execution.tool.SchemaBuilder;
+import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.testutil.FakeGateway;
 import dev.friendai.testutil.FakeToolExecutor;
 import dev.friendai.testutil.ManualScheduler;
@@ -21,6 +36,8 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -75,7 +92,9 @@ public final class ScenarioRunner {
             int usageSources,
             List<String> outcomes,
             Autonomy autonomy,
-            int promptBudget) {
+            int promptBudget,
+            int plannerConsultations,
+            int plansApplied) {
         public Result {
             toolsCalled = List.copyOf(toolsCalled);
             spoken = List.copyOf(spoken);
@@ -161,6 +180,8 @@ public final class ScenarioRunner {
         Meter meter = new Meter();
         brain.setObserver(meter);
         brain.setAgentSettings(() -> agentSettings(s));
+        ScriptedPlannerPort planner = new ScriptedPlannerPort(s);
+        brain.setPlannerPort(planner);
         String suppressed = suppressedByAutonomy(s);
         if (suppressed == null) {
             brain.post(eventFor(s, speakerId));
@@ -195,7 +216,15 @@ public final class ScenarioRunner {
         int clarifications = clarifications(spoken);
         int narration = narration(spoken);
         int repeated = repeatedToolCalls(called);
-        List<String> failures = judge(s.expect(), requests, called, spoken, clarifications, repeated);
+        List<String> failures = judge(
+                s.expect(),
+                requests,
+                called,
+                spoken,
+                clarifications,
+                repeated,
+                planner.consultations(),
+                planner.applied());
         if (s.stopAfterFirstRequest() && (!called.isEmpty() || !spoken.isEmpty())) {
             failures = new ArrayList<>(failures);
             failures.add("a cancelled turn must have no effect; tools=" + called + " spoken=" + spoken);
@@ -225,7 +254,9 @@ public final class ScenarioRunner {
                 usageSources,
                 meter.outcomes,
                 s.autonomyLevel(),
-                s.effectivePromptBudget());
+                s.effectivePromptBudget(),
+                planner.consultations(),
+                planner.applied());
     }
 
     /** The harness's fixed brain budget: eight tool steps and thirty history messages, no cooldowns. */
@@ -310,6 +341,136 @@ public final class ScenarioRunner {
         return calls.isEmpty() ? FakeGateway.text(text) : FakeGateway.calls(text, calls.toArray(new ToolCall[0]));
     }
 
+    /**
+     * The planner the fixture scripts, so the harness measures the brain's planning phase without a provider. With
+     * neither {@code plans} nor {@code plannerFailure} it answers "no input", exactly as the brain's own
+     * {@link PlannerPort#NONE} does, so a fixture written before this existed keeps its measured behaviour.
+     */
+    private static final class ScriptedPlannerPort implements PlannerPort {
+        private final List<Scenario.Plan> plans;
+        private final List<PlanProposal> proposals;
+        private final PlanFailure.Code failure;
+        private final AtomicInteger asked = new AtomicInteger();
+        private final AtomicInteger consultations = new AtomicInteger();
+        private final AtomicInteger delivered = new AtomicInteger();
+
+        ScriptedPlannerPort(Scenario s) {
+            this.plans = s.plans();
+            this.failure = s.plannerFailure() == null || s.plannerFailure().isBlank()
+                    ? null
+                    : PlanFailure.Code.valueOf(s.plannerFailure().strip());
+            this.proposals = plans.stream().map(ScenarioRunner::proposalFor).toList();
+        }
+
+        int consultations() {
+            return consultations.get();
+        }
+
+        int applied() {
+            return delivered.get();
+        }
+
+        @Override
+        public Optional<PlannerInput> inputFor(PlanSubject subject, Caller caller, String failureText) {
+            consultations.incrementAndGet();
+            if (proposals.isEmpty() && failure == null) {
+                return Optional.empty();
+            }
+            String text = plans.isEmpty() ? "the order" : plans.getFirst().goal();
+            Goal goal = new Goal(1, text, List.of(), GoalStatus.ACTIVE, 0, 0, List.of(), 0, false);
+            return Optional.of(PlannerInput.promptOnly(
+                    goal, "Position: 0 64 0", "", "", Optional.empty(), List.of(), failureText));
+        }
+
+        @Override
+        public CompletableFuture<PlanProposal> propose(PlannerInput input) {
+            if (failure != null) {
+                return CompletableFuture.failedFuture(new PlannerException(new PlanFailure(failure, "scripted", 1)));
+            }
+            return CompletableFuture.completedFuture(
+                    proposals.get(Math.min(asked.getAndIncrement(), proposals.size() - 1)));
+        }
+
+        @Override
+        public ToolResult apply(Caller caller, PlanSubject subject, PlanProposal proposal) {
+            delivered.incrementAndGet();
+            return ToolResult.ok("plan #7 added: " + proposal.plan().worstCaseActions() + " jobs");
+        }
+    }
+
+    /** Parses one scripted plan into the proposal the port hands back; a bad fixture fails the run, not the brain. */
+    private static PlanProposal proposalFor(Scenario.Plan plan) {
+        JsonArray steps = normalize(plan.steps());
+        Set<String> names = new java.util.LinkedHashSet<>();
+        for (JsonElement node : steps) {
+            collectTools(node, names);
+        }
+        Map<String, JsonObject> schemas = new java.util.LinkedHashMap<>();
+        for (String name : names) {
+            schemas.put(name, SchemaBuilder.object().build());
+        }
+        QueueParser.PlanResult parsed = QueueParser.parsePlan(steps, schemas, names, 64, 8192, 49152);
+        if (!parsed.ok()) {
+            throw new IllegalArgumentException("scripted plan \"" + plan.goal() + "\" is invalid: " + parsed.errors());
+        }
+        return new PlanProposal(parsed.plan(), steps, plan.rationale(), plan.expected());
+    }
+
+    /** Rewrites each step's {@code args} object to the object string the queue parser requires, at every depth. */
+    private static JsonArray normalize(JsonArray nodes) {
+        JsonArray out = new JsonArray();
+        for (JsonElement element : nodes) {
+            if (!element.isJsonObject()) {
+                out.add(element);
+                continue;
+            }
+            JsonObject node = element.getAsJsonObject().deepCopy();
+            if (node.has("args") && node.get("args").isJsonObject()) {
+                node.addProperty("args", node.get("args").toString());
+            }
+            for (String branch : List.of("then", "else")) {
+                if (node.has(branch) && node.get(branch).isJsonArray()) {
+                    node.add(branch, normalize(node.getAsJsonArray(branch)));
+                }
+            }
+            if (node.has("repeat") && node.get("repeat").isJsonObject()) {
+                JsonObject repeat = node.getAsJsonObject("repeat").deepCopy();
+                if (repeat.has("steps") && repeat.get("steps").isJsonArray()) {
+                    repeat.add("steps", normalize(repeat.getAsJsonArray("steps")));
+                }
+                node.add("repeat", repeat);
+            }
+            out.add(node);
+        }
+        return out;
+    }
+
+    /** Every tool a scripted plan names, so the parser sees each as a known, plannable tool. */
+    private static void collectTools(JsonElement element, Set<String> names) {
+        if (!element.isJsonObject()) {
+            return;
+        }
+        JsonObject node = element.getAsJsonObject();
+        if (node.has("tool") && node.get("tool").isJsonPrimitive()) {
+            names.add(node.get("tool").getAsString());
+        }
+        for (String branch : List.of("then", "else")) {
+            if (node.has(branch) && node.get(branch).isJsonArray()) {
+                for (JsonElement child : node.getAsJsonArray(branch)) {
+                    collectTools(child, names);
+                }
+            }
+        }
+        if (node.has("repeat") && node.get("repeat").isJsonObject()) {
+            JsonObject repeat = node.getAsJsonObject("repeat");
+            if (repeat.has("steps") && repeat.get("steps").isJsonArray()) {
+                for (JsonElement child : repeat.getAsJsonArray("steps")) {
+                    collectTools(child, names);
+                }
+            }
+        }
+    }
+
     private static BrainEvent eventFor(Scenario s, UUID speakerId) {
         if (s.playerSays() != null) {
             return new BrainEvent.PlayerSaid(speakerId, "Steve", s.playerSays(), BrainEvent.Source.CHAT);
@@ -320,6 +481,11 @@ public final class ScenarioRunner {
         }
         if ("idle".equals(s.eventKind())) {
             return new BrainEvent.IdleNudge();
+        }
+        if ("plan_blocked".equals(s.eventKind())) {
+            long planId = s.planId() == null ? 5L : s.planId();
+            String reason = s.event() == null ? "" : s.event();
+            return new BrainEvent.PlanBlocked(planId, "", 0L, "", reason, 1);
         }
         return new BrainEvent.WorldNotice(s.event());
     }
@@ -368,7 +534,9 @@ public final class ScenarioRunner {
             List<String> called,
             List<String> spoken,
             int clarifications,
-            int repeated) {
+            int repeated,
+            int plannerConsultations,
+            int plansApplied) {
         List<String> failures = new ArrayList<>();
         if (e == null) {
             return failures;
@@ -406,6 +574,13 @@ public final class ScenarioRunner {
         }
         if (e.maxRepeatedToolCalls() != null && repeated > e.maxRepeatedToolCalls()) {
             failures.add("repeated a tool " + repeated + " time(s), expected at most " + e.maxRepeatedToolCalls());
+        }
+        if (e.plannerConsulted() != null && plannerConsultations != e.plannerConsulted()) {
+            failures.add(
+                    "consulted the planner " + plannerConsultations + " time(s), expected " + e.plannerConsulted());
+        }
+        if (e.plansApplied() != null && plansApplied != e.plansApplied()) {
+            failures.add("applied " + plansApplied + " scripted plan(s), expected " + e.plansApplied());
         }
         return failures;
     }
