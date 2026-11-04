@@ -1,5 +1,7 @@
 package dev.friendai.execution.queue;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -15,6 +17,9 @@ import java.util.Map;
 public final class PlanMaterials {
     /** Above this, a step's count is a typo rather than a plan. */
     private static final int MAX_COUNT = 4096;
+
+    /** Targets one {@code obtain_items} step may reserve; the tool itself accepts at most eight. */
+    private static final int MAX_BATCH_ITEMS = 8;
 
     private PlanMaterials() {}
 
@@ -34,7 +39,8 @@ public final class PlanMaterials {
                 continue;
             }
             switch (step.tool()) {
-                case "obtain_item", "craft_item", "smelt_items" -> addItem(needs, step, "item");
+                case "obtain_item", "craft_item", "smelt_items" -> addItem(needs, step.args(), "item");
+                case "obtain_items" -> addBatch(needs, step.args());
                 case "mine_blocks" -> addBlock(needs, step, resolve);
                 default -> {}
             }
@@ -42,17 +48,31 @@ public final class PlanMaterials {
         return needs.isEmpty() ? Map.of() : Map.copyOf(needs);
     }
 
-    private static void addItem(Map<String, Integer> needs, QueuedStep step, String key) {
-        String id = text(step, key);
-        int count = count(step);
+    private static void addItem(Map<String, Integer> needs, JsonObject args, String key) {
+        String id = text(args, key);
+        int count = count(args);
         if (id.isEmpty() || count == 0) {
             return;
         }
         needs.merge(id, count, Integer::sum);
     }
 
+    /** A batch step names several targets; each entry is reserved like an {@code obtain_item} step's item. */
+    private static void addBatch(Map<String, Integer> needs, JsonObject args) {
+        if (args == null || !args.has("items") || !args.get("items").isJsonArray()) {
+            return;
+        }
+        JsonArray items = args.getAsJsonArray("items");
+        for (int i = 0; i < Math.min(items.size(), MAX_BATCH_ITEMS); i++) {
+            if (items.get(i).isJsonObject()) {
+                addItem(needs, items.get(i).getAsJsonObject(), "item");
+            }
+        }
+    }
+
     private static void addBlock(Map<String, Integer> needs, QueuedStep step, ToItemIds resolve) {
-        String block = text(step, "block");
+        JsonObject args = step.args();
+        String block = text(args, "block");
         if (block.isEmpty()) {
             return;
         }
@@ -65,7 +85,7 @@ public final class PlanMaterials {
         if (items == null || items.isEmpty()) {
             items = List.of(block);
         }
-        int count = count(step);
+        int count = count(args);
         if (count == 0) {
             return;
         }
@@ -76,8 +96,7 @@ public final class PlanMaterials {
         }
     }
 
-    private static String text(QueuedStep step, String key) {
-        var args = step.args();
+    private static String text(JsonObject args, String key) {
         if (args == null || !args.has(key) || !args.get(key).isJsonPrimitive()) {
             return "";
         }
@@ -89,8 +108,7 @@ public final class PlanMaterials {
      * The step's count, one when absent, clamped so a typo cannot reserve a boxful of nothing. A count below one is
      * a broken step rather than a request for nothing, so it reserves nothing at all.
      */
-    private static int count(QueuedStep step) {
-        var args = step.args();
+    private static int count(JsonObject args) {
         if (args == null || !args.has("count")) {
             return 1;
         }
