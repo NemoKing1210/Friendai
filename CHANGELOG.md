@@ -22,6 +22,7 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 - A task that was frozen for another action no longer fails as stalled the moment it resumes.
 - Walking a route in short steps now records it on the companion's map; the map compares against the last recorded route end instead of the previous sample.
 - A furnace that is only out of view keeps its job: the companion waits until the chunk is loaded again instead of deciding the furnace is gone.
+- The local Whisper model is verified and loaded on its own worker, so the first recording no longer stalls the game while a large model starts, and a modified model file is refused before native code sees it.
 
 ## [0.202.1] - 2026-11-04
 
