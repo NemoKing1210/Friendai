@@ -91,6 +91,7 @@ public final class CompanionRequestHandler {
                     .find(owner)
                     .ifPresent(c -> c.executionCoordinator().stopWithoutCleanup("teleported to the owner"));
             brains.cancel(owner);
+            brains.freeTime().invalidatePlanning(owner);
             if (companions.teleportToOwner(player)) brains.onEntityReplaced(owner);
         } else if (request instanceof ControlRequest.Dismiss) {
             brains.freeTime().stop(owner, "dismissed");

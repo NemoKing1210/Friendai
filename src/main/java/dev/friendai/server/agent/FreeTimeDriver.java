@@ -102,6 +102,9 @@ public final class FreeTimeDriver {
     private final Map<String, TaskToolDefinition> planTools;
     private final Map<UUID, Long> awaitingSince = new HashMap<>();
     private final Set<UUID> planning = new java.util.HashSet<>();
+    /** Bumped whenever an owner's pending planner reply stops being welcome. */
+    private final Map<UUID, Integer> planEpoch = new HashMap<>();
+
     private final Map<UUID, String> stageAtStart = new HashMap<>();
     private final AutonomyFactsBuilder facts = new AutonomyFactsBuilder();
     private final Map<UUID, ShiftBudget> budgets = new HashMap<>();
@@ -231,12 +234,22 @@ public final class FreeTimeDriver {
     }
 
     /** Ends free time and cancels only free time's own plan. */
+    /**
+     * Invalidates any planner reply in flight for this owner: a teleport, a dismissal or a stop makes the answer
+     * stale even when the shift itself survives, and a stale answer must not enqueue work or end the shift.
+     */
+    public void invalidatePlanning(UUID owner) {
+        planEpoch.merge(owner, 1, Integer::sum);
+        planning.remove(owner);
+    }
+
     public void stop(UUID owner, String reason) {
         stop(owner, reason, ShiftStopWhen.OWNER_SPOKE);
     }
 
     /** As above, recording which stop condition the owner's action was. */
     public void stop(UUID owner, String reason, ShiftStopWhen stopWhen) {
+        invalidatePlanning(owner);
         // The owner's own stop is not news to them: the command, the menu or the dismissal is the answer, so no
         // end report is said here. A shift that ends on its own is reported in endShift and onPlanEnded.
         FreeTime state = service().state(owner);
@@ -793,11 +806,15 @@ public final class FreeTimeDriver {
     }
 
     private void requestPlan(UUID owner, CompanionEntity companion, long shiftId, int minutes, boolean speakFailure) {
+        int epoch = planEpoch.getOrDefault(owner, 0);
         Caller caller = ownerCaller(owner);
         dev.friendai.agent.plan.PlannerInput input = plannerInput(owner, companion, caller);
         planning.add(owner);
         brains.propose(owner, input, true)
                 .whenComplete((proposal, error) -> brains.onServerThread(() -> {
+                    if (epoch != planEpoch.getOrDefault(owner, 0)) {
+                        return; // a teleport, a dismissal or a stop made this answer stale
+                    }
                     planning.remove(owner);
                     FreeTime state = service().state(owner);
                     if (!state.on() || state.shift() == null || state.shift().id() != shiftId) {

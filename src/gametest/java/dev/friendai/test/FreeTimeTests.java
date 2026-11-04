@@ -696,6 +696,26 @@ public class FreeTimeTests {
                 "");
     }
 
+    /** A plan the production queue accepts, so a stale reply is visible as a queued plan. */
+    private static dev.friendai.agent.plan.PlanProposal stayPlan() {
+        var step = new dev.friendai.execution.queue.QueuedStep(
+                "stay",
+                new com.google.gson.JsonObject(),
+                null,
+                java.util.List.of(),
+                dev.friendai.execution.queue.GuardAction.WAIT,
+                null,
+                1,
+                java.util.List.of());
+        return new dev.friendai.agent.plan.PlanProposal(
+                new dev.friendai.execution.queue.PlanDefinition(
+                        java.util.List.of(new dev.friendai.execution.queue.PlanNode.Action(step))),
+                com.google.gson.JsonParser.parseString("[{\"tool\":\"stay\",\"args\":\"{}\"}]")
+                        .getAsJsonArray(),
+                "",
+                "");
+    }
+
     /** An owner who is online, whose brain never reaches a real model. */
     private static CompanionEntity onlineCompanion(GameTestHelper h) {
         var player = GameTestSupport.mockPlayerAt(h, 3, 2, 3);
@@ -924,6 +944,44 @@ public class FreeTimeTests {
             }
             h.assertValueEqual(c.executionCoordinator().queue().planCount(), 0, "a late plan is not queued");
             h.assertTrue(!driver(h).state(owner).on(), "free time stays off");
+        });
+    }
+
+    /** A teleport invalidates the planner reply in flight even though the shift itself survives. */
+    @GameTest(maxTicks = 400)
+    public void latePlanAfterInvalidationIsDropped(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity c = onlineCompanion(h);
+        UUID owner = c.ownerUuid();
+        var brains = GameTestSupport.runtime(h.getLevel().getServer()).sessions();
+        var stale = new java.util.concurrent.CompletableFuture<dev.friendai.agent.plan.PlanProposal>();
+        var fresh = new java.util.concurrent.CompletableFuture<dev.friendai.agent.plan.PlanProposal>();
+        var calls = new java.util.concurrent.atomic.AtomicInteger();
+        brains.setPlannerOverride(owner, input -> calls.getAndIncrement() == 0 ? stale : fresh);
+        driver(h).start(c, dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, "");
+        boolean[] sent = {false};
+        int[] waited = {0};
+        h.succeedWhen(() -> {
+            if (!sent[0]) {
+                h.assertTrue(driver(h).state(owner).awaitingChoice(), "the director is asked to choose");
+                var chosen = driver(h).choose(c, "practise jumping", java.util.List.of(), "", 5, "EXPLORE");
+                h.assertTrue(!chosen.error(), "choose refused: " + chosen.content());
+                // The teleport request handler does exactly this before it cancels the brain.
+                driver(h).invalidatePlanning(owner);
+                stale.complete(stayPlan());
+                sent[0] = true;
+                h.assertTrue(false, "let the late answer arrive");
+            }
+            h.assertTrue(++waited[0] > 150, "waiting for a late plan to surface: " + waited[0]);
+            var state = driver(h).state(owner);
+            h.assertTrue(
+                    state.history().stream()
+                            .noneMatch(record -> record.summary().startsWith("no plan:")),
+                    "the stale reply was acted on: "
+                            + state.history().stream()
+                                    .map(record -> record.summary())
+                                    .toList());
+            h.succeed();
         });
     }
 

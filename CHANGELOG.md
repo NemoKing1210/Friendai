@@ -16,6 +16,7 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 - A tool or weapon the companion swaps out for a fight or a bite now waits in its inventory, so it is no longer lost when the companion dies, saves or reloads mid-swap; eating also holds the work queue, so a running task cannot empty the hand and be credited food that was never eaten.
 - The companion no longer empties a chest whose lid is blocked or that its owner locked: storage is opened through vanilla's own menu check, and a double chest is still read as one container.
 - Next and Previous in the trader list now move to the page they ask for instead of sending the first page again; changing the filter or the direction still starts at the first page.
+- A free-time plan that arrives after the companion was teleported, dismissed or stopped is dropped instead of queueing work at the new position.
 
 ## [0.202.1] - 2026-11-04
 
