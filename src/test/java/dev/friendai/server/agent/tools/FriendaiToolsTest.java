@@ -49,6 +49,15 @@ class FriendaiToolsTest {
         assertTrue(builtins.restorableTaskNames().contains("trade_item"));
     }
 
+    @Test
+    void giveItemsNotesThatTheOwnersRequestIsThePermission() {
+        FriendaiTools.Builtins builtins = FriendaiTools.build(() -> 8, MemoryAccess.DISABLED);
+        String note = builtins.catalog().meta("give_items").orElseThrow().whenToUse();
+
+        assertTrue(note.contains("finish a job that was for the owner"), note);
+        assertTrue(note.contains("their request is the permission"), note);
+    }
+
     private static void assertBefore(List<String> names, String first, String second) {
         assertTrue(names.indexOf(first) >= 0, "missing tool " + first);
         assertTrue(names.indexOf(second) >= 0, "missing tool " + second);
