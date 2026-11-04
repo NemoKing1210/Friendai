@@ -8,7 +8,10 @@ import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolExecutor;
 import dev.friendai.execution.tool.ToolResult;
 import java.util.ArrayList;
+import java.util.Deque;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /** Records executed calls and answers "ok <name>"; also records the access level of each call. */
 public final class FakeToolExecutor implements ToolExecutor {
@@ -17,6 +20,9 @@ public final class FakeToolExecutor implements ToolExecutor {
     public final List<AccessLevel> executeAccess = new ArrayList<>();
     public final List<Caller> executeCallers = new ArrayList<>();
     public final List<ToolSpec> available = new ArrayList<>(List.of(staySpec()));
+    /** Scripted answers per tool, consumed in order before the default {@code ok <name>}. */
+    public final Map<String, Deque<ToolResult>> results = new HashMap<>();
+
     public boolean failSpecs;
 
     private static ToolSpec staySpec() {
@@ -40,6 +46,7 @@ public final class FakeToolExecutor implements ToolExecutor {
         executeAccess.add(caller.access());
         executeCallers.add(caller);
         executed.add(call.name());
-        return ToolResult.ok("ok " + call.name());
+        Deque<ToolResult> scripted = results.get(call.name());
+        return scripted == null || scripted.isEmpty() ? ToolResult.ok("ok " + call.name()) : scripted.removeFirst();
     }
 }

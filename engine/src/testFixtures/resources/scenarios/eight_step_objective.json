@@ -4,13 +4,7 @@
   "playerSays": "Build me a starter base: gather wood, craft planks, craft a crafting table, mine stone, craft stone tools, place a chest, and store the spare cobblestone.",
   "replies": [
     {"text": "Starting on the base.", "tools": ["set_goal"]},
-    {"text": "Queued the plan.", "tools": ["queue_add"]},
-    {"text": "Gathering wood.", "tools": ["mine_blocks"]},
-    {"text": "Crafting planks.", "tools": ["craft_item"]},
-    {"text": "Mining stone.", "tools": ["mine_blocks"]},
-    {"text": "Crafting stone tools.", "tools": ["craft_item"]},
-    {"text": "Placing the chest.", "tools": ["place_block"]},
-    {"text": "Storing the spare cobblestone.", "tools": ["store_items"]}
+    {"text": "Queued the plan.", "tools": ["queue_add"]}
   ],
-  "expect": {"maxRequests": 8, "toolsCalled": ["set_goal", "queue_add", "mine_blocks", "craft_item", "place_block", "store_items"], "maxClarifications": 0, "spokenContains": ["Storing the spare cobblestone"]}
+  "expect": {"maxRequests": 2, "toolsCalled": ["set_goal", "queue_add"], "maxRepeatedToolCalls": 0, "maxClarifications": 0, "spokenContains": ["Queued the plan"]}
 }

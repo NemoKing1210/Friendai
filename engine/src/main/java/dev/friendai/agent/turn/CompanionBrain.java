@@ -989,6 +989,8 @@ public final class CompanionBrain {
         long setGoalId = 0;
         boolean queuedByModel = false;
         boolean activityChosen = false;
+        boolean anyCallFailed = false;
+        boolean queueMutatedBesidesAdd = false;
         for (ToolCall call : calls) {
             ToolResult result;
             observe(o -> o.onToolCall(call));
@@ -1013,9 +1015,19 @@ public final class CompanionBrain {
             }
             queuedByModel |= !result.error() && "queue_add".equals(call.name());
             activityChosen |= !result.error() && CHOOSE_ACTIVITY.equals(call.name());
+            anyCallFailed |= result.error();
+            // An edit or patch after the add changes the work the reply just described, so its result must be read.
+            queueMutatedBesidesAdd |=
+                    !result.error() && ("queue_edit".equals(call.name()) || "plan_patch".equals(call.name()));
         }
         if (activityChosen) {
             // Free time's choice is the whole answer; the planner does the rest, so the turn costs one request.
+            endTurn();
+            return;
+        }
+        if (queuedByModel && !anyCallFailed && !queueMutatedBesidesAdd && spoken != null && !spoken.isBlank()) {
+            // A guarded reply exists and this response did not subsequently invalidate the queued work: the owner has
+            // the answer, queue_add validated the plan and started it, and another request would only re-read the id.
             endTurn();
             return;
         }
