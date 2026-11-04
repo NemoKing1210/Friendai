@@ -1,5 +1,6 @@
 package dev.friendai.entity;
 
+import net.minecraft.core.BlockPos;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.entity.Pose;
 import net.minecraft.world.phys.Vec3;
@@ -53,16 +54,19 @@ public final class CompanionSwim {
     }
 
     /**
-     * Deep water is swum, shallow water is waded, like a player crossing a stream: the body stays upright there.
-     * Water under the feet counts even when it only reaches a surface route's knees, which is what a lake surface is.
+     * Deep water is swum, shallow water is waded, like a player crossing a stream: the body stays upright there. Deep
+     * means a second water cell over the feet, or water under a body that is not resting on the bottom — a companion
+     * standing in a one-block puddle has water at its knees, not a reason to lie down and swim.
      */
     private boolean deepEnough() {
-        if (companion.getFluidHeight(FluidTags.WATER) > SWIM_DEPTH) {
+        BlockPos feet = companion.blockPosition();
+        if (companion.level().getFluidState(feet.above()).is(FluidTags.WATER)) {
             return true;
         }
-        return companion
-                .level()
-                .getFluidState(companion.blockPosition().below())
-                .is(FluidTags.WATER);
+        if (companion.onGround()) {
+            return false;
+        }
+        return companion.getFluidHeight(FluidTags.WATER) > SWIM_DEPTH
+                || companion.level().getFluidState(feet.below()).is(FluidTags.WATER);
     }
 }

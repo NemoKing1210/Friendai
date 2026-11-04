@@ -184,6 +184,13 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     public void setManualPause(boolean paused) {
         manualPause = paused;
         if (paused) {
+            // Suspending stops the ticks, not the body: the move control keeps its last wanted point, so a body
+            // already walking would finish that step while its owner believes it paused. Halt it where it stands and
+            // let the task pick up from there.
+            companion.getNavigation().stop();
+            companion.getMoveControl().setWantedPosition(companion.getX(), companion.getY(), companion.getZ(), 0.0);
+            companion.setDeltaMovement(0.0, companion.getDeltaMovement().y, 0.0);
+            companion.setPathing(false);
             suspend();
             inTransition(this::flushEvents);
         } else {

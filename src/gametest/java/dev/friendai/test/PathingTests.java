@@ -6,6 +6,7 @@ import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.features.mining.minecraft.mining.BlockBreaker;
 import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
 import dev.friendai.features.mining.minecraft.task.MineBlocksTask;
+import dev.friendai.features.navigation.minecraft.nav.Approach;
 import dev.friendai.features.navigation.minecraft.nav.LevelCellView;
 import dev.friendai.features.navigation.minecraft.nav.MaterialPicker;
 import dev.friendai.features.navigation.minecraft.nav.MoveHelper;
@@ -254,6 +255,82 @@ public class PathingTests {
             h.assertTrue(
                     h.getBlockState(new BlockPos(8, 2, 8)).getValue(DoorBlock.OPEN),
                     "the door is still shut; paths: " + out.debug);
+        });
+    }
+
+    @GameTest(maxTicks = 100)
+    public void approachDoesNotReachThroughAWall(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(new BlockPos(3, 2, 8), Blocks.STONE);
+        h.setBlock(new BlockPos(3, 3, 8), Blocks.STONE);
+        h.setBlock(new BlockPos(4, 2, 8), Blocks.STONE);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 8);
+        BlockPos target = h.absolutePos(new BlockPos(4, 2, 8));
+        TaskContext context = new TaskContext(c, h.getLevel());
+        h.assertTrue(
+                new Approach(target).tick(context) != Approach.State.IN_REACH,
+                "a block behind two stone blocks is not within reach");
+
+        h.setBlock(new BlockPos(3, 2, 8), Blocks.AIR);
+        h.setBlock(new BlockPos(3, 3, 8), Blocks.AIR);
+        h.assertTrue(
+                new Approach(target).tick(context) == Approach.State.IN_REACH,
+                "with the wall gone the same block is in reach");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 600)
+    public void goToDoesNotArriveAtTheFootOfAPillar(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        for (int y = 2; y <= 4; y++) {
+            h.setBlock(new BlockPos(8, y, 8), Blocks.STONE);
+        }
+        CompanionEntity c = walker(h, 2, 2, 8);
+        Outcome out = new Outcome();
+        walkTo(c, h, out, 8.5, 5, 8.5);
+        h.succeedWhen(() -> h.assertTrue(
+                out.status == TaskStatus.FAILED,
+                "the top of a three-block pillar is not reached from its foot: " + out.why()));
+    }
+
+    @GameTest(maxTicks = 500)
+    public void shallowWaterIsWadedNotSwum(GameTestHelper h) {
+        int floor = 240;
+        GameTestSupport.platformAt(h, floor, 14);
+        for (int x = 5; x <= 9; x++) {
+            for (int z = 1; z <= 5; z++) {
+                h.setBlock(new BlockPos(x, floor + 1, z), Blocks.WATER);
+            }
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, floor + 1, 3);
+        Outcome out = new Outcome();
+        walkTo(c, h, out, 11.5, floor + 1, 3.5);
+        boolean[] swam = {false};
+        h.onEachTick(() -> swam[0] |= c.isInWater() && c.getPose() == Pose.SWIMMING);
+        h.succeedWhen(() -> {
+            h.assertTrue(out.status == TaskStatus.SUCCESS, "did not cross the shallow pond: " + out.why());
+            h.assertFalse(swam[0], "a one-block pond is waded upright, not swum");
+        });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void deepWaterIsSwum(GameTestHelper h) {
+        int floor = 250;
+        GameTestSupport.platformAt(h, floor, 14);
+        for (int x = 5; x <= 9; x++) {
+            for (int z = 1; z <= 5; z++) {
+                h.setBlock(new BlockPos(x, floor + 1, z), Blocks.WATER);
+                h.setBlock(new BlockPos(x, floor + 2, z), Blocks.WATER);
+            }
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, floor + 1, 3);
+        Outcome out = new Outcome();
+        walkTo(c, h, out, 11.5, floor + 1, 3.5);
+        boolean[] swam = {false};
+        h.onEachTick(() -> swam[0] |= c.isInWater() && c.getPose() == Pose.SWIMMING);
+        h.succeedWhen(() -> {
+            h.assertTrue(out.status == TaskStatus.SUCCESS, "did not cross the deep channel: " + out.why());
+            h.assertTrue(swam[0], "a two-block channel is swum, not waded upright");
         });
     }
 
