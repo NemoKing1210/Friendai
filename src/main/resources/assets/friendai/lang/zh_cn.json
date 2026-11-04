@@ -63,6 +63,7 @@
   "friendai.fire.self": "我着火了——我这就灭火。",
   "friendai.fire.owner": "你着火了——我来帮你灭火。",
   "friendai.fire.owner_out_of_reach": "你着火了，但我够不到你。",
+  "friendai.fire.owner_cannot_help": "你着火了，但我灭不了。",
   "friendai.command.freetime.on": "空闲时间已开启：你的伙伴会自己找事做。",
   "friendai.command.freetime.off": "空闲时间已关闭。",
   "friendai.command.freetime.disabled": "本服务器已禁用空闲时间。",

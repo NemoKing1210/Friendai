@@ -63,6 +63,7 @@
   "friendai.fire.self": "¡Estoy en llamas! Me apago.",
   "friendai.fire.owner": "¡Estás en llamas! Te lo apago.",
   "friendai.fire.owner_out_of_reach": "Estás en llamas, pero no puedo llegar hasta ti.",
+  "friendai.fire.owner_cannot_help": "Estás en llamas, pero no puedo apagarlo.",
   "friendai.command.freetime.on": "Tiempo libre activado: tu compañero trabajará por su cuenta.",
   "friendai.command.freetime.off": "Tiempo libre desactivado.",
   "friendai.command.freetime.disabled": "El tiempo libre está desactivado en este servidor.",

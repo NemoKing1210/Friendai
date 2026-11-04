@@ -63,6 +63,7 @@
   "friendai.fire.self": "I'm on fire — putting myself out.",
   "friendai.fire.owner": "You're on fire — I'll put it out.",
   "friendai.fire.owner_out_of_reach": "You're on fire, but I can't reach you.",
+  "friendai.fire.owner_cannot_help": "You're on fire, but I can't put it out.",
   "friendai.command.freetime.on": "Free time is on: your companion will work on its own.",
   "friendai.command.freetime.off": "Free time is off.",
   "friendai.command.freetime.disabled": "Free time is disabled on this server.",

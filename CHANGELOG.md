@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.208.4] - 2026-11-04
+
+### Fixed
+
+- The companion no longer promises to put out a fire on you when it has no water to do it with; it says it cannot help instead of starting a task that fails at once.
+
 ## [0.208.3] - 2026-11-04
 
 ### Fixed

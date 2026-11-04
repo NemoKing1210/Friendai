@@ -39,6 +39,18 @@ public final class FirePlanner {
 
     private FirePlanner() {}
 
+    /**
+     * Whether helping somebody else is worth starting: they have to be in reach, rain must not already be handling
+     * it, water cannot be placed in the nether, and without a bucket there is nothing to pour. Mirrors the refusal
+     * {@link #planOther} would otherwise reach.
+     */
+    public static boolean canHelpOther(boolean inReach, boolean raining, boolean nether, int waterBuckets) {
+        if (!inReach || raining) {
+            return false;
+        }
+        return !nether && waterBuckets > 0;
+    }
+
     public static ExtinguishPlan plan(FireTarget target, FireFacts facts, List<BurningCell> cells) {
         List<ExtinguishStep> steps = new ArrayList<>();
         List<String> notes = new ArrayList<>();

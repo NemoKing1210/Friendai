@@ -63,6 +63,7 @@
   "friendai.fire.self": "Estou pegando fogo — apagando.",
   "friendai.fire.owner": "Você está pegando fogo — vou apagar.",
   "friendai.fire.owner_out_of_reach": "Você está pegando fogo, mas não consigo chegar até você.",
+  "friendai.fire.owner_cannot_help": "Você está pegando fogo, mas não consigo apagar.",
   "friendai.command.freetime.on": "Tempo livre ativado: seu companheiro vai trabalhar por conta própria.",
   "friendai.command.freetime.off": "Tempo livre desativado.",
   "friendai.command.freetime.disabled": "O tempo livre está desativado neste servidor.",

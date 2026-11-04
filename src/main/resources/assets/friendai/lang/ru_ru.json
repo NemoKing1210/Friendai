@@ -63,6 +63,7 @@
   "friendai.fire.self": "Я горю — тущу себя.",
   "friendai.fire.owner": "Ты горишь — сейчас потушу.",
   "friendai.fire.owner_out_of_reach": "Ты горишь, но мне до тебя не добраться.",
+  "friendai.fire.owner_cannot_help": "Ты горишь, но я не могу потушить.",
   "friendai.command.freetime.on": "Свободное время включено: компаньон займётся своими делами.",
   "friendai.command.freetime.off": "Свободное время выключено.",
   "friendai.command.freetime.disabled": "Свободное время на этом сервере отключено.",

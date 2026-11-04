@@ -4,14 +4,18 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.features.crafting.Station;
 import dev.friendai.features.fire.FireTarget;
+import dev.friendai.features.fire.minecraft.FireReflex;
 import dev.friendai.features.fire.minecraft.task.ExtinguishFireTask;
 import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskStatus;
+import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
@@ -207,6 +211,55 @@ public class FireTests {
                     c.inventory().countItem(Items.WATER_BUCKET) == 1,
                     "the bucket did not come back: " + c.inventory().countItem(Items.WATER_BUCKET));
         });
+    }
+
+    @GameTest(maxTicks = 100)
+    public void doesNotPromiseTheOwnerAFireTaskWithoutWater(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        GameTestSupport.OnlinePlayer owner = GameTestSupport.onlinePlayer(h, "fire-owner", 3.5, 2, 2.5, true);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(owner.id());
+        owner.player().setRemainingFireTicks(200);
+
+        c.fireReflex().tick();
+
+        h.assertTrue(owner.player().isOnFire(), "the owner stopped burning before the reflex ran");
+        h.assertTrue(
+                !c.taskExecution().currentToolName().equals(FireReflex.TOOL),
+                "started a fire task with nothing to put it out with");
+        String said = lastMessageKey(owner);
+        h.assertTrue("friendai.fire.owner_cannot_help".equals(said), "the owner was not told it cannot help: " + said);
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 100)
+    public void startsAFireTaskForABurningOwnerWhenItHasWater(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        GameTestSupport.OnlinePlayer owner = GameTestSupport.onlinePlayer(h, "fire-owner", 3.5, 2, 2.5, true);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(owner.id());
+        c.inventory().addItem(new ItemStack(Items.WATER_BUCKET));
+        owner.player().setRemainingFireTicks(200);
+
+        c.fireReflex().tick();
+
+        h.assertTrue(owner.player().isOnFire(), "the owner stopped burning before the reflex ran");
+        h.assertTrue(
+                c.taskExecution().currentToolName().equals(FireReflex.TOOL),
+                "no fire task for a burning owner: " + c.taskExecution().currentToolName());
+        String said = lastMessageKey(owner);
+        h.assertTrue("friendai.fire.owner".equals(said), "the owner was not told it is being helped: " + said);
+        h.succeed();
+    }
+
+    /** The translation key of the newest line the server sent this player. */
+    private static String lastMessageKey(GameTestSupport.OnlinePlayer player) {
+        List<Component> messages = player.drainSystemMessages();
+        if (messages.isEmpty()) {
+            return null;
+        }
+        Component message = messages.getLast();
+        return message.getContents() instanceof TranslatableContents text ? text.getKey() : null;
     }
 
     @GameTest(maxTicks = 400)

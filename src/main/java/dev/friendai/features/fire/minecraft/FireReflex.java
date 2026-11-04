@@ -2,17 +2,22 @@ package dev.friendai.features.fire.minecraft;
 
 import dev.friendai.common.Components;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.fire.FirePlanner;
 import dev.friendai.features.fire.FireTarget;
 import dev.friendai.features.fire.minecraft.task.ExtinguishFireTask;
 import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.task.TaskExecutionPort;
 import java.util.Optional;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.Level;
 
 /**
  * Being on fire is an emergency, like combat: before the task runner ticks, a burning companion drops its own fire
  * and gets back to its job. The owner catching fire is handled the same way when they are within reach — the chat
- * line is said from where the companion stands, never after a walk across the world.
+ * line is said from where the companion stands, never after a walk across the world. A fire it cannot put out (no
+ * water, or the nether) is named instead of promised, so the owner never hears a rescue that fails at once.
  *
  * <p>The runner's own interrupt/freeze takes care of the work in progress: a job-backed task is frozen and resumed
  * when the fire task finishes, exactly as combat and the hunger watcher do it.
@@ -71,6 +76,18 @@ public final class FireReflex {
             if (!saidOwner) {
                 saidOwner = true;
                 say("friendai.fire.owner_out_of_reach");
+            }
+            return;
+        }
+        ServerLevel level = (ServerLevel) companion.level();
+        boolean raining = level.isRainingAt(player.blockPosition());
+        boolean nether = level.dimension() == Level.NETHER;
+        int waterBuckets = companion.inventory().countItem(Items.WATER_BUCKET);
+        if (!FirePlanner.canHelpOther(true, raining, nether, waterBuckets)) {
+            // Rain is already handling it; otherwise the owner must not hear a promise the task cannot keep.
+            if (!raining && !saidOwner) {
+                saidOwner = true;
+                say("friendai.fire.owner_cannot_help");
             }
             return;
         }

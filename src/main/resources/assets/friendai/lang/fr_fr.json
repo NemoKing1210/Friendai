@@ -63,6 +63,7 @@
   "friendai.fire.self": "Je brûle — je m'éteins.",
   "friendai.fire.owner": "Vous brûlez — je vais vous éteindre.",
   "friendai.fire.owner_out_of_reach": "Vous brûlez, mais je ne peux pas vous atteindre.",
+  "friendai.fire.owner_cannot_help": "Vous brûlez, mais je ne peux pas vous éteindre.",
   "friendai.command.freetime.on": "Temps libre activé : votre compagnon travaillera de son côté.",
   "friendai.command.freetime.off": "Temps libre désactivé.",
   "friendai.command.freetime.disabled": "Le temps libre est désactivé sur ce serveur.",

@@ -63,6 +63,7 @@
   "friendai.fire.self": "Я горю — гашу себе.",
   "friendai.fire.owner": "Ви горите — я загашу.",
   "friendai.fire.owner_out_of_reach": "Ви горите, але я не можу до вас дістатися.",
+  "friendai.fire.owner_cannot_help": "Ви горите, але я не можу загасити.",
   "friendai.command.freetime.on": "Вільний час увімкнено: компаньйон працюватиме самостійно.",
   "friendai.command.freetime.off": "Вільний час вимкнено.",
   "friendai.command.freetime.disabled": "Вільний час вимкнено на цьому сервері.",

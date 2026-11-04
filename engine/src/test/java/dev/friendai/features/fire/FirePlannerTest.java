@@ -201,4 +201,25 @@ class FirePlannerTest {
 
         assertEquals(List.of(new ExtinguishStep.GiveUp("it is already out")), plan.steps());
     }
+
+    @Test
+    void helpingSomebodyElseNeedsAWaterBucket() {
+        assertTrue(FirePlanner.canHelpOther(true, false, false, 1));
+        assertFalse(FirePlanner.canHelpOther(true, false, false, 0));
+    }
+
+    @Test
+    void helpingSomebodyElseNeedsThemInReach() {
+        assertFalse(FirePlanner.canHelpOther(false, false, false, 1));
+    }
+
+    @Test
+    void theNetherNeverAllowsHelpingWithWater() {
+        assertFalse(FirePlanner.canHelpOther(true, false, true, 1));
+    }
+
+    @Test
+    void rainNeedsNoHelpFromTheCompanion() {
+        assertFalse(FirePlanner.canHelpOther(true, true, false, 0));
+    }
 }

@@ -63,6 +63,7 @@
   "friendai.fire.self": "Ich brenne – ich lösche mich.",
   "friendai.fire.owner": "Du brennst – ich lösche dich.",
   "friendai.fire.owner_out_of_reach": "Du brennst, aber ich komme nicht zu dir.",
+  "friendai.fire.owner_cannot_help": "Du brennst, aber ich kann dich nicht löschen.",
   "friendai.command.freetime.on": "Freizeit ist an: Dein Gefährte arbeitet selbstständig.",
   "friendai.command.freetime.off": "Freizeit ist aus.",
   "friendai.command.freetime.disabled": "Freizeit ist auf diesem Server deaktiviert.",
