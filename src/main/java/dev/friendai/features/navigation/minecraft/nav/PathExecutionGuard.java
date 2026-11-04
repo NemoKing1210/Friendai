@@ -1,7 +1,7 @@
 package dev.friendai.features.navigation.minecraft.nav;
 
-import dev.friendai.features.navigation.pathing.PathStep;
-import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.foundation.spatial.PathStep;
+import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.task.TaskContext;
 
 /** Live execution checks applied immediately before a path break or move. */

@@ -66,7 +66,7 @@ public record MovementDebug(
         this(companionId, stepIndex, route, breaks, places, goalCells, lines, targets, upcomingSteps, List.of());
     }
 
-    /** One step of the route; {@code move} is the ordinal of {@code dev.friendai.features.navigation.pathing.Move}. */
+    /** One step of the route; {@code move} is the ordinal of {@code dev.friendai.foundation.spatial.Move}. */
     public record Segment(int fromX, int fromY, int fromZ, int toX, int toY, int toZ, int move) {}
 
     public record Cell(int x, int y, int z) {}

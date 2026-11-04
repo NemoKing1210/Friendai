@@ -1,8 +1,8 @@
 package dev.friendai.features.navigation.movement;
 
-import dev.friendai.features.navigation.pathing.Move;
-import dev.friendai.features.navigation.pathing.Node;
-import dev.friendai.features.navigation.pathing.PathStep;
+import dev.friendai.foundation.spatial.Move;
+import dev.friendai.foundation.spatial.Node;
+import dev.friendai.foundation.spatial.PathStep;
 import java.util.List;
 
 /**

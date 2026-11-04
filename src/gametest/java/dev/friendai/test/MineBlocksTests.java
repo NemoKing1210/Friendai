@@ -42,8 +42,8 @@ public class MineBlocksTests {
             }
         }
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 6, 2);
-        MiningSession session = new MiningSession(
-                c, new MiningBounds(new dev.friendai.features.navigation.pathing.Node(2, 6, 2), 16), 24, 200);
+        MiningSession session =
+                new MiningSession(c, new MiningBounds(new dev.friendai.foundation.spatial.Node(2, 6, 2), 16), 24, 200);
         session.explore(1, 0);
         TaskContext context = new TaskContext(c, h.getLevel());
         h.assertTrue(

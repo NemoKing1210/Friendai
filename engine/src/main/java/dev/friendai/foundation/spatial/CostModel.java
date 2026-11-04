@@ -1,4 +1,4 @@
-package dev.friendai.features.navigation.pathing;
+package dev.friendai.foundation.spatial;
 
 /** Every cost the search uses, in ticks. A record so tests and configuration can override single values. */
 public record CostModel(

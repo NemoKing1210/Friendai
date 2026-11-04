@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.foundation.spatial.Pos;
 import java.util.HashSet;
 import java.util.Set;
 import org.junit.jupiter.api.Test;

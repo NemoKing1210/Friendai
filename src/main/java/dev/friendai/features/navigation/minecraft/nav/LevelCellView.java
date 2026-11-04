@@ -1,14 +1,14 @@
 package dev.friendai.features.navigation.minecraft.nav;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.features.navigation.pathing.BlockList;
 import dev.friendai.features.navigation.pathing.BreakProgress;
-import dev.friendai.features.navigation.pathing.Cell;
-import dev.friendai.features.navigation.pathing.CellView;
-import dev.friendai.features.navigation.pathing.CostModel;
-import dev.friendai.features.navigation.pathing.LongMap;
-import dev.friendai.features.navigation.pathing.PathingConfig;
-import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.foundation.spatial.BlockList;
+import dev.friendai.foundation.spatial.Cell;
+import dev.friendai.foundation.spatial.CellView;
+import dev.friendai.foundation.spatial.CostModel;
+import dev.friendai.foundation.spatial.LongMap;
+import dev.friendai.foundation.spatial.PathingConfig;
+import dev.friendai.foundation.spatial.Pos;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;

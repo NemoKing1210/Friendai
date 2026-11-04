@@ -6,7 +6,7 @@ import dev.friendai.features.fire.BurningCell;
 import dev.friendai.features.fire.FireFacts;
 import dev.friendai.features.fire.FireTarget;
 import dev.friendai.features.navigation.minecraft.nav.LevelCellView;
-import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.autonomy.PlaceGuard;
 import java.util.ArrayList;

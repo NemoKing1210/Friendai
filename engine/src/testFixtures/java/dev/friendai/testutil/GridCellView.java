@@ -1,8 +1,8 @@
 package dev.friendai.testutil;
 
-import dev.friendai.features.navigation.pathing.Cell;
-import dev.friendai.features.navigation.pathing.CellView;
-import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.foundation.spatial.Cell;
+import dev.friendai.foundation.spatial.CellView;
+import dev.friendai.foundation.spatial.Pos;
 import java.util.HashMap;
 import java.util.Map;
 

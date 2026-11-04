@@ -7,8 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.friendai.features.knowledge.*;
-import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.foundation.persistence.UnsupportedStoreVersionException;
+import dev.friendai.foundation.spatial.Pos;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

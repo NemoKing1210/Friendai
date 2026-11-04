@@ -4,7 +4,7 @@ import dev.friendai.entity.ExpeditionChunkHorizon;
 import dev.friendai.features.knowledge.search.SearchSession;
 import dev.friendai.features.knowledge.travel.TrailGraph;
 import dev.friendai.features.navigation.pathing.GoalPoint;
-import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.task.TaskContext;
 import java.util.ArrayList;
 import java.util.List;

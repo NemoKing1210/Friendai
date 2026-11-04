@@ -2,7 +2,7 @@ package dev.friendai.features.acquisition.minecraft.task;
 
 import dev.friendai.features.knowledge.ResourceSite;
 import dev.friendai.features.navigation.minecraft.nav.ResourceJourney;
-import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.perception.resource.ResourceCandidates;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;

@@ -3,9 +3,9 @@ package dev.friendai.features.navigation.movement;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import dev.friendai.features.navigation.pathing.Move;
-import dev.friendai.features.navigation.pathing.Node;
-import dev.friendai.features.navigation.pathing.PathStep;
+import dev.friendai.foundation.spatial.Move;
+import dev.friendai.foundation.spatial.Node;
+import dev.friendai.foundation.spatial.PathStep;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;

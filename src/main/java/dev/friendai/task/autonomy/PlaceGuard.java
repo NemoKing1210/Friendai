@@ -1,8 +1,8 @@
 package dev.friendai.task.autonomy;
 
-import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.features.places.Place;
 import dev.friendai.features.places.PlaceProtection;
+import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.task.TaskContext;
 import net.minecraft.core.BlockPos;
 

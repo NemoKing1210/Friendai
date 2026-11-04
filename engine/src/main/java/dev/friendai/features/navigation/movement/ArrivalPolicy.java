@@ -1,6 +1,6 @@
 package dev.friendai.features.navigation.movement;
 
-import dev.friendai.features.navigation.pathing.Move;
+import dev.friendai.foundation.spatial.Move;
 
 /**
  * Decides whether a companion has finished a path step. Besides standing in the arrival radius, a body that momentum

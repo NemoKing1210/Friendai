@@ -1,4 +1,4 @@
-package dev.friendai.features.navigation.pathing;
+package dev.friendai.foundation.spatial;
 
 /** Read-only view of the world as pathing cells. One view per search; implementations may cache. */
 public interface CellView {

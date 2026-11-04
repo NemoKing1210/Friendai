@@ -1,19 +1,19 @@
 package dev.friendai.features.navigation.minecraft.nav;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.features.navigation.pathing.BlockList;
-import dev.friendai.features.navigation.pathing.CostModel;
 import dev.friendai.features.navigation.pathing.GoalPoint;
-import dev.friendai.features.navigation.pathing.Node;
 import dev.friendai.features.navigation.pathing.Path;
 import dev.friendai.features.navigation.pathing.PathGoal;
 import dev.friendai.features.navigation.pathing.PathSearch;
 import dev.friendai.features.navigation.pathing.PathSmoother;
-import dev.friendai.features.navigation.pathing.PathStep;
-import dev.friendai.features.navigation.pathing.PathingConfig;
-import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.features.navigation.pathing.SearchOptions;
 import dev.friendai.features.navigation.pathing.SearchResult;
+import dev.friendai.foundation.spatial.BlockList;
+import dev.friendai.foundation.spatial.CostModel;
+import dev.friendai.foundation.spatial.Node;
+import dev.friendai.foundation.spatial.PathStep;
+import dev.friendai.foundation.spatial.PathingConfig;
+import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.task.TaskContext;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -549,8 +549,7 @@ public final class Navigator {
         // A partial support physically contains the feet, while the pure grid puts its node above the support.
         int y = pos.getY();
         if (companion.onGround()
-                && view.at(pos.getX(), y, pos.getZ()).kind()
-                        == dev.friendai.features.navigation.pathing.Cell.Kind.PARTIAL) {
+                && view.at(pos.getX(), y, pos.getZ()).kind() == dev.friendai.foundation.spatial.Cell.Kind.PARTIAL) {
             y++;
         }
         return new Node(pos.getX(), y, pos.getZ());

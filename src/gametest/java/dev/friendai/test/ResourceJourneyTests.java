@@ -8,7 +8,7 @@ import dev.friendai.features.acquisition.minecraft.search.WorldScan;
 import dev.friendai.features.acquisition.minecraft.task.ObtainTask;
 import dev.friendai.features.acquisition.minecraft.task.VisitResourceTask;
 import dev.friendai.features.knowledge.ResourceObservation;
-import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskStatus;

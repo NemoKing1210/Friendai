@@ -3,7 +3,7 @@ package dev.friendai.features.acquisition.minecraft.search;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.knowledge.search.SearchPlanner;
 import dev.friendai.features.knowledge.travel.TrailGraph;
-import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.foundation.spatial.Pos;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.Blocks;

@@ -12,7 +12,7 @@ import dev.friendai.features.fire.minecraft.RecoverWaterTask;
 import dev.friendai.features.mining.minecraft.mining.BlockBreaker;
 import dev.friendai.features.navigation.minecraft.nav.Approach;
 import dev.friendai.features.navigation.minecraft.nav.MoveHelper;
-import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;

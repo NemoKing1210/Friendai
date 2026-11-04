@@ -2,6 +2,10 @@ package dev.friendai.features.navigation.pathing;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import dev.friendai.foundation.spatial.CellView;
+import dev.friendai.foundation.spatial.CostModel;
+import dev.friendai.foundation.spatial.Node;
+import dev.friendai.foundation.spatial.Pos;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;

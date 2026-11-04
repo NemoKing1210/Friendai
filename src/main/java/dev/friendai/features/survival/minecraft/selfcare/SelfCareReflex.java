@@ -2,10 +2,10 @@ package dev.friendai.features.survival.minecraft.selfcare;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.fire.minecraft.RecoverWaterTask;
-import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.features.survival.selfcare.SelfCareDecision;
 import dev.friendai.features.survival.selfcare.SelfCareFacts;
 import dev.friendai.features.survival.selfcare.SelfCarePlanner;
+import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.task.TaskExecutionPort;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;

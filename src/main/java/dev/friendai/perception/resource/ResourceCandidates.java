@@ -8,7 +8,7 @@ import dev.friendai.features.knowledge.ResourceObservation;
 import dev.friendai.features.knowledge.ResourceQuery;
 import dev.friendai.features.knowledge.ResourceSite;
 import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
-import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.infrastructure.persistence.knowledge.KnowledgeStore;
 import java.util.ArrayList;
 import java.util.Comparator;

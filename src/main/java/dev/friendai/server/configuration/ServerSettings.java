@@ -4,9 +4,9 @@ import dev.friendai.agent.autonomy.AutonomySettings;
 import dev.friendai.execution.queue.QueueLimits;
 import dev.friendai.execution.settings.TaskRuntimeSettings;
 import dev.friendai.features.mining.MiningRuntimeSettings;
-import dev.friendai.features.navigation.pathing.BlockList;
-import dev.friendai.features.navigation.pathing.PathingConfig;
 import dev.friendai.features.trading.TradingRuntimeSettings;
+import dev.friendai.foundation.spatial.BlockList;
+import dev.friendai.foundation.spatial.PathingConfig;
 
 /** Coherent immutable view of the settings consumed by one server runtime. */
 public record ServerSettings(

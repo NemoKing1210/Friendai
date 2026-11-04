@@ -6,7 +6,7 @@ import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.features.acquisition.minecraft.search.WorldScan;
 import dev.friendai.features.crafting.Station;
 import dev.friendai.features.knowledge.ResourceObservation;
-import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.perception.resource.ObservationScheduler;
 import dev.friendai.perception.resource.ResourceObserver;
 import dev.friendai.perception.resource.ResourceSight;
@@ -789,7 +789,7 @@ public class ResourceObservationTests {
         return outcome;
     }
 
-    private static dev.friendai.features.navigation.pathing.Pos pos(BlockPos pos) {
-        return new dev.friendai.features.navigation.pathing.Pos(pos.getX(), pos.getY(), pos.getZ());
+    private static dev.friendai.foundation.spatial.Pos pos(BlockPos pos) {
+        return new dev.friendai.foundation.spatial.Pos(pos.getX(), pos.getY(), pos.getZ());
     }
 }

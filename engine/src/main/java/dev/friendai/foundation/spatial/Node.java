@@ -1,4 +1,4 @@
-package dev.friendai.features.navigation.pathing;
+package dev.friendai.foundation.spatial;
 
 /** A foot position the companion can stand in; the head cell is one above it. */
 public record Node(int x, int y, int z) {

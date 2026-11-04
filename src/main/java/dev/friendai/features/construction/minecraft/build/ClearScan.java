@@ -5,7 +5,7 @@ import dev.friendai.features.construction.blueprint.ClearCell;
 import dev.friendai.features.construction.blueprint.ClearKind;
 import dev.friendai.features.construction.clear.ClearSkip;
 import dev.friendai.features.navigation.minecraft.nav.LevelCellView;
-import dev.friendai.features.navigation.pathing.BlockList;
+import dev.friendai.foundation.spatial.BlockList;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashMap;

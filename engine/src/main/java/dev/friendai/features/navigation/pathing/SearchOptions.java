@@ -1,5 +1,7 @@
 package dev.friendai.features.navigation.pathing;
 
+import dev.friendai.foundation.spatial.PathingConfig;
+
 /**
  * What one search may do: how many nodes it may expand, how far from the start it may look, how many blocks the
  * companion may place and what the cheapest block it carries is worth.

@@ -10,7 +10,7 @@ import dev.friendai.execution.tool.SchemaBuilder;
 import dev.friendai.features.fire.FireTarget;
 import dev.friendai.features.fire.minecraft.FireScan;
 import dev.friendai.features.fire.minecraft.task.ExtinguishFireTask;
-import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.server.execution.tools.FeatureToolContributor;
 import dev.friendai.server.execution.tools.FeatureToolRegistry;
 import dev.friendai.server.execution.tools.TaskToolDefinition;

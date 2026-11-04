@@ -1,4 +1,4 @@
-package dev.friendai.features.navigation.pathing;
+package dev.friendai.foundation.spatial;
 
 /** One block position in the search grid. */
 public record Pos(int x, int y, int z) {

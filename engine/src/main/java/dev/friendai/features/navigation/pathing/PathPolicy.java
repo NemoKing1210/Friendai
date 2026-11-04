@@ -1,5 +1,7 @@
 package dev.friendai.features.navigation.pathing;
 
+import dev.friendai.foundation.spatial.CellView;
+import dev.friendai.foundation.spatial.PathStep;
 import java.util.Optional;
 
 /** A search-scoped hook for rejecting or preparing movement edges before they are relaxed. */

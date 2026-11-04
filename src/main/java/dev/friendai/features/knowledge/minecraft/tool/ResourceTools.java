@@ -22,7 +22,7 @@ import dev.friendai.features.knowledge.search.ResourceSearchProfile;
 import dev.friendai.features.knowledge.search.SearchHint;
 import dev.friendai.features.knowledge.search.SearchPlanner;
 import dev.friendai.features.knowledge.search.TargetKind;
-import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.server.execution.tools.FeatureToolContributor;
 import dev.friendai.server.execution.tools.FeatureToolRegistry;
 import dev.friendai.server.execution.tools.TaskToolDefinition;

@@ -1,6 +1,6 @@
 package dev.friendai.protocol.debug;
 
-import dev.friendai.features.navigation.pathing.Move;
+import dev.friendai.foundation.spatial.Move;
 import dev.friendai.protocol.DecodeResult;
 import dev.friendai.protocol.ProtocolBodyReader;
 import dev.friendai.protocol.ProtocolBodyWriter;

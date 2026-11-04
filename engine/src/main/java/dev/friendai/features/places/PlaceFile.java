@@ -2,8 +2,8 @@ package dev.friendai.features.places;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.foundation.persistence.UnsupportedStoreVersionException;
+import dev.friendai.foundation.spatial.Pos;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashSet;

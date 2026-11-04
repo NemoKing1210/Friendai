@@ -3,7 +3,7 @@ package dev.friendai.features.knowledge;
 import dev.friendai.features.knowledge.search.SearchCoverage;
 import dev.friendai.features.knowledge.search.SearchLedger;
 import dev.friendai.features.knowledge.travel.TrailGraph;
-import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.foundation.spatial.Pos;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;

@@ -1,5 +1,10 @@
 package dev.friendai.features.navigation.pathing;
 
+import dev.friendai.foundation.spatial.CellView;
+import dev.friendai.foundation.spatial.CostModel;
+import dev.friendai.foundation.spatial.LongMap;
+import dev.friendai.foundation.spatial.Node;
+import dev.friendai.foundation.spatial.PathStep;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;

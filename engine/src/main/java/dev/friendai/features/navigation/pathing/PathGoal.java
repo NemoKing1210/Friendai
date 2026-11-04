@@ -1,5 +1,9 @@
 package dev.friendai.features.navigation.pathing;
 
+import dev.friendai.foundation.spatial.CellView;
+import dev.friendai.foundation.spatial.CostModel;
+import dev.friendai.foundation.spatial.Node;
+import dev.friendai.foundation.spatial.Pos;
 import java.util.List;
 
 /** Where a search is trying to get to: a place, or a block the companion can act on from nearby. */

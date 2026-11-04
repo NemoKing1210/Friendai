@@ -9,7 +9,7 @@ import dev.friendai.execution.tool.Caller;
 import dev.friendai.features.knowledge.ResourceObservation;
 import dev.friendai.features.knowledge.search.SearchSession;
 import dev.friendai.features.memory.minecraft.tool.MemoryAccess;
-import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.perception.resource.CaveEntranceObservation;
 import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskStatus;

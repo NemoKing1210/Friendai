@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.friendai.features.fire.BurningCell.Kind;
 import dev.friendai.features.fire.BurningCell.Rails;
-import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.foundation.spatial.Pos;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 

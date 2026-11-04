@@ -3,10 +3,10 @@ package dev.friendai.features.mining;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import dev.friendai.features.navigation.pathing.CellView;
-import dev.friendai.features.navigation.pathing.CostModel;
-import dev.friendai.features.navigation.pathing.Node;
-import dev.friendai.features.navigation.pathing.PathStep;
+import dev.friendai.foundation.spatial.CellView;
+import dev.friendai.foundation.spatial.CostModel;
+import dev.friendai.foundation.spatial.Node;
+import dev.friendai.foundation.spatial.PathStep;
 import dev.friendai.testutil.GridCellView;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;

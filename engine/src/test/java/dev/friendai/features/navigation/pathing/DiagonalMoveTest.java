@@ -4,6 +4,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.friendai.foundation.spatial.CostModel;
+import dev.friendai.foundation.spatial.Move;
+import dev.friendai.foundation.spatial.Node;
+import dev.friendai.foundation.spatial.PathStep;
 import dev.friendai.testutil.GridCellView;
 import java.util.ArrayList;
 import java.util.List;

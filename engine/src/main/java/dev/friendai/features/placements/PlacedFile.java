@@ -3,7 +3,7 @@ package dev.friendai.features.placements;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonParseException;
-import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.foundation.spatial.Pos;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;

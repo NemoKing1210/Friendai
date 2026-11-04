@@ -1,6 +1,6 @@
 package dev.friendai.features.knowledge.search;
 
-import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.foundation.spatial.Pos;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;

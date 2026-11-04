@@ -1,4 +1,4 @@
-package dev.friendai.features.navigation.pathing;
+package dev.friendai.foundation.spatial;
 
 /**
  * Whether a straight line from an eye to a block's centre meets no blocking cell, as vanilla targeting requires.

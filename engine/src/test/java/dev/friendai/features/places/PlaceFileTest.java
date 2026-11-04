@@ -4,8 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.foundation.persistence.UnsupportedStoreVersionException;
+import dev.friendai.foundation.spatial.Pos;
 import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;

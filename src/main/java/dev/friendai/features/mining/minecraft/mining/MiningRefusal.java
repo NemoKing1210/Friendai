@@ -2,9 +2,9 @@ package dev.friendai.features.mining.minecraft.mining;
 
 import dev.friendai.features.mining.DropRisk;
 import dev.friendai.features.navigation.minecraft.nav.LevelCellView;
-import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.features.places.Place;
 import dev.friendai.features.places.PlaceKind;
+import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.autonomy.PlaceGuard;
 import java.util.Locale;

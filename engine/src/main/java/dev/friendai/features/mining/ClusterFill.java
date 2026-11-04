@@ -1,6 +1,6 @@
 package dev.friendai.features.mining;
 
-import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.foundation.spatial.Pos;
 import java.util.ArrayDeque;
 import java.util.LinkedHashSet;
 import java.util.List;

@@ -2,6 +2,8 @@ package dev.friendai.features.navigation.pathing;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import dev.friendai.foundation.spatial.CostModel;
+import dev.friendai.foundation.spatial.Node;
 import dev.friendai.testutil.GridCellView;
 import org.junit.jupiter.api.Test;
 

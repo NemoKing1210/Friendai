@@ -1,4 +1,4 @@
-package dev.friendai.features.navigation.pathing;
+package dev.friendai.foundation.spatial;
 
 /**
  * The ballistics of a running or standing jump over a gap, with vanilla's numbers: the jump kicks the body up at

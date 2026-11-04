@@ -1,6 +1,6 @@
 package dev.friendai.features.mining;
 
-import dev.friendai.features.navigation.pathing.BlockList;
+import dev.friendai.foundation.spatial.BlockList;
 import java.util.List;
 import java.util.Set;
 

@@ -1,4 +1,4 @@
-package dev.friendai.features.navigation.pathing;
+package dev.friendai.foundation.spatial;
 
 /**
  * What one block position means for movement. {@code breakTicks} is the time to break it with the best tool the

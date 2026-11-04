@@ -1,6 +1,6 @@
 package dev.friendai.features.fire;
 
-import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.foundation.spatial.Pos;
 
 /** One thing the companion has to do to put a fire out; the executor runs them in order. */
 public sealed interface ExtinguishStep {

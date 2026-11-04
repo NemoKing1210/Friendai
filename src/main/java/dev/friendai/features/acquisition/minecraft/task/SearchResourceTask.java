@@ -11,7 +11,7 @@ import dev.friendai.features.knowledge.search.SearchHint;
 import dev.friendai.features.knowledge.search.SearchPlanner;
 import dev.friendai.features.knowledge.search.SearchSession;
 import dev.friendai.features.knowledge.search.TargetKind;
-import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.perception.resource.CaveEntranceObservation;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
@@ -306,7 +306,7 @@ public final class SearchResourceTask implements Task {
                                     dev.friendai.features.places.PlaceKind.LANDMARK,
                                     "",
                                     dimension,
-                                    new dev.friendai.features.navigation.pathing.Pos(at.getX(), at.getY(), at.getZ()),
+                                    new dev.friendai.foundation.spatial.Pos(at.getX(), at.getY(), at.getZ()),
                                     64,
                                     java.util.Set.of(),
                                     dev.friendai.features.places.PlaceSource.STRUCTURE,
@@ -335,8 +335,8 @@ public final class SearchResourceTask implements Task {
         var found = level.findNearestMapStructure(StructureTags.EYE_OF_ENDER_LOCATED, at, 1_000, true);
         if (found == null) return;
         SearchPlanner.Heading direction = dev.friendai.features.knowledge.search.StrongholdClue.heading(
-                new dev.friendai.features.navigation.pathing.Pos(at.getX(), at.getY(), at.getZ()),
-                new dev.friendai.features.navigation.pathing.Pos(found.getX(), found.getY(), found.getZ()));
+                new dev.friendai.foundation.spatial.Pos(at.getX(), at.getY(), at.getZ()),
+                new dev.friendai.foundation.spatial.Pos(found.getX(), found.getY(), found.getZ()));
         context.searchHints()
                 .put(
                         owner,

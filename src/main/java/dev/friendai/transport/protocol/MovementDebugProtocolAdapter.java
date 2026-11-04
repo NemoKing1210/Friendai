@@ -7,7 +7,7 @@ import dev.friendai.debug.WorkCell;
 import dev.friendai.debug.WorkKind;
 import dev.friendai.debug.WorkSet;
 import dev.friendai.debug.WorkStatus;
-import dev.friendai.features.navigation.pathing.Move;
+import dev.friendai.foundation.spatial.Move;
 import dev.friendai.protocol.debug.MovementDebugView;
 import java.util.List;
 

@@ -2,7 +2,7 @@ package dev.friendai.features.knowledge;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.foundation.spatial.Pos;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;

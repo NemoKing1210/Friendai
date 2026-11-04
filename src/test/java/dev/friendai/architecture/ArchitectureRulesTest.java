@@ -296,23 +296,19 @@ class ArchitectureRulesTest {
     @Test
     void featureDependenciesRequireAnExplicitDirectedEdge() {
         List<DependencyEdge> edges = new ArrayList<>(List.of(
-                edge(
-                        "dev.friendai.features.mining.ExplorationPlanner",
-                        "dev.friendai.features.navigation.pathing.PathStep"),
-                edge("dev.friendai.features.fire.FirePlanner", "dev.friendai.features.navigation.pathing.Pos"),
-                edge("dev.friendai.features.construction.BuildOrder", "dev.friendai.features.navigation.pathing.Pos"),
+                edge("dev.friendai.features.mining.ExplorationPlanner", "dev.friendai.foundation.spatial.PathStep"),
+                edge("dev.friendai.features.fire.FirePlanner", "dev.friendai.foundation.spatial.Pos"),
+                edge("dev.friendai.features.construction.BuildOrder", "dev.friendai.foundation.spatial.Pos"),
                 edge("dev.friendai.features.acquisition.ObtainPlanner", "dev.friendai.features.crafting.CraftPlan"),
-                edge("dev.friendai.features.acquisition.ObtainPlanner", "dev.friendai.features.navigation.pathing.Pos"),
+                edge("dev.friendai.features.acquisition.ObtainPlanner", "dev.friendai.foundation.spatial.Pos"),
                 edge("dev.friendai.features.acquisition.ObtainPlanner", "dev.friendai.features.trading.TradePlan"),
-                edge(
-                        "dev.friendai.features.knowledge.ResourceKnowledge",
-                        "dev.friendai.features.navigation.pathing.Pos"),
+                edge("dev.friendai.features.knowledge.ResourceKnowledge", "dev.friendai.foundation.spatial.Pos"),
                 edge(
                         "dev.friendai.features.knowledge.ResourceKnowledge",
                         "dev.friendai.features.acquisition.OreDepths"),
-                edge("dev.friendai.features.places.Place", "dev.friendai.features.navigation.pathing.Pos"),
+                edge("dev.friendai.features.places.Place", "dev.friendai.foundation.spatial.Pos"),
                 edge("dev.friendai.features.places.Place", "dev.friendai.features.memory.MenuStatus"),
-                edge("dev.friendai.features.placements.PlacedBlock", "dev.friendai.features.navigation.pathing.Pos"),
+                edge("dev.friendai.features.placements.PlacedBlock", "dev.friendai.foundation.spatial.Pos"),
                 edge(
                         "dev.friendai.features.placements.minecraft.tool.PlacedTools",
                         "dev.friendai.features.mining.minecraft.mining.BlockMatcher"),
@@ -376,7 +372,7 @@ class ArchitectureRulesTest {
                         "dev.friendai.features.knowledge.ResourceObservation"),
                 edge(
                         "dev.friendai.features.survival.minecraft.task.GetFoodTask",
-                        "dev.friendai.features.navigation.pathing.Pos"),
+                        "dev.friendai.foundation.spatial.Pos"),
                 edge(
                         "dev.friendai.features.survival.minecraft.task.SleepTask",
                         "dev.friendai.features.mining.minecraft.mining.BlockMatcher"),

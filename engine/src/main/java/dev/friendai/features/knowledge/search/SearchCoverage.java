@@ -1,7 +1,7 @@
 package dev.friendai.features.knowledge.search;
 
 import com.google.gson.JsonObject;
-import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.foundation.spatial.Pos;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;

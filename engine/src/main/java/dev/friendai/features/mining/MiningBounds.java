@@ -1,7 +1,7 @@
 package dev.friendai.features.mining;
 
-import dev.friendai.features.navigation.pathing.Node;
-import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.foundation.spatial.Node;
+import dev.friendai.foundation.spatial.Pos;
 
 /** Immutable horizontal work area measured from the session's original node. */
 public record MiningBounds(Node origin, int radius) {

@@ -1,5 +1,8 @@
 package dev.friendai.features.navigation.pathing;
 
+import dev.friendai.foundation.spatial.Node;
+import dev.friendai.foundation.spatial.PathStep;
+import dev.friendai.foundation.spatial.Pos;
 import java.util.List;
 import java.util.Optional;
 

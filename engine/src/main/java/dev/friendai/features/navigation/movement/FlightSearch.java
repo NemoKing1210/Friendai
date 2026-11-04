@@ -1,6 +1,6 @@
 package dev.friendai.features.navigation.movement;
 
-import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.foundation.spatial.Pos;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
