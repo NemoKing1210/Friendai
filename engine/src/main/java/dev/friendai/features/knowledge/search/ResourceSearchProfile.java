@@ -1,6 +1,6 @@
 package dev.friendai.features.knowledge.search;
 
-import dev.friendai.features.acquisition.OreDepths;
+import dev.friendai.foundation.item.OreDepths;
 import java.util.OptionalInt;
 import java.util.Set;
 

@@ -1,4 +1,4 @@
-package dev.friendai.features.acquisition;
+package dev.friendai.foundation.item;
 
 import java.util.LinkedHashMap;
 import java.util.Map;

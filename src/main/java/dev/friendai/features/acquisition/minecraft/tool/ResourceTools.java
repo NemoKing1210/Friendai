@@ -1,4 +1,4 @@
-package dev.friendai.features.knowledge.minecraft.tool;
+package dev.friendai.features.acquisition.minecraft.tool;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;

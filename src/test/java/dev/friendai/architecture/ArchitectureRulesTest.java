@@ -303,9 +303,7 @@ class ArchitectureRulesTest {
                 edge("dev.friendai.features.acquisition.ObtainPlanner", "dev.friendai.foundation.spatial.Pos"),
                 edge("dev.friendai.features.acquisition.ObtainPlanner", "dev.friendai.features.trading.TradePlan"),
                 edge("dev.friendai.features.knowledge.ResourceKnowledge", "dev.friendai.foundation.spatial.Pos"),
-                edge(
-                        "dev.friendai.features.knowledge.ResourceKnowledge",
-                        "dev.friendai.features.acquisition.OreDepths"),
+                edge("dev.friendai.features.knowledge.ResourceKnowledge", "dev.friendai.foundation.item.OreDepths"),
                 edge("dev.friendai.foundation.places.Place", "dev.friendai.foundation.spatial.Pos"),
                 edge("dev.friendai.foundation.places.Place", "dev.friendai.features.memory.MenuStatus"),
                 edge("dev.friendai.features.placements.PlacedBlock", "dev.friendai.foundation.spatial.Pos"),

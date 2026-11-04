@@ -10,6 +10,7 @@ import dev.friendai.features.trading.TradePlan;
 import dev.friendai.features.trading.TradePlanner;
 import dev.friendai.features.trading.TradeQuery;
 import dev.friendai.features.trading.TraderRecord;
+import dev.friendai.foundation.item.OreDepths;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;

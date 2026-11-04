@@ -1,4 +1,4 @@
-package dev.friendai.features.acquisition;
+package dev.friendai.foundation.item;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
