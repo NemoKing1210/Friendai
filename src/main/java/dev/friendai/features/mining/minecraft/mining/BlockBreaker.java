@@ -2,9 +2,9 @@ package dev.friendai.features.mining.minecraft.mining;
 
 import dev.friendai.features.navigation.minecraft.nav.Approach;
 import dev.friendai.features.navigation.minecraft.nav.MoveHelper;
-import dev.friendai.features.navigation.minecraft.nav.PlacementLedger;
 import dev.friendai.task.TaskContext;
 import dev.friendai.world.movement.Sight;
+import dev.friendai.world.placement.PlacementLedger;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Predicate;

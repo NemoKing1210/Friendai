@@ -1,8 +1,8 @@
 package dev.friendai.features.mining.minecraft.mining;
 
 import dev.friendai.features.navigation.minecraft.nav.MaterialPicker;
-import dev.friendai.features.navigation.minecraft.nav.PlacementLedger;
 import dev.friendai.task.TaskContext;
+import dev.friendai.world.placement.PlacementLedger;
 import java.util.List;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;

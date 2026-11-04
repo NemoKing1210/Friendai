@@ -18,6 +18,7 @@ import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.inventory.DropSettle;
 import dev.friendai.world.movement.LevelCellView;
+import dev.friendai.world.placement.PlacementLedger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;

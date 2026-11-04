@@ -1,4 +1,4 @@
-package dev.friendai.features.navigation.minecraft.nav;
+package dev.friendai.world.placement;
 
 import java.util.LinkedHashMap;
 import java.util.List;

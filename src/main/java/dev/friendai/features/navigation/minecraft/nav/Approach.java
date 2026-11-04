@@ -7,6 +7,7 @@ import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.task.TaskContext;
 import dev.friendai.world.movement.Reach;
 import dev.friendai.world.movement.Sight;
+import dev.friendai.world.placement.PlacementLedger;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
