@@ -15,6 +15,7 @@ public interface ItemMatcher {
     /** The id or #tag this matcher was built from, normalized with its namespace. */
     String label();
 
+    /** A matcher for an item id or a {@code #tag}, or empty when the text names neither. */
     static Optional<ItemMatcher> parse(String idOrTag) {
         if (idOrTag == null || idOrTag.isBlank()) {
             return Optional.empty();

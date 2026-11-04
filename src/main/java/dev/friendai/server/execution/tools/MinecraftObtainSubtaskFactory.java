@@ -19,6 +19,7 @@ import dev.friendai.features.crafting.minecraft.task.CraftTask;
 import dev.friendai.features.exploration.minecraft.task.ExploreTask;
 import dev.friendai.features.farming.minecraft.task.FarmTask;
 import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
+import dev.friendai.features.mining.minecraft.task.FellLogsTask;
 import dev.friendai.features.mining.minecraft.task.MineBlocksTask;
 import dev.friendai.features.trading.TradeOrder;
 import dev.friendai.features.trading.minecraft.task.InspectTraderTask;
@@ -30,6 +31,7 @@ import java.util.Set;
 import java.util.UUID;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.world.entity.EntityType;
 
 /** App-level constructor for acquisition substeps owned by several world features. */
@@ -56,7 +58,10 @@ public final class MinecraftObtainSubtaskFactory
                         StationPolicy.AUTO,
                         SMELT_WAIT_TICKS,
                         this);
-            case ObtainStep.Mine mine -> new MineBlocksTask(blockMatcher(mine.block()), mine.count(), MINING_RADIUS);
+            case ObtainStep.Mine mine ->
+                !context.companion().creativeMode() && isTreeLog(mine.block())
+                        ? new FellLogsTask(blockMatcher(mine.block()), mine.count(), MINING_RADIUS, true)
+                        : new MineBlocksTask(blockMatcher(mine.block()), mine.count(), MINING_RADIUS);
             case ObtainStep.VisitResource visit ->
                 new VisitResourceTask(visit.siteId(), visit.dimension(), options.exploreTicks());
             case ObtainStep.Hunt hunt ->
@@ -217,5 +222,14 @@ public final class MinecraftObtainSubtaskFactory
 
     private static String entityId(EntityType<?> type) {
         return BuiltInRegistries.ENTITY_TYPE.getKey(type).toString();
+    }
+
+    /** A block id that resolves to a log block; a tag id or a non-log keeps the count miner. */
+    private static boolean isTreeLog(String id) {
+        Identifier parsed = Identifier.tryParse(id);
+        if (parsed == null || !BuiltInRegistries.BLOCK.containsKey(parsed)) {
+            return false;
+        }
+        return BuiltInRegistries.BLOCK.getValue(parsed).defaultBlockState().is(BlockTags.LOGS);
     }
 }

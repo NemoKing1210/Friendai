@@ -10,6 +10,7 @@ import dev.friendai.execution.tool.ToolExecutor;
 import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
 import dev.friendai.features.mining.minecraft.mining.TreeFinder;
+import dev.friendai.features.mining.minecraft.task.FellLogsTask;
 import dev.friendai.features.mining.minecraft.task.FellTreeTask;
 import dev.friendai.server.agent.perception.PerceptionContext;
 import dev.friendai.server.agent.tools.FriendaiTools;
@@ -797,6 +798,47 @@ public class TreeFellingTests {
             for (BlockPos p : logs) {
                 h.assertTrue(h.getBlockState(p).isAir(), "log left at " + p + "; " + result.summary);
             }
+        });
+    }
+
+    /** The first tree is too short for the amount asked; the companion must fell a second one to top the count up. */
+    @GameTest(maxTicks = 6000)
+    public void fellLogsTopsUpAcrossTrees(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        List<BlockPos> first = new java.util.ArrayList<>();
+        for (int y = 2; y <= 3; y++) {
+            BlockPos p = new BlockPos(5, y, 5);
+            h.setBlock(p, Blocks.SPRUCE_LOG);
+            first.add(p);
+        }
+        leaf(h, 5, 4, 5);
+        List<BlockPos> second = new java.util.ArrayList<>();
+        for (int y = 2; y <= 3; y++) {
+            BlockPos p = new BlockPos(11, y, 4);
+            h.setBlock(p, Blocks.SPRUCE_LOG);
+            second.add(p);
+        }
+        leaf(h, 11, 4, 4);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.IRON_AXE));
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(5, 2, 5))), "first tree visible");
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(11, 2, 4))), "second tree visible");
+        Result result = new Result();
+        ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 300, () -> false);
+        runner.setEventSink(result);
+        runner.start(
+                new FellLogsTask(BlockMatcher.parse("minecraft:spruce_log").orElseThrow(), 3, 32, true), "obtain_logs");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
+            for (BlockPos p : first) {
+                h.assertTrue(h.getBlockState(p).isAir(), "first tree log left at " + p);
+            }
+            for (BlockPos p : second) {
+                h.assertTrue(h.getBlockState(p).isAir(), "second tree log left at " + p);
+            }
+            h.assertTrue(c.inventory().countItem(Items.SPRUCE_LOG) >= 3, "gained logs");
         });
     }
 

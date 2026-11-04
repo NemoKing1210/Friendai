@@ -65,6 +65,8 @@ public final class Approach {
     private final Set<BlockPos> excludedFlightCells;
     /** Blocks the planned route must never dig, even when the target lies behind them. */
     private List<String> additionalBreaks = List.of();
+    /** Whether the planned route may dig at all; a caller whose work digs from its stance turns the route into travel. */
+    private boolean routeDigging = true;
 
     private Navigator navigator;
     private FlightNavigator flightNavigator;
@@ -163,6 +165,16 @@ public final class Approach {
         return this;
     }
 
+    /**
+     * Makes the planned route pure travel: it never digs, whatever the task's settings allow. A caller that digs only
+     * particular blocks from where it stands, such as a feller clearing leaves, must not let the walk tunnel through
+     * the ground on the way.
+     */
+    public Approach walkWithoutDigging() {
+        this.routeDigging = false;
+        return this;
+    }
+
     /** Uses authorized creative flight when available; survival approaches keep their walking and planning path. */
     public State tick(TaskContext context) {
         CompanionEntity companion = context.companion();
@@ -255,9 +267,13 @@ public final class Approach {
         resetWalk();
     }
 
-    /** The task's settings, narrowed by what this route may not dig; null means "use the task's own". */
+    /** The task's settings, narrowed by what this route may dig and must leave alone. */
     private PathingConfig routeConfig(TaskContext context) {
-        return additionalBreaks.isEmpty() ? null : context.pathingConfig().withAdditionalBreaks(additionalBreaks);
+        PathingConfig config = context.pathingConfig();
+        if (!routeDigging) {
+            config = config.withActions(false, config.allowPlace());
+        }
+        return additionalBreaks.isEmpty() ? config : config.withAdditionalBreaks(additionalBreaks);
     }
 
     private void resetWalk() {

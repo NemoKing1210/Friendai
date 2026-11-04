@@ -550,7 +550,8 @@ public final class ObtainTask implements Task {
         };
     }
 
-    static void safeStop(Task task, TaskContext c) {
+    /** Stops a child task without letting a failing stop take the caller down with it. */
+    public static void safeStop(Task task, TaskContext c) {
         try {
             task.stop(c);
         } catch (RuntimeException ignored) {

@@ -34,6 +34,7 @@ import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.LeavesBlock;
 import net.minecraft.world.level.block.NetherWartBlock;
 
 public class ObtainTests {
@@ -935,5 +936,44 @@ public class ObtainTests {
                 index.toolOf("minecraft:iron_pickaxe").equals(new ToolNeed(ToolKind.PICKAXE, Tier.IRON)),
                 "iron pickaxe was " + index.toolOf("minecraft:iron_pickaxe"));
         h.succeed();
+    }
+
+    /**
+     * A wooden pickaxe needs planks, and the plan reads the logs out of the tree: the companion must fell the whole
+     * tree, not stop after the three logs the recipe happens to need.
+     */
+    @GameTest(maxTicks = 9600)
+    public void obtainWoodenPickaxeFellsAWholeTree(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        List<BlockPos> logs = new java.util.ArrayList<>();
+        for (int y = 2; y <= 6; y++) {
+            BlockPos p = new BlockPos(8, y, 8);
+            h.setBlock(p, Blocks.SPRUCE_LOG);
+            logs.add(p);
+        }
+        for (int x = 6; x <= 10; x++) {
+            for (int z = 6; z <= 10; z++) {
+                BlockPos p = new BlockPos(x, 7, z);
+                if (h.getBlockState(p).isAir()) {
+                    h.setBlock(p, Blocks.SPRUCE_LEAVES.defaultBlockState().setValue(LeavesBlock.PERSISTENT, true));
+                }
+            }
+        }
+        h.setBlock(3, 2, 3, Blocks.CRAFTING_TABLE);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.IRON_AXE));
+        c.inventory().addItem(new ItemStack(Items.DIRT, 16));
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(8, 2, 8))), "trunk base visible");
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(3, 2, 3))), "table visible");
+        Result result = new Result();
+        ExecutionCoordinator runner = obtain(c, result, obtainTask("minecraft:wooden_pickaxe", 1, true, true));
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            for (BlockPos p : logs) {
+                h.assertTrue(h.getBlockState(p).isAir(), "log left at " + p + "; " + result.summary);
+            }
+            h.assertValueEqual(c.inventory().countItem(Items.WOODEN_PICKAXE), 1, "pickaxes");
+        });
     }
 }

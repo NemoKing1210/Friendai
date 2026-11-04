@@ -145,12 +145,23 @@ public final class BlockBreaker {
             boolean digToTarget,
             boolean allowBreakingSupport,
             PlacementLedger ledger) {
-        this(candidates, stillValid, requireSight, mayPlace, digToTarget, allowBreakingSupport, ledger, state -> true);
+        this(
+                candidates,
+                stillValid,
+                requireSight,
+                mayPlace,
+                digToTarget,
+                allowBreakingSupport,
+                ledger,
+                state -> true,
+                true);
     }
 
     /**
      * @param diggable which blocks may be dug away to uncover the target; the target itself is always excluded. A
-     *     feller passes {@link SoftCover#isCover} so it never mines stone or dirt to reach a log.
+     *     feller passes {@link SoftCover#isCover} so it never mines stone or dirt to reach a log. A breaker with a
+     *     restricted set digs only those blocks, and only from the stance it walked to: its route never digs, because
+     *     tunnelling through anything else would be work its caller did not ask for.
      */
     public BlockBreaker(
             Collection<BlockPos> candidates,
@@ -161,6 +172,28 @@ public final class BlockBreaker {
             boolean allowBreakingSupport,
             PlacementLedger ledger,
             Predicate<BlockState> diggable) {
+        this(
+                candidates,
+                stillValid,
+                requireSight,
+                mayPlace,
+                digToTarget,
+                allowBreakingSupport,
+                ledger,
+                diggable,
+                false);
+    }
+
+    private BlockBreaker(
+            Collection<BlockPos> candidates,
+            Predicate<BlockState> stillValid,
+            boolean requireSight,
+            boolean mayPlace,
+            boolean digToTarget,
+            boolean allowBreakingSupport,
+            PlacementLedger ledger,
+            Predicate<BlockState> diggable,
+            boolean routeDigging) {
         if (candidates.isEmpty()) {
             throw new IllegalArgumentException("BlockBreaker needs at least one candidate");
         }
@@ -171,6 +204,9 @@ public final class BlockBreaker {
         this.allowBreakingSupport = allowBreakingSupport;
         this.diggable = diggable;
         this.approach = new Approach(this.candidates, mayPlace, ledger, requireSight, digToTarget ? diggable : null);
+        if (!routeDigging) {
+            this.approach.walkWithoutDigging();
+        }
     }
 
     /** The candidate the breaker settled on, or null while it is still walking. */
