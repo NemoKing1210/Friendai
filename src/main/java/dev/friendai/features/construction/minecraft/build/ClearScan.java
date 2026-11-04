@@ -8,11 +8,15 @@ import dev.friendai.features.navigation.minecraft.nav.LevelCellView;
 import dev.friendai.features.navigation.pathing.BlockList;
 import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerChunkCache;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
@@ -44,12 +48,19 @@ public final class ClearScan {
             BlockList breakList) {
         List<ClearCell> candidates = new ArrayList<>();
         EnumMap<ClearSkip, Integer> skipped = new EnumMap<>(ClearSkip.class);
+        Set<Long> loaded = loadedChunks(level, min, max);
         int solids = 0;
         for (int x = min.getX(); x <= max.getX(); x++) {
             for (int y = min.getY(); y <= max.getY(); y++) {
                 for (int z = min.getZ(); z <= max.getZ(); z++) {
                     BlockPos pos = new BlockPos(x, y, z);
                     if (level.isOutsideBuildHeight(pos)) {
+                        continue;
+                    }
+                    // Reading a block of an unloaded chunk generates the chunk, so the part that is not loaded is
+                    // counted as skipped before the first world read.
+                    if (!loaded.contains(ChunkPos.pack(x >> 4, z >> 4))) {
+                        skipped.merge(ClearSkip.NOT_LOADED, 1, Integer::sum);
                         continue;
                     }
                     BlockState state = level.getBlockState(pos);
@@ -108,6 +119,23 @@ public final class ClearScan {
             }
         }
         return new Result(candidates, skipped, solids);
+    }
+
+    /**
+     * The chunks of the box that are already loaded, in chunk coordinates. A query never generates a chunk, so the
+     * grid is at most a handful of entries for the largest area the task accepts.
+     */
+    private static Set<Long> loadedChunks(ServerLevel level, BlockPos min, BlockPos max) {
+        ServerChunkCache chunks = level.getChunkSource();
+        Set<Long> loaded = new HashSet<>();
+        for (int cx = min.getX() >> 4; cx <= max.getX() >> 4; cx++) {
+            for (int cz = min.getZ() >> 4; cz <= max.getZ() >> 4; cz++) {
+                if (chunks.hasChunk(cx, cz)) {
+                    loaded.add(ChunkPos.pack(cx, cz));
+                }
+            }
+        }
+        return loaded;
     }
 
     private static boolean isVegetation(BlockState state) {

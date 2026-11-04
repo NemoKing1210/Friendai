@@ -13,6 +13,7 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 ### Fixed
 
 - Clearing an area that holds only lava, flowing water or water you asked to leave no longer reports the job as failed.
+- `clear_area` no longer generates terrain to read an area that is not loaded; it reports the unloaded part.
 
 ## [0.204.0] - 2026-11-04
 

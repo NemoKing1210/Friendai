@@ -11,6 +11,7 @@ import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
@@ -237,6 +238,46 @@ public class ClearTests {
             h.assertTrue(result.summary.contains("lava"), result.summary);
             h.assertTrue(h.getBlockState(new BlockPos(8, 2, 8)).is(Blocks.LAVA), "the lava must stay");
         });
+    }
+
+    /**
+     * Reading one block of a distant box generates its chunk, so a scan that touches the world there turns a clear
+     * order into minutes of terrain generation. The unloaded part is reported instead.
+     */
+    @GameTest(maxTicks = 100)
+    public void anUnloadedAreaIsReportedAndNotGenerated(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        BlockPos center = h.absolutePos(new BlockPos(2, 2, 2)).offset(2000, 0, 0);
+        BlockPos min = center.offset(-4, 0, -4);
+        BlockPos max = center.offset(4, 0, 4);
+        h.assertTrue(!anyChunkLoaded(h.getLevel(), min, max), "the test area should start unloaded");
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(companion, result);
+        runner.start(new ClearAreaTask(center, 4, 0, 1, true, false), "clear_area");
+        // The generated chunks are unloaded again after a while, so a single late look cannot prove the scan kept
+        // its hands off: remember a chunk the moment it is seen in memory.
+        boolean[] generated = new boolean[1];
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status != null, "still running");
+            generated[0] |= anyChunkLoaded(h.getLevel(), min, max);
+            h.assertTrue(!generated[0], "the scan generated chunks of the unloaded area");
+            h.assertTrue(result.status == TaskStatus.FAILED, "status " + result.status + ": " + result.summary);
+            h.assertTrue(result.summary.contains("not loaded"), result.summary);
+        });
+    }
+
+    /** Whether any chunk covering the box is in memory, asked without loading or generating one. */
+    private static boolean anyChunkLoaded(ServerLevel level, BlockPos min, BlockPos max) {
+        for (int cx = min.getX() >> 4; cx <= max.getX() >> 4; cx++) {
+            for (int cz = min.getZ() >> 4; cz <= max.getZ() >> 4; cz++) {
+                if (level.getChunkSource().getChunkNow(cx, cz) != null) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     @GameTest(maxTicks = 200)

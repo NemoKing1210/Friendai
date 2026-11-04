@@ -2,6 +2,7 @@ package dev.friendai.features.construction.clear;
 
 /** Why one cell of a clear-area volume was not cleared. The label is what a task summary shows. */
 public enum ClearSkip {
+    NOT_LOADED("not loaded"),
     PROTECTED("protected"),
     BLACKLISTED("blacklisted"),
     HAS_CONTENTS("has contents"),
