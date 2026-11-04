@@ -233,6 +233,20 @@ class CompanionBrainPlannerTest {
     }
 
     @Test
+    void aPreTurnPlanIsShownOnceWithTheDoNotDuplicateRule() {
+        gateway.enqueue(text("Running it."));
+
+        brain.post(said(BUILD_AND_BRING));
+
+        assertEquals(1, gateway.requests.size(), "the queued plan needs no extra request");
+        String system = gateway.requests.get(0).system();
+        assertTrue(system.contains("a plan was queued (plan #5 added: 1 jobs)"), system);
+        assertTrue(system.contains("run it, do not queue another"), system);
+        assertTrue(
+                system.contains("If the planner already queued the work, use it and do not add a duplicate"), system);
+    }
+
+    @Test
     void simpleRequestNeverConsultsThePlanner() {
         gateway.enqueue(text("Ok."));
         brain.post(said("mine some stone"));

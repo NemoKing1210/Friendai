@@ -67,7 +67,7 @@ public final class QueueTools implements FeatureToolContributor {
         registry.registerTool(
                 callerTool(
                         "queue_add",
-                        "Add a durable multi-step plan. Check queue_show first and do not add a duplicate while work is active or waiting for a decision. Use guards for world conditions and after only when priority changes must not bypass a dependency.",
+                        "Add a durable multi-step plan. When an ordinary owner order needs new queued work and the available context is sufficient, include the whole plan and a short reply in the same response. If the planner already queued the work, use that plan instead of adding a duplicate. For a new primary multi-step objective, call set_goal before queue_add so the plan links to the goal. A later set_goal must pass the known plan id explicitly. Read queue_show when the queue context is insufficient for a safe decision; otherwise skip that round trip. queue_add validates the plan and returns errors; correct the arguments and retry instead of preflighting ordinary work with plan_validate. Use guards for world conditions and after only when priority changes must not bypass a dependency.",
                         SchemaBuilder.object()
                                 .string("goal", "Short goal")
                                 .array("steps", "Steps to run", stepSchema, 1, 64)
@@ -92,7 +92,7 @@ public final class QueueTools implements FeatureToolContributor {
         registry.registerTool(
                 callerTool(
                         "plan_validate",
-                        "Validate a plan without adding it to the queue; return normalized JSON and all errors.",
+                        "Dry-run a structured plan with conditions or repeats without adding it to the queue. Use this for an explicit validation-only request or to inspect a complex tree without committing it. queue_add validates ordinary and structured plans itself; a plan about to be queued does not need a separate dry run.",
                         SchemaBuilder.object()
                                 .array("steps", "Plan nodes to validate", stepSchema, 1, 64)
                                 .bool("auto_repair", "Report repair consent the queue_add would carry")

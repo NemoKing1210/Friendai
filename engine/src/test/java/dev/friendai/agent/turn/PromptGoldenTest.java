@@ -1,6 +1,7 @@
 package dev.friendai.agent.turn;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.friendai.agent.goal.GoalView;
 import dev.friendai.execution.tool.AccessLevel;
@@ -93,6 +94,23 @@ class PromptGoldenTest {
                 PLACES);
         assertFalse(prompt.contains(PLACES), prompt);
         assertFalse(prompt.contains("Known places"), prompt);
+    }
+
+    @Test
+    void theTurnRulesDescribeTheOneResponsePlanAndItsBounds() {
+        String prompt = PromptBuilder.system(
+                PERSONA, PERCEPTION, new Caller(ID, "Steve", AccessLevel.OWNER), "", TurnKind.PLAYER);
+
+        assertTrue(prompt.contains("use one response when the available context is sufficient"), prompt);
+        assertTrue(
+                prompt.contains("If the planner already queued the work, use it and do not add a duplicate"), prompt);
+        assertTrue(
+                prompt.contains("Read queue_show or inspect the world when evidence needed for a safe plan is missing"),
+                prompt);
+        assertTrue(
+                prompt.contains("Keep single-action controls such as stop or follow on their existing tools"), prompt);
+        assertTrue(prompt.contains("call set_goal before queue_add"), prompt);
+        assertTrue(prompt.contains("Do not call plan_validate merely to preflight"), prompt);
     }
 
     private static List<String> sortedLines(String text) {
