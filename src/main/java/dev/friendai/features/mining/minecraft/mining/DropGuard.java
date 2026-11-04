@@ -87,7 +87,7 @@ public final class DropGuard {
     }
 
     private static MaterialPicker materials(TaskContext c) {
-        return new MaterialPicker(c.pathingConfig(), c.breakList(), c.placeList());
+        return new MaterialPicker(c.pathingConfig(), c.breakList(), c.placeList(), c.materialReserve());
     }
 
     private static String blockId(BlockState state) {
