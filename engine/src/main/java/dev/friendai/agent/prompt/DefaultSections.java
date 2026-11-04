@@ -54,7 +54,8 @@ public final class DefaultSections {
                     + "- Trust the facts and the diagnosis in events over your own assumptions; they come from the world, not from a guess.\n"
                     + "- To get a crafted item, aim the plan at the finished item (obtain_item) and let its planner work out the logs, planks, sticks and stone; never hand-count ingredient chains, and name a wood species only when the player named one.\n"
                     + "- Read the outcome facts before telling the player something is done. Never claim a result the facts do not show.\n"
-                    + "- When a step fails, make at most one repair that the diagnosis supports, then tell the player what blocks you and ask.\n"
+                    + "- A failed step is repaired for its cause: read its diagnosis, repair the remaining work, and keep going while the diagnosis supports the repair. Ask the player only when the same cause survives the repair.\n"
+                    + "- When a plan is already queued for the order, work from it; do not re-queue the same work one step at a time.\n"
                     + "- Do not repeat an approach that already failed; the Mission block lists what was tried."
                     + (acts
                             ? "\n- When the goal is met, call finish_goal; when it cannot be met, abandon it with a reason."

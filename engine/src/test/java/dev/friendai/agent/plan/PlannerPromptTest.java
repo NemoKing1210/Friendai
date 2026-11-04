@@ -87,6 +87,15 @@ class PlannerPromptTest {
     }
 
     @Test
+    void systemPromptAsksForTheWholeObjectiveInOnePlan() {
+        String system = PlannerPrompt.system();
+        assertTrue(system.contains("Cover the whole objective in one plan"), system);
+        assertTrue(system.contains("use a composite tool once"), system);
+        assertTrue(system.contains("Do not split one materials run across steps."), system);
+        assertFalse(system.contains("Keep the plan short and concrete"), "the short-plan advice is gone");
+    }
+
+    @Test
     void theAdvertisedNotConditionMatchesTheQueueParserContract() {
         String guarded = "[{\"when\":{\"type\":\"not\",\"condition\":"
                 + "{\"type\":\"has_item\",\"item\":\"minecraft:oak_log\",\"count\":16}},"
