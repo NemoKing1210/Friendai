@@ -12,7 +12,8 @@ public final class QueueText {
             MAX_SHOW_CHARS = 4096,
             MAX_SUMMARY_REASON = 160,
             MAX_BLOCKED_REASON = 300,
-            MAX_PLAN_RESULTS = 600;
+            MAX_PLAN_RESULTS = 600,
+            MAX_ARCHIVES_SHOWN = 5;
 
     /** Results listed for one finished plan; a longer plan says how many were left out. */
     static final int MAX_RESULT_ENTRIES = 8;
@@ -69,10 +70,10 @@ public final class QueueText {
 
     public static String show(JobQueue q, GuardFacts facts, Long planId, int limit, boolean includeDone) {
         var snapshot = QueuePolicy.snapshot(q, facts);
-        if (q.jobCount() == 0 && q.plans().stream().noneMatch(p -> p.cursor() != null))
-            return q.archives().isEmpty()
-                    ? "queue: empty"
-                    : "queue: no jobs; " + q.archives().size() + " archived plan(s)";
+        if (q.jobCount() == 0 && q.plans().stream().noneMatch(p -> p.cursor() != null)) {
+            String archives = archiveLines(q, planId, true);
+            return archives.isEmpty() ? "queue: empty" : "queue: no jobs" + archives;
+        }
         StringBuilder out = new StringBuilder("queue: ")
                 .append(snapshot.running().size())
                 .append(" running, ")
@@ -103,7 +104,41 @@ public final class QueueText {
             if (!problem && shown++ >= limit) continue;
             out.append('\n').append(line(q, j, snapshot.waitingReasons().get(j.id())));
         }
+        out.append(archiveLines(q, planId, includeDone));
         return truncate(out.toString(), MAX_SHOW_CHARS);
+    }
+
+    /**
+     * The newest archived plans, newest first; a plan named by {@code planId} is shown whatever the flags say, and an
+     * unnarrowed listing is shown only when the caller asked for finished work.
+     */
+    private static String archiveLines(JobQueue q, Long planId, boolean unnamedListing) {
+        List<PlanArchive> archives = q.archives();
+        StringBuilder out = new StringBuilder();
+        int shown = 0;
+        for (int i = archives.size() - 1; i >= 0; i--) {
+            PlanArchive archive = archives.get(i);
+            if (planId != null) {
+                if (archive.id() != planId) continue;
+            } else if (!unnamedListing || shown >= MAX_ARCHIVES_SHOWN) {
+                continue;
+            }
+            shown++;
+            out.append("\nplan #")
+                    .append(archive.id())
+                    .append(" \"")
+                    .append(truncate(archive.goal(), 80))
+                    .append("\": ")
+                    .append(archive.success() ? "success" : "failed")
+                    .append(", ")
+                    .append(archive.stepCount())
+                    .append(archive.stepCount() == 1 ? " step, " : " steps, ")
+                    .append(truncate(archive.summary(), MAX_RESULT))
+                    .append(" (finished tick ")
+                    .append(archive.finishedTick())
+                    .append(')');
+        }
+        return out.toString();
     }
 
     public static String summary(JobQueue q, GuardFacts facts, String runningDescription) {

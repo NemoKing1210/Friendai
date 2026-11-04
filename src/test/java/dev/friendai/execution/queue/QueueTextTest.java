@@ -1,6 +1,7 @@
 package dev.friendai.execution.queue;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.JsonObject;
@@ -152,5 +153,55 @@ class QueueTextTest {
 
         assertTrue(results.length() <= 600, results);
         assertTrue(results.endsWith("; …"), results);
+    }
+
+    @Test
+    void anArchivedPlanIsShownByIdInsteadOfACount() {
+        JobQueue q = new JobQueue(QueueLimits.DEFAULTS);
+        var added = q.addPlan("tool set", List.of(step("give_items", "{}")), PlanOptions.DEFAULT);
+        q.finish(added.jobIds().getFirst(), "gave 1 minecraft:stone_pickaxe");
+        q.archivePlan(added.planId(), true, QueueText.finishedSummary(q, added.planId(), "conditional plan completed"));
+
+        String shown = QueueText.show(q, FACTS, added.planId(), 20, true);
+
+        assertTrue(shown.contains("plan #" + added.planId()), shown);
+        assertTrue(shown.contains("success"), shown);
+        assertTrue(shown.contains("gave 1 minecraft:stone_pickaxe"), shown);
+        assertFalse(shown.contains("archived plan(s)"), shown);
+    }
+
+    @Test
+    void anEmptyQueueShowsItsArchivesWithoutFlags() {
+        JobQueue q = new JobQueue(QueueLimits.DEFAULTS);
+        var added = q.addPlan("old work", List.of(step("give_items", "{}")), PlanOptions.DEFAULT);
+        q.archivePlan(added.planId(), true, "finished");
+
+        String shown = QueueText.show(q, FACTS, null, 20, false);
+
+        assertTrue(shown.contains("plan #" + added.planId()), shown);
+        assertTrue(shown.contains("old work"), shown);
+        assertFalse(shown.contains("archived plan(s)"), shown);
+    }
+
+    @Test
+    void aLiveQueueListsArchivesOnlyWhenAskedOrNamed() {
+        JobQueue q = new JobQueue(QueueLimits.DEFAULTS);
+        var archived = q.addPlan("old work", List.of(step("give_items", "{}")), PlanOptions.DEFAULT);
+        q.archivePlan(archived.planId(), true, "finished");
+        q.addPlan("live work", List.of(step("give_items", "{}")), PlanOptions.DEFAULT);
+
+        assertFalse(QueueText.show(q, FACTS, null, 20, false).contains("plan #" + archived.planId()));
+        assertTrue(QueueText.show(q, FACTS, null, 20, true).contains("plan #" + archived.planId()));
+        assertTrue(QueueText.show(q, FACTS, archived.planId(), 20, false).contains("plan #" + archived.planId()));
+    }
+
+    @Test
+    void aNamedArchiveThatNoArchiveHoldsRendersNothing() {
+        JobQueue q = new JobQueue(QueueLimits.DEFAULTS);
+        q.addPlan("live work", List.of(step("give_items", "{}")), PlanOptions.DEFAULT);
+
+        String shown = QueueText.show(q, FACTS, 999L, 20, false);
+
+        assertFalse(shown.contains("plan #999"), shown);
     }
 }
