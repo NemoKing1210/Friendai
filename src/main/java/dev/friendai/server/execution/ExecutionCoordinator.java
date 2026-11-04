@@ -37,7 +37,6 @@ import dev.friendai.task.plan.PlanEntry;
 import dev.friendai.task.plan.PlanStepFactory;
 import dev.friendai.task.plan.SequenceTask;
 import dev.friendai.task.plan.StepFactory;
-import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -59,17 +58,15 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     private final ActiveTaskController activeTasks;
     private final QueueDriver queueDriver;
     /** What this companion's loop decided in the current window; written to the debug log and then reset. */
-    private final LoopMetrics loopMetrics = new LoopMetrics();
-    /** Game time an issued interrupt is still waiting to clear at, or -1 when none is pending. */
-    private long interruptIssuedAt = -1;
+    private final RunnerMetricsView metrics = new RunnerMetricsView();
     /** Whether the idle fallback may walk to the owner; free time narrows it (see DefaultActivityPolicy). */
     private final BooleanSupplier mayFollowOwner;
     /** A movement order is a task without a job behind it, so waiting in place never pins the queue. */
     private static boolean movementOrder(ActiveTask active) {
         return active != null && active.jobId() == 0 && MovementOrders.isOrder(active.toolName());
     }
-    /** Queue plans that free time started; their jobs are autonomous work. */
-    private TaskEventSink eventSink;
+
+    private final TaskEventDispatcher events = new TaskEventDispatcher();
 
     private java.util.function.BiFunction<TaskContext, JsonObject, Task> repairFactory;
     private dev.friendai.task.structure.StructureBuilder structureBuilder =
@@ -97,10 +94,6 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
 
     private record Started(long jobId, QueuedStep step, StepFactory factory, LogContext context) {}
 
-    private final List<String> pendingNotices = new java.util.ArrayList<>();
-    private final ArrayDeque<java.util.function.Consumer<TaskEventSink>> pendingEvents = new ArrayDeque<>();
-    private int transitionDepth;
-    private boolean flushingEvents;
     private boolean paused;
     private boolean suspended;
     /** The owner asked for a hold; a later join must not undo it. */
@@ -165,11 +158,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     }
 
     public void setEventSink(TaskEventSink eventSink) {
-        this.eventSink = eventSink;
-        if (eventSink != null) {
-            for (String notice : pendingNotices) emit(sink -> sink.onNotice(notice));
-            pendingNotices.clear();
-        }
+        events.sink(eventSink);
     }
 
     public void setPaused(boolean paused) {
@@ -199,7 +188,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
             companion.setDeltaMovement(0.0, companion.getDeltaMovement().y, 0.0);
             companion.setPathing(false);
             suspend();
-            inTransition(this::flushEvents);
+            inTransition(events::flush);
         } else {
             resume();
         }
@@ -256,15 +245,11 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     }
 
     public void notice(String text) {
-        if (eventSink != null) emit(sink -> sink.onNotice(text));
-        else if (text != null) {
-            if (pendingNotices.size() == 16) pendingNotices.removeFirst();
-            pendingNotices.add(text);
-        }
+        events.notice(text);
     }
 
     public void debug(String text) {
-        if (eventSink != null) emit(sink -> sink.onDebug(text));
+        events.emit(sink -> sink.onDebug(text));
     }
 
     public Optional<Task> current() {
@@ -363,7 +348,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
 
     /** This companion's loop counters; the debug log writes {@link LoopMetrics#summary()} every twenty minutes. */
     public LoopMetrics loopMetrics() {
-        return loopMetrics;
+        return metrics.metrics();
     }
 
     public java.util.List<dev.friendai.presentation.companion.QueueRow> queueRows() {
@@ -589,8 +574,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
                 return;
             }
             // Something was running, so the owner's stop is an interrupt: count it now and its wait when idle.
-            interruptIssuedAt = companion.level().getGameTime();
-            loopMetrics.interruptIssued();
+            metrics.interruptIssued(companion.level().getGameTime());
             stopActive(reason);
         });
     }
@@ -925,10 +909,8 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
      * long-blocked stop onto the interrupt counter only when the wait really ended; no allocation either way.
      */
     private void clearIssuedInterrupt() {
-        if (interruptIssuedAt < 0 || hasWork()) return;
-        long waited = companion.level().getGameTime() - interruptIssuedAt;
-        loopMetrics.interruptCleared((int) Math.min(Integer.MAX_VALUE, Math.max(0L, waited)));
-        interruptIssuedAt = -1;
+        if (!metrics.interruptPending() || hasWork()) return;
+        metrics.interruptCleared(companion.level().getGameTime());
     }
 
     private void revalidateCreativeHover() {
@@ -946,7 +928,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         // still win inside the model, and a cancellation is not an outcome, so it never colours the face.
         companion.noteTaskOutcome(status == TaskStatus.SUCCESS);
         // One place per finished task: a thing the companion built, farmed or mined is worth remembering itself.
-        if (status == TaskStatus.SUCCESS && eventSink != null) {
+        if (status == TaskStatus.SUCCESS && events.hasSink()) {
             PlaceCandidate candidate = active.task().placeCandidate();
             if (candidate != null) emit(sink -> sink.onPlace(candidate, active.toolName()));
         }
@@ -1472,39 +1454,15 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     }
 
     private void emit(java.util.function.Consumer<TaskEventSink> event) {
-        if (eventSink == null) return;
-        if (transitionDepth > 0 || flushingEvents) {
-            pendingEvents.addLast(event);
-            return;
-        }
-        event.accept(eventSink);
+        events.emit(event);
     }
 
     private <T> T inTransition(java.util.function.Supplier<T> action) {
-        transitionDepth++;
-        try {
-            return action.get();
-        } finally {
-            transitionDepth--;
-            if (transitionDepth == 0) flushEvents();
-        }
+        return events.inTransition(action);
     }
 
     private void inTransition(Runnable action) {
-        inTransition(() -> {
-            action.run();
-            return null;
-        });
-    }
-
-    private void flushEvents() {
-        if (flushingEvents || eventSink == null) return;
-        flushingEvents = true;
-        try {
-            while (!pendingEvents.isEmpty()) pendingEvents.removeFirst().accept(eventSink);
-        } finally {
-            flushingEvents = false;
-        }
+        events.inTransition(action);
     }
 
     private TaskContext context(ServerSettings settings, CreativeActionContext actionContext) {
