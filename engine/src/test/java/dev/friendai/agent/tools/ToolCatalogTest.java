@@ -91,7 +91,13 @@ class ToolCatalogTest {
             assertTrue(names.contains(tool), tool + " missing from " + names);
             assertEquals(ToolGroup.PLACE, catalog.meta(tool).orElseThrow().group(), tool);
         }
-        assertEquals(2, catalog.hints(EnumSet.of(ToolGroup.PLACE)).size());
+        List<String> placeHints = catalog.hints(EnumSet.of(ToolGroup.PLACE));
+        assertTrue(
+                placeHints.contains(catalog.meta("find_place").orElseThrow().whenToUse()),
+                "the place turn sees the question tool's guidance: " + placeHints);
+        assertTrue(
+                placeHints.contains(catalog.meta("remember_place").orElseThrow().whenToUse()),
+                "the place turn sees the teaching guidance: " + placeHints);
         assertFalse(catalog.namesFor(EnumSet.of(ToolGroup.PLACE)).contains("mine_blocks"));
     }
 
@@ -101,7 +107,9 @@ class ToolCatalogTest {
         assertTrue(find.core(), "find_place must be core: reading the book unlocks no group");
         assertEquals(ToolGroup.CORE, find.group(), "find_place");
         assertEquals(List.of("find_place"), names(catalog.filter(List.of(spec("find_place")), Set.of())));
-        assertEquals(List.of(catalog.meta("find_place").orElseThrow().whenToUse()), catalog.hints(Set.of()));
+        assertTrue(
+                catalog.hints(Set.of()).contains(find.whenToUse()),
+                "a turn with no groups still sees the question tool's guidance");
     }
 
     @Test
