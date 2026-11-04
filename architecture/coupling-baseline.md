@@ -100,7 +100,7 @@ and the feature graph is now acyclic with no baseline file. Re-measured on the s
 
 | Metric | `1ce4fef6` (baseline) | after Wave 1 |
 |---|---:|---:|
-| Feature-to-feature class edges | 786 | 296 |
+| Feature-to-feature class edges | 786 | 294 |
 | Strongly connected components | 2 | none |
 | Bidirectional feature pairs | 11 | none |
 | `foundation/` and `world/` kernel packages | 0 | 2 |
