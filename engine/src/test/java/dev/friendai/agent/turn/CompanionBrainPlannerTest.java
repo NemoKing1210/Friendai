@@ -14,6 +14,7 @@ import dev.friendai.agent.goal.GoalStatus;
 import dev.friendai.agent.goal.GoalView;
 import dev.friendai.agent.goal.RiskClass;
 import dev.friendai.agent.llm.model.Message;
+import dev.friendai.agent.llm.model.ToolCall;
 import dev.friendai.agent.plan.PlanFailure;
 import dev.friendai.agent.plan.PlanProposal;
 import dev.friendai.agent.plan.PlanSubject;
@@ -31,6 +32,7 @@ import dev.friendai.testutil.FakeGateway;
 import dev.friendai.testutil.FakeToolExecutor;
 import dev.friendai.testutil.ManualScheduler;
 import dev.friendai.testutil.RecordingSpeaker;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -188,6 +190,46 @@ class CompanionBrainPlannerTest {
         gateway.enqueue(text("Queued."));
         brain.post(said("mine some stone"));
         assertTrue(port.failures.isEmpty());
+    }
+
+    @Test
+    void aPlanQueuedInAnEarlierStepSuppressesThePlanner() {
+        JsonObject goalArgsWithPlan7 = new JsonObject();
+        goalArgsWithPlan7.addProperty("text", "mine some stone");
+        goalArgsWithPlan7.addProperty("plan", 7);
+        tools.results.put("queue_add", new ArrayDeque<>(List.of(ToolResult.ok("plan #7 added: 1 jobs"))));
+        gateway.enqueue(calls("", call("q1", "queue_add")));
+        gateway.enqueue(
+                calls("", new ToolCall("g1", "set_goal", goalArgsWithPlan7, goalArgsWithPlan7.toString(), null)));
+        gateway.enqueue(text("Queued."));
+
+        brain.post(said("mine some stone"));
+
+        assertTrue(port.failures.isEmpty(), "the turn already queued its plan");
+        assertEquals(3, gateway.requests.size());
+    }
+
+    @Test
+    void aPlanQueuedInTheSameResponseSuppressesThePlanner() {
+        gateway.enqueue(calls("Queued the plan.", call("g1", "set_goal"), call("q1", "queue_add")));
+        brain.post(said("mine some stone"));
+
+        assertTrue(port.failures.isEmpty(), "set_goal after queue_add does not ask for a second plan");
+        assertEquals(1, gateway.requests.size());
+    }
+
+    @Test
+    void aQueuedPlanInAnEarlierTurnDoesNotSuppressALaterPlan() {
+        tools.results.put("queue_add", new ArrayDeque<>(List.of(ToolResult.ok("plan #7 added: 1 jobs"))));
+        gateway.enqueue(calls("On it.", call("q1", "queue_add")));
+        gateway.enqueue(calls("", call("g1", "set_goal")));
+        gateway.enqueue(text("Planning it."));
+
+        brain.post(said("mine some stone"));
+        assertTrue(port.failures.isEmpty(), "the turn's own plan needs no planner");
+
+        brain.post(said("mine some stone"));
+        assertEquals(1, port.failures.size(), "the fact resets with the turn, so a planless goal may be planned");
     }
 
     @Test

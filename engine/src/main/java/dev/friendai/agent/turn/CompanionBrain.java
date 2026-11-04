@@ -102,6 +102,8 @@ public final class CompanionBrain {
     private PlannerPort plannerPort = PlannerPort.NONE;
     private TradingTurnPort tradingTurnPort = TradingTurnPort.NOOP;
     private boolean plannedThisTurn;
+    /** A plan was queued at some step of this turn, so the turn must not ask the planner for a second one. */
+    private boolean queuedPlanThisTurn;
     /** A plan that failed or needs a decision in this turn's batch is the one the goal follows. */
     private boolean ownsTroubledPlan;
     /** What the planner just did; shown once in the next request's Mission block. */
@@ -645,6 +647,7 @@ public final class CompanionBrain {
         memory.add(Message.user(lines));
         step = 0;
         plannedThisTurn = false;
+        queuedPlanThisTurn = false;
         plannerNote = "";
         // A plan-worthy owner order, an unmet active goal and a failed plan are planned before the model answers.
         // A free-time shift is planned by its driver, not by the chat turn.
@@ -1020,6 +1023,9 @@ public final class CompanionBrain {
             queueMutatedBesidesAdd |=
                     !result.error() && ("queue_edit".equals(call.name()) || "plan_patch".equals(call.name()));
         }
+        // Turn-scoped: a plan queued at any step means this turn has nothing left to plan, even when a later step
+        // sets a goal. Recorded before the early exits so the fact is complete for the whole turn.
+        queuedPlanThisTurn |= queuedByModel;
         if (activityChosen) {
             // Free time's choice is the whole answer; the planner does the rest, so the turn costs one request.
             endTurn();
@@ -1034,7 +1040,7 @@ public final class CompanionBrain {
         PlanningDecision after = router.afterStep(
                 decision.mode(),
                 turnSignals.withGoal(setGoalId),
-                new PlanningPolicy.StepFacts(goalSet, queuedByModel, plannedThisTurn));
+                new PlanningPolicy.StepFacts(goalSet, queuedPlanThisTurn, plannedThisTurn));
         if (after.need() == PlanNeed.REQUIRED) {
             plan(gen, after.subject(), "");
             return;

@@ -21,8 +21,11 @@ public final class PlanningPolicy {
     static final String FREE_TIME_SHIFT = "free-time-shift";
     static final String MODEL_SIGNALLED = "model-signalled";
 
-    /** What the first response did, as far as planning is concerned. */
-    public record StepFacts(boolean goalSet, boolean queuedPlan, boolean plannedThisTurn) {}
+    /**
+     * What the turn has done so far, as far as planning is concerned. {@code queuedPlanThisTurn} is historical
+     * duplicate suppression for the whole turn, not proof that the plan still exists or belongs to a later goal.
+     */
+    public record StepFacts(boolean goalSet, boolean queuedPlanThisTurn, boolean plannedThisTurn) {}
 
     /** Decides the planning need before the first model request of the turn. */
     public PlanningDecision beforeTurn(PlanSignals signals) {
@@ -62,7 +65,11 @@ public final class PlanningPolicy {
     public PlanningDecision afterStep(PlanSignals signals, StepFacts step) {
         if (signals == null || step == null) return PlanningDecision.none(NO_OCCASION);
         boolean orderMode = signals.mode() == TurnMode.ACTION || signals.mode() == TurnMode.GOAL;
-        if (orderMode && step.goalSet() && !step.queuedPlan() && !step.plannedThisTurn() && !signals.budgetSpent()) {
+        if (orderMode
+                && step.goalSet()
+                && !step.queuedPlanThisTurn()
+                && !step.plannedThisTurn()
+                && !signals.budgetSpent()) {
             return new PlanningDecision(
                     PlanNeed.REQUIRED, new PlanSubject.ModelGoal(signals.goalId()), MODEL_SIGNALLED);
         }

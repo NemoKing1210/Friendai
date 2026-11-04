@@ -150,6 +150,34 @@ public class GoalTests {
         h.succeed();
     }
 
+    @GameTest
+    public void a_plan_queued_before_the_goal_links_by_its_id(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
+        CompanionEntity c = CompanionManager.get(h.getLevel().getServer()).summon(player);
+        Caller owner = owner(player);
+        ToolResult queued = call(c, owner, "queue_add", "{\"goal\":\"stay\",\"steps\":[{\"tool\":\"jump\"}]}");
+        h.assertFalse(queued.error(), "queue_add error: " + queued.content());
+        long planId = planIdIn(queued.content());
+        h.assertTrue(planId > 0, "the queue reports the plan id: " + queued.content());
+        h.assertFalse(
+                call(c, owner, "set_goal", "{\"text\":\"stay put\",\"plan\":" + planId + "}")
+                        .error(),
+                "set_goal with the returned id links the queued plan");
+        var goal = GameTestSupport.runtime(h.getLevel().getServer())
+                .goals()
+                .board(player.getUUID())
+                .primary()
+                .orElseThrow();
+        h.assertTrue(planId == goal.planId(), "the goal follows the plan queued before it: goal " + goal.planId());
+        h.succeed();
+    }
+
+    private static long planIdIn(String content) {
+        var match = java.util.regex.Pattern.compile("plan #(\\d{1,9})").matcher(content == null ? "" : content);
+        return match.find() ? Long.parseLong(match.group(1)) : 0L;
+    }
+
     @GameTest(maxTicks = 300)
     public void finishingWithAnUnmetCriterionIsRefused(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
