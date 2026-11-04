@@ -533,6 +533,50 @@ public class MineBlocksTests {
         });
     }
 
+    /**
+     * Two trunks; only the feet were observed. After the first break the next log up is outside the sight cache, and
+     * the miner must follow the connected trunk instead of jumping to the other tree.
+     */
+    @GameTest(maxTicks = 2400)
+    public void finishesTheStartedTrunkBeforeAnotherTree(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        for (int y = 2; y <= 5; y++) {
+            h.setBlock(new BlockPos(7, y, 7), Blocks.OAK_LOG);
+            h.setBlock(new BlockPos(10, y, 3), Blocks.OAK_LOG);
+        }
+        for (int y = 3; y <= 5; y++) {
+            leaf(h, 6, y, 7);
+            leaf(h, 8, y, 7);
+            leaf(h, 7, y, 6);
+            leaf(h, 7, y, 8);
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.DIRT, 16));
+        c.inventory().addItem(new ItemStack(Items.IRON_AXE));
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(7, 2, 7))), "first base visible");
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(10, 2, 3))), "second base visible");
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(
+                new MineBlocksTask(
+                        BlockMatcher.parse("minecraft:oak_log").orElseThrow(), 3, 32, c.blockPosition(), true),
+                "mine_blocks");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            for (int y = 2; y <= 4; y++) {
+                h.assertTrue(h.getBlockState(new BlockPos(7, y, 7)).isAir(), "first trunk log left at y " + y);
+            }
+            h.assertTrue(h.getBlockState(new BlockPos(7, 5, 7)).is(Blocks.OAK_LOG), "the third log stops the count");
+            for (int y = 2; y <= 5; y++) {
+                h.assertTrue(
+                        h.getBlockState(new BlockPos(10, y, 3)).is(Blocks.OAK_LOG),
+                        "the second tree must not be touched at y " + y + "; " + result.summary);
+            }
+        });
+    }
+
     /** Persistent leaves, so they do not decay while the test waits. */
     private static void leaf(GameTestHelper h, int x, int y, int z) {
         h.setBlock(new BlockPos(x, y, z), Blocks.OAK_LEAVES.defaultBlockState().setValue(LeavesBlock.PERSISTENT, true));
@@ -619,14 +663,7 @@ public class MineBlocksTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         BlockPos target = h.absolutePos(new BlockPos(6, 2, 2));
         var breaker = new BlockBreaker(
-                List.of(target),
-                state -> state.is(Blocks.OAK_LOG),
-                true,
-                false,
-                true,
-                false,
-                null,
-                SoftCover::isCover);
+                List.of(target), state -> state.is(Blocks.OAK_LOG), true, false, true, false, null, SoftCover::isCover);
         TaskContext context = new TaskContext(c, h.getLevel());
         h.succeedWhen(() -> {
             breaker.tick(context);

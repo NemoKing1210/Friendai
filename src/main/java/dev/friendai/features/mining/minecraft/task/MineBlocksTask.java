@@ -19,6 +19,9 @@ import dev.friendai.features.mining.minecraft.mining.MiningRefusal;
 import dev.friendai.features.mining.minecraft.mining.MiningSession;
 import dev.friendai.features.mining.minecraft.mining.MiningToolView;
 import dev.friendai.features.mining.minecraft.mining.TemporaryBlockCleanup;
+import dev.friendai.features.mining.minecraft.mining.TreeFinder;
+import dev.friendai.features.mining.tree.TreeCell;
+import dev.friendai.features.mining.tree.TrunkExpansion;
 import dev.friendai.features.navigation.minecraft.nav.PlacementLedger;
 import dev.friendai.features.navigation.pathing.Node;
 import dev.friendai.features.navigation.pathing.Pos;
@@ -695,15 +698,27 @@ public final class MineBlocksTask implements Task {
         if (lastBroken == null) {
             return new ArrayList<>();
         }
-        List<BlockPos> seeds = new ArrayList<>(6);
-        for (net.minecraft.core.Direction side : net.minecraft.core.Direction.values()) {
-            seeds.add(lastBroken.relative(side));
+        TrunkExpansion.Cells cells = new TrunkExpansion.Cells() {
+            @Override
+            public boolean isLog(int x, int y, int z) {
+                return matcher.test(c.level().getBlockState(new BlockPos(x, y, z)));
+            }
+
+            @Override
+            public boolean isLoaded(int x, int y, int z) {
+                return c.level().hasChunkAt(new BlockPos(x, y, z));
+            }
+        };
+        List<TreeCell> seed = List.of(new TreeCell(lastBroken.getX(), lastBroken.getY(), lastBroken.getZ()));
+        List<BlockPos> result = new ArrayList<>();
+        double limit = (double) radius * radius;
+        for (TreeCell cell : TrunkExpansion.expand(seed, cells, TreeFinder.MAX_SCANNED_LOGS)) {
+            BlockPos pos = new BlockPos(cell.x(), cell.y(), cell.z());
+            if (matcher.test(c.level().getBlockState(pos)) && !excluded(pos) && pos.distSqr(lastBroken) <= limit) {
+                result.add(pos);
+            }
         }
-        var evidence = c.resources();
-        List<BlockPos> result =
-                new ArrayList<>(evidence.knownOrVisible(c.companion(), matcher, radius, evidenceLimit(CANDIDATES)));
-        result.removeIf(pos -> seeds.stream().noneMatch(seed -> seed.distManhattan(pos) <= 1));
-        result.removeIf(this::excluded);
+        result.sort(java.util.Comparator.comparingDouble(pos -> pos.distSqr(lastBroken)));
         return result.size() <= CANDIDATES ? result : new ArrayList<>(result.subList(0, CANDIDATES));
     }
 
