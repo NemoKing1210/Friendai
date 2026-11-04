@@ -842,6 +842,52 @@ public class TreeFellingTests {
         });
     }
 
+    /** A tall jungle tree with side branches: every log, branch included, must come down. */
+    @GameTest(maxTicks = 6000)
+    public void wideBranchedTreeFallsCompletely(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        List<BlockPos> logs = new java.util.ArrayList<>();
+        for (int y = 2; y <= 12; y++) {
+            h.setBlock(new BlockPos(8, y, 8), Blocks.JUNGLE_LOG);
+            logs.add(new BlockPos(8, y, 8));
+        }
+        int[][] branches = {{6, 8, 8}, {5, 8, 8}, {10, 9, 8}, {11, 9, 8}};
+        for (int[] p : branches) {
+            h.setBlock(new BlockPos(p[0], p[1], p[2]), Blocks.JUNGLE_LOG);
+            logs.add(new BlockPos(p[0], p[1], p[2]));
+        }
+        for (int x = 4; x <= 12; x++) {
+            for (int z = 5; z <= 11; z++) {
+                for (int y = 9; y <= 13; y++) {
+                    BlockPos p = new BlockPos(x, y, z);
+                    if (h.getBlockState(p).isAir()) {
+                        h.setBlock(p, Blocks.JUNGLE_LEAVES.defaultBlockState().setValue(LeavesBlock.PERSISTENT, true));
+                    }
+                }
+            }
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.DIRT, 32));
+        c.inventory().addItem(new ItemStack(Items.IRON_AXE));
+        Result result = new Result();
+        ExecutionCoordinator runner = start(
+                c,
+                result,
+                new FellTreeTask(
+                        info(h, logs, "jungle_log", 11),
+                        BlockMatcher.parse("minecraft:jungle_log").orElseThrow(),
+                        0,
+                        true),
+                400);
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
+            for (BlockPos p : logs) {
+                h.assertTrue(h.getBlockState(p).isAir(), "log left at " + p + "; " + result.summary);
+            }
+        });
+    }
+
     private static TreeFinder.TreeInfo info(GameTestHelper h, List<BlockPos> logs, String type, int height) {
         List<BlockPos> absolute = logs.stream().map(h::absolutePos).toList();
         return new TreeFinder.TreeInfo(

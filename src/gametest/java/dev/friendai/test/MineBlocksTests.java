@@ -513,7 +513,9 @@ public class MineBlocksTests {
         c.inventory().addItem(new ItemStack(Items.DIRT, 16));
         Result result = new Result();
         ExecutionCoordinator runner = runner(c, result);
-        runner.start(mine("minecraft:oak_log", 5), "mine_blocks");
+        // A radius that holds both trees and nothing else in the shared world: a wide search would let another test's
+        // oak log count against the five.
+        runner.start(new MineBlocksTask(BlockMatcher.parse("minecraft:oak_log").orElseThrow(), 5, 10), "mine_blocks");
         h.succeedWhen(() -> {
             for (int y = 2; y <= 6; y++) {
                 if (h.getBlockState(new BlockPos(7, y, 7)).is(Blocks.OAK_LOG))
@@ -530,6 +532,28 @@ public class MineBlocksTests {
                 }
             }
             h.assertTrue(firstTree == 0, "the first tree still has " + firstTree + " logs");
+        });
+    }
+
+    /** A pointed log is the whole trunk, not one block: mine_block_at must take the column down. */
+    @GameTest(maxTicks = 2400)
+    public void mineAtLogFellsTheWholeTrunk(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        for (int y = 2; y <= 5; y++) {
+            h.setBlock(new BlockPos(6, y, 6), Blocks.OAK_LOG);
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.IRON_AXE));
+        BlockPos target = h.absolutePos(new BlockPos(6, 2, 6));
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(new MineBlockAtTask(target), "mine_block_at");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            for (int y = 2; y <= 5; y++) {
+                h.assertTrue(h.getBlockState(new BlockPos(6, y, 6)).isAir(), "log left at y " + y);
+            }
         });
     }
 

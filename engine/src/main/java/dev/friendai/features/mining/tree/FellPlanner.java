@@ -14,8 +14,9 @@ import java.util.Set;
  * cuts a log the companion can actually click from the stance it is standing on.
  *
  * <p>The plan never moves the column: the stance starts at the lowest height that reaches every log and only descends,
- * so the companion climbs once and the footing is removed after the last layer. A log no stance reaches (a long branch)
- * is counted in {@link FellPlan#unreachableLogs()} instead of being silently dropped.
+ * so the companion climbs once and the footing is removed after the last layer. Among the columns the world allows, the
+ * one that reaches the most logs wins; the walk there is short either way. A log no stance reaches (a long branch) is
+ * counted in {@link FellPlan#unreachableLogs()} instead of being silently dropped.
  */
 public final class FellPlanner {
     /** How far the eyes may be from a block centre and still act on it; the same value {@code Approach.REACH} uses. */
@@ -43,21 +44,21 @@ public final class FellPlanner {
         int topY = logs.stream().mapToInt(TreeCell::y).max().orElseThrow();
         int groundFeetY = Math.min(stand.y(), baseY);
 
-        List<FellPlan.Climb> climbs = new ArrayList<>();
-        int unreachable = 0;
+        List<Built> usable = new ArrayList<>();
         for (TreeCell column : candidateColumns(logs, baseY, groundFeetY, stand)) {
             Built built = build(logs, column, groundFeetY, topY, baseY, limit);
-            if (built == null) {
-                continue;
-            }
-            climbs.add(built.climb());
-            if (climbs.size() == 1) {
-                unreachable = built.unreachable();
+            if (built != null) {
+                usable.add(built);
             }
         }
-        if (climbs.isEmpty()) {
+        if (usable.isEmpty()) {
             return new FellPlan(List.of(), List.of(), logs.size(), 0);
         }
+        // A column that leaves a branch behind is worse than one a step farther away, however close that one is to
+        // the companion: the felling happens once, and a log it cannot reach stays standing.
+        usable.sort(Comparator.comparingInt(Built::unreachable));
+        List<FellPlan.Climb> climbs = usable.stream().map(Built::climb).toList();
+        int unreachable = usable.get(0).unreachable();
         return new FellPlan(climbs, climbs.get(0).logs(), logs.size(), unreachable);
     }
 

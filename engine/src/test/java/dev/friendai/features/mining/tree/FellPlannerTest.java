@@ -141,6 +141,24 @@ class FellPlannerTest {
         assertEquals(18, plan.totalLogs());
     }
 
+    /**
+     * Branches on two sides of one trunk: only a column beside the trunk reaches both, while the diagonal column
+     * nearest to the companion is four blocks from each. The plan must prefer the column that leaves no log behind.
+     */
+    @Test
+    void columnThatReachesEveryBranchWinsOverTheNearestOne() {
+        List<TreeCell> logs = new ArrayList<>(trunk(0, 0, 2, 11));
+        logs.add(new TreeCell(3, 9, 0));
+        logs.add(new TreeCell(0, 9, 3));
+        FellPlan plan = FellPlanner.plan(logs, new TreeCell(-1, 2, -1), 0);
+        assertEquals(
+                0,
+                plan.unreachableLogs(),
+                "chosen column was " + plan.climbs().get(0).column() + ": " + plan.climbs());
+        assertTrue(plan.cutOrder().contains(new TreeCell(3, 9, 0)), "the west branch is cut");
+        assertTrue(plan.cutOrder().contains(new TreeCell(0, 9, 3)), "the south branch is cut");
+    }
+
     @Test
     void noFreeColumnYieldsNoClimb() {
         List<TreeCell> logs = new ArrayList<>(trunk(0, 0, 2, 11));
