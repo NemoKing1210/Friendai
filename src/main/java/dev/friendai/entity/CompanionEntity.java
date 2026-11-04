@@ -139,7 +139,7 @@ public class CompanionEntity extends PathfinderMob {
     /** The bond is read from the owner's memory book once, on first use, and written back after every change. */
     private boolean bondLoaded;
 
-    private dev.friendai.features.social.Traits traits = dev.friendai.features.social.Traits.NEUTRAL;
+    private dev.friendai.foundation.social.Traits traits = dev.friendai.foundation.social.Traits.NEUTRAL;
     private boolean traitsLoaded;
     /** The hand-overs this body performed itself: server-only, not synced and not saved. */
     private dev.friendai.features.inventory.DeliveredLedger delivered =
@@ -1035,7 +1035,7 @@ public class CompanionEntity extends PathfinderMob {
     }
 
     /** How the companion's manner has drifted; read from the book once, neutral until something moves it. */
-    public dev.friendai.features.social.Traits traits() {
+    public dev.friendai.foundation.social.Traits traits() {
         ensureTraits();
         return traits;
     }
@@ -1054,7 +1054,7 @@ public class CompanionEntity extends PathfinderMob {
      * The owner said they dislike this manner: drop it now, remember the dislike as a preference and never drift
      * back into it on its own. A null kind means the whole manner, back to neutral.
      */
-    public void rejectManner(dev.friendai.features.social.Traits.Kind kind) {
+    public void rejectManner(dev.friendai.foundation.social.Traits.Kind kind) {
         ensureTraits();
         var next = kind == null ? traits.dropAll() : traits.drop(kind);
         if (!next.equals(traits)) {
@@ -1066,11 +1066,11 @@ public class CompanionEntity extends PathfinderMob {
         }
     }
 
-    private java.util.Set<dev.friendai.features.social.Traits.Kind> rejectedManners() {
+    private java.util.Set<dev.friendai.foundation.social.Traits.Kind> rejectedManners() {
         if (ownerUuid == null || !(level() instanceof ServerLevel serverLevel)) {
             return java.util.Set.of();
         }
-        var found = java.util.EnumSet.noneOf(dev.friendai.features.social.Traits.Kind.class);
+        var found = java.util.EnumSet.noneOf(dev.friendai.foundation.social.Traits.Kind.class);
         ServerRuntimeRegistry.find(serverLevel.getServer()).ifPresent(runtime -> {
             var subject = dev.friendai.features.memory.Subject.player(ownerUuid);
             for (var fact : runtime.memory().book(ownerUuid).allFacts()) {
@@ -1078,7 +1078,7 @@ public class CompanionEntity extends PathfinderMob {
                         || fact.category() != dev.friendai.features.memory.Category.PREFERENCE) {
                     continue;
                 }
-                for (var trait : dev.friendai.features.social.Traits.Kind.values()) {
+                for (var trait : dev.friendai.foundation.social.Traits.Kind.values()) {
                     if (fact.text().equals(rejectionText(trait))) {
                         found.add(trait);
                     }
@@ -1088,11 +1088,11 @@ public class CompanionEntity extends PathfinderMob {
         return found;
     }
 
-    private static String rejectionText(dev.friendai.features.social.Traits.Kind kind) {
+    private static String rejectionText(dev.friendai.foundation.social.Traits.Kind kind) {
         return "dislikes a " + kind.name().toLowerCase(java.util.Locale.ROOT) + " manner";
     }
 
-    private void rememberRejection(dev.friendai.features.social.Traits.Kind kind) {
+    private void rememberRejection(dev.friendai.foundation.social.Traits.Kind kind) {
         if (ownerUuid == null || !(level() instanceof ServerLevel serverLevel)) {
             return;
         }
@@ -1114,7 +1114,7 @@ public class CompanionEntity extends PathfinderMob {
     }
 
     /** A trait that annoyed the owner drops at once, back to neutral. */
-    public void dropTrait(dev.friendai.features.social.Traits.Kind kind) {
+    public void dropTrait(dev.friendai.foundation.social.Traits.Kind kind) {
         ensureTraits();
         var next = traits.drop(kind);
         if (!next.equals(traits)) {

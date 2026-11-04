@@ -1,4 +1,4 @@
-package dev.friendai.features.social;
+package dev.friendai.foundation.social;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;

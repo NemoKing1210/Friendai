@@ -1,10 +1,10 @@
 package dev.friendai.features.memory;
 
 import dev.friendai.features.memory.retrieval.RetrievalIndex;
-import dev.friendai.features.social.BondState;
-import dev.friendai.features.social.Happening;
-import dev.friendai.features.social.HappeningJournal;
-import dev.friendai.features.social.Traits;
+import dev.friendai.foundation.social.BondState;
+import dev.friendai.foundation.social.Happening;
+import dev.friendai.foundation.social.HappeningJournal;
+import dev.friendai.foundation.social.Traits;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;

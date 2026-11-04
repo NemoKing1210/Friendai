@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import dev.friendai.features.social.BondState;
+import dev.friendai.foundation.social.BondState;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;

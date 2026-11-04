@@ -1,4 +1,4 @@
-package dev.friendai.features.social;
+package dev.friendai.foundation.social;
 
 /** One observed world fact worth mentioning, already stripped of private chat by its producer. */
 public record Happening(Kind kind, Importance importance, int tick, String key, String text) {

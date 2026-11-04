@@ -1,4 +1,4 @@
-package dev.friendai.features.social;
+package dev.friendai.foundation.social;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;

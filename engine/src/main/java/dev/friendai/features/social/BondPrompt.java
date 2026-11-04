@@ -1,5 +1,6 @@
 package dev.friendai.features.social;
 
+import dev.friendai.foundation.social.Traits;
 import java.util.List;
 
 /**
