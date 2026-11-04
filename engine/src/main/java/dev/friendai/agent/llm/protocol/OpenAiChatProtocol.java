@@ -3,6 +3,7 @@ package dev.friendai.agent.llm.protocol;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import dev.friendai.agent.llm.JsonHttpTransport;
 import dev.friendai.agent.llm.model.LlmRequest;
 import dev.friendai.agent.llm.model.LlmResponse;
@@ -12,12 +13,14 @@ import dev.friendai.agent.llm.model.ToolCall;
 import dev.friendai.agent.llm.model.ToolSpec;
 import dev.friendai.agent.llm.model.Usage;
 import dev.friendai.agent.llm.provider.Endpoint;
+import dev.friendai.agent.llm.stream.SseFrames;
+import dev.friendai.agent.llm.stream.StreamAssembly;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 /** OpenAI Chat Completions wire format (also spoken by most compatible gateways). */
-public final class OpenAiChatProtocol implements LlmProtocol {
+public final class OpenAiChatProtocol implements LlmProtocol, StreamingProtocol {
     private final JsonHttpTransport transport;
 
     public OpenAiChatProtocol(JsonHttpTransport transport) {
@@ -45,6 +48,71 @@ public final class OpenAiChatProtocol implements LlmProtocol {
         return transport
                 .getJson(ProtocolSupport.uri(endpoint, "/models"), ProtocolSupport.headers(endpoint))
                 .thenApply(o -> ProtocolSupport.idsOf(ProtocolSupport.arr(o, "data"), "id"));
+    }
+
+    @Override
+    public String streamingPath() {
+        return "/chat/completions";
+    }
+
+    @Override
+    public String streamingBody(LlmRequest request) {
+        JsonObject body = toWire(request);
+        body.addProperty("stream", true);
+        JsonObject options = new JsonObject();
+        options.addProperty("include_usage", true);
+        body.add("stream_options", options);
+        return body.toString();
+    }
+
+    @Override
+    public void onFrame(SseFrames.Frame frame, StreamAssembly assembly) {
+        String payload = frame.data().strip();
+        if (payload.isEmpty() || "[DONE]".equals(payload)) {
+            return;
+        }
+        JsonObject chunk;
+        try {
+            chunk = JsonParser.parseString(payload).getAsJsonObject();
+        } catch (RuntimeException notJson) {
+            return; // a keep-alive or a provider quirk; the ordinary path still decides if nothing streamed
+        }
+        JsonArray choices = ProtocolSupport.arr(chunk, "choices");
+        if (!choices.isEmpty()) {
+            JsonObject choice = choices.get(0).getAsJsonObject();
+            JsonObject delta = ProtocolSupport.obj(choice, "delta");
+            if (delta != null) {
+                assembly.text(ProtocolSupport.str(delta, "content"));
+                for (JsonElement element : ProtocolSupport.arr(delta, "tool_calls")) {
+                    JsonObject call = element.getAsJsonObject();
+                    JsonObject function = ProtocolSupport.obj(call, "function");
+                    assembly.toolCall(
+                            ProtocolSupport.intOr(call, "index", 0),
+                            ProtocolSupport.str(call, "id"),
+                            function == null ? null : ProtocolSupport.str(function, "name"),
+                            function == null ? null : ProtocolSupport.str(function, "arguments"));
+                }
+            }
+            String finish = ProtocolSupport.str(choice, "finish_reason");
+            if (finish != null) {
+                assembly.stop(
+                        switch (finish) {
+                            case "stop" -> StopReason.END;
+                            case "tool_calls" -> StopReason.TOOL_USE;
+                            case "length" -> StopReason.MAX_TOKENS;
+                            default -> StopReason.OTHER;
+                        });
+            }
+        }
+        JsonObject usage = ProtocolSupport.obj(chunk, "usage");
+        if (usage != null) {
+            Integer input =
+                    usage.has("prompt_tokens") ? usage.get("prompt_tokens").getAsInt() : null;
+            Integer output = usage.has("completion_tokens")
+                    ? usage.get("completion_tokens").getAsInt()
+                    : null;
+            assembly.usage(input, output);
+        }
     }
 
     public JsonObject toWire(LlmRequest r) {

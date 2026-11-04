@@ -39,8 +39,11 @@ public final class AgentGatewayFactory {
         activeModel = profile == null ? "?" : profile.model;
         HttpTransport transport = new HttpTransport(
                 httpClient, Duration.ofSeconds(cfg.brain.requestTimeoutSec), 2, Duration.ofMillis(500));
+        dev.friendai.agent.llm.StreamingHttpTransport streaming =
+                new dev.friendai.infrastructure.llm.HttpStreamingTransport(httpClient);
         try {
-            current = new LlmClient(ProviderRegistry.withBuiltins(transport), cfg.toLlmProfile(System::getenv));
+            current = new LlmClient(
+                    ProviderRegistry.withBuiltins(transport), cfg.toLlmProfile(System::getenv), streaming);
             usable = true;
         } catch (ConfigException e) {
             current = (system, messages, toolSpecs) -> CompletableFuture.failedFuture(e);
@@ -54,7 +57,8 @@ public final class AgentGatewayFactory {
                 try {
                     planner = new LlmClient(
                             ProviderRegistry.withBuiltins(transport),
-                            cfg.toLlmProfile(selectedProfile, System::getenv));
+                            cfg.toLlmProfile(selectedProfile, System::getenv),
+                            streaming);
                     plannerProfileName = selectedProfile;
                     plannerModel = cfg.profiles.get(selectedProfile).model;
                 } catch (ConfigException e) {

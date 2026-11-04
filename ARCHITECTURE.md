@@ -183,6 +183,13 @@ Cross-feature dependencies are explicit and directed, and `PackageDependencyRule
 1. A chat message reaches `ChatRouter.onChat`; voice text arrives in a typed SPEECH-family `ProtocolRequestC2SPayload` and `ProtocolRequestDispatcher` invokes `VoiceTranscriptHandler` on the server thread. Trust confirmations are handled before addressing.
 2. `CompanionRouting.route` runs `CompanionPicker.pick` first, because the name that counts is the recipient's (own within hearing → the nearest other within hearing whose owner is online); `AddressDetector` is then built with that name. An addressed line with no recipient is answered `friendai.companion.too_far` only when the sender owns a companion; an unaddressed line reaches only the sender's own companion, and only with `chat.listenAll`.
 3. `CompanionSessions.post` → `CompanionBrain.post`; guest throttling happens in `shouldDrop`.
+
+   A reply streams when the profile's protocol implements `StreamingProtocol` (OpenAI-compatible chat today) and the
+   gateway has a `StreamingHttpTransport`: `LlmClient.completeStreaming` sends the ordinary body with the provider's
+   stream flag, `SseFrames` decodes the body into frames, the protocol turns each frame into text deltas and tool-call
+   fragments, and `StreamAssembly` builds the authoritative `LlmResponse` — text and complete tool calls — that the turn
+   uses. Deltas are advisory speech only. A profile that cannot stream, a transport failure before the first delta, or a
+   body that produced nothing falls back to one ordinary `complete` request, so every provider behaves as before.
 4. `maybeStartTurn` batches the events for one principal, fixes `turnCaller`, appends one USER message and calls `requestStep`.
 4a. The batch is routed (`TurnRouter`): the turn mode decides which tool groups are visible. A failed plan with replans left, and a complex request that sets a goal, consult the planner first; its plan is queued with the turn caller's access and shown once in the Mission block.
 5. `requestStep` builds the system prompt with `PromptBuilder.system` and calls `gateway.complete(system, memory.snapshot(), sent)`: `sent` is `tools.specs(caller access)` minus `manage_skill` outside a teaching turn, filtered by `ToolCatalog` to the visible groups (or every group when `agent.toolRouting` is off), with `trade_item` hidden on a `CHAT` turn. `turnToolNames` keeps every caller-visible name, so `ReplyGuard` hides any of them from speech.
