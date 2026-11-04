@@ -6,6 +6,20 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.205.1] - 2026-11-04
+
+### Changed
+
+- The companion no longer plans a leap from under a ceiling and no longer digs a step it cannot climb: a heading, a dug route and a rising swim are measured against what the body can really clear, and blocks a dig brings down are cleared top-down so none drops into the space just opened.
+- A closed door on the route is opened and walked through instead of being treated as a wall and planned around.
+- The companion flies to a destination farther than 60 blocks by chaining bounded legs, and keeps following you in flight when you move: it adopts the new point once its current route has been flown instead of restarting the search every tick.
+
+### Fixed
+
+- The companion is no longer "reached" through a wall or a level above it: a chest, button or block behind a wall is out of reach, a `go_to` point counts as reached within one block instead of three, and reaching an entity compensates for its height, so it walks up to a target on a slab or above the foot of a pillar.
+- Pausing stops the body where it stands: a step, leap or swim already under way no longer carries it a block further.
+- A portal trip that never changes dimension now fails with a clear reason instead of hanging until the task watchdog gives up.
+
 ## [0.205.0] - 2026-11-04
 
 ### Added
