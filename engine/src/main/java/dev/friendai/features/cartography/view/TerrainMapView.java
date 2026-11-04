@@ -1,5 +1,10 @@
-package dev.friendai.features.cartography;
+package dev.friendai.features.cartography.view;
 
+import dev.friendai.features.cartography.TerrainCell;
+import dev.friendai.features.cartography.TerrainGrid;
+import dev.friendai.features.cartography.TerrainRoad;
+import dev.friendai.features.cartography.TerrainSelection;
+import dev.friendai.features.cartography.TerrainSite;
 import java.util.ArrayList;
 import java.util.List;
 

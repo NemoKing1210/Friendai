@@ -8,9 +8,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.friendai.features.speech.PcmConverter;
 import dev.friendai.features.speech.wake.WakeWordPolicy;
+import dev.friendai.foundation.session.ClientSessionId;
 import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.infrastructure.config.ClientConfig;
-import dev.friendai.presentation.companion.ClientSessionId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;

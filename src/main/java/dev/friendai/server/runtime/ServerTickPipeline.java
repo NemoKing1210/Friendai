@@ -34,7 +34,7 @@ public final class ServerTickPipeline {
         services.observations().tick(server, gameTime);
         services.sessions().tick();
         runtime.socialDirector().tick(runtime);
-        services.terrainSampler().tick(runtime);
+        services.terrainSampler().tick(runtime.server());
         services.chunkLoader().tick();
         CompanionManager.get(server).tick();
         services.tick(System.currentTimeMillis());

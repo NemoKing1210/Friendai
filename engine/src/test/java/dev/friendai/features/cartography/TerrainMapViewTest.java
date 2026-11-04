@@ -3,6 +3,7 @@ package dev.friendai.features.cartography;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.friendai.features.cartography.view.TerrainMapView;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 

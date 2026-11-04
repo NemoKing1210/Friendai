@@ -474,7 +474,6 @@ class ArchitectureRulesTest {
                 new String[] {"enchanting", "AnvilItemTask"},
                 new String[] {"enchanting", "EnchantItemTask"},
                 new String[] {"enchanting", "GrindstoneItemTask"},
-                new String[] {"enchanting", "MenuBlockTask"},
                 new String[] {"fire", "ExtinguishFireTask"})) {
             Path featureTask = PROJECT_ROOT.resolve(
                     "src/main/java/dev/friendai/features/" + task[0] + "/minecraft/task/" + task[1] + ".java");

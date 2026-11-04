@@ -24,7 +24,7 @@ public class TerrainMapTests {
         CompanionEntity companion =
                 CompanionManager.get(h.getLevel().getServer()).summon(owner);
         UUID id = owner.getUUID();
-        h.onEachTick(() -> runtime.terrainSampler().tick(runtime));
+        h.onEachTick(() -> runtime.terrainSampler().tick(runtime.server()));
         for (int step = 1; step <= 24; step++) {
             int x = 2 + step * 4;
             h.runAfterDelay(step * 20, () -> companion.snapTo(x, 2, 2));
@@ -49,7 +49,7 @@ public class TerrainMapTests {
         CompanionManager.get(h.getLevel().getServer()).summon(owner);
         UUID id = owner.getUUID();
 
-        h.onEachTick(() -> runtime.terrainSampler().tick(runtime));
+        h.onEachTick(() -> runtime.terrainSampler().tick(runtime.server()));
         h.runAfterDelay(140, () -> {
             TerrainGrid grid = runtime.terrainSampler().grid(id);
             h.assertTrue(!grid.cells().isEmpty(), "the sampler must record at least one loaded column");

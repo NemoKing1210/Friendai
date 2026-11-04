@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.friendai.client.runtime.ClientLifecycle;
-import dev.friendai.presentation.companion.ClientSessionId;
+import dev.friendai.foundation.session.ClientSessionId;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.ArrayList;

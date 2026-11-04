@@ -1,10 +1,10 @@
-package dev.friendai.features.enchanting.minecraft.task;
+package dev.friendai.task.interact;
 
-import dev.friendai.features.mining.minecraft.mining.BlockSearch;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.autonomy.ProtectionText;
+import dev.friendai.world.block.BlockSearch;
 import dev.friendai.world.movement.Approach;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -108,7 +108,7 @@ public abstract class MenuBlockTask implements Task {
         return found;
     }
 
-    static String coords(BlockPos pos) {
+    protected static String coords(BlockPos pos) {
         return pos.getX() + " " + pos.getY() + " " + pos.getZ();
     }
 }

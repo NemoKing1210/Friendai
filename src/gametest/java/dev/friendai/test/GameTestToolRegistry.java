@@ -7,6 +7,7 @@ import dev.friendai.execution.tool.ToolRegistry;
 import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.features.memory.minecraft.tool.MemoryAccess;
 import dev.friendai.server.agent.CompanionSessions;
+import dev.friendai.server.agent.coordination.CoordinationToolAccess;
 import dev.friendai.server.agent.perception.PerceptionContext;
 import dev.friendai.server.agent.tools.FriendaiTools;
 import dev.friendai.server.agent.tools.ToolDependencies;
@@ -43,8 +44,10 @@ final class GameTestToolRegistry {
                 candidate -> searchHintLine(state, candidate),
                 state.placeService(),
                 state.placedService(),
+                dev.friendai.features.memory.minecraft.tool.SelfAccess.DISABLED,
                 state.storage(),
-                candidate -> sessions.routines());
+                candidate -> sessions.routines(),
+                new CoordinationToolAccess(companion.level().getServer()));
         return FriendaiTools.build(
                         radius,
                         radius,

@@ -2,7 +2,7 @@ package dev.friendai.server.net;
 
 import dev.friendai.FriendaiMod;
 import dev.friendai.debug.DebugService;
-import dev.friendai.features.cartography.TerrainMapView;
+import dev.friendai.features.cartography.view.TerrainMapView;
 import dev.friendai.foundation.diagnostics.LogEntry;
 import dev.friendai.presentation.companion.CompanionSnapshot;
 import dev.friendai.protocol.ProtocolFamily;

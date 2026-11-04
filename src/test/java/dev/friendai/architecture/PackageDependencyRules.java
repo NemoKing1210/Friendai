@@ -69,6 +69,9 @@ final class PackageDependencyRules {
             // The memory book owns what the companion remembers about the owner, and the bond is one of those
             // memories.
             new FeatureDependency("memory", "social"),
+            // Ambient topics may quote a durable statement the owner made about themselves, which is a memory fact;
+            // the reverse edge exists only for the bond, so the pair stays acyclic.
+            new FeatureDependency("social", "memory"),
             new FeatureDependency("interaction", "creative"),
             new FeatureDependency("interaction", "combat"),
             new FeatureDependency("interaction", "navigation"),

@@ -5,7 +5,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.friendai.client.FriendaiClient;
 import dev.friendai.features.instructions.SkillDraft;
-import dev.friendai.presentation.companion.ClientSessionId;
+import dev.friendai.foundation.session.ClientSessionId;
 import dev.friendai.protocol.ClientRequest;
 import dev.friendai.protocol.ProtocolFamily;
 import dev.friendai.protocol.instructions.InstructionRequest;

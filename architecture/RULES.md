@@ -36,15 +36,15 @@ A cycle between two feature packages is a design error, not a baseline entry: th
 one feature becomes a port. `FeatureGraph` checks the cycle rule over class-level edges, and
 `architecture/known-feature-cycles.txt` no longer exists.
 
-## Inherited class-level exceptions
+## Class-level exceptions
 
-`compiledProjectEdgesMatchOnlyDocumentedClassLevelExceptions` is red on a small fixed set of class edges inherited from
-before the kernel extraction (`features/brewing` → `features/enchanting.MenuBlockTask`, `features/social` →
-`features/memory`, `features/coordination` → `server`, `features/appearance` → `presentation.ClientSessionId`,
-`features/cartography` → `server.ServerRuntime`, `presentation` → `features/cartography.TerrainMapView`). They are
-package-level cycles and adapter leaks that Wave 4 removes. The manifest stays empty on purpose, so this test fails
-until they are fixed rather than hiding them in a list: no Wave 1 change may add an edge to it, and the set may only
-shrink.
+The set is empty and `compiledProjectEdgesMatchOnlyDocumentedClassLevelExceptions` requires it to stay empty: a new
+class edge that breaks a rule fails the build instead of joining a list. The kernel extraction removed the last ones:
+`MenuBlockTask` moved to `task/interact`, `BlockSearch` to `world/block`, `ClientSessionId` to `foundation/session`,
+`TerrainMapView` into `features/cartography/view` (the one feature package presentation may read), the terrain sampler
+takes a `MinecraftServer` instead of the runtime, and the coordination tools read the server through their own
+`CoordinationAccess` port. `social` → `memory` is a listed feature dependency, not an exception: ambient topics quote
+the owner's own recorded statements, and the reverse edge is the bond.
 
 ## Runtime service graph
 

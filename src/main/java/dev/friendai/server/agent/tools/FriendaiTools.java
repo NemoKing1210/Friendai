@@ -141,7 +141,7 @@ public final class FriendaiTools {
                 new BlockInfoTools(mineRadius, treeRadius, dependencies.resourceCandidates(), dependencies.places()),
                 new PlacedTools(dependencies.placed()),
                 new MemoryTools(dependencies.memory()),
-                new CoordinationTools(),
+                new CoordinationTools(dependencies.coordination()),
                 new SelfTools(dependencies.self()),
                 new TrustTools(dependencies.trust()),
                 new ControlTools(dependencies.profiles()),

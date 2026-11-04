@@ -1,6 +1,6 @@
 package dev.friendai.client.companion.session;
 
-import dev.friendai.presentation.companion.ClientSessionId;
+import dev.friendai.foundation.session.ClientSessionId;
 import dev.friendai.presentation.companion.CompanionViewState;
 import java.util.Objects;
 

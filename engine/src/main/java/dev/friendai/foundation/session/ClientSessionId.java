@@ -1,4 +1,4 @@
-package dev.friendai.presentation.companion;
+package dev.friendai.foundation.session;
 
 import java.util.Objects;
 import java.util.UUID;

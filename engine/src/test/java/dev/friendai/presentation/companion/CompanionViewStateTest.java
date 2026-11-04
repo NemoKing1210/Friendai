@@ -16,6 +16,7 @@ import dev.friendai.features.places.PlaceView;
 import dev.friendai.features.trading.TradeView;
 import dev.friendai.foundation.diagnostics.LogEntry;
 import dev.friendai.foundation.diagnostics.LogKind;
+import dev.friendai.foundation.session.ClientSessionId;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;

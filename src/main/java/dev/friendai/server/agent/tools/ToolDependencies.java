@@ -1,6 +1,7 @@
 package dev.friendai.server.agent.tools;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.coordination.minecraft.tool.CoordinationAccess;
 import dev.friendai.features.instructions.minecraft.tool.SkillToolAccess;
 import dev.friendai.features.inventory.minecraft.storage.StorageAccess;
 import dev.friendai.features.memory.CompanionProfileRepository;
@@ -35,7 +36,8 @@ public record ToolDependencies(
         PlacedService placed,
         SelfAccess self,
         StorageAccess storage,
-        Function<CompanionEntity, RoutineDriver> routines) {
+        Function<CompanionEntity, RoutineDriver> routines,
+        CoordinationAccess coordination) {
     public ToolDependencies(
             MemoryAccess memory,
             CompanionProfileRepository profiles,
@@ -66,7 +68,8 @@ public record ToolDependencies(
                 placed,
                 SelfAccess.DISABLED,
                 StorageAccess.UNAVAILABLE,
-                companion -> null);
+                companion -> null,
+                CoordinationAccess.UNAVAILABLE);
     }
 
     public ToolDependencies(
@@ -97,7 +100,8 @@ public record ToolDependencies(
                 PlacedService.unavailable(),
                 SelfAccess.DISABLED,
                 StorageAccess.UNAVAILABLE,
-                companion -> null);
+                companion -> null,
+                CoordinationAccess.UNAVAILABLE);
     }
 
     public ToolDependencies(
@@ -132,7 +136,8 @@ public record ToolDependencies(
                 placed,
                 SelfAccess.DISABLED,
                 storage,
-                routines);
+                routines,
+                CoordinationAccess.UNAVAILABLE);
     }
 
     public ToolDependencies(
@@ -166,7 +171,8 @@ public record ToolDependencies(
                 placed,
                 SelfAccess.DISABLED,
                 storage,
-                companion -> null);
+                companion -> null,
+                CoordinationAccess.UNAVAILABLE);
     }
 
     public ToolDependencies {
@@ -186,5 +192,6 @@ public record ToolDependencies(
         Objects.requireNonNull(self);
         Objects.requireNonNull(storage);
         Objects.requireNonNull(routines);
+        Objects.requireNonNull(coordination);
     }
 }

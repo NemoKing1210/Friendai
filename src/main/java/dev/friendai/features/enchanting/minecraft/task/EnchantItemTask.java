@@ -2,6 +2,7 @@ package dev.friendai.features.enchanting.minecraft.task;
 
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.task.interact.MenuBlockTask;
 import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.inventory.ItemMatcher;
 import java.util.ArrayList;

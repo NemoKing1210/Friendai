@@ -1,6 +1,6 @@
 package dev.friendai.features.appearance;
 
-import dev.friendai.presentation.companion.ClientSessionId;
+import dev.friendai.foundation.session.ClientSessionId;
 
 /**
  * Whether an appearance operation may still send its result. The session that started the fetch or the file dialog is
