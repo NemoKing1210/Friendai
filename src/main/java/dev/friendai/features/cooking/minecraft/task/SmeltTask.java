@@ -790,7 +790,14 @@ public final class SmeltTask implements Task {
         String output = recipe == null ? inputId : recipe.output();
         c.companion()
                 .furnaceJobs()
-                .add(new FurnaceJob(target.pos(), kind, inputId, output, loaded, target.placedByMe()));
+                .add(new FurnaceJob(
+                        target.pos(),
+                        c.level().dimension().identifier().toString(),
+                        kind,
+                        inputId,
+                        output,
+                        loaded,
+                        target.placedByMe()));
     }
 
     private TaskStatus finishLoadAndLeave(int loadedTotal, int stations) {

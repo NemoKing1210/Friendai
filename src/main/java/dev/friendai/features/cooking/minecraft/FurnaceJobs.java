@@ -63,9 +63,14 @@ public final class FurnaceJobs {
         if (!(companion.level() instanceof ServerLevel level)) {
             return;
         }
+        String dimension = level.dimension().identifier().toString();
         for (FurnaceJob job : List.copyOf(jobs)) {
             BlockPos pos = job.pos();
-            if (!level.hasChunkAt(pos) || !(level.getBlockEntity(pos) instanceof AbstractFurnaceBlockEntity furnace)) {
+            if (!dimension.equals(job.dimension()) || !level.hasChunkAt(pos)) {
+                // Another dimension or an unloaded chunk says nothing about the furnace: keep watching it.
+                continue;
+            }
+            if (!(level.getBlockEntity(pos) instanceof AbstractFurnaceBlockEntity furnace)) {
                 drop(companion, job, notice);
                 continue;
             }

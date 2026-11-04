@@ -139,7 +139,16 @@ public class CompanionDeathTests {
                 .keep(Station.CRAFTING_TABLE, leaseKey, h.getLevel().getGameTime());
         BlockPos furnacePos = h.absolutePos(new BlockPos(10, BED_Y, 10));
         h.setBlock(new BlockPos(10, BED_Y, 10), Blocks.FURNACE);
-        companion.furnaceJobs().add(new FurnaceJob(furnacePos, Station.FURNACE, "iron_ore", "iron_ingot", 0, false));
+        companion
+                .furnaceJobs()
+                .add(new FurnaceJob(
+                        furnacePos,
+                        h.getLevel().dimension().identifier().toString(),
+                        Station.FURNACE,
+                        "iron_ore",
+                        "iron_ingot",
+                        0,
+                        false));
         companion.inventory().addItem(new ItemStack(Items.OAK_LOG, 5));
         companion.setItemSlot(EquipmentSlot.FEET, new ItemStack(Items.IRON_BOOTS));
         companion.hunger().load(7, 2.5f, 1.0f);

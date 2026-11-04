@@ -185,6 +185,7 @@ public class ToolTests {
         c.furnaceJobs()
                 .add(new FurnaceJob(
                         h.absolutePos(new BlockPos(5, 2, 5)),
+                        h.getLevel().dimension().identifier().toString(),
                         Station.FURNACE,
                         "minecraft:raw_gold",
                         "minecraft:gold_ingot",
