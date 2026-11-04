@@ -44,6 +44,14 @@ public final class LogPaths {
         return gameRoot(gameDir).resolve("unavailable");
     }
 
+    /**
+     * What {@code /friendai logs path} prints: an operator sees the world's tree, a player sees only their own
+     * subtree. The decision lives here so the command stays a three-line adapter.
+     */
+    public static Path commandPath(Path worldPath, UUID owner, boolean operator) {
+        return operator ? worldRoot(worldPath) : ownerRoot(worldPath, owner);
+    }
+
     /** The world directory name, used as the {@code world} field of a file header; empty when unknown. */
     public static String worldName(Path worldPath) {
         if (worldPath == null) return "";

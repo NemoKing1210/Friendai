@@ -1456,12 +1456,12 @@ public final class FriendaiConfigScreen {
                 .option(ButtonOption.createBuilder()
                         .name(tr("friendai.config.logs.open_folder"))
                         .action((screen, button) ->
-                                dev.friendai.client.ui.LogFolder.open(dev.friendai.client.ui.LogFolder.localRoot()))
+                                dev.friendai.client.ui.LogFolder.open(dev.friendai.client.ui.LogFolder.currentRoot()))
                         .build())
                 .option(ButtonOption.createBuilder()
                         .name(tr("friendai.config.logs.copy_path"))
                         .action((screen, button) ->
-                                dev.friendai.client.ui.LogFolder.copy(dev.friendai.client.ui.LogFolder.localRoot()))
+                                dev.friendai.client.ui.LogFolder.copy(dev.friendai.client.ui.LogFolder.currentRoot()))
                         .build())
                 .option(Option.<String>createBuilder()
                         .name(tr("friendai.config.logs.level"))

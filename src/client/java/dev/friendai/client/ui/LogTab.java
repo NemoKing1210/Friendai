@@ -115,7 +115,7 @@ final class LogTab extends StatefulMenuTab {
                 CHIP_HEIGHT,
                 copyPath,
                 Ui.DIM,
-                () -> dev.friendai.client.ui.LogFolder.copy(dev.friendai.client.ui.LogFolder.localRoot())));
+                () -> dev.friendai.client.ui.LogFolder.copy(dev.friendai.client.ui.LogFolder.currentRoot())));
         x -= GAP + openWidth;
         host.add(new FlatButton(
                 x,
@@ -124,7 +124,7 @@ final class LogTab extends StatefulMenuTab {
                 CHIP_HEIGHT,
                 openFolder,
                 Ui.DIM,
-                () -> dev.friendai.client.ui.LogFolder.open(dev.friendai.client.ui.LogFolder.localRoot())));
+                () -> dev.friendai.client.ui.LogFolder.open(dev.friendai.client.ui.LogFolder.currentRoot())));
         x -= GAP + pauseWidth;
         pauseButton = host.add(new FlatButton(x, top, pauseWidth, CHIP_HEIGHT, pause, Ui.WARN, this::togglePause));
         chipTop = top;

@@ -28,6 +28,16 @@ class LogPathsTest {
     }
 
     @Test
+    void operatorsSeeTheWorldRoot() {
+        assertEquals(LogPaths.worldRoot(WORLD), LogPaths.commandPath(WORLD, OWNER, true));
+    }
+
+    @Test
+    void ownersSeeOnlyTheirOwnSubtree() {
+        assertEquals(LogPaths.ownerRoot(WORLD, OWNER), LogPaths.commandPath(WORLD, OWNER, false));
+    }
+
+    @Test
     void keepsAnUnresolvedWorldApart() {
         assertEquals(Path.of("C:/game/logs/friendai/unavailable"), LogPaths.unavailableRoot(GAME));
     }

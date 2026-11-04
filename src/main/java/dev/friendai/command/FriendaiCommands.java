@@ -30,7 +30,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
-import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.EntityArgument;
@@ -276,10 +275,10 @@ public final class FriendaiCommands {
 
     private static int logsPath(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
         var sender = ctx.getSource().getPlayerOrException();
-        Path root = FabricLoader.getInstance().getGameDir().resolve("logs").resolve("friendai");
-        Path path = Operators.isOperator(sender)
-                ? root
-                : root.resolve("owners").resolve(sender.getUUID().toString());
+        Path path = dev.friendai.debug.LogPaths.commandPath(
+                ctx.getSource().getServer().getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT),
+                sender.getUUID(),
+                Operators.isOperator(sender));
         ctx.getSource().sendSuccess(() -> Component.translatable("friendai.command.logs.path", path.toString()), false);
         return 1;
     }
