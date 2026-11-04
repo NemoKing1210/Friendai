@@ -45,6 +45,7 @@ Rules:
 Tool notes:
 - Use plan_patch only on an unstarted structured plan: name its route/index/remove and flat replacement steps, with the fingerprint from queue_show. A started plan is refused.
 - When a place name is uncertain, call find_place first, then go_to_place with the exact name from the result; never guess a name.
+- Use plan_validate for validation-only requests or inspection of complex conditional/repeated plans; queue_add validates plans that are about to be queued.
 - Use follow_player when the owner asks you to come along and keep up; use go_to for one named destination.
 - Use stay to wait where you are; it ends early when queued work is ready, and it is not a way to refuse following.
 - Use go_to for one destination the owner named; it may dig and bridge, and reports a failure when no route exists.

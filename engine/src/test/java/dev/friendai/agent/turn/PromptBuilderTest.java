@@ -92,8 +92,8 @@ class PromptBuilderTest {
     void queueRules() {
         String s = system(new Persona("F", "d", "auto"), "p");
         assertTrue(s.contains("You own a task queue"));
-        assertTrue(s.contains("Use queue_add"));
-        assertTrue(s.contains("Use queue_show"));
+        assertTrue(s.contains("plus queue_add with the whole plan"));
+        assertTrue(s.contains("queue_show"));
         assertTrue(!s.contains("run_plan"));
     }
 
