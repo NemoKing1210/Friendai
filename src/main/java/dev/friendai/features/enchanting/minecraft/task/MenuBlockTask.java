@@ -1,11 +1,11 @@
 package dev.friendai.features.enchanting.minecraft.task;
 
 import dev.friendai.features.mining.minecraft.mining.BlockSearch;
-import dev.friendai.features.navigation.minecraft.nav.Approach;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.autonomy.ProtectionText;
+import dev.friendai.world.movement.Approach;
 import java.util.Set;
 import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;

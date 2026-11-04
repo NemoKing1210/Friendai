@@ -1,7 +1,7 @@
 package dev.friendai.features.interaction.minecraft.task;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.features.navigation.movement.Facing;
+import dev.friendai.foundation.movement.Facing;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;

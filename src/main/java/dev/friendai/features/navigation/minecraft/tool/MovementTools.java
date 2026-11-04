@@ -16,7 +16,7 @@ import dev.friendai.features.navigation.minecraft.task.JumpTask;
 import dev.friendai.features.navigation.minecraft.task.NavigationCheckpoints;
 import dev.friendai.features.navigation.minecraft.task.StayTask;
 import dev.friendai.features.navigation.minecraft.task.TravelThroughPortalTask;
-import dev.friendai.features.navigation.movement.PaceMode;
+import dev.friendai.foundation.movement.PaceMode;
 import dev.friendai.server.execution.tools.FeatureToolContributor;
 import dev.friendai.server.execution.tools.FeatureToolRegistry;
 import dev.friendai.server.execution.tools.TaskToolDefinition;

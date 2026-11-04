@@ -119,7 +119,7 @@ public final class EatTask implements Task {
 
     @Override
     public void stop(TaskContext c) {
-        c.companion().combatController().stopEating();
+        c.companion().eatingController().stopEating();
         c.companion().getNavigation().stop();
     }
 

@@ -93,12 +93,28 @@ single-owner flush stays near 1.2–2.1 ms. That is the signature of `queueDirty
 and it is the measurement Wave 3 must improve without changing data safety. Heap growth is modest at these
 record sizes; the 10,000 row is a trend signal, not a production population.
 
-## Inherited architecture-test state
+## Wave 1 outcome (measured after the kernel extraction)
 
-At `1ce4fef6`, `ArchitectureRulesTest.compiledProjectEdgesMatchOnlyDocumentedClassLevelExceptions` is already
-red with about forty inherited allowlist/direction violations (for example `navigation -> places`,
-`navigation -> acquisition`, `social -> memory`, `coordination -> server`, `cartography -> server`,
-`appearance -> presentation`, `brewing -> enchanting`). They predate this program and are outside Wave 1's
-move-only scope. The new `featureDependencyGraphHasOnlyKnownCycles` test is the Wave 1 cycle signal and passes
-against the recorded SCC baseline. Wave 4 must either fix or explicitly re-scope those inherited edges before
-the architecture group can be fully green.
+The kernel extraction moved the shared vocabulary out of `features.navigation` and the other features that owned it,
+and the feature graph is now acyclic with no baseline file. Re-measured on the same toolchain:
+
+| Metric | `1ce4fef6` (baseline) | after Wave 1 |
+|---|---:|---:|
+| Feature-to-feature class edges | 786 | 296 |
+| Strongly connected components | 2 | none |
+| Bidirectional feature pairs | 11 | none |
+| `foundation/` and `world/` kernel packages | 0 | 2 |
+
+The shared code now lives where neither side owns it: pure pathing and geometry in `engine/.../foundation/spatial/`,
+movement policy in `foundation/movement/`, the place values, protection rule and portal policy in
+`foundation/places/`; the Minecraft kernel is `src/main/java/dev/friendai/world/{movement,block,food,equipment,
+targeting,placement}/`. `architecture/known-feature-cycles.txt` is deleted; `FeatureGraph` fails on any cycle.
+
+`ArchitectureRulesTest.compiledProjectEdgesMatchOnlyDocumentedClassLevelExceptions` is still red on a fixed inherited
+set of class edges that Wave 1 did not create and did not fix: `brewing -> enchanting.MenuBlockTask` (2),
+`social -> memory` (3), `coordination -> server` (5), `appearance -> presentation.ClientSessionId`,
+`cartography -> server.ServerRuntime` and `presentation -> cartography.TerrainMapView`. They are package-level cycles
+and adapter leaks outside a move-only scope; Wave 4 fixes or explicitly re-scopes them. The list may only shrink and no
+new line may be added. Everything else in the architecture group passes.
+
+The owner-store benchmark above still describes the code Wave 3 changes; its numbers were not re-taken in Wave 1.

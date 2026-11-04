@@ -10,6 +10,7 @@ import dev.friendai.foundation.persistence.*;
 import dev.friendai.foundation.places.PlaceKind;
 import dev.friendai.foundation.places.PlaceLimits;
 import dev.friendai.foundation.places.PlaceSource;
+import dev.friendai.foundation.places.PlaceValues;
 import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.infrastructure.persistence.instructions.SkillStore;
 import dev.friendai.infrastructure.persistence.knowledge.KnowledgeStore;

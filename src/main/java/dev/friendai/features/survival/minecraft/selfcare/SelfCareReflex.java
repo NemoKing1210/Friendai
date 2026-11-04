@@ -23,7 +23,7 @@ import org.jetbrains.annotations.Nullable;
  * drink or eat, so the task cannot take the item out of the hand; the combat controller is the other consumer of the
  * same hands and the two never act at once ({@link SelfCareReflex#busy()} and {@code CombatController.busy()}).
  */
-public final class SelfCareReflex {
+public final class SelfCareReflex implements dev.friendai.world.food.BodyUse {
     /** Long enough that a refused pour cannot cost a bucket every tick. */
     public static final int WATER_DROP_COOLDOWN_TICKS = 100;
 
@@ -49,6 +49,7 @@ public final class SelfCareReflex {
     }
 
     /** True while an item is being drunk or eaten, so no other consumer may touch the hands. */
+    @Override
     public boolean busy() {
         return use.busy();
     }
@@ -147,7 +148,7 @@ public final class SelfCareReflex {
     }
 
     private void drink(SelfCareDecision decision) {
-        if (consumeCooldown > 0 || companion.combatController().busy()) {
+        if (consumeCooldown > 0 || companion.eatingController().busy()) {
             return;
         }
         consumeCooldown = CONSUME_COOLDOWN_TICKS;

@@ -9,7 +9,7 @@ import dev.friendai.execution.tool.SchemaBuilder;
 import dev.friendai.features.navigation.minecraft.task.ApproachEntityTask;
 import dev.friendai.features.navigation.minecraft.task.CircleTask;
 import dev.friendai.features.navigation.minecraft.task.RelativeMoveTask;
-import dev.friendai.features.navigation.movement.Facing;
+import dev.friendai.foundation.movement.Facing;
 import dev.friendai.server.execution.tools.FeatureToolContributor;
 import dev.friendai.server.execution.tools.FeatureToolRegistry;
 import dev.friendai.server.execution.tools.TaskToolDefinition;

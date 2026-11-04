@@ -7,6 +7,7 @@ import dev.friendai.features.places.*;
 import dev.friendai.foundation.places.Place;
 import dev.friendai.foundation.places.PlaceLimits;
 import dev.friendai.foundation.places.PlaceNames;
+import dev.friendai.foundation.places.PlaceValues;
 import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.foundation.spatial.RelativeDirection;
 import dev.friendai.world.targeting.PlaceLookup;
@@ -215,6 +216,23 @@ public final class PlaceService implements PlaceLookup {
      */
     public Optional<Place> requireSingle(CompanionEntity companion, String name) {
         return Optional.of(unique(companion, name));
+    }
+
+    @Override
+    public java.util.List<Place> all(CompanionEntity companion) {
+        return book(companion).all();
+    }
+
+    @Override
+    public Place find(CompanionEntity companion, String name, String dimension) {
+        return book(companion).find(name, dimension).orElse(null);
+    }
+
+    @Override
+    public Place rememberAsOwner(CompanionEntity companion, PlaceValues values, long tick) {
+        UUID owner = companion.ownerUuid();
+        if (owner == null) throw new IllegalArgumentException("a place needs an owner");
+        return remember(companion, new Caller(owner, "", AccessLevel.OWNER), values, tick);
     }
 
     /**

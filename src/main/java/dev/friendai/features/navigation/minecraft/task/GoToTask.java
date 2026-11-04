@@ -1,11 +1,11 @@
 package dev.friendai.features.navigation.minecraft.task;
 
-import dev.friendai.features.navigation.minecraft.nav.MoveHelper;
 import dev.friendai.features.navigation.minecraft.nav.ResourceJourney;
 import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.world.movement.MoveHelper;
 import java.util.Locale;
 import java.util.Optional;
 import net.minecraft.world.phys.Vec3;

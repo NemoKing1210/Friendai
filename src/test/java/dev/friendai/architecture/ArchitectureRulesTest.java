@@ -15,7 +15,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -24,7 +23,6 @@ import org.junit.jupiter.api.Test;
 
 class ArchitectureRulesTest {
     private static final Path PROJECT_ROOT = Path.of("").toAbsolutePath().normalize();
-    private static final Path KNOWN_FEATURE_CYCLES = PROJECT_ROOT.resolve("architecture/known-feature-cycles.txt");
     private static final Pattern GAME_TEST_ANNOTATION = Pattern.compile("(?m)^\\s*@GameTest(?:Generator)?\\b");
 
     @Test
@@ -90,7 +88,7 @@ class ArchitectureRulesTest {
         assertTrue(Files.exists(
                 PROJECT_ROOT.resolve("engine/src/main/java/dev/friendai/features/knowledge/Landmark.java")));
         assertTrue(Files.exists(
-                PROJECT_ROOT.resolve("engine/src/main/java/dev/friendai/features/navigation/RelativeDirection.java")));
+                PROJECT_ROOT.resolve("engine/src/main/java/dev/friendai/foundation/spatial/RelativeDirection.java")));
         assertTrue(Files.exists(PROJECT_ROOT.resolve("engine/src/main/java/dev/friendai/features/combat/Threat.java")));
         assertTrue(Files.exists(
                 PROJECT_ROOT.resolve("engine/src/main/java/dev/friendai/features/mining/tree/TreeSummary.java")));
@@ -313,13 +311,13 @@ class ArchitectureRulesTest {
                 edge("dev.friendai.features.instructions.SkillView", "dev.friendai.features.memory.MenuStatus"),
                 edge(
                         "dev.friendai.features.interaction.minecraft.task.ReachEntityTask",
-                        "dev.friendai.features.navigation.minecraft.nav.EntityApproach"),
+                        "dev.friendai.world.movement.EntityApproach"),
                 edge(
                         "dev.friendai.features.interaction.minecraft.task.ExecuteCommandTask",
                         "dev.friendai.features.creative.CreativeCommandPolicy"),
                 edge(
                         "dev.friendai.features.inventory.minecraft.task.GiveItemsTask",
-                        "dev.friendai.features.navigation.minecraft.nav.MoveHelper"),
+                        "dev.friendai.world.movement.MoveHelper"),
                 edge(
                         "dev.friendai.features.inventory.minecraft.task.DepositTask",
                         "dev.friendai.features.acquisition.ToolNeed"),
@@ -327,9 +325,7 @@ class ArchitectureRulesTest {
                         "dev.friendai.features.inventory.minecraft.task.DepositTask",
                         "dev.friendai.features.places.PlaceQuery"),
                 edge("dev.friendai.world.block.MiningRefusal", "dev.friendai.foundation.places.Place"),
-                edge(
-                        "dev.friendai.features.navigation.minecraft.nav.PathExecutor",
-                        "dev.friendai.world.block.BreakAction"),
+                edge("dev.friendai.world.movement.PathExecutor", "dev.friendai.world.block.BreakAction"),
                 edge(
                         "dev.friendai.features.acquisition.minecraft.task.ObtainTask",
                         "dev.friendai.features.creative.minecraft.CreativeItemCapability"),
@@ -337,16 +333,14 @@ class ArchitectureRulesTest {
                         "dev.friendai.features.inventory.minecraft.tool.InventoryTools",
                         "dev.friendai.foundation.body.HungerModel"),
                 edge("dev.friendai.features.animals.minecraft.Animals", "dev.friendai.world.targeting.Threats"),
-                edge(
-                        "dev.friendai.features.animals.minecraft.task.LeadTask",
-                        "dev.friendai.features.navigation.minecraft.nav.Approach"),
+                edge("dev.friendai.features.animals.minecraft.task.LeadTask", "dev.friendai.world.movement.Approach"),
                 edge("dev.friendai.features.animals.minecraft.task.HoneyTask", "dev.friendai.world.block.BlockMatcher"),
                 edge(
                         "dev.friendai.features.combat.minecraft.CombatController",
-                        "dev.friendai.features.navigation.movement.Facing"),
+                        "dev.friendai.foundation.movement.Facing"),
                 edge(
                         "dev.friendai.features.combat.minecraft.CombatController",
-                        "dev.friendai.features.inventory.minecraft.Equipment"),
+                        "dev.friendai.world.equipment.Equipment"),
                 edge(
                         "dev.friendai.features.combat.minecraft.CombatController",
                         "dev.friendai.foundation.body.HungerModel"),
@@ -368,9 +362,7 @@ class ArchitectureRulesTest {
                 edge(
                         "dev.friendai.features.survival.minecraft.task.SleepTask",
                         "dev.friendai.world.block.BlockMatcher"),
-                edge(
-                        "dev.friendai.features.survival.minecraft.task.SleepTask",
-                        "dev.friendai.features.navigation.minecraft.nav.Approach"),
+                edge("dev.friendai.features.survival.minecraft.task.SleepTask", "dev.friendai.world.movement.Approach"),
                 edge(
                         "dev.friendai.features.construction.minecraft.task.ClearAreaTask",
                         "dev.friendai.features.fire.minecraft.FireHands"),
@@ -380,7 +372,7 @@ class ArchitectureRulesTest {
                 edge("dev.friendai.features.fire.minecraft.FireScan", "dev.friendai.features.crafting.Station"),
                 edge(
                         "dev.friendai.features.fire.minecraft.task.ExtinguishFireTask",
-                        "dev.friendai.features.mining.minecraft.mining.BlockBreaker"),
+                        "dev.friendai.world.block.BlockBreaker"),
                 edge("dev.friendai.features.fire.minecraft.FireScan", "dev.friendai.world.movement.LevelCellView"),
                 edge(
                         "dev.friendai.features.navigation.minecraft.tool.RelativeMovementTools",
@@ -410,10 +402,42 @@ class ArchitectureRulesTest {
                                 "dev.friendai.features.navigation.minecraft.tool.RelativeMovementTools",
                                 "dev.friendai.features.interaction.minecraft.task.ApproachTask"),
                         violation(
+                                "feature-graph-acyclic",
+                                "dev.friendai.features.interaction.minecraft.task.ExecuteCommandTask",
+                                "dev.friendai.features.creative.CreativeCommandPolicy"),
+                        violation(
                                 "feature-task-internals-not-allowed",
                                 "dev.friendai.features.navigation.minecraft.tool.RelativeMovementTools",
-                                "dev.friendai.features.interaction.minecraft.task.ApproachTask")),
+                                "dev.friendai.features.interaction.minecraft.task.ApproachTask"),
+                        violation(
+                                "foundation-direction",
+                                "dev.friendai.foundation.places.Place",
+                                "dev.friendai.features.memory.MenuStatus")),
                 PackageDependencyRules.validate(edges));
+    }
+
+    @Test
+    void worldKernelStaysBelowFeaturesAndFoundationStaysAboveTheWorld() {
+        String navigator = "dev.friendai.world.movement.Navigator";
+
+        assertEquals(
+                List.of(violation(
+                        "kernel-direction", navigator, "dev.friendai.features.mining.minecraft.mining.BlockBreaker")),
+                PackageDependencyRules.validate(
+                        List.of(edge(navigator, "dev.friendai.features.mining.minecraft.mining.BlockBreaker"))));
+        assertEquals(
+                List.of(violation(
+                        "foundation-direction",
+                        "dev.friendai.foundation.places.Place",
+                        "dev.friendai.world.placement.PlacementLedger")),
+                PackageDependencyRules.validate(List.of(
+                        edge("dev.friendai.foundation.places.Place", "dev.friendai.world.placement.PlacementLedger"))));
+        assertTrue(PackageDependencyRules.validate(List.of(
+                        edge(navigator, "dev.friendai.foundation.spatial.Path"),
+                        edge(navigator, "dev.friendai.task.TaskContext"),
+                        edge(navigator, "dev.friendai.entity.CompanionEntity"),
+                        edge(navigator, "net.minecraft.core.BlockPos")))
+                .isEmpty());
     }
 
     @Test
@@ -475,15 +499,15 @@ class ArchitectureRulesTest {
 
         assertEquals(
                 List.of(
+                        violation("feature-to-server", toolAdapter, "dev.friendai.server.runtime.ServerRuntime"),
                         violation(
-                                "feature-to-server",
-                                "dev.friendai.features.navigation.minecraft.nav.Navigator",
-                                "dev.friendai.server.execution.tools.FeatureToolRegistry"),
-                        violation("feature-to-server", toolAdapter, "dev.friendai.server.runtime.ServerRuntime")),
+                                "kernel-direction",
+                                "dev.friendai.world.movement.Navigator",
+                                "dev.friendai.server.execution.tools.FeatureToolRegistry")),
                 PackageDependencyRules.validate(List.of(
                         edge(toolAdapter, "dev.friendai.server.runtime.ServerRuntime"),
                         edge(
-                                "dev.friendai.features.navigation.minecraft.nav.Navigator",
+                                "dev.friendai.world.movement.Navigator",
                                 "dev.friendai.server.execution.tools.FeatureToolRegistry"))));
     }
 
@@ -574,7 +598,7 @@ class ArchitectureRulesTest {
         assertTrue(
                 PackageDependencyRules.validateEngineDependencies(engineEdges).isEmpty(),
                 "Engine class dependencies must exclude game, optional UI and native audio packages");
-        List<Violation> actual = PackageDependencyRules.validate(edges, readFeatureCycleBaseline());
+        List<Violation> actual = PackageDependencyRules.validate(edges);
         List<ArchitectureFixtures.LegacyEdge> documented =
                 ArchitectureFixtures.readLegacyEdges(PROJECT_ROOT.resolve("architecture/legacy-dependency-edges.tsv"));
         assertTrue(documented.isEmpty(), "No transitional class dependency exceptions are permitted");
@@ -586,7 +610,7 @@ class ArchitectureRulesTest {
     }
 
     @Test
-    void featureDependencyGraphHasOnlyKnownCycles() throws Exception {
+    void featureDependencyGraphIsAcyclic() throws Exception {
         String classpath = System.getProperty("friendai.architecture.classpath", "");
         assertFalse(classpath.isBlank(), "Gradle must provide compiled project dependencies to jdeps");
 
@@ -594,35 +618,13 @@ class ArchitectureRulesTest {
         List<Set<String>> actualCycles = FeatureGraph.cycles(edges);
         CouplingReport.write(PROJECT_ROOT, edges, actualCycles);
 
+        assertEquals(List.of(), actualCycles, () -> "Feature packages must form an acyclic graph: " + actualCycles);
         assertEquals(
                 List.of(),
-                FeatureGraph.violations(edges, readFeatureCycleBaseline()),
-                () -> "Feature cycles must be recorded in architecture/known-feature-cycles.txt: " + actualCycles);
-    }
-
-    private static List<Set<String>> readFeatureCycleBaseline() throws IOException {
-        if (!Files.isRegularFile(KNOWN_FEATURE_CYCLES)) {
-            return List.of();
-        }
-        List<Set<String>> baseline = new ArrayList<>();
-        for (String rawLine : Files.readAllLines(KNOWN_FEATURE_CYCLES)) {
-            int comment = rawLine.indexOf('#');
-            String line = (comment >= 0 ? rawLine.substring(0, comment) : rawLine).trim();
-            if (line.isEmpty()) {
-                continue;
-            }
-            Set<String> features = new LinkedHashSet<>();
-            for (String feature : line.split(",")) {
-                String trimmed = feature.trim();
-                if (!trimmed.isEmpty()) {
-                    features.add(trimmed);
-                }
-            }
-            if (features.size() > 1) {
-                baseline.add(features);
-            }
-        }
-        return baseline;
+                PackageDependencyRules.validate(edges).stream()
+                        .filter(violation -> violation.ruleId().equals(FeatureGraph.CYCLE_RULE))
+                        .toList(),
+                () -> "The cycle rule must reject every strongly connected feature component: " + actualCycles);
     }
 
     @Test

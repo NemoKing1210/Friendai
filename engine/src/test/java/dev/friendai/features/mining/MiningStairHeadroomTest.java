@@ -3,13 +3,13 @@ package dev.friendai.features.mining;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import dev.friendai.features.navigation.pathing.MoveGenerator;
-import dev.friendai.features.navigation.pathing.PathSearch;
 import dev.friendai.foundation.spatial.Cell;
 import dev.friendai.foundation.spatial.CellView;
 import dev.friendai.foundation.spatial.CostModel;
+import dev.friendai.foundation.spatial.MoveGenerator;
 import dev.friendai.foundation.spatial.Node;
 import dev.friendai.foundation.spatial.Path;
+import dev.friendai.foundation.spatial.PathSearch;
 import dev.friendai.foundation.spatial.PathStep;
 import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.foundation.spatial.SearchOptions;

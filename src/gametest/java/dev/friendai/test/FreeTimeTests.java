@@ -13,9 +13,9 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.features.inventory.minecraft.task.DepositTask;
 import dev.friendai.features.places.PlaceCandidate;
-import dev.friendai.features.places.PlaceValues;
 import dev.friendai.foundation.places.PlaceKind;
 import dev.friendai.foundation.places.PlaceSource;
+import dev.friendai.foundation.places.PlaceValues;
 import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.execution.TaskEventSink;
@@ -789,7 +789,7 @@ public class FreeTimeTests {
         BreakTask inside = breakIn(c, h.absolutePos(new BlockPos(5, 2, 5)), true);
         h.succeedWhen(() -> {
             h.assertTrue(
-                    inside.last == dev.friendai.features.mining.minecraft.mining.BlockBreaker.State.BROKEN,
+                    inside.last == dev.friendai.world.block.BlockBreaker.State.BROKEN,
                     "free time mines inside its own dig site: " + inside.last);
         });
     }
@@ -1017,8 +1017,8 @@ public class FreeTimeTests {
     /** Breaks one block with the shared breaker and remembers how it went. */
     private static final class BreakTask implements dev.friendai.task.Task {
         private final BlockPos pos;
-        private dev.friendai.features.mining.minecraft.mining.BlockBreaker breaker;
-        dev.friendai.features.mining.minecraft.mining.BlockBreaker.State last;
+        private dev.friendai.world.block.BlockBreaker breaker;
+        dev.friendai.world.block.BlockBreaker.State last;
 
         BreakTask(BlockPos pos) {
             this.pos = pos;
@@ -1031,15 +1031,15 @@ public class FreeTimeTests {
 
         @Override
         public void start(dev.friendai.task.TaskContext c) {
-            breaker = new dev.friendai.features.mining.minecraft.mining.BlockBreaker(pos, state -> !state.isAir());
+            breaker = new dev.friendai.world.block.BlockBreaker(pos, state -> !state.isAir());
         }
 
         @Override
         public TaskStatus tick(dev.friendai.task.TaskContext c) {
             last = breaker.tick(c);
-            return last == dev.friendai.features.mining.minecraft.mining.BlockBreaker.State.WORKING
+            return last == dev.friendai.world.block.BlockBreaker.State.WORKING
                     ? TaskStatus.RUNNING
-                    : last == dev.friendai.features.mining.minecraft.mining.BlockBreaker.State.BROKEN
+                    : last == dev.friendai.world.block.BlockBreaker.State.BROKEN
                             ? TaskStatus.SUCCESS
                             : TaskStatus.FAILED;
         }
@@ -1134,7 +1134,7 @@ public class FreeTimeTests {
         BreakTask inside = breakIn(c, h.absolutePos(new BlockPos(5, 2, 5)), true);
         h.succeedWhen(() -> {
             h.assertTrue(
-                    inside.last == dev.friendai.features.mining.minecraft.mining.BlockBreaker.State.PROTECTED,
+                    inside.last == dev.friendai.world.block.BlockBreaker.State.PROTECTED,
                     "free time may not break inside a place: " + inside.last);
             h.assertBlockPresent(Blocks.HONEYCOMB_BLOCK, 5, 2, 5);
         });
@@ -1149,7 +1149,7 @@ public class FreeTimeTests {
         BreakTask owner = breakIn(c, h.absolutePos(new BlockPos(5, 2, 5)), false);
         h.succeedWhen(() -> {
             h.assertTrue(
-                    owner.last == dev.friendai.features.mining.minecraft.mining.BlockBreaker.State.BROKEN,
+                    owner.last == dev.friendai.world.block.BlockBreaker.State.BROKEN,
                     "an owner order still breaks it: " + owner.last);
         });
     }
@@ -1162,7 +1162,7 @@ public class FreeTimeTests {
         housePlace(h, c, "far house", 3, 2, 3, 2);
         BreakTask outside = breakIn(c, h.absolutePos(new BlockPos(11, 2, 11)), true);
         h.succeedWhen(() -> h.assertTrue(
-                outside.last == dev.friendai.features.mining.minecraft.mining.BlockBreaker.State.BROKEN,
+                outside.last == dev.friendai.world.block.BlockBreaker.State.BROKEN,
                 "free time breaks outside places: " + outside.last));
     }
 

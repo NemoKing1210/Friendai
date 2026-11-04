@@ -3,6 +3,7 @@ package dev.friendai.features.places;
 import dev.friendai.foundation.places.Place;
 import dev.friendai.foundation.places.PlaceLimits;
 import dev.friendai.foundation.places.PlaceNames;
+import dev.friendai.foundation.places.PlaceValues;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;

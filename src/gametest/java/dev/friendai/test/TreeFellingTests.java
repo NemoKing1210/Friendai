@@ -1262,7 +1262,7 @@ public class TreeFellingTests {
                             .append(String.format(java.util.Locale.ROOT, "%.2f", eyeDistance))
                             .append(';');
                     h.assertTrue(
-                            eyeDistance <= dev.friendai.features.navigation.minecraft.nav.Approach.REACH,
+                            eyeDistance <= dev.friendai.world.movement.Approach.REACH,
                             "break out of reach: " + p + " eye " + eyeDistance);
                     if (lastStance[0] != null && lastLayer[0] == p.getY()) {
                         double moved = Math.sqrt(net.minecraft.world.phys.Vec3.atCenterOf(lastStance[0])

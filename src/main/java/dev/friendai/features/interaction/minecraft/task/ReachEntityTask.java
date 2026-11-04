@@ -1,9 +1,9 @@
 package dev.friendai.features.interaction.minecraft.task;
 
-import dev.friendai.features.navigation.minecraft.nav.EntityApproach;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.world.movement.EntityApproach;
 import dev.friendai.world.movement.EntityTargets;
 import net.minecraft.world.entity.Entity;
 

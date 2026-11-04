@@ -13,15 +13,14 @@ import dev.friendai.features.crafting.StationLease;
 import dev.friendai.features.crafting.minecraft.Stations;
 import dev.friendai.features.fire.minecraft.FireReflex;
 import dev.friendai.features.memory.MemoryBook;
-import dev.friendai.features.navigation.minecraft.nav.Pace;
 import dev.friendai.features.navigation.minecraft.task.FollowTask;
-import dev.friendai.features.navigation.movement.PaceMode;
 import dev.friendai.features.survival.ExperienceModel;
 import dev.friendai.features.survival.minecraft.HungerWatcher;
 import dev.friendai.features.survival.minecraft.selfcare.SelfCareReflex;
 import dev.friendai.features.survival.minecraft.task.SleepTask;
 import dev.friendai.foundation.body.Difficulty;
 import dev.friendai.foundation.body.HungerModel;
+import dev.friendai.foundation.movement.PaceMode;
 import dev.friendai.menu.FriendaiMenus;
 import dev.friendai.server.companion.CompanionExecution;
 import dev.friendai.server.companion.CompanionNames;
@@ -37,6 +36,7 @@ import dev.friendai.server.runtime.ServerRuntimeRegistry;
 import dev.friendai.task.TaskExecutionPort;
 import dev.friendai.task.interact.CompanionHands;
 import dev.friendai.world.food.EatingController;
+import dev.friendai.world.movement.Pace;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -211,7 +211,7 @@ public class CompanionEntity extends PathfinderMob {
     /** Ticks left in which the path executor is known to be driving the companion. Not saved. */
     private transient int pathingTicks;
     /** The navigator that ticked most recently and when; read by the movement debug overlay. Not saved. */
-    private transient dev.friendai.features.navigation.minecraft.nav.Navigator lastNavigator;
+    private transient dev.friendai.world.movement.Navigator lastNavigator;
 
     private transient long lastNavigatorTick;
     /** Flight and landing are runtime-only; the mode preference itself is persisted separately. */
@@ -428,6 +428,11 @@ public class CompanionEntity extends PathfinderMob {
         return selfCare;
     }
 
+    /** The self-care reflex through the world-layer port, so combat never names the survival feature. */
+    public dev.friendai.world.food.BodyUse selfCareGate() {
+        return selfCare;
+    }
+
     /** The furnaces this companion loaded; not saved, the results stay in the world instead. */
     public FurnaceJobs furnaceJobs() {
         return furnaceJobs;
@@ -480,7 +485,7 @@ public class CompanionEntity extends PathfinderMob {
         return pathingTicks > 0;
     }
 
-    public void noteNavigator(dev.friendai.features.navigation.minecraft.nav.Navigator navigator) {
+    public void noteNavigator(dev.friendai.world.movement.Navigator navigator) {
         this.lastNavigator = navigator;
         this.lastNavigatorTick = level().getGameTime();
     }
@@ -490,7 +495,7 @@ public class CompanionEntity extends PathfinderMob {
      * that mines, builds or fights stops ticking its navigator for many ticks while the route stays valid; a navigator
      * that was stopped clears its executor, so {@code plan() == null} is the reliable "no route any more" signal.
      */
-    public dev.friendai.features.navigation.minecraft.nav.Navigator activeNavigator() {
+    public dev.friendai.world.movement.Navigator activeNavigator() {
         if (lastNavigator == null) {
             return null;
         }

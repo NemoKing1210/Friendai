@@ -1,6 +1,5 @@
 package dev.friendai.features.mining.minecraft.mining;
 
-import dev.friendai.features.navigation.minecraft.nav.MaterialPicker;
 import dev.friendai.foundation.mining.DropRisk;
 import dev.friendai.foundation.spatial.Cell;
 import dev.friendai.foundation.spatial.CellView;
@@ -10,6 +9,7 @@ import dev.friendai.task.TaskContext;
 import dev.friendai.task.autonomy.PlaceGuard;
 import dev.friendai.world.block.MiningRefusal;
 import dev.friendai.world.movement.LevelCellView;
+import dev.friendai.world.movement.MaterialPicker;
 import dev.friendai.world.placement.PlacementLedger;
 import java.util.ArrayList;
 import java.util.List;

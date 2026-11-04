@@ -1,12 +1,12 @@
 package dev.friendai.task.inventory;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.features.navigation.minecraft.nav.MoveHelper;
-import dev.friendai.features.navigation.minecraft.nav.Navigator;
 import dev.friendai.foundation.spatial.DropPoint;
 import dev.friendai.foundation.spatial.GoalPickup;
 import dev.friendai.task.TaskContext;
 import dev.friendai.world.movement.LevelCellView;
+import dev.friendai.world.movement.MoveHelper;
+import dev.friendai.world.movement.Navigator;
 import dev.friendai.world.targeting.Threats;
 import java.util.ArrayList;
 import java.util.Comparator;

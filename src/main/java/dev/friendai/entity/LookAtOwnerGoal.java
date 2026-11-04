@@ -78,10 +78,9 @@ public final class LookAtOwnerGoal extends Goal {
             return;
         }
         companion.getLookControl().setLookAt(owner.getX(), owner.getEyeY(), owner.getZ());
-        float yawToOwner = dev.friendai.features.navigation.movement.Facing.yawToward(
+        float yawToOwner = dev.friendai.foundation.movement.Facing.yawToward(
                 owner.getX() - companion.getX(), owner.getZ() - companion.getZ());
-        if (dev.friendai.features.navigation.movement.Facing.difference(companion.getYRot(), yawToOwner)
-                > BODY_TURN_CONE) {
+        if (dev.friendai.foundation.movement.Facing.difference(companion.getYRot(), yawToOwner) > BODY_TURN_CONE) {
             if (++outsideConeTicks > BODY_TURN_DELAY) {
                 companion.facing().lookAt(owner, 2);
             }

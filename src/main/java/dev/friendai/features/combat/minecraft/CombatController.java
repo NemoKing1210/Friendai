@@ -13,12 +13,12 @@ import dev.friendai.features.combat.ProtectionPolicy;
 import dev.friendai.features.combat.ShieldPolicy;
 import dev.friendai.features.combat.ThreatTable;
 import dev.friendai.features.combat.WeaponPolicy;
-import dev.friendai.features.inventory.minecraft.Equipment;
-import dev.friendai.features.navigation.movement.Facing;
 import dev.friendai.foundation.body.HungerModel;
+import dev.friendai.foundation.movement.Facing;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskExecutionPort;
 import dev.friendai.task.inventory.DropCollector;
+import dev.friendai.world.equipment.Equipment;
 import dev.friendai.world.food.EatingController;
 import dev.friendai.world.food.Food;
 import dev.friendai.world.targeting.Threats;
@@ -363,7 +363,7 @@ public final class CombatController implements EatingController {
     }
 
     private void tryEat(ServerLevel level) {
-        if (companion.selfCare().busy()) {
+        if (companion.selfCareGate().busy()) {
             // The self-care reflex is using the hands; two eaters would take each other's item out of the hand.
             return;
         }

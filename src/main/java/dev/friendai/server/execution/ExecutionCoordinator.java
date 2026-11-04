@@ -22,9 +22,9 @@ import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.features.creative.CreativeAction;
 import dev.friendai.features.creative.CreativeActionContext;
 import dev.friendai.features.navigation.minecraft.task.FollowTask;
-import dev.friendai.features.navigation.movement.MovementOrders;
 import dev.friendai.features.places.PlaceCandidate;
 import dev.friendai.foundation.diagnostics.LogContext;
+import dev.friendai.foundation.movement.MovementOrders;
 import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.server.creative.CreativeModeService;
 import dev.friendai.server.execution.ActiveTaskController.ActiveTask;
@@ -829,7 +829,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         java.util.Map<String, Integer> planNeeds = dev.friendai.execution.queue.PlanMaterials.needs(
                 remaining,
                 companion.level() instanceof ServerLevel level
-                        ? dev.friendai.features.navigation.minecraft.nav.PlanMaterialSource.forLevel(level)
+                        ? dev.friendai.world.movement.PlanMaterialSource.forLevel(level)
                         : null);
         java.util.Map<String, Integer> taskNeeds = java.util.Map.of();
         ActiveTask active = activeTask();
@@ -842,7 +842,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
             return composed;
         }
         // A task names the block it is sent for; what that block yields is what the tool needs.
-        var source = dev.friendai.features.navigation.minecraft.nav.PlanMaterialSource.forLevel(level);
+        var source = dev.friendai.world.movement.PlanMaterialSource.forLevel(level);
         java.util.Map<String, Integer> withDrops = new java.util.LinkedHashMap<>(composed.asMap());
         for (java.util.Map.Entry<String, Integer> entry : composed.asMap().entrySet()) {
             for (String item : source.itemsFor(entry.getKey())) {

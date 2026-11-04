@@ -1,22 +1,20 @@
 package dev.friendai.features.navigation.minecraft.task;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.execution.tool.AccessLevel;
-import dev.friendai.execution.tool.Caller;
-import dev.friendai.features.navigation.minecraft.nav.MoveHelper;
-import dev.friendai.features.places.PlaceValues;
-import dev.friendai.features.places.PortalRoutePolicy;
-import dev.friendai.features.places.PortalRoutePolicy.PortalLink;
-import dev.friendai.features.places.PortalRoutePolicy.Reason;
-import dev.friendai.features.places.PortalRoutePolicy.RouteFacts;
-import dev.friendai.features.places.minecraft.PlaceService;
 import dev.friendai.foundation.places.Place;
 import dev.friendai.foundation.places.PlaceKind;
 import dev.friendai.foundation.places.PlaceSource;
+import dev.friendai.foundation.places.PlaceValues;
+import dev.friendai.foundation.places.PortalRoutePolicy;
+import dev.friendai.foundation.places.PortalRoutePolicy.PortalLink;
+import dev.friendai.foundation.places.PortalRoutePolicy.Reason;
+import dev.friendai.foundation.places.PortalRoutePolicy.RouteFacts;
 import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.world.movement.MoveHelper;
+import dev.friendai.world.targeting.PlaceLookup;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
@@ -280,9 +278,8 @@ public final class TravelThroughPortalTask implements Task {
         if (lowest == null) {
             return "the portal is no longer lit";
         }
-        PlaceService places = c.placeService();
-        Place existing =
-                places.book(companion).find(RETURN_PLACE, sourceDimension).orElse(null);
+        PlaceLookup places = c.placeLookup();
+        Place existing = places.find(companion, RETURN_PLACE, sourceDimension);
         if (existing != null
                 && (existing.source() == PlaceSource.MANUAL
                         || existing.source() == PlaceSource.COMMAND
@@ -304,11 +301,7 @@ public final class TravelThroughPortalTask implements Task {
                 1,
                 4);
         try {
-            places.remember(
-                    companion,
-                    new Caller(owner, "", AccessLevel.OWNER),
-                    values,
-                    c.level().getGameTime());
+            places.rememberAsOwner(companion, values, c.level().getGameTime());
         } catch (IllegalArgumentException rejected) {
             return "I can't record the return portal: " + rejected.getMessage();
         }
@@ -500,7 +493,7 @@ public final class TravelThroughPortalTask implements Task {
         String dimension = level.dimension().identifier().toString();
         Place best = null;
         double bestDistance = Double.MAX_VALUE;
-        for (Place place : c.placeService().book(c.companion()).all()) {
+        for (Place place : c.placeLookup().all(c.companion())) {
             if (place.kind() != PlaceKind.PORTAL || !place.dimension().equals(dimension)) {
                 continue;
             }

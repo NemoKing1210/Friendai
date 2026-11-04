@@ -2,8 +2,6 @@ package dev.friendai.features.inventory.minecraft.task;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.acquisition.minecraft.search.DropIndex;
-import dev.friendai.features.navigation.minecraft.nav.Approach;
-import dev.friendai.features.navigation.minecraft.nav.MaterialPicker;
 import dev.friendai.features.places.PlaceQuery;
 import dev.friendai.features.storage.ContainerRecord;
 import dev.friendai.features.storage.StorageKey;
@@ -17,7 +15,9 @@ import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.interact.ContainerAccess;
 import dev.friendai.task.inventory.KeepPolicy;
+import dev.friendai.world.movement.Approach;
 import dev.friendai.world.movement.LevelCellView;
+import dev.friendai.world.movement.MaterialPicker;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;

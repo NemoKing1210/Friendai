@@ -1,6 +1,5 @@
 package dev.friendai.features.trading.minecraft.task;
 
-import dev.friendai.features.navigation.minecraft.nav.Navigator;
 import dev.friendai.features.trading.TradeAuthority;
 import dev.friendai.features.trading.TradeOffer;
 import dev.friendai.features.trading.TradeOrder;
@@ -10,6 +9,7 @@ import dev.friendai.features.trading.minecraft.trading.MerchantSession;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.world.movement.Navigator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;

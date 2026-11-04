@@ -6,6 +6,7 @@ import dev.friendai.features.knowledge.travel.TrailGraph;
 import dev.friendai.foundation.spatial.GoalPoint;
 import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.task.TaskContext;
+import dev.friendai.world.movement.Navigator;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;

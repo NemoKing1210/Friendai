@@ -9,7 +9,7 @@ import dev.friendai.features.interaction.minecraft.task.WaitTask;
 import dev.friendai.features.inventory.minecraft.task.ThrowItemTask;
 import dev.friendai.features.navigation.minecraft.task.GoToTask;
 import dev.friendai.features.navigation.minecraft.task.RelativeMoveTask;
-import dev.friendai.features.navigation.movement.Emotes;
+import dev.friendai.foundation.movement.Emotes;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.inventory.ItemMatcher;
 import dev.friendai.world.block.BreakAction;

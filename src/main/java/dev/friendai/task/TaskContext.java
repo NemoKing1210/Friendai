@@ -6,8 +6,8 @@ import dev.friendai.agent.turn.BrainEvent;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionLifeData;
 import dev.friendai.entity.ExpeditionChunkHorizon;
+import dev.friendai.execution.settings.ResourceSearchSettings;
 import dev.friendai.execution.settings.TaskRuntimeSettings;
-import dev.friendai.features.acquisition.ResourceSearchSettings;
 import dev.friendai.features.creative.CreativeAction;
 import dev.friendai.features.creative.CreativeActionContext;
 import dev.friendai.features.knowledge.ResourceKnowledge;
@@ -167,6 +167,11 @@ public record TaskContext(
         return CreativeModeService.isActionAuthorized(companion, creativeActionContext, action);
     }
 
+    /** Whether scaffolding may be placed without spending an item, as the creative materials rule allows. */
+    public boolean creativeMaterials() {
+        return canUseCreativeAction(CreativeAction.FREE_MATERIALS);
+    }
+
     public boolean flightAuthorized() {
         return canUseCreativeAction(CreativeAction.FLIGHT);
     }
@@ -274,6 +279,11 @@ public record TaskContext(
     }
     /** Feature-owned place operations; the service holds only the owner-book and settings providers. */
     public PlaceService placeService() {
+        return runtime().placeService();
+    }
+
+    /** The place book through the world-layer port, so a kernel task never names the places feature. */
+    public dev.friendai.world.targeting.PlaceLookup placeLookup() {
         return runtime().placeService();
     }
     /** Search-specific policy values, detached from the server configuration representation. */

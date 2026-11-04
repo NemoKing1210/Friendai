@@ -157,21 +157,19 @@ final class PackageDependencyRules {
     }
 
     static List<Violation> validate(List<DependencyEdge> edges) {
-        return validate(edges, List.of(), false);
+        return validate(edges, List.of());
     }
 
-    static List<Violation> validate(List<DependencyEdge> edges, List<Set<String>> featureCycleBaseline) {
-        return validate(edges, featureCycleBaseline, true);
-    }
-
-    private static List<Violation> validate(
-            List<DependencyEdge> edges, List<Set<String>> featureCycleBaseline, boolean checkFeatureCycles) {
+    private static List<Violation> validate(List<DependencyEdge> edges, List<Set<String>> featureCycleBaseline) {
         Set<Violation> violations = new LinkedHashSet<>();
         for (DependencyEdge edge : edges) {
             String source = edge.sourceClass();
             String target = edge.targetClass();
             if (isUnder(source, "dev.friendai.foundation") && isFoundationForbidden(target)) {
                 add(violations, "foundation-direction", edge);
+            }
+            if (isUnder(source, "dev.friendai.world") && isWorldForbidden(target)) {
+                add(violations, "kernel-direction", edge);
             }
             if (isPurePackage(source) && isPlatformPackage(target)) {
                 add(violations, "pure-java-no-platform", edge);
@@ -221,9 +219,7 @@ final class PackageDependencyRules {
                 add(violations, "feature-task-context-leak", edge);
             }
         }
-        if (checkFeatureCycles) {
-            violations.addAll(FeatureGraph.violations(edges, featureCycleBaseline));
-        }
+        violations.addAll(FeatureGraph.violations(edges, featureCycleBaseline));
         return violations.stream().sorted(VIOLATION_ORDER).toList();
     }
 
@@ -270,7 +266,18 @@ final class PackageDependencyRules {
                 || isUnder(className, "dev.friendai.protocol")
                 || isUnder(className, "dev.friendai.server")
                 || isUnder(className, "dev.friendai.client")
-                || isUnder(className, "dev.friendai.transport");
+                || isUnder(className, "dev.friendai.transport")
+                || isUnder(className, "dev.friendai.world");
+    }
+
+    private static boolean isWorldForbidden(String className) {
+        return isUnder(className, "dev.friendai.features")
+                || isUnder(className, "dev.friendai.server")
+                || isUnder(className, "dev.friendai.client")
+                || isUnder(className, "dev.friendai.transport")
+                || isUnder(className, "dev.friendai.presentation")
+                || isUnder(className, "dev.friendai.infrastructure")
+                || isUnder(className, "dev.friendai.protocol");
     }
 
     private static boolean isFeatureAdapter(String source, String target) {

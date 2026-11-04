@@ -3,20 +3,14 @@ package dev.friendai.test;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.FriendaiEntities;
-import dev.friendai.features.mining.minecraft.mining.BlockBreaker;
 import dev.friendai.features.mining.minecraft.task.MineBlocksTask;
-import dev.friendai.features.navigation.minecraft.nav.Approach;
-import dev.friendai.features.navigation.minecraft.nav.MaterialPicker;
-import dev.friendai.features.navigation.minecraft.nav.MoveHelper;
-import dev.friendai.features.navigation.minecraft.nav.Navigator;
-import dev.friendai.features.navigation.minecraft.nav.PathExecutor;
 import dev.friendai.features.navigation.minecraft.task.ApproachEntityTask;
 import dev.friendai.features.navigation.minecraft.task.FollowTask;
 import dev.friendai.features.navigation.minecraft.task.GoToTask;
 import dev.friendai.features.navigation.minecraft.task.TravelThroughPortalTask;
-import dev.friendai.features.navigation.movement.Facing;
 import dev.friendai.foundation.diagnostics.LogEntry;
 import dev.friendai.foundation.diagnostics.LogKind;
+import dev.friendai.foundation.movement.Facing;
 import dev.friendai.foundation.spatial.BreakProgress;
 import dev.friendai.foundation.spatial.Cell;
 import dev.friendai.foundation.spatial.CostModel;
@@ -30,8 +24,14 @@ import dev.friendai.server.agent.CompanionSessions;
 import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.world.block.BlockBreaker;
 import dev.friendai.world.block.BlockMatcher;
+import dev.friendai.world.movement.Approach;
 import dev.friendai.world.movement.LevelCellView;
+import dev.friendai.world.movement.MaterialPicker;
+import dev.friendai.world.movement.MoveHelper;
+import dev.friendai.world.movement.Navigator;
+import dev.friendai.world.movement.PathExecutor;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -1503,7 +1503,7 @@ public class PathingTests {
             }
         }
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, base + 1, 2);
-        c.setPaceMode(dev.friendai.features.navigation.movement.PaceMode.RUN);
+        c.setPaceMode(dev.friendai.foundation.movement.PaceMode.RUN);
         Outcome out = new Outcome();
         walkTo(c, h, out, 18.5, base + 1, 2.5);
         double[] farthestSouth = {0.0};
@@ -1533,7 +1533,7 @@ public class PathingTests {
         trench(h, base, 8, 2);
         // The start is off the gap's line, so the run turns before the take-off and must not leave the edge sideways.
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, base + 1, 2);
-        c.setPaceMode(dev.friendai.features.navigation.movement.PaceMode.RUN);
+        c.setPaceMode(dev.friendai.foundation.movement.PaceMode.RUN);
         Outcome out = new Outcome();
         walkTo(c, h, out, 12.5, base + 1, 12.5);
         h.succeedWhen(() -> {

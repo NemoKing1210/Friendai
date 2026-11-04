@@ -2,11 +2,11 @@ package dev.friendai.features.interaction.minecraft.task;
 
 import dev.friendai.debug.DebugAction;
 import dev.friendai.debug.DebugTarget;
-import dev.friendai.features.navigation.minecraft.nav.Approach;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.autonomy.ProtectionText;
+import dev.friendai.world.movement.Approach;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;

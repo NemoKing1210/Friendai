@@ -301,7 +301,7 @@ public final class SearchResourceTask implements Task {
                     .remember(
                             context.companion(),
                             caller,
-                            new dev.friendai.features.places.PlaceValues(
+                            new dev.friendai.foundation.places.PlaceValues(
                                     name,
                                     dev.friendai.foundation.places.PlaceKind.LANDMARK,
                                     "",
