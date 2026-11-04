@@ -1,4 +1,4 @@
-package dev.friendai.features.places;
+package dev.friendai.foundation.places;
 
 /** How a place came to be known; shown in the menu so the owner can tell taught places from discovered ones. */
 public enum PlaceSource {

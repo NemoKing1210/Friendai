@@ -1,4 +1,4 @@
-package dev.friendai.features.places;
+package dev.friendai.foundation.places;
 
 import com.google.gson.JsonObject;
 import java.util.Locale;

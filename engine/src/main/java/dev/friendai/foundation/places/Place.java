@@ -1,4 +1,4 @@
-package dev.friendai.features.places;
+package dev.friendai.foundation.places;
 
 import dev.friendai.foundation.spatial.Pos;
 import java.util.LinkedHashMap;

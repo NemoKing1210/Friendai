@@ -3,6 +3,7 @@ package dev.friendai.infrastructure.persistence.places;
 import dev.friendai.features.places.*;
 import dev.friendai.foundation.persistence.StoreCodec;
 import dev.friendai.foundation.persistence.StoreWriteStatus;
+import dev.friendai.foundation.places.PlaceLimits;
 import dev.friendai.infrastructure.persistence.OwnerFileStore;
 import dev.friendai.infrastructure.persistence.OwnerStoreWriter;
 import java.nio.file.Path;

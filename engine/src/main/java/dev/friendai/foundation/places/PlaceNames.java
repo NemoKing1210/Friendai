@@ -1,4 +1,4 @@
-package dev.friendai.features.places;
+package dev.friendai.foundation.places;
 
 import java.util.Locale;
 import java.util.Optional;

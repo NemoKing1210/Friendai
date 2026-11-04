@@ -4,7 +4,7 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.knowledge.search.ResourceSearchProfile;
 import dev.friendai.features.knowledge.search.StructureMarkers;
 import dev.friendai.features.knowledge.search.TargetKind;
-import dev.friendai.features.places.Place;
+import dev.friendai.foundation.places.Place;
 import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.perception.resource.ResourceCandidates;
 import dev.friendai.task.TaskContext;

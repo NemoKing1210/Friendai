@@ -1,10 +1,10 @@
-package dev.friendai.features.places.minecraft;
+package dev.friendai.world.targeting;
 
 import com.google.gson.JsonObject;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.tool.Caller;
-import dev.friendai.features.places.NearRequest;
-import dev.friendai.features.places.Place;
+import dev.friendai.foundation.places.NearRequest;
+import dev.friendai.foundation.places.Place;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -25,9 +25,9 @@ public final class NearResolver {
 
     /**
      * Explicit coordinates win; otherwise {@code near} names a remembered place ({@code place:<name>}), the
-     * speaker, or the companion. A place in another dimension is refused by {@link PlaceService#requireReachable}.
+     * speaker, or the companion. A place in another dimension is refused by {@link PlaceLookup#requireReachable}.
      */
-    public static Origin resolve(PlaceService places, CompanionEntity c, Caller caller, JsonObject args) {
+    public static Origin resolve(PlaceLookup places, CompanionEntity c, Caller caller, JsonObject args) {
         return switch (NearRequest.parse(args)) {
             case NearRequest.Coordinates(int x, int y, int z) -> new Origin(new BlockPos(x, y, z), true);
             case NearRequest.Place(String name) -> {

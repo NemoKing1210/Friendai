@@ -2,8 +2,8 @@ package dev.friendai.client.ui;
 
 import dev.friendai.common.Components;
 import dev.friendai.features.memory.MenuStatus;
-import dev.friendai.features.places.PlaceLimits;
 import dev.friendai.features.places.PlaceView;
+import dev.friendai.foundation.places.PlaceLimits;
 import dev.friendai.presentation.companion.PlacesTabModel;
 import dev.friendai.protocol.places.PlaceRequest;
 import java.util.ArrayList;

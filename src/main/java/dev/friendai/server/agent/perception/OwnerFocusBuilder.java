@@ -5,7 +5,7 @@ import dev.friendai.agent.perception.OwnerGear;
 import dev.friendai.agent.perception.PerceptionSnapshot;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.mining.minecraft.mining.MiningToolView;
-import dev.friendai.features.navigation.RelativeDirection;
+import dev.friendai.foundation.spatial.RelativeDirection;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;

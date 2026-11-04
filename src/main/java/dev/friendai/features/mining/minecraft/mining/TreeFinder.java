@@ -3,7 +3,7 @@ package dev.friendai.features.mining.minecraft.mining;
 import dev.friendai.features.mining.tree.TreeCell;
 import dev.friendai.features.mining.tree.TreeSummary;
 import dev.friendai.features.mining.tree.TrunkExpansion;
-import dev.friendai.features.navigation.RelativeDirection;
+import dev.friendai.foundation.spatial.RelativeDirection;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;

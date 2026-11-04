@@ -1,5 +1,8 @@
 package dev.friendai.features.places;
 
+import dev.friendai.foundation.places.Place;
+import dev.friendai.foundation.places.PlaceKind;
+import dev.friendai.foundation.places.PlaceSource;
 import dev.friendai.foundation.spatial.Pos;
 
 /**

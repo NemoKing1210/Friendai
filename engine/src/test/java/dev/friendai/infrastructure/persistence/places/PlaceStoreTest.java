@@ -7,6 +7,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.friendai.features.places.*;
 import dev.friendai.foundation.persistence.UnsupportedStoreVersionException;
+import dev.friendai.foundation.places.Place;
+import dev.friendai.foundation.places.PlaceKind;
+import dev.friendai.foundation.places.PlaceLimits;
+import dev.friendai.foundation.places.PlaceSource;
 import dev.friendai.foundation.spatial.Pos;
 import java.io.IOException;
 import java.nio.file.Files;

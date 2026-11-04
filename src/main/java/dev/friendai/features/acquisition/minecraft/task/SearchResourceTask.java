@@ -303,13 +303,13 @@ public final class SearchResourceTask implements Task {
                             caller,
                             new dev.friendai.features.places.PlaceValues(
                                     name,
-                                    dev.friendai.features.places.PlaceKind.LANDMARK,
+                                    dev.friendai.foundation.places.PlaceKind.LANDMARK,
                                     "",
                                     dimension,
                                     new dev.friendai.foundation.spatial.Pos(at.getX(), at.getY(), at.getZ()),
                                     64,
                                     java.util.Set.of(),
-                                    dev.friendai.features.places.PlaceSource.STRUCTURE,
+                                    dev.friendai.foundation.places.PlaceSource.STRUCTURE,
                                     caller.uuid(),
                                     "seen by its marker blocks"),
                             context.level().getGameTime());

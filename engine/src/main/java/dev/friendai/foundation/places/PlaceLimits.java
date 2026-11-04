@@ -1,4 +1,4 @@
-package dev.friendai.features.places;
+package dev.friendai.foundation.places;
 
 /**
  * Hard bounds for one owner's place file. The owner-facing policy cap is {@code places.maxPlaces} in the

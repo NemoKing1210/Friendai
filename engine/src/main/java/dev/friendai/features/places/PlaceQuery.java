@@ -1,5 +1,8 @@
 package dev.friendai.features.places;
 
+import dev.friendai.foundation.places.Place;
+import dev.friendai.foundation.places.PlaceKind;
+import dev.friendai.foundation.places.PlaceNames;
 import dev.friendai.foundation.spatial.Pos;
 import java.util.ArrayList;
 import java.util.Comparator;

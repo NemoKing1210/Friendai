@@ -306,8 +306,8 @@ class ArchitectureRulesTest {
                 edge(
                         "dev.friendai.features.knowledge.ResourceKnowledge",
                         "dev.friendai.features.acquisition.OreDepths"),
-                edge("dev.friendai.features.places.Place", "dev.friendai.foundation.spatial.Pos"),
-                edge("dev.friendai.features.places.Place", "dev.friendai.features.memory.MenuStatus"),
+                edge("dev.friendai.foundation.places.Place", "dev.friendai.foundation.spatial.Pos"),
+                edge("dev.friendai.foundation.places.Place", "dev.friendai.features.memory.MenuStatus"),
                 edge("dev.friendai.features.placements.PlacedBlock", "dev.friendai.foundation.spatial.Pos"),
                 edge(
                         "dev.friendai.features.placements.minecraft.tool.PlacedTools",
@@ -330,7 +330,7 @@ class ArchitectureRulesTest {
                         "dev.friendai.features.places.PlaceQuery"),
                 edge(
                         "dev.friendai.features.mining.minecraft.mining.MiningRefusal",
-                        "dev.friendai.features.places.Place"),
+                        "dev.friendai.foundation.places.Place"),
                 edge(
                         "dev.friendai.features.navigation.minecraft.nav.PathExecutor",
                         "dev.friendai.features.mining.minecraft.mining.BreakAction"),

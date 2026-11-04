@@ -3,9 +3,13 @@ package dev.friendai.features.places.minecraft;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
-import dev.friendai.features.navigation.RelativeDirection;
 import dev.friendai.features.places.*;
+import dev.friendai.foundation.places.Place;
+import dev.friendai.foundation.places.PlaceLimits;
+import dev.friendai.foundation.places.PlaceNames;
 import dev.friendai.foundation.spatial.Pos;
+import dev.friendai.foundation.spatial.RelativeDirection;
+import dev.friendai.world.targeting.PlaceLookup;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -28,7 +32,7 @@ import org.slf4j.LoggerFactory;
  * here decides the author of a remembered place and the guest gate of the prompt block, and the mutators accept
  * it so every entry point takes the same principal.
  */
-public final class PlaceService {
+public final class PlaceService implements PlaceLookup {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("friendai/places");
 
