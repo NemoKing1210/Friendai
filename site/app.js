@@ -36,7 +36,7 @@ const CATS = [
     desc: "Places blocks through a fake player so vanilla rules and protection apply. Blueprints up to 32x32x32.",
     items: [
       "place_block|Place one block.", "use_block|Right-click a block like a player.", "light_area|Place torches to stop mob spawns.",
-      "clear_area|Clear the whole volume safely in one call.", "preview_structure|Show a ghost preview.", "build_structure|Build from a generated or saved layout.",
+      "clear_area|Clear vegetation, snow and stray blocks, up to 256 cells per call.", "preview_structure|Show a ghost preview.", "build_structure|Build from a generated or saved layout.",
       "save_blueprint|Store a layout as JSON.", "list_blueprints|List saved blueprints.", "blueprint_help|Explain the blueprint format.",
       "build_special|Build an iron golem, snow golem or nether portal.", "plan_special|Dry-run a special structure.",
       "~Blueprint parser|Palette, ops and ASCII layers; reports every error at once.", "~Resumable builds|Progress survives restarts.", "~Fake-player hands|Respects world protection." ] },

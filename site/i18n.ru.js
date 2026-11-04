@@ -115,7 +115,7 @@ const RU = {
   "Place one block.": "Поставить один блок.",
   "Right-click a block like a player.": "Нажать ПКМ по блоку как игрок.",
   "Place torches to stop mob spawns.": "Расставить факелы, чтобы не спавнились мобы.",
-  "Clear the whole volume safely in one call.": "Безопасно расчистить весь объём за один вызов.",
+  "Clear vegetation, snow and stray blocks, up to 256 cells per call.": "Убирает растительность, снег и лишние блоки — до 256 клеток за вызов.",
   "Show a ghost preview.": "Показать призрачный предпросмотр.",
   "Build from a generated or saved layout.": "Построить по сгенерированной или сохранённой схеме.",
   "Store a layout as JSON.": "Сохранить схему как JSON.",

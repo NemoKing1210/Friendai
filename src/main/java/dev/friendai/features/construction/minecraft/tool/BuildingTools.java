@@ -59,7 +59,9 @@ final class BuildingTools {
                 registry,
                 ToolGroup.BUILDING,
                 "clear_area",
-                "Clear vegetation, snow, water sources and optionally stray blocks around a point, leaving chests, lava and protected places alone. One call clears the whole radius, depth and height volume; for a 5x5 floor follow it with build_structure rather than one place_block per block.",
+                "Clear vegetation, snow, water sources and optionally stray blocks around a point, leaving chests, lava and protected places alone. "
+                        + "One call clears up to 256 cells of the radius, depth and height volume — call it again for the rest; "
+                        + "for a 5x5 floor follow it with build_structure rather than one place_block per block.",
                 SchemaBuilder.object()
                         .integer("radius", "How far around the centre to clear, in blocks (default 6)", 1, 16)
                         .integer("x", "Centre X; give all of x, y, z or none for the companion")
