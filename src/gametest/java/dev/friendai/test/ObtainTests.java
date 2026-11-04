@@ -856,6 +856,18 @@ public class ObtainTests {
                 phase[0] = 1;
             } else {
                 GameTestSupport.observeVisible(h, c, h.absolutePos(table));
+                // Gathering the shared material comes before any crafting, so while the chest still holds the
+                // cobblestone the batch is short of, none of the set may exist yet.
+                if (!chest.getItem(0).isEmpty()) {
+                    h.assertValueEqual(
+                            c.inventory().countItem(Items.STONE_PICKAXE),
+                            0,
+                            "the batch crafted before gathering the cobblestone it was short of");
+                    h.assertValueEqual(
+                            c.inventory().countItem(Items.STONE_AXE),
+                            0,
+                            "the batch crafted before gathering the cobblestone it was short of");
+                }
                 runner.tick();
                 h.assertTrue(result.status != null, "the batch should finish");
                 h.assertTrue(

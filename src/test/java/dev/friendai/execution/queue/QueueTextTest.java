@@ -132,6 +132,18 @@ class QueueTextTest {
     }
 
     @Test
+    void cancelledJobKeepsItsCancellationTextOutOfThePlanResults() {
+        JobQueue q = new JobQueue(QueueLimits.DEFAULTS);
+        var added = q.addPlan("stopped", List.of(step("give_items", "{}")), PlanOptions.DEFAULT);
+        q.cancel(added.jobIds().getFirst(), "stopped by request");
+
+        // A cancelled job stores the reason as its "result"; only the DONE/FAILED filter keeps it out, so a step
+        // the owner stopped must never be reported as something the plan produced.
+        assertEquals("", QueueText.planResults(q, added.planId(), 600));
+        assertEquals("stopped by request", QueueText.finishedSummary(q, added.planId(), "stopped by request"));
+    }
+
+    @Test
     void finishedSummaryDoesNotAppendTheSameDetailTwice() {
         JobQueue q = new JobQueue(QueueLimits.DEFAULTS);
         var added = q.addPlan("twice", List.of(step("give_items", "{}")), PlanOptions.DEFAULT);
