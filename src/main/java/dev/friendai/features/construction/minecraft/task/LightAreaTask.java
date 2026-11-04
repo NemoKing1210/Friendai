@@ -1,5 +1,6 @@
 package dev.friendai.features.construction.minecraft.task;
 
+import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.navigation.minecraft.nav.Approach;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
@@ -34,7 +35,7 @@ public final class LightAreaTask implements Task {
     private String summary = "";
 
     public LightAreaTask(int radius) {
-        this.radius = radius;
+        this.radius = Math.clamp(radius, 1, 16);
     }
 
     @Override
@@ -75,7 +76,7 @@ public final class LightAreaTask implements Task {
             summary = "placed " + MAX_TORCHES + " torches (the maximum for one task)";
             return TaskStatus.SUCCESS;
         }
-        if (InventoryOps.count(c.companion().inventory(), torch) == 0) {
+        if (torchesHeld(c.companion()) == 0) {
             summary = placed.isEmpty()
                     ? "I don't have minecraft:torch"
                     : "placed " + placed.size() + " torches, then ran out of torches";
@@ -103,7 +104,7 @@ public final class LightAreaTask implements Task {
         if (!companion.placement().ready()) {
             return TaskStatus.RUNNING;
         }
-        List<ItemStack> taken = InventoryOps.remove(companion.inventory(), torch, 1);
+        ItemStack taken = takeTorch(c);
         if (taken.isEmpty()) {
             approach = null;
             summary = placed.isEmpty()
@@ -111,7 +112,7 @@ public final class LightAreaTask implements Task {
                     : "placed " + placed.size() + " torches, then ran out of torches";
             return placed.isEmpty() ? TaskStatus.FAILED : TaskStatus.SUCCESS;
         }
-        companion.hands().place(taken.get(0), spot.below(), Direction.UP);
+        companion.hands().place(taken, spot.below(), Direction.UP);
         if (c.level().getBlockState(spot).is(Blocks.TORCH)) {
             placed.add(spot);
         } else {
@@ -121,6 +122,21 @@ public final class LightAreaTask implements Task {
         spot = null;
         waitTicks = WAIT_TICKS;
         return TaskStatus.RUNNING;
+    }
+
+    private int torchesHeld(CompanionEntity companion) {
+        int held = InventoryOps.count(companion.inventory(), torch);
+        ItemStack mainHand = companion.getMainHandItem();
+        return torch.test(mainHand) ? held + mainHand.getCount() : held;
+    }
+
+    private ItemStack takeTorch(TaskContext c) {
+        List<ItemStack> removed = InventoryOps.remove(c.companion().inventory(), torch, 1);
+        if (!removed.isEmpty()) {
+            return removed.get(0);
+        }
+        ItemStack mainHand = c.companion().getMainHandItem();
+        return torch.test(mainHand) ? mainHand.split(1) : ItemStack.EMPTY;
     }
 
     private TaskStatus skip() {

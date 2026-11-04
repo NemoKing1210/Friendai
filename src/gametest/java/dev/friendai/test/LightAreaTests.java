@@ -9,6 +9,7 @@ import dev.friendai.task.TaskStatus;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.LightLayer;
@@ -144,6 +145,30 @@ public class LightAreaTests {
                     result.summary.equals("couldn't reach or place any torch within 2 blocks"),
                     "summary was " + result.summary);
         });
+    }
+
+    @GameTest(maxTicks = 1200)
+    public void lightUsesATorchInTheMainHand(GameTestHelper h) {
+        darkRoom(h);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.TORCH, 4));
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(new LightAreaTask(6), "light_area");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status != TaskStatus.FAILED, "failed: " + result.summary);
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status);
+            h.assertTrue(result.summary.startsWith("placed "), "summary was " + result.summary);
+            h.assertTrue(c.getMainHandItem().isEmpty(), "the main hand must be empty");
+        });
+    }
+
+    @GameTest
+    public void lightClampsAnUnboundedRadius(GameTestHelper h) {
+        String described = new LightAreaTask(1_000_000).describe();
+        h.assertTrue(described.equals("lighting up the area within 16 blocks"), "describe was " + described);
+        h.succeed();
     }
 
     @GameTest(maxTicks = 1200)
