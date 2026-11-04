@@ -144,6 +144,25 @@ public final class ToolCatalog {
                 "back_away",
                 "approach",
                 "circle");
+        hint(
+                metas,
+                "follow_player",
+                "- Use follow_player when the owner asks you to come along and keep up; use go_to for one named destination.");
+        hint(
+                metas,
+                "stay",
+                "- Use stay to wait where you are; it ends early when queued work is ready, and it is not a way to refuse following.");
+        hint(
+                metas,
+                "go_to",
+                "- Use go_to for one destination the owner named; it may dig and bridge, and reports a failure when no route exists.");
+        hint(
+                metas,
+                "travel_through_portal",
+                "- Use travel_through_portal to go to the nether or back to the overworld. It walks into a lit portal within"
+                        + " 16 blocks, builds and lights one from 10 obsidian and flint and steel when none is near, and"
+                        + " records a return portal before leaving.");
+        hint(metas, "jump", "- Use jump for a single hop; put several jump steps in one plan for repeats.");
         group(
                 metas,
                 ToolGroup.GATHERING,
