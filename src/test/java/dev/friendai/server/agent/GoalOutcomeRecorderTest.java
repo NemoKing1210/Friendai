@@ -93,6 +93,30 @@ class GoalOutcomeRecorderTest {
     }
 
     @Test
+    void forgettingOneOwnerKeepsAnotherOwnersBookkeeping() {
+        UUID other = UUID.randomUUID();
+        GoalBoard first = new GoalBoard(3, 2);
+        long firstId = first.set("Collect 32 oak logs", List.of(checkableCriterion()), false, 100L)
+                .value()
+                .id();
+        GoalBoard second = new GoalBoard(3, 2);
+        long secondId = second.set("Collect 8 stone", List.of(checkableCriterion()), false, 100L)
+                .value()
+                .id();
+        recorder.captureCheckability(owner, first);
+        recorder.noteFacts(owner, firstId, List.of(new Fact("+32 minecraft:oak_log")));
+        recorder.captureCheckability(other, second);
+        recorder.noteFacts(other, secondId, List.of(new Fact("+8 minecraft:stone")));
+
+        recorder.forget(owner);
+        recorder.remember(other, "goal:" + secondId, OutcomeKind.GOAL_SUCCESS, "Collected 8 stone");
+        recorder.remember(owner, "goal:" + firstId, OutcomeKind.GOAL_SUCCESS, "Collected 32 oak logs");
+
+        assertEquals(List.of("goal \"Collected 8 stone\" — verified; +8 minecraft:stone"), factTexts(other));
+        assertEquals(List.of("goal \"Collected 32 oak logs\" — unverified"), factTexts(owner));
+    }
+
+    @Test
     void aSourceThatIsNotAGoalWritesNothing() {
         recorder.remember(owner, "shift:1", OutcomeKind.GOAL_SUCCESS, "Finished a shift");
 
@@ -114,7 +138,11 @@ class GoalOutcomeRecorderTest {
     }
 
     private List<String> factTexts() {
-        return book.facts(Subject.player(owner)).stream()
+        return factTexts(owner);
+    }
+
+    private List<String> factTexts(UUID subject) {
+        return book.facts(Subject.player(subject)).stream()
                 .map(fact -> fact.text())
                 .toList();
     }
