@@ -303,8 +303,10 @@ respawn in the same session.
 Going back is `RecoveryReflex`, ticked beside the fire and self-care reflexes: an idle or following body
 fetches drops within 24 blocks on its own, and only with `autonomy.enabled` once they are farther away.
 It interrupts the runner the way a reflex does, and `RecoverDropsTask` re-checks the dimension, hazard and
-the 5,400-tick deadline (vanilla `ItemEntity` lifetime is 6,000), collects only the recorded entity ids
-through `DropCollector`, reports "recovered N of M stacks" and clears the record whatever the outcome.
+the 5,400-tick deadline (vanilla `ItemEntity` lifetime is 6,000), walks to the site with the normal navigator and
+only then runs one bounded round that collects the recorded entity ids through `DropCollector`; it reports
+"recovered N of M stacks" and clears the record only when the site is resolved or the trip is explicitly abandoned,
+so a partial round leaves the rest to a later attempt.
 `recover_drops`, `dropped_items` and `forget_drops` expose the same state to the model; the last one sets
 the per-owner refusal that both paths honour until the owner reverses it or the next death clears it.
 

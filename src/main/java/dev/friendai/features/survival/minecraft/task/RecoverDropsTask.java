@@ -2,6 +2,7 @@ package dev.friendai.features.survival.minecraft.task;
 
 import dev.friendai.entity.CompanionCarryData;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.navigation.minecraft.nav.Approach;
 import dev.friendai.features.survival.DeathRecord;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
@@ -20,10 +21,12 @@ import org.jetbrains.annotations.Nullable;
 /**
  * Walks back to where the companion died and collects what it dropped there.
  *
- * <p>The walk and the pickup are one task on purpose: the drops are recorded with the item entities they spawned, so
- * the collector takes those and nothing else, and a spot that turned into lava or fire is refused instead of walked
- * into. The record is cleared when the task ends in any way, so a companion that gave up does not retry forever; a
- * refusal from the owner stops it before the walk starts.
+ * <p>The trip has two phases on purpose: a journey to the death site on the normal navigator, then one bounded local
+ * collection round, because a round that had to walk ninety blocks would spend its whole budget on the road. The drops
+ * are recorded with the item entities they spawned, so the collector takes those and nothing else, and a spot that
+ * turned into lava or fire is refused instead of walked into. The record is cleared only when the site is resolved —
+ * collected, or provably gone — or when the trip is explicitly abandoned; a partial round keeps it so a later attempt
+ * can finish the job.
  */
 public final class RecoverDropsTask implements Task {
     /** How far around the death spot a drop may lie; the death itself can throw a stack a few blocks. */
@@ -49,6 +52,8 @@ public final class RecoverDropsTask implements Task {
     private Set<UUID> recorded = Set.of();
     private int expectedStacks;
     private @Nullable DropCollector collector;
+    private @Nullable Approach journey;
+    private boolean arrived;
     private boolean failed;
     private long startedAt;
     private long lastProgressAt;
@@ -108,11 +113,6 @@ public final class RecoverDropsTask implements Task {
             abandon(c, "where I died is too far to walk from here");
             return;
         }
-        // The collector navigates to each drop itself, so the trip needs no separate walking phase.
-        int reach = (int) Math.min(MAX_REACH, Math.ceil(away) + COLLECT_RADIUS);
-        collector = new DropCollector(companion.position(), reach, null, recorded);
-        startedAt = c.level().getGameTime();
-        lastProgressAt = startedAt;
     }
 
     @Override
@@ -124,10 +124,25 @@ public final class RecoverDropsTask implements Task {
             summary = "no drops to recover";
             return TaskStatus.SUCCESS;
         }
+        if (!arrived) {
+            if (journey == null) journey = new Approach(target);
+            switch (journey.tick(c)) {
+                case UNREACHABLE -> {
+                    abandon(c, "I can't find a way back to where I died");
+                    return TaskStatus.FAILED;
+                }
+                case MOVING -> {
+                    return TaskStatus.RUNNING;
+                }
+                case IN_REACH -> arrived = true;
+            }
+        }
         if (collector == null) {
-            summary = "I got back to the spot but left nothing there";
-            finish(c);
-            return TaskStatus.SUCCESS;
+            // The journey did the walking; the round only collects what lies around the site.
+            collector = new DropCollector(Vec3.atCenterOf(target), COLLECT_RADIUS, null, recorded);
+            startedAt = c.level().getGameTime();
+            lastProgressAt = startedAt;
+            lastCollected = 0;
         }
         DropCollector.State state = collector.tick(c);
         if (collector.collected() != lastCollected) {
@@ -141,12 +156,13 @@ public final class RecoverDropsTask implements Task {
                 finish(c);
                 return TaskStatus.SUCCESS;
             }
-            // A stalled round (no room in the bag, a drop behind a wall) reports what is left instead of looping.
+            // A stalled round (no room in the bag, a drop behind a wall) reports what is left instead of looping, and
+            // keeps the record: the site is not resolved, so a later attempt may still finish it.
             if (c.level().getGameTime() - lastProgressAt > STALLED_TICKS) {
                 summary = "fetched " + collector.collectedStacks().size() + " of " + expectedStacks
                         + " stacks; the rest stay on the ground";
-                finish(c);
-                return TaskStatus.SUCCESS;
+                failed = true;
+                return TaskStatus.FAILED;
             }
             return TaskStatus.RUNNING;
         }
@@ -161,6 +177,9 @@ public final class RecoverDropsTask implements Task {
 
     @Override
     public void stop(TaskContext c) {
+        if (journey != null) {
+            journey.stop(c);
+        }
         if (collector != null) {
             collector.stop(c);
         }

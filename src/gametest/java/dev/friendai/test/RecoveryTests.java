@@ -11,8 +11,10 @@ import dev.friendai.agent.llm.model.Usage;
 import dev.friendai.agent.plan.PlanProposal;
 import dev.friendai.agent.recover.FailureHandler;
 import dev.friendai.agent.turn.LlmGateway;
+import dev.friendai.entity.CompanionCarryData;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
+import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.execution.queue.GuardAction;
 import dev.friendai.execution.queue.PlanDefinition;
 import dev.friendai.execution.queue.PlanNode;
@@ -20,11 +22,16 @@ import dev.friendai.execution.queue.QueuedStep;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolResult;
+import dev.friendai.features.survival.DeathRecord;
+import dev.friendai.features.survival.minecraft.task.RecoverDropsTask;
 import dev.friendai.foundation.diagnostics.LogEntry;
 import dev.friendai.foundation.diagnostics.LogKind;
 import dev.friendai.infrastructure.config.ServerConfig;
 import dev.friendai.server.agent.CompanionSessions;
+import dev.friendai.server.execution.ExecutionCoordinator;
+import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.server.runtime.ServerRuntime;
+import dev.friendai.task.TaskStatus;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -32,6 +39,9 @@ import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 
 public class RecoveryTests {
@@ -51,6 +61,54 @@ public class RecoveryTests {
     private static boolean logHas(CompanionSessions brains, ServerPlayer player, String text) {
         List<LogEntry> log = brains.debug().logOf(player.getUUID()).after(0, 200);
         return log.stream().anyMatch(e -> e.kind() == LogKind.TASK && e.text().contains(text));
+    }
+
+    /** A death site far enough that one collection round cannot walk there is reached first, then picked up. */
+    @GameTest(maxTicks = 900)
+    public void aFarDeathSiteIsWalkedToBeforeCollecting(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 1, 32);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(owner.getUUID());
+        BlockPos site = h.absolutePos(new BlockPos(24, 2, 2));
+        ItemEntity drop = new ItemEntity(
+                h.getLevel(), site.getX() + 0.5, site.getY() + 0.5, site.getZ() + 0.5, new ItemStack(Items.OAK_LOG, 3));
+        h.getLevel().addFreshEntity(drop);
+        CompanionCarryData store = CompanionCarryData.get(h.getLevel().getServer());
+        store.record(
+                owner.getUUID(),
+                new net.minecraft.nbt.CompoundTag(),
+                new DeathRecord(
+                        "overworld",
+                        site.getX(),
+                        site.getY(),
+                        site.getZ(),
+                        "test",
+                        "test",
+                        h.getLevel().getGameTime(),
+                        new DeathRecord.Drops(List.of(drop.getUUID()), List.of(), false),
+                        null));
+        ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 60, () -> false);
+        String[] summary = {""};
+        runner.setEventSink(new TaskEventSink() {
+            @Override
+            public void onFinished(int id, String toolName, TaskStatus status, String text) {
+                summary[0] = status + ": " + text;
+            }
+
+            @Override
+            public void onCancelled(int id, String toolName, String reason) {
+                summary[0] = "cancelled: " + reason;
+            }
+        });
+        runner.start(new RecoverDropsTask(), "recover_drops");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(
+                    c.inventory().countItem(Items.OAK_LOG) >= 3,
+                    "the far drop was not fetched, state " + summary[0] + ", position " + c.blockPosition());
+            h.assertTrue(store.openDrops(owner.getUUID()).isEmpty(), "a finished recovery clears the record");
+        });
     }
 
     @GameTest(maxTicks = 400)
