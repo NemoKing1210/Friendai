@@ -75,7 +75,6 @@ import dev.friendai.server.execution.tools.TaskToolDefinition;
 import dev.friendai.server.instructions.SkillService;
 import dev.friendai.task.TaskStatus;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -104,7 +103,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
     private final PlacedService placedService;
     private final Supplier<PerceptionContext> perceptionContext;
     private final dev.friendai.features.knowledge.search.SearchHintStore searchHints;
-    private final Map<UUID, CompanionSession> sessions = new HashMap<>();
+    private final SessionRegistry sessions = new SessionRegistry();
     private final GoalOutcomeRecorder goalOutcomes;
     private final OwnerSkillTools ownerSkills;
     private final PlannerFacade plannersFacade;
@@ -340,7 +339,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                 goals,
                 this::entryFor,
                 owner -> sessions.get(owner),
-                () -> List.copyOf(sessions.values()),
+                sessions::snapshot,
                 this::post);
         reload(initial);
         emitStreamStart();
@@ -576,7 +575,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
     }
 
     private CompanionSession session(UUID owner) {
-        return sessions.computeIfAbsent(owner, id -> new CompanionSession(id, memory.book(id)));
+        return sessions.getOrCreate(owner, id -> new CompanionSession(id, memory.book(id)));
     }
 
     private Optional<CompanionSession> entryFor(UUID owner) {
@@ -728,7 +727,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
     public void stopAcceptingWork() {
         if (!acceptingWork) return;
         acceptingWork = false;
-        for (CompanionSession session : List.copyOf(sessions.values())) session.invalidateBrain();
+        for (CompanionSession session : sessions.snapshot()) session.invalidateBrain();
         invalidateTradingAuthorities("server stopping");
     }
 
@@ -1367,6 +1366,6 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
 
     /** Revokes every runtime trading scope when server trading is disabled. */
     public void invalidateTradingAuthorities(String reason) {
-        sessions.values().forEach(session -> session.tradingAuthority().invalidateAll(reason));
+        sessions.snapshot().forEach(session -> session.tradingAuthority().invalidateAll(reason));
     }
 }
