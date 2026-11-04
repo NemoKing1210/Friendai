@@ -17,6 +17,8 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 - The companion no longer empties a chest whose lid is blocked or that its owner locked: storage is opened through vanilla's own menu check, and a double chest is still read as one container.
 - Next and Previous in the trader list now move to the page they ask for instead of sending the first page again; changing the filter or the direction still starts at the first page.
 - A free-time plan that arrives after the companion was teleported, dismissed or stopped is dropped instead of queueing work at the new position.
+- A skin picked in the appearance tab is no longer uploaded to a different server after a reconnect; the client says the connection changed instead.
+- A microphone preview that finishes late can no longer stop a recording that started after it.
 
 ## [0.202.1] - 2026-11-04
 

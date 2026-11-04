@@ -133,15 +133,28 @@ public final class CompanionRequests {
     }
 
     /** Sends a validated skin; an empty array resets the companion to the default look. */
-    public static void uploadSkin(byte[] png, boolean slim) {
-        if (skinsSupported()) ClientPlayNetworking.send(new SkinUploadC2SPayload(slim, png));
+    public static boolean uploadSkin(ClientSessionId expectedSession, byte[] png, boolean slim) {
+        if (!skinsSupported(expectedSession)) return false;
+        ClientPlayNetworking.send(new SkinUploadC2SPayload(slim, png));
+        return true;
+    }
+
+    /** Sends a validated skin for the current connection, when the caller has no operation to scope it to. */
+    public static boolean uploadSkin(byte[] png, boolean slim) {
+        return uploadSkin(FriendaiClient.runtime().sessionId(), png, slim);
+    }
+
+    /** A skin belongs to the session that started the operation, not to whatever connection exists when it finishes. */
+    public static boolean skinsSupported(ClientSessionId expectedSession) {
+        return dev.friendai.features.appearance.SkinUploadSession.allows(
+                        expectedSession,
+                        FriendaiClient.runtime().sessionId(),
+                        FriendaiClient.runtime().allowsAppearance(expectedSession))
+                && ClientPlayNetworking.canSend(SkinUploadC2SPayload.TYPE);
     }
 
     public static boolean skinsSupported() {
-        ClientSessionId session = FriendaiClient.runtime().sessionId();
-        return session != null
-                && FriendaiClient.runtime().allowsAppearance(session)
-                && ClientPlayNetworking.canSend(SkinUploadC2SPayload.TYPE);
+        return skinsSupported(FriendaiClient.runtime().sessionId());
     }
 
     public static boolean tradingSupported() {

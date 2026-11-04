@@ -16,6 +16,15 @@ import javax.sound.sampled.TargetDataLine;
 
 /** Records 16 kHz, 16-bit, mono, little-endian PCM from a microphone. */
 public final class MicCapture implements AutoCloseable {
+    /** One capture; only the token that is current may stop the line. */
+    public static final class Capture {
+        private final long token;
+
+        private Capture(long token) {
+            this.token = token;
+        }
+    }
+
     private static final AudioFormat FORMAT = new AudioFormat(16000f, 16, 1, true, false);
     private static final int BYTES_PER_SECOND = 32000;
     private static final int DEFAULT_PRE_ROLL_SECONDS = 2;
@@ -31,6 +40,7 @@ public final class MicCapture implements AutoCloseable {
     private TargetDataLine line;
     private Thread reader;
     private ByteArrayOutputStream buffer;
+    private final CaptureOwnership ownership = new CaptureOwnership();
 
     /** Names of the audio inputs that can record in our format. */
     public static List<String> devices() {
@@ -45,8 +55,8 @@ public final class MicCapture implements AutoCloseable {
     }
 
     /** @param deviceName null means the system default */
-    public synchronized void start(String deviceName, int maxSeconds) throws LineUnavailableException {
-        start(deviceName, maxSeconds, null);
+    public synchronized Capture start(String deviceName, int maxSeconds) throws LineUnavailableException {
+        return start(deviceName, maxSeconds, null);
     }
 
     /**
@@ -56,10 +66,10 @@ public final class MicCapture implements AutoCloseable {
      * @param listener receives every chunk as it arrives; a thrown failure stops the recording and is reported by
      *     {@link #listenerFailure()}
      */
-    public synchronized void start(String deviceName, int maxSeconds, ChunkListener listener)
+    public synchronized Capture start(String deviceName, int maxSeconds, ChunkListener listener)
             throws LineUnavailableException {
         if (recording) {
-            return;
+            return null;
         }
         TargetDataLine opened = openLine(deviceName);
         ByteArrayOutputStream sink = new ByteArrayOutputStream();
@@ -69,9 +79,11 @@ public final class MicCapture implements AutoCloseable {
         monitoring = false;
         recording = true;
         level = 0f;
+        long token = ownership.begin();
         reader = new Thread(() -> read(opened, sink, maxSeconds * BYTES_PER_SECOND, listener, null), "friendai-mic");
         reader.setDaemon(true);
         reader.start();
+        return new Capture(token);
     }
 
     /**
@@ -103,6 +115,14 @@ public final class MicCapture implements AutoCloseable {
     }
 
     /** Stops recording and returns what was captured (empty while monitoring, or if nothing was recording). */
+    /** Stops the capture this token owns; byte[] is empty when it was already superseded. */
+    public synchronized byte[] stop(Capture owner) {
+        if (owner == null || !ownership.owns(owner.token)) {
+            return null;
+        }
+        return stop();
+    }
+
     public synchronized byte[] stop() {
         recording = false;
         TargetDataLine closingLine = line;
@@ -113,6 +133,7 @@ public final class MicCapture implements AutoCloseable {
         buffer = null;
         monitoring = false;
         level = 0f;
+        ownership.end(ownership.current());
         if (closingLine == null) {
             return new byte[0];
         }

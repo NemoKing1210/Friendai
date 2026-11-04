@@ -346,6 +346,7 @@
   "friendai.menu.appearance.choose_file": "选择 PNG 文件…",
   "friendai.menu.appearance.username_hint": "Minecraft 用户名",
   "friendai.menu.appearance.url_hint": "皮肤 PNG 的 https:// 链接",
+  "friendai.menu.appearance.connection_changed": "连接已更改。请重试。",
   "friendai.menu.appearance.apply": "应用",
   "friendai.menu.appearance.wide": "宽臂",
   "friendai.menu.appearance.slim": "细臂",

@@ -346,6 +346,7 @@
   "friendai.menu.appearance.choose_file": "Выбрать PNG-файл...",
   "friendai.menu.appearance.username_hint": "Ник в Minecraft",
   "friendai.menu.appearance.url_hint": "https://-ссылка на PNG скина",
+  "friendai.menu.appearance.connection_changed": "Соединение изменилось. Попробуйте снова.",
   "friendai.menu.appearance.apply": "Применить",
   "friendai.menu.appearance.wide": "Классика",
   "friendai.menu.appearance.slim": "Тонкие руки",

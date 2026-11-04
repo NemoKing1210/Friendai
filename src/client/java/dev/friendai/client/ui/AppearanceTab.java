@@ -1,6 +1,8 @@
 package dev.friendai.client.ui;
 
+import dev.friendai.client.FriendaiClient;
 import dev.friendai.client.skin.SkinSources;
+import dev.friendai.presentation.companion.ClientSessionId;
 import dev.friendai.presentation.companion.CompanionSnapshot;
 import java.net.URI;
 import java.util.function.Consumer;
@@ -175,11 +177,13 @@ final class AppearanceTab extends StatefulMenuTab {
     }
 
     private static void run(Consumer<Consumer<SkinSources.Outcome>> source) {
+        // The fetch may finish after a reconnect: the skin belongs to the session that started it.
+        ClientSessionId session = FriendaiClient.runtime().sessionId();
         say(Component.translatable("friendai.menu.appearance.working"), Ui.DIM);
-        source.accept(AppearanceTab::onOutcome);
+        source.accept(outcome -> onOutcome(outcome, session));
     }
 
-    private static void onOutcome(SkinSources.Outcome outcome) {
+    private static void onOutcome(SkinSources.Outcome outcome, ClientSessionId session) {
         if (outcome.picked() == null) {
             say(outcome.error(), Ui.BAD);
             return;
@@ -188,14 +192,17 @@ final class AppearanceTab extends StatefulMenuTab {
             slim = outcome.picked().slim();
         }
         lastPng = outcome.picked().png();
-        CompanionRequests.uploadSkin(lastPng, slim);
+        if (!CompanionRequests.uploadSkin(session, lastPng, slim)) {
+            say(Component.translatable("friendai.menu.appearance.connection_changed"), Ui.BAD);
+            return;
+        }
         say(Component.translatable("friendai.menu.appearance.applied"), Ui.GOOD);
     }
 
     private static void setSlim(boolean value) {
         slim = value;
         if (lastPng != null) {
-            CompanionRequests.uploadSkin(lastPng, slim);
+            CompanionRequests.uploadSkin(FriendaiClient.runtime().sessionId(), lastPng, slim);
         }
     }
 

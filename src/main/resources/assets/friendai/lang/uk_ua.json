@@ -346,6 +346,7 @@
   "friendai.menu.appearance.choose_file": "Виберіть файл PNG…",
   "friendai.menu.appearance.username_hint": "Нікнейм Minecraft",
   "friendai.menu.appearance.url_hint": "Посилання https:// на PNG зі скіном",
+  "friendai.menu.appearance.connection_changed": "З'єднання змінилося. Спробуйте ще раз.",
   "friendai.menu.appearance.apply": "Застосувати",
   "friendai.menu.appearance.wide": "Широкий",
   "friendai.menu.appearance.slim": "Тонкий",

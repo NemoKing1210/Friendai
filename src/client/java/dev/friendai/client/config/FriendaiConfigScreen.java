@@ -2755,11 +2755,12 @@ public final class FriendaiConfigScreen {
         int generation = VoiceRuntime.nextCaptureGeneration();
         MicCapture mic = VoiceRuntime.mic();
         CompletableFuture.runAsync(() -> {
+            MicCapture.Capture capture = null;
             try {
-                mic.start(stt.inputDevice, 5);
+                capture = mic.start(stt.inputDevice, 5);
                 Thread.sleep(3_000);
-                byte[] pcm = mic.stop();
-                if (!VoiceRuntime.isCurrentOperation(sessionId, generation)) return;
+                byte[] pcm = capture == null ? null : mic.stop(capture);
+                if (pcm == null || !VoiceRuntime.isCurrentOperation(sessionId, generation)) return;
                 recognizer
                         .transcribe(PcmConverter.toFloat(pcm), stt.language)
                         .whenComplete((text, error) -> Minecraft.getInstance().execute(() -> {
@@ -2770,7 +2771,7 @@ public final class FriendaiConfigScreen {
                                             : Component.translatable("friendai.config.voice.test_result", text));
                         }));
             } catch (Exception e) {
-                mic.stop();
+                if (capture != null) mic.stop(capture);
                 Minecraft.getInstance().execute(() -> {
                     if (VoiceRuntime.isCurrentOperation(sessionId, generation)) {
                         toast(Components.of(UserMessage.of("friendai.voice.error.no_mic")));

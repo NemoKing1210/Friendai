@@ -346,6 +346,7 @@
   "friendai.menu.appearance.choose_file": "Escolher um arquivo PNG...",
   "friendai.menu.appearance.username_hint": "Nome de usuário do Minecraft",
   "friendai.menu.appearance.url_hint": "Link https:// para um PNG de skin",
+  "friendai.menu.appearance.connection_changed": "A conexão mudou. Tente novamente.",
   "friendai.menu.appearance.apply": "Aplicar",
   "friendai.menu.appearance.wide": "Larga",
   "friendai.menu.appearance.slim": "Esguia",
