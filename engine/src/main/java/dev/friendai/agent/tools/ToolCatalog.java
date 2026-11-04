@@ -173,6 +173,11 @@ public final class ToolCatalog {
                 "excavate",
                 "pickup_items");
         group(metas, ToolGroup.INVENTORY, Cost.LOW, "give_items", "drop_items", "show_inventory", "equip_item");
+        hint(
+                metas,
+                "give_items",
+                "- Use it to finish a job that was for the owner: their request is the permission to hand the items"
+                        + " over, so give them yourself instead of asking.");
         group(metas, ToolGroup.BUILDING, Cost.MEDIUM, "place_block", "use_block", "light_area", "clear_area");
         group(metas, ToolGroup.STORAGE, Cost.MEDIUM, "store_items", "take_items", "check_container", "deposit_items");
         metas.add(new ToolMeta("move_items", ToolGroup.STORAGE, false, "", List.of(), Cost.MEDIUM));
