@@ -1,6 +1,6 @@
-package dev.friendai.features.mining.minecraft.mining;
+package dev.friendai.world.block;
 
-import dev.friendai.features.mining.DropRisk;
+import dev.friendai.foundation.mining.DropRisk;
 import dev.friendai.foundation.places.Place;
 import dev.friendai.foundation.places.PlaceKind;
 import dev.friendai.foundation.spatial.Pos;

@@ -1,4 +1,4 @@
-package dev.friendai.features.mining.minecraft.mining;
+package dev.friendai.world.block;
 
 import dev.friendai.foundation.spatial.BreakProgress;
 import dev.friendai.task.TaskContext;

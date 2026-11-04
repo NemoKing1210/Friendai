@@ -11,13 +11,10 @@ import dev.friendai.features.construction.minecraft.build.ScaffoldCleanupTask;
 import dev.friendai.features.mining.MiningBounds;
 import dev.friendai.features.mining.minecraft.mining.BlockBreaker;
 import dev.friendai.features.mining.minecraft.mining.BlockFilter;
-import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
 import dev.friendai.features.mining.minecraft.mining.CatchPlatform;
 import dev.friendai.features.mining.minecraft.mining.DropGuard;
 import dev.friendai.features.mining.minecraft.mining.DropRoom;
-import dev.friendai.features.mining.minecraft.mining.MiningRefusal;
 import dev.friendai.features.mining.minecraft.mining.MiningSession;
-import dev.friendai.features.mining.minecraft.mining.MiningToolView;
 import dev.friendai.features.mining.minecraft.mining.TemporaryBlockCleanup;
 import dev.friendai.features.mining.minecraft.mining.TreeFinder;
 import dev.friendai.features.mining.tree.TreeCell;
@@ -31,6 +28,9 @@ import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.inventory.DropCollector;
 import dev.friendai.task.inventory.ItemMatcher;
+import dev.friendai.world.block.BlockMatcher;
+import dev.friendai.world.block.MiningRefusal;
+import dev.friendai.world.block.MiningToolView;
 import dev.friendai.world.placement.PlacementLedger;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -385,7 +385,7 @@ public final class MineBlocksTask implements Task {
                 lastRefusal = new MiningRefusal.DropUnprotected(
                         platformTarget,
                         null,
-                        dev.friendai.features.mining.DropRisk.Reason.PROTECTED_CELL,
+                        dev.friendai.foundation.mining.DropRisk.Reason.PROTECTED_CELL,
                         finished.failure());
                 blacklist.add(platformTarget);
                 if (breaker != null) {

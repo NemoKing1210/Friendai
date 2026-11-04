@@ -1,4 +1,4 @@
-package dev.friendai.features.mining;
+package dev.friendai.foundation.mining;
 
 import dev.friendai.foundation.spatial.Cell;
 import dev.friendai.foundation.spatial.CellView;

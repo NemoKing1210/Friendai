@@ -2,9 +2,9 @@ package dev.friendai.features.crafting.minecraft;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.crafting.Station;
-import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
 import dev.friendai.perception.resource.ResourceCandidates;
 import dev.friendai.task.TaskContext;
+import dev.friendai.world.block.BlockMatcher;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;

@@ -1,4 +1,4 @@
-package dev.friendai.features.mining.minecraft.mining;
+package dev.friendai.world.block;
 
 import java.util.Optional;
 import net.minecraft.core.registries.BuiltInRegistries;

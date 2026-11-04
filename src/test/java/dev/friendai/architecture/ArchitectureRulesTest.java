@@ -311,7 +311,7 @@ class ArchitectureRulesTest {
                 edge("dev.friendai.features.placements.PlacedBlock", "dev.friendai.foundation.spatial.Pos"),
                 edge(
                         "dev.friendai.features.placements.minecraft.tool.PlacedTools",
-                        "dev.friendai.features.mining.minecraft.mining.BlockMatcher"),
+                        "dev.friendai.world.block.BlockMatcher"),
                 edge("dev.friendai.features.instructions.SkillView", "dev.friendai.features.memory.MenuStatus"),
                 edge(
                         "dev.friendai.features.interaction.minecraft.task.ReachEntityTask",
@@ -328,12 +328,10 @@ class ArchitectureRulesTest {
                 edge(
                         "dev.friendai.features.inventory.minecraft.task.DepositTask",
                         "dev.friendai.features.places.PlaceQuery"),
-                edge(
-                        "dev.friendai.features.mining.minecraft.mining.MiningRefusal",
-                        "dev.friendai.foundation.places.Place"),
+                edge("dev.friendai.world.block.MiningRefusal", "dev.friendai.foundation.places.Place"),
                 edge(
                         "dev.friendai.features.navigation.minecraft.nav.PathExecutor",
-                        "dev.friendai.features.mining.minecraft.mining.BreakAction"),
+                        "dev.friendai.world.block.BreakAction"),
                 edge(
                         "dev.friendai.features.acquisition.minecraft.task.ObtainTask",
                         "dev.friendai.features.creative.minecraft.CreativeItemCapability"),
@@ -346,9 +344,7 @@ class ArchitectureRulesTest {
                 edge(
                         "dev.friendai.features.animals.minecraft.task.LeadTask",
                         "dev.friendai.features.navigation.minecraft.nav.Approach"),
-                edge(
-                        "dev.friendai.features.animals.minecraft.task.HoneyTask",
-                        "dev.friendai.features.mining.minecraft.mining.BlockMatcher"),
+                edge("dev.friendai.features.animals.minecraft.task.HoneyTask", "dev.friendai.world.block.BlockMatcher"),
                 edge(
                         "dev.friendai.features.combat.minecraft.CombatController",
                         "dev.friendai.features.navigation.movement.Facing"),
@@ -375,7 +371,7 @@ class ArchitectureRulesTest {
                         "dev.friendai.foundation.spatial.Pos"),
                 edge(
                         "dev.friendai.features.survival.minecraft.task.SleepTask",
-                        "dev.friendai.features.mining.minecraft.mining.BlockMatcher"),
+                        "dev.friendai.world.block.BlockMatcher"),
                 edge(
                         "dev.friendai.features.survival.minecraft.task.SleepTask",
                         "dev.friendai.features.navigation.minecraft.nav.Approach"),

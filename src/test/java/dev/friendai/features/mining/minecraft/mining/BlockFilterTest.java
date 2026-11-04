@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.friendai.world.block.BlockMatcher;
 import java.util.List;
 import net.minecraft.world.level.block.state.BlockState;
 import org.junit.jupiter.api.Test;

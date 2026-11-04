@@ -1,4 +1,4 @@
-package dev.friendai.features.mining.minecraft.mining;
+package dev.friendai.world.block;
 
 import dev.friendai.entity.CompanionEntity;
 import net.minecraft.server.level.ServerLevel;

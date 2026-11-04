@@ -1,10 +1,10 @@
 package dev.friendai.features.survival.minecraft.task;
 
-import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
 import dev.friendai.features.navigation.minecraft.nav.Approach;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.world.block.BlockMatcher;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;

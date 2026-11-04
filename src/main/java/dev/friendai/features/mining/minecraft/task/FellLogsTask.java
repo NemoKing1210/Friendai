@@ -1,11 +1,11 @@
 package dev.friendai.features.mining.minecraft.task;
 
-import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.inventory.ItemMatcher;
+import dev.friendai.world.block.BlockMatcher;
 import java.util.Map;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;

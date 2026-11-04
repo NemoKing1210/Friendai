@@ -1,4 +1,4 @@
-package dev.friendai.features.mining;
+package dev.friendai.foundation.mining;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;

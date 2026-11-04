@@ -1,14 +1,14 @@
 package dev.friendai.features.navigation.minecraft.nav;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
-import dev.friendai.features.mining.minecraft.mining.BreakAction;
 import dev.friendai.foundation.spatial.BlockList;
 import dev.friendai.foundation.spatial.GoalReach;
 import dev.friendai.foundation.spatial.PathingConfig;
 import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.inventory.DropSettle;
+import dev.friendai.world.block.BlockMatcher;
+import dev.friendai.world.block.BreakAction;
 import dev.friendai.world.movement.LevelCellView;
 import java.util.ArrayList;
 import java.util.HashSet;

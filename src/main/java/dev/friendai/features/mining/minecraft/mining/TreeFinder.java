@@ -4,6 +4,7 @@ import dev.friendai.features.mining.tree.TreeCell;
 import dev.friendai.features.mining.tree.TreeSummary;
 import dev.friendai.features.mining.tree.TrunkExpansion;
 import dev.friendai.foundation.spatial.RelativeDirection;
+import dev.friendai.world.block.BlockMatcher;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
