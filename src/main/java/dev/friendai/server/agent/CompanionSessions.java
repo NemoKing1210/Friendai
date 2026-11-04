@@ -112,6 +112,16 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
     private final Map<UUID, Map<Long, String>> goalFacts = new HashMap<>();
 
     private boolean acceptingWork = true;
+
+    /**
+     * The owner's durable log directory inside the current world. One derivation, shared by {@code logs_search} and
+     * the tests: a companion can only ever read the tree of the world it lives in.
+     */
+    public java.nio.file.Path logRootFor(UUID owner) {
+        return dev.friendai.debug.LogPaths.ownerRoot(
+                server.getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT), owner);
+    }
+
     private final ToolRegistry<CompanionEntity> tools;
     private final dev.friendai.agent.tools.ToolCatalog toolCatalog;
     private final java.util.Set<String> restorableTaskNames;
@@ -215,12 +225,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
 
             @Override
             public java.nio.file.Path logRoot(UUID owner) {
-                return net.fabricmc.loader.api.FabricLoader.getInstance()
-                        .getGameDir()
-                        .resolve("logs")
-                        .resolve("friendai")
-                        .resolve("owners")
-                        .resolve(owner.toString());
+                return logRootFor(owner);
             }
 
             @Override

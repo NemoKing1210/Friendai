@@ -28,6 +28,16 @@ import org.junit.jupiter.api.io.TempDir;
 class DiagnosticServiceTest {
     private static final UUID OWNER = UUID.fromString("00000000-0000-0000-0000-0000000000bb");
 
+    private static DiagnosticService service(Path gameDir) {
+        return new DiagnosticService(gameDir.resolve("logs").resolve("friendai"));
+    }
+
+    @Test
+    void bundlesLiveUnderTheLogRootItWasGiven(@TempDir Path worldPath) {
+        Path logRoot = worldPath.resolve("friendai").resolve("logs");
+        assertEquals(logRoot.resolve("diagnostics"), new DiagnosticService(logRoot).root());
+    }
+
     private static DiagnosticSnapshot snapshot(Path gameDir) {
         return new DiagnosticSnapshot(
                 "Alex",
@@ -102,7 +112,7 @@ class DiagnosticServiceTest {
     @Test
     void writesManifestEventsAndIncidentForAHealthyFlush(@TempDir Path gameDir) throws Exception {
         writeLog(gameDir);
-        try (DiagnosticService service = new DiagnosticService(gameDir)) {
+        try (DiagnosticService service = service(gameDir)) {
             CompletableFuture<LogFlushResult> flush = CompletableFuture.completedFuture(
                     new LogFlushResult(LogFlushResult.Status.FLUSHED, gameDir.resolve("x.jsonl"), 3L, 3L, 2L, 1L, ""));
             Path bundle = service.writeIncident(Map.of("summary.txt", "facts"), snapshot(gameDir), flush, text -> text)
@@ -130,7 +140,7 @@ class DiagnosticServiceTest {
     @Test
     void aBusyFlushMarksTheBundlePartialInsteadOfClaimingCompletion(@TempDir Path gameDir) throws Exception {
         writeLog(gameDir);
-        try (DiagnosticService service = new DiagnosticService(gameDir)) {
+        try (DiagnosticService service = service(gameDir)) {
             Path bundle = service.writeIncident(
                             Map.of(),
                             snapshot(gameDir),
@@ -156,7 +166,7 @@ class DiagnosticServiceTest {
 
     @Test
     void aThirdConcurrentExportIsRejectedWhileTwoAreQueued(@TempDir Path gameDir) throws Exception {
-        try (DiagnosticService service = new DiagnosticService(gameDir)) {
+        try (DiagnosticService service = service(gameDir)) {
             CompletableFuture<LogFlushResult> never = new CompletableFuture<>();
             CompletableFuture<Path> first = service.writeIncident(Map.of(), snapshot(gameDir), never, text -> text);
             CompletableFuture<Path> second = service.writeIncident(Map.of(), snapshot(gameDir), never, text -> text);

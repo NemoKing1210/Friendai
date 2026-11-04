@@ -350,12 +350,9 @@ public final class FriendaiCommands {
         DiagnosticSnapshot snapshot = new DiagnosticSnapshot(
                 target.getName().getString(),
                 target.getUUID(),
-                net.fabricmc.loader.api.FabricLoader.getInstance()
-                        .getGameDir()
-                        .resolve("logs")
-                        .resolve("friendai")
-                        .resolve("owners")
-                        .resolve(target.getUUID().toString()),
+                dev.friendai.debug.LogPaths.ownerRoot(
+                        ctx.getSource().getServer().getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT),
+                        target.getUUID()),
                 LogNames.bootId(),
                 versionOf("friendai"),
                 versionOf("minecraft"),

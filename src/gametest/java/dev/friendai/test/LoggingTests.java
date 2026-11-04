@@ -98,6 +98,12 @@ public class LoggingTests {
         h.assertFalse(
                 fileLog.root().toAbsolutePath().equals(sharedRoot.toAbsolutePath()),
                 "the server writer must not use the shared game root " + sharedRoot);
+        UUID owner = UUID.randomUUID();
+        Path ownerRoot = dev.friendai.debug.LogPaths.ownerRoot(
+                server.getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT), owner);
+        h.assertTrue(
+                runtime.sessions().logRootFor(owner).toAbsolutePath().equals(ownerRoot.toAbsolutePath()),
+                "logs_search root " + runtime.sessions().logRootFor(owner) + " is not " + ownerRoot);
         h.succeed();
     }
 

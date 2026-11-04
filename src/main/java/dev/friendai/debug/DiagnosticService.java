@@ -55,8 +55,8 @@ public final class DiagnosticService implements AutoCloseable {
     private final ExecutorService executor;
     private final AtomicInteger inFlight = new AtomicInteger();
 
-    public DiagnosticService(Path gameDir) {
-        this.root = gameDir.resolve("logs").resolve("friendai").resolve("diagnostics");
+    public DiagnosticService(Path logRoot) {
+        this.root = logRoot.resolve("diagnostics");
         this.executor = Executors.newSingleThreadExecutor(task -> {
             Thread thread = new Thread(task, "friendai-diagnostics");
             thread.setDaemon(true);

@@ -109,26 +109,26 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
     ServerServiceGraph(MinecraftServer server, RuntimeResources resources) {
         this.server = server;
         OwnerStoreWriter writer = resources.own(new OwnerStoreWriter());
-        this.diagnostics = resources.own(new dev.friendai.debug.DiagnosticService(
-                FabricLoader.getInstance().getGameDir()));
-        this.store =
-                ConfigStores.server(FabricLoader.getInstance().getConfigDir().resolve("friendai-server.json"));
-        this.config = store.loadWithDefaultsOnUnsupportedVersion();
-        this.configuration = new ServerConfiguration(
-                entry -> FriendaiMod.LOGGER.warn("Unknown pathing break blacklist entry: {}", entry));
-        logProblems(configuration.apply(config));
         java.nio.file.Path worldPath;
         try {
             worldPath = server.getWorldPath(LevelResource.ROOT);
         } catch (RuntimeException unavailable) {
             worldPath = null;
         }
+        java.nio.file.Path logRoot = worldPath == null
+                ? dev.friendai.debug.LogPaths.unavailableRoot(
+                        FabricLoader.getInstance().getGameDir())
+                : dev.friendai.debug.LogPaths.worldRoot(worldPath);
+        this.diagnostics = resources.own(new dev.friendai.debug.DiagnosticService(logRoot));
+        this.store =
+                ConfigStores.server(FabricLoader.getInstance().getConfigDir().resolve("friendai-server.json"));
+        this.config = store.loadWithDefaultsOnUnsupportedVersion();
+        this.configuration = new ServerConfiguration(
+                entry -> FriendaiMod.LOGGER.warn("Unknown pathing break blacklist entry: {}", entry));
+        logProblems(configuration.apply(config));
         String boot = dev.friendai.foundation.diagnostics.LogNames.bootId();
         this.fileLog = resources.own(new dev.friendai.debug.LogWriterService(
-                worldPath == null
-                        ? dev.friendai.debug.LogPaths.unavailableRoot(
-                                FabricLoader.getInstance().getGameDir())
-                        : dev.friendai.debug.LogPaths.worldRoot(worldPath),
+                logRoot,
                 dev.friendai.debug.LogWriterScope.SERVER,
                 boot,
                 dev.friendai.debug.LogPaths.worldName(worldPath),

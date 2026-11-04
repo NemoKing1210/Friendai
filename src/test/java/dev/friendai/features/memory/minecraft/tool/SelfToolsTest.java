@@ -18,15 +18,27 @@ import dev.friendai.features.memory.transcript.Speaker;
 import dev.friendai.features.memory.transcript.TranscriptBook;
 import dev.friendai.features.memory.transcript.TranscriptLimits;
 import dev.friendai.foundation.diagnostics.DebugLog;
+import dev.friendai.foundation.diagnostics.LogCategory;
+import dev.friendai.foundation.diagnostics.LogEvents;
+import dev.friendai.foundation.diagnostics.LogFileHeader;
+import dev.friendai.foundation.diagnostics.LogJson;
 import dev.friendai.foundation.diagnostics.LogKind;
+import dev.friendai.foundation.diagnostics.LogLevel;
+import dev.friendai.foundation.diagnostics.LogNames;
+import dev.friendai.foundation.diagnostics.LogRecord;
 import dev.friendai.server.execution.tools.FeatureToolRegistry;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class SelfToolsTest {
     private static final UUID OWNER = UUID.fromString("00000000-0000-0000-0000-0000000000a1");
@@ -35,6 +47,9 @@ class SelfToolsTest {
     private static final Caller OWNER_CALLER = new Caller(OWNER, "Alex", AccessLevel.OWNER);
     private static final Caller TRUSTED_CALLER = new Caller(TRUSTED, "Tia", AccessLevel.TRUSTED);
     private static final Caller GUEST_CALLER = new Caller(GUEST, "Gus", AccessLevel.GUEST);
+
+    @TempDir
+    Path temp;
 
     private final Stub access = new Stub();
     private ToolRegistry<CompanionEntity> tools;
@@ -99,6 +114,53 @@ class SelfToolsTest {
         assertTrue(owner.content().contains("No files yet"));
         ToolResult guest = call("logs_search", new JsonObject(), TRUSTED_CALLER);
         assertTrue(guest.error());
+    }
+
+    @Test
+    void aSearchNeverSeesAnotherWorld() throws IOException {
+        Path ownersA = temp.resolve("worlds/A/friendai/logs/owners").resolve(OWNER.toString());
+        Path ownersB = temp.resolve("worlds/B/friendai/logs/owners").resolve(OWNER.toString());
+        Path legacy = temp.resolve("legacy/owners").resolve(OWNER.toString());
+        writeSession(ownersA, "decoy-world-a");
+        writeSession(legacy, "decoy-legacy");
+        Files.createDirectories(ownersB);
+        access.logRoot = ownersB;
+
+        ToolResult result = call("logs_search", new JsonObject(), OWNER_CALLER);
+
+        assertFalse(result.error());
+        assertTrue(result.content().contains("File logging is off"), result.content());
+        assertFalse(result.content().contains("decoy-world-a"));
+        assertFalse(result.content().contains("decoy-legacy"));
+    }
+
+    private static void writeSession(Path ownerRoot, String marker) throws IOException {
+        Path dir = ownerRoot.resolve(LogNames.dayDir(System.currentTimeMillis()));
+        Files.createDirectories(dir);
+        LogFileHeader header =
+                new LogFileHeader(1, "boot-1", "New World", "0.203.0", "26.3", OWNER, "Alex", "normal", List.of(), 0L);
+        LogRecord record = new LogRecord(
+                1L,
+                System.currentTimeMillis(),
+                LogLevel.INFO,
+                LogCategory.TASK,
+                null,
+                LogEvents.TASK_START,
+                OWNER,
+                null,
+                "s1",
+                1L,
+                0L,
+                0L,
+                0L,
+                "obtain_item",
+                0L,
+                -1L,
+                marker,
+                Map.of(),
+                null);
+        Files.writeString(
+                dir.resolve("session-1.jsonl"), LogJson.encodeHeader(header) + "\n" + LogJson.encode(record) + "\n");
     }
 
     @Test
@@ -241,6 +303,7 @@ class SelfToolsTest {
     }
 
     private static final class Stub implements SelfAccess {
+        Path logRoot;
         final DebugLog log = new DebugLog(500, 2_000, text -> text, () -> 0L);
         final TranscriptBook transcript = new TranscriptBook(TranscriptLimits.DEFAULTS);
         final MemoryBook book = new MemoryBook();
@@ -261,6 +324,11 @@ class SelfToolsTest {
         @Override
         public DebugLog log(UUID owner) {
             return log;
+        }
+
+        @Override
+        public Path logRoot(UUID owner) {
+            return logRoot;
         }
 
         @Override
