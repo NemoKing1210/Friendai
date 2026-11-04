@@ -181,7 +181,65 @@ public class ItemTaskTests {
         });
     }
 
-    @GameTest(maxTicks = 400)
+    /**
+     * A swapped-out tool lands at the companion's feet when the bag is full (`ToolSelector.putAway`), so a queued
+     * delivery must own what lies beside it instead of reporting the stack missing.
+     */
+    @GameTest(maxTicks = 600)
+    public void giveCollectsAStackDroppedAtItsFeet(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 8.5, 2, 2.5);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(owner.getUUID());
+        ItemEntity onTheGround = dropItem(h, 3.2, 2, 2.5, new ItemStack(Items.STONE_AXE));
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(new GiveItemsTask(ItemMatcher.parse("minecraft:stone_axe").orElseThrow(), 1), "give_items");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.equals("gave 1 minecraft:stone_axe"), "summary was " + result.summary);
+            h.assertTrue(onTheGround.isRemoved(), "the stack on the ground was taken, not left behind");
+        });
+    }
+
+    @GameTest(maxTicks = 600)
+    public void giveSplitsBetweenTheBagAndTheHand(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 4.5, 2, 2.5);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(owner.getUUID());
+        // A stone axe does not stack: two of them are two slots, and the third is in the hand.
+        c.inventory().addItem(new ItemStack(Items.STONE_AXE));
+        c.inventory().addItem(new ItemStack(Items.STONE_AXE));
+        c.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.STONE_AXE));
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(new GiveItemsTask(ItemMatcher.parse("minecraft:stone_axe").orElseThrow(), 3), "give_items");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.equals("gave 3 minecraft:stone_axe"), "summary was " + result.summary);
+        });
+    }
+
+    @GameTest(maxTicks = 200)
+    public void giveReportsAMissingStackInPlainWords(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 8.5, 2, 2.5);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(owner.getUUID());
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(new GiveItemsTask(ItemMatcher.parse("minecraft:stone_axe").orElseThrow(), 1), "give_items");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.FAILED, "expected a failure: " + result.status);
+            h.assertTrue(result.summary.equals("I don't have minecraft:stone_axe"), "summary was " + result.summary);
+        });
+    }
+
+    @GameTest(maxTicks = 600)
     public void giveDropsTowardOwner(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 8.5, 2, 2.5);
