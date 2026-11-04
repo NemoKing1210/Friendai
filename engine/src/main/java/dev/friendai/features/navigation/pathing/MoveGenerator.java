@@ -87,7 +87,7 @@ public final class MoveGenerator {
         swim(from, headUnderwater, out);
         climb(from, out);
         dig(from, out);
-        digAscend(from, out);
+        digAscend(from, fromFeet, out);
         digDescend(from, out);
         pillar(from, placedSoFar, placeable, fromFeet, out);
         bridge(from, placedSoFar, placeable, out);
@@ -153,6 +153,11 @@ public final class MoveGenerator {
      * swimming through it costs more than the jump.
      */
     private void leaps(Node from, int[] d, double fromFeet, Consumer<PathStep> out) {
+        // A vanilla jump needs the cell above the head free: a ceiling directly over the body blocks the take-off, so
+        // a covered cell is walked out of instead of leapt from.
+        if (!enterable(view.at(from.pos().offset(0, 2, 0)))) {
+            return;
+        }
         int openBelow = LeapPhysics.MAX_DROP;
         boolean roofClear = true;
         for (int width = 1; width <= LeapPhysics.MAX_WIDTH; width++) {
@@ -352,7 +357,12 @@ public final class MoveGenerator {
         }
         boolean headInWater = view.at(to.head()).kind() == Cell.Kind.WATER;
         boolean rising = to.y() > from.y();
-        // A rising stroke in a column reaches the surface; only a lateral submerged run spends the breath budget.
+        // A rising stroke clears the breath count only when the water left above the head fits into the breath that
+        // is left; in a long flooded shaft it is one more submerged step, or a body could reset the count every tick
+        // by rising and never spend it.
+        boolean surfaces = headInWater && rising && surfacesWithin(to.head(), MAX_UNDERWATER_RUN - headUnderwater);
+        // A rising stroke is never refused: it is the way out, and a route that cannot surface would strand the body
+        // with more breath spent than the limit. Only a lateral submerged run is held to the limit.
         if (headInWater && !rising && headUnderwater >= MAX_UNDERWATER_RUN) {
             return;
         }
@@ -363,8 +373,18 @@ public final class MoveGenerator {
                 to,
                 Move.SWIM,
                 headInWater ? cost * SUBMERGED_FACTOR : cost,
-                headInWater && !rising ? headUnderwater + 1 : 0,
+                headInWater && !surfaces ? headUnderwater + 1 : 0,
                 out);
+    }
+
+    /** Whether fewer than {@code strokes} rising swims bring the head out of water. */
+    private boolean surfacesWithin(Pos head, int strokes) {
+        for (int k = 1; k <= strokes; k++) {
+            if (view.at(head.x(), head.y() + k, head.z()).kind() != Cell.Kind.WATER) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void climb(Node from, Consumer<PathStep> out) {
@@ -408,10 +428,10 @@ public final class MoveGenerator {
     }
 
     /** Dig the cells above the head and over the neighbour, then step up. */
-    private void digAscend(Node from, Consumer<PathStep> out) {
+    private void digAscend(Node from, double fromFeet, Consumer<PathStep> out) {
         for (int[] d : DIRECTIONS) {
             Node to = new Node(from.x() + d[0], from.y() + 1, from.z() + d[1]);
-            if (standable(view, to)) {
+            if (standable(view, to) || !canRise(fromFeet, to)) {
                 continue;
             }
             List<Pos> blocking = new ArrayList<>();
@@ -534,7 +554,11 @@ public final class MoveGenerator {
         return footOk && headOk && (supported || water);
     }
 
-    /** Adds the falling blocks a dig brings down on top of it. */
+    /**
+     * Adds the falling blocks a dig brings down and orders the whole list top-down. A block above a cell that is
+     * cleared later would drop into the space just opened; cleared first, it loses its support after it is gone, so
+     * the cell stays free. The executor breaks the list in this order.
+     */
     private List<Pos> withFalls(List<Pos> blocking) {
         if (blocking.isEmpty()) {
             return blocking;
@@ -547,7 +571,9 @@ public final class MoveGenerator {
                 above = above.offset(0, 1, 0);
             }
         }
-        return new ArrayList<>(all);
+        List<Pos> ordered = new ArrayList<>(all);
+        ordered.sort((a, b) -> Integer.compare(b.y(), a.y()));
+        return ordered;
     }
 
     private boolean canBreakAll(List<Pos> cells, Node from) {

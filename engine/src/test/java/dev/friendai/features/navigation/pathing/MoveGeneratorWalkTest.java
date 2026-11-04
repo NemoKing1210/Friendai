@@ -163,6 +163,18 @@ class MoveGeneratorWalkTest {
     }
 
     @Test
+    void doesNotLeapFromACoveredCell() {
+        // Vanilla cancels the jump when the cell above the head is filled, so a covered cell is never a take-off.
+        GridCellView roofed = new GridCellView("#.#", "...", "...", "#..");
+        assertNull(stepTo(stepsFrom(roofed, new Node(0, 1, 0)), 2, 1, 0));
+
+        GridCellView open = new GridCellView("#.#", "...", "...", "...");
+        assertEquals(
+                Move.JUMP_GAP,
+                stepTo(stepsFrom(open, new Node(0, 1, 0)), 2, 1, 0).move());
+    }
+
+    @Test
     void jumpsDownAcrossAWiderGapThanOnTheFlat() {
         // Falling gives the leap more flight than a landing on the same level.
         GridCellView view =
@@ -210,6 +222,31 @@ class MoveGeneratorWalkTest {
         List<PathStep> tired = new ArrayList<>();
         new MoveGenerator(view, COSTS, new GoalPoint(99, 99, 99, 0, 0)).neighbours(from, 0, 0, 8, tired::add);
         assertTrue(tired.stream().noneMatch(step -> step.headUnderwater() > 0));
+    }
+
+    @Test
+    void aLongFloodedShaftDoesNotResetTheBreathBudget() {
+        // No air above the head in this shaft, so rising is one more submerged stroke, not a surface to breathe at.
+        GridCellView shaft = new GridCellView("###", "~~~", "~~~", "~~~", "~~~", "~~~", "~~~", "~~~", "~~~");
+        List<PathStep> steps = new ArrayList<>();
+        new MoveGenerator(shaft, COSTS, new GoalPoint(99, 99, 99, 0, 0))
+                .neighbours(new Node(1, 1, 0), 0, 0, 4, steps::add);
+        PathStep up = stepTo(steps, 1, 2, 0);
+        assertEquals(Move.SWIM, up.move());
+        assertEquals(5, up.headUnderwater());
+    }
+
+    @Test
+    void aRisingStrokeWithinTheRemainingBreathClearsTheCount() {
+        // Three cells of water with air above the third: two rises reach the surface, and four spent strokes still
+        // leave room for them.
+        GridCellView lake = new GridCellView("###", "~~~", "~~~", "~~~", "...");
+        List<PathStep> steps = new ArrayList<>();
+        new MoveGenerator(lake, COSTS, new GoalPoint(99, 99, 99, 0, 0))
+                .neighbours(new Node(1, 1, 0), 0, 0, 4, steps::add);
+        PathStep up = stepTo(steps, 1, 2, 0);
+        assertEquals(Move.SWIM, up.move());
+        assertEquals(0, up.headUnderwater());
     }
 
     @Test

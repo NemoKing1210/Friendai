@@ -77,4 +77,18 @@ class PartialSupportClimbTest {
         assertNotNull(pillar);
         assertEquals(Move.PILLAR, pillar.move());
     }
+
+    @Test
+    void carpetCannotDigUpOntoABlockTwoAboveItsFloor() {
+        // Digging out the block over the neighbour and stepping into its place is the same one-node rise a plain step
+        // is, so from a carpet it would still be a 1.5-block climb no jump carries.
+        GridCellView carpet = new GridCellView("._.", "..#", "..#", "...");
+        assertNull(stepTo(stepsFrom(carpet, new Node(1, 1, 0), 0), 2, 2, 0));
+
+        // From the ground the same dig is a normal one-block rise.
+        GridCellView ground = new GridCellView(".#.", "..#", "..#", "...");
+        PathStep dig = stepTo(stepsFrom(ground, new Node(1, 1, 0), 0), 2, 2, 0);
+        assertNotNull(dig);
+        assertEquals(Move.DIG_ASCEND, dig.move());
+    }
 }

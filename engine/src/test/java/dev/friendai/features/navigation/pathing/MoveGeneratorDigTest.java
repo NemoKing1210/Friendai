@@ -79,6 +79,16 @@ class MoveGeneratorDigTest {
     }
 
     @Test
+    void breaksAFallingBlockBeforeTheCellUnderIt() {
+        // Gravel rests on the stone the tunnel cuts through, one cell above its head. Broken after the stone, it would
+        // drop into the cell just cleared and leave the companion outside a tunnel it thinks it has opened.
+        GridCellView view = new GridCellView("#####", "..#..", "..#..", "..g..");
+        PathStep step = stepTo(stepsFrom(view, new Node(1, 1, 0)), 2, 1, 0);
+        assertEquals(Move.DIG, step.move());
+        assertEquals(List.of(new Pos(2, 3, 0), new Pos(2, 2, 0), new Pos(2, 1, 0)), step.breaks());
+    }
+
+    @Test
     void pillarsWhenBlocksAvailable() {
         GridCellView view = new GridCellView("#", ".", ".", ".");
         PathStep step = stepTo(stepsFrom(view, new Node(0, 1, 0), new GoalPoint(0.5, 3, 0.5, 0.5, 0.5), 3), 0, 2, 0);
