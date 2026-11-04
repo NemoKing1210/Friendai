@@ -50,6 +50,7 @@ public final class CompanionRequestHandler {
         var server = player.level().getServer();
         UUID owner = player.getUUID();
         if (request instanceof ControlRequest.Subscribe) {
+            if (!mayOpen(runtime, owner, "menu", server)) return;
             runtime.debugStream().openMenu(runtime, player, requestId);
             return;
         }
@@ -58,10 +59,12 @@ public final class CompanionRequestHandler {
             return;
         }
         if (request instanceof DebugRequest.MovementStreamSet movement) {
+            if (movement.enabled() && !mayOpen(runtime, owner, "movement", server)) return;
             runtime.movementDebugStream().set(runtime, player, movement.enabled(), requestId);
             return;
         }
         if (request instanceof MemoryRequest.Open) {
+            if (!mayOpen(runtime, owner, "memory", server)) return;
             runtime.memoryViewStream().open(runtime, player, requestId);
             return;
         }
@@ -70,6 +73,7 @@ public final class CompanionRequestHandler {
             return;
         }
         if (request instanceof PlaceRequest.Open) {
+            if (!mayOpen(runtime, owner, "places", server)) return;
             runtime.placeViewStream().open(runtime, player, requestId);
             return;
         }
@@ -205,6 +209,12 @@ public final class CompanionRequestHandler {
             runtime.placeViewStream().sendNow(runtime, player, Optional.of(placeStatus), requestId);
         }
         runtime.debugStream().sendNow(runtime, player, requestId);
+    }
+
+    /** An open builds and encodes a snapshot: it passes the same throughput gate as other control work, once a tick. */
+    private static boolean mayOpen(ServerRuntime runtime, UUID owner, String kind, MinecraftServer server) {
+        return runtime.protocolConnections().controlLimiter().tryAcquire(owner)
+                && runtime.protocolConnections().menuOpenCoalescer().mayBuild(kind, owner, server.getTickCount());
     }
 
     private static DebugAccess.Action accessAction(ClientRequest request) {

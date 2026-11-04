@@ -24,6 +24,7 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 - A furnace that is only out of view keeps its job: the companion waits until the chunk is loaded again instead of deciding the furnace is gone.
 - The local Whisper model is verified and loaded on its own worker, so the first recording no longer stalls the game while a large model starts, and a modified model file is refused before native code sees it.
 - Log retention now counts every file on disk, including the ones it has open, and removes each generated digest together with its log; a fileset that cannot fit the configured cap is reported once.
+- Opening the companion menu, memory or places repeatedly no longer rebuilds the same snapshot several times in one tick, and those opens now pass the same rate limit as other menu requests.
 
 ## [0.202.1] - 2026-11-04
 
