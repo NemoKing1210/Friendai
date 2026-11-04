@@ -102,6 +102,10 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
     private final TrustConfirmations trust;
     private final dev.friendai.debug.DiagnosticService diagnostics;
     private final dev.friendai.debug.LogWriterService fileLog;
+    private final java.nio.file.Path logGameRoot;
+    private final java.nio.file.Path logWorldPath;
+    private final String logBoot;
+    private final String logWorld;
     private ServerConfig config;
     private long lastTrustTick;
     private boolean stopping;
@@ -127,11 +131,16 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
                 entry -> FriendaiMod.LOGGER.warn("Unknown pathing break blacklist entry: {}", entry));
         logProblems(configuration.apply(config));
         String boot = dev.friendai.foundation.diagnostics.LogNames.bootId();
+        this.logGameRoot =
+                dev.friendai.debug.LogPaths.gameRoot(FabricLoader.getInstance().getGameDir());
+        this.logWorldPath = worldPath;
+        this.logBoot = boot;
+        this.logWorld = dev.friendai.debug.LogPaths.worldName(worldPath);
         this.fileLog = resources.own(new dev.friendai.debug.LogWriterService(
                 logRoot,
                 dev.friendai.debug.LogWriterScope.SERVER,
                 boot,
-                dev.friendai.debug.LogPaths.worldName(worldPath),
+                logWorld,
                 modVersion("friendai"),
                 modVersion("minecraft"),
                 owner -> "",
@@ -139,6 +148,15 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
                 text -> text,
                 System::currentTimeMillis));
         dev.friendai.debug.LogSinkHub.add(fileLog);
+        dev.friendai.debug.LogWorldIndex.append(
+                logGameRoot,
+                "world.load",
+                logWorld,
+                logWorldPath,
+                logBoot,
+                modVersion("friendai"),
+                modVersion("minecraft"),
+                System.currentTimeMillis());
         this.memory = resources.own(new MemoryStore(
                 server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("memory"), writer));
         this.transcripts = resources.own(new TranscriptStore(
@@ -571,6 +589,19 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
 
     private static void logProblems(List<String> problems) {
         problems.forEach(p -> FriendaiMod.LOGGER.warn("Config: {}", p));
+    }
+
+    /** One index line when this runtime closes, so a world deleted afterwards still leaves a trace. */
+    void logWorldClose() {
+        dev.friendai.debug.LogWorldIndex.append(
+                logGameRoot,
+                "world.close",
+                logWorld,
+                logWorldPath,
+                logBoot,
+                modVersion("friendai"),
+                modVersion("minecraft"),
+                System.currentTimeMillis());
     }
 
     private static String modVersion(String id) {

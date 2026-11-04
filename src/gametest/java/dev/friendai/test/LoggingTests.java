@@ -84,7 +84,7 @@ public class LoggingTests {
     }
 
     @GameTest
-    public void server_logs_land_inside_the_world_folder(GameTestHelper h) {
+    public void server_logs_land_inside_the_world_folder(GameTestHelper h) throws IOException {
         var server = h.getLevel().getServer();
         var runtime = dev.friendai.server.runtime.ServerRuntimeRegistry.getOrCreate(server);
         Path expected = dev.friendai.debug.LogPaths.worldRoot(
@@ -104,6 +104,20 @@ public class LoggingTests {
         h.assertTrue(
                 runtime.sessions().logRootFor(owner).toAbsolutePath().equals(ownerRoot.toAbsolutePath()),
                 "logs_search root " + runtime.sessions().logRootFor(owner) + " is not " + ownerRoot);
+        Path index = dev.friendai.debug.LogPaths.gameRoot(
+                        net.fabricmc.loader.api.FabricLoader.getInstance().getGameDir())
+                .resolve("index.jsonl");
+        h.assertTrue(Files.exists(index), "the world index must record this load: " + index);
+        long age = System.currentTimeMillis() - Files.getLastModifiedTime(index).toMillis();
+        h.assertTrue(age < 120_000L, "the index line is stale by " + age + " ms, so this boot did not write it");
+        String recorded = Files.readString(index);
+        h.assertTrue(recorded.contains("\"event\":\"world.load\""), recorded);
+        h.assertTrue(
+                recorded.contains("\"world\":\""
+                        + dev.friendai.debug.LogPaths.worldName(
+                                server.getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT))
+                        + "\""),
+                recorded);
         h.succeed();
     }
 

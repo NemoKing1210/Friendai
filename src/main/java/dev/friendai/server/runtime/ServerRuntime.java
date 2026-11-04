@@ -401,6 +401,7 @@ public final class ServerRuntime implements AutoCloseable {
             stopAcceptingWork();
         } finally {
             if (protocolConnections != null) protocolConnections.close();
+            services.logWorldClose();
             resources.close();
         }
     }
