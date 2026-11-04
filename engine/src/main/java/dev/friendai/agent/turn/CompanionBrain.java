@@ -306,9 +306,10 @@ public final class CompanionBrain {
         skillSession = SkillTurnSession.NONE;
         activePrincipal = null;
         queue.clear();
+        streamInFlight = false;
         if (thinking) {
             thinking = false;
-            speaker.thinking(false);
+            speakSafely("thinking", () -> speaker.thinking(false));
         }
     }
 
@@ -355,6 +356,10 @@ public final class CompanionBrain {
     private int earlySequence;
     private boolean earlyIncomplete;
     private String earlyText = "";
+    /** Set when the transport refused a streamed frame, so this request sends no more text. */
+    private boolean streamSpeechFailed;
+    /** True only while a streaming request is in flight; queued deltas of a finished one are dropped. */
+    private boolean streamInFlight;
     /**
      * Identity of the current streamed request. The protocol needs a positive id, and the client deduplicates by it,
      * so every model request gets a fresh one: reusing the generation counter made it zero on a fresh brain and equal
@@ -632,7 +637,7 @@ public final class CompanionBrain {
         visibleGroups.clear();
         visibleGroups.addAll(decision.groups());
         thinking = true;
-        speaker.thinking(true);
+        speakSafely("thinking", () -> speaker.thinking(true));
         String lines = batch.stream().map(event -> event.toPromptLine(level)).collect(Collectors.joining("\n"));
         for (BrainEvent event : batch) {
             observe(o -> o.onEvent(event));
@@ -781,7 +786,10 @@ public final class CompanionBrain {
                 earlySequence = 0;
                 earlyIncomplete = false;
                 earlyText = "";
+                streamSpeechFailed = false;
+                streamInFlight = true;
                 speechStream = ++streamSeq;
+                long stream = speechStream;
                 future = streaming
                         .completeStreaming(
                                 system,
@@ -789,11 +797,12 @@ public final class CompanionBrain {
                                 sent,
                                 delta -> {
                                     accumulator.accept(delta);
-                                    scheduler.execute(() -> releaseEarly(gen, accumulator));
+                                    scheduler.execute(() -> releaseEarly(gen, stream, accumulator));
                                 },
                                 telemetry)
                         .thenApply(response -> completeFromStream(accumulator, response));
             } else {
+                streamInFlight = false;
                 future = active.complete(system, history, sent, telemetry);
             }
         } catch (RuntimeException e) {
@@ -807,8 +816,17 @@ public final class CompanionBrain {
      * increments carried text or tool calls, the accumulator reconstructs it. Tool calls still execute only after the
      * stream is complete, never from an increment.
      */
-    private void releaseEarly(int gen, StreamAccumulator accumulator) {
-        if (gen != generation || !turnSpeechAllowed || speechPolicy == null || !streamedTurn || turnCaller == null) {
+    private void releaseEarly(int gen, long stream, StreamAccumulator accumulator) {
+        // A delta that was queued before its request finished must never speak during a later one: the identity,
+        // the in-flight flag and the generation each reject a different kind of late frame.
+        if (gen != generation
+                || stream != speechStream
+                || !streamInFlight
+                || !thinking
+                || !turnSpeechAllowed
+                || speechPolicy == null
+                || !streamedTurn
+                || turnCaller == null) {
             return;
         }
         String text = accumulator.text();
@@ -821,17 +839,79 @@ public final class CompanionBrain {
             case StreamSpeechPolicy.Speak speak -> {
                 if (!speak.text().isBlank() || speak.last()) {
                     String text = earlySequence == 0 || speak.text().isBlank() ? speak.text() : " " + speak.text();
-                    speaker.streamSentence(
-                            speechStream, speechStream, earlySequence++, text, speak.last(), turnCaller.uuid());
+                    sendStreamed(text, speak.last());
                 }
             }
             case StreamSpeechPolicy.StopIncomplete ignored -> {
                 earlyIncomplete = true;
                 if (earlySequence > 0) {
-                    speaker.error(dev.friendai.foundation.text.UserMessage.of("friendai.voice.stream_incomplete"));
+                    speakSafely(
+                            "stream incomplete notice",
+                            () -> speaker.error(
+                                    dev.friendai.foundation.text.UserMessage.of("friendai.voice.stream_incomplete")));
                 }
             }
             case StreamSpeechPolicy.Hold ignored -> {}
+        }
+    }
+
+    /**
+     * One streamed sentence. The sequence advances only when the transport accepted the frame, so a failure leaves
+     * no gap the client would wait in. After the first failure the request sends no more text and makes one
+     * best-effort empty closing frame at the failed sequence; a text retry would duplicate audio the player may
+     * already have heard.
+     */
+    private void sendStreamed(String text, boolean last) {
+        if (streamSpeechFailed) {
+            return;
+        }
+        try {
+            speaker.streamSentence(speechStream, speechStream, earlySequence, text, last, turnCaller.uuid());
+            earlySequence++;
+        } catch (RuntimeException e) {
+            streamSpeechFailed = true;
+            LOGGER.warn("Streamed speech delivery failed; closing the stream", e);
+            closeStreamQuietly();
+        }
+    }
+
+    /** The one empty {@code last} frame that lets the client finish an interrupted stream; never throws. */
+    private void closeStreamQuietly() {
+        try {
+            speaker.streamSentence(speechStream, speechStream, earlySequence, "", true, turnCaller.uuid());
+        } catch (RuntimeException e) {
+            LOGGER.warn("Could not close an interrupted speech stream", e);
+        }
+    }
+
+    /** Delivers the reply outside the turn's state machine: a broken transport is logged, never fatal. */
+    private void speakSafely(String what, Runnable delivery) {
+        try {
+            delivery.run();
+        } catch (RuntimeException e) {
+            LOGGER.warn("Speaker failed: {}", what, e);
+        }
+    }
+
+    /**
+     * Speaks the guarded reply. Callers keep history, the reply guard's record, the reply observation and the turn
+     * cleanup outside this method, so a failed delivery cannot skip them.
+     */
+    private void deliverSpeech(String spoken, String raw) {
+        if (!streamedTurn) {
+            speakSafely("reply", () -> speaker.say(spoken, turnCaller.uuid()));
+            return;
+        }
+        speakSafely("reply", () -> speaker.say(spoken));
+        if (speechPolicy != null) {
+            if (!earlyIncomplete) {
+                offerEarly(speechPolicy.finish(earlyText.isBlank() ? raw : "", guardParity(raw)));
+            }
+            return;
+        }
+        List<String> sentences = dev.friendai.features.speech.tts.SpeechText.cleanAndSplit(spoken, 300);
+        for (int i = 0; i < sentences.size(); i++) {
+            sendStreamed(sentences.get(i), i == sentences.size() - 1);
         }
     }
 
@@ -864,6 +944,8 @@ public final class CompanionBrain {
             }
             return;
         }
+        // The authoritative response has arrived: an early delta still queued behind it must not speak.
+        streamInFlight = false;
         if (response != null) {
             observe(o -> o.onResponse(response));
         }
@@ -872,7 +954,7 @@ public final class CompanionBrain {
             observe(o -> o.onError(error));
             long failed = turnSeq;
             observe(o -> o.onTurnEnd(failed, "error"));
-            speaker.error(ErrorMessages.forUser(error));
+            speakSafely("error", () -> speaker.error(ErrorMessages.forUser(error)));
             endTurn();
             return;
         }
@@ -885,25 +967,7 @@ public final class CompanionBrain {
             Optional<String> guarded = ReplyGuard.filter(raw, coordinatesAllowed(), recentSpeech(), turnToolNames);
             if (guarded.isPresent()) {
                 spoken = guarded.get();
-                if (streamedTurn) {
-                    speaker.say(spoken);
-                    if (speechPolicy != null && !earlyIncomplete) {
-                        offerEarly(speechPolicy.finish(earlyText.isBlank() ? raw : "", guardParity(raw)));
-                    } else if (speechPolicy == null) {
-                        List<String> sentences = dev.friendai.features.speech.tts.SpeechText.cleanAndSplit(spoken, 300);
-                        for (int i = 0; i < sentences.size(); i++) {
-                            speaker.streamSentence(
-                                    speechStream,
-                                    speechStream,
-                                    earlySequence++,
-                                    sentences.get(i),
-                                    i == sentences.size() - 1,
-                                    turnCaller.uuid());
-                        }
-                    }
-                } else {
-                    speaker.say(spoken, turnCaller.uuid());
-                }
+                deliverSpeech(spoken, raw);
                 rememberSpoken(spoken);
                 String heard = spoken;
                 observe(o -> o.onReply(turnCaller, heard));
@@ -1081,16 +1145,18 @@ public final class CompanionBrain {
         if (spoken != null || !(turnEvent instanceof BrainEvent.GoalTick tick)) {
             return;
         }
-        speaker.say(UserMessage.of("friendai.companion.goal_blocked", tick.goal()));
+        speakSafely("blocked goal", () -> speaker.say(UserMessage.of("friendai.companion.goal_blocked", tick.goal())));
         observe(o -> o.onTurnEnd(turnSeq, "delivered"));
     }
 
     private void endTurn() {
         teachingContext = null;
         thinking = false;
+        streamInFlight = false;
         hasFinishedTurn = true;
         lastTurnEnd = scheduler.nowMillis();
-        speaker.thinking(false);
+        // Internal state is already settled: an external indicator that fails must not stop the next turn.
+        speakSafely("thinking", () -> speaker.thinking(false));
         activePrincipal = null;
         maybeStartTurn();
     }
