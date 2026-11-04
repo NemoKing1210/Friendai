@@ -5,6 +5,8 @@ import dev.friendai.debug.DebugTarget;
 import dev.friendai.features.construction.blueprint.ClearCell;
 import dev.friendai.features.construction.blueprint.ClearKind;
 import dev.friendai.features.construction.blueprint.ClearPlan;
+import dev.friendai.features.construction.clear.ClearOutcome;
+import dev.friendai.features.construction.clear.ClearSkip;
 import dev.friendai.features.construction.minecraft.build.ClearScan;
 import dev.friendai.features.fire.minecraft.FireHands;
 import dev.friendai.features.mining.minecraft.mining.BlockBreaker;
@@ -15,6 +17,8 @@ import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -43,7 +47,7 @@ public final class ClearAreaTask implements Task {
     private final int height;
     private final Set<ClearKind> wanted;
     private final EnumMap<ClearKind, Integer> cleared = new EnumMap<>(ClearKind.class);
-    private final EnumMap<ClearScan.SkipReason, Integer> skipped = new EnumMap<>(ClearScan.SkipReason.class);
+    private final EnumMap<ClearSkip, Integer> skipped = new EnumMap<>(ClearSkip.class);
     private final List<ClearCell> queue = new ArrayList<>();
     private int cellTicks;
     private int unreachableStreak;
@@ -105,7 +109,7 @@ public final class ClearAreaTask implements Task {
             BlockPos pos = pos(current);
             BlockState state = c.level().getBlockState(pos);
             if (state.isAir()) {
-                skip(ClearScan.SkipReason.CHANGED);
+                skip(ClearSkip.CHANGED);
                 current = null;
                 return TaskStatus.RUNNING;
             }
@@ -124,15 +128,15 @@ public final class ClearAreaTask implements Task {
                 return TaskStatus.RUNNING;
             }
             case BROKEN -> cleared.merge(current.kind(), 1, Integer::sum);
-            case GONE -> skip(ClearScan.SkipReason.CHANGED);
-            case PROTECTED -> skip(ClearScan.SkipReason.PROTECTED);
-            case UNREACHABLE -> skip(ClearScan.SkipReason.UNREACHABLE);
-            case OUT_OF_SIGHT -> skip(ClearScan.SkipReason.OUT_OF_SIGHT);
+            case GONE -> skip(ClearSkip.CHANGED);
+            case PROTECTED -> skip(ClearSkip.PROTECTED);
+            case UNREACHABLE -> skip(ClearSkip.UNREACHABLE);
+            case OUT_OF_SIGHT -> skip(ClearSkip.OUT_OF_SIGHT);
         }
         unreachableStreak = result == BlockBreaker.State.BROKEN ? 0 : unreachableStreak;
         if (result == BlockBreaker.State.UNREACHABLE && ++unreachableStreak >= MAX_UNREACHABLE_STREAK) {
             // The nearest cells of this kind are all out of reach, so the rest (higher, farther) are no easier.
-            skipped.merge(ClearScan.SkipReason.UNREACHABLE, queue.size(), Integer::sum);
+            skipped.merge(ClearSkip.UNREACHABLE, queue.size(), Integer::sum);
             queue.clear();
         }
         breaker = null;
@@ -167,69 +171,80 @@ public final class ClearAreaTask implements Task {
         BlockState state = c.level().getBlockState(pos);
         current = null;
         if (!state.is(Blocks.WATER) || !state.getFluidState().isSource()) {
-            skip(ClearScan.SkipReason.CHANGED);
+            skip(ClearSkip.CHANGED);
             return;
         }
         if (!c.companion().hands().canInteract(pos)) {
-            skip(ClearScan.SkipReason.PROTECTED);
+            skip(ClearSkip.PROTECTED);
             return;
         }
         if (fireHands == null) {
             fireHands = new FireHands(c);
         }
         if (!fireHands.hasEmptyBucket()) {
-            skip(ClearScan.SkipReason.NO_BUCKET);
+            skip(ClearSkip.NO_BUCKET);
             return;
         }
         if (fireHands.recoverSource(pos) == null) {
             cleared.merge(ClearKind.WATER, 1, Integer::sum);
         } else {
-            skip(ClearScan.SkipReason.WATER_LEFT);
+            skip(ClearSkip.WATER_LEFT);
         }
     }
 
-    private void skip(ClearScan.SkipReason reason) {
+    private void skip(ClearSkip reason) {
         skipped.merge(reason, 1, Integer::sum);
     }
 
     private TaskStatus finish() {
-        int total = cleared.values().stream().mapToInt(Integer::intValue).sum();
-        int skippedTotal = skipped.values().stream().mapToInt(Integer::intValue).sum();
+        ClearOutcome outcome = ClearOutcome.of(cleared, skipped, solidsLeft, left + queue.size());
+        if (outcome.nothingToDo()) {
+            summary = "nothing to clear around " + coords(center);
+            return TaskStatus.SUCCESS;
+        }
         StringBuilder text = new StringBuilder("cleared ")
-                .append(total)
-                .append(total == 1 ? " block" : " blocks")
+                .append(outcome.clearedTotal())
+                .append(outcome.clearedTotal() == 1 ? " block" : " blocks")
                 .append(" around ")
                 .append(coords(center));
-        List<String> kinds = cleared.entrySet().stream()
-                .filter(entry -> entry.getValue() > 0)
-                .map(entry -> entry.getValue() + " " + entry.getKey().name().toLowerCase(java.util.Locale.ROOT))
+        List<String> kinds = outcome.clearedKinds().stream()
+                .map(kind -> outcome.cleared().get(kind) + " " + kind.name().toLowerCase(Locale.ROOT))
                 .toList();
         if (!kinds.isEmpty()) {
             text.append(": ").append(String.join(", ", kinds));
         }
-        if (skippedTotal > 0) {
-            List<String> reasons = skipped.entrySet().stream()
-                    .filter(entry -> entry.getValue() > 0)
-                    .map(entry -> entry.getValue() + " " + entry.getKey().label())
-                    .toList();
-            text.append("; skipped ")
-                    .append(skippedTotal)
-                    .append(" (")
-                    .append(String.join(", ", reasons))
-                    .append(')');
+        appendReasons(text, "skipped", outcome.failedTotal(), outcome.failed());
+        appendReasons(text, "left", outcome.leftByDesignTotal(), outcome.leftByDesign());
+        if (outcome.solidBlocksLeft() > 0) {
+            text.append("; ")
+                    .append(outcome.solidBlocksLeft())
+                    .append(" solid blocks left (use blocks=true to break them)");
         }
-        if (solidsLeft > 0) {
-            text.append("; ").append(solidsLeft).append(" solid blocks left (use blocks=true to break them)");
-        }
-        if (left > 0) {
-            text.append("; ").append(left).append(" more cells left for another pass");
-        }
-        if (planned == 0 && skippedTotal == 0 && solidsLeft == 0) {
-            summary = "nothing to clear around " + coords(center);
-            return TaskStatus.SUCCESS;
+        if (outcome.cellsLeftForNextPass() > 0) {
+            text.append("; ").append(outcome.cellsLeftForNextPass()).append(" more cells left for another pass");
         }
         summary = text.toString();
-        return total == 0 && skippedTotal > 0 ? TaskStatus.FAILED : TaskStatus.SUCCESS;
+        return outcome.failedRun() ? TaskStatus.FAILED : TaskStatus.SUCCESS;
+    }
+
+    private static void appendReasons(StringBuilder text, String verb, int total, Map<ClearSkip, Integer> counts) {
+        if (total <= 0) {
+            return;
+        }
+        List<String> reasons = new ArrayList<>();
+        for (ClearSkip reason : ClearSkip.values()) {
+            int count = counts.getOrDefault(reason, 0);
+            if (count > 0) {
+                reasons.add(count + " " + reason.label());
+            }
+        }
+        text.append("; ")
+                .append(verb)
+                .append(' ')
+                .append(total)
+                .append(" (")
+                .append(String.join(", ", reasons))
+                .append(')');
     }
 
     private static BlockPos pos(ClearCell cell) {

@@ -195,4 +195,43 @@ public class ClearTests {
             h.assertTrue(!result.summary.contains("out of sight"), result.summary);
         });
     }
+
+    @GameTest(maxTicks = 200)
+    public void lavaOnlyAreaSucceeds(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        h.setBlock(8, 2, 8, Blocks.LAVA);
+        h.setBlock(7, 2, 8, Blocks.STONE);
+        h.setBlock(9, 2, 8, Blocks.STONE);
+        h.setBlock(8, 2, 7, Blocks.STONE);
+        h.setBlock(8, 2, 9, Blocks.STONE);
+        BlockPos center = h.absolutePos(new BlockPos(5, 2, 5));
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(companion, result);
+        runner.start(new ClearAreaTask(center, 4, 0, 1, true, false), "clear_area");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status != null, "still running");
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
+            h.assertTrue(result.summary.contains("lava"), result.summary);
+            h.assertTrue(h.getBlockState(new BlockPos(8, 2, 8)).is(Blocks.LAVA), "the lava must stay");
+        });
+    }
+
+    @GameTest(maxTicks = 200)
+    public void anEmptyPlotSucceeds(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        BlockPos center = h.absolutePos(new BlockPos(5, 2, 5));
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(companion, result);
+        runner.start(new ClearAreaTask(center, 4, 0, 1, true, false), "clear_area");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status != null, "still running");
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
+            String expected = "nothing to clear around " + center.getX() + " " + center.getY() + " " + center.getZ();
+            h.assertTrue(expected.equals(result.summary), "summary " + result.summary);
+        });
+    }
 }
