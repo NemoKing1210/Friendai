@@ -25,7 +25,9 @@ public final class FlightSearch {
 
     private record Open(Pos pos, double cost, double score, long order) {}
 
-    private static final int MAX_AXIS_DISTANCE = 64;
+    /** The farthest cell from the start the search may expand or aim at, on any axis. */
+    public static final int MAX_AXIS_DISTANCE = 64;
+
     private static final int[][] NEIGHBORS = neighbors();
 
     private final Pos start;
@@ -55,6 +57,23 @@ public final class FlightSearch {
         }
         costs.put(start, 0.0);
         open.add(new Open(start, 0.0, heuristic(start), order++));
+    }
+
+    /**
+     * The next bounded leg toward a goal farther than {@link #MAX_AXIS_DISTANCE}: the goal clamped into the search box
+     * around {@code start}, so a long flight is a chain of ordinary searches instead of one search that can never leave
+     * its bounds. A goal already inside the box is returned unchanged.
+     */
+    public static Pos legToward(Pos start, Pos goal) {
+        int limit = MAX_AXIS_DISTANCE - 4;
+        return new Pos(
+                start.x() + clampDelta(goal.x() - start.x(), limit),
+                start.y() + clampDelta(goal.y() - start.y(), limit),
+                start.z() + clampDelta(goal.z() - start.z(), limit));
+    }
+
+    private static int clampDelta(int delta, int limit) {
+        return Math.max(-limit, Math.min(limit, delta));
     }
 
     public Progress step(int expansionBudget) {

@@ -71,6 +71,42 @@ final class FlightSearchTest {
         assertNotNull(blockedGoal);
     }
 
+    @Test
+    void aGoalInsideTheSearchBoxIsItsOwnLeg() {
+        assertEquals(new Pos(3, 0, -3), FlightSearch.legToward(new Pos(0, 0, 0), new Pos(3, 0, -3)));
+        assertEquals(new Pos(40, -20, 10), FlightSearch.legToward(new Pos(0, 0, 0), new Pos(40, -20, 10)));
+    }
+
+    @Test
+    void aFarGoalBecomesALegInsideTheSearchBoxAndTheChainReachesIt() {
+        Pos goal = new Pos(250, 0, -130);
+        Pos at = new Pos(0, 0, 0);
+        Pos leg = FlightSearch.legToward(at, goal);
+        assertEquals(new Pos(60, 0, -60), leg);
+        assertTrue(Math.abs(leg.x() - at.x()) <= FlightSearch.MAX_AXIS_DISTANCE);
+        assertTrue(Math.abs(leg.z() - at.z()) <= FlightSearch.MAX_AXIS_DISTANCE);
+
+        double previous = Double.POSITIVE_INFINITY;
+        int legs = 0;
+        while (!at.equals(goal) && legs < 100) {
+            Pos next = FlightSearch.legToward(at, goal);
+            assertTrue(
+                    Math.abs(next.x() - at.x()) <= FlightSearch.MAX_AXIS_DISTANCE
+                            && Math.abs(next.y() - at.y()) <= FlightSearch.MAX_AXIS_DISTANCE
+                            && Math.abs(next.z() - at.z()) <= FlightSearch.MAX_AXIS_DISTANCE,
+                    "leg from " + at + " to " + next + " leaves the search box");
+            double remaining = Math.sqrt(Math.pow((double) goal.x() - next.x(), 2)
+                    + Math.pow((double) goal.y() - next.y(), 2)
+                    + Math.pow((double) goal.z() - next.z(), 2));
+            assertTrue(remaining < previous, "leg " + next + " made no progress from " + at);
+            previous = remaining;
+            at = next;
+            legs++;
+        }
+        assertEquals(goal, at);
+        assertTrue(legs <= 5, "a 280-block flight took " + legs + " legs");
+    }
+
     private static FlightSearch search(Pos start, Pos goal, Set<Pos> blocked, int maxExpansions) {
         return new FlightSearch(start, goal, pos -> !blocked.contains(pos), maxExpansions);
     }

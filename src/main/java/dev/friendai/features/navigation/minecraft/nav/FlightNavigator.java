@@ -24,6 +24,11 @@ public final class FlightNavigator {
     public static final int EXPANSIONS_PER_TICK = 512;
     public static final int MAX_SEARCH_EXPANSIONS = 16_384;
     private static final int MAX_REPLANS = 3;
+    /** A destination that moved less than this while a route is flown is not worth a new search. */
+    private static final double REAIM_DISTANCE = 2.0;
+    /** How many bounded legs one flight may chain; the search box is 60 blocks, so this covers a long journey. */
+    private static final int MAX_LEGS = 64;
+
     private static final double WAYPOINT_TOLERANCE = 0.16;
 
     private FlightSearch search;
@@ -33,6 +38,9 @@ public final class FlightNavigator {
     private State state = State.SEARCHING;
     private int replans;
     private int blockedTicks;
+    private int legs;
+    private boolean legChained;
+    private boolean targetBlocked;
     private FlightSearch.Status lastSearchStatus;
     private int lastSearchExpanded;
     private String lastMovementBlock = "";
@@ -52,7 +60,13 @@ public final class FlightNavigator {
         companion.getNavigation().stop();
         companion.setPathing(true);
         companion.setDeltaMovement(Vec3.ZERO);
-        if (target == null || target.distanceToSqr(requested) > 0.25) {
+        if (target == null) {
+            target = requested;
+            beginSearch(companion);
+        } else if (routeSettled() && target.distanceToSqr(requested) > REAIM_DISTANCE * REAIM_DISTANCE) {
+            // A moving destination must not restart the search every tick, or following an owner in flight never gets
+            // past the first batch. The point is adopted only once the current search has answered and its route has
+            // been flown; a small drift is ignored.
             target = requested;
             beginSearch(companion);
         }
@@ -107,6 +121,13 @@ public final class FlightNavigator {
             stop(context);
             return state;
         }
+        // A route that ended at a leg of a longer flight starts the next bounded search from here.
+        if (legChained) {
+            if (++legs > MAX_LEGS) return unreachable(context);
+            beginSearch(companion);
+            state = State.MOVING;
+            return state;
+        }
         Vec3 finalCell = route.isEmpty() ? target : feetCenter(route.getLast());
         Vec3 aim = companion.position().distanceToSqr(target) <= finalCell.distanceToSqr(target) ? target : finalCell;
         if (companion.position().distanceToSqr(aim) > WAYPOINT_TOLERANCE * WAYPOINT_TOLERANCE) {
@@ -124,7 +145,12 @@ public final class FlightNavigator {
     }
 
     public String diagnostic() {
-        if (lastSearchStatus == FlightSearch.Status.NO_PATH) return "no loaded collision-safe route";
+        if (targetBlocked) return "the flight destination is inside a block or an unloaded chunk";
+        if (lastSearchStatus == FlightSearch.Status.NO_PATH) {
+            return legChained
+                    ? "no loaded collision-safe route toward the destination"
+                    : "no loaded collision-safe route";
+        }
         if (lastSearchStatus == FlightSearch.Status.LIMIT) return "flight search reached its node budget";
         if (replans > MAX_REPLANS)
             return "movement remained blocked after bounded replanning (" + lastMovementBlock + ")";
@@ -153,6 +179,8 @@ public final class FlightNavigator {
         routeIndex = 0;
         target = null;
         blockedTicks = 0;
+        legs = 0;
+        legChained = false;
         context.companion().setPathing(false);
         context.companion().endCreativeFlight(keepHovering);
     }
@@ -189,13 +217,38 @@ public final class FlightNavigator {
         Pos start = cell(companion.position());
         Pos goal = cell(target);
         ServerLevel level = (ServerLevel) companion.level();
-        search = new FlightSearch(start, goal, pos -> freeCell(level, companion, pos), MAX_SEARCH_EXPANSIONS);
+        targetBlocked = !freeCell(level, companion, goal);
+        Pos leg = targetBlocked ? goal : legCell(level, companion, start, goal);
+        legChained = !leg.equals(goal);
+        search = new FlightSearch(start, leg, pos -> freeCell(level, companion, pos), MAX_SEARCH_EXPANSIONS);
         route = null;
         routeIndex = 0;
         blockedTicks = 0;
         state = State.SEARCHING;
         lastSearchStatus = null;
         lastSearchExpanded = 0;
+    }
+
+    /** Whether no search and no route are in flight, so a moved destination can be adopted without losing work. */
+    private boolean routeSettled() {
+        return search == null && (route == null || routeIndex >= route.size());
+    }
+
+    /**
+     * The search goal for this leg. A destination beyond the search box becomes its clamped point; a clamped point
+     * inside terrain is walked back toward the start a few times, so a long flight over a mountain falls back to a
+     * shorter leg instead of failing outright.
+     */
+    private Pos legCell(ServerLevel level, CompanionEntity companion, Pos start, Pos goal) {
+        Pos leg = FlightSearch.legToward(start, goal);
+        if (leg.equals(goal) || freeCell(level, companion, leg)) return leg;
+        for (int attempt = 0; attempt < 4; attempt++) {
+            Pos shorter = start.offset((leg.x() - start.x()) / 2, (leg.y() - start.y()) / 2, (leg.z() - start.z()) / 2);
+            if (shorter.equals(start)) break;
+            if (freeCell(level, companion, shorter)) return shorter;
+            leg = shorter;
+        }
+        return leg;
     }
 
     private State unreachable(TaskContext context) {
