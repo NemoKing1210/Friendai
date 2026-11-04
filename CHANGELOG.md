@@ -6,6 +6,17 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.209.0] - 2026-11-04
+
+### Changed
+
+- Ordinary orders with enough context can be answered and queued in one model request. Complex orders may still use the preliminary planner; missing context, clarification and repair can require follow-ups.
+
+### Fixed
+
+- A speech failure no longer leaves the companion stuck thinking until you stop it manually.
+- A plan the companion has already queued is no longer planned again.
+
 ## [0.208.5] - 2026-11-04
 
 ### Fixed

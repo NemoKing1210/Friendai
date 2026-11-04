@@ -37,6 +37,7 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] A real provider drives a 20+ step plan and moves or reprioritizes a pending job while it is running.
 - [ ] A failed step produces a plan decision event and the companion repairs it with `queue_edit` without resending the whole plan.
 - [ ] Give a two-kind order ("bring me ten oak logs and then build a three-block wall") with a real provider: the world log shows one `route.decision` naming an `owner_order` subject, then `plan.request` and `plan.delivered` with a plan id and a duration, and the first reply already works from the queued plan instead of one tool call at a time. With the provider unreachable, the same order shows `plan.failed` and `plan.fallback`, and the companion carries on without claiming a plan exists.
+- [ ] With a real provider, ask for a simple order with enough supplied context that does not trigger the preliminary planner. Expect one `llm.request`, one queued plan and a visible acknowledgement. Separately test a complex order: preliminary planning is allowed, but no duplicate plan is added. Test missing context and invalid plan repair: follow-ups are allowed. Check first-turn voice and a later turn after a controlled speech-delivery failure.
 - [ ] Reload a world mid-plan: ready work resumes, and a job whose tool disappeared reports that it needs repair.
 - [ ] `queue_show` remains readable with 50+ jobs and truncates long arguments and results.
 - [ ] A fight and a starving entry each interrupt the running queue job and resume it afterwards.
