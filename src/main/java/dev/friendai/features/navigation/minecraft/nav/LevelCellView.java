@@ -198,7 +198,24 @@ public final class LevelCellView implements CellView {
         FluidState fluid = state.getFluidState();
         Cell.Kind kind = kindOf(state, shape, fluid);
         boolean placeable = (kind == Cell.Kind.AIR || kind == Cell.Kind.WATER) && mayPlaceAt(pos);
-        return new Cell(kind, breakTicks(pos, state, kind), state.getBlock() instanceof FallingBlock, placeable);
+        return new Cell(
+                kind,
+                breakTicks(pos, state, kind),
+                state.getBlock() instanceof FallingBlock,
+                placeable,
+                topOf(kind, shape));
+    }
+
+    /**
+     * How high a body standing on this cell stands: the collision shape's top. A slab, a carpet or a snow layer is
+     * lower than the node above it, and a climbable column keeps the full height the grid already assumed for it.
+     */
+    private static double topOf(Cell.Kind kind, VoxelShape shape) {
+        return switch (kind) {
+            case SOLID, PARTIAL -> Math.min(Cell.FULL_TOP, shape.max(Direction.Axis.Y));
+            case CLIMBABLE -> Cell.FULL_TOP;
+            default -> 0.0;
+        };
     }
 
     /** The cell kind of a state, without the break time or placement rules a search needs. */

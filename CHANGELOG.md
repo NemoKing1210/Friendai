@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.204.2] - 2026-11-04
+
+### Fixed
+
+- The companion no longer jumps at a block two blocks high when it stands on a carpet, a slab, a snow layer or a path: a climb is planned by the real height of the surface under its feet, so it takes the step or the walkway instead of hopping against a wall it cannot reach.
+
 ## [0.204.1] - 2026-11-04
 
 ### Fixed

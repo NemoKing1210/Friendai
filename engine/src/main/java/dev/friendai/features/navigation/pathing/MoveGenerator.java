@@ -22,6 +22,11 @@ public final class MoveGenerator {
     public static final int MAX_UNDERWATER_RUN = 8;
     /** Price multiplier of a swim step that ends with the head under water. */
     public static final double SUBMERGED_FACTOR = 1.3;
+    /**
+     * The highest rise, in blocks, a standing or walking jump carries the feet. Vanilla's jump peaks at about 1.25
+     * blocks; the small margin keeps a step planned just under the cap from failing at the top of the arc.
+     */
+    public static final double MAX_JUMP_RISE = 1.2;
 
     private final CellView view;
     private final CostModel costs;
@@ -73,9 +78,10 @@ public final class MoveGenerator {
     }
 
     public void neighbours(Node from, int placedSoFar, int placeable, int headUnderwater, Consumer<PathStep> out) {
-        walkAndJump(from, out);
-        ascend(from, out);
-        diagonalAscend(from, out);
+        double fromFeet = feetHeight(view, from);
+        walkAndJump(from, fromFeet, out);
+        ascend(from, fromFeet, out);
+        diagonalAscend(from, fromFeet, out);
         descend(from, out);
         diagonalDescend(from, out);
         swim(from, headUnderwater, out);
@@ -83,11 +89,28 @@ public final class MoveGenerator {
         dig(from, out);
         digAscend(from, out);
         digDescend(from, out);
-        pillar(from, placedSoFar, placeable, out);
+        pillar(from, placedSoFar, placeable, fromFeet, out);
         bridge(from, placedSoFar, placeable, out);
     }
 
-    private void walkAndJump(Node from, Consumer<PathStep> out) {
+    /**
+     * The height of the feet of a body standing at {@code n}: the top of the cell that supports it. A node always
+     * sits one cell above its support, so a full block puts the feet at the node's level, while a slab, a carpet or a
+     * snow layer leaves them lower. A body in water floats at its own cell's level.
+     */
+    static double feetHeight(CellView view, Node n) {
+        if (view.at(n.pos()).kind() == Cell.Kind.WATER) {
+            return n.y();
+        }
+        Cell support = view.at(n.support());
+        return n.y() - 1 + (support.supports() ? support.top() : Cell.FULL_TOP);
+    }
+
+    private boolean canRise(double fromFeet, Node to) {
+        return feetHeight(view, to) - fromFeet <= MAX_JUMP_RISE + 1e-9;
+    }
+
+    private void walkAndJump(Node from, double fromFeet, Consumer<PathStep> out) {
         boolean swimming = view.at(from.pos()).kind() == Cell.Kind.WATER;
         for (int[] d : DIRECTIONS) {
             Node to = new Node(from.x() + d[0], from.y(), from.z() + d[1]);
@@ -102,7 +125,7 @@ public final class MoveGenerator {
             }
 
             if (!swimming) {
-                leaps(from, d, out);
+                leaps(from, d, fromFeet, out);
             }
         }
         for (int[] d : DIAGONALS) {
@@ -129,7 +152,7 @@ public final class MoveGenerator {
      * and lands on dry footing; over walkable cells the steps of a walk are faster, and water counts as a gap because
      * swimming through it costs more than the jump.
      */
-    private void leaps(Node from, int[] d, Consumer<PathStep> out) {
+    private void leaps(Node from, int[] d, double fromFeet, Consumer<PathStep> out) {
         int openBelow = LeapPhysics.MAX_DROP;
         boolean roofClear = true;
         for (int width = 1; width <= LeapPhysics.MAX_WIDTH; width++) {
@@ -147,7 +170,8 @@ public final class MoveGenerator {
                 Node landing = new Node(x + d[0], from.y() + dy, z + d[1]);
                 if (!standable(view, landing)
                         || view.at(landing.pos()).kind() == Cell.Kind.WATER
-                        || !openAbove(landing, from.y() + 2)) {
+                        || !openAbove(landing, from.y() + 2)
+                        || !canRise(fromFeet, landing)) {
                     continue;
                 }
                 emit(from, landing, Move.JUMP_GAP, jumpCost(width, dy), 0, out);
@@ -190,7 +214,7 @@ public final class MoveGenerator {
         return dy < 0 ? cost + costs.fall() * -dy : cost;
     }
 
-    private void ascend(Node from, Consumer<PathStep> out) {
+    private void ascend(Node from, double fromFeet, Consumer<PathStep> out) {
         // A climbable column already has the cheaper, physically executable CLIMB move. Treating it as a lateral
         // jump lets A* leave a ladder or scaffold while rising, which a mob cannot reliably perform.
         if (onLadderOrVine(from)) {
@@ -201,20 +225,23 @@ public final class MoveGenerator {
         }
         for (int[] d : DIRECTIONS) {
             Node to = new Node(from.x() + d[0], from.y() + 1, from.z() + d[1]);
-            if (standable(view, to) && view.at(to.pos()).kind() != Cell.Kind.WATER) {
+            if (standable(view, to) && view.at(to.pos()).kind() != Cell.Kind.WATER && canRise(fromFeet, to)) {
                 // Rising inside water is a swim, priced and counted as one; a jump out of it is for dry land.
                 emit(from, to, Move.ASCEND, costs.walk() + costs.jump(), 0, out);
             }
         }
     }
 
-    private void diagonalAscend(Node from, Consumer<PathStep> out) {
+    private void diagonalAscend(Node from, double fromFeet, Consumer<PathStep> out) {
         if (!enterable(view.at(from.pos().offset(0, 2, 0)))) {
             return;
         }
         for (int[] d : DIAGONALS) {
             Node to = new Node(from.x() + d[0], from.y() + 1, from.z() + d[1]);
-            if (standable(view, to) && view.at(to.pos()).kind() != Cell.Kind.WATER && cornersClear(from, d)) {
+            if (standable(view, to)
+                    && view.at(to.pos()).kind() != Cell.Kind.WATER
+                    && cornersClear(from, d)
+                    && canRise(fromFeet, to)) {
                 emit(from, to, Move.ASCEND, costs.walk() + costs.jump(), 0, out);
             }
         }
@@ -435,7 +462,7 @@ public final class MoveGenerator {
     }
 
     /** Jump and place a block under itself; breaking up to two cells above first. */
-    private void pillar(Node from, int placedSoFar, int placeable, Consumer<PathStep> out) {
+    private void pillar(Node from, int placedSoFar, int placeable, double fromFeet, Consumer<PathStep> out) {
         if (placedSoFar + 1 > placeable) {
             return;
         }
@@ -455,7 +482,7 @@ public final class MoveGenerator {
             return;
         }
         Node to = new Node(from.x(), from.y() + 1, from.z());
-        if (!standsAfter(to, breaks, List.of(under))) {
+        if (!standsAfter(to, breaks, List.of(under)) || !canRise(fromFeet, to)) {
             return;
         }
         double cost = costs.jump() + costs.place() + placePrice + breakCost(breaks);

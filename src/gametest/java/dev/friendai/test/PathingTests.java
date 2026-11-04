@@ -126,6 +126,7 @@ public class PathingTests {
         h.setBlock(new BlockPos(4, 2, 2), Blocks.WATER);
         h.setBlock(new BlockPos(5, 2, 2), Blocks.MAGMA_BLOCK);
         h.setBlock(new BlockPos(6, 2, 2), Blocks.STONE_SLAB);
+        h.setBlock(new BlockPos(7, 2, 2), Blocks.CARPET.pick(net.minecraft.world.item.DyeColor.WHITE));
         h.setBlock(new BlockPos(2, 2, 5), Blocks.OAK_FENCE);
         h.setBlock(new BlockPos(3, 2, 5), Blocks.SCAFFOLDING);
         h.setBlock(new BlockPos(4, 2, 5), Blocks.OAK_LOG);
@@ -140,6 +141,9 @@ public class PathingTests {
         h.assertTrue(cellAt(bare, h, 4, 2, 2).placeable(), "water can be filled");
         h.assertTrue(cellAt(bare, h, 5, 2, 2).kind() == Cell.Kind.HAZARD, "magma");
         h.assertTrue(cellAt(bare, h, 6, 2, 2).kind() == Cell.Kind.PARTIAL, "slab");
+        h.assertTrue(Math.abs(cellAt(bare, h, 6, 2, 2).top() - 0.5) < 1.0e-6, "a bottom slab is half a block");
+        h.assertTrue(Math.abs(cellAt(bare, h, 7, 2, 2).top() - 0.0625) < 1.0e-6, "a carpet is a sixteenth");
+        h.assertTrue(Math.abs(cellAt(bare, h, 2, 2, 2).top() - 1.0) < 1.0e-6, "stone is a full block");
         h.assertTrue(cellAt(bare, h, 2, 2, 5).kind() == Cell.Kind.TALL, "fence");
         h.assertTrue(cellAt(bare, h, 3, 2, 5).kind() == Cell.Kind.CLIMBABLE, "scaffolding");
 
@@ -534,6 +538,44 @@ public class PathingTests {
             h.assertTrue(state[0] == Navigator.State.ARRIVED, "not on carpet: " + state[0] + " at " + c.position());
             h.assertTrue(
                     Math.abs(c.getY() - (target.y - 0.9375)) < 0.1, "feet should rest on the carpet: " + c.position());
+        });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void navigatorDoesNotJumpOntoATwoBlockStackFromACarpet(GameTestHelper h) {
+        int floor = 180;
+        GameTestSupport.platformAt(h, floor, 12);
+        h.setBlock(new BlockPos(6, floor + 1, 2), Blocks.CARPET.pick(net.minecraft.world.item.DyeColor.WHITE));
+        h.setBlock(new BlockPos(7, floor + 1, 2), Blocks.STONE);
+        h.setBlock(new BlockPos(7, floor + 2, 2), Blocks.STONE);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 5, floor + 1, 2);
+        TaskContext context = new TaskContext(c, h.getLevel());
+        // No placement: the two-high stack has no walking route, and a pillar is not the answer under test.
+        Navigator navigator = new Navigator(context, false);
+        Vec3 target = h.absoluteVec(new Vec3(7.5, floor + 3, 2.5));
+        navigator.setGoal(new GoalPoint(target.x, target.y, target.z, 0.3, 0.5));
+        Navigator.State[] state = {Navigator.State.SEARCHING};
+        List<PathStep> impossible = new ArrayList<>();
+        h.onEachTick(() -> {
+            state[0] = navigator.tick(context);
+            Path plan = navigator.plan();
+            if (plan == null) {
+                return;
+            }
+            for (PathStep step : plan.steps()) {
+                // The carpet leaves the feet almost a block below its node, so this is a 1.94-block rise.
+                if (step.move() == Move.ASCEND
+                        && step.from().x() == 6
+                        && step.from().z() == 2
+                        && step.to().x() == 7
+                        && step.to().z() == 2) {
+                    impossible.add(step);
+                }
+            }
+        });
+        h.succeedWhen(() -> {
+            h.assertTrue(impossible.isEmpty(), "planned a jump two blocks high: " + impossible);
+            h.assertTrue(state[0] == Navigator.State.UNREACHABLE, "still " + state[0]);
         });
     }
 
