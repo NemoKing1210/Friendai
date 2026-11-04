@@ -1,16 +1,12 @@
 package dev.friendai.server.agent;
 
 import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import dev.friendai.FriendaiMod;
 import dev.friendai.agent.autonomy.AutonomyFacts;
 import dev.friendai.agent.autonomy.AutonomySettings;
 import dev.friendai.agent.autonomy.AwaySummary;
-import dev.friendai.agent.autonomy.Executor;
 import dev.friendai.agent.autonomy.FreeTime;
-import dev.friendai.agent.autonomy.FreeTimeLogEvents;
 import dev.friendai.agent.autonomy.FreeTimeService;
 import dev.friendai.agent.autonomy.FreeTimeStatus;
 import dev.friendai.agent.autonomy.FreeTimeText;
@@ -30,7 +26,6 @@ import dev.friendai.agent.autonomy.ShiftPolicy;
 import dev.friendai.agent.autonomy.ShiftStopWhen;
 import dev.friendai.agent.autonomy.WorkConflict;
 import dev.friendai.agent.turn.AgentSettings.Autonomy;
-import dev.friendai.common.Components;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.execution.queue.JobQueue;
@@ -100,6 +95,9 @@ public final class FreeTimeDriver {
     private final PlaceService placeService;
     private final Map<String, TaskToolDefinition> taskTools;
     private final Map<String, TaskToolDefinition> planTools;
+    private final ShiftReporter reporter;
+    private final ReflexQueue reflexQueue;
+    private final ShiftPlanRequester planRequester;
     private final Map<UUID, Long> awaitingSince = new HashMap<>();
     private final Set<UUID> planning = new java.util.HashSet<>();
     /** Bumped whenever an owner's pending planner reply stops being welcome. */
@@ -142,6 +140,75 @@ public final class FreeTimeDriver {
         this.placeService = placeService;
         this.taskTools = taskTools;
         this.planTools = planTools;
+        this.reporter = new ShiftReporter(server, freeTimeService, brains);
+        this.reflexQueue = new ReflexQueue(
+                new ReflexQueue.Host() {
+                    @Override
+                    public Optional<String> refusalToStart(
+                            CompanionEntity companion, boolean ownerGoalActive, List<ReflexStep> steps) {
+                        return FreeTimeDriver.this.refusalToStart(companion, ownerGoalActive, steps);
+                    }
+
+                    @Override
+                    public Optional<Long> queue(
+                            UUID owner,
+                            CompanionEntity companion,
+                            String goal,
+                            List<ReflexStep> steps,
+                            int minutes,
+                            Map<String, TaskToolDefinition> tools) {
+                        return FreeTimeDriver.this.queue(owner, companion, goal, steps, minutes, tools);
+                    }
+
+                    @Override
+                    public void stageCleared(UUID owner) {
+                        stageAtStart.remove(owner);
+                    }
+
+                    @Override
+                    public void factsInvalidated(UUID owner) {
+                        facts.invalidate(owner);
+                    }
+                },
+                freeTimeService,
+                brains,
+                taskTools);
+        this.planRequester = new ShiftPlanRequester(
+                brains,
+                freeTimeService,
+                reporter,
+                facts,
+                placeService,
+                planEpoch,
+                planning,
+                this::budget,
+                taskTools,
+                planTools,
+                (companion, ownerGoalActive, steps) -> refusalToStart(companion, ownerGoalActive, steps),
+                new ShiftPlanRequester.Queuer() {
+                    @Override
+                    public Optional<Long> queueJson(
+                            UUID owner,
+                            CompanionEntity companion,
+                            String goal,
+                            JsonArray steps,
+                            int minutes,
+                            Map<String, TaskToolDefinition> tools) {
+                        return FreeTimeDriver.this.queue(owner, companion, goal, steps, minutes, tools);
+                    }
+
+                    @Override
+                    public Optional<Long> queueSteps(
+                            UUID owner,
+                            CompanionEntity companion,
+                            String goal,
+                            List<ReflexStep> steps,
+                            int minutes,
+                            Map<String, TaskToolDefinition> tools) {
+                        return FreeTimeDriver.this.queue(owner, companion, goal, steps, minutes, tools);
+                    }
+                },
+                this::finishShift);
     }
 
     /** Free time is switched off on this server ({@code autonomy.enabled} or a passive {@code agent.autonomy}). */
@@ -292,44 +359,7 @@ public final class FreeTimeDriver {
             ShiftStopWhen stopWhen,
             long nowMillis,
             boolean report) {
-        var diagnosis = success || summary == null || summary.isBlank()
-                ? null
-                : new dev.friendai.agent.recover.RecoveryAdvisor().diagnose("", summary, Set.of());
-        service().finishShift(owner, success, summary, nowMillis, stopWhen);
-        brains.logFreeTime(FreeTimeLogEvents.end(
-                owner,
-                companion.getUUID(),
-                brains.logSession(owner),
-                shift == null ? 0L : shift.planId(),
-                success,
-                stopWhen.name(),
-                summary,
-                diagnosis == null ? "" : diagnosis.kind().name(),
-                diagnosis == null ? "" : diagnosis.detail()));
-        if (report) {
-            reportShiftEnd(owner, companion, shift, success, summary, stopWhen);
-        }
-    }
-
-    /** One short translated line when a shift ends; an absent owner hears it when they come back. */
-    private void reportShiftEnd(
-            UUID owner,
-            CompanionEntity companion,
-            Shift shift,
-            boolean success,
-            String summary,
-            ShiftStopWhen stopWhen) {
-        if (shift == null) {
-            return;
-        }
-        if (!success
-                && dev.friendai.agent.turn.CompanionSpeechPolicy.shouldReportShiftFailure(
-                        shift, summary, stopWhen, service().state(owner).history())) {
-            UserMessage line = FreeTimeText.shiftFailureMessage(summary);
-            brains.logFreeTime(FreeTimeLogEvents.report(
-                    owner, companion.getUUID(), brains.logSession(owner), shift.planId(), line.key()));
-            tell(owner, companion, line);
-        }
+        reporter.finish(owner, companion, shift, success, summary, stopWhen, nowMillis, report);
     }
 
     /** Cancels a free-time plan on purpose, so its end is not reported as news. */
@@ -724,33 +754,6 @@ public final class FreeTimeDriver {
         return Optional.of(reason);
     }
 
-    /** A planner proposal's steps in the shape the duplicate guard reads: a tool and its named arguments. */
-    private static List<ReflexStep> stepsOf(JsonArray steps) {
-        List<ReflexStep> out = new java.util.ArrayList<>();
-        for (JsonElement element : steps) {
-            if (!element.isJsonObject()) {
-                continue;
-            }
-            JsonObject step = element.getAsJsonObject();
-            if (!step.has("tool") || step.get("tool").isJsonNull()) {
-                continue;
-            }
-            JsonObject args = new JsonObject();
-            JsonElement raw = step.get("args");
-            if (raw != null && raw.isJsonObject()) {
-                args = raw.getAsJsonObject();
-            } else if (raw != null && raw.isJsonPrimitive()) {
-                try {
-                    args = JsonParser.parseString(raw.getAsString()).getAsJsonObject();
-                } catch (RuntimeException ignored) {
-                    args = new JsonObject();
-                }
-            }
-            out.add(new ReflexStep(step.get("tool").getAsString(), args));
-        }
-        return out;
-    }
-
     /** Asks the director, through one brain event, to choose the next activity. */
     void askDirector(UUID owner, CompanionEntity companion, AutonomyFacts f, long nowMillis) {
         FreeTime state = service().state(owner);
@@ -806,147 +809,7 @@ public final class FreeTimeDriver {
     }
 
     private void requestPlan(UUID owner, CompanionEntity companion, long shiftId, int minutes, boolean speakFailure) {
-        int epoch = planEpoch.getOrDefault(owner, 0);
-        Caller caller = ownerCaller(owner);
-        dev.friendai.agent.plan.PlanSubject subject = new dev.friendai.agent.plan.PlanSubject.FreeTimeShift(shiftId);
-        Optional<dev.friendai.agent.plan.PlannerInput> input =
-                brains.plannerInputs(owner, companion).build(subject, caller, "");
-        if (input.isEmpty()) {
-            brains.plannerDebug(owner, "planner disposition=given up: the shift ended before it could be planned");
-            logPlanner(owner, subject, "fallback", "no-input", 0L, 0L);
-            return;
-        }
-        planning.add(owner);
-        logPlanner(owner, subject, "request", "", -1L, 0L);
-        long startedAt = System.nanoTime();
-        brains.propose(owner, input.get(), true)
-                .whenComplete((proposal, error) -> brains.onServerThread(() -> {
-                    long durationMs = (System.nanoTime() - startedAt) / 1_000_000L;
-                    if (epoch != planEpoch.getOrDefault(owner, 0)) {
-                        logPlanner(owner, subject, "fallback", "stale", durationMs, 0L);
-                        return; // a teleport, a dismissal or a stop made this answer stale
-                    }
-                    planning.remove(owner);
-                    FreeTime state = service().state(owner);
-                    if (!state.on() || state.shift() == null || state.shift().id() != shiftId) {
-                        logPlanner(owner, subject, "fallback", "stale", durationMs, 0L);
-                        return; // stopped or replaced while the planner was thinking
-                    }
-                    Optional<String> refused = error == null && proposal != null
-                            ? refusalToStart(companion, false, stepsOf(proposal.stepsJson()))
-                            : Optional.empty();
-                    if (refused.isPresent()) {
-                        Shift shift = state.shift();
-                        finishShift(
-                                owner,
-                                companion,
-                                shift,
-                                false,
-                                "the queue already holds this work",
-                                ShiftStopWhen.WORK_CONFLICTS,
-                                now(),
-                                true);
-                        brains.plannerDebug(owner, "planner disposition=refused: " + refused.get());
-                        logPlanner(owner, subject, "fallback", "refused", durationMs, 0L);
-                        return;
-                    }
-                    Optional<Long> plan = error != null || proposal == null
-                            ? Optional.empty()
-                            : queue(owner, companion, state.shift().goal(), proposal.stepsJson(), minutes, planTools);
-                    if (plan.isEmpty()) {
-                        long now = now();
-                        Throwable ownerError = error;
-                        if (ownerError == null && proposal != null) {
-                            ownerError = new dev.friendai.agent.plan.PlannerException(
-                                    new dev.friendai.agent.plan.PlanFailure(
-                                            dev.friendai.agent.plan.PlanFailure.Code.STEPS_INVALID,
-                                            "the proposed plan was refused by the queue",
-                                            1));
-                        }
-                        Throwable cause = dev.friendai.agent.plan.PlanFailure.unwrap(error);
-                        String reason = cause instanceof dev.friendai.agent.plan.PlannerException failure
-                                ? "planner failed: " + failure.failure().code()
-                                : "planner could not produce a usable plan";
-                        brains.plannerDebug(
-                                owner,
-                                error == null && proposal != null
-                                        ? "planner disposition=queue refused: the proposed plan was refused by the queue"
-                                        : "planner disposition=given up");
-                        String code = cause instanceof dev.friendai.agent.plan.PlannerException failure
-                                ? failure.failure().code().name()
-                                : (proposal != null ? "STEPS_INVALID" : "REQUEST_FAILED");
-                        logPlanner(owner, subject, "failed", code, durationMs, 0L);
-                        // The director may keep its hour moving with a deterministic template. An owner-requested
-                        // draft must report the planner failure and end without guessing at a different plan.
-                        AutonomyFacts f = facts.build(companion, owner, now, placeService);
-                        Optional<List<ReflexStep>> template = speakFailure
-                                ? Optional.empty()
-                                : ReflexPlans.fallback(state.shift().need(), f);
-                        if (template.isPresent()
-                                && refusalToStart(companion, false, template.get())
-                                        .isEmpty()) {
-                            Optional<Long> fallback =
-                                    queue(owner, companion, state.shift().goal(), template.get(), minutes, taskTools);
-                            if (fallback.isPresent()) {
-                                service().linkPlan(owner, fallback.get());
-                                brains.logFreeTime(FreeTimeLogEvents.start(
-                                        owner,
-                                        companion.getUUID(),
-                                        brains.logSession(owner),
-                                        fallback.get(),
-                                        state.shift().need().name(),
-                                        state.shift().goal()));
-                                facts.invalidate(owner);
-                                budget(owner).failed();
-                                brains.plannerDebug(owner, "planner disposition=queued fallback");
-                                logPlanner(owner, subject, "fallback", "template", durationMs, fallback.get());
-                                return;
-                            }
-                        }
-                        // The need did not fail, the planner could not draft work for it: only the director backs off.
-                        Shift shift = state.shift();
-                        // One line, not two: when the owner asked for this shift they get the specific failure reason
-                        // instead of the generic end report, which would say the same thing twice.
-                        finishShift(
-                                owner,
-                                companion,
-                                shift,
-                                false,
-                                "no plan: " + reason,
-                                ShiftStopWhen.WORK_CONFLICTS,
-                                now,
-                                !speakFailure);
-                        if (speakFailure) {
-                            tell(owner, companion, dev.friendai.agent.plan.PlanFailure.ownerMessage(ownerError));
-                        }
-                        budget(owner).failed();
-                        logPlanner(owner, subject, "fallback", "none", durationMs, 0L);
-                        return;
-                    }
-                    logPlanner(owner, subject, "delivered", "", durationMs, plan.get());
-                    service().linkPlan(owner, plan.get());
-                    brains.logFreeTime(FreeTimeLogEvents.start(
-                            owner,
-                            companion.getUUID(),
-                            brains.logSession(owner),
-                            plan.get(),
-                            state.shift().need().name(),
-                            state.shift().goal()));
-                    facts.invalidate(owner);
-                    brains.plannerDebug(owner, "planner disposition=queued plan #" + plan.get());
-                }));
-    }
-
-    /** One durable planner record for the shift's consultation; the subject carries the shift id, never its text. */
-    private void logPlanner(
-            UUID owner,
-            dev.friendai.agent.plan.PlanSubject subject,
-            String disposition,
-            String code,
-            long durationMs,
-            long planId) {
-        brains.logPlanner(
-                owner, new dev.friendai.agent.turn.PlannerAttempt(subject, 1, disposition, code, durationMs, planId));
+        planRequester.request(owner, companion, shiftId, minutes, speakFailure);
     }
 
     private void interrupt(UUID owner, CompanionEntity companion, Shift shift, Need need, long nowMillis) {
@@ -963,34 +826,7 @@ public final class FreeTimeDriver {
             AutonomySettings s,
             long nowMillis,
             boolean ownerGoalActive) {
-        if (steps.isEmpty()) {
-            service().cooldown(owner, need.kind(), nowMillis + s.failCooldownMin() * 60_000L);
-            return false;
-        }
-        if (refusalToStart(companion, ownerGoalActive, steps.get()).isPresent()) {
-            return false; // the queue already has this work, or the owner's work comes first
-        }
-        boolean shelter = need.kind() == NeedKind.SHELTER || need.kind() == NeedKind.SURVIVE;
-        int minutes = shelter ? SHELTER_MINUTES : s.shiftMinutes();
-        Optional<Long> plan = queue(owner, companion, "free time: " + need.text(), steps.get(), minutes, taskTools);
-        if (plan.isEmpty()) {
-            service().cooldown(owner, need.kind(), nowMillis + s.failCooldownMin() * 60_000L);
-            return false;
-        }
-        stageAtStart.remove(owner);
-        service()
-                .beginShift(
-                        owner, need.text(), List.of(), "", need.kind(), true, nowMillis, nowMillis + minutes * 60_000L);
-        service().linkPlan(owner, plan.get());
-        brains.logFreeTime(FreeTimeLogEvents.start(
-                owner,
-                companion.getUUID(),
-                brains.logSession(owner),
-                plan.get(),
-                need.kind().name(),
-                need.text()));
-        facts.invalidate(owner);
-        return true;
+        return reflexQueue.template(owner, companion, need, steps, s, nowMillis, ownerGoalActive);
     }
 
     /**
@@ -1004,29 +840,7 @@ public final class FreeTimeDriver {
             AutonomySettings s,
             long nowMillis,
             boolean ownerGoalActive) {
-        FreeTime state = service().state(owner);
-        List<Need> needs = NeedsAssessor.assess(f, state, s);
-        for (Need need : needs) {
-            if (need.executor() != Executor.REFLEX) {
-                continue;
-            }
-            Optional<List<ReflexStep>> steps = ReflexPlans.plan(need, f, s);
-            if (steps.isPresent() && queueTemplate(owner, companion, need, steps, s, nowMillis, ownerGoalActive)) {
-                return true;
-            }
-        }
-        for (NeedKind kind : ShiftPolicy.FALLBACK_ORDER) {
-            for (Need need : needs) {
-                if (need.kind() != kind) {
-                    continue;
-                }
-                Optional<List<ReflexStep>> steps = ReflexPlans.fallback(need, f);
-                if (steps.isPresent() && queueTemplate(owner, companion, need, steps, s, nowMillis, ownerGoalActive)) {
-                    return true;
-                }
-            }
-        }
-        return false;
+        return reflexQueue.firstTemplate(owner, companion, f, s, nowMillis, ownerGoalActive);
     }
 
     /** Queues a free-time plan with the owner's authority; empty when the plan was refused. */
@@ -1113,25 +927,11 @@ public final class FreeTimeDriver {
 
     /** A fixed line to the owner when they can hear it, otherwise saved for when they come back. */
     void tell(UUID owner, CompanionEntity companion, UserMessage message) {
-        var player = companion.owner();
-        if (player.isPresent()) {
-            noteCompanionSpeech(owner);
-            player.get()
-                    .sendSystemMessage(net.minecraft.network.chat.Component.literal("<")
-                            .append(dev.friendai.server.companion.CompanionNames.styled(
-                                    companion.getName().getString()))
-                            .append(net.minecraft.network.chat.Component.literal("> "))
-                            .append(Components.of(message)));
-            brains.logDirectDelivery(owner, message.key());
-        } else {
-            service().update(owner, s -> AwaySummary.addMessage(s, message));
-        }
+        reporter.tell(owner, companion, message);
     }
 
     private void noteCompanionSpeech(UUID owner) {
-        dev.friendai.server.runtime.ServerRuntimeRegistry.find(server)
-                .ifPresent(runtime -> runtime.socialDirector()
-                        .companionSpoke(owner, runtime.server().overworld().getGameTime()));
+        reporter.noteCompanionSpeech(owner);
     }
 
     /** Wall-clock time: cooldowns and the idle spell are saved and must mean the same after a restart. */
