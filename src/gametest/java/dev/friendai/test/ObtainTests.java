@@ -13,7 +13,9 @@ import dev.friendai.features.acquisition.ToolNeed;
 import dev.friendai.features.acquisition.WorldFacts;
 import dev.friendai.features.acquisition.minecraft.search.DropIndex;
 import dev.friendai.features.acquisition.minecraft.search.WorldScan;
+import dev.friendai.features.acquisition.minecraft.task.BatchObtainTask;
 import dev.friendai.features.acquisition.minecraft.task.ObtainTask;
+import dev.friendai.features.crafting.CraftPlanner;
 import dev.friendai.features.exploration.minecraft.task.ExploreTask;
 import dev.friendai.features.inventory.minecraft.task.CheckContainerTask;
 import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
@@ -22,6 +24,7 @@ import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.server.execution.tools.MinecraftObtainSubtaskFactory;
 import dev.friendai.task.TaskStatus;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -192,6 +195,13 @@ public class ObtainTests {
         ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 2400, () -> false);
         runner.setEventSink(result);
         runner.start(task, "obtain_item");
+        return runner;
+    }
+
+    private static ExecutionCoordinator batch(CompanionEntity c, Result result, BatchObtainTask task) {
+        ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 9600, () -> false);
+        runner.setEventSink(result);
+        runner.start(task, "obtain_items");
         return runner;
     }
 
@@ -786,6 +796,86 @@ public class ObtainTests {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.FAILED, "not finished: " + result.status + " " + result.summary);
             h.assertTrue(result.summary.startsWith("gave up after 1 steps"), "summary was " + result.summary);
+        });
+    }
+
+    @GameTest(maxTicks = 9600)
+    public void batchObtainsStoneToolSet(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        // A dirt floor keeps the arena's only stone the wall the batch is meant to mine.
+        for (int x = 0; x < 16; x++) for (int z = 0; z < 16; z++) h.setBlock(x, 1, z, Blocks.DIRT);
+        List<BlockPos> stones = new ArrayList<>();
+        for (int x = 3; x <= 12; x += 3) for (int z = 2; z <= 11; z += 3) stones.add(new BlockPos(x, 2, z));
+        for (BlockPos stone : stones) h.setBlock(stone, Blocks.STONE);
+        BlockPos table = new BlockPos(13, 2, 12);
+        h.setBlock(table, Blocks.CRAFTING_TABLE);
+        h.assertTrue(h.getBlockState(table).is(Blocks.CRAFTING_TABLE), "the table was not placed");
+        var owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(owner.getUUID());
+        c.inventory().setItem(0, new ItemStack(Items.WOODEN_PICKAXE));
+        c.inventory().setItem(1, new ItemStack(Items.STICK, 16));
+        c.inventory().setItem(2, new ItemStack(Items.COBBLESTONE, 9));
+        for (BlockPos stone : stones) GameTestSupport.observeVisible(h, c, h.absolutePos(stone));
+        GameTestSupport.observeVisible(h, c, h.absolutePos(table));
+        var caller =
+                new Caller(owner.getUUID(), owner.getName().getString(), dev.friendai.execution.tool.AccessLevel.OWNER);
+        Result result = new Result();
+        ExecutionCoordinator runner = batch(
+                c,
+                result,
+                new BatchObtainTask(
+                        List.of(
+                                new CraftPlanner.Target("minecraft:stone_pickaxe", 2),
+                                new CraftPlanner.Target("minecraft:stone_axe", 2)),
+                        true,
+                        true,
+                        64,
+                        9000,
+                        64,
+                        128,
+                        6000,
+                        "local",
+                        caller,
+                        null,
+                        new MinecraftObtainSubtaskFactory()));
+        TaskTrace.of(h, runner, c).succeedWhen(() -> {
+            for (BlockPos stone : stones)
+                if (h.getBlockState(stone).is(Blocks.STONE)) GameTestSupport.observeVisible(h, c, h.absolutePos(stone));
+            GameTestSupport.observeVisible(h, c, h.absolutePos(table));
+            runner.tick();
+            h.assertTrue(result.status != null, "the batch should finish");
+            h.assertTrue(
+                    result.status == TaskStatus.SUCCESS,
+                    result.summary + " table " + h.absolutePos(table) + " " + h.getBlockState(table) + " at "
+                            + c.blockPosition());
+            h.assertValueEqual(c.inventory().countItem(Items.STONE_PICKAXE), 2, "stone pickaxes");
+            h.assertValueEqual(c.inventory().countItem(Items.STONE_AXE), 2, "stone axes");
+            h.assertTrue(
+                    result.summary.startsWith("got 2 minecraft:stone_pickaxe, 2 minecraft:stone_axe in "),
+                    result.summary);
+        });
+    }
+
+    @GameTest(maxTicks = 600)
+    public void batchNamesWhatItCouldNotGet(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        Result result = new Result();
+        ExecutionCoordinator runner = batch(
+                c,
+                result,
+                new BatchObtainTask(
+                        List.of(new CraftPlanner.Target("minecraft:dragon_egg", 1)),
+                        false,
+                        false,
+                        new MinecraftObtainSubtaskFactory()));
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.FAILED, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(
+                    result.summary.startsWith("couldn't get 1 minecraft:dragon_egg for minecraft:dragon_egg:"),
+                    result.summary);
         });
     }
 
