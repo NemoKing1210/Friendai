@@ -90,7 +90,8 @@ const RU = {
   "Mining & Gathering": "Добыча и сбор",
   "Collects raw materials: trees, ores, drops. Tool choice comes from item data components, never hard-coded tiers.": "Собирает сырьё: деревья, руды, выпавшие предметы. Инструмент выбирается по компонентам предмета, а не по зашитым уровням.",
   "Fell a whole tree top-down using scaffold.": "Срубить дерево целиком сверху вниз, используя леса.",
-  "Mine up to 64 blocks of a type in one call.": "Добыть до 64 блоков одного типа за один вызов.",
+  "Mine up to 64 blocks of a type in one call; wood comes from whole felled trees.":
+    "Добыть до 64 блоков одного типа за один вызов; древесину получает из целых сваленных деревьев.",
   "Mine the block you point at, follow its vein, and report what was taken.":
     "Добыть указанный блок, пройти по его жиле и сообщить, что подобрано.",
   "Mine a box, tunnel, stair, shaft or strip mine in one call, with drops and safety.":
@@ -232,8 +233,10 @@ const RU = {
   /* ---- Acquisition ---- */
   "Resource Acquisition": "Добыча ресурсов",
   "Ask for an item and it works out how: inventory, chests, craft, smelt, mine, hunt, harvest, shear, milk or explore.": "Попросите предмет, и он сам решит как: инвентарь, сундуки, крафт, плавка, добыча, охота, урожай, стрижка, дойка или разведка.",
-  "Get an item by any means.": "Получить предмет любым способом.",
-  "Gather every material for a set of items once, then craft them all.": "Собрать все материалы для набора предметов один раз, а потом создать их все.",
+  "Get an item by any means; wood is felled as whole trees.":
+    "Получить предмет любым способом; древесину добывает, свалив деревья целиком.",
+  "Gather every material for a set of items once, then craft them all; wood is felled as whole trees.":
+    "Собрать все материалы для набора предметов один раз, а потом создать их все; древесину добывает, свалив деревья целиком.",
   "Show the plan without doing it.": "Показать план, не выполняя его.",
   "Explore to find a resource.": "Отправиться на поиск ресурса.",
   "What it already knows about.": "Что ему уже известно.",

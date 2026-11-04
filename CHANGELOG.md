@@ -6,6 +6,13 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.207.1] - 2026-11-04
+
+### Fixed
+
+- Wood gathering now fells one whole tree before moving on, clears the leaves between it and a log, and leaves no half-cut trunk behind.
+- A pointed log is taken down with its whole trunk, and a tree with long side branches is climbed from a column that reaches every branch.
+
 ## [0.207.0] - 2026-11-04
 
 ### Added
