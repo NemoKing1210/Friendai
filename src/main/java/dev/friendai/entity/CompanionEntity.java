@@ -127,6 +127,13 @@ public class CompanionEntity extends PathfinderMob {
     private static final EntityDataAccessor<Integer> DATA_MOOD =
             SynchedEntityData.defineId(CompanionEntity.class, EntityDataSerializers.INT);
 
+    /**
+     * The owner's outline switch for this companion, synced so the owner's renderer reads the world's own choice
+     * instead of a client-wide preference. It is only ever drawn for the owner, like the owner id above.
+     */
+    private static final EntityDataAccessor<Boolean> DATA_OUTLINE =
+            SynchedEntityData.defineId(CompanionEntity.class, EntityDataSerializers.BOOLEAN);
+
     private final dev.friendai.features.social.MoodModel moodModel = new dev.friendai.features.social.MoodModel();
     private final dev.friendai.features.social.BondLedger bondLedger = new dev.friendai.features.social.BondLedger();
     /** The bond is read from the owner's memory book once, on first use, and written back after every change. */
@@ -248,6 +255,7 @@ public class CompanionEntity extends PathfinderMob {
         builder.define(DATA_PLACE_ITEM, ItemStack.EMPTY);
         builder.define(DATA_OWNER, "");
         builder.define(DATA_MOOD, 0);
+        builder.define(DATA_OUTLINE, false);
     }
     /** The companion's experience; after changing it directly call {@link #syncExperience()}. */
     public ExperienceModel experience() {
@@ -818,6 +826,7 @@ public class CompanionEntity extends PathfinderMob {
             creativeModeRevision++;
         }
         syncCreativeModePreference();
+        syncOutlinePreference();
     }
 
     /** The persisted owner preference mirrored into entity data for clients and server-side capabilities. */
@@ -1224,6 +1233,32 @@ public class CompanionEntity extends PathfinderMob {
         }
     }
 
+    /** The owner's outline switch for this companion, stored with the world's life preferences. */
+    public boolean syncedOutline() {
+        return entityData.get(DATA_OUTLINE);
+    }
+
+    /** Flips the world-local outline preference and mirrors it to the owner's client. */
+    public void setOutline(boolean on) {
+        if (ownerUuid != null && level() instanceof ServerLevel serverLevel) {
+            ServerRuntimeRegistry.getOrCreate(serverLevel.getServer())
+                    .companionLife()
+                    .setOutline(ownerUuid, on);
+        }
+        entityData.set(DATA_OUTLINE, on);
+    }
+
+    /** Refreshes the synced mirror from the world's stored preference when the body loads or is registered. */
+    public void syncOutlinePreference() {
+        if (ownerUuid != null && level() instanceof ServerLevel serverLevel) {
+            entityData.set(
+                    DATA_OUTLINE,
+                    ServerRuntimeRegistry.getOrCreate(serverLevel.getServer())
+                            .companionLife()
+                            .outline(ownerUuid));
+        }
+    }
+
     /**
      * Sets the name shown above the head and used in chat. The name tag is visible without a name tag item, so a
      * name given at summon or by {@code set_name} shows right away. The colour is derived from the name itself,
@@ -1502,6 +1537,7 @@ public class CompanionEntity extends PathfinderMob {
             entityData.set(DATA_OWNER, id.toString());
         });
         syncCreativeModePreference();
+        syncOutlinePreference();
         CompanionBodyCodec.read(this, input, taskPersistence());
     }
 

@@ -963,8 +963,6 @@
   "friendai.config.autonomy.allow_building.tooltip": "Si el tiempo libre puede colocar bloques. Desactivado, el trabajo autónomo se limita a recoger, viajar y fabricar.",
   "friendai.config.mining.protect_drops.tooltip": "Si un hallazgo valioso se protege con una plataforma antes de romper su bloque, gastando bloques para no perderlo.",
   "friendai.config.category.display": "Pantalla",
-  "friendai.config.social.outline": "Ver al compañero a través de paredes",
-  "friendai.config.social.outline.tooltip": "Dibuja el contorno del cuerpo de tu propio compañero a través de paredes cuando está a más de 12 bloques o queda oculto. Nunca para el compañero de otro jugador.",
   "friendai.config.social.mood_mark": "Mostrar la marca de ánimo",
   "friendai.config.social.mood_mark.tooltip": "Muestra una pequeña marca sobre la cabeza del compañero según su ánimo.",
   "key.friendai.companion_outline": "Contorno del compañero",

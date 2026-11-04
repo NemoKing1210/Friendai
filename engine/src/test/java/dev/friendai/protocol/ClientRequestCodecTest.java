@@ -66,6 +66,17 @@ final class ClientRequestCodecTest {
     }
 
     @Test
+    void roundTripsTheOutlineToggle() {
+        byte[] encoded = ClientRequestCodec.encode(6, new ControlRequest.ToggleOutline());
+
+        DecodeResult<DecodedClientRequest> result = ClientRequestCodec.decode(encoded);
+        assertInstanceOf(DecodeResult.Valid.class, result);
+        DecodedClientRequest decoded = ((DecodeResult.Valid<DecodedClientRequest>) result).value();
+        assertEquals(6, decoded.requestId());
+        assertEquals(new ControlRequest.ToggleOutline(), decoded.request());
+    }
+
+    @Test
     void rejectsNoncanonicalBooleanAndMalformedUtf8BeforeDispatch() {
         byte[] invalidBoolean = {1, 1, 8, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 2};
         byte[] invalidUtf8Rename = {1, 1, 7, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 3, 0, 1, (byte) 0xff};

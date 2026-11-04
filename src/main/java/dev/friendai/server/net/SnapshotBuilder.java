@@ -42,6 +42,7 @@ public final class SnapshotBuilder {
         boolean creativeModeAvailable = creativeMode || operator;
         boolean followMode =
                 runtime.companionLife().followModeChoice(owner).orElse(runtime.config().tasks.defaultFollow);
+        boolean outline = runtime.companionLife().outline(owner);
         var freeTime = runtime.freeTime().state(owner);
         var status = brains.freeTime().status(owner);
         if (companion.isEmpty()) {
@@ -70,7 +71,17 @@ public final class SnapshotBuilder {
                     status.next(),
                     status.budget(),
                     status.last(),
-                    status.plannerModel());
+                    status.plannerModel(),
+                    "",
+                    List.of(),
+                    "",
+                    List.of(),
+                    List.of(),
+                    false,
+                    0,
+                    "",
+                    "",
+                    outline);
         }
         CompanionEntity c = companion.get();
         Feeling feeling = feelingOf(runtime, owner, c);
@@ -116,7 +127,8 @@ public final class SnapshotBuilder {
                         .orElse(false),
                 feeling.goalId(),
                 phaseOf(c),
-                runtime.sessions().routines().status(owner));
+                runtime.sessions().routines().status(owner),
+                outline);
     }
 
     /**

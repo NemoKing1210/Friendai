@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.208.0] - 2026-11-04
+
+### Changed
+
+- **Show my companion through walls** now belongs to the world: each save remembers its own switch, it starts off in every world, and turning it on in one save no longer turns it on in another. Change it with the **Outline** switch in the companion menu or the **Companion outline** key; the **Display** settings no longer offer a second, client-wide copy.
+
 ## [0.207.0] - 2026-11-04
 
 ### Added

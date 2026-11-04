@@ -2025,12 +2025,6 @@ public final class FriendaiConfigScreen {
         return ConfigCategory.createBuilder()
                 .name(scoped(tr("friendai.config.category.display"), "friendai.config.scope.client"))
                 .option(booleanOption(
-                        "friendai.config.social.outline",
-                        "friendai.config.social.outline.tooltip",
-                        false,
-                        () -> social.outline,
-                        value -> social.outline = value))
-                .option(booleanOption(
                         "friendai.config.social.mood_mark",
                         "friendai.config.social.mood_mark.tooltip",
                         true,

@@ -1,12 +1,10 @@
 package dev.friendai.client.ui;
 
 import com.mojang.blaze3d.platform.InputConstants;
-import dev.friendai.client.FriendaiClient;
-import dev.friendai.infrastructure.config.ClientConfig;
+import dev.friendai.protocol.control.ControlRequest;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.minecraft.client.KeyMapping;
-import net.minecraft.network.chat.Component;
 
 /** Toggles the companion outline. Unbound by default: the player picks a key in Controls. */
 public final class OutlineKeybind {
@@ -20,19 +18,13 @@ public final class OutlineKeybind {
                 ClientKeys.category()));
         ClientTickEvents.END_CLIENT_TICK.register(minecraft -> {
             while (key.consumeClick()) {
-                toggle(minecraft);
+                toggle();
             }
         });
     }
 
-    /** Flips the client option, saves it and confirms on the action bar; shared with the companion settings switch. */
-    static void toggle(net.minecraft.client.Minecraft minecraft) {
-        ClientConfig config = FriendaiClient.clientConfig();
-        config.social.outline = !config.social.outline;
-        FriendaiClient.runtime().configuration().save(config);
-        if (minecraft.player != null) {
-            minecraft.player.sendOverlayMessage(
-                    Component.translatable(config.social.outline ? "friendai.outline.on" : "friendai.outline.off"));
-        }
+    /** Flips the switch of the companion in the current world; the server confirms it on the action bar. */
+    static void toggle() {
+        CompanionRequests.send(new ControlRequest.ToggleOutline());
     }
 }

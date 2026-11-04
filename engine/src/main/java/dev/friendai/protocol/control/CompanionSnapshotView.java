@@ -39,7 +39,8 @@ public record CompanionSnapshotView(
         boolean workPaused,
         long goalId,
         String currentPhase,
-        String routine) {
+        String routine,
+        boolean outline) {
 
     /**
      * A payload written before these fields existed, or by a peer that leaves them out, decodes with them empty:
@@ -248,7 +249,8 @@ public record CompanionSnapshotView(
                 workPaused,
                 goalId,
                 "",
-                "");
+                "",
+                false);
     }
 
     public CompanionSnapshotView {

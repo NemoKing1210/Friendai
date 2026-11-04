@@ -131,6 +131,12 @@ public final class CompanionRequestHandler {
         } else if (request instanceof ControlRequest.SetFollowMode toggle) {
             if (companions.find(owner).isEmpty()) return;
             runtime.companionLife().setFollowMode(owner, toggle.enabled());
+        } else if (request instanceof ControlRequest.ToggleOutline) {
+            var companion = companions.find(owner);
+            if (companion.isEmpty()) return;
+            boolean on = !runtime.companionLife().outline(owner);
+            companion.get().setOutline(on);
+            player.sendSystemMessage(Component.translatable(on ? "friendai.outline.on" : "friendai.outline.off"), true);
         } else if (request instanceof ControlRequest.FreeTimeToggle) {
             var companion = companions.find(owner);
             if (companion.isEmpty() || brains.freeTime().disabled()) return;
@@ -232,6 +238,7 @@ public final class CompanionRequestHandler {
         if (request instanceof ControlRequest.SetAutoRespawn) return DebugAccess.Action.SET_AUTO_RESPAWN;
         if (request instanceof ControlRequest.SetCreativeMode) return DebugAccess.Action.SET_CREATIVE_MODE;
         if (request instanceof ControlRequest.SetFollowMode) return DebugAccess.Action.SET_FOLLOW_MODE;
+        if (request instanceof ControlRequest.ToggleOutline) return DebugAccess.Action.TOGGLE_OUTLINE;
         if (request instanceof ControlRequest.FreeTimeToggle) return DebugAccess.Action.SET_FREE_TIME;
         if (request instanceof ControlRequest.SendChat) return DebugAccess.Action.SEND_MESSAGE;
         if (request instanceof ControlRequest.InvokeTool) return DebugAccess.Action.RUN_TOOL;

@@ -24,6 +24,7 @@ import java.util.List;
  * @param goalId the primary goal's id, or 0 when there is none; the menu edits that goal by id
  * @param currentPhase the running task's lifecycle phase name (see {@code TaskPhase}), empty when nothing runs
  * @param routine the owner's routine: name, next due and last outcome, empty when there is none
+ * @param outline the owner's outline switch for this world's companion
  */
 public record CompanionSnapshot(
         boolean present,
@@ -59,7 +60,8 @@ public record CompanionSnapshot(
         boolean workPaused,
         long goalId,
         String currentPhase,
-        String routine) {
+        String routine,
+        boolean outline) {
     public static final int MAX_ACTIVITY = 200;
     public static final int MAX_NEXT = 160;
     public static final int MAX_BUDGET = 80;
@@ -276,7 +278,8 @@ public record CompanionSnapshot(
                 workPaused,
                 goalId,
                 "",
-                "");
+                "",
+                false);
     }
 
     public CompanionSnapshot {

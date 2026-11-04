@@ -966,8 +966,6 @@
   "friendai.config.autonomy.allow_building.tooltip": "Si le temps libre peut poser des blocs. Désactivé, le travail autonome se limite à la collecte, aux trajets et à l'artisanat.",
   "friendai.config.mining.protect_drops.tooltip": "Si un butin précieux est protégé par une plateforme avant de casser son bloc, au prix de quelques blocs.",
   "friendai.config.category.display": "Affichage",
-  "friendai.config.social.outline": "Voir le compagnon à travers les murs",
-  "friendai.config.social.outline.tooltip": "Trace le contour du corps de votre propre compagnon à travers les murs au-delà de 12 blocs ou s'il est masqué. Jamais pour le compagnon d'un autre joueur.",
   "friendai.config.social.mood_mark": "Afficher la marque d'humeur",
   "friendai.config.social.mood_mark.tooltip": "Affiche une petite marque au-dessus de la tête du compagnon pour son humeur actuelle.",
   "key.friendai.companion_outline": "Contour du compagnon",

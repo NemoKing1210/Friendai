@@ -963,8 +963,6 @@
   "friendai.config.autonomy.allow_building.tooltip": "空闲时间是否可以放置方块。关闭后自主工作仅限采集、赶路和合成。",
   "friendai.config.mining.protect_drops.tooltip": "破坏方块前是否用平台保护珍贵掉落，以免它掉进危险处。",
   "friendai.config.category.display": "显示",
-  "friendai.config.social.outline": "透视显示我的同伴",
-  "friendai.config.social.outline.tooltip": "在你自己的同伴距离超过 12 格或被地形遮挡时，透过墙壁勾勒其身体轮廓。从不显示其他玩家的同伴。",
   "friendai.config.social.mood_mark": "显示情绪标记",
   "friendai.config.social.mood_mark.tooltip": "在同伴头顶显示表示当前情绪的小标记。",
   "key.friendai.companion_outline": "同伴轮廓",

@@ -345,10 +345,9 @@ class ConfigStoresTest {
         assertTrue(config.voice.stt.enabled);
         assertEquals("groq", config.voice.stt.provider);
         assertTrue(config.voice.tts.enabled);
-        assertFalse(config.social.outline, "the outline is off until the player turns it on");
         assertTrue(config.social.moodMark, "the mood mark is on until the player turns it off");
         ConfigStores.client(path).save(config);
-        assertFalse(json(path).getAsJsonObject("social").get("outline").getAsBoolean());
+        assertFalse(json(path).getAsJsonObject("social").has("outline"), "the client-wide outline key is gone");
     }
 
     @Test
@@ -359,9 +358,22 @@ class ConfigStoresTest {
                 """);
         ClientConfig config = ConfigStores.client(path).load();
         assertEquals(ClientConfig.CURRENT_VERSION, config.version);
-        assertFalse(config.social.outline, "the file only held the old default");
         assertTrue(config.social.moodMark, "the mood mark keeps its own switch");
-        assertFalse(json(path).getAsJsonObject("social").get("outline").getAsBoolean());
+        assertFalse(json(path).getAsJsonObject("social").has("outline"));
+    }
+
+    @Test
+    void clientV9DropsTheClientWideOutlineKeyBecauseTheSwitchNowBelongsToTheWorld() throws IOException {
+        Path path = dir.resolve("client-v9.json");
+        Files.writeString(path, """
+                {"version":9,"social":{"outline":true,"moodMark":false}}
+                """);
+        ClientConfig config = ConfigStores.client(path).load();
+        assertEquals(ClientConfig.CURRENT_VERSION, config.version);
+        assertFalse(config.social.moodMark, "the mood mark keeps its own switch");
+        ConfigStores.client(path).save(config);
+        assertFalse(json(path).getAsJsonObject("social").has("outline"));
+        assertFalse(json(path).getAsJsonObject("social").get("moodMark").getAsBoolean());
     }
 
     @Test

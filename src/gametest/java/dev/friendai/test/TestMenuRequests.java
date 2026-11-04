@@ -49,7 +49,8 @@ final class TestMenuRequests {
         INVALID,
         SET_CREATIVE_MODE,
         FREE_TIME_TOGGLE,
-        SET_FOLLOW_MODE
+        SET_FOLLOW_MODE,
+        TOGGLE_OUTLINE
     }
 
     private TestMenuRequests() {}
@@ -96,6 +97,7 @@ final class TestMenuRequests {
             case SET_AUTO_RESPAWN -> bool(a) == null ? null : new ControlRequest.SetAutoRespawn(bool(a));
             case SET_CREATIVE_MODE -> bool(a) == null ? null : new ControlRequest.SetCreativeMode(bool(a));
             case SET_FOLLOW_MODE -> bool(a) == null ? null : new ControlRequest.SetFollowMode(bool(a));
+            case TOGGLE_OUTLINE -> new ControlRequest.ToggleOutline();
             case FREE_TIME_TOGGLE -> new ControlRequest.FreeTimeToggle();
             case SEND_MESSAGE -> new ControlRequest.SendChat(a);
             case RUN_TOOL -> new ControlRequest.InvokeTool(a, b);

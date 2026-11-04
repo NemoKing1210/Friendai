@@ -963,8 +963,6 @@
   "friendai.config.autonomy.allow_building.tooltip": "Чи може вільний час ставити блоки. Якщо вимкнено, автономна робота обмежується збором, подорожами та крафтом.",
   "friendai.config.mining.protect_drops.tooltip": "Чи захищати цінну знахідку платформою перед руйнуванням блока, витрачаючи блоки, щоб її не втратити.",
   "friendai.config.category.display": "Відображення",
-  "friendai.config.social.outline": "Бачити помічника крізь стіни",
-  "friendai.config.social.outline.tooltip": "Обводить тіло свого помічника крізь стіни, коли він далі 12 блоків або прихований рельєфом. Для чужого помічника не показується.",
   "friendai.config.social.mood_mark": "Показувати позначку настрою",
   "friendai.config.social.mood_mark.tooltip": "Показувати невеликий значок над головою помічника, що відображає його настрій.",
   "key.friendai.companion_outline": "Контур помічника",

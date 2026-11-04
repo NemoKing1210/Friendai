@@ -122,7 +122,8 @@ public final class CompanionSnapshotProtocolCodec {
                 snapshot.workPaused(),
                 snapshot.goalId(),
                 snapshot.currentPhase(),
-                snapshot.routine() == null ? "" : snapshot.routine());
+                snapshot.routine() == null ? "" : snapshot.routine(),
+                snapshot.outline());
     }
 
     private static void validate(CompanionSnapshotView snapshot) {

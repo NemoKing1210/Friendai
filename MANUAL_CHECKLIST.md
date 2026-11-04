@@ -100,8 +100,9 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 
 ## Companion display
 
-- [ ] Turn on **Display → Show my companion through walls** (or the **Outline** switch in the companion menu's Settings tab): walk more than 12 blocks away or stand behind terrain and the companion's body is outlined, each limb included, and it disappears when you are close and in view. It is off on a fresh install.
-- [ ] Press the unbound **Companion outline** key in Controls, assigned by you: the action bar confirms on or off, the settings switch follows, and the setting survives a restart.
+- [ ] Turn on the **Outline** switch in the companion menu's Settings tab: walk more than 12 blocks away or stand behind terrain and the companion's body is outlined, each limb included, and it disappears when you are close and in view. It is off in every world until you turn it on.
+- [ ] Press the unbound **Companion outline** key in Controls, assigned by you: the action bar confirms on or off, the settings switch follows, and the switch survives a restart of that world.
+- [ ] Start a new world with the same client while this world's companion is outlined: the new world's companion is not outlined.
 - [ ] Stand where another player's companion is present: it is never outlined.
 - [ ] Turn **Show the mood mark** off: the mark above the companion's head disappears; turn it back on and it returns.
 - [ ] Hit your own companion: it shows a displeased mark. Let a creeper come close: it shows a worried mark after about half a second, and calm returns a second later.

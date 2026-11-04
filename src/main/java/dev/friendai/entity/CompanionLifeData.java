@@ -24,12 +24,17 @@ public final class CompanionLifeData extends SavedData {
 
     /** @param followMode the owner's follow switch; empty until they make the choice, so the config default applies */
     private record OwnerState(
-            boolean autoRespawn, String respawnPoint, boolean creativeMode, Optional<Boolean> followMode) {
+            boolean autoRespawn,
+            String respawnPoint,
+            boolean creativeMode,
+            Optional<Boolean> followMode,
+            boolean outline) {
         static final Codec<OwnerState> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                         Codec.BOOL.optionalFieldOf("autoRespawn", true).forGetter(OwnerState::autoRespawn),
                         Codec.STRING.optionalFieldOf("respawnPoint", "").forGetter(OwnerState::respawnPoint),
                         Codec.BOOL.optionalFieldOf("creativeMode", false).forGetter(OwnerState::creativeMode),
-                        Codec.BOOL.optionalFieldOf("followMode").forGetter(OwnerState::followMode))
+                        Codec.BOOL.optionalFieldOf("followMode").forGetter(OwnerState::followMode),
+                        Codec.BOOL.optionalFieldOf("outline", false).forGetter(OwnerState::outline))
                 .apply(instance, OwnerState::new));
     }
 
@@ -59,7 +64,7 @@ public final class CompanionLifeData extends SavedData {
     }
 
     private OwnerState state(UUID owner) {
-        return owners.getOrDefault(owner, new OwnerState(true, "", false, Optional.empty()));
+        return owners.getOrDefault(owner, new OwnerState(true, "", false, Optional.empty(), false));
     }
 
     public Optional<RespawnPoint> respawnPoint(UUID owner) {
@@ -89,7 +94,12 @@ public final class CompanionLifeData extends SavedData {
         if (current.autoRespawn() != enabled) {
             owners.put(
                     owner,
-                    new OwnerState(enabled, current.respawnPoint(), current.creativeMode(), current.followMode()));
+                    new OwnerState(
+                            enabled,
+                            current.respawnPoint(),
+                            current.creativeMode(),
+                            current.followMode(),
+                            current.outline()));
             setDirty();
         }
     }
@@ -101,7 +111,13 @@ public final class CompanionLifeData extends SavedData {
                 : point.dimension().identifier() + "|" + point.bed().asLong();
         if (!current.respawnPoint().equals(next)) {
             owners.put(
-                    owner, new OwnerState(current.autoRespawn(), next, current.creativeMode(), current.followMode()));
+                    owner,
+                    new OwnerState(
+                            current.autoRespawn(),
+                            next,
+                            current.creativeMode(),
+                            current.followMode(),
+                            current.outline()));
             setDirty();
         }
     }
@@ -121,7 +137,8 @@ public final class CompanionLifeData extends SavedData {
                             current.autoRespawn(),
                             current.respawnPoint(),
                             current.creativeMode(),
-                            Optional.of(enabled)));
+                            Optional.of(enabled),
+                            current.outline()));
             setDirty();
         }
     }
@@ -131,7 +148,32 @@ public final class CompanionLifeData extends SavedData {
         if (current.creativeMode() != enabled) {
             owners.put(
                     owner,
-                    new OwnerState(current.autoRespawn(), current.respawnPoint(), enabled, current.followMode()));
+                    new OwnerState(
+                            current.autoRespawn(),
+                            current.respawnPoint(),
+                            enabled,
+                            current.followMode(),
+                            current.outline()));
+            setDirty();
+        }
+    }
+
+    /** The owner's outline switch for this world's companion; off until they turn it on. */
+    public boolean outline(UUID owner) {
+        return state(owner).outline();
+    }
+
+    public void setOutline(UUID owner, boolean enabled) {
+        OwnerState current = state(owner);
+        if (current.outline() != enabled) {
+            owners.put(
+                    owner,
+                    new OwnerState(
+                            current.autoRespawn(),
+                            current.respawnPoint(),
+                            current.creativeMode(),
+                            current.followMode(),
+                            enabled));
             setDirty();
         }
     }
