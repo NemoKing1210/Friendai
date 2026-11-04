@@ -4,6 +4,7 @@ import dev.friendai.features.navigation.pathing.BlockList;
 import dev.friendai.features.navigation.pathing.MaterialPrices;
 import dev.friendai.features.navigation.pathing.MaterialReserve;
 import dev.friendai.features.navigation.pathing.PathingConfig;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
@@ -48,13 +49,28 @@ public final class MaterialPicker {
 
     /** How many blocks the inventory holds that may be used as material, minus what the plan still needs. */
     public int count(SimpleContainer inventory) {
-        int total = 0;
+        if (reserve.isEmpty()) {
+            int total = 0;
+            for (int i = 0; i < inventory.getContainerSize(); i++) {
+                ItemStack stack = inventory.getItem(i);
+                if (!stack.isEmpty() && qualifies(stack)) {
+                    total += stack.getCount();
+                }
+            }
+            return total;
+        }
+        // The reserve is per item kind, so the stacks of one kind are added up before it is subtracted: counting
+        // each stack against the whole remainder would let a two-stack bag count as twice what it really frees.
+        Map<String, Integer> heldByItem = new java.util.LinkedHashMap<>();
         for (int i = 0; i < inventory.getContainerSize(); i++) {
             ItemStack stack = inventory.getItem(i);
-            if (stack.isEmpty() || !qualifies(stack)) {
-                continue;
+            if (!stack.isEmpty() && qualifies(stack)) {
+                heldByItem.merge(itemId(stack), stack.getCount(), Integer::sum);
             }
-            total += free(inventory, stack);
+        }
+        int total = 0;
+        for (Map.Entry<String, Integer> entry : heldByItem.entrySet()) {
+            total += Math.min(entry.getValue(), reserve.free(entry.getKey(), entry.getValue()));
         }
         return total;
     }
@@ -125,8 +141,12 @@ public final class MaterialPicker {
         if (reserve.isEmpty()) {
             return stack.getCount();
         }
-        String id = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+        String id = itemId(stack);
         return Math.min(stack.getCount(), reserve.free(id, held(inventory, id)));
+    }
+
+    private static String itemId(ItemStack stack) {
+        return BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
     }
 
     /** How many of this item the inventory holds in total. */
@@ -134,8 +154,7 @@ public final class MaterialPicker {
         int total = 0;
         for (int i = 0; i < inventory.getContainerSize(); i++) {
             ItemStack stack = inventory.getItem(i);
-            if (!stack.isEmpty()
-                    && BuiltInRegistries.ITEM.getKey(stack.getItem()).toString().equals(itemId)) {
+            if (!stack.isEmpty() && itemId(stack).equals(itemId)) {
                 total += stack.getCount();
             }
         }

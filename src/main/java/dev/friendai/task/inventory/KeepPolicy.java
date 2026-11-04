@@ -48,6 +48,33 @@ public final class KeepPolicy {
 
     /** Slot index to how many items of it stay in the bag; a slot missing from the map is deposited whole. */
     public static Map<Integer, Integer> keep(List<Slot> slots, List<String> keepItems) {
+        return keep(slots, keepItems, Map.of());
+    }
+
+    /**
+     * The same policy plus the material the planned work still needs: {@code reserved} is item id to count, and that
+     * many of it stay in the bag, taken from the lowest-numbered stacks first. Storing the cobblestone a tool is made
+     * of would defeat a plan just as surely as spending it on a pillar.
+     */
+    public static Map<Integer, Integer> keep(List<Slot> slots, List<String> keepItems, Map<String, Integer> reserved) {
+        Map<Integer, Integer> keep = baseKeep(slots, keepItems);
+        if (reserved == null || reserved.isEmpty()) {
+            return keep;
+        }
+        Map<String, Integer> left = new HashMap<>(reserved);
+        for (Slot slot : slots) {
+            int wanted = left.getOrDefault(slot.itemId(), 0);
+            if (wanted <= 0) {
+                continue;
+            }
+            int kept = Math.min(wanted, slot.count());
+            keep.merge(slot.index(), kept, Math::max);
+            left.put(slot.itemId(), wanted - kept);
+        }
+        return keep;
+    }
+
+    private static Map<Integer, Integer> baseKeep(List<Slot> slots, List<String> keepItems) {
         Map<Integer, Integer> keep = new HashMap<>();
         Map<String, Slot> bestTools = new HashMap<>();
         for (Slot slot : slots) {

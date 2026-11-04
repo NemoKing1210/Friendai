@@ -10,10 +10,13 @@ import dev.friendai.features.mining.minecraft.mining.BreakAction;
 import dev.friendai.features.mining.minecraft.mining.ExcavationGuard;
 import dev.friendai.features.mining.minecraft.task.MineBlockAtTask;
 import dev.friendai.features.mining.minecraft.task.MineBlocksTask;
+import dev.friendai.features.navigation.minecraft.nav.MaterialPicker;
 import dev.friendai.features.navigation.minecraft.nav.Sight;
+import dev.friendai.features.navigation.pathing.BlockList;
 import dev.friendai.features.navigation.pathing.MaterialReserve;
 import dev.friendai.features.navigation.pathing.Move;
 import dev.friendai.features.navigation.pathing.Node;
+import dev.friendai.features.navigation.pathing.PathingConfig;
 import dev.friendai.features.navigation.pathing.PathStep;
 import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.server.execution.ExecutionCoordinator;
@@ -57,6 +60,23 @@ public class MiningTests {
             c.inventory().addItem(stack);
         }
         return c;
+    }
+
+    /** The spendable count is the bag's total minus the reserve, however the stacks happen to be split. */
+    @GameTest(maxTicks = 20)
+    public void theSpendableCountSubtractsTheReserveAcrossStacks(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.COBBLESTONE, 64));
+        c.inventory().addItem(new ItemStack(Items.COBBLESTONE, 16));
+        PathingConfig config = PathingConfig.DEFAULTS;
+        MaterialPicker picker = new MaterialPicker(
+                config,
+                BlockList.parse(config.breakBlacklist(), ignored -> {}),
+                BlockList.parse(config.placeBlacklist(), ignored -> {}),
+                MaterialReserve.of(Map.of("minecraft:cobblestone", 8)));
+        h.assertValueEqual(picker.count(c.inventory()), 72, "80 carried in two stacks, 8 reserved");
+        h.succeed();
     }
 
     /** Material the plan still needs is not scaffold material, however much of it the bag holds. */

@@ -513,8 +513,11 @@ public final class Scaffold {
     /** How much of {@code item} is carried beyond what the blueprint needs. */
     private int surplus(Item item) {
         // The blueprint's own need and the plan's need are both honoured: whichever is larger is off limits.
-        String id = BuiltInRegistries.ITEM.getKey(item).toString();
-        int plan = companion.materialReserve().reserved(id);
+        int plan = companion.materialReserve().isEmpty()
+                ? 0
+                : companion
+                        .materialReserve()
+                        .reserved(BuiltInRegistries.ITEM.getKey(item).toString());
         return count(companion, item) - Math.max(reserved.getOrDefault(item, 0), plan);
     }
 

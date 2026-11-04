@@ -254,21 +254,25 @@ public class ItemTaskTests {
         Result result = new Result();
         ExecutionCoordinator runner = runner(c, result);
         runner.start(new GiveItemsTask(ItemMatcher.parse("minecraft:stone_axe").orElseThrow(), 1), "give_items");
+        boolean[] discarded = {false};
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
             h.assertValueEqual(owner.getInventory().countItem(Items.STONE_AXE), 0, "the owner did not pick it up");
-            List<ItemEntity> drops = h
-                    .getLevel()
-                    .getEntitiesOfClass(ItemEntity.class, new AABB(owner.blockPosition()).inflate(8))
-                    .stream()
-                    .filter(e -> e.isAlive() && e.getItem().is(Items.STONE_AXE))
-                    .toList();
-            h.assertFalse(drops.isEmpty(), "nothing was dropped for the owner");
-            h.assertTrue(
-                    new CompanionGuardFacts(c).ownerCountItems("minecraft:stone_axe") >= 1,
-                    "a drop at the owner's feet is not counted as a delivery");
-            drops.forEach(ItemEntity::discard);
+            if (!discarded[0]) {
+                List<ItemEntity> drops = h
+                        .getLevel()
+                        .getEntitiesOfClass(ItemEntity.class, new AABB(owner.blockPosition()).inflate(8))
+                        .stream()
+                        .filter(e -> e.isAlive() && e.getItem().is(Items.STONE_AXE))
+                        .toList();
+                h.assertFalse(drops.isEmpty(), "nothing was dropped for the owner");
+                h.assertTrue(
+                        new CompanionGuardFacts(c).ownerCountItems("minecraft:stone_axe") >= 1,
+                        "a drop at the owner's feet is not counted as a delivery");
+                drops.forEach(ItemEntity::discard);
+                discarded[0] = true;
+            }
             CompanionGuardFacts afterwards = new CompanionGuardFacts(c);
             afterwards.refresh();
             h.assertValueEqual(

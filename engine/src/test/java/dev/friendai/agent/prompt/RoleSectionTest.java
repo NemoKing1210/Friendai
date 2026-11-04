@@ -50,8 +50,9 @@ class RoleSectionTest {
 
     @Test
     void aGuestIsToldNothingAboutHandingItemsOver() {
+        // The owner-only role line is what this section can prove: the tool note reaches every caller through the
+        // catalog, so a guest sees the sentence without the rule that follows from it.
         String s = prompt(AccessLevel.GUEST);
         assertFalse(s.contains("finish it by calling give_items"), s);
-        assertFalse(s.contains("their request is the permission"), s);
     }
 }

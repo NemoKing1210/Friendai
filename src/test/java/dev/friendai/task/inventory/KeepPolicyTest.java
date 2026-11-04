@@ -30,6 +30,33 @@ class KeepPolicyTest {
     }
 
     @Test
+    void keepsWhatThePlanStillNeeds() {
+        Map<Integer, Integer> keep =
+                KeepPolicy.keep(List.of(item(0, "minecraft:raw_iron", 10)), List.of(), Map.of("minecraft:raw_iron", 4));
+
+        assertEquals(4, keep.get(0), "the iron a plan still needs stays in the bag");
+    }
+
+    @Test
+    void aReserveIsTakenFromTheFirstStackNotFromEveryStack() {
+        Map<Integer, Integer> keep = KeepPolicy.keep(
+                List.of(block(0, "minecraft:cobblestone", 64, 1), block(1, "minecraft:cobblestone", 16, 1)),
+                List.of(),
+                Map.of("minecraft:cobblestone", 40));
+
+        assertEquals(40, keep.getOrDefault(0, 0) + keep.getOrDefault(1, 0), "forty cobblestone, not eighty");
+        assertEquals(40, keep.get(0));
+    }
+
+    @Test
+    void aReserveLargerThanTheBagKeepsEverything() {
+        Map<Integer, Integer> keep =
+                KeepPolicy.keep(List.of(item(0, "minecraft:raw_iron", 5)), List.of(), Map.of("minecraft:raw_iron", 20));
+
+        assertEquals(5, keep.get(0));
+    }
+
+    @Test
     void keepsBestPickaxeOnly() {
         Map<Integer, Integer> keep = KeepPolicy.keep(
                 List.of(
