@@ -49,7 +49,6 @@ import dev.friendai.features.memory.transcript.TranscriptLimits;
 import dev.friendai.features.memory.transcript.TranscriptObserver;
 import dev.friendai.features.placements.minecraft.PlacedService;
 import dev.friendai.features.places.PlaceCandidate;
-import dev.friendai.features.places.PlaceText;
 import dev.friendai.features.places.minecraft.PlaceService;
 import dev.friendai.features.social.InteractionStyle;
 import dev.friendai.features.trading.TradeAuthority;
@@ -64,6 +63,7 @@ import dev.friendai.infrastructure.persistence.transcript.TranscriptStore;
 import dev.friendai.perception.resource.ResourceCandidates;
 import dev.friendai.server.agent.chat.CompanionSpeaker;
 import dev.friendai.server.agent.perception.PerceptionContext;
+import dev.friendai.server.agent.planner.PlannerInputFactory;
 import dev.friendai.server.agent.tools.FriendaiTools;
 import dev.friendai.server.agent.tools.GoalToolAccess;
 import dev.friendai.server.agent.tools.ToolDependencies;
@@ -102,6 +102,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
     private final TradeStore trading;
     private final PlaceStore places;
     private final PlaceService placeService;
+    private final dev.friendai.agent.autonomy.FreeTimeService freeTimeService;
     private final PlacedService placedService;
     private final Supplier<PerceptionContext> perceptionContext;
     private final dev.friendai.features.knowledge.search.SearchHintStore searchHints;
@@ -170,6 +171,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
         this.places = places;
         this.placeService = placeService;
         this.placedService = placedService;
+        this.freeTimeService = freeTimeService;
         this.searchHints = searchHints;
         this.perceptionContext = () -> new PerceptionContext(resources, settings.get(), freeTimeService);
         this.debug = new DebugService(
@@ -356,6 +358,21 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
 
     Supplier<PerceptionContext> perceptionContext() {
         return perceptionContext;
+    }
+
+    /** One planner input builder for this owner's live companion; both the brain and free time ask it. */
+    PlannerInputFactory plannerInputs(UUID owner, CompanionEntity companion) {
+        CompanionSession session = session(owner);
+        return new PlannerInputFactory(
+                companion,
+                perceptionContext,
+                taskTools,
+                planTools,
+                () -> places.book(owner).all(),
+                () -> goals.board(owner),
+                () -> config,
+                session::verifiedFacts,
+                () -> freeTimeService);
     }
     /** Asks the owner's planner (or its test override) for a plan; may complete on any thread. */
     CompletableFuture<dev.friendai.agent.plan.PlanProposal> propose(
@@ -886,10 +903,13 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
         /** The owner's session: self-cancelled plans and the facts earlier tasks verified. */
         private final CompanionSession session;
 
+        private final PlannerInputFactory inputs;
+
         GamePlannerPort(UUID owner, CompanionEntity companion, CompanionSession session) {
             this.owner = owner;
             this.companion = companion;
             this.session = session;
+            this.inputs = plannerInputs(owner, companion);
         }
 
         @Override
@@ -902,70 +922,20 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
 
         @Override
         public Optional<dev.friendai.agent.plan.PlannerInput> input(Caller caller, String failure) {
-            var board = goals.board(owner);
-            var primary = board.primary();
+            var primary = goals.board(owner).primary();
             if (primary.isEmpty() || primary.get().status() != dev.friendai.agent.goal.GoalStatus.ACTIVE) {
                 return Optional.empty();
             }
-            return baseInput(caller, primary.get(), primary.get().planId(), failure, "");
-        }
-
-        private Optional<dev.friendai.agent.plan.PlannerInput> baseInput(
-                Caller caller, dev.friendai.agent.goal.Goal goal, long planId, String failure, String pendingNodePath) {
-            Map<String, JsonObject> schemas = new java.util.LinkedHashMap<>();
-            StringBuilder digest = new StringBuilder();
-            taskTools.forEach((name, def) -> {
-                if (caller.access().allows(def.minAccess())) {
-                    schemas.put(name, def.schema());
-                    digest.append("- ").append(describeTool(def)).append('\n');
-                }
-            });
-            var facts = new dev.friendai.task.queue.CompanionGuardFacts(companion);
-            facts.refresh();
-            String queue = dev.friendai.execution.queue.QueueText.show(
-                    companion.executionCoordinator().queue(), facts, null, 20, false);
-            return Optional.of(new dev.friendai.agent.plan.PlannerInput(
-                    goal,
-                    new CompanionPerception(companion, perceptionContext).describe(caller),
-                    digest.toString(),
-                    PlaceText.planner(
-                            config.places.enabled && caller.access().allows(AccessLevel.TRUSTED)
-                                    ? places.book(owner).all()
-                                    : List.of(),
-                            config.places.plannerLimit),
-                    Optional.of(queue),
-                    goal.lessons(),
-                    failure,
-                    schemas,
-                    taskTools.keySet(),
-                    session.verifiedFacts(),
-                    List.of(),
-                    0,
-                    planId,
-                    planId == 0
-                            ? ""
-                            : dev.friendai.execution.queue.PlanFingerprint.of(
-                                    companion.executionCoordinator().queue(), planId),
-                    pendingNodePath));
+            return inputs.build(
+                    new dev.friendai.agent.plan.PlanSubject.ActiveGoal(
+                            primary.get().id(), List.of()),
+                    caller,
+                    failure);
         }
 
         @Override
         public Optional<dev.friendai.agent.plan.PlannerInput> inputForPlan(Caller caller, long planId, String failure) {
-            var plan = companion.executionCoordinator().queue().plan(planId).orElse(null);
-            if (plan == null) return Optional.empty();
-            var synthetic = new dev.friendai.agent.goal.Goal(
-                    planId,
-                    plan.goal(),
-                    List.of(),
-                    dev.friendai.agent.goal.GoalStatus.ACTIVE,
-                    planId,
-                    0,
-                    List.of(),
-                    0,
-                    false,
-                    0);
-            String pendingPath = plan.cursor() == null ? "" : plan.cursor().pendingActionPath();
-            return baseInput(caller, synthetic, planId, failure, pendingPath);
+            return inputs.build(new dev.friendai.agent.plan.PlanSubject.TroubledPlan(planId, failure), caller, failure);
         }
 
         @Override
@@ -1068,26 +1038,6 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
             goals.save(owner);
             return result;
         }
-    }
-
-    /** {@code name(arg*, arg): first sentence of the description}; a star marks a required argument. */
-    static String describeTool(TaskToolDefinition def) {
-        JsonObject schema = def.schema();
-        java.util.Set<String> required = new java.util.HashSet<>();
-        if (schema.has("required")) {
-            schema.getAsJsonArray("required").forEach(e -> required.add(e.getAsString()));
-        }
-        java.util.List<String> args = new ArrayList<>();
-        if (schema.has("properties")) {
-            for (String arg : schema.getAsJsonObject("properties").keySet()) {
-                args.add(arg + (required.contains(arg) ? "*" : ""));
-            }
-        }
-        String description = def.description() == null ? "" : def.description();
-        int stop = description.indexOf(". ");
-        String first = stop > 0 ? description.substring(0, stop + 1) : description;
-        return def.name() + "(" + String.join(", ", args) + "): "
-                + (first.length() > 200 ? first.substring(0, 200) : first);
     }
 
     /** Adds verified facts, a diagnosis and goal bookkeeping to the task and plan events of one companion. */

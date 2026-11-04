@@ -808,9 +808,14 @@ public final class FreeTimeDriver {
     private void requestPlan(UUID owner, CompanionEntity companion, long shiftId, int minutes, boolean speakFailure) {
         int epoch = planEpoch.getOrDefault(owner, 0);
         Caller caller = ownerCaller(owner);
-        dev.friendai.agent.plan.PlannerInput input = plannerInput(owner, companion, caller);
+        Optional<dev.friendai.agent.plan.PlannerInput> input = brains.plannerInputs(owner, companion)
+                .build(new dev.friendai.agent.plan.PlanSubject.FreeTimeShift(shiftId), caller, "");
+        if (input.isEmpty()) {
+            brains.plannerDebug(owner, "planner disposition=given up: the shift ended before it could be planned");
+            return;
+        }
         planning.add(owner);
-        brains.propose(owner, input, true)
+        brains.propose(owner, input.get(), true)
                 .whenComplete((proposal, error) -> brains.onServerThread(() -> {
                     if (epoch != planEpoch.getOrDefault(owner, 0)) {
                         return; // a teleport, a dismissal or a stop made this answer stale
@@ -915,55 +920,6 @@ public final class FreeTimeDriver {
                     facts.invalidate(owner);
                     brains.plannerDebug(owner, "planner disposition=queued plan #" + plan.get());
                 }));
-    }
-
-    private dev.friendai.agent.plan.PlannerInput plannerInput(UUID owner, CompanionEntity companion, Caller caller) {
-        FreeTime state = service().state(owner);
-        Shift shift = state.shift();
-        List<String> plannerLessons = new java.util.ArrayList<>(state.lessons());
-        state.history().stream()
-                .filter(record -> !record.success())
-                .filter(record -> record.stopWhen() != ShiftStopWhen.OWNER_BACK
-                        && record.stopWhen() != ShiftStopWhen.OWNER_SPOKE
-                        && record.stopWhen() != ShiftStopWhen.OWNER_PAUSED)
-                .findFirst()
-                .ifPresent(record ->
-                        plannerLessons.add("Most recent failed activity: " + record.goal() + ": " + record.summary()));
-        var goal = new dev.friendai.agent.goal.Goal(
-                shift.id(),
-                shift.goal(),
-                shift.criteria().stream()
-                        .map(text -> new dev.friendai.agent.goal.Criterion(text, Optional.empty()))
-                        .toList(),
-                dev.friendai.agent.goal.GoalStatus.ACTIVE,
-                0,
-                0,
-                plannerLessons,
-                0,
-                false);
-        Map<String, JsonObject> schemas = new java.util.LinkedHashMap<>();
-        StringBuilder digest = new StringBuilder();
-        planTools.forEach((name, def) -> {
-            if (!DENIED.contains(name)) {
-                schemas.put(name, def.schema());
-                digest.append("- ").append(CompanionSessions.describeTool(def)).append('\n');
-            }
-        });
-        ServerConfig cfg = config.get();
-        var guard = new dev.friendai.task.queue.CompanionGuardFacts(companion);
-        guard.refresh();
-        return new dev.friendai.agent.plan.PlannerInput(
-                goal,
-                new CompanionPerception(companion, brains.perceptionContext()).describe(caller),
-                digest.toString(),
-                dev.friendai.features.places.PlaceText.planner(
-                        cfg.places.enabled ? places.book(owner).all() : List.of(), cfg.places.plannerLimit),
-                Optional.of(dev.friendai.execution.queue.QueueText.show(
-                        companion.executionCoordinator().queue(), guard, null, 20, false)),
-                plannerLessons,
-                "",
-                schemas,
-                planTools.keySet());
     }
 
     private void interrupt(UUID owner, CompanionEntity companion, Shift shift, Need need, long nowMillis) {
