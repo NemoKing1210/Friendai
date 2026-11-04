@@ -1,5 +1,6 @@
 package dev.friendai.features.acquisition.minecraft.tool;
 
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import dev.friendai.agent.tools.Cost;
 import dev.friendai.agent.tools.ToolGroup;
@@ -18,7 +19,9 @@ import dev.friendai.features.acquisition.WorldFacts;
 import dev.friendai.features.acquisition.minecraft.ObtainSubtaskFactory;
 import dev.friendai.features.acquisition.minecraft.search.DropIndex;
 import dev.friendai.features.acquisition.minecraft.search.WorldScan;
+import dev.friendai.features.acquisition.minecraft.task.BatchObtainTask;
 import dev.friendai.features.acquisition.minecraft.task.ObtainTask;
+import dev.friendai.features.crafting.CraftPlanner;
 import dev.friendai.features.crafting.minecraft.RecipeIndex;
 import dev.friendai.features.trading.TradeAuthority;
 import dev.friendai.features.trading.TraderRecord;
@@ -26,6 +29,7 @@ import dev.friendai.server.execution.tools.FeatureToolContributor;
 import dev.friendai.server.execution.tools.FeatureToolRegistry;
 import dev.friendai.server.execution.tools.TaskToolDefinition;
 import dev.friendai.task.TaskContext;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -56,7 +60,7 @@ public final class ObtainTools implements FeatureToolContributor {
                 .build();
         TaskToolDefinition obtain = new TaskToolDefinition(
                 "obtain_item",
-                "Get an item by any means: take it from nearby chests, mine, hunt, farm, smelt and craft, making the tools needed on the way, and explore if a resource is not nearby. For a crafting goal, request the finished item instead of hand-counting plank, stick or log ingredients; the planner computes the chain and replans from the live inventory after every step. It can use any recipe-compatible nearby log for wood ingredients. Use a specific log id only when the player named that species.",
+                "Get an item by any means: take it from nearby chests, mine, hunt, farm, smelt and craft, making the tools needed on the way, and explore if a resource is not nearby. For a crafting goal, request the finished item instead of hand-counting plank, stick or log ingredients; the planner computes the chain and replans from the live inventory after every step. It can use any recipe-compatible nearby log for wood ingredients. Use a specific log id only when the player named that species. For several items that share materials, use obtain_items so the raw materials are gathered once.",
                 schema,
                 (c, a) -> new ObtainTask(
                         itemId(a.get("item").getAsString()),
@@ -72,6 +76,32 @@ public final class ObtainTools implements FeatureToolContributor {
                 true,
                 metadata("obtain_item"));
         registry.registerTask(obtain);
+        JsonObject itemsSchema = SchemaBuilder.object()
+                .string("item", "Item id like minecraft:stone_pickaxe")
+                .integer("count", "How many to get", 1, 64)
+                .required("item", "count")
+                .build();
+        JsonObject batchSchema = SchemaBuilder.object()
+                .array("items", "Finished items to get together", itemsSchema, 1, CraftPlanner.MAX_TARGETS)
+                .bool("use_containers", "Allow taking items from nearby chests and barrels")
+                .bool("explore", "Allow searching further away and digging down when a resource is not nearby")
+                .enumeration("scope", "Search budget", "local", "expedition")
+                .required("items")
+                .build();
+        TaskToolDefinition batch = new TaskToolDefinition(
+                "obtain_items",
+                "Get several finished items together. Computes every raw material the set needs, obtains all of it once, then crafts the items; a material shared by several items is gathered once. Use it for a tool set, a set of builds or any multi-item order.",
+                batchSchema,
+                (c, a) -> new BatchObtainTask(
+                        targets(a), flag(a, "use_containers", true), flag(a, "explore", true), subtaskFactory),
+                (c, caller, a) -> callerObtainItems(c, caller, a, subtaskFactory),
+                true,
+                AccessLevel.TRUSTED,
+                TaskToolDefinition.QueueTraits.DEFAULT,
+                true,
+                true,
+                metadata("obtain_items"));
+        registry.registerTask(batch);
         registry.registerTool(
                 new Tool<>() {
                     @Override
@@ -127,6 +157,73 @@ public final class ObtainTools implements FeatureToolContributor {
 
     private static ObtainTask callerObtain(
             CompanionEntity companion, Caller caller, JsonObject args, ObtainSubtaskFactory subtaskFactory) {
+        SearchOptions options = searchOptions(companion, caller, args);
+        return new ObtainTask(
+                itemId(args.get("item").getAsString()),
+                args.get("count").getAsInt(),
+                options.useContainers(),
+                options.explore(),
+                ObtainTask.DEFAULT_MAX_STEPS,
+                Math.max(ObtainTask.DEFAULT_MAX_TICKS, options.ticks()),
+                options.radius(),
+                ObtainTask.DEFAULT_EXPLORE_BLOCKS,
+                options.ticks(),
+                options.scope(),
+                caller,
+                options.trading(),
+                subtaskFactory);
+    }
+
+    private static BatchObtainTask callerObtainItems(
+            CompanionEntity companion, Caller caller, JsonObject args, ObtainSubtaskFactory subtaskFactory) {
+        SearchOptions options = searchOptions(companion, caller, args);
+        return new BatchObtainTask(
+                targets(args),
+                options.useContainers(),
+                options.explore(),
+                BatchObtainTask.DEFAULT_MAX_CHILDREN,
+                Math.max(BatchObtainTask.DEFAULT_MAX_TICKS, options.ticks()),
+                options.radius(),
+                BatchObtainTask.DEFAULT_EXPLORE_BLOCKS,
+                options.ticks(),
+                options.scope(),
+                caller,
+                options.trading(),
+                subtaskFactory);
+    }
+
+    /** The finished items of an {@code obtain_items} call, in the order the model asked for them. */
+    private static List<CraftPlanner.Target> targets(JsonObject args) {
+        JsonElement raw = args.get("items");
+        if (raw == null
+                || !raw.isJsonArray()
+                || raw.getAsJsonArray().isEmpty()
+                || raw.getAsJsonArray().size() > CraftPlanner.MAX_TARGETS) {
+            throw new IllegalArgumentException("items must have 1 to " + CraftPlanner.MAX_TARGETS + " entries");
+        }
+        List<CraftPlanner.Target> targets = new ArrayList<>();
+        for (JsonElement element : raw.getAsJsonArray()) {
+            if (!element.isJsonObject()) {
+                throw new IllegalArgumentException("items must have 1 to " + CraftPlanner.MAX_TARGETS + " entries");
+            }
+            JsonObject entry = element.getAsJsonObject();
+            JsonElement item = entry.get("item");
+            if (item == null || item.isJsonNull()) {
+                throw new IllegalArgumentException("every item needs an item id");
+            }
+            int count = entry.has("count") && !entry.get("count").isJsonNull()
+                    ? entry.get("count").getAsInt()
+                    : 1;
+            targets.add(new CraftPlanner.Target(itemId(item.getAsString()), count));
+        }
+        return targets;
+    }
+
+    /** The search budget and trading scope one acquisition call asked for. */
+    private record SearchOptions(
+            boolean useContainers, boolean explore, String scope, int radius, int ticks, TradingContext trading) {}
+
+    private static SearchOptions searchOptions(CompanionEntity companion, Caller caller, JsonObject args) {
         String scope = args.has("scope") && !args.get("scope").isJsonNull()
                 ? args.get("scope").getAsString()
                 : "local";
@@ -183,20 +280,8 @@ public final class ObtainTools implements FeatureToolContributor {
                                     .getGameTime());
             }
         }
-        return new ObtainTask(
-                itemId(args.get("item").getAsString()),
-                args.get("count").getAsInt(),
-                flag(args, "use_containers", true),
-                flag(args, "explore", true),
-                ObtainTask.DEFAULT_MAX_STEPS,
-                Math.max(ObtainTask.DEFAULT_MAX_TICKS, ticks),
-                radius,
-                ObtainTask.DEFAULT_EXPLORE_BLOCKS,
-                ticks,
-                scope,
-                caller,
-                trading,
-                subtaskFactory);
+        return new SearchOptions(
+                flag(args, "use_containers", true), flag(args, "explore", true), scope, radius, ticks, trading);
     }
 
     private static String planText(
@@ -220,10 +305,15 @@ public final class ObtainTools implements FeatureToolContributor {
     }
 
     private static ToolMeta metadata(String name) {
-        String hint = name.equals("obtain_item")
-                ? "- To get an item you don't have, prefer obtain_item over long hand-written plans; use plan_obtain to explain what it will take.\n"
-                        + "- In creative mode, obtain_item can supply a registered item directly for an authorized owner."
-                : "";
+        String hint = switch (name) {
+            case "obtain_item" ->
+                "- To get an item you don't have, prefer obtain_item over long hand-written plans; use plan_obtain to explain what it will take.\n"
+                        + "- In creative mode, obtain_item can supply a registered item directly for an authorized owner.\n"
+                        + "- For several items that share materials, use obtain_items so the raw materials are gathered once.";
+            case "obtain_items" ->
+                "- For a set of items that share materials (a tool set, a set of builds), prefer obtain_items: it gathers every raw material once, then crafts them all.";
+            default -> "";
+        };
         return new ToolMeta(name, ToolGroup.OBTAIN, false, hint, List.of(), Cost.HIGH);
     }
 

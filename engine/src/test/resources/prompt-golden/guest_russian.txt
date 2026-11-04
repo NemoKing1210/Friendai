@@ -61,6 +61,8 @@ Tool notes:
 - When you are hungry with no food: if the owner is near, ask them; otherwise call get_food.
 - To get an item you don't have, prefer obtain_item over long hand-written plans; use plan_obtain to explain what it will take.
 - In creative mode, obtain_item can supply a registered item directly for an authorized owner.
+- For several items that share materials, use obtain_items so the raw materials are gathered once.
+- For a set of items that share materials (a tool set, a set of builds), prefer obtain_items: it gathers every raw material once, then crafts them all.
 - Trading knowledge belongs to the owner. Find only loaded nearby traders; remembered locations and offers can be stale.
 - Refresh at most 20 explicitly selected traders; only complete live inspection replaces remembered offers.
 - Wait between checks with merchant sessions closed; only real vanilla restocks count, and no stock or workstation is forced.
