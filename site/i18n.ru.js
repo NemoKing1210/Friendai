@@ -233,6 +233,7 @@ const RU = {
   "Resource Acquisition": "Добыча ресурсов",
   "Ask for an item and it works out how: inventory, chests, craft, smelt, mine, hunt, harvest, shear, milk or explore.": "Попросите предмет, и он сам решит как: инвентарь, сундуки, крафт, плавка, добыча, охота, урожай, стрижка, дойка или разведка.",
   "Get an item by any means.": "Получить предмет любым способом.",
+  "Gather every material for a set of items once, then craft them all.": "Собрать все материалы для набора предметов один раз, а потом создать их все.",
   "Show the plan without doing it.": "Показать план, не выполняя его.",
   "Explore to find a resource.": "Отправиться на поиск ресурса.",
   "What it already knows about.": "Что ему уже известно.",

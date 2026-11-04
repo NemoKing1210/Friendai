@@ -87,4 +87,42 @@ class PlanMaterialsTest {
 
         assertTrue(needs.isEmpty(), needs.toString());
     }
+
+    @Test
+    void aBatchStepReservesEveryTarget() {
+        Map<String, Integer> needs = PlanMaterials.needs(
+                List.of(step(
+                        "obtain_items",
+                        "{\"items\":[{\"item\":\"minecraft:stone_pickaxe\",\"count\":2},"
+                                + "{\"item\":\"minecraft:stone_axe\",\"count\":2}]}")),
+                STONE_TO_COBBLE);
+
+        assertEquals(2, needs.get("minecraft:stone_pickaxe"));
+        assertEquals(2, needs.get("minecraft:stone_axe"));
+    }
+
+    @Test
+    void aBatchStepSumsWithOtherSteps() {
+        Map<String, Integer> needs = PlanMaterials.needs(
+                List.of(
+                        step("obtain_item", "{\"item\":\"minecraft:cobblestone\",\"count\":4}"),
+                        step("obtain_items", "{\"items\":[{\"item\":\"minecraft:cobblestone\",\"count\":2}]}")),
+                STONE_TO_COBBLE);
+
+        assertEquals(6, needs.get("minecraft:cobblestone"));
+    }
+
+    @Test
+    void aMalformedBatchStepReservesNothing() {
+        Map<String, Integer> needs = PlanMaterials.needs(
+                List.of(
+                        step("obtain_items", "{}"),
+                        step("obtain_items", "{\"items\":\"minecraft:stone\"}"),
+                        step("obtain_items", "{\"items\":[]}"),
+                        step("obtain_items", "{\"items\":[{\"item\":\"\"},{\"count\":4},{}]}"),
+                        new QueuedStep("obtain_items", null, null, null, null, null, 1, null)),
+                STONE_TO_COBBLE);
+
+        assertTrue(needs.isEmpty(), needs.toString());
+    }
 }

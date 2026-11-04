@@ -3,6 +3,7 @@ package dev.friendai.features.crafting;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.EnumSet;
@@ -472,5 +473,119 @@ class CraftPlannerTest {
         assertEquals(Station.INVENTORY, plan.steps().get(0).recipe().station());
         assertTrue(plan.stationsUsed().isEmpty());
         assertTrue(plan.stationsToCraft().isEmpty());
+    }
+
+    /** A stone tool set on top of the vanilla-like book, with the stone slot backed by a tag. */
+    private static FakeRecipeBook stoneTools() {
+        Ingredient stone =
+                Ingredient.tag("minecraft:stone_tool_materials", "minecraft:cobblestone", "minecraft:blackstone");
+        Ingredient stick = Ingredient.of("minecraft:stick");
+        return FakeRecipeBook.vanillaLike()
+                .add(new Recipe(
+                        "test:stone_pickaxe",
+                        "minecraft:stone_pickaxe",
+                        1,
+                        List.of(stone, stone, stone, stick, stick),
+                        Station.CRAFTING_TABLE))
+                .add(new Recipe(
+                        "test:stone_axe",
+                        "minecraft:stone_axe",
+                        1,
+                        List.of(stone, stone, stone, stick, stick),
+                        Station.CRAFTING_TABLE));
+    }
+
+    @Test
+    void materialsForSumsASharedRawMaterialOnce() {
+        List<CraftPlanner.RawNeed> needs = CraftPlanner.materialsFor(
+                List.of(
+                        new CraftPlanner.Target("minecraft:stone_pickaxe", 2),
+                        new CraftPlanner.Target("minecraft:stone_axe", 2)),
+                Map.of("minecraft:stick", 16),
+                stoneTools(),
+                EnumSet.of(Station.CRAFTING_TABLE));
+
+        assertEquals(1, needs.size(), needs::toString);
+        CraftPlanner.RawNeed stone = needs.get(0);
+        assertEquals("#minecraft:stone_tool_materials", stone.label());
+        assertEquals(Set.of("minecraft:cobblestone", "minecraft:blackstone"), stone.candidates());
+        assertEquals(12, stone.count());
+    }
+
+    @Test
+    void materialsForDoesNotDemandWhatIsCarried() {
+        List<CraftPlanner.RawNeed> needs = CraftPlanner.materialsFor(
+                List.of(new CraftPlanner.Target("minecraft:stone_pickaxe", 2)),
+                Map.of("minecraft:stone_pickaxe", 2),
+                stoneTools(),
+                EnumSet.of(Station.CRAFTING_TABLE));
+
+        assertTrue(needs.isEmpty(), needs::toString);
+    }
+
+    @Test
+    void materialsForCountsOnlyWhatTheBagStillLacks() {
+        List<CraftPlanner.RawNeed> needs = CraftPlanner.materialsFor(
+                List.of(new CraftPlanner.Target("minecraft:stone_pickaxe", 2)),
+                Map.of("minecraft:stone_pickaxe", 1, "minecraft:stick", 2, "minecraft:cobblestone", 1),
+                stoneTools(),
+                EnumSet.of(Station.CRAFTING_TABLE));
+
+        assertEquals(1, needs.size(), needs::toString);
+        assertEquals("#minecraft:stone_tool_materials", needs.get(0).label());
+        assertEquals(2, needs.get(0).count(), "one pickaxe left with one stone carried: two slots short, sticks used");
+    }
+
+    @Test
+    void materialsForReportsAnUncraftableRawTargetAsItself() {
+        List<CraftPlanner.RawNeed> needs = CraftPlanner.materialsFor(
+                List.of(new CraftPlanner.Target("minecraft:diamond", 1)),
+                Map.of(),
+                FakeRecipeBook.vanillaLike(),
+                ALL_STATIONS);
+
+        assertEquals(1, needs.size(), needs::toString);
+        assertEquals("minecraft:diamond", needs.get(0).label());
+        assertEquals(Set.of("minecraft:diamond"), needs.get(0).candidates());
+        assertEquals(1, needs.get(0).count());
+    }
+
+    @Test
+    void materialsForPreservesTargetOrder() {
+        List<CraftPlanner.RawNeed> needs = CraftPlanner.materialsFor(
+                List.of(new CraftPlanner.Target("test:raw_a", 3), new CraftPlanner.Target("test:raw_b", 2)),
+                Map.of(),
+                new FakeRecipeBook(),
+                ALL_STATIONS);
+
+        assertEquals(
+                List.of("test:raw_a", "test:raw_b"),
+                needs.stream().map(CraftPlanner.RawNeed::label).toList());
+        assertEquals(
+                List.of(3, 2), needs.stream().map(CraftPlanner.RawNeed::count).toList());
+    }
+
+    @Test
+    void materialsForLeavesTheInventoryAlone() {
+        Map<String, Integer> inventory = new HashMap<>(Map.of("minecraft:stick", 4, "minecraft:oak_log", 2));
+        Map<String, Integer> before = Map.copyOf(inventory);
+
+        CraftPlanner.materialsFor(
+                List.of(new CraftPlanner.Target("minecraft:wooden_pickaxe", 1)),
+                inventory,
+                FakeRecipeBook.vanillaLike(),
+                ALL_STATIONS);
+
+        assertEquals(before, inventory);
+    }
+
+    @Test
+    void materialsForRejectsInvalidTargets() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> CraftPlanner.materialsFor(List.of(), Map.of(), FakeRecipeBook.vanillaLike(), ALL_STATIONS));
+        assertThrows(IllegalArgumentException.class, () -> new CraftPlanner.Target("minecraft:stick", 0));
+        assertThrows(IllegalArgumentException.class, () -> new CraftPlanner.Target("", 1));
+        assertThrows(IllegalArgumentException.class, () -> new CraftPlanner.Target("minecraft:stick", 65));
     }
 }

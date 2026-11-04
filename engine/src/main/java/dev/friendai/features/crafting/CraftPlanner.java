@@ -1,6 +1,8 @@
 package dev.friendai.features.crafting;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -19,7 +21,73 @@ public final class CraftPlanner {
     /** How many nested crafts the search may chain. */
     public static final int MAX_DEPTH = 5;
 
+    /** Finished items one batch may ask for at once. */
+    public static final int MAX_TARGETS = 8;
+
+    /** How many of one finished item a batch may ask for. */
+    public static final int MAX_TARGET_COUNT = 64;
+
     private CraftPlanner() {}
+
+    /** One finished item a batch must produce. */
+    public record Target(String item, int count) {
+        public Target {
+            if (item == null || item.isBlank()) {
+                throw new IllegalArgumentException("target must not be empty");
+            }
+            if (count < 1 || count > MAX_TARGET_COUNT) {
+                throw new IllegalArgumentException("target count must be 1.." + MAX_TARGET_COUNT + ": " + count);
+            }
+        }
+    }
+
+    /**
+     * One raw item a target set still needs: how it is named in a message, the concrete item ids that satisfy it, and
+     * how many. The candidate list is empty only when a recipe book names no item for a station it requires.
+     */
+    public record RawNeed(String label, Set<String> candidates, int count) {
+        public RawNeed {
+            if (label == null || label.isBlank()) {
+                throw new IllegalArgumentException("a need must be named");
+            }
+            if (count <= 0) {
+                throw new IllegalArgumentException("a need must be positive: " + count);
+            }
+            candidates = candidates == null ? Set.of() : Collections.unmodifiableSet(new LinkedHashSet<>(candidates));
+        }
+    }
+
+    /**
+     * The raw items {@code targets} still need, in first-missing order, computed against one shared simulated
+     * inventory: an intermediate crafted for one target is consumed by the next, and a material shared by several
+     * targets appears once with the summed count. The input inventory is never mutated.
+     */
+    public static List<RawNeed> materialsFor(
+            List<Target> targets, Map<String, Integer> inventory, RecipeBook book, Set<Station> stationsNearby) {
+        Objects.requireNonNull(targets, "targets");
+        if (targets.isEmpty() || targets.size() > MAX_TARGETS) {
+            throw new IllegalArgumentException("targets must have 1 to " + MAX_TARGETS + " entries");
+        }
+        Objects.requireNonNull(book, "book");
+        Sim sim = new Sim();
+        if (inventory != null) {
+            inventory.forEach((item, amount) -> {
+                if (item != null && amount != null && amount > 0) {
+                    sim.items.put(item, amount);
+                }
+            });
+        }
+        Set<Station> nearby = stationsNearby == null ? EnumSet.noneOf(Station.class) : stationsNearby;
+        Map<String, Need> missing = new LinkedHashMap<>();
+        for (Target target : targets) {
+            Attempt attempt = new Search(target.item(), book, nearby)
+                    .need(target.item(), target.count(), 0, new LinkedHashSet<>(), sim);
+            attempt.missing.forEach((label, need) -> missing.merge(label, need, Need::merge));
+        }
+        return missing.values().stream()
+                .map(need -> new RawNeed(need.label, need.candidates, need.count))
+                .toList();
+    }
 
     public static CraftPlan plan(
             String target, int count, Map<String, Integer> inventory, RecipeBook book, Set<Station> stationsNearby) {
@@ -48,7 +116,14 @@ public final class CraftPlanner {
                 stationsUsed.add(step.recipe().station());
             }
         }
-        return new CraftPlan(steps, attempt.missing, stationsUsed, attempt.stationsCrafted);
+        return new CraftPlan(steps, missingCounts(attempt), stationsUsed, attempt.stationsCrafted);
+    }
+
+    /** The plan's published missing map, in the order the search first needed each label. */
+    private static Map<String, Integer> missingCounts(Attempt attempt) {
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        attempt.missing.forEach((label, need) -> counts.put(label, need.count));
+        return counts;
     }
 
     /**
@@ -350,7 +425,7 @@ public final class CraftPlanner {
                     return attempt;
                 }
             }
-            return Attempt.missing(ingredient.label(), 1);
+            return Attempt.missing(ingredient.label(), ingredient.items(), 1);
         }
 
         private static boolean anyIngredientPresent(List<Recipe> recipes, Sim sim) {
@@ -392,20 +467,24 @@ public final class CraftPlanner {
     }
 
     /**
-     * Steps merged by recipe id (dependencies first), the missing labels, the total craft count, the stations
+     * Steps merged by recipe id (dependencies first), the missing ingredients, the total craft count, the stations
      * whose item this attempt crafted, and whether the attempt's own recipe needed a crafted station.
      */
     private static final class Attempt {
         private final Map<String, Integer> stepTimes = new LinkedHashMap<>();
         private final Map<String, Recipe> stepRecipes = new HashMap<>();
-        private final Map<String, Integer> missing = new LinkedHashMap<>();
+        private final Map<String, Need> missing = new LinkedHashMap<>();
         private final Set<Station> stationsCrafted = EnumSet.noneOf(Station.class);
         private int crafts;
         private int stationPenalty;
 
-        static Attempt missing(String label, int qty) {
+        static Attempt missing(String item, int qty) {
+            return missing(item, List.of(item), qty);
+        }
+
+        static Attempt missing(String label, Collection<String> candidates, int qty) {
             Attempt attempt = new Attempt();
-            attempt.missing.put(label, qty);
+            attempt.missing.put(label, new Need(label, new LinkedHashSet<>(candidates), qty));
             return attempt;
         }
 
@@ -418,7 +497,7 @@ public final class CraftPlanner {
         }
 
         int missingTotal() {
-            return missing.values().stream().mapToInt(Integer::intValue).sum();
+            return missing.values().stream().mapToInt(Need::count).sum();
         }
 
         void merge(Attempt other) {
@@ -426,7 +505,7 @@ public final class CraftPlanner {
                 stepTimes.merge(id, times, Integer::sum);
                 stepRecipes.putIfAbsent(id, other.stepRecipes.get(id));
             });
-            other.missing.forEach((label, qty) -> missing.merge(label, qty, Integer::sum));
+            other.missing.forEach((label, need) -> missing.merge(label, need, Need::merge));
             crafts += other.crafts;
             stationsCrafted.addAll(other.stationsCrafted);
         }
@@ -441,6 +520,22 @@ public final class CraftPlanner {
             List<CraftStep> steps = new ArrayList<>(stepTimes.size());
             stepTimes.forEach((id, times) -> steps.add(new CraftStep(stepRecipes.get(id), times)));
             return steps;
+        }
+    }
+
+    /**
+     * One missing ingredient as the batch resolver needs it: the message label, the ids that satisfy it in preference
+     * order, and how many are wanted. Merging two needs of the same label unions their candidates and sums the count.
+     */
+    private record Need(String label, Set<String> candidates, int count) {
+        Need {
+            candidates = Collections.unmodifiableSet(new LinkedHashSet<>(candidates));
+        }
+
+        Need merge(Need other) {
+            Set<String> union = new LinkedHashSet<>(candidates);
+            union.addAll(other.candidates);
+            return new Need(label, union, count + other.count);
         }
     }
 }
