@@ -138,6 +138,10 @@ public final class ClearAreaTask implements Task {
                 // What was broken lies at the feet or a few blocks away: take it before reporting the run. An empty
                 // plot still finishes at once, and a run that spent its budget does not extend it with a sweep.
                 if (clearedTotal == 0 || ticksSpent >= tickBudget) {
+                    if (sweep != null) {
+                        sweep.stop(c);
+                        sweep = null;
+                    }
                     return finish();
                 }
                 if (sweep == null) {
