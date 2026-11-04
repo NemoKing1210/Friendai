@@ -16,6 +16,7 @@ public record DiagnosticSnapshot(
         UUID owner,
         Path ownerLogRoot,
         String boot,
+        String world,
         String mod,
         String minecraft,
         String level,
@@ -25,6 +26,7 @@ public record DiagnosticSnapshot(
     public DiagnosticSnapshot {
         subject = subject == null ? "" : subject;
         boot = boot == null ? "" : boot;
+        world = world == null ? "" : world;
         mod = mod == null ? "" : mod;
         minecraft = minecraft == null ? "" : minecraft;
         level = level == null ? "" : level;
@@ -34,6 +36,6 @@ public record DiagnosticSnapshot(
 
     public DiagnosticSnapshot withHealth(LogHealth health) {
         return new DiagnosticSnapshot(
-                subject, owner, ownerLogRoot, boot, mod, minecraft, level, categories, runtimeFacts, health);
+                subject, owner, ownerLogRoot, boot, world, mod, minecraft, level, categories, runtimeFacts, health);
     }
 }

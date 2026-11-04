@@ -1175,8 +1175,8 @@ Object.assign(RU, {
   "What lives where": "Что где лежит",
   "World save, owner books, game directory": "Сохранение мира, книги владельца, каталог игры",
   "Locations": "Расположения",
-  "Diagnostics are not a store: `logs/friendai/` is written, rotated and pruned.":
-    "Диагностика — не хранилище: `logs/friendai/` пишется, ротируется и чистится.",
+  "Diagnostics are not a store: each world's `friendai/logs/` is written, rotated and pruned.":
+    "Диагностика — не хранилище: `friendai/logs/` каждого мира пишется, ротируется и чистится.",
   "World save": "Сохранение мира",
   "The companion entity, its inventory and hunger, anchors and the carry record.":
     "Сущность компаньона, её инвентарь и голод, якоря и запись переноса.",

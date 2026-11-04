@@ -113,16 +113,10 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
     ServerServiceGraph(MinecraftServer server, RuntimeResources resources) {
         this.server = server;
         OwnerStoreWriter writer = resources.own(new OwnerStoreWriter());
-        java.nio.file.Path worldPath;
-        try {
-            worldPath = server.getWorldPath(LevelResource.ROOT);
-        } catch (RuntimeException unavailable) {
-            worldPath = null;
-        }
-        java.nio.file.Path logRoot = worldPath == null
-                ? dev.friendai.debug.LogPaths.unavailableRoot(
-                        FabricLoader.getInstance().getGameDir())
-                : dev.friendai.debug.LogPaths.worldRoot(worldPath);
+        // The server cannot run without a world path: the stores below need the same value unguarded, so a guarded
+        // fallback here would only be a branch that never executes.
+        java.nio.file.Path worldPath = server.getWorldPath(LevelResource.ROOT);
+        java.nio.file.Path logRoot = dev.friendai.debug.LogPaths.worldRoot(worldPath);
         this.diagnostics = resources.own(new dev.friendai.debug.DiagnosticService(logRoot));
         this.store =
                 ConfigStores.server(FabricLoader.getInstance().getConfigDir().resolve("friendai-server.json"));
@@ -150,6 +144,7 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
         dev.friendai.debug.LogSinkHub.add(fileLog);
         dev.friendai.debug.LogWorldIndex.append(
                 logGameRoot,
+                config.logging.toSettings(),
                 "world.load",
                 logWorld,
                 logWorldPath,
@@ -157,48 +152,38 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
                 modVersion("friendai"),
                 modVersion("minecraft"),
                 System.currentTimeMillis());
-        this.memory = resources.own(new MemoryStore(
-                server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("memory"), writer));
+        this.memory =
+                resources.own(new MemoryStore(worldPath.resolve("friendai").resolve("memory"), writer));
         this.transcripts = resources.own(new TranscriptStore(
-                server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("transcript"),
+                worldPath.resolve("friendai").resolve("transcript"),
                 () -> this.config.memory.transcriptLimits(),
                 writer));
-        this.profiles = resources.own(new CompanionProfileStore(
-                server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("profiles"), writer));
-        this.skills = resources.own(new SkillService(
-                server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("skills"),
-                () -> this.config,
-                profiles,
-                writer));
-        this.goalStore = resources.own(new GoalStore(
-                server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("goals"), writer));
-        this.freeTimeStore = resources.own(new FreeTimeStore(
-                server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("free-time"), writer));
+        this.profiles = resources.own(
+                new CompanionProfileStore(worldPath.resolve("friendai").resolve("profiles"), writer));
+        this.skills = resources.own(
+                new SkillService(worldPath.resolve("friendai").resolve("skills"), () -> this.config, profiles, writer));
+        this.goalStore =
+                resources.own(new GoalStore(worldPath.resolve("friendai").resolve("goals"), writer));
+        this.freeTimeStore =
+                resources.own(new FreeTimeStore(worldPath.resolve("friendai").resolve("free-time"), writer));
         this.routines = resources.own(new dev.friendai.infrastructure.persistence.routines.RoutineStore(
-                server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("routines"), writer));
-        this.socialMemoryStore = resources.own(new SocialMemoryStore(
-                server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("social"), writer));
-        this.terrainStore = resources.own(new TerrainStore(
-                server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("terrain"), writer));
+                worldPath.resolve("friendai").resolve("routines"), writer));
+        this.socialMemoryStore = resources.own(
+                new SocialMemoryStore(worldPath.resolve("friendai").resolve("social"), writer));
+        this.terrainStore =
+                resources.own(new TerrainStore(worldPath.resolve("friendai").resolve("terrain"), writer));
         this.terrainSampler = new TerrainSamplerService(terrainStore);
         this.goals = new GoalService(goalStore, () -> this.config.agent.maxReplans);
         this.freeTime = new dev.friendai.agent.autonomy.FreeTimeService(freeTimeStore);
-        this.skins = new SkinStore(
-                server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("skins"));
+        this.skins = new SkinStore(worldPath.resolve("friendai").resolve("skins"));
         this.knowledge = resources.own(new KnowledgeStore(
-                server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("knowledge"),
-                KnowledgeLimits.DEFAULTS,
-                writer));
+                worldPath.resolve("friendai").resolve("knowledge"), KnowledgeLimits.DEFAULTS, writer));
         this.storageService = new dev.friendai.features.inventory.minecraft.storage.StorageIndexService(
                 owner -> knowledge.book(owner), () -> dev.friendai.features.storage.StorageLimits.DEFAULTS);
-        this.places = resources.own(new PlaceStore(
-                server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("places"),
-                PlaceLimits.DEFAULTS,
-                writer));
-        this.placed = resources.own(new PlacedStore(
-                server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("placed"),
-                PlacedLimits.DEFAULTS,
-                writer));
+        this.places = resources.own(
+                new PlaceStore(worldPath.resolve("friendai").resolve("places"), PlaceLimits.DEFAULTS, writer));
+        this.placed = resources.own(
+                new PlacedStore(worldPath.resolve("friendai").resolve("placed"), PlacedLimits.DEFAULTS, writer));
         this.placeService = new PlaceService(places::book, this::placeSettings).onRemembered((companion, place) -> {
             UUID owner = companion.ownerUuid();
             if (owner == null) return;
@@ -213,8 +198,8 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
             terrainStore.save(owner, grid);
         });
         this.placedService = new PlacedService(placed::book);
-        this.trading = resources.own(new TradeStore(
-                server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("trading"), writer));
+        this.trading =
+                resources.own(new TradeStore(worldPath.resolve("friendai").resolve("trading"), writer));
         this.merchantLeases = new MerchantLeases();
         this.tradeSessionGuard = new TradeSessionGuard(merchantLeases);
         resources.onClose(() -> tradeSessionGuard.closeAll("server stopped"));
@@ -595,6 +580,7 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
     void logWorldClose() {
         dev.friendai.debug.LogWorldIndex.append(
                 logGameRoot,
+                config.logging.toSettings(),
                 "world.close",
                 logWorld,
                 logWorldPath,

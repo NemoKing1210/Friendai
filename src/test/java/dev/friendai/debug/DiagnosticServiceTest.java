@@ -44,6 +44,7 @@ class DiagnosticServiceTest {
                 OWNER,
                 gameDir.resolve("logs").resolve("friendai").resolve("owners").resolve(OWNER.toString()),
                 "boot-1",
+                "New World",
                 "0.200.0",
                 "26.3",
                 "normal",
@@ -132,6 +133,7 @@ class DiagnosticServiceTest {
                             .count());
             String incident = read(bundle, "incident.md");
             assertTrue(incident.contains("Records: 2"));
+            assertTrue(incident.contains(" in New World"), incident);
             assertTrue(incident.contains("exec 7"));
             assertTrue(incident.contains("; complete"), "a clean scan with a clean writer is complete");
         }

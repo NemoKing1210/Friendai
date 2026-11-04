@@ -42,6 +42,8 @@ public final class LogDigest {
                 .append('\n');
         text.append("name: ").append(header.name()).append('\n');
         text.append("boot: ").append(header.boot()).append('\n');
+        if (!header.world().isEmpty())
+            text.append("world: ").append(header.world()).append('\n');
         text.append("mod: ").append(header.mod()).append('\n');
         text.append("minecraft: ").append(header.minecraft()).append('\n');
         text.append("level: ").append(header.level()).append('\n');

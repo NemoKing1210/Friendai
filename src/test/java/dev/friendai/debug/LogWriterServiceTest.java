@@ -119,6 +119,26 @@ class LogWriterServiceTest {
     }
 
     @Test
+    void theClientRootGetsTheClientReadme(@TempDir Path root) throws IOException {
+        try (LogWriterService client = writer(root, LogWriterScope.CLIENT, settings(LogLevel.INFO), 64)) {
+            client.offer(record(1, LogCategory.CLIENT, null));
+            client.flushNow().join();
+        }
+        String readme = Files.readString(root.resolve("README.md"), StandardCharsets.UTF_8);
+        assertTrue(readme.contains("client logs"), readme);
+        assertTrue(readme.contains("client/<date>/"), readme);
+        assertFalse(readme.contains("this root is one world"), readme);
+
+        Path serverRoot = root.resolve("world");
+        try (LogWriterService server = writer(serverRoot, LogWriterScope.SERVER, settings(LogLevel.INFO), 64)) {
+            server.offer(record(1, LogCategory.SERVER, null));
+            server.flushNow().join();
+        }
+        String worldReadme = Files.readString(serverRoot.resolve("README.md"), StandardCharsets.UTF_8);
+        assertTrue(worldReadme.contains("this root is one world"), worldReadme);
+    }
+
+    @Test
     void namesTheWorldInEveryHeaderAndReportsItsRoot(@TempDir Path root) throws IOException {
         try (LogWriterService writer = writer(root, LogWriterScope.SERVER, settings(LogLevel.INFO), 64)) {
             assertEquals(root.toAbsolutePath(), writer.root().toAbsolutePath());

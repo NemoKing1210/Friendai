@@ -107,6 +107,21 @@ public final class LogWriterService implements LogSink, AutoCloseable {
         void close(Writer writer) throws IOException;
     }
 
+    private static final String CLIENT_README = """
+            # Friendai client logs
+
+            One JSON object per line for this client, not for a world: the client writer outlives any one world and
+            spans the menu, singleplayer and remote servers.
+
+            Tree:
+            - `client/<date>/client-<boot>.jsonl` — client-side `CLIENT` and `SPEECH` records.
+            - `index.jsonl` — one line per world load and close: time, world, path, boot and versions.
+            - `server/`, `owners/` — files written before 0.203.0; never read, never pruned, safe to delete.
+
+            Every world keeps its own server-side tree at `<world>/friendai/logs/`; open that one from the world you
+            are debugging. `.md` files are generated digests; delete them and they are rebuilt from the JSONL.
+            """;
+
     private static final Io DEFAULT_IO = new Io() {
         @Override
         public Writer open(Path path) throws IOException {
@@ -311,6 +326,11 @@ public final class LogWriterService implements LogSink, AutoCloseable {
     /** Installs the runtime secret redactor once the gateway knows the configured keys. */
     public void updateRedactor(UnaryOperator<String> redactor) {
         if (redactor != null) this.redactor = redactor;
+    }
+
+    /** The boot id this writer stamped on every file, so a report can name the session it read. */
+    public String boot() {
+        return boot;
     }
 
     /** The root this writer owns: one world's tree for the server scope, the client tree for the client scope. */
@@ -846,7 +866,7 @@ public final class LogWriterService implements LogSink, AutoCloseable {
         }
         try {
             Files.createDirectories(root);
-            Files.writeString(readme, README, StandardCharsets.UTF_8);
+            Files.writeString(readme, scope == LogWriterScope.CLIENT ? CLIENT_README : README, StandardCharsets.UTF_8);
         } catch (IOException ignored) {
             // The writer still works without a README; the next open retries.
         }

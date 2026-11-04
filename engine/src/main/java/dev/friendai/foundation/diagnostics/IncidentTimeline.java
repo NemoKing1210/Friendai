@@ -120,6 +120,7 @@ public final class IncidentTimeline {
         StringBuilder out = new StringBuilder();
         out.append("# Incident ")
                 .append(header == null || header.boot().isBlank() ? "unknown boot" : header.boot())
+                .append(header == null || header.world().isBlank() ? "" : " in " + header.world())
                 .append(header == null ? "" : " (" + header.mod() + ", minecraft " + header.minecraft() + ")")
                 .append('\n');
         out.append("Records: ")

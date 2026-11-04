@@ -791,14 +791,14 @@ const DOC = {
           "~Corrupt file|Backed up, then the original stays read-only."
         ] },
       { title: "What lives where", sub: "World save, owner books, game directory", color: COLORS.grass,
-        hub: { label: "Locations", icon: "📁", color: COLORS.grass, desc: "Diagnostics are not a store: `logs/friendai/` is written, rotated and pruned." },
+        hub: { label: "Locations", icon: "📁", color: COLORS.grass, desc: "Diagnostics are not a store: each world's `friendai/logs/` is written, rotated and pruned." },
         items: [
           "~World save|The companion entity, its inventory and hunger, anchors and the carry record.",
           "~`<world>/friendai/`|Owner books and the conversation transcript.",
           "~`config/`|Server and client settings.",
           "~`<gameDir>/friendai/models/`|Speech models and voices, pinned by revision, size and SHA-256.",
           "~Blueprints|`<world>/friendai/blueprints/<name>.json`.",
-          "~`logs/friendai/`|The diagnostics tree, described on the Logging page."
+          "~`<world>/friendai/logs/`|The world's diagnostics tree; client records and the world index stay in `logs/friendai/`. Described on the Logging page."
         ] },
       { title: "Rules for changing it", sub: "A schema change is a product decision", color: COLORS.redstone,
         hub: { label: "Rules", icon: "📜", color: COLORS.redstone, desc: "Existing saves must keep loading, or the maintainer decides otherwise." },

@@ -18,7 +18,6 @@ import dev.friendai.execution.tool.InventoryAccess;
 import dev.friendai.features.memory.MemoryBook;
 import dev.friendai.features.memory.MemoryReport;
 import dev.friendai.features.memory.PlayerRecord;
-import dev.friendai.foundation.diagnostics.LogNames;
 import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.infrastructure.config.ServerConfig;
 import dev.friendai.menu.FriendaiMenus;
@@ -352,7 +351,9 @@ public final class FriendaiCommands {
                 dev.friendai.debug.LogPaths.ownerRoot(
                         ctx.getSource().getServer().getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT),
                         target.getUUID()),
-                LogNames.bootId(),
+                runtime.fileLog().boot(),
+                dev.friendai.debug.LogPaths.worldName(
+                        ctx.getSource().getServer().getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT)),
                 versionOf("friendai"),
                 versionOf("minecraft"),
                 runtime.config().logging.level,

@@ -99,11 +99,15 @@ public class LoggingTests {
                 fileLog.root().toAbsolutePath().equals(sharedRoot.toAbsolutePath()),
                 "the server writer must not use the shared game root " + sharedRoot);
         UUID owner = UUID.randomUUID();
-        Path ownerRoot = dev.friendai.debug.LogPaths.ownerRoot(
-                server.getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT), owner);
+        Path worldPath = server.getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT)
+                .toAbsolutePath();
+        Path searchRoot = runtime.sessions().logRootFor(owner).toAbsolutePath();
         h.assertTrue(
-                runtime.sessions().logRootFor(owner).toAbsolutePath().equals(ownerRoot.toAbsolutePath()),
-                "logs_search root " + runtime.sessions().logRootFor(owner) + " is not " + ownerRoot);
+                searchRoot.startsWith(worldPath),
+                "logs_search root " + searchRoot + " is outside the world " + worldPath);
+        h.assertFalse(
+                searchRoot.startsWith(sharedRoot.toAbsolutePath()),
+                "logs_search root " + searchRoot + " must never sit under the shared game root");
         Path index = dev.friendai.debug.LogPaths.gameRoot(
                         net.fabricmc.loader.api.FabricLoader.getInstance().getGameDir())
                 .resolve("index.jsonl");

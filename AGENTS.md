@@ -409,20 +409,20 @@ The mod writes a durable, structured log of what the brain and the task queue di
 
 **How to use it when something breaks.**
 
-1. Find the failing line: `grep -h '"level":"error"' owners/<uuid>/*/*.jsonl | tail` (or filter on `"category":"task"` for task churn).
+1. Find the failing line, from inside the world's tree: `grep -h '"level":"error"' owners/<uuid>/*/*.jsonl | tail` (or filter on `"category":"task"` for task churn).
 2. Read its chain: take the `seq`, then `jq -c 'select(.seq==<seq> or .cause==<seq>)' owners/<uuid>/*/*.jsonl` until `cause` is 0. The digest's `## Errors and chains` section already draws this tree.
 3. Correlate: `turn` groups one chat turn, `task`/`job`/`plan` group execution, and `toolCall` joins a call to its result.
 4. Widen only when needed: `/friendai diagnose [chat] [player]` adds versions, masked config, queue, task history and, with `chat`, the transcript.
 5. In game: the operator **Log tab** tails the ring live (Pause freezes it), the **Logs** settings category opens the folder, and the companion itself answers "what happened?" through `read_log` (ring) and `logs_search` (files).
 
-**Finding the newest Modrinth session on Windows.** Replace `<profile>` and `<uuid>` with the profile folder and owner UUID. Keep the path quoted because profile names often contain spaces. The `.md` file is the readable digest; open the matching `.jsonl` when you need the original structured records:
+**Finding the newest Modrinth session on Windows.** Replace `<profile>`, `<world>` and `<uuid>` with the profile folder, the save directory and the owner UUID. Keep the path quoted because profile names often contain spaces. The `.md` file is the readable digest; open the matching `.jsonl` when you need the original structured records. `/friendai logs path` prints the exact world tree when the launcher keeps saves elsewhere:
 
 ```powershell
-$logRoot = Join-Path $env:APPDATA 'ModrinthApp\profiles\<profile>\logs\friendai'
-Get-ChildItem (Join-Path $logRoot 'owners\<uuid>') -Recurse -File -Include *.md,*.jsonl |
+$ownerLogs = Join-Path $env:APPDATA 'ModrinthApp\profiles\<profile>\saves\<world>\friendai\logs\owners\<uuid>'
+Get-ChildItem $ownerLogs -Recurse -File -Include *.md,*.jsonl |
     Sort-Object LastWriteTime -Descending |
     Select-Object -First 10 FullName, LastWriteTime, Length
-Get-Content (Get-ChildItem (Join-Path $logRoot 'owners\<uuid>') -Recurse -File -Filter *.md |
+Get-Content (Get-ChildItem $ownerLogs -Recurse -File -Filter *.md |
     Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName)
 ```
 

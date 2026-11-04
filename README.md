@@ -98,7 +98,7 @@ The world's tree is inside the save: `saves/<world>/friendai/logs` under the fol
 On Windows, find recent owner-session digests in a Modrinth profile with PowerShell (replace `<profile>` and `<uuid>`; keep the path quoted when the profile name has spaces):
 
 ```powershell
-$ownerLogs = Join-Path $env:APPDATA 'ModrinthApp\profiles\<profile>\logs\friendai\owners\<uuid>'
+$ownerLogs = Join-Path $env:APPDATA 'ModrinthApp\profiles\<profile>\saves\<world>\friendai\logs\owners\<uuid>'
 Get-ChildItem $ownerLogs -Recurse -File -Include *.md,*.jsonl |
     Sort-Object LastWriteTime -Descending |
     Select-Object -First 10 FullName, LastWriteTime, Length

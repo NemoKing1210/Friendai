@@ -10,8 +10,7 @@ import java.util.UUID;
  * layout instead of a filter every call site has to remember.
  *
  * <p>A world owns its whole server-side tree: {@code <world>/friendai/logs/}. Nothing resolves the shared
- * {@code gameDir/logs/friendai} tree for server records, and nothing falls back to it when the world path is
- * unavailable — that case gets its own directory instead.
+ * {@code gameDir/logs/friendai} tree for server records, so no fallback can ever mix two worlds into one tree.
  */
 public final class LogPaths {
     private static final String MOD_DIR = "friendai";
@@ -34,14 +33,6 @@ public final class LogPaths {
         return worldRoot(worldPath)
                 .resolve("owners")
                 .resolve(Objects.requireNonNull(owner, "owner").toString());
-    }
-
-    /**
-     * Where a writer goes when the world path cannot be resolved. Separate from {@link #worldRoot} and from
-     * {@link #gameRoot} so a failure can never mix two worlds into one tree.
-     */
-    public static Path unavailableRoot(Path gameDir) {
-        return gameRoot(gameDir).resolve("unavailable");
     }
 
     /**

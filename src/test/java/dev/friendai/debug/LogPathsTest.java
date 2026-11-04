@@ -38,11 +38,6 @@ class LogPathsTest {
     }
 
     @Test
-    void keepsAnUnresolvedWorldApart() {
-        assertEquals(Path.of("C:/game/logs/friendai/unavailable"), LogPaths.unavailableRoot(GAME));
-    }
-
-    @Test
     void namesTheWorld() {
         assertEquals("New World", LogPaths.worldName(WORLD));
     }
