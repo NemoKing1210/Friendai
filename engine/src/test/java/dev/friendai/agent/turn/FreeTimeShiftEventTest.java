@@ -88,4 +88,16 @@ class FreeTimeShiftEventTest {
         quiet.say("hello", OWNER);
         assertEquals(List.of("hello"), inner.said);
     }
+
+    @Test
+    void streamedSpeechFollowsTheOwnerPresenceToo() {
+        RecordingSpeaker inner = new RecordingSpeaker();
+        boolean[] online = {false};
+        Speaker quiet = new OwnerPresentSpeaker(inner, () -> online[0]);
+        quiet.streamSentence(7, 7, 0, "hello", true, OWNER);
+        assertTrue(inner.streamed.isEmpty(), "nobody to talk to: " + inner.streamed);
+        online[0] = true;
+        quiet.streamSentence(7, 7, 0, "hello", true, OWNER);
+        assertEquals(List.of(new RecordingSpeaker.Streamed(7, 7, 0, "hello", true, OWNER)), inner.streamed);
+    }
 }

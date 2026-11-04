@@ -32,6 +32,14 @@ public final class OwnerPresentSpeaker implements Speaker {
     }
 
     @Override
+    public void streamSentence(
+            long streamId, long sessionId, long sequence, String text, boolean last, UUID addressee) {
+        if (ownerOnline.getAsBoolean()) {
+            inner.streamSentence(streamId, sessionId, sequence, text, last, addressee);
+        }
+    }
+
+    @Override
     public void say(UserMessage message) {
         if (ownerOnline.getAsBoolean()) {
             inner.say(message);
