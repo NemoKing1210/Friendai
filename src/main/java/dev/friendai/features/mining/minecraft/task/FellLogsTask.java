@@ -1,6 +1,5 @@
 package dev.friendai.features.mining.minecraft.task;
 
-import dev.friendai.features.acquisition.minecraft.task.ObtainTask;
 import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
@@ -32,6 +31,7 @@ public final class FellLogsTask implements Task {
     private Task current;
     private int trees;
     private int gained;
+    private int felled;
     private int before;
     private int ticks;
     private boolean fallbackUsed;
@@ -61,6 +61,7 @@ public final class FellLogsTask implements Task {
         current = null;
         trees = 0;
         gained = 0;
+        felled = 0;
         before = counted(c);
         ticks = 0;
         fallbackUsed = false;
@@ -79,7 +80,7 @@ public final class FellLogsTask implements Task {
             }
             gained += Math.max(0, counted(c) - before);
             summary = current.resultSummary();
-            ObtainTask.safeStop(current, c);
+            safeStop(current, c);
             current = null;
             if (gained >= count) {
                 return succeed();
@@ -106,6 +107,7 @@ public final class FellLogsTask implements Task {
             return fail("cut " + gained + " of " + count + " " + matcher.label() + ": " + summary);
         }
         fallbackUsed = true;
+        felled = gained;
         before = counted(c);
         current = new MineBlocksTask(matcher, Math.max(1, count - gained), radius, origin, collect);
         current.start(c);
@@ -113,8 +115,11 @@ public final class FellLogsTask implements Task {
     }
 
     private TaskStatus succeed() {
-        summary =
-                "felled " + gained + " " + matcher.label() + " logs from " + trees + (trees == 1 ? " tree" : " trees");
+        summary = fallbackUsed
+                ? "gathered " + gained + " " + matcher.label() + " logs (" + felled + " felled, " + (gained - felled)
+                        + " mined)"
+                : "felled " + gained + " " + matcher.label() + " logs from " + trees
+                        + (trees == 1 ? " tree" : " trees");
         return TaskStatus.SUCCESS;
     }
 
@@ -129,10 +134,19 @@ public final class FellLogsTask implements Task {
                 .orElse(0);
     }
 
+    /** Stops a child task without letting a failing stop take the whole request down with it. */
+    private static void safeStop(Task task, TaskContext c) {
+        try {
+            task.stop(c);
+        } catch (RuntimeException ignored) {
+            // A task that cannot stop cleanly must not take the whole gather down with it.
+        }
+    }
+
     @Override
     public void stop(TaskContext c) {
         if (current != null) {
-            ObtainTask.safeStop(current, c);
+            safeStop(current, c);
             current = null;
         }
         c.companion().getNavigation().stop();
@@ -141,7 +155,7 @@ public final class FellLogsTask implements Task {
     @Override
     public void onTerminal(TaskContext c) {
         if (current != null) {
-            ObtainTask.safeStop(current, c);
+            safeStop(current, c);
             current = null;
         }
     }

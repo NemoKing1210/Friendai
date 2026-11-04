@@ -4,10 +4,15 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
+import dev.friendai.features.acquisition.ObtainStep;
+import dev.friendai.features.acquisition.minecraft.ObtainSubtaskFactory;
 import dev.friendai.features.acquisition.minecraft.task.ObtainTask;
 import dev.friendai.features.construction.minecraft.task.BuildTask;
 import dev.friendai.features.construction.minecraft.task.PlaceBlockTask;
 import dev.friendai.server.creative.CreativeModeService;
+import dev.friendai.server.execution.tools.MinecraftObtainSubtaskFactory;
+import dev.friendai.task.Task;
+import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import java.util.Optional;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -38,6 +43,25 @@ public final class CreativeMaterialTests {
 
     private static Caller caller(ServerPlayer player) {
         return new Caller(player.getUUID(), player.getName().getString(), AccessLevel.OWNER);
+    }
+
+    /** Creative wood is taken by the count miner: a felling would raise a scaffold it does not need. */
+    @GameTest(maxTicks = 100)
+    public void creativeWoodStepUsesTheCountMinerNotTheFeller(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 5, 2, 3);
+        CompanionEntity companion = creativeCompanion(h, owner);
+        TaskContext context = new TaskContext(companion, h.getLevel());
+        MinecraftObtainSubtaskFactory factory = new MinecraftObtainSubtaskFactory();
+        ObtainSubtaskFactory.Options options = new ObtainSubtaskFactory.Options(null, null, null, 0, 0, 0);
+        Task creative = factory.create(context, new ObtainStep.Mine("minecraft:oak_log", 4, null), options)
+                .task();
+        h.assertTrue(creative.type().equals("mine_blocks"), "creative wood used " + creative.type());
+        companion.setCreativeMode(false);
+        Task survival = factory.create(context, new ObtainStep.Mine("minecraft:oak_log", 4, null), options)
+                .task();
+        h.assertTrue(survival.type().equals("obtain_logs"), "survival wood used " + survival.type());
+        h.succeed();
     }
 
     @GameTest(maxTicks = 500)

@@ -842,6 +842,35 @@ public class TreeFellingTests {
         });
     }
 
+    /** A row of loose logs is no tree: the search gives up and the count miner gathers them, and the summary says so. */
+    @GameTest(maxTicks = 1200)
+    public void fellLogsMinesLooseLogsWhenNoTreeStands(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        List<BlockPos> loose = new java.util.ArrayList<>();
+        for (int x = 5; x <= 9; x++) {
+            BlockPos p = new BlockPos(x, 2, 8);
+            h.setBlock(p, Blocks.SPRUCE_LOG);
+            loose.add(p);
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.IRON_AXE));
+        for (BlockPos p : loose) {
+            h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(p)), "loose log should be visible at " + p);
+        }
+        Result result = new Result();
+        ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 300, () -> false);
+        runner.setEventSink(result);
+        runner.start(
+                new FellLogsTask(BlockMatcher.parse("minecraft:spruce_log").orElseThrow(), 3, 32, true), "obtain_logs");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.contains("0 felled"), "a log row is not a felled tree: " + result.summary);
+            h.assertTrue(result.summary.contains("mined"), "the fallback must be named: " + result.summary);
+            h.assertTrue(c.inventory().countItem(Items.SPRUCE_LOG) >= 3, "gained logs");
+        });
+    }
+
     /** A tall jungle tree with side branches: every log, branch included, must come down. */
     @GameTest(maxTicks = 6000)
     public void wideBranchedTreeFallsCompletely(GameTestHelper h) {
