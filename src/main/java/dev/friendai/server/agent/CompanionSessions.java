@@ -106,6 +106,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
     private final dev.friendai.features.knowledge.search.SearchHintStore searchHints;
     private final Map<UUID, CompanionSession> sessions = new HashMap<>();
     private final GoalOutcomeRecorder goalOutcomes;
+    private final OwnerSkillTools ownerSkills;
 
     private boolean acceptingWork = true;
 
@@ -158,6 +159,19 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
         this.scheduler = new ServerBrainScheduler(server);
         this.memory = memory;
         this.goalOutcomes = new GoalOutcomeRecorder(() -> config, owner -> this.memory.book(owner));
+        this.ownerSkills = new OwnerSkillTools(
+                skills,
+                () -> this.config,
+                owner -> {
+                    CompanionSession session = sessions.get(owner);
+                    return session == null ? dev.friendai.agent.turn.SkillTurnSession.NONE : session.skillSession();
+                },
+                owner -> {
+                    CompanionSession session = sessions.get(owner);
+                    return session == null ? null : session.teachingContext();
+                },
+                this::post,
+                goalOutcomes);
         this.transcripts = transcripts;
         this.profiles = profiles;
         this.settings = settings;
@@ -580,19 +594,16 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
     }
 
     public dev.friendai.agent.turn.SkillTurnSession skillSession(UUID owner) {
-        CompanionSession session = sessions.get(owner);
-        return session == null ? dev.friendai.agent.turn.SkillTurnSession.NONE : session.skillSession();
+        return ownerSkills.turn(owner);
     }
 
     public dev.friendai.foundation.teaching.TeachingContext teachingContext(UUID owner) {
-        CompanionSession session = sessions.get(owner);
-        return session == null ? null : session.teachingContext();
+        return ownerSkills.teachingContext(owner);
     }
 
     public void skillOutcome(
             UUID owner, String id, dev.friendai.foundation.teaching.TeachingContext.OutcomeKind kind, String summary) {
-        if (config.skills.enabled) post(owner, new BrainEvent.SkillOutcome(id, kind, summary));
-        goalOutcomes.remember(owner, id, kind, summary);
+        ownerSkills.outcome(owner, id, kind, summary);
     }
 
     @Override
@@ -613,22 +624,22 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
 
     @Override
     public ToolResult request(UUID owner, String id) {
-        return skillSession(owner).request(id);
+        return ownerSkills.request(owner, id);
     }
 
     @Override
     public ToolResult list(UUID owner, int page) {
-        return skills.list(owner, page);
+        return ownerSkills.list(owner, page);
     }
 
     @Override
     public ToolResult help() {
-        return skills.help();
+        return ownerSkills.help();
     }
 
     @Override
     public ToolResult teach(UUID owner, Caller caller, JsonObject args) {
-        return skills.teach(owner, caller, args);
+        return ownerSkills.teach(owner, caller, args);
     }
 
     public void cancel(UUID owner) {
