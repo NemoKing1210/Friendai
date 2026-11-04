@@ -1221,4 +1221,51 @@ public class ToolTests {
         h.assertTrue(!r.error(), "farm refused bonemeal: " + r.content());
         h.succeed();
     }
+
+    @GameTest
+    public void clearAreaToolUsesTheGivenCoordinates(GameTestHelper h) {
+        GameTestSupport.platform(h, 15);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        // A queued job re-reads the caller, so an anonymous caller becomes a guest and the job is cancelled before it
+        // starts; give the fixture an owner and run as it, as queueAddStartsPlan does.
+        UUID owner = UUID.randomUUID();
+        c.setOwner(owner);
+        BlockPos center = h.absolutePos(new BlockPos(3, 2, 3));
+        ToolResult r = runAs(
+                tools(c),
+                "clear_area",
+                "{\"radius\":1,\"x\":" + center.getX() + ",\"y\":" + center.getY() + ",\"z\":" + center.getZ() + "}",
+                new Caller(owner, "owner", AccessLevel.OWNER));
+        h.assertTrue(!r.error() && r.content().startsWith("task #"), "result was " + r.content());
+        h.assertTrue(r.content().endsWith("clearing the area around " + coords(center)), "result was " + r.content());
+        h.succeed();
+    }
+
+    @GameTest
+    public void clearAreaToolRejectsPartialCoordinates(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ToolResult r = run(tools(c), "clear_area", "{\"x\":1}");
+        h.assertTrue(r.error() && r.content().equals("give all of x, y, z or none"), "result was " + r.content());
+        h.succeed();
+    }
+
+    @GameTest
+    public void lightAreaToolDefaultsToEightBlocks(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        UUID owner = UUID.randomUUID();
+        c.setOwner(owner);
+        ToolResult r = runAs(tools(c), "light_area", "{}", new Caller(owner, "owner", AccessLevel.OWNER));
+        h.assertTrue(!r.error() && r.content().startsWith("task #"), "result was " + r.content());
+        h.assertTrue(r.content().endsWith("lighting up the area within 8 blocks"), "result was " + r.content());
+        h.succeed();
+    }
+
+    @GameTest
+    public void placeBlockToolRequiresTheBlockName(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ToolResult r = run(tools(c), "place_block", "{}");
+        h.assertTrue(
+                r.error() && r.content().contains("missing required argument 'block'"), "result was " + r.content());
+        h.succeed();
+    }
 }
