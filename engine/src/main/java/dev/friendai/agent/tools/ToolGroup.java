@@ -6,6 +6,8 @@ import java.util.Optional;
 /** The families of tools; they mirror the {@code *Tools} classes so a new tool lands in an obvious group. */
 public enum ToolGroup {
     CORE,
+    /** Dry-run and plan-shape tools an ordinary action turn does not need; unlocked with {@code request_tools}. */
+    PLANNING,
     MOVEMENT,
     GATHERING,
     INVENTORY,

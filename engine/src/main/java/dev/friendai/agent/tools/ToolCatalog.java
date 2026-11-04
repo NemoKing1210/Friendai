@@ -102,7 +102,6 @@ public final class ToolCatalog {
                 "stop",
                 "queue_add",
                 "plan_help",
-                "plan_validate",
                 "queue_show",
                 "queue_edit",
                 "plan_patch",
@@ -113,6 +112,13 @@ public final class ToolCatalog {
                 "finish_goal",
                 "request_tools",
                 "find_place");
+        // A plan about to be queued is validated by queue_add itself, so the dry run is not advertised on an
+        // ordinary action turn; request_tools unlocks it for an explicit validation request.
+        group(metas, ToolGroup.PLANNING, Cost.LOW, "plan_validate");
+        hint(
+                metas,
+                "plan_validate",
+                "- Use plan_validate for validation-only requests or inspection of complex conditional/repeated plans; queue_add validates plans that are about to be queued.");
         core(
                 metas,
                 ToolGroup.MEMORY,

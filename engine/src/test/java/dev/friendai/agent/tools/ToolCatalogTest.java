@@ -105,6 +105,20 @@ class ToolCatalogTest {
     }
 
     @Test
+    void planValidateIsNotAdvertisedOnAnOrdinaryActionTurn() {
+        List<ToolSpec> specs = List.of(spec("plan_validate"), spec("mine_blocks"), spec("stop"));
+
+        assertEquals(
+                List.of("mine_blocks", "stop"),
+                names(catalog.filter(specs, EnumSet.of(ToolGroup.GATHERING))),
+                "queue_add validates the plan an ordinary turn is about to queue");
+        assertEquals(
+                List.of("plan_validate", "mine_blocks", "stop"),
+                names(catalog.filter(specs, EnumSet.of(ToolGroup.GATHERING, ToolGroup.PLANNING))),
+                "request_tools unlocks the planning group");
+    }
+
+    @Test
     void everyToolHasExactlyOneEntry() {
         long distinct = catalog.all().stream().map(ToolMeta::name).distinct().count();
         assertEquals(catalog.all().size(), distinct);

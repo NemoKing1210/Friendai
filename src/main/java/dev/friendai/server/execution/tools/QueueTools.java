@@ -960,7 +960,15 @@ public final class QueueTools implements FeatureToolContributor {
 
     private static ToolMeta metadata(String name) {
         return switch (name) {
-            case "queue_add", "plan_help", "plan_validate", "queue_show", "queue_edit", "plan_patch" ->
+            case "plan_validate" ->
+                new ToolMeta(
+                        name,
+                        ToolGroup.PLANNING,
+                        false,
+                        "- Use plan_validate for validation-only requests or inspection of complex conditional/repeated plans; queue_add validates plans that are about to be queued.",
+                        List.of(),
+                        Cost.LOW);
+            case "queue_add", "plan_help", "queue_show", "queue_edit", "plan_patch" ->
                 new ToolMeta(name, ToolGroup.CORE, true, "", List.of(), Cost.LOW);
             default -> throw new IllegalArgumentException("No metadata declared for queue tool: " + name);
         };
