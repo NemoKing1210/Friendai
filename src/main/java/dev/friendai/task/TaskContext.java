@@ -283,7 +283,7 @@ public record TaskContext(
     }
 
     /** The place book through the world-layer port, so a kernel task never names the places feature. */
-    public dev.friendai.world.targeting.PlaceLookup placeLookup() {
+    public PlaceLookup placeLookup() {
         return runtime().placeService();
     }
     /** Search-specific policy values, detached from the server configuration representation. */

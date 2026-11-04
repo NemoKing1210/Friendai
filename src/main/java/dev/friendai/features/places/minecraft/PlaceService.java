@@ -10,7 +10,7 @@ import dev.friendai.foundation.places.PlaceNames;
 import dev.friendai.foundation.places.PlaceValues;
 import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.foundation.spatial.RelativeDirection;
-import dev.friendai.world.targeting.PlaceLookup;
+import dev.friendai.task.PlaceLookup;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;

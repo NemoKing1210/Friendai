@@ -118,3 +118,9 @@ and adapter leaks outside a move-only scope; Wave 4 fixes or explicitly re-scope
 new line may be added. Everything else in the architecture group passes.
 
 The owner-store benchmark above still describes the code Wave 3 changes; its numbers were not re-taken in Wave 1.
+
+Two GameTest reds are inherited from base and were measured on both trees: `pathing_tests_mines_whole_log_column`
+("mined 7 of 8") and `structure_tests_*`, where `structure_tests_tool_build_special_builds_snow_golem` ("a snow golem
+should exist") and `structure_tests_portal_trip_builds_lights_and_records_the_return_anchor` ("the portal did not take
+me to minecraft:the_nether") fail identically at `1ce4fef6` and on the Wave 1 branch (25 tests, 2 failed, run
+2026-11-04). They are environment/outcome-sensitive and are left to CI and the nightly run.

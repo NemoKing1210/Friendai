@@ -10,11 +10,11 @@ import dev.friendai.foundation.places.PortalRoutePolicy.PortalLink;
 import dev.friendai.foundation.places.PortalRoutePolicy.Reason;
 import dev.friendai.foundation.places.PortalRoutePolicy.RouteFacts;
 import dev.friendai.foundation.spatial.Pos;
+import dev.friendai.task.PlaceLookup;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.world.movement.MoveHelper;
-import dev.friendai.world.targeting.PlaceLookup;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
@@ -216,9 +216,12 @@ public final class TravelThroughPortalTask implements Task {
             summary = "there is no clear 4 by 5 spot within " + SITE_RADIUS + " blocks to build a nether portal";
             return TaskStatus.FAILED;
         }
-        builder = c.structureBuilder()
-                .build(PORTAL_STRUCTURE, site, Rotation.NONE, 4)
-                .orElseThrow(() -> new IllegalStateException("no structure builder for " + PORTAL_STRUCTURE));
+        Optional<Task> planned = c.structureBuilder().build(PORTAL_STRUCTURE, site, Rotation.NONE, 4);
+        if (planned.isEmpty()) {
+            summary = "this world cannot build a nether portal";
+            return TaskStatus.FAILED;
+        }
+        builder = planned.get();
         builder.start(c);
         phase = Phase.BUILD;
         phaseTicks = 0;
@@ -558,6 +561,12 @@ public final class TravelThroughPortalTask implements Task {
         CompanionEntity companion = c.companion();
         BlockPos center = companion.blockPosition();
         AABB own = companion.getBoundingBox();
+        // The footprint is a fixed translation of the origin, so resolve it once instead of once per candidate.
+        Optional<AABB> footprint = c.structureBuilder().volume(PORTAL_STRUCTURE, BlockPos.ZERO, Rotation.NONE);
+        if (footprint.isEmpty()) {
+            return null;
+        }
+        AABB local = footprint.get();
         for (int radius = 2; radius <= SITE_RADIUS; radius++) {
             for (int dx = -radius; dx <= radius; dx++) {
                 for (int dz = -radius; dz <= radius; dz++) {
@@ -566,8 +575,7 @@ public final class TravelThroughPortalTask implements Task {
                     }
                     for (int dy = -1; dy <= 1; dy++) {
                         BlockPos origin = center.offset(dx, dy, dz);
-                        Optional<AABB> volume = c.structureBuilder().volume(PORTAL_STRUCTURE, origin, Rotation.NONE);
-                        if (volume.isPresent() && clearFootprint(level, volume.get(), own)) {
+                        if (clearFootprint(level, local.move(origin.getX(), origin.getY(), origin.getZ()), own)) {
                             return origin;
                         }
                     }

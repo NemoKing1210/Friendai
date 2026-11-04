@@ -1,4 +1,4 @@
-package dev.friendai.world.targeting;
+package dev.friendai.task;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.foundation.places.Place;

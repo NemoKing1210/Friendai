@@ -40,6 +40,15 @@ import net.minecraft.world.phys.Vec3;
 
 /** Hunger on the entity: exhaustion sources, eating, owner throws, starvation, no passive regen, texts and save data. */
 public class HungerTests {
+    @GameTest
+    public void eatingAndCombatShareOneLiveController(GameTestHelper h) {
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 1, 2, 1);
+        h.assertTrue(
+                companion.eatingController() == companion.combatController(),
+                "eating must arbitrate through the one live combat controller");
+        h.succeed();
+    }
+
     @GameTest(maxTicks = 500)
     public void queueFreezesForFoodAndResumes(GameTestHelper h) {
         GameTestSupport.platformAt(h, 260, 16);

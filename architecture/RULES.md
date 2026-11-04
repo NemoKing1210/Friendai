@@ -38,12 +38,13 @@ one feature becomes a port. `FeatureGraph` checks the cycle rule over class-leve
 
 ## Inherited class-level exceptions
 
-`compiledProjectEdgesMatchOnlyDocumentedClassLevelExceptions` still lists a small fixed set of class edges inherited
-from before the kernel extraction (`features/brewing` → `features/enchanting.MenuBlockTask`, `features/social` →
+`compiledProjectEdgesMatchOnlyDocumentedClassLevelExceptions` is red on a small fixed set of class edges inherited from
+before the kernel extraction (`features/brewing` → `features/enchanting.MenuBlockTask`, `features/social` →
 `features/memory`, `features/coordination` → `server`, `features/appearance` → `presentation.ClientSessionId`,
 `features/cartography` → `server.ServerRuntime`, `presentation` → `features/cartography.TerrainMapView`). They are
-package-level cycles and adapter leaks that Wave 4 removes; no Wave 1 change may add a line to that list, and the
-list may only shrink.
+package-level cycles and adapter leaks that Wave 4 removes. The manifest stays empty on purpose, so this test fails
+until they are fixed rather than hiding them in a list: no Wave 1 change may add an edge to it, and the set may only
+shrink.
 
 ## Runtime service graph
 

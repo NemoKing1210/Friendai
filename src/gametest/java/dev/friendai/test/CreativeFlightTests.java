@@ -436,4 +436,25 @@ public final class CreativeFlightTests {
             h.assertTrue(minPitch[0] <= -60.0F, "a pure climb never looked up: pitch " + minPitch[0]);
         });
     }
+
+    @GameTest
+    public void freeScaffoldingRequiresTheLiveCreativeGrant(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        CompanionEntity companion = creativeCompanion(h, owner);
+        long revision = companion.creativeModeRevision();
+        TaskContext live = new TaskContext(
+                companion,
+                h.getLevel(),
+                companion.executionCoordinator(),
+                new CreativeActionContext(owner.getUUID(), revision));
+        h.assertTrue(live.creativeMaterials(), "the live creative grant must allow free scaffolding");
+        TaskContext stale = new TaskContext(
+                companion,
+                h.getLevel(),
+                companion.executionCoordinator(),
+                new CreativeActionContext(owner.getUUID(), revision - 1));
+        h.assertFalse(stale.creativeMaterials(), "a stale creative grant must not allow free scaffolding");
+        h.succeed();
+    }
 }

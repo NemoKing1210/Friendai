@@ -5,6 +5,7 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.foundation.places.NearRequest;
 import dev.friendai.foundation.places.Place;
+import dev.friendai.task.PlaceLookup;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
