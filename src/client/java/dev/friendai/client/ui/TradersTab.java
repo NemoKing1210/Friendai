@@ -1,6 +1,7 @@
 package dev.friendai.client.ui;
 
 import dev.friendai.features.trading.TradeOffer;
+import dev.friendai.features.trading.TradePager;
 import dev.friendai.features.trading.TraderRecord;
 import java.util.UUID;
 import net.minecraft.client.gui.Font;
@@ -22,7 +23,7 @@ final class TradersTab extends StatefulMenuTab {
 
     private String queryId = UUID.randomUUID().toString();
     private UUID selectedTrader;
-    private int page;
+    private final TradePager pager = new TradePager();
     private EditBox itemFilter;
     private EditBox orderJson;
     private int direction;
@@ -35,8 +36,8 @@ final class TradersTab extends StatefulMenuTab {
 
     void open() {
         queryId = UUID.randomUUID().toString();
-        page = 0;
-        CompanionRequests.trade(TradeAction.SUBSCRIBE, queryId, "", "{}", direction, page, "");
+        pager.reset();
+        CompanionRequests.trade(TradeAction.SUBSCRIBE, queryId, "", "{}", direction, pager.page(), "");
     }
 
     @Override
@@ -63,7 +64,7 @@ final class TradersTab extends StatefulMenuTab {
                 ROW,
                 Component.translatable("friendai.menu.traders.search"),
                 Ui.ACCENT,
-                this::query));
+                this::search));
 
         int orderY = top + 2 + ROW_STEP;
         host.add(new FlatButton(
@@ -75,6 +76,7 @@ final class TradersTab extends StatefulMenuTab {
                 Ui.ACCENT,
                 () -> {
                     direction = 1 - direction;
+                    pager.filterChanged();
                     query();
                 }));
         int jsonX = left + PAD + DIRECTION_WIDTH + GAP;
@@ -194,22 +196,27 @@ final class TradersTab extends StatefulMenuTab {
         return top + (index / columns) * ROW_STEP;
     }
 
+    /** A new filter is a new search, so it starts at the first page. */
+    private void search() {
+        pager.filterChanged();
+        query();
+    }
+
     private void query() {
         String item = itemFilter == null ? "" : itemFilter.getValue().strip();
-        page = 0;
-        CompanionRequests.trade(TradeAction.QUERY, queryId, item, "{}", direction, page, "");
+        CompanionRequests.trade(TradeAction.QUERY, queryId, item, "{}", direction, pager.page(), "");
     }
 
     private void turnPage(int delta) {
         var view = state.tradeView().orElse(null);
         if (view == null || !view.queryId().toString().equals(queryId)) return;
-        page = Math.max(0, Math.min(view.totalPages() - 1, page + delta));
+        pager.turn(delta, view.totalPages());
         query();
     }
 
     private void action(TradeAction action) {
         if (selectedTrader == null) return;
-        CompanionRequests.trade(action, queryId, "", "{}", direction, page, selectedTrader.toString());
+        CompanionRequests.trade(action, queryId, "", "{}", direction, pager.page(), selectedTrader.toString());
     }
 
     private void orderAction(TradeAction action) {
@@ -220,7 +227,7 @@ final class TradersTab extends StatefulMenuTab {
                 "",
                 orderJson.getValue(),
                 direction,
-                page,
+                pager.page(),
                 selectedTrader == null ? "" : selectedTrader.toString());
     }
 
