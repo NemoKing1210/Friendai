@@ -594,7 +594,7 @@ const DOC = {
 
   logging: {
     title: "One record per thing that happened",
-    lead: "Every brain turn, tool call, task and shift writes a durable JSONL record under `logs/friendai/`. The same record carries a `cause` link, so an error can be walked back to the turn that started it.",
+    lead: "Every brain turn, tool call, task and shift writes a durable JSONL record under the current world's `friendai/logs/`. The same record carries a `cause` link, so an error can be walked back to the turn that started it.",
     graph: { w: 1200, h: 460, nodes: [
       { id: "event", x: 110, y: 230, label: "Brain, tool, task, shift", icon: "📝", color: COLORS.grass, kind: "cat", desc: "Callers emit typed records: identity keys, level, category, event, bounded data." },
       { id: "pipeline", x: 410, y: 230, label: "LogPipeline", icon: "🛡️", color: COLORS.amethyst, kind: "hub", desc: "Redacts secrets first, then truncates, then fans out to every sink." },
@@ -607,15 +607,17 @@ const DOC = {
       ["ring", "read", "live", { curve: [-40, 0] }], ["files", "read"], ["digest", "read", "prose", { curve: [40, 0] }]
     ] },
     cards: [
-      { title: "Where the files are", sub: "`<gameDir>/logs/friendai/`", color: COLORS.lapis,
-        hub: { label: "Log tree", icon: "🗄️", color: COLORS.lapis, desc: "`/friendai logs path` and the Open log folder button are authoritative; the folder can be anywhere." },
+      { title: "Where the files are", sub: "`<world>/friendai/logs/` plus `<gameDir>/logs/friendai/`", color: COLORS.lapis,
+        hub: { label: "Log tree", icon: "🗄️", color: COLORS.lapis, desc: "Each world owns its server tree and the shared root keeps the client records and the world index; `/friendai logs path` and the Open log folder button point at the current world." },
         items: [
-          "~server/<date>/boot-N.jsonl|Lifecycle records and every warn or error from `friendai*` loggers.",
-          "~owners/<uuid>/<date>/session-*.jsonl|One owner's brain, tool, task and queue records.",
+          "~server/<date>/boot-N.jsonl|Lifecycle records and every warn or error from `friendai*` loggers, inside the world.",
+          "~owners/<uuid>/<date>/session-*.jsonl|One owner's brain, tool, task and queue records, inside the world.",
           "~client/<date>/client-N.jsonl|Client and speech records, written on the client only.",
-          "~diagnostics/diagnose-<UTC>/|The `/friendai diagnose` bundle.",
+          "~index.jsonl|One line per world load and close: time, world, path, boot and versions.",
+          "~diagnostics/diagnose-<UTC>/|The `/friendai diagnose` bundle, inside the world.",
           "~README.md|A generated one-page schema, event table and jq recipes.",
-          "~Singleplayer|The client folder equals the server folder only in singleplayer."
+          "~One world, one tree|A companion can only search the world it lives in; a busy world cannot prune another's history.",
+          "~Before 0.203.0|`server/` and `owners/` left at the shared root stay untouched and unread."
         ] },
       { title: "What a record holds", sub: "Fields worth knowing when you are reading", color: COLORS.amethyst,
         hub: { label: "Record", icon: "🧾", color: COLORS.amethyst, desc: "One JSON object per line, with a header on line one." },
@@ -632,7 +634,7 @@ const DOC = {
         items: [
           "~off / normal / detailed / trace|`normal` records metadata only; `detailed` adds prompt and reply bodies after redaction.",
           "~Rotation|8 MiB per file, then `-2` and `-3` parts.",
-          "~Retention|50 MiB total, 7 days, 20 sessions per owner by default.",
+          "~Retention|50 MiB per world, 7 days, 20 sessions per owner by default.",
           "~Never block|The writer drops records instead of stalling the server and writes one `log.dropped` line.",
           "~Torn last line|A crash-truncated line is skipped by readers instead of breaking the file.",
           "~Detailed is a decision|Do not raise it on a server carrying other people's chat without their knowledge."

@@ -816,6 +816,8 @@ Object.assign(RU, {
   "One record per thing that happened": "Одна запись на каждое событие",
   "Every brain turn, tool call, task and shift writes a durable JSONL record under `logs/friendai/`. The same record carries a `cause` link, so an error can be walked back to the turn that started it.":
     "Каждый ход, вызов инструмента, задача и смена пишут долговечную запись JSONL в `logs/friendai/`. У записи есть ссылка `cause`, поэтому ошибку можно проследить назад до хода, который её начал.",
+  "Every brain turn, tool call, task and shift writes a durable JSONL record under the current world's `friendai/logs/`. The same record carries a `cause` link, so an error can be walked back to the turn that started it.":
+    "Каждый ход, вызов инструмента, задача и смена пишут долговечную запись JSONL в `friendai/logs/` текущего мира. У записи есть ссылка `cause`, поэтому ошибку можно проследить назад до хода, который её начал.",
   "Brain, tool, task, shift": "Мозг, инструмент, задача, смена",
   "Callers emit typed records: identity keys, level, category, event, bounded data.":
     "Источники пишут типизированные записи: ключи идентичности, уровень, категорию, событие, ограниченные данные.",
@@ -835,6 +837,24 @@ Object.assign(RU, {
     "`logs_search`, `/friendai diagnose`, вкладка Log и дайджест читают одни и те же записи.",
   "live": "живой",
   "prose": "прозой",
+  "`<world>/friendai/logs/` plus `<gameDir>/logs/friendai/`": "`<world>/friendai/logs/` и `<gameDir>/logs/friendai/`",
+  "Each world owns its server tree and the shared root keeps the client records and the world index; `/friendai logs path` and the Open log folder button point at the current world.":
+    "У каждого мира своё серверное дерево, а общий корень хранит клиентские записи и индекс миров; `/friendai logs path` и кнопка открытия папки указывают на текущий мир.",
+  "Lifecycle records and every warn or error from `friendai*` loggers, inside the world.":
+    "Записи жизненного цикла и все warn/error логгеров `friendai*`, внутри мира.",
+  "One owner's brain, tool, task and queue records, inside the world.":
+    "Записи мозга, инструментов, задач и очереди одного владельца, внутри мира.",
+  "One line per world load and close: time, world, path, boot and versions.":
+    "Одна строка на загрузку и закрытие мира: время, мир, путь, boot и версии.",
+  "The `/friendai diagnose` bundle, inside the world.": "Пакет `/friendai diagnose`, внутри мира.",
+  "One world, one tree": "Один мир — одно дерево",
+  "A companion can only search the world it lives in; a busy world cannot prune another's history.":
+    "Компаньон ищет только в мире, где живёт; активный мир не вытесняет историю другого.",
+  "Before 0.203.0": "До 0.203.0",
+  "`server/` and `owners/` left at the shared root stay untouched and unread.":
+    "`server/` и `owners/` в общем корне остаются нетронутыми и не читаются.",
+  "50 MiB per world, 7 days, 20 sessions per owner by default.":
+    "50 МиБ на мир, 7 дней, 20 сессий на владельца по умолчанию.",
   "Where the files are": "Где лежат файлы",
   "Log tree": "Дерево логов",
   "`/friendai logs path` and the Open log folder button are authoritative; the folder can be anywhere.":

@@ -383,17 +383,19 @@ Each line is a rule stated above, in the shape it has actually failed in this re
 
 The mod writes a durable, structured log of what the brain and the task queue did. It is the fastest answer to "why did the companion do that?"; the plain SLF4J lines in `logs/latest.log` stay the second choice.
 
-**Where the files are.** `<gameDir>/logs/friendai/`:
+**Where the files are.** Every world owns its server-side tree at `<world>/friendai/logs/`; the client tree and the world index stay in `<gameDir>/logs/friendai/`. Two worlds on one instance never share a directory, so a companion can only ever search the world it lives in:
 
 | Path | Content |
 |---|---|
-| `server/<date>/boot-<boot>.jsonl` | server lifecycle and every `warn`/`error` from `friendai*` loggers |
-| `owners/<uuid>/<date>/session-<time>-<boot>.jsonl` | one owner's brain, tool, task and queue records |
-| `client/<date>/client-<boot>.jsonl` | client-side `CLIENT` and `SPEECH` records |
-| `diagnostics/diagnose-<UTC>/` | `/friendai diagnose` bundles: `summary.txt`, `log.txt`, `tasks.json`, `queue.txt`, `chat.txt` |
+| `<world>/friendai/logs/server/<date>/boot-<boot>.jsonl` | server lifecycle and every `warn`/`error` from `friendai*` loggers |
+| `<world>/friendai/logs/owners/<uuid>/<date>/session-<time>-<boot>.jsonl` | one owner's brain, tool, task and queue records |
+| `<world>/friendai/logs/diagnostics/diagnose-<UTC>/` | `/friendai diagnose` bundles: `summary.txt`, `log.txt`, `tasks.json`, `queue.txt`, `chat.txt` |
+| `<gameDir>/logs/friendai/client/<date>/client-<boot>.jsonl` | client-side `CLIENT` and `SPEECH` records, which outlive one world |
+| `<gameDir>/logs/friendai/index.jsonl` | one line per world load and close: time, world, path, `boot`, versions |
+| `<gameDir>/logs/friendai/server/`, `owners/` | files written before 0.203.0: never read and never pruned, safe to delete |
 | `README.md` | generated one-page schema, event table and `jq`/`grep` recipes |
 
-**Typical locations.** The folder is `<gameDir>/logs/friendai`, where `gameDir` is the instance directory the launcher uses; a modpack may point it anywhere, so `/friendai logs path` and the **Open log folder** button are authoritative:
+**Typical locations.** The server tree is inside the save: `<gameDir>/saves/<world>/friendai/logs` in singleplayer and `<server directory>/<level-name>/friendai/logs` on a dedicated server. The shared root `<gameDir>/logs/friendai` holds the client records, the world index and the pre-0.203.0 trees, where `gameDir` is the instance directory the launcher uses; a modpack may point it anywhere, so `/friendai logs path` and the **Open log folder** button are authoritative:
 
 - Windows, official launcher: `%APPDATA%\.minecraft\logs\friendai`.
 - Windows, per-instance launchers: `%APPDATA%\ModrinthApp\profiles\<profile>\logs\friendai`, `%APPDATA%\PrismLauncher\instances\<instance>\logs\friendai`, `%APPDATA%\MultiMC\instances\<instance>\logs\friendai`, `C:\Users\<you>\curseforge\minecraft\Instances\<instance>\logs\friendai`.
@@ -401,7 +403,7 @@ The mod writes a durable, structured log of what the brain and the task queue di
 - macOS, per-instance launchers: `~/Library/Application Support/PrismLauncher/instances/<instance>/logs/friendai`, `~/Library/Application Support/multimc/instances/<instance>/logs/friendai`.
 - Dedicated server: `<server directory>/logs/friendai`, for example `C:\servers\minecraft\logs\friendai` on Windows or `/srv/minecraft/logs/friendai` on Linux. The client buttons open the client's folder, never the server's.
 
-**What a line is.** JSONL: one object per line, with a header (`"kind":"header"`) as line 1. The fields that matter when debugging are `seq`, `timeMillis`, `level`, `category`, `event`, `turn`/`plan`/`job`/`task`/`toolCall`, `cause`, `durationMs`, `msg`, `data` and `error`. `cause` is the `seq` of the record that caused this one, so an error is followed backwards to the turn or task that started it. A `.md` digest beside a closed file renders the same chain as prose; it is generated and safe to delete.
+**What a line is.** JSONL: one object per line, with a header (`"kind":"header"`) as line 1. The fields that matter when debugging are `seq`, `timeMillis`, `level`, `category`, `event`, `turn`/`plan`/`job`/`task`/`toolCall`, `cause`, `durationMs`, `msg`, `data` and `error`. The header names the world the file belongs to. `cause` is the `seq` of the record that caused this one, so an error is followed backwards to the turn or task that started it. A `.md` digest beside a closed file renders the same chain as prose; it is generated and safe to delete.
 
 **Detail levels.** `off` writes no files; `normal` (default) records metadata only; `detailed` adds prompt, reply and tool-result bodies after redaction; `trace` adds per-step detail. Configured API keys become `***` before any sink, on both the pipeline and the log4j bridge. `normal` is what a dedicated server runs: do not raise it to `detailed` on a server carrying other people's chat without their knowledge.
 
@@ -426,9 +428,9 @@ Get-Content (Get-ChildItem (Join-Path $logRoot 'owners\<uuid>') -Recurse -File -
 
 For the active profile's exact path, run `/friendai logs path` in game or press **Copy log path**; Modrinth profiles need not be stored under the default `.minecraft` directory.
 
-**Commands.** `/friendai logs path` prints the server folder — the owner gets their own subtree, an operator the root. The client buttons open the client's own folder, which equals the server's only in singleplayer. `/friendai logs level <off|normal|detailed|trace>` applies live, `/friendai logs prune` runs retention now, `/friendai logs export` writes the diagnostic bundle.
+**Commands.** `/friendai logs path` prints the current world's folder — the owner gets their own subtree inside it, an operator the world's tree. The client buttons open that world folder in singleplayer and the client's own tree in the menu or on a remote server. `/friendai logs level <off|normal|detailed|trace>` applies live, `/friendai logs prune` runs retention now, `/friendai logs export` writes the diagnostic bundle.
 
-**Bounds.** A file rotates at `maxFileBytes` (8 MiB default) into `-2`, `-3` parts; retention keeps `maxTotalBytes`, `retentionDays` and `maxSessionsPerOwner` (50 MiB, 7 days, 20 sessions by default); the writer drops records rather than block the server and writes one `log.dropped` line; a torn last line after a crash is skipped by readers. `LoggingTests` covers writing, retention, `off` and redaction: `runGameTest -Dfabric-api.gametest.filter='friendai-gametest:logging_tests_*'`.
+**Bounds.** A file rotates at `maxFileBytes` (8 MiB default) into `-2`, `-3` parts; retention keeps `maxTotalBytes`, `retentionDays` and `maxSessionsPerOwner` (50 MiB, 7 days, 20 sessions per world by default); the writer drops records rather than block the server and writes one `log.dropped` line; a torn last line after a crash is skipped by readers. `LoggingTests` covers writing, retention, `off` and redaction: `runGameTest -Dfabric-api.gametest.filter='friendai-gametest:logging_tests_*'`.
 
 **Never paste a bundle or a `detailed` file into an issue unread**: it can contain coordinates, inventory facts and, at `detailed`, prompt and reply text.
 

@@ -91,9 +91,9 @@ The **Search and profiles** tab holds the search field, the Basic/Advanced switc
 
 ## Logs
 
-The server writes a durable log of what the companion did: one JSON object per line with a level, a category, a sequence id and a `cause` link to the record that started it, so a failure can be followed back to the turn that caused it. Files live under `logs/friendai/`: `server/<date>/`, `owners/<uuid>/<date>/` and `client/<date>/`. A readable `.md` digest sits beside each closed file, and a `README.md` explains the tree.
+The server writes a durable log of what the companion did: one JSON object per line with a level, a category, a sequence id and a `cause` link to the record that started it, so a failure can be followed back to the turn that caused it. Each world keeps its own tree, `server/<date>/` and `owners/<uuid>/<date>/` under `<world>/friendai/logs/`, so two saves never mix and the companion in one world cannot search another. The client's own records stay in `<gameDir>/logs/friendai/client/`, beside an `index.jsonl` that names the world each game session belonged to. A readable `.md` digest and a `README.md` sit in each tree.
 
-The folder is `<gameDir>/logs/friendai`. With the official launcher that is `%APPDATA%\.minecraft\logs\friendai` on Windows and `~/Library/Application Support/minecraft/logs/friendai` on macOS; a launcher with per-instance folders puts it inside the instance, for example `%APPDATA%\ModrinthApp\profiles\<profile>\logs\friendai`, `%APPDATA%\PrismLauncher\instances\<instance>\logs\friendai` or `~/Library/Application Support/PrismLauncher/instances/<instance>/logs/friendai`; a dedicated server writes `<server directory>/logs/friendai`. **Open log folder** and `/friendai logs path` print the exact path, which is the reliable answer when a modpack uses a custom game directory.
+The world's tree is inside the save: `saves/<world>/friendai/logs` under the folder the launcher uses, and `<server directory>/<level-name>/friendai/logs` on a dedicated server. The shared root `<gameDir>/logs/friendai` keeps the client records and the world index. With the official launcher the game directory is `%APPDATA%\.minecraft` on Windows and `~/Library/Application Support/minecraft` on macOS; per-instance launchers keep it inside the instance, for example `%APPDATA%\ModrinthApp\profiles\<profile>` or `%APPDATA%\PrismLauncher\instances\<instance>`. **Open log folder** and `/friendai logs path` print the exact world path, which is the reliable answer when a modpack uses a custom directory.
 
 On Windows, find recent owner-session digests in a Modrinth profile with PowerShell (replace `<profile>` and `<uuid>`; keep the path quoted when the profile name has spaces):
 
@@ -106,11 +106,11 @@ Get-Content (Get-ChildItem $ownerLogs -Recurse -File -Filter *.md |
     Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName)
 ```
 
-The `.md` file is a readable digest; use its matching `.jsonl` for raw records. `/friendai logs path` and **Copy log path** are authoritative when a launcher uses a non-default game directory.
+The `.md` file is a readable digest; use its matching `.jsonl` for raw records. `/friendai logs path` and **Copy log path** are authoritative when a launcher uses a non-default game directory, and both point at the current world's tree rather than at the shared root.
 
 The **Logs** settings category (or `logging` in `friendai-server.json`) chooses the detail level: `off` writes nothing to disk, `normal` (the default) records metadata, `detailed` adds prompt, reply and tool-result bodies after redaction, and `trace` adds per-step detail. It also controls the categories, per-file and total size caps, retention days and whether digests are written. Configured secrets are replaced with `***` before anything is written.
 
-From the game, **Open log folder** and **Copy log path** sit in the Logs category and in the companion menu's Log tab, together with **Pause** for the live view. On a dedicated server the buttons open the client's own folder; `/friendai logs path` prints the server path for the operator, `/friendai logs level <off|normal|detailed|trace>` changes it live, `/friendai logs prune` applies retention now, and `/friendai logs export` writes the `/friendai diagnose` bundle with the log path in its summary. The companion itself can search the durable files with `logs_search` (owner only) after a failure.
+From the game, **Open log folder** and **Copy log path** sit in the Logs category and in the companion menu's Log tab, together with **Pause** for the live view. In singleplayer the buttons open the current world's folder; in the menu or on a dedicated server they open the client's own tree, because this machine never holds the server's files. `/friendai logs path` prints the world path for the operator, `/friendai logs level <off|normal|detailed|trace>` changes it live, `/friendai logs prune` applies retention now, and `/friendai logs export` writes the `/friendai diagnose` bundle with the log path in its summary. The companion itself can search the durable files with `logs_search` (owner only) after a failure.
 
 ## Creative mode
 

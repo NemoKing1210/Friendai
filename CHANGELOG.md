@@ -6,6 +6,13 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.203.0] - 2026-11-04
+
+### Changed
+
+- Logs now live with the world they describe: each save keeps its own tree under `<world>/friendai/logs/`, so the companion in one world can no longer search another world's records, and heavy play in one world no longer prunes another world's history.
+- `/friendai logs path`, **Open log folder** and `/friendai diagnose` follow the current world, every log file names its world, and a new `index.jsonl` in `logs/friendai` records one line per world load and close.
+
 ## [0.202.2] - 2026-11-04
 
 ### Fixed
