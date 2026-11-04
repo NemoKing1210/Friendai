@@ -33,10 +33,16 @@ import net.minecraft.world.level.block.state.BlockState;
  * {@link BlockBreaker}, so reach, line of sight, the server's protection, place protection and the break blacklist
  * still apply. Chests, furnaces and other block entities are never touched; neither is the block the companion
  * stands on.
+ *
+ * <p>One run is bounded in time: at most {@link #DEFAULT_TICK_BUDGET} ticks across all cells and {@link #CELL_TICKS}
+ * ticks per cell, so an area asked too large cannot hold the companion for an hour. A run that spends its budget
+ * reports the cells it did not reach for another pass.
  */
 public final class ClearAreaTask implements Task {
     /** One task is bounded so an area asked too large cannot run for an hour. */
     public static final int MAX_CELLS = 256;
+    /** The total ticks one run may spend across all cells, so a large order cannot hold the companion indefinitely. */
+    public static final int DEFAULT_TICK_BUDGET = 6_000;
     /** How long one cell may keep the companion walking and breaking before it is given up as unreachable. */
     static final int CELL_TICKS = 300;
     /** How many cells in a row may be out of reach before the rest of the area is given up as unreachable. */
@@ -47,10 +53,12 @@ public final class ClearAreaTask implements Task {
     private final int depth;
     private final int height;
     private final Set<ClearKind> wanted;
+    private final int tickBudget;
     private final EnumMap<ClearKind, Integer> cleared = new EnumMap<>(ClearKind.class);
     private final EnumMap<ClearSkip, Integer> skipped = new EnumMap<>(ClearSkip.class);
     private final List<ClearCell> queue = new ArrayList<>();
     private int cellTicks;
+    private int ticksSpent;
     private int unreachableStreak;
     private int planned;
     private int left;
@@ -64,6 +72,16 @@ public final class ClearAreaTask implements Task {
     private FireHands fireHands;
 
     public ClearAreaTask(BlockPos center, int radius, int depth, int height, boolean water, boolean blocks) {
+        this(center, radius, depth, height, water, blocks, DEFAULT_TICK_BUDGET);
+    }
+
+    /**
+     * @param tickBudget total ticks one run may spend across all cells; exposed so a test can hold a run to a small
+     *     budget instead of waiting minutes
+     */
+    public ClearAreaTask(
+            BlockPos center, int radius, int depth, int height, boolean water, boolean blocks, int tickBudget) {
+        this.tickBudget = Math.max(1, tickBudget);
         this.center = center;
         this.radius = Math.clamp(radius, 1, 16);
         this.depth = Math.clamp(depth, 0, 8);
@@ -95,6 +113,15 @@ public final class ClearAreaTask implements Task {
         if (!scanned) {
             scan(c);
             return TaskStatus.RUNNING;
+        }
+        ticksSpent++;
+        if (ticksSpent >= tickBudget && current != null) {
+            // The budget ran out with a cell in hand: stop its walk or break and report the rest for another pass.
+            stop(c);
+            TaskStatus status = finish();
+            current = null;
+            currentBlock = null;
+            return status;
         }
         if (current == null) {
             var companion = c.companion();
@@ -262,7 +289,10 @@ public final class ClearAreaTask implements Task {
     }
 
     private TaskStatus finish() {
-        ClearOutcome outcome = ClearOutcome.of(cleared, skipped, solidsLeft, left + queue.size());
+        // The active cell has already been removed from the queue, so the cells still ahead of the next pass must
+        // count it by hand.
+        int cellsLeft = left + queue.size() + (current == null ? 0 : 1);
+        ClearOutcome outcome = ClearOutcome.of(cleared, skipped, solidsLeft, cellsLeft);
         if (outcome.nothingToDo()) {
             summary = "nothing to clear around " + coords(center);
             return TaskStatus.SUCCESS;
@@ -335,6 +365,25 @@ public final class ClearAreaTask implements Task {
     @Override
     public String describe() {
         return (planned == 0 ? "clearing the area" : "clearing " + planned + " cells") + " around " + coords(center);
+    }
+
+    @Override
+    public long progressStamp() {
+        return (long) clearedTotal() + skippedTotal() + (current == null ? 0 : 1);
+    }
+
+    @Override
+    public String debugStatus() {
+        return "clearing " + (planned - queue.size()) + "/" + planned + ", " + clearedTotal() + " cleared, "
+                + skippedTotal() + " skipped";
+    }
+
+    private int clearedTotal() {
+        return cleared.values().stream().mapToInt(Integer::intValue).sum();
+    }
+
+    private int skippedTotal() {
+        return skipped.values().stream().mapToInt(Integer::intValue).sum();
     }
 
     @Override

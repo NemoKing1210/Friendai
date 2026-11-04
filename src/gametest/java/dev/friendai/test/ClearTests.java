@@ -218,6 +218,50 @@ public class ClearTests {
         });
     }
 
+    /**
+     * An area asked too large must not hold the companion for an hour: the run stops at its total budget, reports the
+     * cells it did not reach for another pass, and exposes a progress line while it works. Every cell costs at least
+     * a tick to pick and a tick to break, so more cells than the budget can possibly reach leave work behind.
+     */
+    @GameTest(maxTicks = 400)
+    public void aTickBudgetStopsTheRunAndReportsTheRest(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        List<BlockPos> grass = new ArrayList<>();
+        for (int x = 0; x <= 5 && grass.size() < 24; x++) {
+            for (int z = 0; z <= 5 && grass.size() < 24; z++) {
+                BlockPos pos = new BlockPos(x, 2, z);
+                if (!pos.equals(new BlockPos(2, 2, 2))) {
+                    grass.add(pos);
+                }
+            }
+        }
+        for (BlockPos pos : grass) {
+            // Short grass needs soil under it; on the test floor it would pop as soon as a neighbour changes, and the
+            // run would finish early for the wrong reason.
+            h.setBlock(pos.below(), Blocks.DIRT);
+            h.setBlock(pos, Blocks.SHORT_GRASS);
+        }
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(companion, result);
+        ClearAreaTask task = new ClearAreaTask(h.absolutePos(new BlockPos(2, 2, 2)), 4, 0, 1, true, false, 40);
+        runner.start(task, "clear_area");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status != null, "still running");
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
+            h.assertTrue(result.summary.contains("more cells left for another pass"), result.summary);
+            int remaining = 0;
+            for (BlockPos pos : grass) {
+                if (h.getBlockState(pos).is(Blocks.SHORT_GRASS)) {
+                    remaining++;
+                }
+            }
+            h.assertTrue(remaining > 0, "the run cleared every cell despite its budget: " + result.summary);
+            h.assertTrue(task.debugStatus().contains("/"), task.debugStatus());
+        });
+    }
+
     @GameTest(maxTicks = 200)
     public void lavaOnlyAreaSucceeds(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
