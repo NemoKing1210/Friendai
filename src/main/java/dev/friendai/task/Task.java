@@ -4,6 +4,7 @@ import dev.friendai.debug.DebugTarget;
 import dev.friendai.debug.WorkSet;
 import dev.friendai.features.places.PlaceCandidate;
 import java.util.List;
+import java.util.Map;
 
 /** A long-running activity of the companion. {@code describe()} and {@code resultSummary()} are English, LLM-facing. */
 public interface Task {
@@ -21,6 +22,14 @@ public interface Task {
      * Cancellation uses {@link #stop} instead, so effects that only make sense for a cancel stay there.
      */
     default void onTerminal(TaskContext c) {}
+
+    /**
+     * What this task still needs from the bag, by item id, so a pillar or bridge never spends it. Composed with the
+     * plan's own remaining needs by the runner; a task that needs nothing in particular returns the default.
+     */
+    default Map<String, Integer> materialNeeds(TaskContext context) {
+        return Map.of();
+    }
 
     String describe();
 

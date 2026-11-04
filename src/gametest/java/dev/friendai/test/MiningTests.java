@@ -44,6 +44,22 @@ public class MiningTests {
         public void onCancelled(int id, String toolName, String reason) {}
     }
 
+    /** A mining job's own target is what the tools are made of, so it must not be spendable on a climb. */
+    @GameTest(maxTicks = 60)
+    public void aMiningJobReservesTheStoneItWasSentFor(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 300, () -> false);
+        runner.setEventSink(new Outcome());
+        runner.start(new MineBlocksTask(BlockMatcher.parse("minecraft:stone").orElseThrow(), 8, 16), "mine_blocks");
+        // One tick: the reserve is composed before the task runs, so it is observable even when the job then fails
+        // for want of stone in the structure.
+        runner.tick();
+        int reserved = companion.materialReserve().reserved("minecraft:cobblestone");
+        h.assertTrue(reserved >= 8, "reserved: " + companion.materialReserve());
+        h.succeed();
+    }
+
     @GameTest(maxTicks = 20)
     public void singleBlockMiningRefusesOccupiedSupport(GameTestHelper h) {
         GameTestSupport.platform(h, 8);
