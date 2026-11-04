@@ -60,9 +60,10 @@ public final class PerceptionTools implements FeatureToolContributor {
         registry.registerTool(
                 callerTool(
                         PLAYER_VIEW,
-                        "Where the player who is talking to you stands and what they are looking at or standing on, "
-                                + "right now. Use it when they say 'this block', 'the one I'm looking at' or 'where I "
-                                + "stand', especially after they may have moved.",
+                        "Where the player who is talking to you stands, what both hands hold, which armor they "
+                                + "wear and what they are looking at or standing on, right now. Use it when they say "
+                                + "'this block', 'the one I'm looking at', 'where I stand' or ask what they are "
+                                + "carrying, especially after they may have moved.",
                         SchemaBuilder.object().build(),
                         AccessLevel.TRUSTED,
                         (companion, caller, args) -> ToolResult.ok(

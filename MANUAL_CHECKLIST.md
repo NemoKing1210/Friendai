@@ -81,6 +81,7 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] With **Stream replies** on, ask for a long answer and press **Stop speaking** in the middle: playback stops and no later sentence plays. Turn it off: the whole reply is buffered locally before the first word. Interrupt the connection mid-answer: exactly one "reply was cut off" toast, no duplicated sentence.
 - [ ] Repeat the quantity request in Russian and open the menu in both UI languages: the reply and the labels follow the language, the log evidence stays English, and the criterion is still checkable by its guard.
 - [ ] With a goal open and a task running, the Overview, Tasks and Feeling tabs agree with the log: the task line, the history entry and the criterion (not proven → met) are the same state after Done and after a relaunch.
+- [ ] With a real provider, hold a shield in the off hand, wear two pieces of a set and leave one slot empty, then ask "what do I have in my other hand?" and "am I wearing a chestplate?": the answer names the off-hand item, the pieces it can see and the empty slot, and after stepping behind a wall it says it cannot tell what you carry.
 
 ## Companion controls
 

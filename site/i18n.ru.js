@@ -386,7 +386,7 @@ const RU = {
   "Perception": "Восприятие",
   "Turns the world into prompt text: surroundings, threats, landmarks and what the owner is looking at.": "Превращает мир в текст промпта: окружение, угрозы, ориентиры и то, на что смотрит владелец.",
   "Describe the surroundings.": "Описать окружение.",
-  "What the owner sees.": "Что видит владелец.",
+  "What the owner sees, holds and wears.": "Что владелец видит, держит и носит.",
   "Inspect one block.": "Осмотреть один блок.",
   "Survey a region.": "Обследовать область.",
   "Brief radius 8": "Краткий радиус 8",
@@ -394,7 +394,7 @@ const RU = {
   "Detailed radius 16": "Подробный радиус 16",
   "When more detail is needed.": "Когда нужно больше деталей.",
   "Owner focus": "Фокус владельца",
-  "Block or entity the owner looks at.": "Блок или сущность, на которые смотрит владелец.",
+  "Where the owner stands and looks, what both hands hold and which armor they wear.": "Где владелец стоит и куда смотрит, что держит в обеих руках и какую броню носит.",
   "Landmarks and area map": "Ориентиры и карта района",
   "Relative directions and a compact map.": "Относительные направления и компактная карта.",
 

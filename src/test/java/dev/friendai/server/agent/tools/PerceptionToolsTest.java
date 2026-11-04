@@ -57,9 +57,10 @@ class PerceptionToolsTest {
                 "Describe the surroundings in detail.",
                 spec(tools, "look_around").description());
         assertEquals(
-                "Where the player who is talking to you stands and what they are looking at or standing on, "
-                        + "right now. Use it when they say 'this block', 'the one I'm looking at' or 'where I stand', "
-                        + "especially after they may have moved.",
+                "Where the player who is talking to you stands, what both hands hold, which armor they "
+                        + "wear and what they are looking at or standing on, right now. Use it when they say "
+                        + "'this block', 'the one I'm looking at', 'where I stand' or ask what they are "
+                        + "carrying, especially after they may have moved.",
                 spec(tools, "player_view").description());
         assertEquals(
                 "Draw a top-down map of what you can see at eye level, with the center coordinates. "

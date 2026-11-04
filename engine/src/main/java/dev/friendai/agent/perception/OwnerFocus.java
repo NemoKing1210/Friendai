@@ -5,7 +5,7 @@ import java.util.Locale;
 
 /**
  * Where the speaking player is and what they see, with no Minecraft types. Text is English, LLM-facing.
- * Only a {@link Visibility#VISIBLE} focus carries position, standing, looking, holding, relative, facing,
+ * Only a {@link Visibility#VISIBLE} focus carries position, standing, looking, gear, relative, facing,
  * health and body state; the others leave them null or zero and print none of them.
  */
 public record OwnerFocus(
@@ -15,7 +15,7 @@ public record OwnerFocus(
         String position,
         String standingOn,
         String lookingAt,
-        String holding,
+        OwnerGear gear,
         String relative,
         String facing,
         float health,
@@ -37,7 +37,7 @@ public record OwnerFocus(
             String position,
             String standingOn,
             String lookingAt,
-            String holding,
+            OwnerGear gear,
             String relative,
             String facing,
             float health,
@@ -52,7 +52,7 @@ public record OwnerFocus(
                 position,
                 standingOn,
                 lookingAt,
-                holding,
+                gear,
                 relative,
                 facing,
                 health,
@@ -63,7 +63,8 @@ public record OwnerFocus(
     }
 
     public static OwnerFocus unavailable(String label, Visibility visibility, double distance) {
-        return new OwnerFocus(label, visibility, distance, null, null, null, null, null, null, 0f, 0f, 0, 0, null);
+        return new OwnerFocus(
+                label, visibility, distance, null, null, null, OwnerGear.NOTHING, null, null, 0f, 0f, 0, 0, null);
     }
 
     public String toPromptText() {
@@ -78,7 +79,8 @@ public record OwnerFocus(
                         + "\n  at: " + position
                         + "\n  standing on: " + standingOn
                         + "\n  looking at: " + lookingAt
-                        + "\n  holding: " + holding
+                        + "\n  holding: " + gear.holding()
+                        + "\n  wearing: " + gear.wearing()
                         + (bodyState == null
                                 ? ""
                                 : "\n  health: " + PerceptionSnapshot.number(health) + "/"

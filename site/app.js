@@ -127,8 +127,8 @@ const CATS = [
   { id: "perception", domain: "senses", name: "Perception", icon: "👁️", color: COLORS.quartz,
     desc: "Turns the world into prompt text: surroundings, threats, landmarks and what the owner is looking at.",
     items: [
-      "look_around|Describe the surroundings.", "player_view|What the owner sees.", "describe_block|Inspect one block.", "survey_area|Survey a region.",
-      "~Brief radius 8|Cheap default perception.", "~Detailed radius 16|When more detail is needed.", "~Owner focus|Block or entity the owner looks at.", "~Landmarks and area map|Relative directions and a compact map." ] },
+      "look_around|Describe the surroundings.", "player_view|What the owner sees, holds and wears.", "describe_block|Inspect one block.", "survey_area|Survey a region.",
+      "~Brief radius 8|Cheap default perception.", "~Detailed radius 16|When more detail is needed.", "~Owner focus|Where the owner stands and looks, what both hands hold and which armor they wear.", "~Landmarks and area map|Relative directions and a compact map." ] },
   { id: "chat", domain: "senses", name: "Chat & Addressing", icon: "💬", color: COLORS.water,
     desc: "Decides who is being spoken to and which companion hears it.",
     items: [

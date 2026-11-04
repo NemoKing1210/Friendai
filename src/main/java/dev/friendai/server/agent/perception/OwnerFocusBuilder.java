@@ -1,6 +1,7 @@
 package dev.friendai.server.agent.perception;
 
 import dev.friendai.agent.perception.OwnerFocus;
+import dev.friendai.agent.perception.OwnerGear;
 import dev.friendai.agent.perception.PerceptionSnapshot;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.mining.minecraft.mining.MiningToolView;
@@ -16,7 +17,9 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.projectile.ProjectileUtil;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
@@ -57,7 +60,7 @@ public final class OwnerFocusBuilder {
                 coords(player.blockPosition()),
                 standingOn(level, player),
                 lookingAt(c, level, player),
-                holding(player),
+                gear(player),
                 RelativeDirection.relativeTo(c.getYRot(), player.getX() - c.getX(), player.getZ() - c.getZ()),
                 facing(RelativeDirection.relativeTo(
                         player.getYRot(), c.getX() - player.getX(), c.getZ() - player.getZ())),
@@ -192,9 +195,33 @@ public final class OwnerFocusBuilder {
                 .toString();
     }
 
-    private static String holding(ServerPlayer player) {
-        var stack = player.getMainHandItem();
-        return stack.isEmpty() ? "nothing" : shortName(BuiltInRegistries.ITEM.getKey(stack.getItem()));
+    private static OwnerGear gear(ServerPlayer player) {
+        List<OwnerGear.Piece> worn = new ArrayList<>();
+        for (OwnerGear.Slot slot : OwnerGear.Slot.values()) {
+            ItemStack stack = player.getItemBySlot(armorSlot(slot));
+            if (!stack.isEmpty()) {
+                worn.add(new OwnerGear.Piece(slot, itemName(stack)));
+            }
+        }
+        return new OwnerGear(itemName(player.getMainHandItem()), itemName(player.getOffhandItem()), worn);
+    }
+
+    private static EquipmentSlot armorSlot(OwnerGear.Slot slot) {
+        return switch (slot) {
+            case HEAD -> EquipmentSlot.HEAD;
+            case CHEST -> EquipmentSlot.CHEST;
+            case LEGS -> EquipmentSlot.LEGS;
+            case FEET -> EquipmentSlot.FEET;
+        };
+    }
+
+    /** The item id the prompt shows, with a stack count once it is more than one; empty for an empty stack. */
+    private static String itemName(ItemStack stack) {
+        if (stack.isEmpty()) {
+            return "";
+        }
+        String name = shortName(BuiltInRegistries.ITEM.getKey(stack.getItem()));
+        return stack.getCount() > 1 ? name + " x" + stack.getCount() : name;
     }
 
     private static String blockName(ServerLevel level, BlockPos pos) {

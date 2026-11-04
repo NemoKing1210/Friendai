@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.204.0] - 2026-11-04
+
+### Added
+
+- The companion now knows what you carry and wear: its view of you names the item in your off hand and every armor piece on your head, chest, legs and feet, so it can answer what is in your other hand or tell that you have no chestplate on. Your main-hand stack is reported with its count, and out of sight it still knows nothing about your gear.
+
 ## [0.203.0] - 2026-11-04
 
 ### Changed

@@ -10,6 +10,7 @@ import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EntityTypes;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
@@ -45,7 +46,7 @@ public class OwnerViewTests {
         h.assertTrue(focus.visibility() == Visibility.VISIBLE, "expected VISIBLE: " + focus);
         h.assertTrue(focus.label().equals("Owner"), "label: " + focus.label());
         h.assertTrue(focus.lookingAt().startsWith("block oak_log at "), "lookingAt: " + focus.lookingAt());
-        h.assertTrue(focus.holding().equals("nothing"), "holding: " + focus.holding());
+        h.assertTrue(focus.gear().holding().equals("nothing"), "holding: " + focus.gear());
         h.assertTrue(focus.distance() > 4.5 && focus.distance() < 5.5, "distance: " + focus.distance());
         h.succeed();
     }
@@ -57,7 +58,49 @@ public class OwnerViewTests {
         owner.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, new ItemStack(Items.DIAMOND_PICKAXE));
         CompanionEntity companion = companionFor(h, owner);
         OwnerFocus focus = OwnerFocusBuilder.of(companion, owner.getUUID());
-        h.assertTrue("diamond_pickaxe".equals(focus.holding()), "holding: " + focus);
+        h.assertTrue("diamond_pickaxe".equals(focus.gear().holding()), "holding: " + focus);
+        h.succeed();
+    }
+
+    @GameTest
+    public void viewNamesTheOffhandAndTheWornArmor(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        ServerPlayer owner = lookingEast(h, 2.5, 2, 2.5);
+        owner.setItemSlot(EquipmentSlot.OFFHAND, new ItemStack(Items.SHIELD));
+        owner.setItemSlot(EquipmentSlot.HEAD, new ItemStack(Items.IRON_HELMET));
+        owner.setItemSlot(EquipmentSlot.CHEST, new ItemStack(Items.IRON_CHESTPLATE));
+        owner.setItemSlot(EquipmentSlot.FEET, new ItemStack(Items.IRON_BOOTS));
+        CompanionEntity companion = companionFor(h, owner);
+        OwnerFocus focus = OwnerFocusBuilder.of(companion, owner.getUUID());
+        h.assertTrue(
+                focus.toPromptText().contains("\n  holding: nothing in the main hand, offhand shield\n"),
+                focus.toPromptText());
+        h.assertTrue(
+                focus.toPromptText()
+                        .contains("\n  wearing: head iron_helmet, chest iron_chestplate, feet iron_boots\n"),
+                focus.toPromptText());
+        h.succeed();
+    }
+
+    @GameTest
+    public void viewSaysNothingWornAndNothingHeldForABareOwner(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        ServerPlayer owner = lookingEast(h, 2.5, 2, 2.5);
+        CompanionEntity companion = companionFor(h, owner);
+        OwnerFocus focus = OwnerFocusBuilder.of(companion, owner.getUUID());
+        h.assertTrue(focus.toPromptText().contains("\n  holding: nothing\n"), focus.toPromptText());
+        h.assertTrue(focus.toPromptText().contains("\n  wearing: nothing\n"), focus.toPromptText());
+        h.succeed();
+    }
+
+    @GameTest
+    public void viewNamesAStackWithItsCount(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        ServerPlayer owner = lookingEast(h, 2.5, 2, 2.5);
+        owner.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, new ItemStack(Items.TORCH, 5));
+        CompanionEntity companion = companionFor(h, owner);
+        OwnerFocus focus = OwnerFocusBuilder.of(companion, owner.getUUID());
+        h.assertTrue(focus.toPromptText().contains("\n  holding: torch x5\n"), focus.toPromptText());
         h.succeed();
     }
 
