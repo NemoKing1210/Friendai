@@ -429,12 +429,15 @@ public final class QueueDriver {
         PlanRecord plan = queue.plan(id).orElse(null);
         if (plan == null) return;
         String goal = plan.goal();
-        queue.archivePlan(id, success, summary);
+        // Read the step results before archiving removes the jobs. QueueSave still bounds the persisted archive
+        // summary at 200 characters, so a reloaded archive may be shorter than the live event.
+        String full = QueueText.finishedSummary(queue, id, summary);
+        queue.archivePlan(id, success, full);
         factories.entrySet().removeIf(entry -> queue.job(entry.getKey()).isEmpty());
         structuredFactories.remove(id);
         blockedPlans.remove(id);
         awaitingDecision.remove(id);
-        coordinator.publishPlanFinished(id, goal, success, summary);
+        coordinator.publishPlanFinished(id, goal, success, full);
     }
 
     void maybeNoticeBlocked(GuardFacts facts, long noticeInterval, boolean activeJob) {

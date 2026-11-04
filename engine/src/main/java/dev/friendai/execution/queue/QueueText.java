@@ -1,5 +1,7 @@
 package dev.friendai.execution.queue;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
@@ -9,13 +11,60 @@ public final class QueueText {
             MAX_RESULT = 200,
             MAX_SHOW_CHARS = 4096,
             MAX_SUMMARY_REASON = 160,
-            MAX_BLOCKED_REASON = 300;
+            MAX_BLOCKED_REASON = 300,
+            MAX_PLAN_RESULTS = 600;
+
+    /** Results listed for one finished plan; a longer plan says how many were left out. */
+    static final int MAX_RESULT_ENTRIES = 8;
 
     private QueueText() {}
 
     public static String truncate(String text, int max) {
         if (text == null) return "";
         return text.length() <= max ? text : text.substring(0, max) + "…";
+    }
+
+    /**
+     * What each finished step of a plan reported, newest last by job id, as {@code #id tool: result}. Cancelled and
+     * skipped steps are left out: their "result" is the cancellation text, not something the step produced.
+     */
+    public static String planResults(JobQueue q, long planId, int maxChars) {
+        List<Job> jobs = new ArrayList<>(q.jobsOfPlan(planId));
+        jobs.sort(Comparator.comparingLong(Job::id));
+        StringBuilder out = new StringBuilder();
+        int entries = 0;
+        boolean dropped = false;
+        for (Job job : jobs) {
+            if (job.state() != JobState.DONE && job.state() != JobState.FAILED) continue;
+            String result = job.result();
+            if (result == null || result.isBlank()) continue;
+            if (entries == MAX_RESULT_ENTRIES) {
+                dropped = true;
+                break;
+            }
+            if (!out.isEmpty()) out.append("; ");
+            out.append('#')
+                    .append(job.id())
+                    .append(' ')
+                    .append(job.tool())
+                    .append(": ")
+                    .append(result);
+            entries++;
+        }
+        if (out.isEmpty()) return "";
+        if (!dropped) return truncate(out.toString(), maxChars);
+        String room = truncate(out.toString(), Math.max(0, maxChars - "; …".length()));
+        return room + "; …";
+    }
+
+    /** The plan summary a finished plan reports, with its steps' own results appended once. */
+    public static String finishedSummary(JobQueue q, long planId, String summary) {
+        String base = summary == null ? "" : summary;
+        String results = planResults(q, planId, MAX_PLAN_RESULTS);
+        if (results.isEmpty()) return base;
+        if (base.isEmpty()) return results;
+        if (base.contains(results)) return base;
+        return base + "; " + results;
     }
 
     public static String show(JobQueue q, GuardFacts facts, Long planId, int limit, boolean includeDone) {

@@ -4,12 +4,19 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class QueueTextTest {
     private static final GuardFacts FACTS = new FakeGuardFacts(Map.of(), 10, 1, 0, Map.of(), "minecraft:overworld");
+
+    private static QueuedStep step(String tool, String argsJson) {
+        JsonObject args = JsonParser.parseString(argsJson).getAsJsonObject();
+        return new QueuedStep(tool, args, null, null, null, null, 1, null);
+    }
 
     @Test
     void emptyQueue() {
@@ -80,5 +87,70 @@ class QueueTextTest {
         var rows = dev.friendai.presentation.companion.QueueRows.build(queue, FACTS, null);
         assertTrue(
                 rows.stream().anyMatch(row -> row.planId() == plan && row.note().contains("3/10")));
+    }
+
+    @Test
+    void finishedSummaryCarriesEveryTerminalStepResult() {
+        JobQueue q = new JobQueue(QueueLimits.DEFAULTS);
+        var added =
+                q.addPlan("tool set", List.of(step("give_items", "{}"), step("give_items", "{}")), PlanOptions.DEFAULT);
+        q.finish(added.jobIds().get(0), "gave 1 minecraft:stone_pickaxe");
+        q.finish(added.jobIds().get(1), "gave 1 minecraft:stone_axe");
+
+        String summary = QueueText.finishedSummary(q, added.planId(), "conditional plan completed");
+
+        assertEquals(
+                "conditional plan completed; #" + added.jobIds().get(0)
+                        + " give_items: gave 1 minecraft:stone_pickaxe; #"
+                        + added.jobIds().get(1)
+                        + " give_items: gave 1 minecraft:stone_axe",
+                summary);
+    }
+
+    @Test
+    void planResultsSkipsBlankResultsAndJobsThatDidNotFinish() {
+        JobQueue q = new JobQueue(QueueLimits.DEFAULTS);
+        var added = q.addPlan(
+                "mixed",
+                List.of(step("give_items", "{}"), step("give_items", "{}"), step("give_items", "{}")),
+                PlanOptions.DEFAULT);
+        q.finish(added.jobIds().get(0), "");
+        q.finish(added.jobIds().get(1), "gave 1 minecraft:stone_axe");
+
+        assertEquals(
+                "#" + added.jobIds().get(1) + " give_items: gave 1 minecraft:stone_axe",
+                QueueText.planResults(q, added.planId(), 600));
+    }
+
+    @Test
+    void finishedSummaryWithoutResultsIsTheGivenSummary() {
+        JobQueue q = new JobQueue(QueueLimits.DEFAULTS);
+        var added = q.addPlan("stopped", List.of(step("give_items", "{}")), PlanOptions.DEFAULT);
+
+        assertEquals("stopped by request", QueueText.finishedSummary(q, added.planId(), "stopped by request"));
+    }
+
+    @Test
+    void finishedSummaryDoesNotAppendTheSameDetailTwice() {
+        JobQueue q = new JobQueue(QueueLimits.DEFAULTS);
+        var added = q.addPlan("twice", List.of(step("give_items", "{}")), PlanOptions.DEFAULT);
+        q.finish(added.jobIds().getFirst(), "gave 1 minecraft:stone_pickaxe");
+        String once = QueueText.finishedSummary(q, added.planId(), "conditional plan completed");
+
+        assertEquals(once, QueueText.finishedSummary(q, added.planId(), once));
+    }
+
+    @Test
+    void planResultsIsBounded() {
+        JobQueue q = new JobQueue(QueueLimits.DEFAULTS);
+        List<QueuedStep> steps = new ArrayList<>();
+        for (int i = 0; i < 10; i++) steps.add(step("give_items", "{}"));
+        var added = q.addPlan("many", steps, PlanOptions.DEFAULT);
+        for (long id : added.jobIds()) q.finish(id, "gave 1 minecraft:stone_pickaxe");
+
+        String results = QueueText.planResults(q, added.planId(), 600);
+
+        assertTrue(results.length() <= 600, results);
+        assertTrue(results.endsWith("; …"), results);
     }
 }
