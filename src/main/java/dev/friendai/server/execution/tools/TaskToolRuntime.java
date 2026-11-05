@@ -182,6 +182,9 @@ public final class TaskToolRuntime {
 
             @Override
             public boolean authorized(TaskContext context) {
+                // A caller without a UUID is an in-process owner-rights run (a manual tool call, a test): there is no
+                // owner or trust record that could have changed since the call passed the tool's own access gate.
+                if (principal == null) return true;
                 return access.currentCaller(context.companion(), principal)
                         .access()
                         .allows(definition.minAccess());

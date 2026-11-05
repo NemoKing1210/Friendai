@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.209.1] - 2026-11-06
+
+### Fixed
+
+- A task queued by a tool call without a player identity is no longer cancelled before it starts.
+
 ## [0.209.0] - 2026-11-04
 
 ### Changed
