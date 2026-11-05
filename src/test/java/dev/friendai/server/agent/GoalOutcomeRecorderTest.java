@@ -78,7 +78,7 @@ class GoalOutcomeRecorderTest {
     }
 
     @Test
-    void forgettingAnOwnerDropsBothTheCheckabilityAndTheFact() {
+    void forgettingAnOwnerDropsOnlyItsViewAndKeepsTheEvidenceItsGoalStillNeeds() {
         GoalBoard board = new GoalBoard(3, 2);
         long goalId = board.set("Collect 32 oak logs", List.of(checkableCriterion()), false, 100L)
                 .value()
@@ -89,7 +89,24 @@ class GoalOutcomeRecorderTest {
         recorder.forget(owner);
         recorder.remember(owner, "goal:" + goalId, OutcomeKind.GOAL_SUCCESS, "Collected 32 oak logs");
 
-        assertEquals(List.of("goal \"Collected 32 oak logs\" — unverified"), factTexts());
+        assertEquals(List.of("goal \"Collected 32 oak logs\" — unverified; +32 minecraft:oak_log"), factTexts());
+    }
+
+    @Test
+    void aForgottenOwnerRebuildsTheViewOnTheNextPromptAndStillCitesTheEvidence() {
+        GoalBoard board = new GoalBoard(3, 2);
+        long goalId = board.set("Collect 32 oak logs", List.of(checkableCriterion()), false, 100L)
+                .value()
+                .id();
+        recorder.captureCheckability(owner, board);
+        recorder.noteFacts(owner, goalId, List.of(new Fact("+32 minecraft:oak_log")));
+
+        recorder.forget(owner);
+        // The goal board outlives the session, so the next prompt build runs the same capture again.
+        recorder.captureCheckability(owner, board);
+        recorder.remember(owner, "goal:" + goalId, OutcomeKind.GOAL_SUCCESS, "Collected 32 oak logs");
+
+        assertEquals(List.of("goal \"Collected 32 oak logs\" — verified; +32 minecraft:oak_log"), factTexts());
     }
 
     @Test
@@ -113,7 +130,7 @@ class GoalOutcomeRecorderTest {
         recorder.remember(owner, "goal:" + firstId, OutcomeKind.GOAL_SUCCESS, "Collected 32 oak logs");
 
         assertEquals(List.of("goal \"Collected 8 stone\" — verified; +8 minecraft:stone"), factTexts(other));
-        assertEquals(List.of("goal \"Collected 32 oak logs\" — unverified"), factTexts(owner));
+        assertEquals(List.of("goal \"Collected 32 oak logs\" — unverified; +32 minecraft:oak_log"), factTexts(owner));
     }
 
     @Test

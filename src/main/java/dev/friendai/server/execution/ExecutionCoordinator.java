@@ -1466,8 +1466,14 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     }
 
     private TaskContext context(ServerSettings settings, CreativeActionContext actionContext) {
-        return new TaskContext(companion, (ServerLevel) companion.level(), this, actionContext, settings)
-                .withStructureBuilder(structureBuilder);
+        return new TaskContext(
+                companion,
+                (ServerLevel) companion.level(),
+                this,
+                actionContext,
+                settings,
+                LogContext.NONE,
+                structureBuilder);
     }
 
     private CreativeActionContext actionContext(Caller caller, boolean creativeSensitive) {

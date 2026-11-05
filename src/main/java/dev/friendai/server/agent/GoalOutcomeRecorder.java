@@ -120,9 +120,11 @@ final class GoalOutcomeRecorder {
         checkable.put(owner, ownerCheckable);
     }
 
-    /** Drops every trace of an owner who left, so a later join starts from the world's current state. */
+    /**
+     * Drops the per-turn view of an owner who left, so a later join rebuilds it from the world's current board. The
+     * collected facts stay: they are evidence the goal's own work proved, and the board outlives the session.
+     */
     void forget(UUID owner) {
         checkable.remove(owner);
-        facts.remove(owner);
     }
 }

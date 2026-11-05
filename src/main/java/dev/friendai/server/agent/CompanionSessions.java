@@ -661,8 +661,9 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
     /** The owner left the game: keep the task (a build can resume), but make no progress while they are away. */
     public void onOwnerLeft(UUID owner) {
         cancel(owner);
-        // Both caches describe one turn's view of the goal board; a later join rebuilds them from the world.
-        // The session itself stays: its task-event sink is what routes an offline free-time result to the driver.
+        // The checkability view describes one turn's reading of the goal board; a later join captures it again.
+        // The collected facts and the session itself stay: the session's task-event sink is what routes an
+        // offline free-time result to the driver, and a goal's evidence must survive a logout.
         goalOutcomes.forget(owner);
         CompanionManager.get(server).find(owner).ifPresent(c -> {
             if (c.creativeMode()) c.executionCoordinator().cancelForCapabilityChange();
