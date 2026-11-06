@@ -63,6 +63,7 @@ import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Entity.RemovalReason;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -1486,6 +1487,25 @@ public class CompanionEntity extends PathfinderMob {
         if (!level().isClientSide() && level() instanceof ServerLevel serverLevel) {
             owner().ifPresent(p -> p.sendSystemMessage(Component.translatable("friendai.companion.died", getName())));
         }
+    }
+
+    /**
+     * A cross-dimension teleport replaces the body: the game copies this entity's saved data onto a new one and
+     * removes this one. The replacement has to take this body's place in the owner index, or every owner lookup —
+     * the brain, the menu, the chunk loader — would keep pointing at a removed entity.
+     */
+    @Override
+    public Entity teleport(net.minecraft.world.level.portal.TeleportTransition transition) {
+        Entity moved = super.teleport(transition);
+        if (moved instanceof CompanionEntity next
+                && next != this
+                && ownerUuid != null
+                && level() instanceof ServerLevel serverLevel) {
+            ServerRuntimeRegistry.find(serverLevel.getServer())
+                    .ifPresent(runtime ->
+                            CompanionManager.get(serverLevel.getServer()).register(next));
+        }
+        return moved;
     }
 
     /** Killing or dismissing the companion drops its anchor; unloading the chunk or changing dimension keeps it. */

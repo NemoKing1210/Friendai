@@ -314,6 +314,14 @@ public final class ExtinguishFireTask implements Task {
 
     /** Walks within reach of a cell once; the approach is kept while it keeps the same target. */
     private Approach.State approach(TaskContext c, BlockPos cell) {
+        if (cell.equals(c.companion().blockPosition())) {
+            // Water at its own feet: the cell the body stands in is the one cell no stance can approach.
+            if (approach != null) {
+                approach.stop(c);
+                approach = null;
+            }
+            return Approach.State.IN_REACH;
+        }
         if (approach != null && cell.equals(approach.target())) {
             return approach.tick(c);
         }

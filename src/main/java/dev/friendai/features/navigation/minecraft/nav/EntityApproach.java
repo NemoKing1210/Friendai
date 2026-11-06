@@ -15,6 +15,8 @@ public final class EntityApproach {
 
     private final double reach;
     private final MoveHelper mover;
+    /** Whether the route has ended and the last step is walked by hand, tick after tick, until it lands. */
+    private boolean aligning;
 
     public EntityApproach(double reach) {
         this.reach = reach;
@@ -22,17 +24,23 @@ public final class EntityApproach {
     }
 
     public void reset(TaskContext context) {
+        aligning = false;
         mover.reset(context);
     }
 
     public State tick(TaskContext context, Entity target) {
         if (!target.isAlive() || target.isRemoved() || target.level() != context.level()) {
+            aligning = false;
             mover.stop(context);
             return State.TARGET_GONE;
         }
         if (context.companion().distanceTo(target) <= reach) {
+            aligning = false;
             mover.stop(context);
             return State.REACHED;
+        }
+        if (aligning) {
+            return align(context, target);
         }
         return switch (mover.tick(context, target.position())) {
             case STUCK -> {
@@ -41,29 +49,35 @@ public final class EntityApproach {
             }
             // The route's goal band is wider than the reach, so it can end with the entity just outside it, and the
             // navigator keeps reporting that arrival. Walk the last step by hand instead of reporting movement that
-            // never happens, which would leave the task running until its timeout.
+            // never happens, which would leave the task running until its timeout. The alignment stops the route, so
+            // the flag keeps it running rather than waiting for another arrival that will never come.
             case ARRIVED -> {
-                CompanionEntity companion = context.companion();
-                // The arrival test is three-dimensional, so the horizontal walk must stop short by the height the
-                // entity is above or below: with the full reach on both axes a target on a slab is unreachable a
-                // step away.
-                double dy = target.getY() - companion.getY();
-                double horizontal = horizontalReach(reach, dy);
-                MoveHelper.State lastStep = mover.align(context, target.getX(), target.getZ(), horizontal);
-                if (lastStep == MoveHelper.State.MOVING) {
-                    yield State.MOVING;
-                }
-                mover.stop(context);
-                yield lastStep == MoveHelper.State.ARRIVED
-                                && context.companion().distanceTo(target) <= reach
-                        ? State.REACHED
-                        : State.UNREACHABLE;
+                aligning = true;
+                yield align(context, target);
             }
             case MOVING -> State.MOVING;
         };
     }
 
+    private State align(TaskContext context, Entity target) {
+        CompanionEntity companion = context.companion();
+        // The arrival test is three-dimensional, so the horizontal walk must stop short by the height the entity is
+        // above or below: with the full reach on both axes a target on a slab is unreachable a step away.
+        double dy = target.getY() - companion.getY();
+        double horizontal = horizontalReach(reach, dy);
+        MoveHelper.State lastStep = mover.align(context, target.getX(), target.getZ(), horizontal);
+        if (lastStep == MoveHelper.State.MOVING) {
+            return State.MOVING;
+        }
+        aligning = false;
+        mover.stop(context);
+        return lastStep == MoveHelper.State.ARRIVED && companion.distanceTo(target) <= reach
+                ? State.REACHED
+                : State.UNREACHABLE;
+    }
+
     public void stop(TaskContext context) {
+        aligning = false;
         mover.stop(context);
     }
 
