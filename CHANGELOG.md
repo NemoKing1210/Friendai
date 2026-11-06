@@ -6,6 +6,17 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.209.2] - 2026-11-06
+
+### Fixed
+
+- A companion can mine the last block of a column even when that block is the one it stands on, instead of stopping one block short.
+- A companion that walks through a portal into another dimension no longer loses its place in the owner's index, and the trip reports the landing it actually got.
+- A companion that respawns on its death spot now collects the drops there instead of reporting that it cannot get back to them.
+- Water at the companion's own feet is put out instead of being reported as unreachable.
+- A companion that cannot see a block it was asked to mine now says the block is covered instead of calling it unreachable.
+- A companion told to reach a moving creature no longer stalls one step away from it.
+
 ## [0.209.1] - 2026-11-06
 
 ### Fixed
