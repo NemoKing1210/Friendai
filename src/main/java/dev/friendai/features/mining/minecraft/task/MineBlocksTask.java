@@ -61,6 +61,9 @@ public final class MineBlocksTask implements Task {
     private static final int PASSAGE_DEBUG_CELLS = 64;
 
     private BlockBreaker breaker;
+    /** Whether the job already let itself break the block it stands on, once per remaining target. */
+    private boolean supportRetry;
+
     private MiningSession miningSession;
     private boolean miningSessionActive;
     private DropCollector sweep;
@@ -331,6 +334,7 @@ public final class MineBlocksTask implements Task {
                 pendingObservation = lastBroken;
                 observationWaitTicks = 0;
                 breaker = null;
+                supportRetry = false;
                 mined++;
                 reportMined(c);
                 lastRefusal = null;
@@ -356,6 +360,14 @@ public final class MineBlocksTask implements Task {
                 yield TaskStatus.RUNNING;
             }
             case PROTECTED, OUT_OF_SIGHT -> {
+                // The last block of a column can be the one the companion stands on. Its drop has somewhere safe
+                // to land, so step off it by breaking it instead of stopping the job one block short.
+                if (breaker.refusal() instanceof MiningRefusal.OwnSupport own && own.safeDrop() && !supportRetry) {
+                    supportRetry = true;
+                    breaker.stop(c);
+                    breaker = breaker.allowingSupport();
+                    yield TaskStatus.RUNNING;
+                }
                 // Only the block the companion actually stood by: a sibling may still be reachable.
                 if (breaker.refusal() != null) {
                     lastRefusal = breaker.refusal();

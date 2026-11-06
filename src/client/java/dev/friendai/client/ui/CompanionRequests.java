@@ -146,9 +146,10 @@ public final class CompanionRequests {
 
     /** A skin belongs to the session that started the operation, not to whatever connection exists when it finishes. */
     public static boolean skinsSupported(ClientSessionId expectedSession) {
+        ClientSessionId currentSession = FriendaiClient.runtime().sessionId();
         return dev.friendai.features.appearance.SkinUploadSession.allows(
-                        expectedSession,
-                        FriendaiClient.runtime().sessionId(),
+                        expectedSession == null ? null : expectedSession.value(),
+                        currentSession == null ? null : currentSession.value(),
                         FriendaiClient.runtime().allowsAppearance(expectedSession))
                 && ClientPlayNetworking.canSend(SkinUploadC2SPayload.TYPE);
     }

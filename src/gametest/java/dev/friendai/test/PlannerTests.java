@@ -30,6 +30,12 @@ public class PlannerTests {
     private static final String FAILING_PLAN_WITH_A_STEP_LEFT = "{\"goal\":\"iron\",\"steps\":["
             + "{\"tool\":\"craft_item\",\"args\":\"{\\\"item\\\":\\\"minecraft:diamond_pickaxe\\\",\\\"count\\\":1}\"},"
             + "{\"tool\":\"jump\"}]}";
+    /** A plan whose first step asks the owner before stopping, so the second step stays pending for a repair. */
+    private static final String BLOCKED_PLAN = "{\"goal\":\"tools\",\"steps\":["
+            + "{\"tool\":\"craft_item\",\"args\":\"{\\\"item\\\":\\\"minecraft:diamond_pickaxe\\\",\\\"count\\\":1}\","
+            + "\"on_failure\":\"ask\"},"
+            + "{\"tool\":\"jump\"}]}";
+
     private static final String IN_PLACE = "I could not work out a plan; I will stay here.";
 
     /** Records what the companion says, as the player would hear it. */
@@ -105,9 +111,11 @@ public class PlannerTests {
             h.assertTrue(asked.get() == 1, "the planner is asked once, asked=" + asked.get());
             var goal = state.goals().board(player.getUUID()).primary();
             h.assertTrue(goal.isPresent(), "the goal was set");
-            h.assertTrue(goal.get().planId() != 0, "the planner's plan is linked to the goal");
             CompanionEntity c =
                     CompanionManager.get(server).find(player.getUUID()).orElseThrow();
+            // The planner queues the work beside the goal: a plan never links itself, so it cannot manufacture a
+            // verified goal. The model links one itself when it means to.
+            h.assertTrue(goal.get().planId() == 0, "the planner's plan stays off the goal");
             h.assertTrue(
                     c.executionCoordinator().queue().plan(goal.get().planId()).isPresent()
                             || !c.executionCoordinator().queue().archives().isEmpty(),
@@ -156,8 +164,13 @@ public class PlannerTests {
         });
     }
 
+    /**
+     * A plan that stopped mid-tree for a decision is never rewritten behind its interpreter cursor: the planner is
+     * consulted once, its proposal is refused, and the plan stays where the owner can decide. The goal keeps the
+     * plan it linked instead of silently following a replacement.
+     */
     @GameTest(maxTicks = 600)
-    public void recovery_replan_cancels_only_the_linked_plan(GameTestHelper h) {
+    public void recovery_replan_leaves_a_started_plan_for_the_owners_decision(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
         var server = h.getLevel().getServer();
@@ -172,19 +185,30 @@ public class PlannerTests {
         brains.post(player.getUUID(), new BrainEvent.WorldNotice("ready"));
         Caller owner = new Caller(player.getUUID(), "Steve", AccessLevel.OWNER);
         h.assertFalse(call(c, owner, "set_goal", "{\"text\":\"get a pickaxe\"}").error(), "goal set");
-        h.assertFalse(call(c, owner, "queue_add", FAILING_PLAN).error(), "failing plan queued and linked");
+        h.assertFalse(call(c, owner, "queue_add", BLOCKED_PLAN).error(), "blocked plan queued and linked");
         long firstPlan =
                 state.goals().board(player.getUUID()).primary().orElseThrow().planId();
         h.assertTrue(firstPlan != 0, "linked to the goal");
         h.succeedWhen(() -> {
-            h.assertTrue(asked.get() >= 1, "the failed plan triggers a replan, asked=" + asked.get());
+            h.assertTrue(asked.get() == 1, "the blocked plan asks the planner once, asked=" + asked.get());
             var goal = state.goals().board(player.getUUID()).primary().orElseThrow();
-            h.assertTrue(goal.planId() != firstPlan && goal.planId() != 0, "the goal now follows the new plan");
             h.assertTrue(
-                    c.executionCoordinator().queue().plan(firstPlan).isEmpty()
-                            || c.executionCoordinator().queue().jobsOfPlan(firstPlan).stream()
-                                    .allMatch(j -> dev.friendai.execution.queue.JobQueue.terminal(j)),
-                    "the old plan no longer runs");
+                    goal.planId() == firstPlan,
+                    "the goal keeps the plan it linked, got planId=" + goal.planId() + " first=" + firstPlan);
+            var queue = c.executionCoordinator().queue();
+            h.assertTrue(queue.plans().size() == 1, "no replacement plan was queued beside it");
+            var plan = queue.plan(firstPlan).orElse(null);
+            h.assertTrue(
+                    plan != null
+                            && queue.planStatus(firstPlan) == dev.friendai.execution.queue.PlanStatus.NEEDS_DECISION,
+                    "the plan still waits for the owner: " + plan);
+            h.assertTrue(
+                    plan != null
+                            && plan.cursor() != null
+                            && plan.cursor().pendingAction() != null
+                            && plan.cursor().pendingAction().tool().equals("craft_item")
+                            && plan.definition().nodes().size() == 2,
+                    "the plan keeps its steps and its place in them: " + plan);
         });
     }
 

@@ -85,7 +85,8 @@ class SkillSelectorTest {
     void aRussianBuildRequestSelectsSmartPlanning() {
         var builtins = BuiltinSkills.load(getClass().getClassLoader());
         var context = context(AccessLevel.OWNER, "Сделай мне и себе каменные инструменты");
-        var selected = SkillSelector.select(builtins, context, Set.of(), 24000, 2400);
+        // The shipped budgets: agent.promptBudget 24,000 and skills.promptBudget 4,096.
+        var selected = SkillSelector.select(builtins, context, Set.of(), 24000, 4096);
         assertTrue(
                 selected.skills().stream().anyMatch(s -> s.id().equals("builtin:smart-planning")),
                 selected.skills().stream().map(InstructionSkill::id).toList().toString());

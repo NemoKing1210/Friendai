@@ -446,12 +446,11 @@ public final class ResourceSearchTests {
                         searchCall("minecraft:gravel", "auto", "local"),
                         new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
 
-        h.assertTrue(!started.error(), started.content());
-        h.succeedWhen(() -> {
-            h.assertTrue(result.status != null, "still running");
-            h.assertTrue(result.status == TaskStatus.FAILED, "status " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.contains("no search strategy"), result.summary);
-        });
+        // The family is rejected before a task exists, so nothing starts and nothing has to fail later.
+        h.assertTrue(started.error(), "the unsupported family must be refused: " + started.content());
+        h.assertTrue(started.content().contains("no search strategy"), started.content());
+        h.assertTrue(result.status == null, "no task should have started, got " + result.status);
+        h.succeed();
     }
 
     @GameTest(maxTicks = 120)

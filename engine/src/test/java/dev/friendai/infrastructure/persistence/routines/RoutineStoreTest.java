@@ -4,10 +4,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.google.gson.JsonObject;
 import dev.friendai.agent.routine.Routine;
 import dev.friendai.agent.routine.Routine.IntervalTrigger;
 import dev.friendai.agent.routine.Routine.Step;
-import com.google.gson.JsonObject;
 import dev.friendai.infrastructure.persistence.OwnerStoreWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;

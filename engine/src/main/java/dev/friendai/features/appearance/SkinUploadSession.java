@@ -1,6 +1,6 @@
 package dev.friendai.features.appearance;
 
-import dev.friendai.presentation.companion.ClientSessionId;
+import java.util.UUID;
 
 /**
  * Whether an appearance operation may still send its result. The session that started the fetch or the file dialog is
@@ -10,8 +10,7 @@ import dev.friendai.presentation.companion.ClientSessionId;
 public final class SkinUploadSession {
     private SkinUploadSession() {}
 
-    public static boolean allows(
-            ClientSessionId expectedSession, ClientSessionId currentSession, boolean appearanceSupported) {
+    public static boolean allows(UUID expectedSession, UUID currentSession, boolean appearanceSupported) {
         return expectedSession != null && expectedSession.equals(currentSession) && appearanceSupported;
     }
 }

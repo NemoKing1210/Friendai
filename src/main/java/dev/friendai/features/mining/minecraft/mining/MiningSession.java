@@ -631,9 +631,13 @@ public final class MiningSession {
                 closeApproach);
         MiningPathPolicy miningPolicy = new MiningPathPolicy(view, bounds, supports, CostModel.DEFAULTS);
         PathPolicy policy = (freshView, step) -> {
+            // A body standing on one of its targets has to leave that cell before it can be mined, and the move
+            // generator never offers a step that breaks the block under the feet. Refusing every dig from the first
+            // stance instead walls the companion into a stone layer: it may neither walk out nor open the neighbour
+            // that would give it a place to stand. Only the support cell itself is off limits here.
             if (mustRelocateFromSupport
                     && step.from().equals(initialNode)
-                    && !step.breaks().isEmpty()) {
+                    && step.breaks().contains(initialNode.support())) {
                 return java.util.Optional.empty();
             }
             return miningPolicy.prepare(freshView, step);

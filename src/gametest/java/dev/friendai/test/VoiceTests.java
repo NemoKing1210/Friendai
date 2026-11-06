@@ -78,8 +78,10 @@ public class VoiceTests {
     public void rateLimitedSecondMessageIgnored(GameTestHelper h) {
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         Recorder recorder = setUp(h, player);
-        TestMenuRequests.voice(player, "first");
-        TestMenuRequests.voice(player, "second");
+        // Plain chat: a planning line would add planner requests of its own and the count would stop measuring the
+        // throttle.
+        TestMenuRequests.voice(player, "hello");
+        TestMenuRequests.voice(player, "again");
         h.runAfterDelay(20, () -> {
             h.assertTrue(recorder.requests.size() == 1, "requests: " + recorder.requests.size());
             h.succeed();

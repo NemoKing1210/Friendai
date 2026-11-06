@@ -192,10 +192,23 @@ public class SessionLifecycleTests {
         var server = h.getLevel().getServer();
         var sessions = GameTestSupport.runtime(server).sessions();
         var goals = GameTestSupport.runtime(server).goals();
+        CompanionEntity companion = CompanionManager.get(server).summon(owner);
+        // A plan is consulted only while it is still queued for this companion, so the blocked plan must be real.
+        var tools = GameTestToolRegistry.create(companion, () -> 8).bind(companion);
+        ToolResult queued = run(
+                tools,
+                "queue_add",
+                "{\"steps\":[{\"tool\":\"wait\",\"args\":\"{\\\"seconds\\\":30}\"}]}",
+                new Caller(owner.getUUID(), "Owner", AccessLevel.OWNER));
+        h.assertTrue(!queued.error(), "queue_add failed: " + queued.content());
+        long planId = companion.executionCoordinator().queue().plans().stream()
+                .mapToLong(dev.friendai.execution.queue.PlanRecord::id)
+                .max()
+                .orElseThrow();
         var board = goals.board(owner.getUUID());
         var goal = board.set("build a house", List.of(), false, server.getTickCount())
                 .value();
-        board.linkPlan(goal.id(), 99);
+        board.linkPlan(goal.id(), planId);
         goals.save(owner.getUUID());
         DeferredPlanner planner = new DeferredPlanner();
         CaptureSpeaker speaker = new CaptureSpeaker();
@@ -204,8 +217,7 @@ public class SessionLifecycleTests {
             speaker.wrap(real);
             return speaker;
         });
-        CompanionEntity companion = CompanionManager.get(server).summon(owner);
-        sessions.post(owner.getUUID(), new BrainEvent.PlanBlocked(99, goal.text(), 1, "jump", "failed", 1));
+        sessions.post(owner.getUUID(), new BrainEvent.PlanBlocked(planId, goal.text(), 1, "jump", "failed", 1));
 
         awaitPlanner(h, planner, 20, () -> {
             sessions.onOwnerLeft(owner.getUUID());
@@ -411,7 +423,8 @@ public class SessionLifecycleTests {
                 .orElseThrow();
 
         h.assertValueEqual("go_to", restored.type(), "type");
-        h.assertValueEqual("12.000000,64.000000,-3.000000", restored.saveData(), "coordinates");
+        // A walk saved before the quiet flag existed restores as an ordinary one, and is written back with the flag.
+        h.assertValueEqual("12.000000,64.000000,-3.000000,0", restored.saveData(), "coordinates");
         h.succeed();
     }
 
