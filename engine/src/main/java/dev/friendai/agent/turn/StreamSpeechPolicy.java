@@ -194,7 +194,8 @@ public final class StreamSpeechPolicy {
             return false;
         }
         String trimmed = text.strip();
-        return !trimmed.endsWith(":") && !trimmed.endsWith("=");
+        char end = trimmed.charAt(trimmed.length() - 1);
+        return end == '.' || end == '!' || end == '?' || end == '。' || end == '！' || end == '？';
     }
 
     /** At the end of the stream only text that would still be sanitized differently, or read as code, is refused. */

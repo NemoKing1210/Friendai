@@ -6,6 +6,10 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+### Fixed
+
+- Streamed voice replies no longer repeatedly read growing fragments of the same sentence.
+
 ## [0.209.2] - 2026-11-06
 
 ### Fixed
