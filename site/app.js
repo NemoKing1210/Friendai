@@ -499,6 +499,7 @@ const ARCH_CARDS = [
     hub: { label: "Server", icon: "⚙️", color: COLORS.grass, desc: "The only place that touches the world, and only on the server thread." },
     color: COLORS.grass, items: [
       "~server/runtime|One lifecycle per server.", "~server/agent|Sessions, gateways, planner adapter.", "~server/execution|Active task, queue driver, persistence.",
+      "~world|Minecraft kernel: movement, blocks, food, targeting, placement.",
       "~features/*/minecraft|Tasks and tools per skill.", "~entity|CompanionEntity and manager.", "~net, chat, command|Protocol and commands.", "~mixin|Two, so hostiles target it." ] },
   { title: "Client side", sub: "src/client/java",
     hub: { label: "Client", icon: "🖥️", color: COLORS.water, desc: "Reads only data the server syncs." },
