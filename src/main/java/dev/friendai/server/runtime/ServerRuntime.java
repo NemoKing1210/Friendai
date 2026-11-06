@@ -202,7 +202,7 @@ public final class ServerRuntime implements AutoCloseable {
         return services.routines();
     }
 
-    public dev.friendai.features.cartography.minecraft.TerrainSamplerService terrainSampler() {
+    public dev.friendai.server.cartography.TerrainSamplerService terrainSampler() {
         return services.terrainSampler();
     }
 
@@ -413,7 +413,8 @@ public final class ServerRuntime implements AutoCloseable {
             stopAcceptingWork();
         } finally {
             if (protocolConnections != null) protocolConnections.close();
-            services.logWorldClose();
+            // A runtime built without a service graph (the lifecycle unit tests do) still owns its resources.
+            if (services != null) services.logWorldClose();
             resources.close();
         }
     }
