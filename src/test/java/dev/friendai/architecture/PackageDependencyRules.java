@@ -92,19 +92,6 @@ final class PackageDependencyRules {
             new FeatureDependency("survival", "mining"),
             new FeatureDependency("survival", "navigation"),
             new FeatureDependency("survival", "fire"));
-    /**
-     * Task implementations one feature composes from another when the work is an operation the other feature owns end
-     * to end: a portal trip builds its frame with the special-structure task, and brewing drives the shared
-     * stand-backed menu lifecycle. Every other cross-feature task use is a violation.
-     */
-    private static final Set<DependencyEdge> ALLOWED_CROSS_FEATURE_TASKS = Set.of(
-            new DependencyEdge(
-                    "dev.friendai.features.navigation.minecraft.task.TravelThroughPortalTask",
-                    "dev.friendai.features.construction.minecraft.task.SpecialStructureTask"),
-            new DependencyEdge(
-                    "dev.friendai.features.brewing.minecraft.task.BrewTask",
-                    "dev.friendai.features.enchanting.minecraft.task.MenuBlockTask"));
-
     private static final Set<String> FEATURE_TOOL_REGISTRATION_API = Set.of(
             "dev.friendai.server.execution.tools.FeatureToolContributor",
             "dev.friendai.server.execution.tools.FeatureToolRegistry",
@@ -204,8 +191,7 @@ final class PackageDependencyRules {
                     && isUnder(target, "dev.friendai.features")
                     && isMinecraftFeatureAdapter(source)
                     && !featureBoundary(source).equals(featureBoundary(target))
-                    && isFeatureTaskImplementation(target)
-                    && !ALLOWED_CROSS_FEATURE_TASKS.contains(edge)) {
+                    && isFeatureTaskImplementation(target)) {
                 add(violations, "feature-task-internals-not-allowed", edge);
             }
             if (isUnder(source, "dev.friendai.agent")

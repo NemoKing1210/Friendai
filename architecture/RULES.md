@@ -42,8 +42,10 @@ The set is empty and `compiledProjectEdgesMatchOnlyDocumentedClassLevelException
 class edge that breaks a rule fails the build instead of joining a list. The kernel extraction removed the last ones:
 `MenuBlockTask` moved to `task/interact`, `BlockSearch` to `world/block`, `ClientSessionId` to `foundation/session`,
 `TerrainMapView` into `features/cartography/view` (the one feature package presentation may read), the terrain sampler
-takes a `MinecraftServer` instead of the runtime, and the coordination tools read the server through their own
-`CoordinationAccess` port. `social` → `memory` is a listed feature dependency, not an exception: ambient topics quote
+moved to the server adapters in `server/cartography` where it can read the runtime, and the coordination tools read
+the server through their own `CoordinationAccess` port. Cross-feature task uses are violations again: the portal trip
+builds through the `StructureBuilder` port and brewing drives the shared `task/interact/MenuBlockTask`, so no allowed
+pair is needed. `social` → `memory` is a listed feature dependency, not an exception: ambient topics quote
 the owner's own recorded statements, and the reverse edge is the bond.
 
 ## Runtime service graph
