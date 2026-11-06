@@ -43,10 +43,8 @@ import dev.friendai.world.block.Scaffold;
 import dev.friendai.world.block.ScaffoldCleanupTask;
 import dev.friendai.world.movement.Approach;
 import dev.friendai.world.movement.MoveHelper;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -168,7 +166,7 @@ public final class BuildTask implements Task {
         @Override
         public void materialsReady() {
             // Every material is in hand: clear the site first when it needs it, then the foundation or the plan.
-            phase = site.toClear().isEmpty() ? (foundation.isEmpty() ? Phase.PLACE : Phase.FOUNDATION) : Phase.CLEAR;
+            phase = clearing.pending() ? Phase.CLEAR : (foundation.isEmpty() ? Phase.PLACE : Phase.FOUNDATION);
         }
 
         @Override
@@ -208,14 +206,13 @@ public final class BuildTask implements Task {
     private int done;
     private int nextNotice = PROGRESS_STEP;
     private int placedCount;
-    private int clearedCount;
     private int foundationCount;
 
     /** Temporary support and pillar blocks; null until the check starts. */
     private Scaffold scaffold;
 
-    private final Deque<BlockPos> clearQueue = new ArrayDeque<>();
-    private BlockBreaker breaker;
+    /** The natural blocks standing on the site, cleared before the foundation or the first plan block. */
+    private final BuildSiteClearing clearing = new BuildSiteClearing();
 
     private List<Placement.PlacedSpec> foundation = List.of();
     private int foundationIndex;
@@ -496,7 +493,7 @@ public final class BuildTask implements Task {
         if (materialError != null) {
             return fail(c, new PlacementRefusal.OutOfMaterial(toPos(origin), "scaffold", materialError, 0), true);
         }
-        clearQueue.addAll(site.toClear());
+        clearing.plan(site.toClear());
         foundation = site.foundation().stream()
                 .sorted(Comparator.comparingInt(spec -> spec.pos().getY()))
                 .toList();
@@ -600,39 +597,10 @@ public final class BuildTask implements Task {
     }
 
     private TaskStatus clear(TaskContext c) {
-        if (breaker == null) {
-            BlockPos next = nextToClear(c.level());
-            if (next == null) {
-                phase = foundation.isEmpty() ? Phase.PLACE : Phase.FOUNDATION;
-                return TaskStatus.RUNNING;
-            }
-            // Excavating the site: a cell inside a hill has no view from any standing spot, and the build needs it
-            // cleared anyway, so this breaker does not require line of sight.
-            breaker = new BlockBreaker(next, Site::isNatural, false);
+        if (clearing.tick(c) == BuildSiteClearing.Outcome.DONE) {
+            phase = foundation.isEmpty() ? Phase.PLACE : Phase.FOUNDATION;
         }
-        return switch (breaker.tick(c)) {
-            case WORKING -> TaskStatus.RUNNING;
-            case BROKEN -> {
-                clearedCount++;
-                breaker = null;
-                yield TaskStatus.RUNNING;
-            }
-            case GONE, UNREACHABLE, PROTECTED, OUT_OF_SIGHT -> {
-                breaker = null;
-                yield TaskStatus.RUNNING;
-            }
-        };
-    }
-
-    private BlockPos nextToClear(ServerLevel level) {
-        while (!clearQueue.isEmpty()) {
-            BlockPos pos = clearQueue.poll();
-            BlockState state = level.getBlockState(pos);
-            if (Site.isNatural(state) && !state.isAir()) {
-                return pos;
-            }
-        }
-        return null;
+        return TaskStatus.RUNNING;
     }
 
     private TaskStatus buildFoundation(TaskContext c) {
@@ -1381,7 +1349,7 @@ public final class BuildTask implements Task {
                 Placement.facingFor(rotation).getSerializedName(),
                 placedCount,
                 selected,
-                clearedCount,
+                clearing.cleared(),
                 foundationCount,
                 selfRecoveries);
         return complete(c, TaskStatus.SUCCESS);
@@ -1476,7 +1444,7 @@ public final class BuildTask implements Task {
     }
 
     private boolean hasProgress(ServerLevel level) {
-        if (placedCount > 0 || clearedCount > 0 || foundationCount > 0) {
+        if (placedCount > 0 || clearing.cleared() > 0 || foundationCount > 0) {
             return true;
         }
         if (scaffold != null && !scaffold.placed().isEmpty()) {
@@ -1508,9 +1476,7 @@ public final class BuildTask implements Task {
         pillarTargetY = null;
         c.companion().placement().clear();
         resetMovers(c);
-        if (breaker != null) {
-            breaker.stop(c);
-        }
+        clearing.stop(c);
         if (takeBack != null) {
             takeBack.stop(c);
         }
@@ -1602,7 +1568,7 @@ public final class BuildTask implements Task {
         BlockPos pos = null;
         String detail = "Place build block";
         if (phase == Phase.CLEAR) {
-            pos = breaker == null ? clearQueue.peek() : breaker.target();
+            pos = clearing.target();
             detail = "Clear build site";
         } else if (phase == Phase.FOUNDATION && foundationIndex < foundation.size()) {
             pos = foundation.get(foundationIndex).pos();
