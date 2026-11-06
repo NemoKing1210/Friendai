@@ -16,6 +16,7 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 - Water at the companion's own feet is put out instead of being reported as unreachable.
 - A companion that cannot see a block it was asked to mine now says the block is covered instead of calling it unreachable.
 - A companion told to reach a moving creature no longer stalls one step away from it.
+- A companion following you no longer stops several blocks short when you stand over a hole or a drop; it walks to your side on your own level instead.
 
 ## [0.209.1] - 2026-11-06
 

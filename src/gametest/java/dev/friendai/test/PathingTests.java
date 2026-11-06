@@ -911,6 +911,50 @@ public class PathingTests {
         });
     }
 
+    /**
+     * A follower stands beside its owner, not on the ground far below them. The column under the owner's feet holds
+     * no walkable ground here, only a shaft down to a lower floor; a route that snaps to whatever it finds under the
+     * owner takes the companion there and leaves the owner alone at the rim.
+     */
+    @GameTest(maxTicks = 900)
+    public void followStaysOnTheOwnersLevelOverAShaft(GameTestHelper h) {
+        int floor = 280;
+        int bottom = 272;
+        GameTestSupport.platformAt(h, floor, 32);
+        GameTestSupport.platformAt(h, bottom, 32);
+        for (int y = bottom + 1; y <= floor; y++) {
+            for (int x = 19; x <= 21; x++) {
+                for (int z = 9; z <= 11; z++) {
+                    h.setBlock(x, y, z, Blocks.AIR);
+                }
+            }
+        }
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 20.0, floor + 1, 10.5);
+        // The mock owner is authored in place: it must stay at the rim of the shaft, not fall in.
+        owner.setNoGravity(true);
+        h.onEachTick(() -> owner.setOnGround(true));
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, floor + 1, 10);
+        c.setOwner(owner.getUUID());
+        c.executionCoordinator().start(new FollowTask(true), "follow");
+        TaskTrace trace = TaskTrace.of(h, c.executionCoordinator(), c);
+        double rim = h.absoluteVec(new Vec3(0.0, floor + 1, 0.0)).y;
+        int[] settled = {0};
+        trace.succeedWhen(() -> {
+            double distance = c.position().distanceTo(owner.position());
+            String state = "companion " + c.position() + ", owner " + owner.position() + ", task "
+                    + c.executionCoordinator()
+                            .current()
+                            .map(active -> active.type() + " " + active.debugStatus())
+                            .orElse("idle");
+            h.assertTrue(owner.getY() >= rim, "the mock owner fell into the shaft: " + owner.position());
+            // A follower walks beside its owner, never down the hole under them: the goal it is given must stay on
+            // the owner's level, so any tick spent below it is the defect this test pins.
+            h.assertTrue(c.getY() >= owner.getY() - 1.5, "the companion went down the shaft (" + state + ")");
+            settled[0] = distance <= 3.5 ? settled[0] + 1 : 0;
+            h.assertTrue(settled[0] >= 20, "not settled within reach: " + distance + " blocks (" + state + ")");
+        });
+    }
+
     @GameTest(maxTicks = 3000)
     public void followsThreeHundredBlocksWithoutTeleporting(GameTestHelper h) {
         int floor = 300;

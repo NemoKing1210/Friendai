@@ -20,6 +20,13 @@ public final class FollowTask implements Task {
     private static final int RETRY_TICKS = 40;
     /** How long the terrain view under an airborne owner is reused. */
     private static final int TERRAIN_TICKS = 5;
+    /**
+     * How far below the owner's feet the follower's goal may sit. The ground under an airborne owner is already
+     * resolved by {@link #followTarget}, so the only step left for the snap is a slab edge or a gap of a block; a
+     * deeper one put the goal on the floor of whatever hole the owner stood over, and the follower then walked to the
+     * rim, found no route down and waited there, outside its follow distance.
+     */
+    private static final int SNAP_DROP = 2;
 
     private final boolean quiet;
     private boolean moving;
@@ -56,7 +63,7 @@ public final class FollowTask implements Task {
                 mover.stop(c);
             }
             stopDistance = wanted;
-            mover = new MoveHelper(1.0, stopDistance, 4.0, 64);
+            mover = new MoveHelper(1.0, stopDistance, 4.0, SNAP_DROP);
             moving = false;
         }
         ServerPlayer owner = c.owner().orElse(null);
