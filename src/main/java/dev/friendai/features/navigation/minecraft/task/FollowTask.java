@@ -32,6 +32,8 @@ public final class FollowTask implements Task {
     private static final double JOURNEY_TARGET_MARGIN = 16.0;
     private ResourceJourney journey;
     private Pos journeyTarget;
+    /** The last measured gap to the owner, for the debug view and a failing trace. */
+    private double lastDistance = Double.NaN;
 
     /** @param quiet true when started as the default activity, so the brain hears nothing about it */
     public FollowTask(boolean quiet) {
@@ -76,6 +78,7 @@ public final class FollowTask implements Task {
             return TaskStatus.RUNNING;
         }
         double distance = c.companion().position().distanceTo(target);
+        lastDistance = distance;
         if (moving && distance <= stopDistance) {
             moving = false;
             mover.stopAtDestination(c);
@@ -201,6 +204,13 @@ public final class FollowTask implements Task {
     @Override
     public String describe() {
         return "following the owner";
+    }
+
+    @Override
+    public String debugStatus() {
+        String gap = Double.isNaN(lastDistance) ? "?" : Double.toString(Math.round(lastDistance * 100.0) / 100.0);
+        return (moving ? "moving" : "waiting") + " at " + gap + "/" + stopDistance + ", retry " + retryCooldown + ", "
+                + (mover == null ? "no mover" : mover.debugStatus());
     }
 
     @Override
