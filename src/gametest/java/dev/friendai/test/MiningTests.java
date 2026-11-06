@@ -630,13 +630,13 @@ public class MiningTests {
         BlockPos target = h.absolutePos(new BlockPos(4, 2, 2));
         BreakAction action = new BreakAction(target);
         TaskContext context = new TaskContext(companion, h.getLevel());
-        long before = cobbleDrops(h);
+        long before = cobbleDrops(h, target);
 
         h.succeedWhen(() -> {
             BreakAction.State state = action.tick(context, block -> !block.isAir());
             h.assertTrue(state == BreakAction.State.BROKEN, "still breaking: " + state);
             h.assertTrue(h.getLevel().getBlockState(target).isAir(), "stone was not removed");
-            h.assertTrue(cobbleDrops(h) == before, "stone dropped cobblestone by hand");
+            h.assertTrue(cobbleDrops(h, target) == before, "stone dropped cobblestone by hand");
         });
     }
 
@@ -649,12 +649,12 @@ public class MiningTests {
         BlockPos target = h.absolutePos(new BlockPos(4, 2, 2));
         BreakAction action = new BreakAction(target);
         TaskContext context = new TaskContext(companion, h.getLevel());
-        long before = cobbleDrops(h);
+        long before = cobbleDrops(h, target);
 
         h.succeedWhen(() -> {
             BreakAction.State state = action.tick(context, block -> !block.isAir());
             h.assertTrue(state == BreakAction.State.BROKEN, "still breaking: " + state);
-            h.assertTrue(cobbleDrops(h) == before + 1, "no cobblestone dropped");
+            h.assertTrue(cobbleDrops(h, target) == before + 1, "no cobblestone dropped");
         });
     }
 
@@ -685,12 +685,20 @@ public class MiningTests {
         return companion.inventory().countItem(Items.DIAMOND) + inWorld;
     }
 
-    private static long cobbleDrops(GameTestHelper h) {
+    /** Cobblestone lying at one broken block: a wider box would count a neighbouring test's drop. */
+    private static long cobbleDrops(GameTestHelper h, BlockPos around) {
         return h
                 .getLevel()
                 .getEntitiesOfClass(
                         net.minecraft.world.entity.item.ItemEntity.class,
-                        new net.minecraft.world.phys.AABB(h.absolutePos(new BlockPos(0, 0, 0))).inflate(16),
+                        new net.minecraft.world.phys.AABB(
+                                        around.getX(),
+                                        around.getY(),
+                                        around.getZ(),
+                                        around.getX() + 1,
+                                        around.getY() + 1,
+                                        around.getZ() + 1)
+                                .inflate(1.5),
                         e -> e.getItem().is(Items.COBBLESTONE))
                 .stream()
                 .mapToLong(e -> e.getItem().getCount())
