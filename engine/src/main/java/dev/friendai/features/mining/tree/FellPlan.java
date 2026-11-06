@@ -6,7 +6,7 @@ import java.util.List;
 /**
  * The felling order for one tree, computed without a world. A climb is one scaffold column beside the trunk with the
  * layers cut top-down from it; the alternatives are ranked so the executor can try the next side when the world
- * blocks the first one. The companion is never moved by the plan: it climbs once, and the stance only descends.
+ * blocks the first one. The companion is never moved by the plan: it climbs once, and the stance only descends. Trees reachable from one stance are cut from the base.
  */
 public record FellPlan(List<Climb> climbs, List<TreeCell> cutOrder, int totalLogs, int unreachableLogs) {
     public FellPlan {

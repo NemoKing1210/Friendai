@@ -9,8 +9,8 @@ import java.util.Set;
 
 /**
  * Turns the logs of one tree and the cell the companion stands in into a felling order: the scaffold column beside the
- * trunk that costs the least climb, and the logs cut from it crown first. The reach arithmetic is the same the
- * Minecraft layer uses ({@link #REACH} from the eyes, {@link #EYE_HEIGHT} above the feet); the plan therefore only ever
+ * trunk that costs the least climb, with trees reachable from one stance cut from the base and taller trees crown first. The
+ * reach arithmetic is the same the Minecraft layer uses ({@link #REACH} from the eyes, {@link #EYE_HEIGHT} above the feet); the plan therefore only ever
  * cuts a log the companion can actually click from the stance it is standing on.
  *
  * <p>The plan never moves the column: the stance starts at the lowest height that reaches every log and only descends,
@@ -33,7 +33,7 @@ public final class FellPlanner {
     /**
      * @param input every log of the tree, in any order
      * @param stand the cell the companion stands in; its height is the ground when it is below the trunk's base
-     * @param limit how many logs to cut at most, crown first; {@code 0} for the whole tree
+     * @param limit how many logs to cut at most; {@code 0} for the whole tree
      */
     public static FellPlan plan(List<TreeCell> input, TreeCell stand, int limit) {
         List<TreeCell> logs = input.stream().distinct().sorted().toList();
@@ -89,7 +89,11 @@ public final class FellPlanner {
         List<FellPlan.Stage> stages = new ArrayList<>();
         List<TreeCell> current = new ArrayList<>(64);
         int currentFeet = stance;
-        for (int y = topY; y >= baseY; y--) {
+        int topStance = climbFeet;
+        boolean singleStance = logs.stream()
+                .filter(log -> !unreachable.contains(log))
+                .allMatch(log -> reaches(topStance, column, log));
+        for (int y = singleStance ? baseY : topY; singleStance ? y <= topY : y >= baseY; y += singleStance ? 1 : -1) {
             for (TreeCell log : layer(logs, y, column, unreachable)) {
                 if (!reaches(stance, column, log)) {
                     int next = highestReaching(log, column, stance - 1, groundFeetY);

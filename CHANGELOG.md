@@ -6,8 +6,17 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.209.5] - 2026-11-07
+
 ### Fixed
 
+- Short trees that need a small climb are cut from the base instead of switching to the crown.
+
+## [0.209.4] - 2026-11-07
+
+### Fixed
+
+- Small trees are cut from the base, and a tree log under the companion can be cut when the fall is safe.
 - Streamed voice replies no longer repeatedly read growing fragments of the same sentence.
 
 ## [0.209.2] - 2026-11-06

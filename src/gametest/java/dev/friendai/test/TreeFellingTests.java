@@ -205,6 +205,85 @@ public class TreeFellingTests {
         });
     }
 
+    @GameTest(maxTicks = 800)
+    public void safelyCutsTreeLogUnderItsFeet(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        BlockPos log = new BlockPos(6, 2, 6);
+        h.setBlock(log, Blocks.OAK_LOG);
+        for (int x = 4; x <= 8; x++) {
+            for (int z = 4; z <= 8; z++) {
+                if (x != 6 || z != 6) {
+                    h.setBlock(new BlockPos(x, 2, z), Blocks.DIRT);
+                    h.setBlock(new BlockPos(x, 3, z), Blocks.DIRT);
+                }
+            }
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 6, 3, 6);
+        BlockPos absolute = h.absolutePos(log);
+        TreeFinder.TreeInfo tree = new TreeFinder.TreeInfo(
+                "oak_log", List.of(absolute), absolute, 1, TreeFinder.Kind.STANDING_TREE, 0, "south");
+        Result result = new Result();
+        ExecutionCoordinator runner = start(c, result, new FellTreeTask(tree, oak(), 0, false));
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
+            h.assertTrue(h.getBlockState(log).isAir(), "log remains under companion");
+        });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void shortTreeWithoutScaffoldCutsReachableLogsFromTheBase(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        List<BlockPos> logs = new java.util.ArrayList<>();
+        for (int y = 2; y <= 7; y++) {
+            BlockPos pos = new BlockPos(6, y, 6);
+            h.setBlock(pos, Blocks.OAK_LOG);
+            logs.add(pos);
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 5, 2, 6);
+        c.inventory().addItem(new ItemStack(Items.IRON_AXE));
+        Result result = new Result();
+        ExecutionCoordinator runner = start(c, result, new FellTreeTask(info(h, logs, "oak_log", 6), oak(), 4, false));
+        List<BlockPos> broken = new java.util.ArrayList<>();
+        h.succeedWhen(() -> {
+            runner.tick();
+            for (BlockPos log : logs) {
+                if (h.getBlockState(log).isAir() && !broken.contains(log)) {
+                    broken.add(log);
+                }
+            }
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
+            h.assertTrue(broken.equals(logs.subList(0, 4)), "wrong cut order: " + broken);
+        });
+    }
+
+    @GameTest(maxTicks = 1600)
+    public void shortTreeWithScaffoldIsCutFromTheBase(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        List<BlockPos> logs = new java.util.ArrayList<>();
+        for (int y = 2; y <= 7; y++) {
+            BlockPos pos = new BlockPos(6, y, 6);
+            h.setBlock(pos, Blocks.OAK_LOG);
+            logs.add(pos);
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.DIRT, 16));
+        c.inventory().addItem(new ItemStack(Items.IRON_AXE));
+        Result result = new Result();
+        ExecutionCoordinator runner = start(c, result, new FellTreeTask(info(h, logs, "oak_log", 6), oak(), 0, false));
+        List<BlockPos> broken = new java.util.ArrayList<>();
+        h.succeedWhen(() -> {
+            runner.tick();
+            for (BlockPos log : logs) {
+                if (h.getBlockState(log).isAir() && !broken.contains(log)) {
+                    broken.add(log);
+                }
+            }
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
+            h.assertTrue(broken.equals(logs), "wrong cut order: " + broken);
+        });
+    }
+
     @GameTest(maxTicks = 1600)
     public void fellsWholeTree(GameTestHelper h) {
         GameTestSupport.platform(h, 16);

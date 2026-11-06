@@ -19,6 +19,7 @@ import dev.friendai.task.inventory.DropCollector;
 import dev.friendai.task.inventory.ItemMatcher;
 import dev.friendai.world.block.BlockBreaker;
 import dev.friendai.world.block.BlockMatcher;
+import dev.friendai.world.block.MiningRefusal;
 import dev.friendai.world.block.Scaffold;
 import dev.friendai.world.block.ScaffoldCleanupTask;
 import dev.friendai.world.movement.Approach;
@@ -46,9 +47,8 @@ import net.minecraft.world.phys.Vec3;
 
 /**
  * Fells one tree chosen when the task was made. A pure {@link FellPlanner} plan puts the companion beside the trunk
- * once, the climb is a single scaffold column, and the logs are cut crown first, layer by layer: the drops fall to the
- * foot of the tree where the sweep already looks. The task never pillars per log and never stands on a trunk log while
- * cutting it. A tree too tall for the climb cap, a tree with no clear side, an empty bag and a protected log are
+ * once, the climb is a single scaffold column, and trees reachable from one stance are cut from the base; taller trees are cut
+ * crown first. Drops fall to the foot of the tree where the sweep looks. The task never pillars per log. A tree too tall for the climb cap, a tree with no clear side, an empty bag and a protected log are
  * refused with their own reason; a cancel leaves the column to {@link ScaffoldCleanupTask}.
  */
 public final class FellTreeTask implements Task {
@@ -133,6 +133,7 @@ public final class FellTreeTask implements Task {
     private MoveHelper mover;
     private Scaffold scaffold;
     private BlockBreaker breaker;
+    private boolean supportRetry;
     /** The log the current breaker is aimed at; it may be a log that hides the planned one, cut first. */
     private BlockPos breaking;
 
@@ -489,7 +490,7 @@ public final class FellTreeTask implements Task {
         }
     }
 
-    /** Cuts the stages crown first, descending one layer at a time. */
+    /** Cuts the planned stages, descending as needed. */
     private TaskStatus cut(TaskContext c) {
         if (rescue(c)) {
             return TaskStatus.RUNNING;
@@ -534,6 +535,7 @@ public final class FellTreeTask implements Task {
                 continue;
             }
             if (breaker == null) {
+                supportRetry = false;
                 breaking = blockerFirst(c, target);
                 breaker = new BlockBreaker(
                                 List.of(breaking), matcher::test, true, false, true, false, null, SoftCover::isCover)
@@ -576,6 +578,12 @@ public final class FellTreeTask implements Task {
                     }
                 }
                 case PROTECTED -> {
+                    if (!supportRetry && breaker.refusal() instanceof MiningRefusal.OwnSupport own && own.safeDrop()) {
+                        supportRetry = true;
+                        breaker.stop(c);
+                        breaker = breaker.allowingSupport().protectRoute(PROTECTED_ROUTE_BLOCKS);
+                        return TaskStatus.RUNNING;
+                    }
                     breaker = null;
                     breaking = null;
                     String reason = protection(c, aimed);
@@ -611,12 +619,13 @@ public final class FellTreeTask implements Task {
                 left.add(pos);
             }
         }
-        left.sort(Comparator.comparingInt((BlockPos pos) -> pos.getY()).reversed());
+        left.sort(Comparator.comparingInt(BlockPos::getY));
         for (BlockPos target : left) {
             if (limit > 0 && cutCount >= limit) {
                 break;
             }
             if (breaker == null) {
+                supportRetry = false;
                 breaking = blockerFirst(c, target);
                 breaker = new BlockBreaker(
                                 List.of(breaking), matcher::test, true, false, true, false, null, SoftCover::isCover)
@@ -650,6 +659,12 @@ public final class FellTreeTask implements Task {
                     blacklist.put(aimed, "out of reach");
                 }
                 case PROTECTED -> {
+                    if (!supportRetry && breaker.refusal() instanceof MiningRefusal.OwnSupport own && own.safeDrop()) {
+                        supportRetry = true;
+                        breaker.stop(c);
+                        breaker = breaker.allowingSupport().protectRoute(PROTECTED_ROUTE_BLOCKS);
+                        return TaskStatus.RUNNING;
+                    }
                     breaker = null;
                     breaking = null;
                     String reason = protection(c, aimed);

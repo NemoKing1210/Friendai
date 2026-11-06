@@ -27,7 +27,7 @@ const CATS = [
   { id: "mining", domain: "hands", name: "Mining & Gathering", icon: "⛏️", color: COLORS.iron,
     desc: "Collects raw materials: trees, ores, drops. Tool choice comes from item data components, never hard-coded tiers.",
     items: [
-      "fell_tree|Fell a whole tree top-down using scaffold.", "mine_blocks|Mine up to 64 blocks of a type in one call; wood comes from whole felled trees.", "mine_block_at|Mine the block you point at, follow its vein, and report what was taken.", "excavate|Mine a box, tunnel, stair, shaft or strip mine in one call, with drops and safety.",
+      "fell_tree|Fell a whole tree from the base when one stance reaches it, or from the crown.", "mine_blocks|Mine up to 64 blocks of a type in one call; wood comes from whole felled trees.", "mine_block_at|Mine the block you point at, follow its vein, and report what was taken.", "excavate|Mine a box, tunnel, stair, shaft or strip mine in one call, with drops and safety.",
       "pickup_items|Collect every drop in the radius in one call.", "find_trees|Scan for trees.", "find_blocks|Scan for blocks and ore veins.",
       "find_placed|List blocks the companion placed earlier.",
       "~Vein follower|Mines a whole vein, not one block.", "~Tool selection|Picks the best tool from the stack's tool component.", "~Safe digging|Checks support and hazards before approaching.",

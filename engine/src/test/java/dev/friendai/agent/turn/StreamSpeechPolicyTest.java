@@ -143,4 +143,13 @@ class StreamSpeechPolicyTest {
         assertInstanceOf(StreamSpeechPolicy.Hold.class, policy.offer("Hello. ```unfinished", true));
         assertInstanceOf(StreamSpeechPolicy.StopIncomplete.class, policy.finish("Hello. ```unfinished", true));
     }
+
+    @Test
+    void waitsForSentenceWhenWordsArriveInGrowingFragments() {
+        StreamSpeechPolicy policy = policy();
+        assertInstanceOf(StreamSpeechPolicy.Hold.class, policy.offer("Hel", true));
+        assertInstanceOf(StreamSpeechPolicy.Hold.class, policy.offer("Hello wor", true));
+        assertEquals("Hello world.", spoken(policy.offer("Hello world.", true)).text());
+        assertEquals("", spoken(policy.finish("", true)).text());
+    }
 }

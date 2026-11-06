@@ -76,6 +76,22 @@ class FellPlannerTest {
     }
 
     @Test
+    void shortTreeStartsAtTheBase() {
+        FellPlan.Climb climb = best(trunk(0, 0, 2, 5), STAND, 0);
+        assertEquals(
+                List.of(2, 3, 4, 5, 6), climb.logs().stream().map(TreeCell::y).toList());
+    }
+
+    @Test
+    void shortTreeThatNeedsOneStepStartsAtTheBase() {
+        FellPlan.Climb climb = best(trunk(0, 0, 2, 6), STAND, 0);
+        assertTrue(climb.scaffoldNeeded() > 0);
+        assertEquals(
+                List.of(2, 3, 4, 5, 6, 7),
+                climb.logs().stream().map(TreeCell::y).toList());
+    }
+
+    @Test
     void shortTreeNeedsNoScaffold() {
         FellPlan.Climb climb = best(trunk(0, 0, 2, 5), STAND, 0);
         assertEquals(2, climb.climbFeetY());

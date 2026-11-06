@@ -89,7 +89,7 @@ const RU = {
   /* ---- Mining ---- */
   "Mining & Gathering": "Добыча и сбор",
   "Collects raw materials: trees, ores, drops. Tool choice comes from item data components, never hard-coded tiers.": "Собирает сырьё: деревья, руды, выпавшие предметы. Инструмент выбирается по компонентам предмета, а не по зашитым уровням.",
-  "Fell a whole tree top-down using scaffold.": "Срубить дерево целиком сверху вниз, используя леса.",
+  "Fell a whole tree from the base when one stance reaches it, or from the crown.": "Срубить дерево целиком снизу, если до него можно дотянуться с одной позиции, или сверху.",
   "Mine up to 64 blocks of a type in one call; wood comes from whole felled trees.":
     "Добыть до 64 блоков одного типа за один вызов; древесину получает из целых сваленных деревьев.",
   "Mine the block you point at, follow its vein, and report what was taken.":
