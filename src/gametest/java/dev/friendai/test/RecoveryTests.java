@@ -87,14 +87,21 @@ public class RecoveryTests {
         }
     }
 
-    /** A death site far enough that one collection round cannot walk there is reached first, then picked up. */
+    /**
+     * A death site far enough that one collection round cannot walk there is reached first, then picked up.
+     *
+     * <p>The fixture sits in its own height band: this class runs in a shared world next to fixtures that place and
+     * collect items at the arena floor, and a recorded drop is only collectable evidence while it still lies where it
+     * fell.
+     */
     @GameTest(maxTicks = 900)
     public void aFarDeathSiteIsWalkedToBeforeCollecting(GameTestHelper h) {
-        GameTestSupport.platformAt(h, 1, 32);
-        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
-        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        int floor = 260;
+        GameTestSupport.platformAt(h, floor, 32);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, floor + 1, 2);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, floor + 1, 2);
         c.setOwner(owner.getUUID());
-        BlockPos site = h.absolutePos(new BlockPos(24, 2, 2));
+        BlockPos site = h.absolutePos(new BlockPos(24, floor + 1, 2));
         ItemEntity drop = new ItemEntity(
                 h.getLevel(), site.getX() + 0.5, site.getY() + 0.5, site.getZ() + 0.5, new ItemStack(Items.OAK_LOG, 3));
         h.getLevel().addFreshEntity(drop);
@@ -126,6 +133,28 @@ public class RecoveryTests {
             }
         });
         runner.start(new RecoverDropsTask(), "recover_drops");
+        // A drop only counts as evidence while it lies where it fell; if something else takes it, the report names
+        // what was standing there, so a shared-world failure is not mistaken for a recovery bug.
+        boolean[] dropSeen = {true};
+        h.onEachTick(() -> {
+            if (!dropSeen[0] || drop.isAlive() || c.inventory().countItem(Items.OAK_LOG) > 0) {
+                return;
+            }
+            dropSeen[0] = false;
+            StringBuilder nearby = new StringBuilder();
+            for (ItemEntity item : h.getLevel()
+                    .getEntitiesOfClass(ItemEntity.class, drop.getBoundingBox().inflate(8.0))) {
+                if (item != drop)
+                    nearby.append(' ').append(item.getItem()).append(" at ").append(item.blockPosition());
+            }
+            for (CompanionEntity other : h.getLevel()
+                    .getEntitiesOfClass(
+                            CompanionEntity.class, drop.getBoundingBox().inflate(8.0))) {
+                nearby.append(" companion at ").append(other.blockPosition());
+            }
+            System.out.println("[friendai-recovery] the recorded drop vanished on tick " + h.getTick() + ", carried "
+                    + c.inventory().countItem(Items.OAK_LOG) + ", nearby:" + nearby);
+        });
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(

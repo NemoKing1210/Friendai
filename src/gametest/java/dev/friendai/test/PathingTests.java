@@ -895,9 +895,20 @@ public class PathingTests {
             last[2] = c.getZ();
             h.assertTrue(biggest[0] < 1.5, "the companion jumped " + biggest[0] + " blocks in one tick");
         });
-        h.succeedWhen(() -> h.assertTrue(
-                c.position().distanceTo(owner.position()) <= 5.0,
-                "still " + c.position().distanceTo(owner.position()) + " blocks from a moving owner"));
+        TaskTrace trace = TaskTrace.of(h, c.executionCoordinator(), c);
+        trace.succeedWhen(() -> {
+            double distance = c.position().distanceTo(owner.position());
+            h.assertTrue(
+                    distance <= 5.0,
+                    "still " + distance + " blocks from a moving owner (follow distance "
+                            + c.body().followDistance() + ", companion " + c.position() + ", owner "
+                            + owner.position() + " onGround " + owner.onGround() + ", task "
+                            + c.executionCoordinator()
+                                    .current()
+                                    .map(active -> active.type() + " " + active.debugStatus())
+                                    .orElse("idle")
+                            + ")");
+        });
     }
 
     @GameTest(maxTicks = 3000)
