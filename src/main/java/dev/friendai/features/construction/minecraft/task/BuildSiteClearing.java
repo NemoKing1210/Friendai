@@ -44,14 +44,17 @@ final class BuildSiteClearing {
             // cleared anyway, so this breaker does not require line of sight.
             breaker = new BlockBreaker(next, Site::isNatural, false);
         }
-        switch (breaker.tick(c)) {
-            case WORKING -> {
-                return Outcome.WORKING;
+        boolean released = switch (breaker.tick(c)) {
+            case WORKING -> false;
+            case BROKEN -> {
+                cleared++;
+                yield true;
             }
-            case BROKEN -> cleared++;
-            case GONE, UNREACHABLE, PROTECTED, OUT_OF_SIGHT -> {}
+            case GONE, UNREACHABLE, PROTECTED, OUT_OF_SIGHT -> true;
+        };
+        if (released) {
+            breaker = null;
         }
-        breaker = null;
         return Outcome.WORKING;
     }
 
