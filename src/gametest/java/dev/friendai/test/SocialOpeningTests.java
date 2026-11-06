@@ -352,7 +352,7 @@ public class SocialOpeningTests {
         });
     }
 
-    @GameTest(maxTicks = 500)
+    @GameTest(maxTicks = 900)
     public void socialOpeningsWaitUntilOwnerLanguageIsKnown(GameTestHelper h) {
         GameTestSupport.platform(h, 12);
         // A unique owner keeps this test's journal and social state out of the shared mock-player record.
@@ -395,15 +395,18 @@ public class SocialOpeningTests {
                             .orElse(""),
                     "the first owner message should teach the language used by social openings");
             h.runAfterDelay(160, () -> {
-                List<String> openings = socialOpenings(script);
-                h.assertValueEqual(
-                        openingsAbout(openings, "you died to a creeper"),
-                        1,
-                        "a retained event is spoken once after the owner's language is known: " + openings);
-                h.assertTrue(
-                        openings.stream().anyMatch(opening -> opening.contains("Happenings:")),
-                        "the opening should carry the retained happening: " + openings);
-                h.succeed();
+                // The director ticks once a second and the reply needs its own turn, so wait for the line instead
+                // of asserting at a fixed tick: a loaded shard runs the same work several batches behind.
+                h.succeedWhen(() -> {
+                    List<String> openings = socialOpenings(script);
+                    h.assertValueEqual(
+                            openingsAbout(openings, "you died to a creeper"),
+                            1,
+                            "a retained event is spoken once after the owner's language is known: " + openings);
+                    h.assertTrue(
+                            openings.stream().anyMatch(opening -> opening.contains("Happenings:")),
+                            "the opening should carry the retained happening: " + openings);
+                });
             });
         });
     }

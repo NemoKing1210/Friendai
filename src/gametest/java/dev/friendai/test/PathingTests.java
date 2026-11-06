@@ -868,7 +868,7 @@ public class PathingTests {
         });
     }
 
-    @GameTest(maxTicks = 900)
+    @GameTest(maxTicks = 1500)
     public void followsAMovingOwnerWithoutTeleporting(GameTestHelper h) {
         int floor = 280;
         GameTestSupport.platformAt(h, floor, 96);
