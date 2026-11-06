@@ -85,6 +85,9 @@ public class SelfKnowledgeTests {
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         var server = h.getLevel().getServer();
         ServerRuntime state = GameTestSupport.runtime(server);
+        String level = state.config().logging.level;
+        // The ring carries message text only at detailed, and read_log returns what the records carry.
+        state.applyLoggingLevel("detailed");
         state.sessions()
                 .setGatewayOverride(
                         owner.getUUID(),
@@ -93,11 +96,15 @@ public class SelfKnowledgeTests {
         state.sessions().sendMessage(owner.getUUID(), owner.getName().getString(), "what do you carry");
 
         h.succeedWhen(() -> {
+            // Wait for the turn through the transcript: polling read_log every tick would push its own entries past
+            // the tool call this test is looking for.
+            if (state.transcripts().book(owner.getUUID()).snapshot().size() < 2) return;
             var calls = state.sessions().runTool(owner.getUUID(), "read_log", "{\"kind\":\"TOOL_CALL\",\"limit\":20}");
             h.assertTrue(!calls.error(), calls.content());
             h.assertTrue(calls.content().contains("get_inventory"), calls.content());
             var user = state.sessions().runTool(owner.getUUID(), "read_log", "{\"kind\":\"USER\",\"limit\":20}");
             h.assertTrue(user.content().contains("what do you carry"), user.content());
+            state.applyLoggingLevel(level);
         });
     }
 

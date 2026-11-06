@@ -66,8 +66,11 @@ public class FreeTimeTests {
         return r;
     }
 
-    /** Whether the owner's debug ring holds a durable line starting with {@code prefix}. */
-    private static boolean logged(GameTestHelper h, UUID owner, String prefix) {
+    /**
+     * Whether the owner's debug ring holds a durable line containing {@code text}. A projected record carries its
+     * identity first ({@code plan=1 shift started: ...}), so the message is matched anywhere in the line.
+     */
+    private static boolean logged(GameTestHelper h, UUID owner, String text) {
         return GameTestSupport.runtime(h.getLevel().getServer())
                 .sessions()
                 .debug()
@@ -75,7 +78,7 @@ public class FreeTimeTests {
                 .query(new dev.friendai.foundation.diagnostics.DebugLog.Query(
                         java.util.Set.of(dev.friendai.foundation.diagnostics.LogKind.TASK), 0, 0, 500, false))
                 .stream()
-                .anyMatch(entry -> entry.text().startsWith(prefix));
+                .anyMatch(entry -> entry.text().contains(text));
     }
 
     /** A companion with its own owner, so its place book is not shared with other tests. */
