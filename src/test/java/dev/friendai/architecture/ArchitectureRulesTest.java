@@ -381,7 +381,7 @@ class ArchitectureRulesTest {
                         "dev.friendai.features.creative.CreativeCommandPolicy",
                         "dev.friendai.features.interaction.minecraft.task.ApproachTask"),
                 edge("dev.friendai.features.combat.CombatPolicy", "dev.friendai.features.farming.FarmPlanner"),
-                edge("dev.friendai.features.navigation.Navigator", "dev.friendai.features.acquisition.ObtainPlan")));
+                edge("dev.friendai.features.navigation.Navigator", "dev.friendai.features.farming.FarmPlanner")));
 
         assertEquals(
                 List.of(
@@ -396,7 +396,7 @@ class ArchitectureRulesTest {
                         violation(
                                 "feature-dependency-not-allowed",
                                 "dev.friendai.features.navigation.Navigator",
-                                "dev.friendai.features.acquisition.ObtainPlan"),
+                                "dev.friendai.features.farming.FarmPlanner"),
                         violation(
                                 "feature-dependency-not-allowed",
                                 "dev.friendai.features.navigation.minecraft.tool.RelativeMovementTools",

@@ -50,6 +50,14 @@ public final class BlockBreaker {
     private final boolean allowBreakingSupport;
     /** The blocks the breaker may dig away to uncover the target; leaves and vines for a feller. */
     private final Predicate<BlockState> diggable;
+    /**
+     * The construction options, kept so {@link #allowingSupport()} can rebuild the same breaker. They are not read
+     * after construction: the {@link Approach} already holds its copy.
+     */
+    private final boolean mayPlace;
+
+    private final PlacementLedger ledger;
+    private final boolean routeDigging;
 
     private final Approach approach;
     /** A precise stance goal: interaction reach alone does not put the eyes around the obstruction. */
@@ -203,6 +211,9 @@ public final class BlockBreaker {
         this.digToTarget = digToTarget;
         this.allowBreakingSupport = allowBreakingSupport;
         this.diggable = diggable;
+        this.mayPlace = mayPlace;
+        this.ledger = ledger;
+        this.routeDigging = routeDigging;
         this.approach = new Approach(this.candidates, mayPlace, ledger, requireSight, digToTarget ? diggable : null);
         if (!routeDigging) {
             this.approach.walkWithoutDigging();
@@ -226,6 +237,16 @@ public final class BlockBreaker {
     public BlockBreaker protectRoute(List<String> blocks) {
         approach.avoidBreaking(blocks);
         return this;
+    }
+
+    /**
+     * The same blocks under the same rules, but allowed to remove the block the companion stands on. For a job whose
+     * remaining target is under its own feet and whose drop has somewhere safe to land: stepping off is the work, and
+     * stopping one block short is not. Call it after {@link #stop}; support breaking is otherwise refused.
+     */
+    public BlockBreaker allowingSupport() {
+        return new BlockBreaker(
+                candidates, stillValid, requireSight, mayPlace, digToTarget, true, ledger, diggable, routeDigging);
     }
 
     public State tick(TaskContext c) {
@@ -263,7 +284,15 @@ public final class BlockBreaker {
         if (viewApproach == null) {
             switch (approach.tick(c)) {
                 case UNREACHABLE -> {
-                    refusal = new MiningRefusal.OutOfReach(target != null ? target : candidates.get(0), "no route");
+                    BlockPos wanted = target != null ? target : candidates.get(0);
+                    // No stance from which the block is visible can also be a buried block: when it is not in
+                    // view from where the companion stands either, the cover is the reason and the caller can
+                    // say so. A block in plain view that the route cannot reach is reported as unreachable.
+                    if (requireSight && !digToTarget && !Sight.canSee(c.level(), companion, wanted)) {
+                        refusal = null;
+                        return State.OUT_OF_SIGHT;
+                    }
+                    refusal = new MiningRefusal.OutOfReach(wanted, "no route");
                     return State.UNREACHABLE;
                 }
                 case MOVING -> {

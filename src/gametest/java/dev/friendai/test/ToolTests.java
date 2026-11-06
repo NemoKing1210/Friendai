@@ -458,7 +458,24 @@ public class ToolTests {
                 "choose_activity",
                 "recover_drops",
                 "forget_drops",
-                "dropped_items");
+                "dropped_items",
+                "excavate",
+                "obtain_items",
+                "brew_potion",
+                "plan_brew",
+                "plan_patch",
+                "replan_plan",
+                "search_structure",
+                "find_structure",
+                "travel_through_portal",
+                "set_routine",
+                "list_routines",
+                "cancel_routine",
+                "request_help",
+                "accept_help",
+                "decline_help",
+                "offer_handoff",
+                "accept_handoff");
         Set<String> actual = new HashSet<>(names);
         h.assertTrue(
                 actual.equals(expected),
@@ -539,7 +556,10 @@ public class ToolTests {
     public void mineAtOutsideHeightIsRejected(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         ToolResult r = run(tools(c), "mine_block_at", "{\"x\":0,\"y\":100000,\"z\":0}");
-        h.assertTrue(r.error() && r.content().startsWith("y is outside the world"), "result was " + r.content());
+        // The schema bounds y before the tool sees it, so the height the model asked for is refused as an argument.
+        h.assertTrue(
+                r.error() && r.content().startsWith("Invalid arguments for mine_block_at: 'y'"),
+                "result was " + r.content());
         h.succeed();
     }
 

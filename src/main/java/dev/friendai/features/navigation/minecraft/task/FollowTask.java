@@ -20,6 +20,13 @@ public final class FollowTask implements Task {
     private static final int RETRY_TICKS = 40;
     /** How long the terrain view under an airborne owner is reused. */
     private static final int TERRAIN_TICKS = 5;
+    /**
+     * How far below the owner's feet the follower's goal may sit. The ground under an airborne owner is already
+     * resolved by {@link #followTarget}, so the only step left for the snap is a slab edge or a gap of a block; a
+     * deeper one put the goal on the floor of whatever hole the owner stood over, and the follower then walked to the
+     * rim, found no route down and waited there, outside its follow distance.
+     */
+    private static final int SNAP_DROP = 2;
 
     private final boolean quiet;
     private boolean moving;
@@ -32,6 +39,8 @@ public final class FollowTask implements Task {
     private static final double JOURNEY_TARGET_MARGIN = 16.0;
     private ResourceJourney journey;
     private Pos journeyTarget;
+    /** The last measured gap to the owner, for the debug view and a failing trace. */
+    private double lastDistance = Double.NaN;
 
     /** @param quiet true when started as the default activity, so the brain hears nothing about it */
     public FollowTask(boolean quiet) {
@@ -54,7 +63,7 @@ public final class FollowTask implements Task {
                 mover.stop(c);
             }
             stopDistance = wanted;
-            mover = new MoveHelper(1.0, stopDistance, 4.0, 64);
+            mover = new MoveHelper(1.0, stopDistance, 4.0, SNAP_DROP);
             moving = false;
         }
         ServerPlayer owner = c.owner().orElse(null);
@@ -76,6 +85,7 @@ public final class FollowTask implements Task {
             return TaskStatus.RUNNING;
         }
         double distance = c.companion().position().distanceTo(target);
+        lastDistance = distance;
         if (moving && distance <= stopDistance) {
             moving = false;
             mover.stopAtDestination(c);
@@ -201,6 +211,13 @@ public final class FollowTask implements Task {
     @Override
     public String describe() {
         return "following the owner";
+    }
+
+    @Override
+    public String debugStatus() {
+        String gap = Double.isNaN(lastDistance) ? "?" : Double.toString(Math.round(lastDistance * 100.0) / 100.0);
+        return (moving ? "moving" : "waiting") + " at " + gap + "/" + stopDistance + ", retry " + retryCooldown + ", "
+                + (mover == null ? "no mover" : mover.debugStatus());
     }
 
     @Override

@@ -31,6 +31,11 @@ import org.jetbrains.annotations.Nullable;
 public final class RecoverDropsTask implements Task {
     /** How far around the death spot a drop may lie; the death itself can throw a stack a few blocks. */
     private static final int COLLECT_RADIUS = 16;
+    /**
+     * How close to the site the body counts as already arrived. The site cell itself is the one cell no stance can
+     * approach (the body occupies it), so a respawn on the death spot must start the round where it stands.
+     */
+    private static final double SITE_REACHED = 2.0;
     /** How far the collector is asked to look; the death itself can throw a stack a few blocks. */
     private static final int MAX_REACH = 96;
     /**
@@ -124,6 +129,11 @@ public final class RecoverDropsTask implements Task {
             summary = "no drops to recover";
             return TaskStatus.SUCCESS;
         }
+        if (!arrived && journey == null && alreadyThere(c)) {
+            // A body that came back within the round's own radius needs no walk, and the site cell itself has no
+            // stance to approach: a respawn on the death spot would otherwise report that it cannot get back.
+            arrived = true;
+        }
         if (!arrived) {
             if (journey == null) journey = new Approach(target);
             switch (journey.tick(c)) {
@@ -195,6 +205,11 @@ public final class RecoverDropsTask implements Task {
     @Override
     public String resultSummary() {
         return summary;
+    }
+
+    /** Whether the body stands on the site: the round takes what is at its feet, so there is nothing to walk to. */
+    private boolean alreadyThere(TaskContext c) {
+        return target != null && c.companion().position().distanceTo(Vec3.atCenterOf(target)) <= SITE_REACHED;
     }
 
     private void fail(String reason) {

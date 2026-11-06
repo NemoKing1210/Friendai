@@ -62,6 +62,13 @@ final class PackageDependencyRules {
             new FeatureDependency("farming", "places"),
             new FeatureDependency("farming", "survival"),
             new FeatureDependency("mining", "construction"),
+            // A dimension crossing reads and writes the place book and reuses the special-structure builder, so the
+            // navigation task that crosses needs both; the far-target journey goes through acquisition's search.
+            new FeatureDependency("navigation", "acquisition"),
+            new FeatureDependency("navigation", "construction"),
+            new FeatureDependency("navigation", "places"),
+            // Brewing drives the same stand-backed menu lifecycle enchanting owns.
+            new FeatureDependency("brewing", "enchanting"),
             new FeatureDependency("places", "memory"),
             new FeatureDependency("places", "navigation"),
             new FeatureDependency("placements", "navigation"),
@@ -85,6 +92,19 @@ final class PackageDependencyRules {
             new FeatureDependency("survival", "mining"),
             new FeatureDependency("survival", "navigation"),
             new FeatureDependency("survival", "fire"));
+    /**
+     * Task implementations one feature composes from another when the work is an operation the other feature owns end
+     * to end: a portal trip builds its frame with the special-structure task, and brewing drives the shared
+     * stand-backed menu lifecycle. Every other cross-feature task use is a violation.
+     */
+    private static final Set<DependencyEdge> ALLOWED_CROSS_FEATURE_TASKS = Set.of(
+            new DependencyEdge(
+                    "dev.friendai.features.navigation.minecraft.task.TravelThroughPortalTask",
+                    "dev.friendai.features.construction.minecraft.task.SpecialStructureTask"),
+            new DependencyEdge(
+                    "dev.friendai.features.brewing.minecraft.task.BrewTask",
+                    "dev.friendai.features.enchanting.minecraft.task.MenuBlockTask"));
+
     private static final Set<String> FEATURE_TOOL_REGISTRATION_API = Set.of(
             "dev.friendai.server.execution.tools.FeatureToolContributor",
             "dev.friendai.server.execution.tools.FeatureToolRegistry",
@@ -107,7 +127,8 @@ final class PackageDependencyRules {
             "dev.friendai.features.memory.OwnerProfile",
             "dev.friendai.features.places.PlaceView",
             "dev.friendai.features.places.PlaceView$Row",
-            "dev.friendai.features.trading.TradeView");
+            "dev.friendai.features.trading.TradeView",
+            "dev.friendai.features.cartography.TerrainMapView");
 
     private static final List<String> PURE_PACKAGES = List.of(
             "dev.friendai.agent",
@@ -183,7 +204,8 @@ final class PackageDependencyRules {
                     && isUnder(target, "dev.friendai.features")
                     && isMinecraftFeatureAdapter(source)
                     && !featureBoundary(source).equals(featureBoundary(target))
-                    && isFeatureTaskImplementation(target)) {
+                    && isFeatureTaskImplementation(target)
+                    && !ALLOWED_CROSS_FEATURE_TASKS.contains(edge)) {
                 add(violations, "feature-task-internals-not-allowed", edge);
             }
             if (isUnder(source, "dev.friendai.agent")

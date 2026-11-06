@@ -219,6 +219,24 @@ public final class MoveHelper {
         return State.MOVING;
     }
 
+    /**
+     * One line for the movement debug view and a failing trace: which route owns the body and what its last search
+     * said. Without it a follower that stops short says only that the task is running.
+     */
+    public String debugStatus() {
+        if (flightNavigator != null) {
+            return "flight " + flightNavigator.debugStatus();
+        }
+        if (navigator == null) {
+            return "no route";
+        }
+        String search = navigator.lastSearch();
+        return navigator.state()
+                + (navigator.plan() == null ? ", no route" : ", walking")
+                + ", "
+                + (search.isEmpty() ? "searching" : search);
+    }
+
     public void reset(TaskContext c) {
         reset(c, false);
     }

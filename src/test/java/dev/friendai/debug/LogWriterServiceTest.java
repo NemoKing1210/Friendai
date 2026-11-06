@@ -32,6 +32,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.LockSupport;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BooleanSupplier;
 import java.util.function.UnaryOperator;
@@ -114,7 +115,9 @@ class LogWriterServiceTest {
             if (System.nanoTime() > deadline) {
                 fail("timed out waiting for " + what);
             }
-            Thread.onSpinWait();
+            // Park rather than spin: the writer this waits for is a daemon thread, and a busy loop on a runner with
+            // fewer cores than the test needs can keep it from running until the five seconds are gone.
+            LockSupport.parkNanos(100_000L);
         }
     }
 

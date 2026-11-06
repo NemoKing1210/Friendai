@@ -3,6 +3,7 @@ package dev.friendai.test;
 import com.google.gson.JsonParser;
 import dev.friendai.agent.llm.model.ToolCall;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
@@ -223,11 +224,9 @@ public class StructureTests {
     }
 
     private static ToolResult callTool(
-            GameTestHelper h, CompanionEntity c, AccessLevel access, String name, String json) {
+            GameTestHelper h, CompanionEntity c, UUID caller, AccessLevel access, String name, String json) {
         ToolCall call = new ToolCall("1", name, JsonParser.parseString(json).getAsJsonObject(), json, null);
-        return GameTestToolRegistry.create(c, () -> 32)
-                .bind(c)
-                .execute(call, new Caller(UUID.randomUUID(), "tester", access));
+        return GameTestToolRegistry.create(c, () -> 32).bind(c).execute(call, new Caller(caller, "tester", access));
     }
 
     private static String siteArgs(GameTestHelper h, String kind, int x, int y, int z) {
@@ -240,9 +239,11 @@ public class StructureTests {
     public void tool_build_special_builds_snow_golem(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 8, 2, 8);
+        // The job re-derives the caller's access when it activates, so the caller has to be the companion's owner.
+        UUID owner = owner(h, c);
         c.inventory().addItem(new ItemStack(Items.SNOW_BLOCK, 2));
         c.inventory().addItem(new ItemStack(Items.CARVED_PUMPKIN, 1));
-        ToolResult r = callTool(h, c, AccessLevel.TRUSTED, "build_special", siteArgs(h, "snow_golem", 3, 2, 3));
+        ToolResult r = callTool(h, c, owner, AccessLevel.OWNER, "build_special", siteArgs(h, "snow_golem", 3, 2, 3));
         h.assertFalse(r.error(), "error: " + r.content());
         h.succeedWhen(() -> h.assertTrue(count(h, EntityTypes.SNOW_GOLEM) >= 1, "a snow golem should exist"));
     }
@@ -251,7 +252,8 @@ public class StructureTests {
     public void tool_build_special_rejects_unknown_kind(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 8, 2, 8);
-        ToolResult r = callTool(h, c, AccessLevel.TRUSTED, "build_special", siteArgs(h, "dragon", 3, 2, 3));
+        ToolResult r =
+                callTool(h, c, UUID.randomUUID(), AccessLevel.TRUSTED, "build_special", siteArgs(h, "dragon", 3, 2, 3));
         h.assertTrue(r.error(), "an unknown kind must be an error");
         h.assertTrue(r.content().contains("iron_golem"), "the error should list valid kinds: " + r.content());
         h.succeed();
@@ -261,7 +263,8 @@ public class StructureTests {
     public void tool_plan_special_reports_missing_item(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 8, 2, 8);
-        ToolResult r = callTool(h, c, AccessLevel.TRUSTED, "plan_special", siteArgs(h, "nether_portal", 3, 2, 3));
+        ToolResult r = callTool(
+                h, c, UUID.randomUUID(), AccessLevel.TRUSTED, "plan_special", siteArgs(h, "nether_portal", 3, 2, 3));
         h.assertFalse(r.error(), "error: " + r.content());
         h.assertTrue(r.content().contains("minecraft:flint_and_steel"), "result was " + r.content());
         h.assertTrue(
@@ -276,7 +279,8 @@ public class StructureTests {
         GameTestSupport.platform(h, 16);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 8, 2, 8);
         c.inventory().addItem(new ItemStack(Items.SNOW_BLOCK, 2));
-        ToolResult r = callTool(h, c, AccessLevel.TRUSTED, "build_special", siteArgs(h, "snow_golem", 3, 2, 3));
+        ToolResult r = callTool(
+                h, c, UUID.randomUUID(), AccessLevel.TRUSTED, "build_special", siteArgs(h, "snow_golem", 3, 2, 3));
         h.assertTrue(r.error(), "no pumpkin must be refused up front");
         h.assertTrue(r.content().contains("minecraft:carved_pumpkin"), "result was " + r.content());
         h.succeed();
@@ -286,7 +290,8 @@ public class StructureTests {
     public void tool_build_special_guest_denied(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 8, 2, 8);
-        ToolResult r = callTool(h, c, AccessLevel.GUEST, "build_special", siteArgs(h, "snow_golem", 3, 2, 3));
+        ToolResult r = callTool(
+                h, c, UUID.randomUUID(), AccessLevel.GUEST, "build_special", siteArgs(h, "snow_golem", 3, 2, 3));
         h.assertTrue(r.error(), "a guest must not build");
         h.succeed();
     }
@@ -506,6 +511,8 @@ public class StructureTests {
     @GameTest(maxTicks = 6000)
     public void portal_trip_builds_lights_and_records_the_return_anchor(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
+        // The runtime attaches the companion manager, which the trip needs to index the body it arrives in.
+        var state = GameTestSupport.runtime(h);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 10, 2, 10);
         UUID ownerId = owner(h, c);
         c.executionCoordinator().setPaused(true);
@@ -519,10 +526,14 @@ public class StructureTests {
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
+            // Crossing a dimension replaces the body, so the body that matters is the one the owner index holds.
+            CompanionEntity arrived =
+                    CompanionManager.get(h.getLevel().getServer()).find(ownerId).orElse(null);
+            h.assertTrue(arrived != null, "the arriving body should be indexed for its owner");
             h.assertTrue(
-                    c.level().dimension().identifier().toString().equals("minecraft:the_nether"),
-                    "still in " + c.level().dimension().identifier() + " at " + c.blockPosition());
-            PlaceRegistry book = GameTestSupport.runtime(h).places().book(ownerId);
+                    arrived.level().dimension().identifier().toString().equals("minecraft:the_nether"),
+                    "still in " + arrived.level().dimension().identifier() + " at " + arrived.blockPosition());
+            PlaceRegistry book = state.places().book(ownerId);
             Place anchor = book.find("return portal", "minecraft:overworld").orElse(null);
             h.assertTrue(
                     anchor != null && anchor.kind() == PlaceKind.PORTAL,

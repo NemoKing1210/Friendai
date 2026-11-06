@@ -550,6 +550,10 @@ public class ObtainTests {
         });
     }
 
+    /**
+     * A dirt cap hides the stone layer, and the search only mines what it can see, so the seams that break the
+     * surface are the whole lead: the plan mines those three tops and the layer under them is what makes the pickaxe.
+     */
     @GameTest(maxTicks = 9600)
     public void stonePickaxeFromBuriedStone(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
@@ -559,16 +563,31 @@ public class ObtainTests {
                 for (int y = -1; y <= 1; y++) h.setBlock(x, y, z, Blocks.DIRT);
             }
         }
-        BlockPos table = new BlockPos(12, 2, 12);
+        BlockPos[] outcrops = {new BlockPos(3, 1, 3), new BlockPos(5, 1, 5), new BlockPos(3, 1, 7)};
+        for (BlockPos outcrop : outcrops) h.setBlock(outcrop, Blocks.STONE);
+        // The planks let the companion build a station if the seeded one is out of reach, instead of turning the run
+        // into a search for a tree.
+        BlockPos table = new BlockPos(6, 2, 2);
         h.setBlock(table, Blocks.CRAFTING_TABLE);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.inventory().addItem(new ItemStack(Items.WOODEN_PICKAXE));
+        c.inventory().addItem(new ItemStack(Items.OAK_PLANKS, 4));
         c.inventory().addItem(new ItemStack(Items.STICK, 4));
         h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(table)), "table should be visible");
+        for (BlockPos outcrop : outcrops) {
+            h.assertTrue(
+                    GameTestSupport.observeVisible(h, c, h.absolutePos(outcrop)),
+                    "the seam should be visible at " + outcrop);
+        }
         Result result = new Result();
         ExecutionCoordinator runner = obtain(c, result, obtainTask("minecraft:stone_pickaxe", 1, true, true));
-        h.succeedWhen(() -> {
+        TaskTrace.of(h, runner, c).succeedWhen(() -> {
             GameTestSupport.observeVisible(h, c, h.absolutePos(table));
+            for (BlockPos outcrop : outcrops) {
+                if (h.getBlockState(outcrop).is(Blocks.STONE)) {
+                    GameTestSupport.observeVisible(h, c, h.absolutePos(outcrop));
+                }
+            }
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
             h.assertValueEqual(c.inventory().countItem(Items.STONE_PICKAXE), 1, "pickaxes");

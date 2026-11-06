@@ -82,15 +82,6 @@ public final class RoutineTests {
             h.assertTrue(markers <= 1, "repeated ticks must not enqueue another routine plan: " + markers);
 
             runtime.routines().flushAll();
-            Path dir =
-                    server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("routines");
-            try (var writer = new OwnerStoreWriter();
-                    var reopened = new RoutineStore(dir, writer)) {
-                h.assertValueEqual(
-                        reopened.state(owner.id()).orElseThrow().lastOutcome(),
-                        Outcome.SUCCEEDED,
-                        "the routine survives a restart");
-            }
 
             // The next occurrence must start a fresh plan, not read the archived plan from the previous one.
             setClockTo(server, now);
@@ -100,7 +91,19 @@ public final class RoutineTests {
                             .anyMatch(plan -> plan.goal().startsWith("routine:")),
                     "the second occurrence is a new plan");
             driver.cancel(c, caller(owner.id()), nameArgs("morning"));
-            h.succeed();
+            Path dir =
+                    server.getWorldPath(LevelResource.ROOT).resolve("friendai").resolve("routines");
+            h.succeedWhen(() -> {
+                // flushAll only queues the snapshot; wait for the writer before reopening the store.
+                if (runtime.routines().status(owner.id()).dirty()) return;
+                try (var writer = new OwnerStoreWriter();
+                        var reopened = new RoutineStore(dir, writer)) {
+                    h.assertValueEqual(
+                            reopened.state(owner.id()).orElseThrow().lastOutcome(),
+                            Outcome.SUCCEEDED,
+                            "the routine survives a restart");
+                }
+            });
         });
     }
 

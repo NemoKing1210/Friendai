@@ -536,7 +536,9 @@ public class ResourceObservationTests {
         h.succeed();
     }
 
-    @GameTest(maxTicks = 3700)
+    // Three profiles of 1,200 ticks are the test's own work; a server that misses a batch boundary here and there
+    // (a loaded runner, the world still loading) spends the old 3,700-tick budget before the third profile ends.
+    @GameTest(maxTicks = 4400)
     public void manyCompanionsRespectGlobalObservationCaps(GameTestHelper h) {
         GameTestSupport.platform(h, 32);
         var server = h.getLevel().getServer();

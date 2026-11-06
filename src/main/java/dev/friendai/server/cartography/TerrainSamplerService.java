@@ -1,14 +1,14 @@
-package dev.friendai.features.cartography.minecraft;
+package dev.friendai.server.cartography;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.entity.CompanionManager;
 import dev.friendai.features.cartography.TerrainGrid;
 import dev.friendai.features.cartography.TerrainRepository;
 import dev.friendai.features.cartography.TerrainSampler;
+import dev.friendai.features.cartography.minecraft.MinecraftTerrainSource;
+import dev.friendai.server.runtime.ServerRuntime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
-import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 
 /**
@@ -34,13 +34,13 @@ public final class TerrainSamplerService {
         this.repository = java.util.Objects.requireNonNull(repository);
     }
 
-    public void tick(MinecraftServer server) {
-        long now = server.getTickCount();
+    public void tick(ServerRuntime runtime) {
+        long now = runtime.server().getTickCount();
         if (now == lastTick || now % SAMPLE_EVERY_TICKS != 0) {
             return;
         }
         lastTick = now;
-        for (CompanionEntity companion : CompanionManager.get(server).all()) {
+        for (CompanionEntity companion : runtime.companions().all()) {
             UUID owner = companion.ownerUuid();
             if (owner == null || !(companion.level() instanceof ServerLevel level)) {
                 continue;

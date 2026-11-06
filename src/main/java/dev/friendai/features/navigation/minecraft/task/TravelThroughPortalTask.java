@@ -1,6 +1,7 @@
 package dev.friendai.features.navigation.minecraft.task;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.entity.CompanionManager;
 import dev.friendai.foundation.places.Place;
 import dev.friendai.foundation.places.PlaceKind;
 import dev.friendai.foundation.places.PlaceSource;
@@ -23,6 +24,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -371,6 +373,11 @@ public final class TravelThroughPortalTask implements Task {
     }
 
     private TaskStatus transit(TaskContext c) {
+        if (c.companion().isRemoved()) {
+            // The game's own portal handling carries a body that stands in the frame across, creating the replacement
+            // and removing this one before the task asks for the transition. Report on the body that arrived.
+            return arrived(c);
+        }
         String now = dimension(c);
         if (now.equals(normalize(targetDimension))) {
             mover.stop(c);
@@ -404,10 +411,46 @@ public final class TravelThroughPortalTask implements Task {
             return TaskStatus.FAILED;
         }
         c.companion().setPortalCooldown();
-        c.companion().teleport(transition);
+        Entity moved = c.companion().teleport(transition);
+        if (moved instanceof CompanionEntity next && next != c.companion()) {
+            // Crossing a dimension replaces the body: the game copies the old entity's saved data onto a new one and
+            // removes the old. Everything after this point belongs to the new body, whose tick will never run this
+            // task again, so the trip ends on the landing that body got. The outbound walk is skipped with it; the
+            // copied portal cooldown keeps the new body from stepping straight back in.
+            return landedIn(next, c);
+        }
         // The counter is not reset here: a teleport that leaves the body in the source dimension is exactly the case
         // the transit window above exists to catch. Entering the phase and arriving both reset it.
         return TaskStatus.RUNNING;
+    }
+
+    /** Reports the trip on the body the owner index holds for this companion's owner. */
+    private TaskStatus arrived(TaskContext c) {
+        UUID owner = c.companion().ownerUuid();
+        var server = c.level().getServer();
+        CompanionEntity live = owner == null || server == null
+                ? null
+                : CompanionManager.get(server).find(owner).orElse(null);
+        if (live == null) {
+            summary = "the portal took me somewhere I could not follow";
+            return TaskStatus.FAILED;
+        }
+        return landedIn(live, c);
+    }
+
+    private TaskStatus landedIn(CompanionEntity body, TaskContext c) {
+        String where = body.level().dimension().identifier().toString();
+        if (!where.equals(normalize(targetDimension))) {
+            summary = "the portal moved me to " + where + " instead of " + normalize(targetDimension);
+            return TaskStatus.FAILED;
+        }
+        if (!(body.level() instanceof ServerLevel landed) || !safeLanding(landed, body.blockPosition())) {
+            summary = "landed in " + normalize(targetDimension) + " without safe ground";
+            return TaskStatus.FAILED;
+        }
+        mover.stop(c);
+        summary = "arrived in " + normalize(targetDimension);
+        return TaskStatus.SUCCESS;
     }
 
     private TaskStatus land(TaskContext c) {
