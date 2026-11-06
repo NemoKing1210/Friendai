@@ -57,6 +57,8 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     private final Supplier<ServerSettings> settingsSupplier;
     private final ActiveTaskController activeTasks;
     private final QueueDriver queueDriver;
+    /** Cancel, skip and clear: every operation that mutates the queue from outside the tick. */
+    private final QueueMutationService mutations;
     /** What this companion's loop decided in the current window; written to the debug log and then reset. */
     private final RunnerMetricsView metrics = new RunnerMetricsView();
     /** Whether the idle fallback may walk to the owner; free time narrows it (see DefaultActivityPolicy). */
@@ -130,6 +132,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         this.activeTasks = new ActiveTaskController(timeoutSec);
         this.activeTasks.setDiagnostics(event -> emit(sink -> sink.onDiagnostic(event)));
         this.queueDriver = new QueueDriver(this);
+        this.mutations = new QueueMutationService(this);
     }
 
     public void applySettings(ServerSettings settings) {
@@ -138,6 +141,23 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
 
     private void syncSettings() {
         applySettings(settingsSupplier.get());
+    }
+
+    /** The queue owner, shared with the queue driver and the mutation service. */
+    QueueDriver queueDriver() {
+        return queueDriver;
+    }
+
+    RunnerMetricsView metrics() {
+        return metrics;
+    }
+
+    ActiveTaskController activeTasks() {
+        return activeTasks;
+    }
+
+    CompanionEntity companion() {
+        return companion;
     }
 
     public void setRepairFactory(java.util.function.BiFunction<TaskContext, JsonObject, Task> factory) {
@@ -567,214 +587,40 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     }
 
     public void stop(String reason) {
-        inTransition(() -> {
-            ActiveTask active = activeTask();
-            if (active == null || active.defaultActivity()) {
-                stopActive(reason);
-                return;
-            }
-            // Something was running, so the owner's stop is an interrupt: count it now and its wait when idle.
-            metrics.interruptIssued(companion.level().getGameTime());
-            stopActive(reason);
-        });
-    }
-
-    private void stopActive(String reason) {
-        if (activeTask() != null && activeTask().interrupt()) {
-            cancelCurrent(reason);
-            resumeFrozen();
-            return;
-        }
-        ActiveTask active = activeTask();
-        if (active != null && active.jobId() > 0) {
-            Task cleanup = active.task().cleanupAfterCancel(context());
-            cancelCurrent(reason);
-            if (active.planId() > 0) {
-                queueDriver.cancelPlan(active.planId());
-                queueDriver.finishPlan(active.planId(), "stopped by request", false);
-            } else {
-                queueDriver.cancelJob(active.jobId());
-                queueDriver.remove(active.jobId());
-                queueDriver.clearFactory(active.jobId());
-            }
-            if (cleanup != null) begin(cleanup, "scaffold_cleanup", false, false);
-            else startNextOrDefault();
-            return;
-        }
-        Task cleanup = active == null ? null : active.task().cleanupAfterCancel(context());
-        if (active != null) cancelCurrent(reason);
-        if (cleanup != null) begin(cleanup, "scaffold_cleanup", false, false);
-        else startNextOrDefault();
+        mutations.stop(reason);
     }
 
     public void stopWithoutCleanup(String reason) {
-        inTransition(() -> stopWithoutCleanupActive(reason));
+        mutations.stopWithoutCleanup(reason);
     }
 
-    private void stopWithoutCleanupActive(String reason) {
-        if (activeTask() != null) cancelCurrent(reason);
-        for (PlanRecord plan : queueDriver.queue().plans()) {
-            queueDriver.cancelPlan(plan.id());
-            queueDriver.finishPlan(plan.id(), reason, false);
-        }
-        stopFrozen(reason);
-        queueDriver.clear();
-        queueDriver.clearFactories();
-        queueDriver.clearAwaitingDecisions();
-        startDefault();
-    }
     /** Cancels stale work during a capability transition without reporting task failures to the brain. */
     public void cancelForCapabilityChange() {
-        inTransition(this::cancelForCapabilityChangeActive);
-    }
-
-    private void cancelForCapabilityChangeActive() {
-        ActiveTask active = activeTask();
-        Task cleanup = active == null ? null : active.task().cleanupAfterCancel(context());
-        ActiveTask frozen = frozenTask();
-        if (frozen != null) {
-            cleanup = combineCleanup(cleanup, frozen.task().cleanupAfterCancel(context(frozen)));
-            stopFrozen("creative authority changed");
-        }
-        if (active != null) {
-            activeTasks.stop(new StopRequest("creative authority changed"), context(active));
-        }
-        queueDriver.clear();
-        queueDriver.clearFactories();
-        queueDriver.clearPlanState();
-        queueDriver.clearAwaitingDecisions();
-        if (cleanup != null) begin(cleanup, "scaffold_cleanup", false, false);
-        else startDefault();
+        mutations.cancelForCapabilityChange();
     }
 
     public void stopAll(String reason) {
-        inTransition(() -> stopAllActive(reason));
-    }
-
-    private void stopAllActive(String reason) {
-        ActiveTask active = activeTask();
-        Task cleanup = active == null ? null : active.task().cleanupAfterCancel(context());
-        ActiveTask frozen = frozenTask();
-        if (frozen != null) {
-            cleanup = combineCleanup(cleanup, frozen.task().cleanupAfterCancel(context(frozen)));
-            stopFrozen(reason);
-        }
-        if (active != null) cancelCurrent(reason);
-        for (PlanRecord p : queueDriver.queue().plans()) queueDriver.finishPlan(p.id(), "stopped by request", false);
-        queueDriver.clear();
-        queueDriver.clearFactories();
-        queueDriver.clearAwaitingDecisions();
-        if (cleanup != null) begin(cleanup, "scaffold_cleanup", false, false);
-        else startDefault();
+        mutations.stopAll(reason);
     }
 
     public String clearQueue(String reason) {
-        return inTransition(() -> clearQueueActive(reason));
-    }
-
-    private String clearQueueActive(String reason) {
-        ActiveTask active = activeTask();
-        int plans = queueDriver.queue().plans().size();
-        int jobs = queueDriver.queue().jobCount();
-        boolean stoppedActive = active != null && active.jobId() > 0;
-        Task cleanup = stoppedActive ? active.task().cleanupAfterCancel(context()) : null;
-        ActiveTask frozen = frozenTask();
-        if (frozen != null) {
-            cleanup = combineCleanup(cleanup, frozen.task().cleanupAfterCancel(context(frozen)));
-            stopFrozen(reason);
-        }
-        if (stoppedActive) cancelCurrent(reason);
-        for (PlanRecord plan : queueDriver.queue().plans()) queueDriver.finishPlan(plan.id(), reason, false);
-        String result;
-        if (plans == 0 && jobs == 0) {
-            result = stoppedActive ? "stopped the active task" : QueueText.cleared(0, 0);
-        } else {
-            result = QueueText.cleared(plans, jobs);
-            if (stoppedActive) result += " and stopped the active task";
-        }
-        queueDriver.clear();
-        queueDriver.clearFactories();
-        queueDriver.clearAwaitingDecisions();
-        if (cleanup != null) begin(cleanup, "scaffold_cleanup", false, false);
-        else startNextOrDefault();
-        return result;
+        return mutations.clearQueue(reason);
     }
 
     public void cancelJob(long id, String reason) {
-        inTransition(() -> cancelJobActive(id, reason));
-    }
-
-    private void cancelJobActive(long id, String reason) {
-        Job original = queueDriver.queue().job(id).orElse(null);
-        ActiveTask active = activeTask();
-        Task cleanup = null;
-        if (active != null && active.jobId() == id) {
-            cleanup = active.task().cleanupAfterCancel(context());
-            cancelCurrent(reason);
-            queueDriver.cancelJob(id);
-            queueDriver.clearFactory(id);
-        } else {
-            ActiveTask frozen = frozenTask();
-            if (frozen != null && frozen.jobId() == id) {
-                cleanup = frozen.task().cleanupAfterCancel(context(frozen));
-                stopFrozen(reason);
-            }
-            queueDriver.cancelJob(id);
-            queueDriver.clearFactory(id);
-        }
-        Job j = queueDriver.queue().job(id).orElse(null);
-        if (j != null && j.planId() == 0) queueDriver.remove(id);
-        else if (j != null && isStructuredPlan(j.planId())) {
-            queueDriver.cancelPlan(j.planId());
-            queueDriver.finishPlan(j.planId(), "action cancelled", false);
-        } else if (j != null && j.planId() > 0 && queueDriver.queue().planStatus(j.planId()) != PlanStatus.ACTIVE)
-            queueDriver.finishPlan(j.planId(), "cancelled", false);
-        if (original != null && original.planId() == 0 && (active == null || active.jobId() != id))
-            emit(sink -> sink.onCancelled((int) original.id(), original.tool(), reason));
-        if (cleanup != null) begin(cleanup, "scaffold_cleanup", false, false);
-        else if (activeTask() == null) startNextOrDefault();
+        mutations.cancelJob(id, reason);
     }
 
     public JobQueue.Result skipJob(long id) {
-        return inTransition(() -> skipJobActive(id));
-    }
-
-    private JobQueue.Result skipJobActive(long id) {
-        JobQueue.Result result = queueDriver.skipJob(id);
-        if (!result.ok()) return result;
-        wakeQueue();
-        if (activeTask() == null) startNextOrDefault();
-        return result;
+        return mutations.skipJob(id);
     }
 
     public void cancelPlan(long id, String reason) {
-        inTransition(() -> cancelPlanActive(id, reason));
-    }
-
-    private void cancelPlanActive(long id, String reason) {
-        ActiveTask active = activeTask();
-        Task cleanup = null;
-        if (active != null && active.planId() == id) {
-            cleanup = active.task().cleanupAfterCancel(context());
-            cancelCurrent(reason);
-        }
-        ActiveTask frozen = frozenTask();
-        if (frozen != null && frozen.planId() == id) {
-            cleanup = combineCleanup(cleanup, frozen.task().cleanupAfterCancel(context(frozen)));
-            stopFrozen(reason);
-        }
-        queueDriver.cancelPlan(id);
-        queueDriver.finishPlan(id, "cancelled", false);
-        if (cleanup != null) begin(cleanup, "scaffold_cleanup", false, false);
-        else if (activeTask() == null) startNextOrDefault();
+        mutations.cancelPlan(id, reason);
     }
 
     public Optional<String> stopNamed(String name, String reason) {
-        ActiveTask a = activeTask();
-        if (a == null || !(a.toolName().equals(name) || a.task().matches(name))) return Optional.empty();
-        String description = a.task().describe();
-        stop(reason);
-        return Optional.of(description);
+        return mutations.stopNamed(name, reason);
     }
 
     public void tick() {
@@ -975,7 +821,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         if (!startNextQueued()) startDefault();
     }
 
-    private int begin(Task task, String name, boolean emit, boolean interrupt) {
+    int begin(Task task, String name, boolean emit, boolean interrupt) {
         return begin(task, name, emit, interrupt, null, null, false);
     }
 
@@ -1019,7 +865,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         }
     }
 
-    private void cancelCurrent(String reason) {
+    void cancelCurrent(String reason) {
         ActiveTask a = activeTask();
         if (a == null) return;
         activeTasks.stop(new StopRequest(reason), baseContext());
@@ -1059,7 +905,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         return settingsSupplier.get();
     }
 
-    private boolean isStructuredPlan(long planId) {
+    boolean isStructuredPlan(long planId) {
         return queueDriver.isStructuredPlan(planId);
     }
 
@@ -1195,7 +1041,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         }
     }
 
-    private void resumeFrozen() {
+    void resumeFrozen() {
         ActiveTask old = frozenTask();
         if (old != null
                 && queueDriver
@@ -1211,7 +1057,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         }
     }
 
-    private void startNextOrDefault() {
+    void startNextOrDefault() {
         if (activeTask() != null) return;
         if (frozenTask() != null) {
             resumeFrozen();
@@ -1220,7 +1066,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         if (!startNextQueued()) startDefault();
     }
 
-    private Task combineCleanup(Task first, Task second) {
+    Task combineCleanup(Task first, Task second) {
         if (first == null) return second;
         if (second == null) return first;
         return new SequenceTask(
@@ -1280,7 +1126,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         return true;
     }
 
-    private void startDefault() {
+    void startDefault() {
         if (!paused
                 && !held()
                 && !suspended
@@ -1425,14 +1271,14 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         }
     }
 
-    private TaskContext context() {
+    TaskContext context() {
         ActiveTask active = activeTask() != null ? activeTask() : frozenTask();
         ServerSettings settings = active == null ? settingsSupplier.get() : active.settings();
         CreativeActionContext actionContext = active == null ? null : active.creativeActionContext();
         return context(settings, actionContext);
     }
 
-    private TaskContext context(ActiveTask active) {
+    TaskContext context(ActiveTask active) {
         return context(active.settings(), active.creativeActionContext());
     }
 
@@ -1440,28 +1286,28 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         return context(settingsSupplier.get(), null);
     }
 
-    private ActiveTask activeTask() {
+    ActiveTask activeTask() {
         return activeTasks.currentActive();
     }
 
-    private ActiveTask frozenTask() {
+    ActiveTask frozenTask() {
         return activeTasks.frozenActive();
     }
 
-    private void stopFrozen(String reason) {
+    void stopFrozen(String reason) {
         ActiveTask frozen = frozenTask();
         if (frozen != null) activeTasks.stopFrozen(new StopRequest(reason), context(frozen));
     }
 
-    private void emit(java.util.function.Consumer<TaskEventSink> event) {
+    void emit(java.util.function.Consumer<TaskEventSink> event) {
         events.emit(event);
     }
 
-    private <T> T inTransition(java.util.function.Supplier<T> action) {
+    <T> T inTransition(java.util.function.Supplier<T> action) {
         return events.inTransition(action);
     }
 
-    private void inTransition(Runnable action) {
+    void inTransition(Runnable action) {
         events.inTransition(action);
     }
 

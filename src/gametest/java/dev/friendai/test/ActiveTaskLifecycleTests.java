@@ -299,6 +299,56 @@ public class ActiveTaskLifecycleTests {
         h.succeed();
     }
 
+    /**
+     * A clear is one transition: the running job stops, the plan finishes, the cancellation reaches the owner and the
+     * queue is empty afterwards. Removing any of those steps leaves one of the assertions red.
+     */
+    @GameTest(maxTicks = 60)
+    public void clearQueueStopsTheRunningJobAndEmptiesTheQueue(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 300, () -> false);
+        List<String> reported = new ArrayList<>();
+        runner.setEventSink(new TaskEventSink() {
+            @Override
+            public void onFinished(int id, String toolName, TaskStatus status, String summary) {}
+
+            @Override
+            public void onCancelled(int id, String toolName, String reason) {
+                reported.add(toolName + ":CANCELLED:" + reason);
+            }
+
+            @Override
+            public void onJobFinished(long jobId, long planId, String toolName, TaskStatus status, String summary) {
+                reported.add(toolName + ":" + status + ":" + summary);
+            }
+        });
+        runner.enqueuePlan(
+                "clear test",
+                List.of(new QueuedStep(
+                        "stay", new JsonObject(), null, List.of(), GuardAction.WAIT, FailurePolicy.ASK, 1, List.of())),
+                List.of(context -> new StayTask()),
+                PlanOptions.DEFAULT);
+        boolean[] cleared = {false};
+        h.succeedWhen(() -> {
+            if (!cleared[0]) {
+                runner.tick();
+                h.assertTrue(runner.current().isPresent(), "the queued step never started");
+                String result = runner.clearQueue("test clear");
+                h.assertTrue(!result.isBlank(), "the clear reported nothing");
+                cleared[0] = true;
+            }
+            h.assertTrue(
+                    runner.queue().jobCount() == 0,
+                    "the queue still holds jobs: " + runner.queue().jobCount());
+            h.assertTrue(runner.queue().plans().isEmpty(), "the plan survived the clear");
+            h.assertTrue(runner.current().isEmpty(), "the active task survived the clear");
+            h.assertTrue(
+                    reported.stream().anyMatch(line -> line.startsWith("stay:FAILED")),
+                    "the stopped job never reached the owner: " + reported);
+        });
+    }
+
     @GameTest
     public void defaultFollowDoesNotExpire(GameTestHelper h) {
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
