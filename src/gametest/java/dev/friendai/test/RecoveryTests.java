@@ -5,8 +5,11 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.friendai.agent.goal.GoalStatus;
 import dev.friendai.agent.llm.model.LlmResponse;
+import dev.friendai.agent.llm.model.Message;
+import dev.friendai.agent.llm.model.Role;
 import dev.friendai.agent.llm.model.StopReason;
 import dev.friendai.agent.llm.model.ToolCall;
+import dev.friendai.agent.llm.model.ToolSpec;
 import dev.friendai.agent.llm.model.Usage;
 import dev.friendai.agent.plan.PlanProposal;
 import dev.friendai.agent.recover.FailureHandler;
@@ -24,15 +27,16 @@ import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.features.survival.DeathRecord;
 import dev.friendai.features.survival.minecraft.task.RecoverDropsTask;
-import dev.friendai.foundation.diagnostics.LogEntry;
-import dev.friendai.foundation.diagnostics.LogKind;
 import dev.friendai.infrastructure.config.ServerConfig;
 import dev.friendai.server.agent.CompanionSessions;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.server.runtime.ServerRuntime;
 import dev.friendai.task.TaskStatus;
+import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -54,29 +58,33 @@ public class RecoveryTests {
         return GameTestToolRegistry.create(c, () -> 32).bind(c).execute(call, caller);
     }
 
-    private static LlmGateway silent() {
-        return (system, messages, tools) -> CompletableFuture.completedFuture(
-                new LlmResponse("[silent]", List.of(), StopReason.END, new Usage(0, 0)));
+    /**
+     * The same silent answer, recording every prompt line the model is sent. An event's text lives in the request and
+     * not in the log ring: at the default log level a ring line carries the event kind alone, so the ring cannot say
+     * what the model actually read.
+     */
+    private static LlmGateway recording(Set<String> lines) {
+        return new LlmGateway() {
+            @Override
+            public CompletableFuture<LlmResponse> complete(
+                    String system, List<Message> messages, List<ToolSpec> tools) {
+                for (Message message : messages) {
+                    if (message.role() != Role.USER) continue;
+                    for (String line : message.text().split("\n")) {
+                        lines.add(line);
+                    }
+                }
+                return CompletableFuture.completedFuture(
+                        new LlmResponse("[silent]", List.of(), StopReason.END, new Usage(0, 0)));
+            }
+        };
     }
 
-    private static boolean logHas(CompanionSessions brains, ServerPlayer player, String text) {
-        List<LogEntry> log = brains.debug().logOf(player.getUUID()).after(0, 200);
-        return log.stream().anyMatch(e -> e.kind() == LogKind.TASK && e.text().contains(text));
-    }
-
-    /** Every task line the owner's ring holds, for a failure message. */
-    private static List<String> taskLines(CompanionSessions brains, ServerPlayer player) {
-        return brains.debug().logOf(player.getUUID()).after(0, 200).stream()
-                .filter(e -> e.kind() == LogKind.TASK)
-                .map(LogEntry::text)
-                .toList();
-    }
-
-    /** Every line the owner's ring holds, whatever its kind, for a failure message. */
-    private static List<String> logLines(CompanionSessions brains, ServerPlayer player) {
-        return brains.debug().logOf(player.getUUID()).after(0, 400).stream()
-                .map(e -> e.kind() + " " + e.text())
-                .toList();
+    /** A stable copy of the recorded prompt lines; a set, because every request repeats the whole history. */
+    private static List<String> recorded(Set<String> lines) {
+        synchronized (lines) {
+            return List.copyOf(lines);
+        }
     }
 
     /** A death site far enough that one collection round cannot walk there is reached first, then picked up. */
@@ -135,7 +143,8 @@ public class RecoveryTests {
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
         var server = h.getLevel().getServer();
         CompanionSessions brains = GameTestSupport.runtime(server).sessions();
-        brains.setGatewayOverride(player.getUUID(), silent());
+        Set<String> prompts = Collections.synchronizedSet(new LinkedHashSet<>());
+        brains.setGatewayOverride(player.getUUID(), recording(prompts));
         CompanionEntity c = CompanionManager.get(server).summon(player);
         // The brain, and with it the task listener, is created on its first event.
         brains.post(player.getUUID(), new dev.friendai.agent.turn.BrainEvent.WorldNotice("test"));
@@ -144,9 +153,8 @@ public class RecoveryTests {
         ToolResult r = call(c, owner, "queue_add", FAILING_PLAN);
         h.assertFalse(r.error(), "queue_add: " + r.content());
         h.succeedWhen(() -> h.assertTrue(
-                logHas(brains, player, "diagnosis: MISSING_ITEM"),
-                "the plan event should carry a diagnosis; log: "
-                        + brains.debug().logOf(player.getUUID()).after(0, 200)));
+                recorded(prompts).stream().anyMatch(line -> line.contains("diagnosis: MISSING_ITEM")),
+                "the plan event the model reads should carry the diagnosis; prompts: " + recorded(prompts)));
     }
 
     /**
@@ -166,7 +174,8 @@ public class RecoveryTests {
         config.agent.maxReplans = 0;
         state.applyConfig(config);
         CompanionSessions brains = state.sessions();
-        brains.setGatewayOverride(player.getUUID(), silent());
+        Set<String> prompts = Collections.synchronizedSet(new LinkedHashSet<>());
+        brains.setGatewayOverride(player.getUUID(), recording(prompts));
         CompanionEntity c = CompanionManager.get(server).summon(player);
         // The brain, and with it the task listener, is created on its first event.
         brains.post(player.getUUID(), new dev.friendai.agent.turn.BrainEvent.WorldNotice("test"));
@@ -174,11 +183,10 @@ public class RecoveryTests {
         h.assertFalse(call(c, owner, "set_goal", "{\"text\":\"get a pickaxe\"}").error(), "goal set");
         h.assertFalse(call(c, owner, "queue_add", FAILING_PLAN).error(), "queue_add");
         h.succeedWhen(() -> {
-            // The ring keeps a bounded prefix of each line, so the sentence after "replan budget" is cut off.
             h.assertTrue(
-                    logHas(brains, player, "replan budget"),
-                    "the event should say the budget is spent; log: " + taskLines(brains, player) + ", goal "
-                            + state.goals().board(player.getUUID()).primary());
+                    recorded(prompts).stream().anyMatch(line -> line.contains(FailureHandler.BUDGET_SPENT)),
+                    "the event the model reads should say the budget is spent; prompts: " + recorded(prompts)
+                            + ", goal " + state.goals().board(player.getUUID()).primary());
             h.assertTrue(
                     state.goals()
                                     .board(player.getUUID())
@@ -213,7 +221,8 @@ public class RecoveryTests {
         config.agent.maxReplans = 1;
         state.applyConfig(config);
         CompanionSessions brains = state.sessions();
-        brains.setGatewayOverride(player.getUUID(), silent());
+        Set<String> prompts = Collections.synchronizedSet(new LinkedHashSet<>());
+        brains.setGatewayOverride(player.getUUID(), recording(prompts));
         AtomicInteger asked = new AtomicInteger();
         BlockPos secondSpot = h.absolutePos(new BlockPos(2, 2, 12));
         brains.setPlannerOverride(player.getUUID(), input -> {
@@ -252,7 +261,7 @@ public class RecoveryTests {
         h.assertFalse(call(c, owner, "queue_add", first.toString()).error(), "the first route is queued");
         AtomicBoolean repaired = new AtomicBoolean();
         h.succeedWhen(() -> {
-            List<String> failureLines = taskLines(brains, player).stream()
+            List<String> failureLines = recorded(prompts).stream()
                     .filter(text -> text.contains("diagnosis: UNREACHABLE"))
                     .toList();
             if (!failureLines.isEmpty() && repaired.compareAndSet(false, true)) {
@@ -268,7 +277,7 @@ public class RecoveryTests {
                     "the planner is consulted once, before the budget is spent, asked=" + asked.get());
             h.assertTrue(
                     failureLines.size() >= 2,
-                    "both route failures must reach the log: " + failureLines + ", all: " + logLines(brains, player)
+                    "both route failures must reach the model: " + failureLines + ", prompts " + recorded(prompts)
                             + ", queue " + c.executionCoordinator().queue().plans() + " "
                             + c.executionCoordinator().queue().jobs());
             String firstFailure = failureLines.stream()
