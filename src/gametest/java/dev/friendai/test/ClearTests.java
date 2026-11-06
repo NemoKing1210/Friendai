@@ -5,7 +5,7 @@ import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.features.construction.clear.ClearSkip;
 import dev.friendai.features.construction.minecraft.build.ClearScan;
 import dev.friendai.features.construction.minecraft.task.ClearAreaTask;
-import dev.friendai.features.navigation.pathing.BlockList;
+import dev.friendai.foundation.spatial.BlockList;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskStatus;

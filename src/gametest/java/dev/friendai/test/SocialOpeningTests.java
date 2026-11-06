@@ -56,9 +56,9 @@ public class SocialOpeningTests {
                 .book(owner.getUUID())
                 .recordHappening(
                         owner.getUUID(),
-                        new dev.friendai.features.social.Happening(
-                                dev.friendai.features.social.Happening.Kind.DEATH,
-                                dev.friendai.features.social.Happening.Importance.HIGH,
+                        new dev.friendai.foundation.social.Happening(
+                                dev.friendai.foundation.social.Happening.Kind.DEATH,
+                                dev.friendai.foundation.social.Happening.Importance.HIGH,
                                 0,
                                 "death:1",
                                 "you died to a creeper"));
@@ -164,9 +164,9 @@ public class SocialOpeningTests {
                 .book(owner.getUUID())
                 .recordHappening(
                         owner.getUUID(),
-                        new dev.friendai.features.social.Happening(
-                                dev.friendai.features.social.Happening.Kind.DEATH,
-                                dev.friendai.features.social.Happening.Importance.HIGH,
+                        new dev.friendai.foundation.social.Happening(
+                                dev.friendai.foundation.social.Happening.Kind.DEATH,
+                                dev.friendai.foundation.social.Happening.Importance.HIGH,
                                 (int) level.getGameTime(),
                                 "death:" + level.getGameTime(),
                                 "you died"));
@@ -366,9 +366,9 @@ public class SocialOpeningTests {
                 .book(owner.getUUID())
                 .recordHappening(
                         owner.getUUID(),
-                        new dev.friendai.features.social.Happening(
-                                dev.friendai.features.social.Happening.Kind.DEATH,
-                                dev.friendai.features.social.Happening.Importance.HIGH,
+                        new dev.friendai.foundation.social.Happening(
+                                dev.friendai.foundation.social.Happening.Kind.DEATH,
+                                dev.friendai.foundation.social.Happening.Importance.HIGH,
                                 0,
                                 "death:before-language",
                                 "you died to a creeper"));

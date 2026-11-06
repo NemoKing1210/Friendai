@@ -1,7 +1,7 @@
 package dev.friendai.features.mining.tree;
 
 import dev.friendai.features.mining.ClusterFill;
-import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.foundation.spatial.Pos;
 import java.util.List;
 
 /**

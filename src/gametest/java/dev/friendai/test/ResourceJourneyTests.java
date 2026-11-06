@@ -8,7 +8,7 @@ import dev.friendai.features.acquisition.minecraft.search.WorldScan;
 import dev.friendai.features.acquisition.minecraft.task.ObtainTask;
 import dev.friendai.features.acquisition.minecraft.task.VisitResourceTask;
 import dev.friendai.features.knowledge.ResourceObservation;
-import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskStatus;
@@ -242,7 +242,7 @@ public final class ResourceJourneyTests {
                 phase[0] = 1;
                 runner.start(
                         new dev.friendai.features.mining.minecraft.task.MineBlocksTask(
-                                dev.friendai.features.mining.minecraft.mining.BlockMatcher.parse("minecraft:coal_ore")
+                                dev.friendai.world.block.BlockMatcher.parse("minecraft:coal_ore")
                                         .orElseThrow(),
                                 1,
                                 64),
@@ -354,7 +354,7 @@ public final class ResourceJourneyTests {
                 phase[0] = 1;
                 runner.start(
                         new dev.friendai.features.mining.minecraft.task.MineBlocksTask(
-                                dev.friendai.features.mining.minecraft.mining.BlockMatcher.parse("minecraft:iron_ore")
+                                dev.friendai.world.block.BlockMatcher.parse("minecraft:iron_ore")
                                         .orElseThrow(),
                                 1,
                                 16),

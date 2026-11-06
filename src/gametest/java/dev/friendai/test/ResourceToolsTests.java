@@ -10,7 +10,7 @@ import dev.friendai.execution.tool.ToolRegistry;
 import dev.friendai.features.acquisition.minecraft.search.ResourceResolver;
 import dev.friendai.features.knowledge.ResourceObservation;
 import dev.friendai.features.memory.minecraft.tool.MemoryAccess;
-import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.foundation.spatial.Pos;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;

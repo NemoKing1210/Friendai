@@ -6,7 +6,12 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.foundation.places.Place;
+import dev.friendai.foundation.places.PlaceKind;
+import dev.friendai.foundation.places.PlaceLimits;
+import dev.friendai.foundation.places.PlaceSource;
+import dev.friendai.foundation.places.PlaceValues;
+import dev.friendai.foundation.spatial.Pos;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;

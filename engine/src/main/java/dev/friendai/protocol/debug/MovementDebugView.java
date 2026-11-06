@@ -1,6 +1,6 @@
 package dev.friendai.protocol.debug;
 
-import dev.friendai.features.navigation.pathing.Move;
+import dev.friendai.foundation.spatial.Move;
 import java.util.List;
 
 /** Pure engine representation of the operator-only movement overlay. */

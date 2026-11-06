@@ -1,6 +1,6 @@
 package dev.friendai.features.fire;
 
-import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.foundation.spatial.Pos;
 
 /** The English the model reads: a plan, a refusal and a finished report. Player-facing strings are keys. */
 public final class FireText {

@@ -5,7 +5,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.friendai.client.FriendaiClient;
 import dev.friendai.features.instructions.SkillDraft;
-import dev.friendai.presentation.companion.ClientSessionId;
+import dev.friendai.foundation.session.ClientSessionId;
 import dev.friendai.protocol.ClientRequest;
 import dev.friendai.protocol.ProtocolFamily;
 import dev.friendai.protocol.instructions.InstructionRequest;
@@ -146,10 +146,9 @@ public final class CompanionRequests {
 
     /** A skin belongs to the session that started the operation, not to whatever connection exists when it finishes. */
     public static boolean skinsSupported(ClientSessionId expectedSession) {
-        ClientSessionId currentSession = FriendaiClient.runtime().sessionId();
         return dev.friendai.features.appearance.SkinUploadSession.allows(
-                        expectedSession == null ? null : expectedSession.value(),
-                        currentSession == null ? null : currentSession.value(),
+                        expectedSession,
+                        FriendaiClient.runtime().sessionId(),
                         FriendaiClient.runtime().allowsAppearance(expectedSession))
                 && ClientPlayNetworking.canSend(SkinUploadC2SPayload.TYPE);
     }

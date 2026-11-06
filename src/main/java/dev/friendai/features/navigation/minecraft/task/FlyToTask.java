@@ -1,9 +1,9 @@
 package dev.friendai.features.navigation.minecraft.task;
 
-import dev.friendai.features.navigation.minecraft.nav.FlightNavigator;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.world.movement.FlightNavigator;
 import java.util.Locale;
 import net.minecraft.world.phys.Vec3;
 

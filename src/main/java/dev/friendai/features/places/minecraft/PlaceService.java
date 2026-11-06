@@ -3,9 +3,14 @@ package dev.friendai.features.places.minecraft;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
-import dev.friendai.features.navigation.RelativeDirection;
-import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.features.places.*;
+import dev.friendai.foundation.places.Place;
+import dev.friendai.foundation.places.PlaceLimits;
+import dev.friendai.foundation.places.PlaceNames;
+import dev.friendai.foundation.places.PlaceValues;
+import dev.friendai.foundation.spatial.Pos;
+import dev.friendai.foundation.spatial.RelativeDirection;
+import dev.friendai.task.PlaceLookup;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -28,7 +33,7 @@ import org.slf4j.LoggerFactory;
  * here decides the author of a remembered place and the guest gate of the prompt block, and the mutators accept
  * it so every entry point takes the same principal.
  */
-public final class PlaceService {
+public final class PlaceService implements PlaceLookup {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("friendai/places");
 
@@ -211,6 +216,23 @@ public final class PlaceService {
      */
     public Optional<Place> requireSingle(CompanionEntity companion, String name) {
         return Optional.of(unique(companion, name));
+    }
+
+    @Override
+    public java.util.List<Place> all(CompanionEntity companion) {
+        return book(companion).all();
+    }
+
+    @Override
+    public Place find(CompanionEntity companion, String name, String dimension) {
+        return book(companion).find(name, dimension).orElse(null);
+    }
+
+    @Override
+    public Place rememberAsOwner(CompanionEntity companion, PlaceValues values, long tick) {
+        UUID owner = companion.ownerUuid();
+        if (owner == null) throw new IllegalArgumentException("a place needs an owner");
+        return remember(companion, new Caller(owner, "", AccessLevel.OWNER), values, tick);
     }
 
     /**

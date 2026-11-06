@@ -1,6 +1,6 @@
 package dev.friendai.features.knowledge;
 
-import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.foundation.spatial.Pos;
 import java.util.Objects;
 
 public record ResourceObservation(String blockId, Location location, Pos viewpoint, long observedTick) {

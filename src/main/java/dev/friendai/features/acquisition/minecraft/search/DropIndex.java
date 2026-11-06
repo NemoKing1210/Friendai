@@ -1,11 +1,11 @@
 package dev.friendai.features.acquisition.minecraft.search;
 
 import com.mojang.authlib.GameProfile;
-import dev.friendai.features.acquisition.OreDepths;
 import dev.friendai.features.acquisition.Source;
 import dev.friendai.features.acquisition.SourceBook;
 import dev.friendai.features.acquisition.ToolKind;
 import dev.friendai.features.acquisition.ToolNeed;
+import dev.friendai.foundation.item.OreDepths;
 import dev.friendai.foundation.item.Tier;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;

@@ -67,17 +67,14 @@ final class PackageDependencyRules {
             new FeatureDependency("navigation", "acquisition"),
             new FeatureDependency("navigation", "construction"),
             new FeatureDependency("navigation", "places"),
-            // Ambient topics quote what the owner said about themselves, which is a memory fact.
-            new FeatureDependency("social", "memory"),
             // Brewing drives the same stand-backed menu lifecycle enchanting owns.
             new FeatureDependency("brewing", "enchanting"),
             new FeatureDependency("places", "memory"),
             new FeatureDependency("places", "navigation"),
             new FeatureDependency("placements", "navigation"),
             new FeatureDependency("instructions", "memory"),
-            // The memory book owns what the companion remembers about the owner, and the bond is one of those
-            // memories.
-            new FeatureDependency("memory", "social"),
+            // Ambient topics may quote a durable statement the owner made about themselves, which is a memory fact.
+            new FeatureDependency("social", "memory"),
             new FeatureDependency("interaction", "creative"),
             new FeatureDependency("interaction", "combat"),
             new FeatureDependency("interaction", "navigation"),
@@ -95,19 +92,6 @@ final class PackageDependencyRules {
             new FeatureDependency("survival", "mining"),
             new FeatureDependency("survival", "navigation"),
             new FeatureDependency("survival", "fire"));
-    /**
-     * Task implementations one feature composes from another when the work is an operation the other feature owns end
-     * to end: a portal trip builds its frame with the special-structure task, and brewing drives the shared
-     * stand-backed menu lifecycle. Every other cross-feature task use is a violation.
-     */
-    private static final Set<DependencyEdge> ALLOWED_CROSS_FEATURE_TASKS = Set.of(
-            new DependencyEdge(
-                    "dev.friendai.features.navigation.minecraft.task.TravelThroughPortalTask",
-                    "dev.friendai.features.construction.minecraft.task.SpecialStructureTask"),
-            new DependencyEdge(
-                    "dev.friendai.features.brewing.minecraft.task.BrewTask",
-                    "dev.friendai.features.enchanting.minecraft.task.MenuBlockTask"));
-
     private static final Set<String> FEATURE_TOOL_REGISTRATION_API = Set.of(
             "dev.friendai.server.execution.tools.FeatureToolContributor",
             "dev.friendai.server.execution.tools.FeatureToolRegistry",
@@ -180,12 +164,19 @@ final class PackageDependencyRules {
     }
 
     static List<Violation> validate(List<DependencyEdge> edges) {
+        return validate(edges, List.of());
+    }
+
+    private static List<Violation> validate(List<DependencyEdge> edges, List<Set<String>> featureCycleBaseline) {
         Set<Violation> violations = new LinkedHashSet<>();
         for (DependencyEdge edge : edges) {
             String source = edge.sourceClass();
             String target = edge.targetClass();
             if (isUnder(source, "dev.friendai.foundation") && isFoundationForbidden(target)) {
                 add(violations, "foundation-direction", edge);
+            }
+            if (isUnder(source, "dev.friendai.world") && isWorldForbidden(target)) {
+                add(violations, "kernel-direction", edge);
             }
             if (isPurePackage(source) && isPlatformPackage(target)) {
                 add(violations, "pure-java-no-platform", edge);
@@ -200,8 +191,7 @@ final class PackageDependencyRules {
                     && isUnder(target, "dev.friendai.features")
                     && isMinecraftFeatureAdapter(source)
                     && !featureBoundary(source).equals(featureBoundary(target))
-                    && isFeatureTaskImplementation(target)
-                    && !ALLOWED_CROSS_FEATURE_TASKS.contains(edge)) {
+                    && isFeatureTaskImplementation(target)) {
                 add(violations, "feature-task-internals-not-allowed", edge);
             }
             if (isUnder(source, "dev.friendai.agent")
@@ -236,6 +226,7 @@ final class PackageDependencyRules {
                 add(violations, "feature-task-context-leak", edge);
             }
         }
+        violations.addAll(FeatureGraph.violations(edges, featureCycleBaseline));
         return violations.stream().sorted(VIOLATION_ORDER).toList();
     }
 
@@ -282,7 +273,18 @@ final class PackageDependencyRules {
                 || isUnder(className, "dev.friendai.protocol")
                 || isUnder(className, "dev.friendai.server")
                 || isUnder(className, "dev.friendai.client")
-                || isUnder(className, "dev.friendai.transport");
+                || isUnder(className, "dev.friendai.transport")
+                || isUnder(className, "dev.friendai.world");
+    }
+
+    private static boolean isWorldForbidden(String className) {
+        return isUnder(className, "dev.friendai.features")
+                || isUnder(className, "dev.friendai.server")
+                || isUnder(className, "dev.friendai.client")
+                || isUnder(className, "dev.friendai.transport")
+                || isUnder(className, "dev.friendai.presentation")
+                || isUnder(className, "dev.friendai.infrastructure")
+                || isUnder(className, "dev.friendai.protocol");
     }
 
     private static boolean isFeatureAdapter(String source, String target) {

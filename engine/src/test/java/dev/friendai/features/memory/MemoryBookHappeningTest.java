@@ -3,8 +3,8 @@ package dev.friendai.features.memory;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import dev.friendai.features.social.Happening;
-import dev.friendai.features.social.HappeningJournal;
+import dev.friendai.foundation.social.Happening;
+import dev.friendai.foundation.social.HappeningJournal;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;

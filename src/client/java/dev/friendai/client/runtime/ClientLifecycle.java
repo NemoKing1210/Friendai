@@ -1,6 +1,6 @@
 package dev.friendai.client.runtime;
 
-import dev.friendai.presentation.companion.ClientSessionId;
+import dev.friendai.foundation.session.ClientSessionId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;

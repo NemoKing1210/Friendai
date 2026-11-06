@@ -6,16 +6,14 @@ import dev.friendai.agent.turn.BrainEvent;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionLifeData;
 import dev.friendai.entity.ExpeditionChunkHorizon;
+import dev.friendai.execution.settings.ResourceSearchSettings;
 import dev.friendai.execution.settings.TaskRuntimeSettings;
-import dev.friendai.features.acquisition.ResourceSearchSettings;
 import dev.friendai.features.creative.CreativeAction;
 import dev.friendai.features.creative.CreativeActionContext;
 import dev.friendai.features.knowledge.ResourceKnowledge;
 import dev.friendai.features.knowledge.search.SearchHintStore;
 import dev.friendai.features.memory.MemoryViewers;
 import dev.friendai.features.mining.MiningRuntimeSettings;
-import dev.friendai.features.navigation.pathing.BlockList;
-import dev.friendai.features.navigation.pathing.PathingConfig;
 import dev.friendai.features.placements.minecraft.PlacedService;
 import dev.friendai.features.places.minecraft.PlaceService;
 import dev.friendai.features.survival.minecraft.FoodSubtaskFactory;
@@ -23,6 +21,8 @@ import dev.friendai.features.trading.TradeAuthority;
 import dev.friendai.features.trading.TradeBook;
 import dev.friendai.features.trading.minecraft.trading.*;
 import dev.friendai.foundation.diagnostics.LogContext;
+import dev.friendai.foundation.spatial.BlockList;
+import dev.friendai.foundation.spatial.PathingConfig;
 import dev.friendai.infrastructure.config.ServerConfig;
 import dev.friendai.infrastructure.persistence.knowledge.KnowledgeStore;
 import dev.friendai.infrastructure.persistence.memory.MemoryStore;
@@ -38,6 +38,7 @@ import dev.friendai.server.instructions.SkillService;
 import dev.friendai.server.memory.TrustConfirmations;
 import dev.friendai.server.runtime.ServerRuntime;
 import dev.friendai.server.runtime.ServerRuntimeRegistry;
+import dev.friendai.task.structure.StructureBuilder;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -51,8 +52,20 @@ public record TaskContext(
         ExecutionCoordinator execution,
         CreativeActionContext creativeActionContext,
         ServerSettings serverSettings,
-        LogContext logContext) {
+        LogContext logContext,
+        StructureBuilder structureBuilder) {
     private static final FoodSubtaskFactory FOOD_SUBTASKS = new MinecraftFoodSubtaskFactory();
+
+    /** The historical shape: a context without captured diagnostic provenance or a structure builder. */
+    public TaskContext(
+            CompanionEntity companion,
+            ServerLevel level,
+            ExecutionCoordinator execution,
+            CreativeActionContext creativeActionContext,
+            ServerSettings serverSettings,
+            LogContext logContext) {
+        this(companion, level, execution, creativeActionContext, serverSettings, logContext, StructureBuilder.NONE);
+    }
 
     /** The historical shape: a context without captured diagnostic provenance. */
     public TaskContext(
@@ -66,11 +79,18 @@ public record TaskContext(
 
     public TaskContext {
         logContext = logContext == null ? LogContext.NONE : logContext;
+        structureBuilder = structureBuilder == null ? StructureBuilder.NONE : structureBuilder;
     }
 
     /** The same world context carrying another diagnostic identity; authority and settings are untouched. */
     public TaskContext withLogContext(LogContext context) {
-        return new TaskContext(companion, level, execution, creativeActionContext, serverSettings, context);
+        return new TaskContext(
+                companion, level, execution, creativeActionContext, serverSettings, context, structureBuilder);
+    }
+
+    /** The same world context with the runtime's structure builder; authority and settings are untouched. */
+    public TaskContext withStructureBuilder(StructureBuilder builder) {
+        return new TaskContext(companion, level, execution, creativeActionContext, serverSettings, logContext, builder);
     }
 
     public TaskContext(
@@ -94,7 +114,7 @@ public record TaskContext(
     }
 
     /** The material the remaining queued work still needs; a pillar, bridge or platform must not spend it. */
-    public dev.friendai.features.navigation.pathing.MaterialReserve materialReserve() {
+    public dev.friendai.foundation.spatial.MaterialReserve materialReserve() {
         return companion.materialReserve();
     }
 
@@ -145,6 +165,11 @@ public record TaskContext(
 
     public boolean canUseCreativeAction(CreativeAction action) {
         return CreativeModeService.isActionAuthorized(companion, creativeActionContext, action);
+    }
+
+    /** Whether scaffolding may be placed without spending an item, as the creative materials rule allows. */
+    public boolean creativeMaterials() {
+        return canUseCreativeAction(CreativeAction.FREE_MATERIALS);
     }
 
     public boolean flightAuthorized() {
@@ -254,6 +279,11 @@ public record TaskContext(
     }
     /** Feature-owned place operations; the service holds only the owner-book and settings providers. */
     public PlaceService placeService() {
+        return runtime().placeService();
+    }
+
+    /** The place book through the world-layer port, so a kernel task never names the places feature. */
+    public PlaceLookup placeLookup() {
         return runtime().placeService();
     }
     /** Search-specific policy values, detached from the server configuration representation. */

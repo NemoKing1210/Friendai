@@ -1,6 +1,6 @@
 package dev.friendai.features.knowledge.search;
 
-import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.foundation.spatial.Pos;
 
 /** The compass direction an eye of ender leaves toward the nearest stronghold; never a stronghold position. */
 public final class StrongholdClue {

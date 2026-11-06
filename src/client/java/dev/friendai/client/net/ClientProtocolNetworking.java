@@ -6,7 +6,7 @@ import dev.friendai.client.debug.MovementDebugState;
 import dev.friendai.client.runtime.ClientRuntime;
 import dev.friendai.client.skin.SkinCache;
 import dev.friendai.client.tts.SpeechRuntime;
-import dev.friendai.presentation.companion.ClientSessionId;
+import dev.friendai.foundation.session.ClientSessionId;
 import dev.friendai.protocol.DecodeResult;
 import dev.friendai.protocol.ProtocolAccept;
 import dev.friendai.protocol.ProtocolBootstrapCodec;

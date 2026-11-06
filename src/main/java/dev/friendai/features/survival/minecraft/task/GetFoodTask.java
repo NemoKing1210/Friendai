@@ -1,16 +1,16 @@
 package dev.friendai.features.survival.minecraft.task;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.features.combat.minecraft.Threats;
 import dev.friendai.features.cooking.minecraft.FuelPolicy;
 import dev.friendai.features.farming.minecraft.Crops;
-import dev.friendai.features.survival.minecraft.Food;
 import dev.friendai.features.survival.minecraft.FoodSubtaskFactory;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.interact.ContainerAccess;
 import dev.friendai.task.interact.ContainerSession;
+import dev.friendai.world.food.Food;
+import dev.friendai.world.targeting.Threats;
 import java.util.EnumSet;
 import java.util.LinkedHashSet;
 import java.util.List;

@@ -1,5 +1,6 @@
 package dev.friendai.features.mining.minecraft.mining;
 
+import dev.friendai.world.block.BlockMatcher;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;

@@ -1,12 +1,12 @@
 package dev.friendai.features.navigation.minecraft.task;
 
-import dev.friendai.features.navigation.minecraft.nav.EntityApproach;
-import dev.friendai.features.navigation.minecraft.nav.EntityTargets;
 import dev.friendai.features.navigation.minecraft.nav.ResourceJourney;
-import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.world.movement.EntityApproach;
+import dev.friendai.world.movement.EntityTargets;
 import net.minecraft.world.entity.Entity;
 
 /** Navigation-owned approach action used by the movement tool without constructing an interaction task. */

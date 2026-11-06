@@ -1,7 +1,7 @@
 package dev.friendai.features.animals.minecraft;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.features.combat.minecraft.Threats;
+import dev.friendai.world.targeting.Threats;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.Predicate;

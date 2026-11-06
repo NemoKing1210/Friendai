@@ -178,9 +178,9 @@ public final class SelfTools implements FeatureToolContributor {
             companion.rejectManner(null);
             return ToolResult.ok("Manner reset to neutral. Speak plainly from now on.");
         }
-        dev.friendai.features.social.Traits.Kind kind;
+        dev.friendai.foundation.social.Traits.Kind kind;
         try {
-            kind = dev.friendai.features.social.Traits.Kind.valueOf(raw.toUpperCase(java.util.Locale.ROOT));
+            kind = dev.friendai.foundation.social.Traits.Kind.valueOf(raw.toUpperCase(java.util.Locale.ROOT));
         } catch (IllegalArgumentException e) {
             return ToolResult.error("Unknown manner '" + raw + "'; use teasing, humour, warmth, curiosity or energy.");
         }

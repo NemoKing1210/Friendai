@@ -69,7 +69,7 @@ public final class BuildOrder {
             Function<BlockSpec, Support> support,
             int startX,
             int startZ,
-            Set<dev.friendai.features.navigation.pathing.Pos> avoid) {
+            Set<dev.friendai.foundation.spatial.Pos> avoid) {
         Map<BlockSpec, Support> supports = new HashMap<>();
         for (BlockSpec spec : blueprint.blocks()) {
             Support found = support.apply(spec);
@@ -144,7 +144,7 @@ public final class BuildOrder {
             Map<BlockSpec, Support> supports,
             int startX,
             int startZ,
-            Set<dev.friendai.features.navigation.pathing.Pos> avoid) {
+            Set<dev.friendai.foundation.spatial.Pos> avoid) {
         Map<Integer, List<BlockSpec>> layers = new TreeMap<>();
         for (BlockSpec spec : blueprint.blocks()) {
             if (isUpperHalf(spec.state())) {
@@ -168,9 +168,7 @@ public final class BuildOrder {
                 }
             }
             Comparator<BlockSpec> bodyLast = Comparator.comparingInt(spec ->
-                    avoid.contains(new dev.friendai.features.navigation.pathing.Pos(spec.x(), spec.y(), spec.z()))
-                            ? 1
-                            : 0);
+                    avoid.contains(new dev.friendai.foundation.spatial.Pos(spec.x(), spec.y(), spec.z())) ? 1 : 0);
             air.sort(bodyLast.thenComparing(walk));
             free.sort(bodyLast.thenComparing(walk));
             attachments.sort(bodyLast.thenComparing(walk));

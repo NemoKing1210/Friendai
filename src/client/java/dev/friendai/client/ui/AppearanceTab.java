@@ -2,7 +2,7 @@ package dev.friendai.client.ui;
 
 import dev.friendai.client.FriendaiClient;
 import dev.friendai.client.skin.SkinSources;
-import dev.friendai.presentation.companion.ClientSessionId;
+import dev.friendai.foundation.session.ClientSessionId;
 import dev.friendai.presentation.companion.CompanionSnapshot;
 import java.net.URI;
 import java.util.function.Consumer;

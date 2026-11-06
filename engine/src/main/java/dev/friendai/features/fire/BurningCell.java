@@ -1,6 +1,6 @@
 package dev.friendai.features.fire;
 
-import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.foundation.spatial.Pos;
 
 /**
  * One cell that is burning, together with the world facts the adapter judged it by. The planner reads these

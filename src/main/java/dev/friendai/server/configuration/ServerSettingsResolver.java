@@ -2,9 +2,9 @@ package dev.friendai.server.configuration;
 
 import dev.friendai.execution.settings.TaskRuntimeSettings;
 import dev.friendai.features.mining.MiningRuntimeSettings;
-import dev.friendai.features.navigation.pathing.BlockList;
-import dev.friendai.features.navigation.pathing.PathingConfig;
 import dev.friendai.features.trading.TradingRuntimeSettings;
+import dev.friendai.foundation.spatial.BlockList;
+import dev.friendai.foundation.spatial.PathingConfig;
 import dev.friendai.infrastructure.config.ServerConfig;
 import java.util.ArrayList;
 import java.util.List;

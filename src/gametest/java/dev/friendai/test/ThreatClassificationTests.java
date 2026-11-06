@@ -2,7 +2,7 @@ package dev.friendai.test;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
-import dev.friendai.features.combat.minecraft.Threats;
+import dev.friendai.world.targeting.Threats;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.entity.EntityTypes;

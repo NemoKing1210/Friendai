@@ -2,15 +2,70 @@ package dev.friendai.features.coordination.minecraft.tool;
 
 import dev.friendai.agent.coordination.HandoffRequest;
 import dev.friendai.agent.coordination.HelpRequest;
+import dev.friendai.entity.CompanionEntity;
 import java.util.Optional;
 import java.util.UUID;
 
 /**
- * The server-owned side of the coordination tools: the help and handoff books a running server keeps, plus the one
- * brain hop a repair request needs. The server supplies an implementation per runtime, so the tool adapter never
- * reaches into the runtime itself.
+ * What the coordination tools act on: the server-owned help and handoff books, the companion of an owner, the plan
+ * repair channel and the online owners those requests name. The tools never reach into the server runtime; the live
+ * implementation is a server adapter, and the default one refuses every call.
  */
 public interface CoordinationAccess {
+    /** An owner who is online right now, named the way the model named them. */
+    record OnlineOwner(UUID owner, String name) {}
+
+    /** No books and no runtime: every call reports that nothing is open. */
+    CoordinationAccess UNAVAILABLE = new CoordinationAccess() {
+        @Override
+        public boolean available() {
+            return false;
+        }
+
+        @Override
+        public Optional<OnlineOwner> onlineOwner(String name) {
+            return Optional.empty();
+        }
+
+        @Override
+        public boolean requestHelp(HelpRequest request) {
+            return false;
+        }
+
+        @Override
+        public Optional<HelpRequest> acceptHelp(UUID fromOwner, UUID toOwner, long now) {
+            return Optional.empty();
+        }
+
+        @Override
+        public boolean declineHelp(UUID fromOwner, UUID toOwner) {
+            return false;
+        }
+
+        @Override
+        public boolean offerHandoff(HandoffRequest request) {
+            return false;
+        }
+
+        @Override
+        public Optional<HandoffRequest> takeHandoff(UUID fromOwner, UUID toOwner, long now) {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<CompanionEntity> companion(UUID owner) {
+            return Optional.empty();
+        }
+
+        @Override
+        public void requestReplan(UUID owner, long planId, String reason) {}
+    };
+
+    /** Whether the live books exist on this server; false makes every tool report an unavailable runtime. */
+    boolean available();
+
+    Optional<OnlineOwner> onlineOwner(String name);
+
     boolean requestHelp(HelpRequest request);
 
     Optional<HelpRequest> acceptHelp(UUID fromOwner, UUID toOwner, long now);
@@ -21,8 +76,8 @@ public interface CoordinationAccess {
 
     Optional<HandoffRequest> takeHandoff(UUID fromOwner, UUID toOwner, long now);
 
-    boolean declineHandoff(UUID fromOwner, UUID toOwner);
+    Optional<CompanionEntity> companion(UUID owner);
 
-    /** Asks the owner's brain to repair a queued plan on the server thread. */
-    void postReplan(UUID owner, long planId, String reason);
+    /** Posts a repair request for one queued plan to its owner's brain. */
+    void requestReplan(UUID owner, long planId, String reason);
 }

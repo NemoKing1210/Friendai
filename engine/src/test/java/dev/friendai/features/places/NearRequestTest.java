@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import dev.friendai.foundation.places.NearRequest;
 import org.junit.jupiter.api.Test;
 
 class NearRequestTest {

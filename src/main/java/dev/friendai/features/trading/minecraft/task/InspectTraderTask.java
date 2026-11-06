@@ -1,10 +1,10 @@
 package dev.friendai.features.trading.minecraft.task;
 
-import dev.friendai.features.navigation.minecraft.nav.Navigator;
 import dev.friendai.features.trading.TraderRecord;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.world.movement.Navigator;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;

@@ -1,6 +1,6 @@
 package dev.friendai.features.fire;
 
-import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.foundation.spatial.Pos;
 
 /**
  * The world as one decision needs it: what the bag holds, what the weather and the dimension allow, and where a

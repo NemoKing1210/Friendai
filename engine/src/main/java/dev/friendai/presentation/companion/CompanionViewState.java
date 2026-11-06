@@ -1,10 +1,11 @@
 package dev.friendai.presentation.companion;
 
-import dev.friendai.features.cartography.TerrainMapView;
+import dev.friendai.features.cartography.view.TerrainMapView;
 import dev.friendai.features.instructions.SkillView;
 import dev.friendai.features.memory.MemoryView;
 import dev.friendai.features.places.PlaceView;
 import dev.friendai.features.trading.TradeView;
+import dev.friendai.foundation.session.ClientSessionId;
 import java.util.Objects;
 import java.util.Optional;
 

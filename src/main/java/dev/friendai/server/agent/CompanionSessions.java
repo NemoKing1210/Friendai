@@ -29,10 +29,9 @@ import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolRegistry;
 import dev.friendai.execution.tool.ToolResult;
+import dev.friendai.features.construction.minecraft.build.ConstructionStructureBuilder;
 import dev.friendai.features.instructions.minecraft.tool.SkillToolAccess;
-import dev.friendai.features.memory.Category;
 import dev.friendai.features.memory.CompanionProfileRepository;
-import dev.friendai.features.memory.GoalOutcomeFact;
 import dev.friendai.features.memory.MemoryActions;
 import dev.friendai.features.memory.MemoryBook;
 import dev.friendai.features.memory.MemoryLimits;
@@ -76,7 +75,6 @@ import dev.friendai.server.execution.tools.TaskToolDefinition;
 import dev.friendai.server.instructions.SkillService;
 import dev.friendai.task.TaskStatus;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -90,9 +88,6 @@ import net.minecraft.server.level.ServerLevel;
 
 /** Owns one {@link CompanionBrain} per player and the LLM client they share. All methods run on the server thread. */
 public final class CompanionSessions implements AutoCloseable, QueueToolAccess, GoalToolAccess, SkillToolAccess {
-    /** The outcome source a persistent goal ends under: {@code goal:<id>}. */
-    private static final String GOAL_OUTCOME = "goal:";
-
     private final MinecraftServer server;
     private final ServerBrainScheduler scheduler;
     private final MemoryStore memory;
@@ -108,11 +103,10 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
     private final PlacedService placedService;
     private final Supplier<PerceptionContext> perceptionContext;
     private final dev.friendai.features.knowledge.search.SearchHintStore searchHints;
-    private final Map<UUID, CompanionSession> sessions = new HashMap<>();
-    /** Per owner, which goals the world could check when the board was last shown to the model. */
-    private final Map<UUID, Map<Long, Boolean>> goalCheckable = new HashMap<>();
-    /** Per owner, the shortest fact each live goal's own work proved, so its outcome can cite it. */
-    private final Map<UUID, Map<Long, String>> goalFacts = new HashMap<>();
+    private final SessionRegistry sessions = new SessionRegistry();
+    private final GoalOutcomeRecorder goalOutcomes;
+    private final OwnerSkillTools ownerSkills;
+    private final PlannerFacade plannersFacade;
 
     private boolean acceptingWork = true;
 
@@ -137,7 +131,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
     private final PlannerAdapter planners;
     private final FreeTimeDriver freeTime;
     private final RoutineDriver routines;
-    private long lastAgentCheck;
+    private final AgentIdleTick idleTick;
     private ServerConfig config;
 
     public CompanionSessions(
@@ -164,6 +158,20 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
         this.server = server;
         this.scheduler = new ServerBrainScheduler(server);
         this.memory = memory;
+        this.goalOutcomes = new GoalOutcomeRecorder(() -> config, owner -> this.memory.book(owner));
+        this.ownerSkills = new OwnerSkillTools(
+                skills,
+                () -> this.config,
+                owner -> {
+                    CompanionSession session = sessions.get(owner);
+                    return session == null ? dev.friendai.agent.turn.SkillTurnSession.NONE : session.skillSession();
+                },
+                owner -> {
+                    CompanionSession session = sessions.get(owner);
+                    return session == null ? null : session.teachingContext();
+                },
+                this::post,
+                goalOutcomes);
         this.transcripts = transcripts;
         this.profiles = profiles;
         this.settings = settings;
@@ -297,10 +305,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                         selfAccess,
                         storage,
                         companion -> routines(),
-                        companion -> dev.friendai.server.runtime.ServerRuntimeRegistry.find(server)
-                                .map(runtime -> (dev.friendai.features.coordination.minecraft.tool.CoordinationAccess)
-                                        runtime.coordination())
-                                .orElse(null)),
+                        new dev.friendai.server.agent.coordination.CoordinationToolAccess(server)),
                 () -> settings.get().tasks().mineCollectDrops(),
                 () -> settings.get().tasks().fellCollectDrops());
         this.tools = builtins.registry();
@@ -308,9 +313,35 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
         this.restorableTaskNames = builtins.restorableTaskNames();
         this.planTools = builtins.plannable();
         this.taskTools = builtins.taskTools();
+        this.plannersFacade = new PlannerFacade(
+                server,
+                () -> this.config,
+                skills,
+                planners,
+                debug,
+                this.perceptionContext,
+                taskTools,
+                planTools,
+                places,
+                goals,
+                freeTimeService,
+                tools,
+                this::session,
+                this::currentCaller,
+                this);
         this.freeTime = new FreeTimeDriver(
                 server, this, () -> this.config, settings, freeTimeService, places, placeService, taskTools, planTools);
         this.routines = new RoutineDriver(server, this, () -> this.config, routineRepository, planTools);
+        this.idleTick = new AgentIdleTick(
+                server,
+                () -> this.config,
+                routines,
+                freeTime,
+                goals,
+                this::entryFor,
+                owner -> sessions.get(owner),
+                sessions::snapshot,
+                this::post);
         reload(initial);
         emitStreamStart();
     }
@@ -389,54 +420,27 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
 
     /** One planner input builder for this owner's live companion; both the brain and free time ask it. */
     PlannerInputFactory plannerInputs(UUID owner, CompanionEntity companion) {
-        CompanionSession session = session(owner);
-        return new PlannerInputFactory(
-                companion,
-                perceptionContext,
-                taskTools,
-                planTools,
-                () -> places.book(owner).all(),
-                () -> goals.board(owner),
-                () -> config,
-                session::verifiedFacts,
-                () -> freeTimeService);
+        return plannersFacade.inputs(owner, companion);
     }
     /** Asks the owner's planner (or its test override) for a plan; may complete on any thread. */
     CompletableFuture<dev.friendai.agent.plan.PlanProposal> propose(
             UUID owner, dev.friendai.agent.plan.PlannerInput input) {
-        return propose(owner, input, false, () -> false);
+        return plannersFacade.propose(owner, input);
     }
 
     CompletableFuture<dev.friendai.agent.plan.PlanProposal> propose(
             UUID owner, dev.friendai.agent.plan.PlannerInput input, boolean autonomous) {
-        return propose(owner, input, autonomous, () -> false);
+        return plannersFacade.propose(owner, input, autonomous);
     }
 
     CompletableFuture<dev.friendai.agent.plan.PlanProposal> propose(
             UUID owner, dev.friendai.agent.plan.PlannerInput input, BooleanSupplier cancelled) {
-        return propose(owner, input, false, cancelled);
+        return plannersFacade.propose(owner, input, cancelled);
     }
 
     CompletableFuture<dev.friendai.agent.plan.PlanProposal> propose(
             UUID owner, dev.friendai.agent.plan.PlannerInput input, boolean autonomous, BooleanSupplier cancelled) {
-        var companion = CompanionManager.get(server).find(owner);
-        String task =
-                companion.map(c -> c.executionCoordinator().currentToolName()).orElse("");
-        boolean combat = companion
-                .map(c -> c.combatController().state()
-                        != dev.friendai.features.combat.minecraft.CombatController.State.IDLE)
-                .orElse(false);
-        var skillSession = skills.begin(
-                owner,
-                new Caller(owner, "", AccessLevel.OWNER),
-                input.goal().text(),
-                dev.friendai.agent.turn.TurnKind.EVENT,
-                task,
-                autonomous,
-                true,
-                combat);
-        return planners.propose(
-                session(owner), input.withInstructions(skillSession.sections(), config.agent.promptBudget), cancelled);
+        return plannersFacade.propose(owner, input, autonomous, cancelled);
     }
     /** Creates the owner's brain if it does not exist yet, so its task listener is installed. */
     void ensureBrain(UUID owner) {
@@ -453,15 +457,15 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
     }
     /** Test hook: use this planner instead of the model-backed one for one owner. */
     public void setPlannerOverride(UUID owner, dev.friendai.agent.plan.Planner planner) {
-        session(owner).plannerOverride(planner);
+        plannersFacade.setOverride(owner, planner);
     }
     /** The effective model used for plan drafting, after unknown or unusable profiles fall back. */
     public String plannerModel() {
-        return planners.model();
+        return plannersFacade.model();
     }
     /** Adds an operator-only planner lifecycle entry. Call on the server thread. */
     public void plannerDebug(UUID owner, String text) {
-        debug.logOf(owner).add(LogKind.PLANNER, text);
+        plannersFacade.debugLog(owner, text);
     }
 
     /** Masks every configured secret; applied to text read back out of stored records. */
@@ -572,7 +576,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
     }
 
     private CompanionSession session(UUID owner) {
-        return sessions.computeIfAbsent(owner, id -> new CompanionSession(id, memory.book(id)));
+        return sessions.getOrCreate(owner, id -> new CompanionSession(id, memory.book(id)));
     }
 
     private Optional<CompanionSession> entryFor(UUID owner) {
@@ -590,106 +594,16 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
     }
 
     public dev.friendai.agent.turn.SkillTurnSession skillSession(UUID owner) {
-        CompanionSession session = sessions.get(owner);
-        return session == null ? dev.friendai.agent.turn.SkillTurnSession.NONE : session.skillSession();
+        return ownerSkills.turn(owner);
     }
 
     public dev.friendai.foundation.teaching.TeachingContext teachingContext(UUID owner) {
-        CompanionSession session = sessions.get(owner);
-        return session == null ? null : session.teachingContext();
+        return ownerSkills.teachingContext(owner);
     }
 
     public void skillOutcome(
             UUID owner, String id, dev.friendai.foundation.teaching.TeachingContext.OutcomeKind kind, String summary) {
-        if (config.skills.enabled) post(owner, new BrainEvent.SkillOutcome(id, kind, summary));
-        rememberGoalOutcome(owner, id, kind, summary);
-    }
-
-    /**
-     * Leaves the one memory fact an ended goal earns: what it was, whether the world checked every checkable
-     * criterion, and the shortest verified fact. An abandoned goal the world verified nothing about is not
-     * remembered; the book itself replaces an identical line instead of adding a second one.
-     */
-    private void rememberGoalOutcome(
-            UUID owner,
-            String source,
-            dev.friendai.foundation.teaching.TeachingContext.OutcomeKind kind,
-            String summary) {
-        if (config == null || !config.memory.enabled || source == null || !source.startsWith(GOAL_OUTCOME)) {
-            return;
-        }
-        long goalId;
-        try {
-            goalId = Long.parseLong(source.substring(GOAL_OUTCOME.length()));
-        } catch (NumberFormatException e) {
-            return;
-        }
-        Map<Long, Boolean> checkable = goalCheckable.get(owner);
-        Boolean worldChecked = checkable == null ? null : checkable.remove(goalId);
-        boolean verified = kind == dev.friendai.foundation.teaching.TeachingContext.OutcomeKind.GOAL_SUCCESS
-                && Boolean.TRUE.equals(worldChecked);
-        GoalOutcomeFact.End end;
-        if (kind == dev.friendai.foundation.teaching.TeachingContext.OutcomeKind.GOAL_FAILURE) {
-            end = GoalOutcomeFact.End.ABANDONED;
-        } else {
-            end = verified ? GoalOutcomeFact.End.VERIFIED : GoalOutcomeFact.End.UNVERIFIED;
-        }
-        MemoryLimits limits = config.memory.limits();
-        String text = GoalOutcomeFact.text(summary, end, goalFact(owner, goalId), limits.maxFactChars());
-        if (text == null) {
-            return;
-        }
-        MemoryBook book = memory.book(owner);
-        try {
-            book.addFact(
-                    Subject.player(owner),
-                    Category.NOTE,
-                    text,
-                    owner,
-                    book.player(owner).map(PlayerRecord::lastName).orElse("owner"),
-                    System.currentTimeMillis(),
-                    limits);
-        } catch (RuntimeException ignored) {
-            // A full or refusing book must not undo the goal outcome.
-        }
-    }
-
-    /** The shortest fact this goal's own work proved, if the world proved anything; read once per outcome. */
-    private String goalFact(UUID owner, long goalId) {
-        Map<Long, String> facts = goalFacts.get(owner);
-        return facts == null ? null : facts.remove(goalId);
-    }
-
-    /** Keeps the shortest fact a task of this goal actually proved, so the goal's memory line can cite it. */
-    private void noteGoalFacts(UUID owner, long goalId, List<dev.friendai.agent.verify.Fact> facts) {
-        String shortest = null;
-        for (var fact : facts) {
-            String text = fact == null ? null : fact.text();
-            if (text != null && !text.isBlank() && (shortest == null || text.length() < shortest.length())) {
-                shortest = text;
-            }
-        }
-        if (shortest == null) {
-            return;
-        }
-        goalFacts
-                .computeIfAbsent(owner, id -> new HashMap<>())
-                .merge(goalId, shortest, (held, fresh) -> fresh.length() < held.length() ? fresh : held);
-    }
-
-    /**
-     * Records which goals the world can check when the model is about to see them, so a goal's memory fact
-     * never claims a world check that never happened. A goal created and finished in one turn stays unverified.
-     */
-    private void captureGoalCheckability(UUID owner, dev.friendai.agent.goal.GoalBoard board) {
-        Map<Long, Boolean> checkable = new HashMap<>();
-        for (var goal : board.all()) {
-            checkable.put(
-                    goal.id(),
-                    goal.criteria().stream()
-                            .anyMatch(criterion -> criterion.check().isPresent()));
-        }
-        goalCheckable.put(owner, checkable);
+        ownerSkills.outcome(owner, id, kind, summary);
     }
 
     @Override
@@ -710,22 +624,22 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
 
     @Override
     public ToolResult request(UUID owner, String id) {
-        return skillSession(owner).request(id);
+        return ownerSkills.request(owner, id);
     }
 
     @Override
     public ToolResult list(UUID owner, int page) {
-        return skills.list(owner, page);
+        return ownerSkills.list(owner, page);
     }
 
     @Override
     public ToolResult help() {
-        return skills.help();
+        return ownerSkills.help();
     }
 
     @Override
     public ToolResult teach(UUID owner, Caller caller, JsonObject args) {
-        return skills.teach(owner, caller, args);
+        return ownerSkills.teach(owner, caller, args);
     }
 
     public void cancel(UUID owner) {
@@ -747,6 +661,10 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
     /** The owner left the game: keep the task (a build can resume), but make no progress while they are away. */
     public void onOwnerLeft(UUID owner) {
         cancel(owner);
+        // The checkability view describes one turn's reading of the goal board; a later join captures it again.
+        // The collected facts and the session itself stay: the session's task-event sink is what routes an
+        // offline free-time result to the driver, and a goal's evidence must survive a logout.
+        goalOutcomes.forget(owner);
         CompanionManager.get(server).find(owner).ifPresent(c -> {
             if (c.creativeMode()) c.executionCoordinator().cancelForCapabilityChange();
             c.executionCoordinator().suspend();
@@ -807,14 +725,14 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
 
     public void tick() {
         scheduler.tick();
-        agentTick();
+        idleTick.tick();
     }
 
     /** Cancels in-flight model work while the server and its owner-thread state are still available. */
     public void stopAcceptingWork() {
         if (!acceptingWork) return;
         acceptingWork = false;
-        for (CompanionSession session : List.copyOf(sessions.values())) session.invalidateBrain();
+        for (CompanionSession session : sessions.snapshot()) session.invalidateBrain();
         invalidateTradingAuthorities("server stopping");
     }
 
@@ -822,304 +740,6 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
     public void close() {
         stopAcceptingWork();
         sessions.clear();
-    }
-
-    /** Once a second: nudge idle companions toward an unfinished goal, as the autonomy setting allows. */
-    private void agentTick() {
-        long now = server.getTickCount() * 50L;
-        if (now - lastAgentCheck < 1_000L) {
-            return;
-        }
-        lastAgentCheck = now;
-        // Routines are tracked even when autonomy is passive: a paused occurrence must be reported once, and a
-        // running owner-scheduled plan must reach its safe boundary.
-        routines.tick();
-        dev.friendai.agent.turn.AgentSettings.Autonomy autonomy =
-                dev.friendai.agent.turn.AgentSettings.Autonomy.parse(config.agent.autonomy);
-        if (autonomy == dev.friendai.agent.turn.AgentSettings.Autonomy.PASSIVE) {
-            return;
-        }
-        long wall = FreeTimeDriver.now();
-        for (CompanionEntity companion : CompanionManager.get(server).all()) {
-            UUID owner = companion.ownerUuid();
-            if (owner == null) {
-                continue;
-            }
-            var primary = goals.board(owner).primary();
-            // Free time needs the task listener a brain installs, even before the owner has said anything.
-            CompanionSession brain =
-                    freeTime.state(owner).on() ? entryFor(owner).orElse(null) : sessions.get(owner);
-            try {
-                freeTime.tick(
-                        owner,
-                        companion,
-                        brain != null && brain.hasPendingWork(),
-                        primary.isPresent() && primary.get().status() == dev.friendai.agent.goal.GoalStatus.ACTIVE,
-                        wall);
-            } catch (RuntimeException e) {
-                FriendaiMod.LOGGER.warn("Free time failed for {}", owner, e);
-            }
-        }
-        for (Map.Entry<UUID, CompanionSession> entry : new ArrayList<>(sessions.entrySet())) {
-            UUID owner = entry.getKey();
-            if (entry.getValue().brain() == null) continue;
-            CompanionEntity companion = CompanionManager.get(server).find(owner).orElse(null);
-            if (companion == null) {
-                continue;
-            }
-            var board = goals.board(owner);
-            var primary = board.primary();
-            boolean active = primary.isPresent() && primary.get().status() == dev.friendai.agent.goal.GoalStatus.ACTIVE;
-            long last = entry.getValue().lastGoalTick();
-            if (last == 0L) {
-                last = now;
-                entry.getValue().lastGoalTick(now);
-            }
-            boolean idle = queueIdleOrBlocked(companion);
-            if (!idle) {
-                entry.getValue().resetNudgeStreak(); // a new idle spell starts with a fresh interval
-            }
-            int streak = entry.getValue().nudgeStreak();
-            if (dev.friendai.agent.tick.NudgeBackoff.exhausted(streak)) {
-                continue;
-            }
-            var facts = new dev.friendai.agent.tick.TickFacts(
-                    active,
-                    idle,
-                    companion.owner().isPresent(),
-                    companion.executionCoordinator().paused()
-                            || companion.executionCoordinator().suspended()
-                            || companion.isSleeping()
-                            || companion.getTarget() != null,
-                    entry.getValue().isThinking(),
-                    now,
-                    last,
-                    autonomy,
-                    dev.friendai.agent.tick.NudgeBackoff.intervalSec(config.agent.goalTickSec, streak));
-            if (dev.friendai.agent.tick.GoalTickPolicy.shouldAskWhatNext(facts)) {
-                entry.getValue().lastGoalTick(now);
-                entry.getValue().incrementNudgeStreak();
-                post(owner, new BrainEvent.IdleNudge());
-            } else if (dev.friendai.agent.tick.GoalTickPolicy.shouldTick(facts)) {
-                entry.getValue().lastGoalTick(now);
-                entry.getValue().incrementNudgeStreak();
-                var guard = new dev.friendai.task.queue.CompanionGuardFacts(companion);
-                guard.refresh();
-                post(
-                        owner,
-                        new BrainEvent.GoalTick(
-                                primary.get().text(),
-                                board.unmet(primary.get().id(), guard).stream()
-                                        .map(dev.friendai.agent.goal.Criterion::text)
-                                        .toList()));
-            }
-        }
-    }
-
-    /** Nothing runs and no plan moves by itself; a plan waiting for a decision counts as blocked. */
-    private static boolean queueIdleOrBlocked(CompanionEntity companion) {
-        var runner = companion.executionCoordinator();
-        var queue = runner.queue();
-        if (queue.jobCount() == 0) {
-            return !runner.hasWork();
-        }
-        if (queue.active().isPresent()) {
-            return false;
-        }
-        boolean directWork = queue.jobs().stream()
-                .anyMatch(job -> job.planId() == 0 && !dev.friendai.execution.queue.JobQueue.terminal(job));
-        boolean planMoving = queue.plans().stream()
-                .anyMatch(plan -> queue.planStatus(plan.id()) == dev.friendai.execution.queue.PlanStatus.ACTIVE);
-        return !directWork && !planMoving;
-    }
-
-    /** Lets one companion's brain consult the planner and queue what it proposes. */
-    private final class GamePlannerPort implements dev.friendai.agent.turn.PlannerPort {
-        private final UUID owner;
-        private final CompanionEntity companion;
-        /** The owner's session, whose runtime replan budget planless plans spend. */
-        private final CompanionSession session;
-
-        private final PlannerInputFactory inputs;
-
-        GamePlannerPort(UUID owner, CompanionEntity companion, CompanionSession session) {
-            this.owner = owner;
-            this.companion = companion;
-            this.session = session;
-            this.inputs = plannerInputs(owner, companion);
-        }
-
-        /**
-         * A plan is owned when it is queued for this companion and its principal still holds every step's access.
-         * A plan whose owner was revoked is cancelled at activation instead of being replanned.
-         */
-        @Override
-        public boolean ownsPlan(long planId) {
-            var queue = companion.executionCoordinator().queue();
-            if (queue.plan(planId).isEmpty()) return false;
-            List<dev.friendai.execution.queue.Job> jobs = queue.jobsOfPlan(planId);
-            UUID principal = dev.friendai.agent.plan.PlanAuthority.principal(jobs, owner);
-            Caller resolved = currentCaller(companion, principal);
-            return dev.friendai.agent.plan.PlanAuthority.holds(jobs, resolved, this::requiredAccess);
-        }
-
-        private dev.friendai.execution.tool.AccessLevel requiredAccess(String tool) {
-            var definition = planTools.get(tool);
-            if (definition == null) definition = taskTools.get(tool);
-            return definition == null ? null : definition.minAccess();
-        }
-
-        @Override
-        public Optional<dev.friendai.agent.plan.PlannerInput> inputFor(
-                dev.friendai.agent.plan.PlanSubject subject, Caller caller, String failure) {
-            if (subject instanceof dev.friendai.agent.plan.PlanSubject.TroubledPlan trouble) {
-                // A plan that follows a goal spends the goal's own replan budget; a planless one spends a
-                // runtime-only counter, so a plan cannot replan forever without a goal record to stop it.
-                if (!hasLinkedGoal(trouble.planId())) {
-                    if (session.planReplans().exhausted(trouble.planId(), config.agent.maxReplans)) {
-                        return Optional.empty();
-                    }
-                    session.planReplans().attempt(trouble.planId());
-                }
-            }
-            return inputs.build(subject, consultCaller(subject, caller), failure);
-        }
-
-        /**
-         * Who one consultation runs as. A troubled plan runs as its own principal, resolved from its jobs right now, so
-         * a guest's failed plan is replanned with that guest's tools and never with the owner's; every other subject
-         * runs as the caller the turn already fixed.
-         */
-        private Caller consultCaller(dev.friendai.agent.plan.PlanSubject subject, Caller turnCaller) {
-            List<dev.friendai.execution.queue.Job> jobs =
-                    subject instanceof dev.friendai.agent.plan.PlanSubject.TroubledPlan trouble
-                            ? companion.executionCoordinator().queue().jobsOfPlan(trouble.planId())
-                            : List.of();
-            UUID principal = dev.friendai.agent.plan.PlanAuthority.consultAs(subject, jobs, owner, turnCaller.uuid());
-            return currentCaller(companion, principal);
-        }
-
-        private boolean hasLinkedGoal(long planId) {
-            return goals.board(owner).all().stream().anyMatch(goal -> goal.planId() == planId);
-        }
-
-        @Override
-        public CompletableFuture<dev.friendai.agent.plan.PlanProposal> propose(
-                dev.friendai.agent.plan.PlannerInput input) {
-            return propose(input, () -> false);
-        }
-
-        @Override
-        public CompletableFuture<dev.friendai.agent.plan.PlanProposal> propose(
-                dev.friendai.agent.plan.PlannerInput input, BooleanSupplier cancelled) {
-            return CompanionSessions.this
-                    .propose(owner, input, cancelled)
-                    .thenApply(proposal -> new dev.friendai.agent.plan.PlanProposal(
-                            proposal.plan(),
-                            proposal.stepsJson(),
-                            proposal.rationale(),
-                            proposal.expectedOutcome(),
-                            input.targetPlanId(),
-                            input.targetFingerprint()));
-        }
-
-        @Override
-        public ToolResult apply(
-                Caller caller,
-                dev.friendai.agent.plan.PlanSubject subject,
-                dev.friendai.agent.plan.PlanProposal proposal) {
-            if (proposal.targetPlanId() > 0 && !proposal.targetFingerprint().isBlank()) {
-                String current = dev.friendai.execution.queue.PlanFingerprint.of(
-                        companion.executionCoordinator().queue(), proposal.targetPlanId());
-                if (dev.friendai.agent.plan.PlannerStaleCheck.stale(proposal.targetFingerprint(), current)) {
-                    return ToolResult.error("the plan changed since the proposal; re-plan it");
-                }
-            }
-            if (proposal.targetPlanId() > 0) {
-                long planId = proposal.targetPlanId();
-                // The plan is repaired as its own principal: a guest's plan stays the guest's work.
-                Caller actor = consultCaller(subject, caller);
-                var plan = companion.executionCoordinator().queue().plan(planId).orElse(null);
-                if (plan == null) return ToolResult.error("plan #" + planId + " is no longer queued");
-                // Access or the tool set can change between propose and apply; re-check the whole plan now, so a
-                // proposal whose steps the principal can no longer run is refused instead of half-applied.
-                if (!ownsPlan(planId)) {
-                    return ToolResult.error("access was revoked after the proposal");
-                }
-                if (plan.definition() != null
-                        && companion
-                                .executionCoordinator()
-                                .queue()
-                                .jobsOfPlan(planId)
-                                .isEmpty()) {
-                    var patch = dev.friendai.execution.queue.PlanPatch.apply(
-                            companion.executionCoordinator().queue(),
-                            planId,
-                            proposal.targetFingerprint(),
-                            List.of(),
-                            0,
-                            plan.definition().nodes().size(),
-                            proposal.plan().nodes());
-                    plannerDebug(
-                            owner,
-                            patch.ok() ? "planner disposition=tree patched" : "planner disposition=tree patch refused");
-                    return patch.ok() ? ToolResult.ok(patch.text()) : ToolResult.error(patch.text());
-                }
-                var pending = companion.executionCoordinator().queue().jobsOfPlan(planId).stream()
-                        .filter(job -> job.state() == dev.friendai.execution.queue.JobState.PENDING)
-                        .findFirst()
-                        .orElse(null);
-                if (pending == null) return ToolResult.error("plan #" + planId + " has no pending step to repair");
-                JsonObject edit = new JsonObject();
-                edit.addProperty("action", "replace");
-                edit.addProperty("job", pending.id());
-                edit.addProperty("expected", proposal.targetFingerprint());
-                edit.add("steps", proposal.stepsJson());
-                ToolResult result = tools.bind(companion)
-                        .execute(new ToolCall("planner", "queue_edit", edit, edit.toString(), null), actor);
-                plannerDebug(
-                        owner, result.error() ? "planner disposition=patch refused" : "planner disposition=patched");
-                return result;
-            }
-            // A subject without a target plan never edits a goal's plan: it queues a new one beside it. The plan
-            // stays off the goal board, so a plan cannot manufacture a verified goal; the model links one itself.
-            var board = goals.board(owner);
-            String goalText = objectiveText(subject, board);
-            if (goalText == null) {
-                return ToolResult.error("this planner subject cannot be queued");
-            }
-            JsonObject add = new JsonObject();
-            add.addProperty("goal", goalText);
-            // Preserve the normalized tree; queue_add and plan_validate share the same parser and tool allowlist.
-            add.add("steps", proposal.stepsJson());
-            ToolResult result = dev.friendai.server.execution.tools.QueueTools.addPlan(
-                    CompanionSessions.this, companion, caller, add, planTools, false, java.util.Set.of());
-            plannerDebug(owner, result.error() ? "planner disposition=queued refused" : "planner disposition=queued");
-            return result;
-        }
-
-        /** The bounded goal text of a new plan, or null for a subject only a shift may queue. */
-        private String objectiveText(
-                dev.friendai.agent.plan.PlanSubject subject, dev.friendai.agent.goal.GoalBoard board) {
-            if (subject instanceof dev.friendai.agent.plan.PlanSubject.OwnerOrder order) {
-                return dev.friendai.agent.plan.PlannerObjective.forOrder(order.text())
-                        .text();
-            }
-            if (subject instanceof dev.friendai.agent.plan.PlanSubject.ModelGoal goal) {
-                return goalText(board, goal.goalId());
-            }
-            if (subject instanceof dev.friendai.agent.plan.PlanSubject.ActiveGoal goal) {
-                return goalText(board, goal.goalId());
-            }
-            return null;
-        }
-
-        private String goalText(dev.friendai.agent.goal.GoalBoard board, long goalId) {
-            var found = goalId > 0 ? board.find(goalId) : board.primary();
-            return found.filter(goal -> goal.status() == dev.friendai.agent.goal.GoalStatus.ACTIVE)
-                    .map(dev.friendai.agent.goal.Goal::text)
-                    .orElse(null);
-        }
     }
 
     /** Adds verified facts, a diagnosis and goal bookkeeping to the task and plan events of one companion. */
@@ -1217,7 +837,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                     board.all().stream()
                             .filter(goal -> goal.planId() == planId)
                             .findFirst()
-                            .ifPresent(goal -> noteGoalFacts(owner, goal.id(), outcome.facts()));
+                            .ifPresent(goal -> goalOutcomes.noteFacts(owner, goal.id(), outcome.facts()));
                 }
                 String factsLine = outcome.factsLine();
                 if (!outcome.unmetCriteria().isEmpty()) {
@@ -1513,7 +1133,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                                 .player(uuid)
                                 .map(PlayerRecord::lastName)
                                 .orElse(""))));
-        brain.setPlannerPort(new GamePlannerPort(owner, companion, session));
+        brain.setPlannerPort(plannersFacade.portFor(owner, companion, session));
         brain.setAgentSettings(() -> new dev.friendai.agent.turn.AgentSettings(
                 config.agent.toolRouting,
                 dev.friendai.agent.turn.AgentSettings.Autonomy.parse(config.agent.autonomy),
@@ -1525,7 +1145,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
         brain.setPlacedSource(caller -> config.places.enabled ? placedService.promptBlock(companion, caller) : "");
         brain.setGoalSource(caller -> {
             var board = goals.board(owner);
-            captureGoalCheckability(owner, board);
+            goalOutcomes.captureCheckability(owner, board);
             var primary = board.primary();
             String plan = "";
             List<String> tools = List.of();
@@ -1556,6 +1176,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
             return board.view(plan, facts, tools, companion.level().getGameTime(), planQueued);
         });
         AgentEvents agent = new AgentEvents(owner, companion, session);
+        companion.executionCoordinator().setStructureBuilder(new ConstructionStructureBuilder());
         companion.executionCoordinator().setRepairFactory((context, args) -> {
             var definition = taskTools.get("obtain_item");
             if (definition == null) throw new IllegalStateException("obtain_item is unavailable");
@@ -1750,6 +1371,6 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
 
     /** Revokes every runtime trading scope when server trading is disabled. */
     public void invalidateTradingAuthorities(String reason) {
-        sessions.values().forEach(session -> session.tradingAuthority().invalidateAll(reason));
+        sessions.snapshot().forEach(session -> session.tradingAuthority().invalidateAll(reason));
     }
 }

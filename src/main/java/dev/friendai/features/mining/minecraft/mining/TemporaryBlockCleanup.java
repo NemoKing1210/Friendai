@@ -1,7 +1,9 @@
 package dev.friendai.features.mining.minecraft.mining;
 
-import dev.friendai.features.navigation.minecraft.nav.PlacementLedger;
 import dev.friendai.task.TaskContext;
+import dev.friendai.world.block.BlockBreaker;
+import dev.friendai.world.block.MiningRefusal;
+import dev.friendai.world.placement.PlacementLedger;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;

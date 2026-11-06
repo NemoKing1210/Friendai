@@ -1,7 +1,7 @@
 package dev.friendai.server.agent.social;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.features.social.Happening;
+import dev.friendai.foundation.social.Happening;
 import dev.friendai.server.runtime.ServerRuntime;
 import dev.friendai.server.runtime.ServerRuntimeRegistry;
 import java.util.UUID;

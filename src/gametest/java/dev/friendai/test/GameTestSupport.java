@@ -3,7 +3,7 @@ package dev.friendai.test;
 import com.mojang.authlib.GameProfile;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.knowledge.ResourceObservation;
-import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.perception.resource.ResourceSight;
 import dev.friendai.server.runtime.ServerRuntime;
 import dev.friendai.server.runtime.ServerRuntimeRegistry;

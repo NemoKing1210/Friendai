@@ -7,7 +7,6 @@ import dev.friendai.agent.tools.Cost;
 import dev.friendai.agent.tools.ToolGroup;
 import dev.friendai.agent.tools.ToolMeta;
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.entity.CompanionManager;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.SchemaBuilder;
 import dev.friendai.execution.tool.Tool;
@@ -18,9 +17,7 @@ import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.inventory.ItemMatcher;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.function.Function;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 
 /**
@@ -28,15 +25,15 @@ import net.minecraft.world.item.ItemStack;
  * authorizes only that help, never the requester's queue, access level or resources. Nothing here transfers items.
  */
 public final class CoordinationTools implements FeatureToolContributor {
+    private final CoordinationAccess access;
+
+    public CoordinationTools(CoordinationAccess access) {
+        this.access = java.util.Objects.requireNonNull(access);
+    }
+
     private static final int MIN_SECONDS = 10;
     private static final int MAX_SECONDS = 600;
     private static final int DEFAULT_SECONDS = 120;
-
-    private final Function<CompanionEntity, CoordinationAccess> coordination;
-
-    public CoordinationTools(Function<CompanionEntity, CoordinationAccess> coordination) {
-        this.coordination = coordination;
-    }
 
     @Override
     public void register(FeatureToolRegistry registry) {
@@ -154,27 +151,29 @@ public final class CoordinationTools implements FeatureToolContributor {
         if (help.isEmpty() || help.length() > 200) {
             return ToolResult.error("help must be one short sentence");
         }
-        Optional<ServerPlayer> target = player(context.server, args.get("owner").getAsString());
+        Optional<CoordinationAccess.OnlineOwner> target =
+                access.onlineOwner(args.get("owner").getAsString());
         if (target.isEmpty()) return ToolResult.error("that owner is not online");
-        if (target.get().getUUID().equals(context.owner)) return ToolResult.error("that is your own owner");
+        if (target.get().owner().equals(context.owner)) return ToolResult.error("that is your own owner");
         int seconds = args.has("expires_in") && !args.get("expires_in").isJsonNull()
                 ? args.get("expires_in").getAsInt()
                 : DEFAULT_SECONDS;
         if (seconds < MIN_SECONDS || seconds > MAX_SECONDS) {
             return ToolResult.error("expires_in must be between " + MIN_SECONDS + " and " + MAX_SECONDS + " seconds");
         }
-        HelpRequest request = new HelpRequest(context.owner, target.get().getUUID(), help, context.now + seconds * 20L);
-        return context.access.requestHelp(request)
-                ? ToolResult.ok("asked " + target.get().getName().getString() + " for help: " + help)
+        HelpRequest request = new HelpRequest(context.owner, target.get().owner(), help, context.now + seconds * 20L);
+        return access.requestHelp(request)
+                ? ToolResult.ok("asked " + target.get().name() + " for help: " + help)
                 : ToolResult.error("there is already an open request with that owner");
     }
 
     private ToolResult accept(CompanionEntity companion, JsonObject args) {
         Context context = context(companion);
         if (context.error != null) return ToolResult.error(context.error);
-        Optional<ServerPlayer> from = player(context.server, args.get("owner").getAsString());
+        Optional<CoordinationAccess.OnlineOwner> from =
+                access.onlineOwner(args.get("owner").getAsString());
         if (from.isEmpty()) return ToolResult.error("that owner is not online");
-        Optional<HelpRequest> accepted = context.access.acceptHelp(from.get().getUUID(), context.owner, context.now);
+        Optional<HelpRequest> accepted = access.acceptHelp(from.get().owner(), context.owner, context.now);
         return accepted.map(request -> ToolResult.ok("accepted help: " + request.help()))
                 .orElseGet(() -> ToolResult.error("there is no open request from that owner"));
     }
@@ -183,29 +182,30 @@ public final class CoordinationTools implements FeatureToolContributor {
         Context context = context(companion);
         if (context.error != null) return ToolResult.error(context.error);
         long planId = args.get("plan").getAsLong();
-        if (CompanionManager.get(context.server).find(context.owner).isEmpty()) {
+        if (access.companion(context.owner).isEmpty()) {
             return ToolResult.error("I don't have a companion to plan for");
         }
         String reason = args.has("reason") && !args.get("reason").isJsonNull()
                 ? args.get("reason").getAsString()
                 : "";
-        context.access.postReplan(context.owner, planId, reason);
+        access.requestReplan(context.owner, planId, reason);
         return ToolResult.ok("asked the planner to repair plan #" + planId);
     }
 
     private ToolResult offerHandoff(CompanionEntity companion, JsonObject args) {
         Context context = context(companion);
         if (context.error != null) return ToolResult.error(context.error);
-        Optional<ServerPlayer> target = player(context.server, args.get("owner").getAsString());
+        Optional<CoordinationAccess.OnlineOwner> target =
+                access.onlineOwner(args.get("owner").getAsString());
         if (target.isEmpty()) return ToolResult.error("that owner is not online");
-        if (target.get().getUUID().equals(context.owner)) return ToolResult.error("that is your own owner");
+        if (target.get().owner().equals(context.owner)) return ToolResult.error("that is your own owner");
         int seconds = args.has("expires_in") && !args.get("expires_in").isJsonNull()
                 ? args.get("expires_in").getAsInt()
                 : DEFAULT_SECONDS;
         String dimension = companion.level().dimension().identifier().toString();
         HandoffRequest request = new HandoffRequest(
                 context.owner,
-                target.get().getUUID(),
+                target.get().owner(),
                 args.get("item").getAsString(),
                 args.get("count").getAsInt(),
                 dimension,
@@ -213,7 +213,7 @@ public final class CoordinationTools implements FeatureToolContributor {
                 args.get("y").getAsInt(),
                 args.get("z").getAsInt(),
                 context.now + seconds * 20L);
-        return context.access.offerHandoff(request)
+        return access.offerHandoff(request)
                 ? ToolResult.ok("offered " + request.count() + " " + request.item() + " at the meeting point")
                 : ToolResult.error("there is already an open handoff with that owner");
     }
@@ -221,15 +221,14 @@ public final class CoordinationTools implements FeatureToolContributor {
     private ToolResult acceptHandoff(CompanionEntity companion, JsonObject args) {
         Context context = context(companion);
         if (context.error != null) return ToolResult.error(context.error);
-        Optional<ServerPlayer> from = player(context.server, args.get("owner").getAsString());
+        Optional<CoordinationAccess.OnlineOwner> from =
+                access.onlineOwner(args.get("owner").getAsString());
         if (from.isEmpty()) return ToolResult.error("that owner is not online");
-        var request = context.access.takeHandoff(from.get().getUUID(), context.owner, context.now);
+        var request = access.takeHandoff(from.get().owner(), context.owner, context.now);
         if (request.isEmpty()) return ToolResult.error("there is no open handoff from that owner");
         HandoffRequest handoff = request.get();
-        var source =
-                CompanionManager.get(context.server).find(handoff.fromOwner()).orElse(null);
-        var target =
-                CompanionManager.get(context.server).find(handoff.toOwner()).orElse(null);
+        var source = access.companion(handoff.fromOwner()).orElse(null);
+        var target = access.companion(handoff.toOwner()).orElse(null);
         if (source == null || target == null) return ToolResult.error("both companions must exist");
         if (!source.level().dimension().identifier().toString().equals(handoff.dimension())
                 || !target.level().dimension().identifier().toString().equals(handoff.dimension())) {
@@ -264,9 +263,10 @@ public final class CoordinationTools implements FeatureToolContributor {
     private ToolResult decline(CompanionEntity companion, JsonObject args) {
         Context context = context(companion);
         if (context.error != null) return ToolResult.error(context.error);
-        Optional<ServerPlayer> from = player(context.server, args.get("owner").getAsString());
+        Optional<CoordinationAccess.OnlineOwner> from =
+                access.onlineOwner(args.get("owner").getAsString());
         if (from.isEmpty()) return ToolResult.error("that owner is not online");
-        return context.access.declineHelp(from.get().getUUID(), context.owner)
+        return access.declineHelp(from.get().owner(), context.owner)
                 ? ToolResult.ok("declined the request")
                 : ToolResult.error("there is no open request from that owner");
     }
@@ -275,14 +275,8 @@ public final class CoordinationTools implements FeatureToolContributor {
         if (companion.ownerUuid() == null) return Context.error("I don't have an owner.");
         MinecraftServer server = companion.level().getServer();
         if (server == null) return Context.error("the world is not available");
-        CoordinationAccess access = coordination == null ? null : coordination.apply(companion);
-        if (access == null) return Context.error("the server coordination is not available");
+        if (!access.available()) return Context.error("the server runtime is not available");
         return new Context(access, server, companion.ownerUuid(), server.getTickCount());
-    }
-
-    private static Optional<ServerPlayer> player(MinecraftServer server, String name) {
-        if (name == null || name.isBlank()) return Optional.empty();
-        return Optional.ofNullable(server.getPlayerList().getPlayerByName(name.strip()));
     }
 
     private static ToolMeta metadata(String name) {

@@ -1,6 +1,6 @@
 package dev.friendai.features.construction.blueprint;
 
-import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.foundation.spatial.Pos;
 
 /**
  * Why a blueprint block cannot be placed where the plan asks. One typed cause instead of a prose sentence: the task

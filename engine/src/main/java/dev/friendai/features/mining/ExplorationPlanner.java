@@ -1,13 +1,13 @@
 package dev.friendai.features.mining;
 
-import dev.friendai.features.navigation.pathing.Cell;
-import dev.friendai.features.navigation.pathing.CellView;
-import dev.friendai.features.navigation.pathing.CostModel;
-import dev.friendai.features.navigation.pathing.MoveGenerator;
-import dev.friendai.features.navigation.pathing.Node;
-import dev.friendai.features.navigation.pathing.PathGoal;
-import dev.friendai.features.navigation.pathing.PathStep;
-import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.foundation.spatial.Cell;
+import dev.friendai.foundation.spatial.CellView;
+import dev.friendai.foundation.spatial.CostModel;
+import dev.friendai.foundation.spatial.MoveGenerator;
+import dev.friendai.foundation.spatial.Node;
+import dev.friendai.foundation.spatial.PathGoal;
+import dev.friendai.foundation.spatial.PathStep;
+import dev.friendai.foundation.spatial.Pos;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashSet;

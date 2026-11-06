@@ -1,9 +1,9 @@
 package dev.friendai.features.survival.minecraft.selfcare;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.features.navigation.movement.Facing;
 import dev.friendai.features.survival.selfcare.SelfCareItem;
 import dev.friendai.features.survival.selfcare.SelfCarePlanner;
+import dev.friendai.foundation.movement.Facing;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;

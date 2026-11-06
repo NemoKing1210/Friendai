@@ -88,7 +88,7 @@ class ArchitectureRulesTest {
         assertTrue(Files.exists(
                 PROJECT_ROOT.resolve("engine/src/main/java/dev/friendai/features/knowledge/Landmark.java")));
         assertTrue(Files.exists(
-                PROJECT_ROOT.resolve("engine/src/main/java/dev/friendai/features/navigation/RelativeDirection.java")));
+                PROJECT_ROOT.resolve("engine/src/main/java/dev/friendai/foundation/spatial/RelativeDirection.java")));
         assertTrue(Files.exists(PROJECT_ROOT.resolve("engine/src/main/java/dev/friendai/features/combat/Threat.java")));
         assertTrue(Files.exists(
                 PROJECT_ROOT.resolve("engine/src/main/java/dev/friendai/features/mining/tree/TreeSummary.java")));
@@ -294,72 +294,56 @@ class ArchitectureRulesTest {
     @Test
     void featureDependenciesRequireAnExplicitDirectedEdge() {
         List<DependencyEdge> edges = new ArrayList<>(List.of(
-                edge(
-                        "dev.friendai.features.mining.ExplorationPlanner",
-                        "dev.friendai.features.navigation.pathing.PathStep"),
-                edge("dev.friendai.features.fire.FirePlanner", "dev.friendai.features.navigation.pathing.Pos"),
-                edge("dev.friendai.features.construction.BuildOrder", "dev.friendai.features.navigation.pathing.Pos"),
+                edge("dev.friendai.features.mining.ExplorationPlanner", "dev.friendai.foundation.spatial.PathStep"),
+                edge("dev.friendai.features.fire.FirePlanner", "dev.friendai.foundation.spatial.Pos"),
+                edge("dev.friendai.features.construction.BuildOrder", "dev.friendai.foundation.spatial.Pos"),
                 edge("dev.friendai.features.acquisition.ObtainPlanner", "dev.friendai.features.crafting.CraftPlan"),
-                edge("dev.friendai.features.acquisition.ObtainPlanner", "dev.friendai.features.navigation.pathing.Pos"),
+                edge("dev.friendai.features.acquisition.ObtainPlanner", "dev.friendai.foundation.spatial.Pos"),
                 edge("dev.friendai.features.acquisition.ObtainPlanner", "dev.friendai.features.trading.TradePlan"),
-                edge(
-                        "dev.friendai.features.knowledge.ResourceKnowledge",
-                        "dev.friendai.features.navigation.pathing.Pos"),
-                edge(
-                        "dev.friendai.features.knowledge.ResourceKnowledge",
-                        "dev.friendai.features.acquisition.OreDepths"),
-                edge("dev.friendai.features.places.Place", "dev.friendai.features.navigation.pathing.Pos"),
-                edge("dev.friendai.features.places.Place", "dev.friendai.features.memory.MenuStatus"),
-                edge("dev.friendai.features.placements.PlacedBlock", "dev.friendai.features.navigation.pathing.Pos"),
+                edge("dev.friendai.features.knowledge.ResourceKnowledge", "dev.friendai.foundation.spatial.Pos"),
+                edge("dev.friendai.features.knowledge.ResourceKnowledge", "dev.friendai.foundation.item.OreDepths"),
+                edge("dev.friendai.foundation.places.Place", "dev.friendai.foundation.spatial.Pos"),
+                edge("dev.friendai.foundation.places.Place", "dev.friendai.features.memory.MenuStatus"),
+                edge("dev.friendai.features.placements.PlacedBlock", "dev.friendai.foundation.spatial.Pos"),
                 edge(
                         "dev.friendai.features.placements.minecraft.tool.PlacedTools",
-                        "dev.friendai.features.mining.minecraft.mining.BlockMatcher"),
+                        "dev.friendai.world.block.BlockMatcher"),
                 edge("dev.friendai.features.instructions.SkillView", "dev.friendai.features.memory.MenuStatus"),
                 edge(
                         "dev.friendai.features.interaction.minecraft.task.ReachEntityTask",
-                        "dev.friendai.features.navigation.minecraft.nav.EntityApproach"),
+                        "dev.friendai.world.movement.EntityApproach"),
                 edge(
                         "dev.friendai.features.interaction.minecraft.task.ExecuteCommandTask",
                         "dev.friendai.features.creative.CreativeCommandPolicy"),
                 edge(
                         "dev.friendai.features.inventory.minecraft.task.GiveItemsTask",
-                        "dev.friendai.features.navigation.minecraft.nav.MoveHelper"),
+                        "dev.friendai.world.movement.MoveHelper"),
                 edge(
                         "dev.friendai.features.inventory.minecraft.task.DepositTask",
                         "dev.friendai.features.acquisition.ToolNeed"),
                 edge(
                         "dev.friendai.features.inventory.minecraft.task.DepositTask",
                         "dev.friendai.features.places.PlaceQuery"),
-                edge(
-                        "dev.friendai.features.mining.minecraft.mining.MiningRefusal",
-                        "dev.friendai.features.places.Place"),
-                edge(
-                        "dev.friendai.features.navigation.minecraft.nav.PathExecutor",
-                        "dev.friendai.features.mining.minecraft.mining.BreakAction"),
+                edge("dev.friendai.world.block.MiningRefusal", "dev.friendai.foundation.places.Place"),
+                edge("dev.friendai.world.movement.PathExecutor", "dev.friendai.world.block.BreakAction"),
                 edge(
                         "dev.friendai.features.acquisition.minecraft.task.ObtainTask",
                         "dev.friendai.features.creative.minecraft.CreativeItemCapability"),
                 edge(
                         "dev.friendai.features.inventory.minecraft.tool.InventoryTools",
-                        "dev.friendai.features.survival.HungerModel"),
-                edge(
-                        "dev.friendai.features.animals.minecraft.Animals",
-                        "dev.friendai.features.combat.minecraft.Threats"),
-                edge(
-                        "dev.friendai.features.animals.minecraft.task.LeadTask",
-                        "dev.friendai.features.navigation.minecraft.nav.Approach"),
-                edge(
-                        "dev.friendai.features.animals.minecraft.task.HoneyTask",
-                        "dev.friendai.features.mining.minecraft.mining.BlockMatcher"),
+                        "dev.friendai.foundation.body.HungerModel"),
+                edge("dev.friendai.features.animals.minecraft.Animals", "dev.friendai.world.targeting.Threats"),
+                edge("dev.friendai.features.animals.minecraft.task.LeadTask", "dev.friendai.world.movement.Approach"),
+                edge("dev.friendai.features.animals.minecraft.task.HoneyTask", "dev.friendai.world.block.BlockMatcher"),
                 edge(
                         "dev.friendai.features.combat.minecraft.CombatController",
-                        "dev.friendai.features.navigation.movement.Facing"),
+                        "dev.friendai.foundation.movement.Facing"),
                 edge(
                         "dev.friendai.features.combat.minecraft.CombatController",
-                        "dev.friendai.features.inventory.minecraft.Equipment"),
+                        "dev.friendai.world.equipment.Equipment"),
                 edge(
                         "dev.friendai.features.combat.minecraft.CombatController",
-                        "dev.friendai.features.survival.HungerModel"),
+                        "dev.friendai.foundation.body.HungerModel"),
                 edge(
                         "dev.friendai.features.survival.minecraft.task.EatTask",
                         "dev.friendai.features.combat.minecraft.CombatController"),
@@ -374,26 +358,22 @@ class ArchitectureRulesTest {
                         "dev.friendai.features.knowledge.ResourceObservation"),
                 edge(
                         "dev.friendai.features.survival.minecraft.task.GetFoodTask",
-                        "dev.friendai.features.navigation.pathing.Pos"),
+                        "dev.friendai.foundation.spatial.Pos"),
                 edge(
                         "dev.friendai.features.survival.minecraft.task.SleepTask",
-                        "dev.friendai.features.mining.minecraft.mining.BlockMatcher"),
-                edge(
-                        "dev.friendai.features.survival.minecraft.task.SleepTask",
-                        "dev.friendai.features.navigation.minecraft.nav.Approach"),
+                        "dev.friendai.world.block.BlockMatcher"),
+                edge("dev.friendai.features.survival.minecraft.task.SleepTask", "dev.friendai.world.movement.Approach"),
                 edge(
                         "dev.friendai.features.construction.minecraft.task.ClearAreaTask",
                         "dev.friendai.features.fire.minecraft.FireHands"),
                 edge(
                         "dev.friendai.features.interaction.minecraft.task.InteractEntityTask",
-                        "dev.friendai.features.combat.minecraft.Threats"),
+                        "dev.friendai.world.targeting.Threats"),
                 edge("dev.friendai.features.fire.minecraft.FireScan", "dev.friendai.features.crafting.Station"),
                 edge(
                         "dev.friendai.features.fire.minecraft.task.ExtinguishFireTask",
-                        "dev.friendai.features.mining.minecraft.mining.BlockBreaker"),
-                edge(
-                        "dev.friendai.features.fire.minecraft.FireScan",
-                        "dev.friendai.features.navigation.minecraft.nav.LevelCellView"),
+                        "dev.friendai.world.block.BlockBreaker"),
+                edge("dev.friendai.features.fire.minecraft.FireScan", "dev.friendai.world.movement.LevelCellView"),
                 edge(
                         "dev.friendai.features.navigation.minecraft.tool.RelativeMovementTools",
                         "dev.friendai.features.interaction.minecraft.task.ApproachTask"),
@@ -422,10 +402,42 @@ class ArchitectureRulesTest {
                                 "dev.friendai.features.navigation.minecraft.tool.RelativeMovementTools",
                                 "dev.friendai.features.interaction.minecraft.task.ApproachTask"),
                         violation(
+                                "feature-graph-acyclic",
+                                "dev.friendai.features.interaction.minecraft.task.ExecuteCommandTask",
+                                "dev.friendai.features.creative.CreativeCommandPolicy"),
+                        violation(
                                 "feature-task-internals-not-allowed",
                                 "dev.friendai.features.navigation.minecraft.tool.RelativeMovementTools",
-                                "dev.friendai.features.interaction.minecraft.task.ApproachTask")),
+                                "dev.friendai.features.interaction.minecraft.task.ApproachTask"),
+                        violation(
+                                "foundation-direction",
+                                "dev.friendai.foundation.places.Place",
+                                "dev.friendai.features.memory.MenuStatus")),
                 PackageDependencyRules.validate(edges));
+    }
+
+    @Test
+    void worldKernelStaysBelowFeaturesAndFoundationStaysAboveTheWorld() {
+        String navigator = "dev.friendai.world.movement.Navigator";
+
+        assertEquals(
+                List.of(violation(
+                        "kernel-direction", navigator, "dev.friendai.features.mining.minecraft.mining.BlockBreaker")),
+                PackageDependencyRules.validate(
+                        List.of(edge(navigator, "dev.friendai.features.mining.minecraft.mining.BlockBreaker"))));
+        assertEquals(
+                List.of(violation(
+                        "foundation-direction",
+                        "dev.friendai.foundation.places.Place",
+                        "dev.friendai.world.placement.PlacementLedger")),
+                PackageDependencyRules.validate(List.of(
+                        edge("dev.friendai.foundation.places.Place", "dev.friendai.world.placement.PlacementLedger"))));
+        assertTrue(PackageDependencyRules.validate(List.of(
+                        edge(navigator, "dev.friendai.foundation.spatial.Path"),
+                        edge(navigator, "dev.friendai.task.TaskContext"),
+                        edge(navigator, "dev.friendai.entity.CompanionEntity"),
+                        edge(navigator, "net.minecraft.core.BlockPos")))
+                .isEmpty());
     }
 
     @Test
@@ -462,7 +474,6 @@ class ArchitectureRulesTest {
                 new String[] {"enchanting", "AnvilItemTask"},
                 new String[] {"enchanting", "EnchantItemTask"},
                 new String[] {"enchanting", "GrindstoneItemTask"},
-                new String[] {"enchanting", "MenuBlockTask"},
                 new String[] {"fire", "ExtinguishFireTask"})) {
             Path featureTask = PROJECT_ROOT.resolve(
                     "src/main/java/dev/friendai/features/" + task[0] + "/minecraft/task/" + task[1] + ".java");
@@ -487,15 +498,15 @@ class ArchitectureRulesTest {
 
         assertEquals(
                 List.of(
+                        violation("feature-to-server", toolAdapter, "dev.friendai.server.runtime.ServerRuntime"),
                         violation(
-                                "feature-to-server",
-                                "dev.friendai.features.navigation.minecraft.nav.Navigator",
-                                "dev.friendai.server.execution.tools.FeatureToolRegistry"),
-                        violation("feature-to-server", toolAdapter, "dev.friendai.server.runtime.ServerRuntime")),
+                                "kernel-direction",
+                                "dev.friendai.world.movement.Navigator",
+                                "dev.friendai.server.execution.tools.FeatureToolRegistry")),
                 PackageDependencyRules.validate(List.of(
                         edge(toolAdapter, "dev.friendai.server.runtime.ServerRuntime"),
                         edge(
-                                "dev.friendai.features.navigation.minecraft.nav.Navigator",
+                                "dev.friendai.world.movement.Navigator",
                                 "dev.friendai.server.execution.tools.FeatureToolRegistry"))));
     }
 
@@ -595,6 +606,24 @@ class ArchitectureRulesTest {
                 .map(edge -> violation(edge.ruleId(), edge.sourceClass(), edge.targetClass()))
                 .collect(java.util.stream.Collectors.toSet());
         assertEquals(expected, Set.copyOf(actual), "Unexpected or stale class dependency exceptions");
+    }
+
+    @Test
+    void featureDependencyGraphIsAcyclic() throws Exception {
+        String classpath = System.getProperty("friendai.architecture.classpath", "");
+        assertFalse(classpath.isBlank(), "Gradle must provide compiled project dependencies to jdeps");
+
+        List<DependencyEdge> edges = ArchitectureFixtures.collectCompiledProjectEdges(PROJECT_ROOT, classpath);
+        List<Set<String>> actualCycles = FeatureGraph.cycles(edges);
+        CouplingReport.write(PROJECT_ROOT, edges, actualCycles);
+
+        assertEquals(List.of(), actualCycles, () -> "Feature packages must form an acyclic graph: " + actualCycles);
+        assertEquals(
+                List.of(),
+                PackageDependencyRules.validate(edges).stream()
+                        .filter(violation -> violation.ruleId().equals(FeatureGraph.CYCLE_RULE))
+                        .toList(),
+                () -> "The cycle rule must reject every strongly connected feature component: " + actualCycles);
     }
 
     @Test

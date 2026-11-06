@@ -6,7 +6,7 @@ import dev.friendai.features.crafting.Station;
 import dev.friendai.features.fire.FireTarget;
 import dev.friendai.features.fire.minecraft.FireReflex;
 import dev.friendai.features.fire.minecraft.task.ExtinguishFireTask;
-import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskStatus;

@@ -1,5 +1,6 @@
 package dev.friendai.features.social;
 
+import dev.friendai.foundation.social.BondState;
 import java.util.ArrayDeque;
 import java.util.HashMap;
 import java.util.List;

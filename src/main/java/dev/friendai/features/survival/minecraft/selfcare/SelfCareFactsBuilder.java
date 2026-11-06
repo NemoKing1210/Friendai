@@ -1,9 +1,9 @@
 package dev.friendai.features.survival.minecraft.selfcare;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.features.combat.minecraft.Threats;
 import dev.friendai.features.survival.selfcare.SelfCareFacts;
 import dev.friendai.features.survival.selfcare.SelfCarePlanner;
+import dev.friendai.world.targeting.Threats;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;

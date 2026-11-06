@@ -7,7 +7,7 @@ import dev.friendai.features.knowledge.search.ResourceSearchProfile;
 import dev.friendai.features.knowledge.search.SearchCoverage;
 import dev.friendai.features.knowledge.search.SearchLedger;
 import dev.friendai.features.knowledge.search.SearchSession;
-import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.foundation.spatial.Pos;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 

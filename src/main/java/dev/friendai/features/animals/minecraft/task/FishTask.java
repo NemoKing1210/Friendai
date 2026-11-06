@@ -1,11 +1,11 @@
 package dev.friendai.features.animals.minecraft.task;
 
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.features.navigation.minecraft.nav.Approach;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.inventory.InventoryOps;
+import dev.friendai.world.movement.Approach;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.IntSupplier;

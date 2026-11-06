@@ -1,7 +1,5 @@
 package dev.friendai.features.trading.minecraft.task;
 
-import dev.friendai.features.combat.minecraft.Threats;
-import dev.friendai.features.navigation.minecraft.nav.Navigator;
 import dev.friendai.features.trading.BarterOrder;
 import dev.friendai.features.trading.BarterProgress;
 import dev.friendai.features.trading.TradeItem;
@@ -12,6 +10,8 @@ import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.inventory.DropCollector;
+import dev.friendai.world.movement.Navigator;
+import dev.friendai.world.targeting.Threats;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;

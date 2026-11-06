@@ -2,7 +2,7 @@ package dev.friendai.protocol.control;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import dev.friendai.features.cartography.TerrainMapView;
+import dev.friendai.features.cartography.view.TerrainMapView;
 import dev.friendai.protocol.DecodeResult;
 import dev.friendai.protocol.ProtocolDataException;
 import dev.friendai.protocol.ProtocolFamily;

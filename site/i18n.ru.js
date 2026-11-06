@@ -560,6 +560,7 @@ const RU = {
   "One lifecycle per server.": "Один жизненный цикл на сервер.",
   "Sessions, gateways, planner adapter.": "Сессии, шлюзы, адаптер планировщика.",
   "Active task, queue driver, persistence.": "Активная задача, драйвер очереди, сохранение.",
+  "Minecraft kernel: movement, blocks, food, targeting, placement.": "Ядро Minecraft: движение, блоки, еда, наведение, размещение.",
   "Tasks and tools per skill.": "Задачи и инструменты каждого навыка.",
   "CompanionEntity and manager.": "CompanionEntity и менеджер.",
   "Protocol and commands.": "Протокол и команды.",

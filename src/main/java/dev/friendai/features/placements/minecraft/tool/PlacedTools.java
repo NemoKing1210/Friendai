@@ -8,13 +8,13 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.tool.SchemaBuilder;
 import dev.friendai.execution.tool.Tool;
 import dev.friendai.execution.tool.ToolResult;
-import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
-import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.features.placements.PlacedQuery;
 import dev.friendai.features.placements.PlacedText;
 import dev.friendai.features.placements.minecraft.PlacedService;
+import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.server.execution.tools.FeatureToolContributor;
 import dev.friendai.server.execution.tools.FeatureToolRegistry;
+import dev.friendai.world.block.BlockMatcher;
 import java.util.List;
 import java.util.Objects;
 

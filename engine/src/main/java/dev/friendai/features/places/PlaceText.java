@@ -1,5 +1,6 @@
 package dev.friendai.features.places;
 
+import dev.friendai.foundation.places.Place;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;

@@ -5,9 +5,7 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.features.inventory.minecraft.task.PickupItemsTask;
 import dev.friendai.features.mining.MiningBounds;
-import dev.friendai.features.mining.minecraft.mining.BlockBreaker;
 import dev.friendai.features.mining.minecraft.mining.BlockFilter;
-import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
 import dev.friendai.features.mining.minecraft.mining.MiningSession;
 import dev.friendai.features.mining.minecraft.mining.SoftCover;
 import dev.friendai.features.mining.minecraft.task.MineBlockAtTask;
@@ -17,6 +15,8 @@ import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.inventory.ItemMatcher;
+import dev.friendai.world.block.BlockBreaker;
+import dev.friendai.world.block.BlockMatcher;
 import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
@@ -42,8 +42,8 @@ public class MineBlocksTests {
             }
         }
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 6, 2);
-        MiningSession session = new MiningSession(
-                c, new MiningBounds(new dev.friendai.features.navigation.pathing.Node(2, 6, 2), 16), 24, 200);
+        MiningSession session =
+                new MiningSession(c, new MiningBounds(new dev.friendai.foundation.spatial.Node(2, 6, 2), 16), 24, 200);
         session.explore(1, 0);
         TaskContext context = new TaskContext(c, h.getLevel());
         h.assertTrue(

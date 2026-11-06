@@ -4,7 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import dev.friendai.features.places.PlaceKind;
+import dev.friendai.foundation.places.PlaceKind;
+import dev.friendai.world.block.MiningRefusal;
 import net.minecraft.core.BlockPos;
 import org.junit.jupiter.api.Test;
 

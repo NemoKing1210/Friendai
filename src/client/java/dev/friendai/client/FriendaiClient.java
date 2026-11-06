@@ -151,7 +151,7 @@ public class FriendaiClient implements ClientModInitializer {
         }
 
         @Override
-        public boolean isCurrent(dev.friendai.presentation.companion.ClientSessionId session, int generation) {
+        public boolean isCurrent(dev.friendai.foundation.session.ClientSessionId session, int generation) {
             return VoiceRuntime.isCurrentOperation(session, generation);
         }
 

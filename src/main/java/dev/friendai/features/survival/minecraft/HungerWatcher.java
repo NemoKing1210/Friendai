@@ -3,6 +3,7 @@ package dev.friendai.features.survival.minecraft;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.survival.minecraft.task.GetFoodTask;
 import dev.friendai.task.TaskExecutionPort;
+import dev.friendai.world.food.Food;
 import java.util.Optional;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;

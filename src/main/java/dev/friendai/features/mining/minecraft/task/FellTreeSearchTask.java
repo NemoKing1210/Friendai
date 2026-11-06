@@ -1,10 +1,10 @@
 package dev.friendai.features.mining.minecraft.task;
 
-import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
 import dev.friendai.features.mining.minecraft.mining.TreeFinder;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.world.block.BlockMatcher;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;

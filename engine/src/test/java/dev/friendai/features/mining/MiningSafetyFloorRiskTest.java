@@ -2,7 +2,7 @@ package dev.friendai.features.mining;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.testutil.GridCellView;
 import org.junit.jupiter.api.Test;
 

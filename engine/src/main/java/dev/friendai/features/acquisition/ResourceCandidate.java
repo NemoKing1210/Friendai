@@ -1,6 +1,6 @@
 package dev.friendai.features.acquisition;
 
-import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.foundation.spatial.Pos;
 import java.util.Objects;
 
 /** A historical resource site offered as a conditional acquisition source. */

@@ -13,15 +13,14 @@ import dev.friendai.features.crafting.StationLease;
 import dev.friendai.features.crafting.minecraft.Stations;
 import dev.friendai.features.fire.minecraft.FireReflex;
 import dev.friendai.features.memory.MemoryBook;
-import dev.friendai.features.navigation.minecraft.nav.Pace;
 import dev.friendai.features.navigation.minecraft.task.FollowTask;
-import dev.friendai.features.navigation.movement.PaceMode;
-import dev.friendai.features.survival.Difficulty;
 import dev.friendai.features.survival.ExperienceModel;
-import dev.friendai.features.survival.HungerModel;
 import dev.friendai.features.survival.minecraft.HungerWatcher;
 import dev.friendai.features.survival.minecraft.selfcare.SelfCareReflex;
 import dev.friendai.features.survival.minecraft.task.SleepTask;
+import dev.friendai.foundation.body.Difficulty;
+import dev.friendai.foundation.body.HungerModel;
+import dev.friendai.foundation.movement.PaceMode;
 import dev.friendai.menu.FriendaiMenus;
 import dev.friendai.server.companion.CompanionExecution;
 import dev.friendai.server.companion.CompanionNames;
@@ -36,6 +35,8 @@ import dev.friendai.server.execution.persistence.TaskPersistenceCoordinator;
 import dev.friendai.server.runtime.ServerRuntimeRegistry;
 import dev.friendai.task.TaskExecutionPort;
 import dev.friendai.task.interact.CompanionHands;
+import dev.friendai.world.food.EatingController;
+import dev.friendai.world.movement.Pace;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -140,14 +141,14 @@ public class CompanionEntity extends PathfinderMob {
     /** The bond is read from the owner's memory book once, on first use, and written back after every change. */
     private boolean bondLoaded;
 
-    private dev.friendai.features.social.Traits traits = dev.friendai.features.social.Traits.NEUTRAL;
+    private dev.friendai.foundation.social.Traits traits = dev.friendai.foundation.social.Traits.NEUTRAL;
     private boolean traitsLoaded;
     /** The hand-overs this body performed itself: server-only, not synced and not saved. */
     private dev.friendai.features.inventory.DeliveredLedger delivered =
             dev.friendai.features.inventory.DeliveredLedger.EMPTY;
     /** The material the planned work still needs, composed by the runner on transitions; server-only. */
-    private dev.friendai.features.navigation.pathing.MaterialReserve materialReserve =
-            dev.friendai.features.navigation.pathing.MaterialReserve.EMPTY;
+    private dev.friendai.foundation.spatial.MaterialReserve materialReserve =
+            dev.friendai.foundation.spatial.MaterialReserve.EMPTY;
 
     private int moodTicks;
     // The last face input tuple that reached the debug log, plus when it was sampled; runtime only.
@@ -211,7 +212,7 @@ public class CompanionEntity extends PathfinderMob {
     /** Ticks left in which the path executor is known to be driving the companion. Not saved. */
     private transient int pathingTicks;
     /** The navigator that ticked most recently and when; read by the movement debug overlay. Not saved. */
-    private transient dev.friendai.features.navigation.minecraft.nav.Navigator lastNavigator;
+    private transient dev.friendai.world.movement.Navigator lastNavigator;
 
     private transient long lastNavigatorTick;
     /** Flight and landing are runtime-only; the mode preference itself is persisted separately. */
@@ -407,6 +408,11 @@ public class CompanionEntity extends PathfinderMob {
         return combatController;
     }
 
+    /** The live eating arbitration shared with the combat controller. */
+    public EatingController eatingController() {
+        return combatController();
+    }
+
     public FireReflex fireReflex() {
         return fireReflex;
     }
@@ -420,6 +426,11 @@ public class CompanionEntity extends PathfinderMob {
     }
 
     public SelfCareReflex selfCare() {
+        return selfCare;
+    }
+
+    /** The self-care reflex through the world-layer port, so combat never names the survival feature. */
+    public dev.friendai.world.food.BodyUse selfCareGate() {
         return selfCare;
     }
 
@@ -475,7 +486,7 @@ public class CompanionEntity extends PathfinderMob {
         return pathingTicks > 0;
     }
 
-    public void noteNavigator(dev.friendai.features.navigation.minecraft.nav.Navigator navigator) {
+    public void noteNavigator(dev.friendai.world.movement.Navigator navigator) {
         this.lastNavigator = navigator;
         this.lastNavigatorTick = level().getGameTime();
     }
@@ -485,7 +496,7 @@ public class CompanionEntity extends PathfinderMob {
      * that mines, builds or fights stops ticking its navigator for many ticks while the route stays valid; a navigator
      * that was stopped clears its executor, so {@code plan() == null} is the reliable "no route any more" signal.
      */
-    public dev.friendai.features.navigation.minecraft.nav.Navigator activeNavigator() {
+    public dev.friendai.world.movement.Navigator activeNavigator() {
         if (lastNavigator == null) {
             return null;
         }
@@ -707,13 +718,13 @@ public class CompanionEntity extends PathfinderMob {
     }
 
     /** The material the remaining queued work still needs; every block-spending path asks before it takes one. */
-    public dev.friendai.features.navigation.pathing.MaterialReserve materialReserve() {
+    public dev.friendai.foundation.spatial.MaterialReserve materialReserve() {
         return materialReserve;
     }
 
     /** Replaces the reserve; the runner composes it, nothing else writes it. */
-    public void setMaterialReserve(dev.friendai.features.navigation.pathing.MaterialReserve reserve) {
-        materialReserve = reserve == null ? dev.friendai.features.navigation.pathing.MaterialReserve.EMPTY : reserve;
+    public void setMaterialReserve(dev.friendai.foundation.spatial.MaterialReserve reserve) {
+        materialReserve = reserve == null ? dev.friendai.foundation.spatial.MaterialReserve.EMPTY : reserve;
     }
     /** The armor, hands and combat settings, as one LLM-facing line. */
     public String equipmentText() {
@@ -1036,7 +1047,7 @@ public class CompanionEntity extends PathfinderMob {
     }
 
     /** How the companion's manner has drifted; read from the book once, neutral until something moves it. */
-    public dev.friendai.features.social.Traits traits() {
+    public dev.friendai.foundation.social.Traits traits() {
         ensureTraits();
         return traits;
     }
@@ -1055,7 +1066,7 @@ public class CompanionEntity extends PathfinderMob {
      * The owner said they dislike this manner: drop it now, remember the dislike as a preference and never drift
      * back into it on its own. A null kind means the whole manner, back to neutral.
      */
-    public void rejectManner(dev.friendai.features.social.Traits.Kind kind) {
+    public void rejectManner(dev.friendai.foundation.social.Traits.Kind kind) {
         ensureTraits();
         var next = kind == null ? traits.dropAll() : traits.drop(kind);
         if (!next.equals(traits)) {
@@ -1067,11 +1078,11 @@ public class CompanionEntity extends PathfinderMob {
         }
     }
 
-    private java.util.Set<dev.friendai.features.social.Traits.Kind> rejectedManners() {
+    private java.util.Set<dev.friendai.foundation.social.Traits.Kind> rejectedManners() {
         if (ownerUuid == null || !(level() instanceof ServerLevel serverLevel)) {
             return java.util.Set.of();
         }
-        var found = java.util.EnumSet.noneOf(dev.friendai.features.social.Traits.Kind.class);
+        var found = java.util.EnumSet.noneOf(dev.friendai.foundation.social.Traits.Kind.class);
         ServerRuntimeRegistry.find(serverLevel.getServer()).ifPresent(runtime -> {
             var subject = dev.friendai.features.memory.Subject.player(ownerUuid);
             for (var fact : runtime.memory().book(ownerUuid).allFacts()) {
@@ -1079,7 +1090,7 @@ public class CompanionEntity extends PathfinderMob {
                         || fact.category() != dev.friendai.features.memory.Category.PREFERENCE) {
                     continue;
                 }
-                for (var trait : dev.friendai.features.social.Traits.Kind.values()) {
+                for (var trait : dev.friendai.foundation.social.Traits.Kind.values()) {
                     if (fact.text().equals(rejectionText(trait))) {
                         found.add(trait);
                     }
@@ -1089,11 +1100,11 @@ public class CompanionEntity extends PathfinderMob {
         return found;
     }
 
-    private static String rejectionText(dev.friendai.features.social.Traits.Kind kind) {
+    private static String rejectionText(dev.friendai.foundation.social.Traits.Kind kind) {
         return "dislikes a " + kind.name().toLowerCase(java.util.Locale.ROOT) + " manner";
     }
 
-    private void rememberRejection(dev.friendai.features.social.Traits.Kind kind) {
+    private void rememberRejection(dev.friendai.foundation.social.Traits.Kind kind) {
         if (ownerUuid == null || !(level() instanceof ServerLevel serverLevel)) {
             return;
         }
@@ -1115,7 +1126,7 @@ public class CompanionEntity extends PathfinderMob {
     }
 
     /** A trait that annoyed the owner drops at once, back to neutral. */
-    public void dropTrait(dev.friendai.features.social.Traits.Kind kind) {
+    public void dropTrait(dev.friendai.foundation.social.Traits.Kind kind) {
         ensureTraits();
         var next = traits.drop(kind);
         if (!next.equals(traits)) {

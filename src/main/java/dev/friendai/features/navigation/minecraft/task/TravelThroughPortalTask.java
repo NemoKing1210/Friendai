@@ -2,27 +2,22 @@ package dev.friendai.features.navigation.minecraft.task;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
-import dev.friendai.execution.tool.AccessLevel;
-import dev.friendai.execution.tool.Caller;
-import dev.friendai.features.construction.minecraft.task.SpecialStructureTask;
-import dev.friendai.features.construction.special.SpecialStructure;
-import dev.friendai.features.construction.special.StructureBook;
-import dev.friendai.features.navigation.minecraft.nav.MoveHelper;
-import dev.friendai.features.navigation.pathing.Pos;
-import dev.friendai.features.places.Place;
-import dev.friendai.features.places.PlaceKind;
-import dev.friendai.features.places.PlaceSource;
-import dev.friendai.features.places.PlaceValues;
-import dev.friendai.features.places.PortalRoutePolicy;
-import dev.friendai.features.places.PortalRoutePolicy.PortalLink;
-import dev.friendai.features.places.PortalRoutePolicy.Reason;
-import dev.friendai.features.places.PortalRoutePolicy.RouteFacts;
-import dev.friendai.features.places.minecraft.PlaceService;
+import dev.friendai.foundation.places.Place;
+import dev.friendai.foundation.places.PlaceKind;
+import dev.friendai.foundation.places.PlaceSource;
+import dev.friendai.foundation.places.PlaceValues;
+import dev.friendai.foundation.places.PortalRoutePolicy;
+import dev.friendai.foundation.places.PortalRoutePolicy.PortalLink;
+import dev.friendai.foundation.places.PortalRoutePolicy.Reason;
+import dev.friendai.foundation.places.PortalRoutePolicy.RouteFacts;
+import dev.friendai.foundation.spatial.Pos;
+import dev.friendai.task.PlaceLookup;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
-import dev.friendai.task.structure.StructureSite;
+import dev.friendai.world.movement.MoveHelper;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
@@ -52,10 +47,7 @@ import net.minecraft.world.phys.Vec3;
  * <p>Before leaving it records the source portal as a durable {@link Place} named "return portal". A user-authored
  * place of that name is never rewritten; an automatic one is refreshed. After arrival the trip only succeeds on a safe
  * landing (solid support, not lava and not the void), and then walks to a recorded portal place in the new dimension
- * when one is near, so a later return uses the same anchor. A dimension crossing replaces the companion's body, and the
- * trip ends on the replacement: the new body is re-indexed for its owner and its landing checked, and only the walk out
- * of the frame is skipped, because the task that walked into the portal no longer ticks. The End is not buildable by
- * this task and is refused.
+ * when one is near, so a later return uses the same anchor. The End is not buildable by this task and is refused.
  */
 public final class TravelThroughPortalTask implements Task {
     public static final String OVERWORLD = "minecraft:overworld";
@@ -94,7 +86,7 @@ public final class TravelThroughPortalTask implements Task {
     private Phase phase = Phase.PREPARE;
     private BlockPos portal;
     private BlockPos walkTarget;
-    private SpecialStructureTask builder;
+    private Task builder;
     private boolean builtHere;
     private int phaseTicks;
     private String summary = "";
@@ -221,12 +213,17 @@ public final class TravelThroughPortalTask implements Task {
     }
 
     private TaskStatus startBuilding(TaskContext c) {
-        BlockPos site = clearPortalSite(c.level(), c.companion());
+        BlockPos site = clearPortalSite(c);
         if (site == null) {
             summary = "there is no clear 4 by 5 spot within " + SITE_RADIUS + " blocks to build a nether portal";
             return TaskStatus.FAILED;
         }
-        builder = new SpecialStructureTask(portalStructure(), site, Rotation.NONE, 4);
+        Optional<Task> planned = c.structureBuilder().build(PORTAL_STRUCTURE, site, Rotation.NONE, 4);
+        if (planned.isEmpty()) {
+            summary = "this world cannot build a nether portal";
+            return TaskStatus.FAILED;
+        }
+        builder = planned.get();
         builder.start(c);
         phase = Phase.BUILD;
         phaseTicks = 0;
@@ -286,9 +283,8 @@ public final class TravelThroughPortalTask implements Task {
         if (lowest == null) {
             return "the portal is no longer lit";
         }
-        PlaceService places = c.placeService();
-        Place existing =
-                places.book(companion).find(RETURN_PLACE, sourceDimension).orElse(null);
+        PlaceLookup places = c.placeLookup();
+        Place existing = places.find(companion, RETURN_PLACE, sourceDimension);
         if (existing != null
                 && (existing.source() == PlaceSource.MANUAL
                         || existing.source() == PlaceSource.COMMAND
@@ -310,11 +306,7 @@ public final class TravelThroughPortalTask implements Task {
                 1,
                 4);
         try {
-            places.remember(
-                    companion,
-                    new Caller(owner, "", AccessLevel.OWNER),
-                    values,
-                    c.level().getGameTime());
+            places.rememberAsOwner(companion, values, c.level().getGameTime());
         } catch (IllegalArgumentException rejected) {
             return "I can't record the return portal: " + rejected.getMessage();
         }
@@ -547,7 +539,7 @@ public final class TravelThroughPortalTask implements Task {
         String dimension = level.dimension().identifier().toString();
         Place best = null;
         double bestDistance = Double.MAX_VALUE;
-        for (Place place : c.placeService().book(c.companion()).all()) {
+        for (Place place : c.placeLookup().all(c.companion())) {
             if (place.kind() != PlaceKind.PORTAL || !place.dimension().equals(dimension)) {
                 continue;
             }
@@ -607,10 +599,17 @@ public final class TravelThroughPortalTask implements Task {
      * A bounded walk from the companion over loaded chunks only, choosing the first free portal footprint with a
      * solid floor. The builder re-checks the site, so this is a head start, not a trust.
      */
-    private static BlockPos clearPortalSite(ServerLevel level, CompanionEntity companion) {
+    private static BlockPos clearPortalSite(TaskContext c) {
+        ServerLevel level = c.level();
+        CompanionEntity companion = c.companion();
         BlockPos center = companion.blockPosition();
-        SpecialStructure structure = portalStructure();
         AABB own = companion.getBoundingBox();
+        // The footprint is a fixed translation of the origin, so resolve it once instead of once per candidate.
+        Optional<AABB> footprint = c.structureBuilder().volume(PORTAL_STRUCTURE, BlockPos.ZERO, Rotation.NONE);
+        if (footprint.isEmpty()) {
+            return null;
+        }
+        AABB local = footprint.get();
         for (int radius = 2; radius <= SITE_RADIUS; radius++) {
             for (int dx = -radius; dx <= radius; dx++) {
                 for (int dz = -radius; dz <= radius; dz++) {
@@ -619,7 +618,7 @@ public final class TravelThroughPortalTask implements Task {
                     }
                     for (int dy = -1; dy <= 1; dy++) {
                         BlockPos origin = center.offset(dx, dy, dz);
-                        if (clearFootprint(level, structure, origin, own)) {
+                        if (clearFootprint(level, local.move(origin.getX(), origin.getY(), origin.getZ()), own)) {
                             return origin;
                         }
                     }
@@ -629,9 +628,7 @@ public final class TravelThroughPortalTask implements Task {
         return null;
     }
 
-    private static boolean clearFootprint(ServerLevel level, SpecialStructure structure, BlockPos origin, AABB own) {
-        StructureSite site = new StructureSite(origin, Rotation.NONE);
-        AABB box = site.box(structure);
+    private static boolean clearFootprint(ServerLevel level, AABB box, AABB own) {
         if (!level.hasChunkAt(BlockPos.containing(box.minX, box.minY, box.minZ))
                 || !level.hasChunkAt(BlockPos.containing(box.maxX - 1, box.maxY - 1, box.maxZ - 1))
                 || own.intersects(box)) {
@@ -732,10 +729,6 @@ public final class TravelThroughPortalTask implements Task {
             lowest = lowest.below();
         }
         return lowest;
-    }
-
-    private static SpecialStructure portalStructure() {
-        return StructureBook.withBuiltins().get(PORTAL_STRUCTURE).orElseThrow();
     }
 
     /** The server level for a destination the route supports; null when the server has no such world. */

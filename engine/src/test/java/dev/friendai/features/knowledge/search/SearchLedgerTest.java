@@ -3,7 +3,7 @@ package dev.friendai.features.knowledge.search;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
-import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.foundation.spatial.Pos;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 

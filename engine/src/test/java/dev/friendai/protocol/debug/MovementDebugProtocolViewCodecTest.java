@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import dev.friendai.features.navigation.pathing.Move;
+import dev.friendai.foundation.spatial.Move;
 import dev.friendai.protocol.DecodeResult;
 import dev.friendai.protocol.ProtocolView;
 import java.util.ArrayList;

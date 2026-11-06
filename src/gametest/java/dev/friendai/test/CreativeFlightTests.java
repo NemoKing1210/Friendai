@@ -6,15 +6,15 @@ import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.features.creative.CreativeAction;
 import dev.friendai.features.creative.CreativeActionContext;
-import dev.friendai.features.navigation.minecraft.nav.FlightNavigator;
 import dev.friendai.features.navigation.minecraft.task.FlyToTask;
 import dev.friendai.features.navigation.minecraft.task.FollowTask;
 import dev.friendai.features.navigation.minecraft.task.StayTask;
-import dev.friendai.features.navigation.movement.Facing;
+import dev.friendai.foundation.movement.Facing;
 import dev.friendai.server.creative.CreativeModeService;
 import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.world.movement.FlightNavigator;
 import java.util.Optional;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
@@ -435,5 +435,26 @@ public final class CreativeFlightTests {
             h.assertTrue(maxYawError[0] <= 5.0F, "a pure climb turned the body by " + maxYawError[0]);
             h.assertTrue(minPitch[0] <= -60.0F, "a pure climb never looked up: pitch " + minPitch[0]);
         });
+    }
+
+    @GameTest
+    public void freeScaffoldingRequiresTheLiveCreativeGrant(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        CompanionEntity companion = creativeCompanion(h, owner);
+        long revision = companion.creativeModeRevision();
+        TaskContext live = new TaskContext(
+                companion,
+                h.getLevel(),
+                companion.executionCoordinator(),
+                new CreativeActionContext(owner.getUUID(), revision));
+        h.assertTrue(live.creativeMaterials(), "the live creative grant must allow free scaffolding");
+        TaskContext stale = new TaskContext(
+                companion,
+                h.getLevel(),
+                companion.executionCoordinator(),
+                new CreativeActionContext(owner.getUUID(), revision - 1));
+        h.assertFalse(stale.creativeMaterials(), "a stale creative grant must not allow free scaffolding");
+        h.succeed();
     }
 }

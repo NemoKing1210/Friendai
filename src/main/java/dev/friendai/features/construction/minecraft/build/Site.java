@@ -2,10 +2,10 @@ package dev.friendai.features.construction.minecraft.build;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.construction.blueprint.PlacementRefusal;
-import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.features.placements.PlacedBlock;
 import dev.friendai.features.placements.PlacedQuery;
 import dev.friendai.features.placements.minecraft.PlacedService;
+import dev.friendai.foundation.spatial.Pos;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;

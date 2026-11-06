@@ -2,8 +2,8 @@ package dev.friendai.server.agent.perception;
 
 import dev.friendai.agent.perception.AreaMap;
 import dev.friendai.entity.CompanionEntity;
-import dev.friendai.features.combat.minecraft.Threats;
-import dev.friendai.features.navigation.minecraft.nav.Sight;
+import dev.friendai.world.movement.Sight;
+import dev.friendai.world.targeting.Threats;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;

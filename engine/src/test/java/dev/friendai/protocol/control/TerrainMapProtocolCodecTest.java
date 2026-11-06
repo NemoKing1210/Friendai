@@ -3,7 +3,7 @@ package dev.friendai.protocol.control;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
-import dev.friendai.features.cartography.TerrainMapView;
+import dev.friendai.features.cartography.view.TerrainMapView;
 import dev.friendai.protocol.DecodeResult;
 import dev.friendai.protocol.ProtocolView;
 import java.util.List;

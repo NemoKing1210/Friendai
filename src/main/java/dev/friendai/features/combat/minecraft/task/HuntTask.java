@@ -2,10 +2,10 @@ package dev.friendai.features.combat.minecraft.task;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.combat.minecraft.CombatController;
-import dev.friendai.features.combat.minecraft.Threats;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.world.targeting.Threats;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;

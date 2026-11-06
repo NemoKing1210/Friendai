@@ -3,18 +3,18 @@ package dev.friendai.features.mining.minecraft.mining;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.mining.MiningBounds;
 import dev.friendai.features.mining.MiningSafety;
-import dev.friendai.features.navigation.minecraft.nav.Approach;
-import dev.friendai.features.navigation.minecraft.nav.LevelCellView;
-import dev.friendai.features.navigation.minecraft.nav.PathExecutionGuard;
-import dev.friendai.features.navigation.minecraft.nav.Sight;
-import dev.friendai.features.navigation.pathing.Cell;
-import dev.friendai.features.navigation.pathing.CellView;
-import dev.friendai.features.navigation.pathing.CostModel;
-import dev.friendai.features.navigation.pathing.PathStep;
-import dev.friendai.features.navigation.pathing.PathingConfig;
-import dev.friendai.features.navigation.pathing.Pos;
+import dev.friendai.foundation.spatial.Cell;
+import dev.friendai.foundation.spatial.CellView;
+import dev.friendai.foundation.spatial.CostModel;
+import dev.friendai.foundation.spatial.PathStep;
+import dev.friendai.foundation.spatial.PathingConfig;
+import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.task.TaskContext;
+import dev.friendai.world.movement.Approach;
+import dev.friendai.world.movement.LevelCellView;
+import dev.friendai.world.movement.PathExecutionGuard;
+import dev.friendai.world.movement.Sight;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -102,7 +102,7 @@ public final class ExcavationGuard implements PathExecutionGuard {
         }
         CellView view = planningView(context, context.pathingConfig());
         var block = companion.blockPosition();
-        var stance = new dev.friendai.features.navigation.pathing.Node(block.getX(), block.getY(), block.getZ());
+        var stance = new dev.friendai.foundation.spatial.Node(block.getX(), block.getY(), block.getZ());
         return MiningSafety.canBreak(view, stance, targetPos, protectedSupports);
     }
 

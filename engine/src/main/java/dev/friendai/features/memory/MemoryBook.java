@@ -1,6 +1,6 @@
 package dev.friendai.features.memory;
 
-import dev.friendai.features.social.BondState;
+import dev.friendai.foundation.social.BondState;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -26,8 +26,8 @@ public final class MemoryBook {
      */
     private final Map<UUID, BondState> bonds = new LinkedHashMap<>();
 
-    private final Map<UUID, dev.friendai.features.social.HappeningJournal> journals = new LinkedHashMap<>();
-    private final Map<UUID, dev.friendai.features.social.Traits> traits = new LinkedHashMap<>();
+    private final Map<UUID, dev.friendai.foundation.social.HappeningJournal> journals = new LinkedHashMap<>();
+    private final Map<UUID, dev.friendai.foundation.social.Traits> traits = new LinkedHashMap<>();
     /** Item id to allowed: true when the owner allowed a food the companion refuses by default, false to ban one. */
     private final TreeMap<String, Boolean> foodRules = new TreeMap<>();
     /**
@@ -221,15 +221,15 @@ public final class MemoryBook {
     }
 
     /** The owner's happenings journal; empty until something worth mentioning happens. */
-    public dev.friendai.features.social.HappeningJournal journal(UUID owner) {
+    public dev.friendai.foundation.social.HappeningJournal journal(UUID owner) {
         if (owner == null) {
             throw new IllegalArgumentException("A journal needs an owner id.");
         }
-        return journals.computeIfAbsent(owner, ignored -> new dev.friendai.features.social.HappeningJournal());
+        return journals.computeIfAbsent(owner, ignored -> new dev.friendai.foundation.social.HappeningJournal());
     }
 
     /** Records one happening for the owner; a repeated key replaces the older entry instead of growing the journal. */
-    public void recordHappening(UUID owner, dev.friendai.features.social.Happening happening) {
+    public void recordHappening(UUID owner, dev.friendai.foundation.social.Happening happening) {
         if (happening == null) {
             return;
         }
@@ -239,12 +239,12 @@ public final class MemoryBook {
     }
 
     /** The owner's drifted manner, neutral until something moves it. */
-    public dev.friendai.features.social.Traits traits(UUID owner) {
-        return traits.getOrDefault(owner, dev.friendai.features.social.Traits.NEUTRAL);
+    public dev.friendai.foundation.social.Traits traits(UUID owner) {
+        return traits.getOrDefault(owner, dev.friendai.foundation.social.Traits.NEUTRAL);
     }
 
     /** Stores the owner's manner; the revision only moves when the value actually changes. */
-    public void setTraits(UUID owner, dev.friendai.features.social.Traits next) {
+    public void setTraits(UUID owner, dev.friendai.foundation.social.Traits next) {
         if (owner == null || next == null) {
             return;
         }
@@ -256,12 +256,12 @@ public final class MemoryBook {
     }
 
     /** Every owner's manner, in insertion order. Package-private: the record codec is the only writer. */
-    Map<UUID, dev.friendai.features.social.Traits> traits() {
+    Map<UUID, dev.friendai.foundation.social.Traits> traits() {
         return Collections.unmodifiableMap(new LinkedHashMap<>(traits));
     }
 
     /** Every journal, in insertion order. Package-private: the record codec is the only writer. */
-    Map<UUID, dev.friendai.features.social.HappeningJournal> journals() {
+    Map<UUID, dev.friendai.foundation.social.HappeningJournal> journals() {
         return Collections.unmodifiableMap(new LinkedHashMap<>(journals));
     }
 
@@ -617,19 +617,19 @@ public final class MemoryBook {
      */
     public static MemoryBook fromRecord(MemoryRecord record) {
         MemoryBook book = fromFile(record.toFile());
-        for (Map.Entry<String, List<dev.friendai.features.social.Happening>> entry :
+        for (Map.Entry<String, List<dev.friendai.foundation.social.Happening>> entry :
                 record.happenings().entrySet()) {
             UUID owner = parseUuid(entry.getKey());
             if (owner != null && entry.getValue() != null) {
                 var journal = book.journals.computeIfAbsent(
-                        owner, ignored -> new dev.friendai.features.social.HappeningJournal());
+                        owner, ignored -> new dev.friendai.foundation.social.HappeningJournal());
                 // The record stores newest first; the journal already keeps that order when replayed oldest first.
                 for (int i = entry.getValue().size() - 1; i >= 0; i--) {
                     journal.add(entry.getValue().get(i));
                 }
             }
         }
-        for (Map.Entry<String, dev.friendai.features.social.Traits> entry :
+        for (Map.Entry<String, dev.friendai.foundation.social.Traits> entry :
                 record.traits().entrySet()) {
             UUID owner = parseUuid(entry.getKey());
             if (owner != null && entry.getValue() != null) {

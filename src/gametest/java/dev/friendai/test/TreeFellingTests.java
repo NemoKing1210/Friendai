@@ -8,7 +8,6 @@ import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolExecutor;
 import dev.friendai.execution.tool.ToolResult;
-import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
 import dev.friendai.features.mining.minecraft.mining.TreeFinder;
 import dev.friendai.features.mining.minecraft.task.FellLogsTask;
 import dev.friendai.features.mining.minecraft.task.FellTreeTask;
@@ -17,6 +16,7 @@ import dev.friendai.server.agent.tools.FriendaiTools;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.world.block.BlockMatcher;
 import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
@@ -1262,7 +1262,7 @@ public class TreeFellingTests {
                             .append(String.format(java.util.Locale.ROOT, "%.2f", eyeDistance))
                             .append(';');
                     h.assertTrue(
-                            eyeDistance <= dev.friendai.features.navigation.minecraft.nav.Approach.REACH,
+                            eyeDistance <= dev.friendai.world.movement.Approach.REACH,
                             "break out of reach: " + p + " eye " + eyeDistance);
                     if (lastStance[0] != null && lastLayer[0] == p.getY()) {
                         double moved = Math.sqrt(net.minecraft.world.phys.Vec3.atCenterOf(lastStance[0])

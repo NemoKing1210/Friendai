@@ -11,7 +11,9 @@ malformed class-edge output, or empty dependency graph fails the test.
 | Rule | Allowed direction |
 |---|---|
 | `engine-forbidden-dependency` | Engine classes and classpaths exclude Minecraft, Fabric, YACL, Mod Menu, Whisper JNI and sherpa-onnx. |
-| `foundation-direction` | Foundation has no platform, agent, feature, protocol, presentation, infrastructure, server, client or transport dependency. |
+| `foundation-direction` | Foundation has no platform, agent, feature, protocol, presentation, infrastructure, server, client, transport or world dependency. |
+| `kernel-direction` | The Minecraft kernel (`dev.friendai.world`) does not depend on features, server, client, transport, presentation, infrastructure or protocol. |
+| `feature-graph-acyclic` | Feature packages form a directed acyclic graph; no cycle baseline is allowed. |
 | `pure-java-no-platform` | `brain`, `infrastructure/config`, `agent/llm`, `foundation/text`, `features/speech` and non-builtin `tool` classes do not depend on Minecraft or Fabric. |
 | `feature-to-server` | Engine feature code does not depend on server, client, transport, infrastructure, presentation or Minecraft/Fabric adapters. |
 | `agent-direction` | Engine agent/application code calls ports and does not depend on server, client, transport, infrastructure, presentation or Minecraft/Fabric adapters. |
@@ -23,10 +25,28 @@ malformed class-edge output, or empty dependency graph fails the test.
 | `runtime-service-graph-boundary` | Only classes in `dev.friendai.server.runtime` may depend on its package-private `ServerServiceGraph`. |
 
 The test fixtures prove that engine-to-platform/UI/native, feature-to-server, agent-to-adapter, server-to-client,
-foundation-to-platform, optional-integration leaks, presentation-to-adapter, protocol-to-adapter and
-presentation-to-feature-internal edges fail with the exact source and target classes. Feature view dependencies and
-YACL from client config pass. These package names describe the target architecture; the rules apply as those packages
-are introduced.
+foundation-to-platform, foundation-to-world, world-to-feature, optional-integration leaks, presentation-to-adapter,
+protocol-to-adapter and presentation-to-feature-internal edges fail with the exact source and target classes. Feature
+view dependencies and YACL from client config pass. These package names describe the target architecture; the rules
+apply as those packages are introduced.
+
+`foundation/` and `world/` are the shared kernel: a feature or an adapter may depend on them, never the other way
+round. A pure policy both layers need moves into `foundation`; a Minecraft adapter both layers need moves into `world`.
+A cycle between two feature packages is a design error, not a baseline entry: the shared part moves into the kernel, or
+one feature becomes a port. `FeatureGraph` checks the cycle rule over class-level edges, and
+`architecture/known-feature-cycles.txt` no longer exists.
+
+## Class-level exceptions
+
+The set is empty and `compiledProjectEdgesMatchOnlyDocumentedClassLevelExceptions` requires it to stay empty: a new
+class edge that breaks a rule fails the build instead of joining a list. The kernel extraction removed the last ones:
+`MenuBlockTask` moved to `task/interact`, `BlockSearch` to `world/block`, `ClientSessionId` to `foundation/session`,
+`TerrainMapView` into `features/cartography/view` (the one feature package presentation may read), the terrain sampler
+moved to the server adapters in `server/cartography` where it can read the runtime, and the coordination tools read
+the server through their own `CoordinationAccess` port. Cross-feature task uses are violations again: the portal trip
+builds through the `StructureBuilder` port and brewing drives the shared `task/interact/MenuBlockTask`, so no allowed
+pair is needed. `social` → `memory` is a listed feature dependency, not an exception: ambient topics quote
+the owner's own recorded statements, and the reverse edge is the bond.
 
 ## Runtime service graph
 

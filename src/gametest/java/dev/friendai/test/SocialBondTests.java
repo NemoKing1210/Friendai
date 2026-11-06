@@ -42,10 +42,12 @@ public class SocialBondTests {
 
         companion.driftTrait();
         h.assertValueEqual(
-                companion.traits().of(dev.friendai.features.social.Traits.Kind.HUMOUR), 1, "drift starts with humour");
-        companion.rejectManner(dev.friendai.features.social.Traits.Kind.HUMOUR);
+                companion.traits().of(dev.friendai.foundation.social.Traits.Kind.HUMOUR),
+                1,
+                "drift starts with humour");
+        companion.rejectManner(dev.friendai.foundation.social.Traits.Kind.HUMOUR);
         h.assertValueEqual(
-                companion.traits().of(dev.friendai.features.social.Traits.Kind.HUMOUR),
+                companion.traits().of(dev.friendai.foundation.social.Traits.Kind.HUMOUR),
                 0,
                 "a rejected manner drops at once");
 
@@ -53,11 +55,11 @@ public class SocialBondTests {
             companion.driftTrait();
         }
         h.assertValueEqual(
-                companion.traits().of(dev.friendai.features.social.Traits.Kind.HUMOUR),
+                companion.traits().of(dev.friendai.foundation.social.Traits.Kind.HUMOUR),
                 0,
                 "drift never brings a rejected manner back: " + companion.traits());
         h.assertTrue(
-                companion.traits().of(dev.friendai.features.social.Traits.Kind.WARMTH) > 0,
+                companion.traits().of(dev.friendai.foundation.social.Traits.Kind.WARMTH) > 0,
                 "the other manners keep drifting: " + companion.traits());
         h.assertTrue(
                 !companion
@@ -219,11 +221,11 @@ public class SocialBondTests {
 
         var drifted = runtime.memory().book(owner.getUUID()).traits(owner.getUUID());
         h.assertValueEqual(
-                drifted.of(dev.friendai.features.social.Traits.Kind.HUMOUR)
-                        + drifted.of(dev.friendai.features.social.Traits.Kind.WARMTH)
-                        + drifted.of(dev.friendai.features.social.Traits.Kind.CURIOSITY)
-                        + drifted.of(dev.friendai.features.social.Traits.Kind.ENERGY)
-                        + drifted.of(dev.friendai.features.social.Traits.Kind.TEASING),
+                drifted.of(dev.friendai.foundation.social.Traits.Kind.HUMOUR)
+                        + drifted.of(dev.friendai.foundation.social.Traits.Kind.WARMTH)
+                        + drifted.of(dev.friendai.foundation.social.Traits.Kind.CURIOSITY)
+                        + drifted.of(dev.friendai.foundation.social.Traits.Kind.ENERGY)
+                        + drifted.of(dev.friendai.foundation.social.Traits.Kind.TEASING),
                 2,
                 "two compactions make two small steps");
         h.assertTrue(!drifted.toneLine().isBlank(), "a drifted manner must reach the prompt");

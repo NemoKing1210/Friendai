@@ -5,18 +5,18 @@ import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.execution.queue.FailurePolicy;
 import dev.friendai.execution.queue.GuardAction;
 import dev.friendai.execution.queue.QueuedStep;
-import dev.friendai.features.mining.minecraft.mining.BlockBreaker;
 import dev.friendai.features.navigation.minecraft.task.GoToTask;
 import dev.friendai.features.navigation.minecraft.task.StayTask;
-import dev.friendai.features.navigation.movement.PaceMode;
-import dev.friendai.features.survival.HungerModel;
 import dev.friendai.features.survival.minecraft.HungerWatcher;
 import dev.friendai.features.survival.minecraft.task.GetFoodTask;
+import dev.friendai.foundation.body.HungerModel;
+import dev.friendai.foundation.movement.PaceMode;
 import dev.friendai.server.agent.perception.PerceptionBuilder;
 import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.interact.ContainerAccess;
+import dev.friendai.world.block.BlockBreaker;
 import java.util.ArrayList;
 import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -40,6 +40,15 @@ import net.minecraft.world.phys.Vec3;
 
 /** Hunger on the entity: exhaustion sources, eating, owner throws, starvation, no passive regen, texts and save data. */
 public class HungerTests {
+    @GameTest
+    public void eatingAndCombatShareOneLiveController(GameTestHelper h) {
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 1, 2, 1);
+        h.assertTrue(
+                companion.eatingController() == companion.combatController(),
+                "eating must arbitrate through the one live combat controller");
+        h.succeed();
+    }
+
     @GameTest(maxTicks = 500)
     public void queueFreezesForFoodAndResumes(GameTestHelper h) {
         GameTestSupport.platformAt(h, 260, 16);

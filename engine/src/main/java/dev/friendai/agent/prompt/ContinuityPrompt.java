@@ -2,9 +2,9 @@ package dev.friendai.agent.prompt;
 
 import dev.friendai.features.memory.Category;
 import dev.friendai.features.memory.Fact;
-import dev.friendai.features.places.Place;
-import dev.friendai.features.social.Happening;
-import dev.friendai.features.social.HappeningJournal;
+import dev.friendai.foundation.places.Place;
+import dev.friendai.foundation.social.Happening;
+import dev.friendai.foundation.social.HappeningJournal;
 import java.util.ArrayList;
 import java.util.List;
 

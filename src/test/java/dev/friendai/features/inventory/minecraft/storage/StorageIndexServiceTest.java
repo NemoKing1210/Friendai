@@ -5,8 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.friendai.features.knowledge.ResourceKnowledge;
 import dev.friendai.features.knowledge.ResourceObservation;
-import dev.friendai.features.navigation.pathing.Pos;
 import dev.friendai.features.storage.StorageLimits;
+import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.task.interact.ContainerAccess;
 import java.util.Map;
 import java.util.Set;

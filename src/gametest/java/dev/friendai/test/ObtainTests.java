@@ -18,12 +18,12 @@ import dev.friendai.features.acquisition.minecraft.task.ObtainTask;
 import dev.friendai.features.crafting.CraftPlanner;
 import dev.friendai.features.exploration.minecraft.task.ExploreTask;
 import dev.friendai.features.inventory.minecraft.task.CheckContainerTask;
-import dev.friendai.features.mining.minecraft.mining.BlockMatcher;
 import dev.friendai.foundation.item.Tier;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.server.execution.tools.MinecraftObtainSubtaskFactory;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.world.block.BlockMatcher;
 import java.util.List;
 import java.util.Optional;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -367,9 +367,8 @@ public class ObtainTests {
                                 "minecraft:acacia_log",
                                 new dev.friendai.features.knowledge.ResourceObservation.Location(
                                         level.dimension().identifier().toString(),
-                                        new dev.friendai.features.navigation.pathing.Pos(
-                                                log.getX(), log.getY(), log.getZ())),
-                                new dev.friendai.features.navigation.pathing.Pos(2, 2, 2),
+                                        new dev.friendai.foundation.spatial.Pos(log.getX(), log.getY(), log.getZ())),
+                                new dev.friendai.foundation.spatial.Pos(2, 2, 2),
                                 level.getServer().overworld().getGameTime()));
         h.runAfterDelay(20, () -> {
             WorldFacts world = WorldScan.scan(level, c, 32, false, false);
