@@ -1,9 +1,10 @@
-package dev.friendai.features.cartography.minecraft;
+package dev.friendai.server.cartography;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.cartography.TerrainGrid;
 import dev.friendai.features.cartography.TerrainRepository;
 import dev.friendai.features.cartography.TerrainSampler;
+import dev.friendai.features.cartography.minecraft.MinecraftTerrainSource;
 import dev.friendai.server.runtime.ServerRuntime;
 import java.util.HashMap;
 import java.util.Map;

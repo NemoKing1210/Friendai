@@ -296,7 +296,11 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                         placedService,
                         selfAccess,
                         storage,
-                        companion -> routines()),
+                        companion -> routines(),
+                        companion -> dev.friendai.server.runtime.ServerRuntimeRegistry.find(server)
+                                .map(runtime -> (dev.friendai.features.coordination.minecraft.tool.CoordinationAccess)
+                                        runtime.coordination())
+                                .orElse(null)),
                 () -> settings.get().tasks().mineCollectDrops(),
                 () -> settings.get().tasks().fellCollectDrops());
         this.tools = builtins.registry();

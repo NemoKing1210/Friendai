@@ -401,7 +401,7 @@ class ArchitectureRulesTest {
                         "dev.friendai.features.creative.CreativeCommandPolicy",
                         "dev.friendai.features.interaction.minecraft.task.ApproachTask"),
                 edge("dev.friendai.features.combat.CombatPolicy", "dev.friendai.features.farming.FarmPlanner"),
-                edge("dev.friendai.features.navigation.Navigator", "dev.friendai.features.acquisition.ObtainPlan")));
+                edge("dev.friendai.features.navigation.Navigator", "dev.friendai.features.farming.FarmPlanner")));
 
         assertEquals(
                 List.of(
@@ -416,7 +416,7 @@ class ArchitectureRulesTest {
                         violation(
                                 "feature-dependency-not-allowed",
                                 "dev.friendai.features.navigation.Navigator",
-                                "dev.friendai.features.acquisition.ObtainPlan"),
+                                "dev.friendai.features.farming.FarmPlanner"),
                         violation(
                                 "feature-dependency-not-allowed",
                                 "dev.friendai.features.navigation.minecraft.tool.RelativeMovementTools",
@@ -627,7 +627,7 @@ class ArchitectureRulesTest {
                     "Missing GameTest entrypoint: " + className);
         }
         assertEquals(
-                104, gameTestClasses.size(), "Update this inventory count when GameTest scope intentionally changes");
+                111, gameTestClasses.size(), "Update this inventory count when GameTest scope intentionally changes");
 
         try (Stream<Path> files = Files.walk(PROJECT_ROOT.resolve("src/gametest/java"))) {
             for (Path file :

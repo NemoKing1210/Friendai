@@ -4,7 +4,7 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.features.cartography.TerrainCell;
 import dev.friendai.features.cartography.TerrainGrid;
-import dev.friendai.features.cartography.minecraft.TerrainSamplerService;
+import dev.friendai.server.cartography.TerrainSamplerService;
 import dev.friendai.server.runtime.ServerRuntime;
 import java.util.UUID;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
