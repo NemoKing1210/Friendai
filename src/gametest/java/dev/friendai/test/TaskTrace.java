@@ -145,6 +145,8 @@ public final class TaskTrace {
         return "t=" + h.getTick()
                 + " at=" + at.getX() + "," + at.getY() + "," + at.getZ()
                 + " queue=" + runner.pendingJobs()
+                + (runner.held() ? " held" : "")
+                + (runner.suspended() ? " suspended" : "")
                 + " sight=" + queued
                 + " rays=" + metrics.completedRays() + "/" + metrics.scheduledRays()
                 + " us=" + metrics.elapsedNanos() / 1_000L
