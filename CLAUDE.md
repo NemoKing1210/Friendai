@@ -15,6 +15,7 @@ The shared project guide is two files: `AGENTS.md` (imported above) for commands
 ## Test jar for the maintainer
 
 - After any change to code or resources (fix, improvement, new feature), refresh `test-builds/friendai-<version>.jar` with `./gradlew assemble` (or just `./gradlew exportTestJar`, which skips the sources jar) — it packages without running the test suites, and `exportTestJar` runs automatically after `assemble`. Bump `mod_version` first when the change calls for it (see "Versioning" in `AGENTS.md`), so the jar name carries the new version. Tell the maintainer the jar path and the new version. The folder is git-ignored; never commit it.
+- **`exportTestJar` does not touch the game's `mods/` folder.** When the maintainer is going to launch the game with this build, finish with `./gradlew deployTestJar` (or run `assemble`, whose finalizers are both tasks) and report the `Deployed <jar> to <path>` line; otherwise the launcher keeps loading the previous jar. It targets `TEST_BUILD_PATH` from the root `.env` and skips silently when that is unset.
 
 ## Environment (Windows)
 

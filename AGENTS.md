@@ -124,8 +124,8 @@ JAVA_HOME="/path/to/jdk-25" ./gradlew build
 | `./gradlew check` | Unit tests + GameTests + `spotlessCheck`, without packaging. |
 | `./gradlew spotlessApply -PspotlessFiles=<paths>` | Rewrites only the named Java files with the project formatter (Palantir: 4-space indent, 120 columns) and sorts imports. Paths are root-relative; prefix engine paths with `engine/`. The bare `spotlessApply` rewrites the whole tree and is forbidden in a shared checkout. CI runs `spotlessCheck`. |
 | `./gradlew assemble verifyModArtifact` | Compile and package, verify nested engine classes/resources and fixture exclusion; `exportTestJar` refreshes `test-builds/friendai-<version>.jar`. Does not run tests. |
-| `./gradlew exportTestJar` | Refreshes `test-builds/friendai-<version>.jar` without booting the game or running tests; it also runs automatically after `assemble`. |
-| `./gradlew deployTestJar` | Copies the built jar to the directory in `TEST_BUILD_PATH`, deleting older `friendai-*.jar` files there first; it also runs automatically after `assemble`. The path comes from the process environment or a git-ignored root `.env` (`TEST_BUILD_PATH=C:/path/to/mods`, quotes and an `export ` prefix accepted); without it the task skips. Start from `.env.example`. |
+| `./gradlew exportTestJar` | Refreshes `test-builds/friendai-<version>.jar` without booting the game or running tests; it also runs automatically after `assemble`. **`test-builds/` is a repository-local staging folder: this task copies nothing into a launcher profile's `mods/` folder.** |
+| `./gradlew deployTestJar` | The only task that reaches the game's `mods/` folder: it puts the built jar in `TEST_BUILD_PATH` and deletes older `friendai-*.jar` files there first. It runs on its own and as a finalizer of `assemble`; **`exportTestJar` never triggers it.** The path comes from the process environment or a git-ignored root `.env` (`TEST_BUILD_PATH=C:/path/to/mods`, quotes and an `export ` prefix accepted); without it the task skips silently. Start from `.env.example`. |
 | `./gradlew verifyGametestShards` | Fails when `.github/gametest-shards.json` and the `fabric-gametest` entrypoints disagree — a class missing from every shard, listed twice, or unknown. `CI gate` runs it before any shard starts. |
 | `./gradlew runClient` / `runServer` | Dev client / server. `run/` is git-ignored; the server needs `run/eula.txt` with `eula=true`. |
 | `./gradlew genSources` | Decompiled Minecraft sources, for looking up API names (see "Minecraft API notes"). |
@@ -136,6 +136,7 @@ The first build downloads Minecraft and takes minutes; later builds take seconds
 - GameTest results: console output — `========= N GAME TESTS COMPLETE` and `N required tests failed` (or `All N required tests passed`).
 - Gradle may run `runGameTest` before `test`; if a GameTest fails, run `./gradlew test` separately to get the unit-test count.
 - Only one Gradle run per checkout at a time: parallel builds fight over the Gradle lock and the shared `run/` directory.
+- **A jar the maintainer will load must land in the game's `mods/` folder, and only `deployTestJar` puts it there.** `exportTestJar` writes `test-builds/` and stops, so after `./gradlew exportTestJar` the launcher profile still holds the previous jar and the new build never appears in game. Run `./gradlew deployTestJar` (or `assemble`, whose finalizers are both tasks) whenever the maintainer is going to start the game, and quote the `Deployed <jar> to <path> (removed N older file(s))` line in the report; `TEST_BUILD_PATH` in the root `.env` is what it targets, and the task skips silently when that variable is absent, so say when it skipped instead of reporting a deployed jar you did not see the task copy.
 
 ## Project map
 
@@ -377,6 +378,7 @@ Each line is a rule stated above, in the shape it has actually failed in this re
 - **Added an attribution line.** `Co-Authored-By` and generated-with footers are forbidden here, whatever a template suggests.
 - **Treated a foreign error as yours.** A file you never touched fails to compile because another session is mid-edit; check `git status`, report it, do not patch it.
 - **Committed local state.** `docs/`, `run/`, `test-builds/`, `build/` or a downloaded model; they are git-ignored for a reason.
+- **Reported a test jar the game could not see.** `exportTestJar` writes `test-builds/` only; the profile's `mods/` folder keeps the previous jar until `deployTestJar` (or `assemble`) runs. Deploy it and quote the `Deployed …` line.
 - **Closed a TODO item quietly.** A skipped item needs its one-line `**Skipped:**` note and a report, not a silent `[x]`.
 
 ## Debugging with logs
@@ -624,7 +626,7 @@ is a normal commit on `main`.
 6. `mod_version` bumped according to "Versioning" (or a stated reason why no bump is needed).
 7. Anything you could not verify (real provider, real microphone, GUI) is stated plainly rather than implied.
 8. Your changed files are committed (unless the file also holds another session's edits — then say so). For a multi-step task, the commits follow the batches you finished.
-9. `test-builds/friendai-<version>.jar` is refreshed (`exportTestJar` runs during `build`/`assemble`) and you tell the maintainer its path and version.
+9. `test-builds/friendai-<version>.jar` is refreshed (`exportTestJar` runs during `build`/`assemble`) and you tell the maintainer its path and version. When the maintainer will load the build in a launcher profile, it is also deployed with `deployTestJar`/`assemble` and the report quotes the deployed path — a `test-builds/` path alone is not a jar the game can see.
 10. **The capability map stays current.** When a change adds, renames, removes or materially changes something `index.html` shows, update `site/app.js` in the same commit, in English, matching the surrounding entries:
     - a tool or skill — the `CATS` lists, written as `name|description`, with `~` for built-in behaviour;
     - the turn flow (`FLOW`);
@@ -659,7 +661,7 @@ A docs-only or `ci:` change says so instead of inventing a version and a jar lin
 | A new GameTest class | `src/gametest/resources/fabric.mod.json` and one shard in `.github/gametest-shards.json` |
 | A config schema or owner/world format | its version, a `ConfigStores` transition or codec change, tests, and the persistence table in `ARCHITECTURE.md` |
 | Behavior automation cannot check (a real provider, a microphone, GUI layout, LAN, a second UI language) | a line in `MANUAL_CHECKLIST.md` saying what to try and what to expect |
-| Any change to the shipped jar | refresh `test-builds/friendai-<version>.jar` (`assemble` or `exportTestJar`) and name its path in the report |
+| Any change to the shipped jar | refresh `test-builds/friendai-<version>.jar` (`assemble` or `exportTestJar`) and name its path in the report; when the maintainer will launch the game, also run `deployTestJar` (or `assemble`) so the jar actually reaches `TEST_BUILD_PATH` |
 | A rule or workflow in `AGENTS.md` | `CONTRIBUTING.md` only where it repeats the old rule — it must not gain a rule the canonical file does not have |
 
 If a row does not apply, nothing is needed; do not add a line that only says the code changed.
