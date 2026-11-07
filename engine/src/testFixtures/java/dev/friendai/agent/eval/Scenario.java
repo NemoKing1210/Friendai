@@ -30,6 +30,9 @@ import java.util.List;
  *
  * <p>{@code eventKind} {@code plan_blocked} posts a {@link dev.friendai.agent.turn.BrainEvent.PlanBlocked} for
  * {@code planId} whose reason is {@code event}, which is how a fixture exercises a failed plan with no goal.
+ *
+ * <p>{@code toolResults} scripts the answer of individual tool calls, consumed per tool name in call order; a call
+ * with no scripted answer gets the fake's default success.
  */
 public record Scenario(
         String name,
@@ -47,7 +50,8 @@ public record Scenario(
         Integer simulatedTicks,
         List<Plan> plans,
         String plannerFailure,
-        Integer planId) {
+        Integer planId,
+        List<ToolScript> toolResults) {
 
     /** One simulated second of the virtual clock, in the ticks and milliseconds the scheduler uses. */
     public static final int TICKS_PER_SECOND = 20;
@@ -57,6 +61,7 @@ public record Scenario(
     public Scenario {
         replies = replies == null ? List.of() : List.copyOf(replies);
         plans = plans == null ? List.of() : List.copyOf(plans);
+        toolResults = toolResults == null ? List.of() : List.copyOf(toolResults);
         eventKind = eventKind == null || eventKind.isBlank() ? "world" : eventKind;
         language = language == null || language.isBlank() ? "en" : language;
         autonomy = autonomy == null || autonomy.isBlank() ? "assistive" : autonomy.strip();
@@ -79,6 +84,17 @@ public record Scenario(
     public record Reply(String text, List<String> tools) {
         public Reply {
             tools = tools == null ? List.of() : List.copyOf(tools);
+        }
+    }
+
+    /**
+     * One scripted tool answer: entries for the same {@code tool} are consumed in call order, so a fixture can give
+     * the first {@code queue_add} an error and the next one a plan id.
+     */
+    public record ToolScript(String tool, boolean error, String content) {
+        public ToolScript {
+            tool = tool == null ? "" : tool;
+            content = content == null ? "" : content;
         }
     }
 

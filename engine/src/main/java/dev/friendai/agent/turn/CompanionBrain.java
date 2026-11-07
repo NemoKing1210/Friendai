@@ -18,7 +18,6 @@ import dev.friendai.agent.recover.FailureHandler;
 import dev.friendai.agent.route.IntentVocabulary;
 import dev.friendai.agent.route.PlanNeed;
 import dev.friendai.agent.route.PlanningDecision;
-import dev.friendai.agent.route.PlanningPolicy;
 import dev.friendai.agent.route.RouteDecision;
 import dev.friendai.agent.route.RouteSignals;
 import dev.friendai.agent.route.TurnMode;
@@ -62,9 +61,6 @@ public final class CompanionBrain {
     static final String CHOOSE_ACTIVITY = "choose_activity";
     /** The marker the failure handler puts in an event when no replans are left. */
     private static final String BUDGET_SPENT = FailureHandler.BUDGET_SPENT;
-    /** The id a successful {@code set_goal} result reports, so the new goal can be planned for. */
-    private static final java.util.regex.Pattern SET_GOAL_ID =
-            java.util.regex.Pattern.compile("\\bgoal #(\\d{1,9})\\b");
     /** The plan id a queued plan reports, for the durable planner record only; never for control flow. */
     private static final java.util.regex.Pattern PLAN_ID = java.util.regex.Pattern.compile("\\bplan #(\\d{1,9})\\b");
     /** How many queued events one guest may have waiting for a turn. */
@@ -101,9 +97,6 @@ public final class CompanionBrain {
     private PlacedSource placedSource = PlacedSource.NONE;
     private PlannerPort plannerPort = PlannerPort.NONE;
     private TradingTurnPort tradingTurnPort = TradingTurnPort.NOOP;
-    private boolean plannedThisTurn;
-    /** A plan was queued at some step of this turn, so the turn must not ask the planner for a second one. */
-    private boolean queuedPlanThisTurn;
     /** A plan that failed or needs a decision in this turn's batch is the one the goal follows. */
     private boolean ownsTroubledPlan;
     /** What the planner just did; shown once in the next request's Mission block. */
@@ -111,8 +104,6 @@ public final class CompanionBrain {
 
     /** The in-flight planner proposal, dropped by {@link #cancel()} like a late model response. */
     private CompletableFuture<PlanProposal> plannerFuture;
-    /** The signals this turn was routed with, so the decision after the first response uses the same facts. */
-    private RouteSignals turnSignals;
     /** A social batch answers with words only: no schema is sent and no tool call is accepted. */
     private boolean socialTurn;
 
@@ -588,7 +579,7 @@ public final class CompanionBrain {
         boolean goalTickWithUnmet = batch.stream()
                 .anyMatch(event -> event instanceof BrainEvent.GoalTick tick
                         && !tick.unmet().isEmpty());
-        turnSignals = new RouteSignals(
+        RouteSignals turnSignals = new RouteSignals(
                 turnKind,
                 String.join("\n", turnPlayerTexts),
                 !goalView.isEmpty(),
@@ -656,8 +647,6 @@ public final class CompanionBrain {
         }
         memory.add(Message.user(lines));
         step = 0;
-        plannedThisTurn = false;
-        queuedPlanThisTurn = false;
         plannerNote = "";
         // A plan-worthy owner order, an unmet active goal and a failed plan are planned before the model answers.
         // A free-time shift is planned by its driver, not by the chat turn.
@@ -687,7 +676,6 @@ public final class CompanionBrain {
      * generation, so a late proposal is dropped without touching the queue (rule 5).
      */
     private void plan(int gen, PlanSubject subject, String failure) {
-        plannedThisTurn = true;
         Optional<PlannerInput> input;
         try {
             input = plannerPort.inputFor(subject, turnCaller, failure);
@@ -1000,8 +988,6 @@ public final class CompanionBrain {
             endTurn();
             return;
         }
-        boolean goalSet = false;
-        long setGoalId = 0;
         boolean queuedByModel = false;
         boolean activityChosen = false;
         boolean anyCallFailed = false;
@@ -1024,10 +1010,6 @@ public final class CompanionBrain {
             ToolResult finalResult = result;
             observe(o -> o.onToolResult(call, finalResult));
             memory.add(Message.toolResult(call.id(), call.name(), result.content()));
-            if (!result.error() && "set_goal".equals(call.name())) {
-                goalSet = true;
-                setGoalId = goalIdIn(result);
-            }
             queuedByModel |= !result.error() && "queue_add".equals(call.name());
             activityChosen |= !result.error() && CHOOSE_ACTIVITY.equals(call.name());
             anyCallFailed |= result.error();
@@ -1035,9 +1017,6 @@ public final class CompanionBrain {
             queueMutatedBesidesAdd |=
                     !result.error() && ("queue_edit".equals(call.name()) || "plan_patch".equals(call.name()));
         }
-        // Turn-scoped: a plan queued at any step means this turn has nothing left to plan, even when a later step
-        // sets a goal. Recorded before the early exits so the fact is complete for the whole turn.
-        queuedPlanThisTurn |= queuedByModel;
         if (activityChosen) {
             // Free time's choice is the whole answer; the planner does the rest, so the turn costs one request.
             endTurn();
@@ -1054,14 +1033,6 @@ public final class CompanionBrain {
             endTurn();
             return;
         }
-        PlanningDecision after = router.afterStep(
-                decision.mode(),
-                turnSignals.withGoal(setGoalId),
-                new PlanningPolicy.StepFacts(goalSet, queuedPlanThisTurn, plannedThisTurn));
-        if (after.need() == PlanNeed.REQUIRED) {
-            plan(gen, after.subject(), "");
-            return;
-        }
         requestStep(gen);
     }
 
@@ -1072,13 +1043,6 @@ public final class CompanionBrain {
                         || turnEvent instanceof BrainEvent.PlanBlocked
                         || turnEvent instanceof BrainEvent.TaskFinished task && !task.success()
                         || turnEvent instanceof BrainEvent.PlanFinished plan && !plan.success());
-    }
-
-    /** The goal id a successful {@code set_goal} reports; zero when the text does not carry one. */
-    private static long goalIdIn(ToolResult result) {
-        String text = result.content() == null ? "" : result.content();
-        var match = SET_GOAL_ID.matcher(text);
-        return match.find() ? Long.parseLong(match.group(1)) : 0;
     }
 
     /** The plan id the queue reports in a result line; zero when the text does not carry one. */

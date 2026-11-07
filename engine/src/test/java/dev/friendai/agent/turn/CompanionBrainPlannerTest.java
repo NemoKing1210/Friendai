@@ -151,37 +151,22 @@ class CompanionBrainPlannerTest {
     }
 
     @Test
-    void goalTurnCallsPlannerAfterSetGoalAndShowsTheNoteOnce() {
-        gateway.enqueue(calls("", call("g1", "set_goal")));
-        gateway.enqueue(text("Planning it."));
-        brain.post(said("mine some stone"));
-        assertEquals(1, port.failures.size(), "one planner consultation");
-        assertEquals(OWNER, port.appliedFor.get(0).uuid());
-        assertEquals(AccessLevel.OWNER, port.appliedFor.get(0).access(), "applied with the turn caller's access");
-        assertEquals(2, gateway.requests.size());
-        String second = gateway.requests.get(1).system();
-        assertTrue(second.contains("Planner: a plan was queued"), second);
-        assertTrue(second.contains("gather first, then build"), second);
-        assertFalse(gateway.requests.get(0).system().contains("Planner:"));
-    }
-
-    @Test
     void plannerNoteIsShownOnlyOnce() {
-        gateway.enqueue(calls("", call("g1", "set_goal")));
         gateway.enqueue(calls("", call("s1", "stay")));
         gateway.enqueue(text("Done."));
-        brain.post(said("mine some stone"));
-        assertTrue(gateway.requests.get(1).system().contains("Planner:"));
-        assertFalse(gateway.requests.get(2).system().contains("Planner:"), "the note is consumed by one request");
+        brain.post(said(BUILD_AND_BRING));
+        assertTrue(gateway.requests.get(0).system().contains("Planner:"));
+        assertFalse(gateway.requests.get(1).system().contains("Planner:"), "the note is consumed by one request");
     }
 
     @Test
-    void plannerRunsAtMostOncePerTurn() {
+    void aModelGoalAcrossStepsDoesNotConsultThePlanner() {
         gateway.enqueue(calls("", call("g1", "set_goal")));
         gateway.enqueue(calls("", call("g2", "set_goal")));
         gateway.enqueue(text("Done."));
-        brain.post(said(BUILD_AND_BRING));
-        assertEquals(1, port.failures.size());
+        brain.post(said("mine some stone"));
+        assertTrue(port.failures.isEmpty(), "a goal the model sets is not planned by the planner");
+        assertEquals(3, gateway.requests.size());
     }
 
     @Test
@@ -219,20 +204,6 @@ class CompanionBrainPlannerTest {
     }
 
     @Test
-    void aQueuedPlanInAnEarlierTurnDoesNotSuppressALaterPlan() {
-        tools.results.put("queue_add", new ArrayDeque<>(List.of(ToolResult.ok("plan #7 added: 1 jobs"))));
-        gateway.enqueue(calls("On it.", call("q1", "queue_add")));
-        gateway.enqueue(calls("", call("g1", "set_goal")));
-        gateway.enqueue(text("Planning it."));
-
-        brain.post(said("mine some stone"));
-        assertTrue(port.failures.isEmpty(), "the turn's own plan needs no planner");
-
-        brain.post(said("mine some stone"));
-        assertEquals(1, port.failures.size(), "the fact resets with the turn, so a planless goal may be planned");
-    }
-
-    @Test
     void aPreTurnPlanIsShownOnceWithTheDoNotDuplicateRule() {
         gateway.enqueue(text("Running it."));
 
@@ -244,6 +215,24 @@ class CompanionBrainPlannerTest {
         assertTrue(system.contains("run it, do not queue another"), system);
         assertTrue(
                 system.contains("If the planner already queued the work, use it and do not add a duplicate"), system);
+        assertEquals(OWNER, port.appliedFor.get(0).uuid());
+        assertEquals(AccessLevel.OWNER, port.appliedFor.get(0).access(), "applied with the turn caller's access");
+    }
+
+    @Test
+    void goal_with_a_failed_queue_add_does_not_consult_the_planner() {
+        tools.results.put("queue_add", new ArrayDeque<>(List.of(ToolResult.error("Invalid arguments for queue_add"))));
+        gateway.enqueue(calls("", call("g1", "set_goal"), call("q1", "queue_add")));
+        gateway.enqueue(text("I will plan it myself."));
+
+        brain.post(said("make me and yourself stone tools"));
+
+        assertTrue(port.failures.isEmpty(), "a failed model queue_add must not ask the planner for a plan");
+        assertEquals(2, gateway.requests.size());
+        assertTrue(
+                gateway.requests.get(1).messages().stream()
+                        .anyMatch(message -> message.text().contains("Invalid arguments for queue_add")),
+                "the queue_add error reaches the model's next request");
     }
 
     @Test

@@ -6,6 +6,10 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+### Changed
+
+- A goal the companion sets for itself no longer makes it stop to draft another plan before acting, so a simple order starts moving sooner.
+
 ## [0.210.0] - 2026-11-07
 
 ### Added

@@ -128,14 +128,6 @@ public final class TurnRouter {
         return planningPolicy.beforeTurn(planSignals(mode, s, text, kinds, complex, planRequest));
     }
 
-    /**
-     * The planning decision after the first response of a turn. Only the model's own {@code set_goal} can signal it,
-     * so the score that opened the turn is not needed again.
-     */
-    public PlanningDecision afterStep(TurnMode mode, RouteSignals s, PlanningPolicy.StepFacts step) {
-        return planningPolicy.afterStep(planSignals(mode, s, s.playerText(), 0, false, false), step);
-    }
-
     private static PlanSignals planSignals(
             TurnMode mode, RouteSignals s, String text, int kinds, boolean complex, boolean planRequest) {
         return new PlanSignals(

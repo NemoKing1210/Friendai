@@ -43,25 +43,4 @@ public record RouteSignals(
         failure = failure == null ? "" : failure;
         unmet = unmet == null ? List.of() : List.copyOf(unmet);
     }
-
-    /** The same signals with the goal the model just set, for the decision after the first response. */
-    public RouteSignals withGoal(long goalId) {
-        return new RouteSignals(
-                turn,
-                playerText,
-                hasActiveGoal,
-                planBlockedOrFailed,
-                linkedPlanSteps,
-                ownerCaller,
-                troubledPlanQueued,
-                goalUnmet,
-                goalHasNoQueuedWork,
-                freeTimeShift,
-                budgetSpent,
-                troubledPlanId,
-                failure,
-                goalId,
-                unmet,
-                shiftId);
-    }
 }

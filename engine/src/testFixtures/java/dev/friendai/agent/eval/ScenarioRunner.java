@@ -32,6 +32,7 @@ import dev.friendai.testutil.FakeGateway;
 import dev.friendai.testutil.FakeToolExecutor;
 import dev.friendai.testutil.ManualScheduler;
 import dev.friendai.testutil.RecordingSpeaker;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -160,6 +161,14 @@ public final class ScenarioRunner {
             }
         }
         FakeToolExecutor tools = new FakeToolExecutor();
+        for (Scenario.ToolScript scripted : s.toolResults()) {
+            if (scripted.tool().isBlank()) {
+                continue;
+            }
+            tools.results
+                    .computeIfAbsent(scripted.tool(), name -> new ArrayDeque<>())
+                    .add(scripted.error() ? ToolResult.error(scripted.content()) : ToolResult.ok(scripted.content()));
+        }
         RecordingSpeaker speaker = new RecordingSpeaker();
         ManualScheduler scheduler = new ManualScheduler();
         Set<UUID> trusted = new HashSet<>();

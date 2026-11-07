@@ -1,0 +1,24 @@
+{
+  "name": "invalid_queue_add_args",
+  "access": "owner",
+  "playerSays": "make me and yourself stone tools",
+  "toolResults": [
+    {"tool": "queue_add", "error": true, "content": "Invalid arguments for queue_add: steps must be an array"},
+    {"tool": "queue_add", "content": "plan #9 added: 2 jobs"}
+  ],
+  "replies": [
+    {"text": "", "tools": ["set_goal"]},
+    {"text": "", "tools": ["queue_add"]},
+    {"text": "", "tools": ["queue_add"]},
+    {"text": "Queued the corrected plan: mine stone, then craft the tools.", "tools": []}
+  ],
+  "expect": {
+    "maxRequests": 4,
+    "plannerConsulted": 0,
+    "plansApplied": 0,
+    "toolsCalled": ["set_goal", "queue_add"],
+    "maxRepeatedToolCalls": 1,
+    "maxClarifications": 0,
+    "spokenContains": ["corrected plan"]
+  }
+}

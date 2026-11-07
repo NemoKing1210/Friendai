@@ -31,3 +31,4 @@ hour_autonomous.json
 planning_first_order.json
 recovery_without_goal.json
 planner_transport_failure_falls_back.json
+invalid_queue_add_args.json
