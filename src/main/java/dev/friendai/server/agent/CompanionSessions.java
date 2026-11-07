@@ -749,139 +749,6 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
         sessions.clear();
     }
 
-    /** Adds verified facts, a diagnosis and goal bookkeeping to the task and plan events of one companion. */
-    private final class AgentEvents {
-        private final UUID owner;
-        private final CompanionEntity companion;
-        private final dev.friendai.agent.recover.FailureHandler handler;
-        private dev.friendai.agent.verify.WorldSnapshot last;
-
-        private final CompanionSession session;
-
-        AgentEvents(UUID owner, CompanionEntity companion, CompanionSession session) {
-            this.owner = owner;
-            this.companion = companion;
-            this.session = session;
-            // The coordinator owns the counters this handler feeds: a repeated remedy shows up in the owner's
-            // debug-log loop window, not in a private tally nobody reads.
-            this.handler = new dev.friendai.agent.recover.FailureHandler(
-                    new dev.friendai.agent.recover.RecoveryAdvisor(),
-                    companion.executionCoordinator().loopMetrics());
-            this.last = OutcomeFacts.snapshot(companion);
-        }
-
-        /** A passive verdict record for the existing check; delivered speech is never treated as proof. */
-        private void emitOutcomeCheck(
-                dev.friendai.agent.verify.Outcome outcome,
-                boolean taskSucceeded,
-                boolean hasCriteria,
-                long planId,
-                String tool) {
-            String verdict;
-            if (!taskSucceeded) {
-                verdict = "unmet";
-            } else if (!hasCriteria) {
-                verdict = "unknown";
-            } else {
-                verdict = outcome.success() ? "met" : "unmet";
-            }
-            java.util.Map<String, String> data = new java.util.LinkedHashMap<>();
-            data.put("verdict", verdict);
-            data.put("subject", "companion");
-            data.put("source", "outcome_checker");
-            data.put("plan", Long.toString(planId));
-            data.put(
-                    "facts",
-                    outcome.facts().stream()
-                            .map(dev.friendai.agent.verify.Fact::text)
-                            .collect(java.util.stream.Collectors.joining("; ")));
-            data.put("unmet", String.join("; ", outcome.unmetCriteria()));
-            debug.pipeline()
-                    .emit(new dev.friendai.foundation.diagnostics.LogRecord(
-                            0L,
-                            0L,
-                            dev.friendai.foundation.diagnostics.LogLevel.INFO,
-                            dev.friendai.foundation.diagnostics.LogCategory.TASK,
-                            null,
-                            dev.friendai.foundation.diagnostics.LogEvents.OUTCOME_CHECK,
-                            owner,
-                            companion.getUUID(),
-                            "",
-                            0L,
-                            planId,
-                            0L,
-                            0L,
-                            tool == null ? "" : tool,
-                            0L,
-                            -1L,
-                            "outcome: " + verdict,
-                            data,
-                            null));
-        }
-
-        /** The text to append to an event line; empty when there is nothing verified to add. */
-        String extra(boolean success, long planId, String tool, String text) {
-            try {
-                dev.friendai.agent.verify.WorldSnapshot after = OutcomeFacts.snapshot(companion);
-                var board = goals.board(owner);
-                // The goal that owns this plan is what the task was for: its criteria are the proof to check.
-                java.util.List<dev.friendai.agent.goal.Criterion> criteria = planId == 0
-                        ? java.util.List.of()
-                        : board.all().stream()
-                                .filter(goal -> goal.planId() == planId)
-                                .findFirst()
-                                .map(dev.friendai.agent.goal.Goal::criteria)
-                                .orElse(java.util.List.of());
-                var outcome = dev.friendai.agent.verify.OutcomeChecker.check(
-                        last, after, success, criteria, new dev.friendai.task.queue.CompanionGuardFacts(companion));
-                emitOutcomeCheck(outcome, success, criteria.isEmpty(), planId, tool);
-                last = after;
-                session.noteVerified(outcome.facts().stream()
-                        .map(dev.friendai.agent.verify.Fact::text)
-                        .toList());
-                if (planId != 0) {
-                    // Only the goal that owns this plan inherited this task, so only it may cite these facts.
-                    board.all().stream()
-                            .filter(goal -> goal.planId() == planId)
-                            .findFirst()
-                            .ifPresent(goal -> goalOutcomes.noteFacts(owner, goal.id(), outcome.facts()));
-                }
-                String factsLine = outcome.factsLine();
-                if (!outcome.unmetCriteria().isEmpty()) {
-                    // A criterion the world cannot show is not a completion, and the model must be told so.
-                    factsLine = (factsLine.isBlank() ? "" : factsLine + " ")
-                            + "not proven yet: "
-                            + String.join("; ", outcome.unmetCriteria())
-                            + ".";
-                }
-                var priorGoals = board.all();
-                String extra;
-                if (success) {
-                    var facts = new dev.friendai.task.queue.CompanionGuardFacts(companion);
-                    facts.refresh();
-                    extra = handler.onSuccess(board, planId, factsLine, facts);
-                } else {
-                    extra = handler.onFailure(board, planId, tool, text, factsLine);
-                }
-                goals.save(owner);
-                for (var prior : priorGoals) {
-                    if (board.find(prior.id()).isEmpty())
-                        skillOutcome(
-                                owner,
-                                "goal:" + prior.id(),
-                                success
-                                        ? dev.friendai.foundation.teaching.TeachingContext.OutcomeKind.GOAL_SUCCESS
-                                        : dev.friendai.foundation.teaching.TeachingContext.OutcomeKind.GOAL_FAILURE,
-                                text);
-                }
-                return extra;
-            } catch (RuntimeException e) {
-                FriendaiMod.LOGGER.warn("Could not build event facts", e);
-                return "";
-            }
-        }
-    }
-
     /** Announces the server stream once: boot, scope and the versions an investigator correlates files with. */
     private void emitStreamStart() {
         java.util.Map<String, String> data = new java.util.LinkedHashMap<>();
@@ -1182,7 +1049,20 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
             facts.refresh();
             return board.view(plan, facts, tools, companion.level().getGameTime(), planQueued);
         });
-        AgentEvents agent = new AgentEvents(owner, companion, session);
+        SessionEvents agent = new SessionEvents(
+                owner,
+                companion,
+                session,
+                goals,
+                goalOutcomes,
+                debug,
+                (goalId, success, text) -> skillOutcome(
+                        owner,
+                        "goal:" + goalId,
+                        success
+                                ? dev.friendai.foundation.teaching.TeachingContext.OutcomeKind.GOAL_SUCCESS
+                                : dev.friendai.foundation.teaching.TeachingContext.OutcomeKind.GOAL_FAILURE,
+                        text));
         companion.executionCoordinator().setStructureBuilder(new ConstructionStructureBuilder());
         companion.executionCoordinator().setRepairFactory((context, args) -> {
             var definition = taskTools.get("obtain_item");

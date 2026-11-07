@@ -119,6 +119,64 @@ public class SessionLifecycleTests {
         });
     }
 
+    /**
+     * A logout keeps the owner's session, brain and goal evidence: the session is what routes an event that arrives
+     * while the owner is away, so it must never be dropped on logout, and a returning owner must find the same brain
+     * instead of a second one built over the same goal.
+     */
+    @GameTest(maxTicks = 120)
+    public void logoutKeepsTheSessionAndItsGoalEvidenceUntilTheOwnerReturns(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
+        var server = h.getLevel().getServer();
+        var state = GameTestSupport.runtime(server);
+        var sessions = state.sessions();
+        CompanionEntity companion = CompanionManager.get(server).summon(owner);
+        sessions.setGatewayOverride(
+                owner.getUUID(),
+                (system, messages, tools) -> CompletableFuture.completedFuture(
+                        new LlmResponse("[silent]", List.of(), StopReason.END, new Usage(0, 0))));
+        Caller caller = new Caller(owner.getUUID(), "Steve", AccessLevel.OWNER);
+        ToolResult goal = run(
+                GameTestToolRegistry.create(companion, () -> 16).bind(companion),
+                "set_goal",
+                "{\"text\":\"gather 12 logs\",\"criteria\":["
+                        + "{\"text\":\"12 logs\",\"type\":\"has_item\",\"item\":\"minecraft:oak_log\",\"count\":12}]}",
+                caller);
+        h.assertFalse(goal.error(), "the goal is set: " + goal.content());
+        // The brain is created lazily on the first event for the owner, so give the session a turn to hold.
+        sessions.post(owner.getUUID(), new BrainEvent.WorldNotice("ready"));
+        var brain = sessions.brainOf(owner.getUUID()).orElse(null);
+        h.assertTrue(brain != null, "the owner has a brain before leaving");
+
+        sessions.onOwnerLeft(owner.getUUID());
+
+        h.assertTrue(sessions.find(owner.getUUID()).isPresent(), "logout must not drop the session");
+        h.assertTrue(sessions.brainOf(owner.getUUID()).orElse(null) == brain, "logout must not replace the brain");
+        var goalAfterLogout = state.goals().board(owner.getUUID()).primary().orElseThrow();
+        h.assertTrue(
+                goalAfterLogout.criteria().size() == 1
+                        && goalAfterLogout.criteria().getFirst().check().isPresent(),
+                "the goal's checkable evidence survives the logout: " + goalAfterLogout);
+        h.assertTrue(
+                companion.executionCoordinator().suspended(),
+                "the coordinator is suspended while the owner is away, not cleared");
+
+        sessions.onOwnerJoined(owner.getUUID());
+
+        h.assertTrue(sessions.find(owner.getUUID()).isPresent(), "the rejoin keeps the one session");
+        h.assertTrue(sessions.brainOf(owner.getUUID()).orElse(null) == brain, "the rejoin reuses the same brain");
+        h.assertFalse(companion.executionCoordinator().suspended(), "the owner's return resumes the runner");
+        h.assertTrue(
+                state.goals()
+                        .board(owner.getUUID())
+                        .primary()
+                        .map(saved -> saved.criteria().size() == 1)
+                        .orElse(false),
+                "the goal is unchanged after the round trip");
+        h.succeed();
+    }
+
     @GameTest(maxTicks = 80)
     public void respawnedOwnerKeepsTheNegotiatedProtocolSession(GameTestHelper h) {
         GameTestSupport.OnlinePlayer owner = GameTestSupport.onlinePlayer(h, "respawn-owner", 2, 2, 2, true);
@@ -194,11 +252,15 @@ public class SessionLifecycleTests {
         var goals = GameTestSupport.runtime(server).goals();
         CompanionEntity companion = CompanionManager.get(server).summon(owner);
         // A plan is consulted only while it is still queued for this companion, so the blocked plan must be real.
+        // The repair preflight spends no provider call on a plan whose step is already running, and the queue starts
+        // a step as soon as the plan is added; pause the runner so the repair is still applicable when the event
+        // arrives. This test is about the late answer to a consultation that was legitimately made.
+        companion.executionCoordinator().setManualPause(true);
         var tools = GameTestToolRegistry.create(companion, () -> 8).bind(companion);
         ToolResult queued = run(
                 tools,
                 "queue_add",
-                "{\"steps\":[{\"tool\":\"wait\",\"args\":\"{\\\"seconds\\\":30}\"}]}",
+                "{\"optimize\":true,\"steps\":[{\"tool\":\"wait\",\"args\":\"{\\\"seconds\\\":30}\"}]}",
                 new Caller(owner.getUUID(), "Owner", AccessLevel.OWNER));
         h.assertTrue(!queued.error(), "queue_add failed: " + queued.content());
         long planId = companion.executionCoordinator().queue().plans().stream()
