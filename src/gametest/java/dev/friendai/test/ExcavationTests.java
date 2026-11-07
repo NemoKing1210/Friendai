@@ -71,6 +71,17 @@ public class ExcavationTests {
                 .orElseThrow();
     }
 
+    /**
+     * A box whose corners are world coordinates, because the task reads the level instead of the structure frame. A
+     * geometry built from structure-relative corners names an unloaded chunk to the session's cell feed.
+     */
+    private static ExcavationGeometry box(GameTestHelper h, BlockPos first, BlockPos last) {
+        BlockPos a = h.absolutePos(first);
+        BlockPos b = h.absolutePos(last);
+        return ExcavationGeometry.box(a.getX(), a.getY(), a.getZ(), b.getX(), b.getY(), b.getZ())
+                .orElseThrow();
+    }
+
     @GameTest(maxTicks = 1600)
     public void boxMinesEveryCellAndCollectsDrops(GameTestHelper h) {
         CompanionEntity c = companion(h);
@@ -80,14 +91,13 @@ public class ExcavationTests {
         }
         Result result = new Result();
         ExecutionCoordinator runner = runner(c, result);
-        runner.start(
-                new ExcavateTask(spec(ExcavationGeometry.box(4, 2, 2, 5, 2, 3).orElseThrow(), 4)), "excavate");
+        runner.start(new ExcavateTask(spec(box(h, cells[0], cells[3]), 4)), "excavate");
 
         h.succeedWhen(() -> {
             runner.tick();
-            if (result.status == null || result.status == TaskStatus.RUNNING) {
-                return;
-            }
+            h.assertTrue(
+                    result.status != null && result.status != TaskStatus.RUNNING,
+                    "the box job is still running: " + result.summary);
             h.assertTrue(result.status == TaskStatus.SUCCESS, "box failed: " + result.summary);
             h.assertTrue(count(h, Blocks.STONE, cells) == 0, "box cells remain: " + result.summary);
             h.assertTrue(
@@ -108,18 +118,20 @@ public class ExcavationTests {
         }
         Result result = new Result();
         ExecutionCoordinator runner = runner(c, result);
+        BlockPos origin = h.absolutePos(new BlockPos(4, 2, 2));
         runner.start(
                 new ExcavateTask(spec(
-                        ExcavationGeometry.tunnel(ExcavationDirection.EAST, 4, 2, 2, 3, 1, 2)
+                        ExcavationGeometry.tunnel(
+                                        ExcavationDirection.EAST, origin.getX(), origin.getY(), origin.getZ(), 3, 1, 2)
                                 .orElseThrow(),
                         6)),
                 "excavate");
 
         h.succeedWhen(() -> {
             runner.tick();
-            if (result.status == null || result.status == TaskStatus.RUNNING) {
-                return;
-            }
+            h.assertTrue(
+                    result.status != null && result.status != TaskStatus.RUNNING,
+                    "the tunnel job is still running: " + result.summary);
             h.assertTrue(result.status == TaskStatus.SUCCESS, "tunnel failed: " + result.summary);
             h.assertTrue(count(h, Blocks.STONE, cells) == 0, "tunnel cells remain: " + result.summary);
         });
@@ -134,14 +146,13 @@ public class ExcavationTests {
         h.setBlock(chest, Blocks.CHEST);
         Result result = new Result();
         ExecutionCoordinator runner = runner(c, result);
-        runner.start(
-                new ExcavateTask(spec(ExcavationGeometry.box(4, 2, 2, 5, 2, 2).orElseThrow(), 2)), "excavate");
+        runner.start(new ExcavateTask(spec(box(h, stone, chest), 2)), "excavate");
 
         h.succeedWhen(() -> {
             runner.tick();
-            if (result.status == null || result.status == TaskStatus.RUNNING) {
-                return;
-            }
+            h.assertTrue(
+                    result.status != null && result.status != TaskStatus.RUNNING,
+                    "the container job is still running: " + result.summary);
             h.assertTrue(result.status == TaskStatus.SUCCESS, "container job failed: " + result.summary);
             h.assertTrue(count(h, Blocks.CHEST, chest) == 1, "chest was broken: " + result.summary);
             h.assertTrue(count(h, Blocks.STONE, stone) == 0, "stone was not mined: " + result.summary);
@@ -162,18 +173,20 @@ public class ExcavationTests {
         observe(h, c, low, middle, high);
         Result result = new Result();
         ExecutionCoordinator runner = runner(c, result);
+        BlockPos origin = h.absolutePos(new BlockPos(4, 4, 2));
         runner.start(
                 new ExcavateTask(spec(
-                        ExcavationGeometry.shaft(ExcavationDirection.DOWN, 4, 4, 2, 3, 1, 1)
+                        ExcavationGeometry.shaft(
+                                        ExcavationDirection.DOWN, origin.getX(), origin.getY(), origin.getZ(), 3, 1, 1)
                                 .orElseThrow(),
                         3)),
                 "excavate");
 
         h.succeedWhen(() -> {
             runner.tick();
-            if (result.status == null || result.status == TaskStatus.RUNNING) {
-                return;
-            }
+            h.assertTrue(
+                    result.status != null && result.status != TaskStatus.RUNNING,
+                    "the shaft job is still running: " + result.summary);
             h.assertTrue(count(h, Blocks.STONE, low) == 1, "the cell above lava was broken: " + result.summary);
             h.assertTrue(count(h, Blocks.STONE, high) == 0, "the safe top cell was not mined: " + result.summary);
             h.assertTrue(!c.isInLava(), "the companion ended in lava");
@@ -194,9 +207,9 @@ public class ExcavationTests {
 
         h.succeedWhen(() -> {
             runner.tick();
-            if (result.status == null || result.status == TaskStatus.RUNNING) {
-                return;
-            }
+            h.assertTrue(
+                    result.status != null && result.status != TaskStatus.RUNNING,
+                    "the mine is still running: " + result.summary);
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
             h.assertTrue(count(h, Blocks.IRON_ORE, pointed) == 0, "pointed ore was not mined: " + result.summary);
             h.assertTrue(count(h, Blocks.IRON_ORE, neighbour) == 1, "vein:false mined a neighbour: " + result.summary);
@@ -218,9 +231,9 @@ public class ExcavationTests {
 
         h.succeedWhen(() -> {
             runner.tick();
-            if (result.status == null || result.status == TaskStatus.RUNNING) {
-                return;
-            }
+            h.assertTrue(
+                    result.status != null && result.status != TaskStatus.RUNNING,
+                    "the vein mine is still running: " + result.summary);
             h.assertTrue(count(h, Blocks.IRON_ORE, pointed) == 0, "pointed ore was not mined: " + result.summary);
             h.assertTrue(
                     count(h, Blocks.IRON_ORE, neighbour) == 1,
