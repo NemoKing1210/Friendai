@@ -208,18 +208,26 @@ class MineBlocksTaskTest {
 
     /**
      * The explicit-origin miss names the place and does not point at a tool that cannot honour the origin. The
-     * companion-centred advice is unchanged.
+     * companion-centred advice is unchanged, and the suggested navigation tool matches how the origin was named: a
+     * point or a player is reached with {@code go_to}, and only a {@code place:} origin has a name for
+     * {@code go_to_place}.
      */
     @Test
     void an_explicit_origin_miss_names_the_origin_and_not_a_search_that_cannot_use_it() {
-        String miss = MineBlocksTask.explicitOriginMiss("minecraft:oak_log", 16, new BlockPos(10, 64, 10), false);
+        String miss =
+                MineBlocksTask.explicitOriginMiss("minecraft:oak_log", 16, new BlockPos(10, 64, 10), false, false);
 
         assertTrue(miss.contains("within 16 blocks of 10 64 10"), miss);
         assertTrue(miss.contains("mine_blocks without near"), miss);
-        assertTrue(miss.contains("go_to_place"), miss);
+        assertTrue(miss.contains("(go_to)"), miss);
+        assertFalse(miss.contains("go_to_place"), "a coordinates origin has no place name for go_to_place");
         assertFalse(miss.contains("search_resource"), "search_resource cannot search around the named origin");
+        String placeMiss =
+                MineBlocksTask.explicitOriginMiss("minecraft:oak_log", 16, new BlockPos(10, 64, 10), false, true);
+        assertTrue(placeMiss.contains("(go_to_place)"), placeMiss);
+        assertTrue(placeMiss.contains("mine_blocks without near"), placeMiss);
         assertTrue(
-                MineBlocksTask.explicitOriginMiss("minecraft:oak_log", 16, new BlockPos(10, 64, 10), true)
+                MineBlocksTask.explicitOriginMiss("minecraft:oak_log", 16, new BlockPos(10, 64, 10), true, false)
                         .startsWith("could not reach any"),
                 "a found-but-unreachable block must not be described as unseen");
     }

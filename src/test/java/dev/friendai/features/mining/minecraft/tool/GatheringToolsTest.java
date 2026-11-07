@@ -1,6 +1,7 @@
 package dev.friendai.features.mining.minecraft.tool;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -59,15 +60,34 @@ class GatheringToolsTest {
         BlockPos elsewhere = new BlockPos(20, 64, 20);
 
         assertNull(
-                GatheringTools.searchOrigin(new NearResolver.Origin(here, true), here),
+                GatheringTools.searchOrigin(new NearResolver.Origin(here, true, false), here),
                 "a point where the companion already stands must not disable its one search");
         assertEquals(
                 elsewhere,
-                GatheringTools.searchOrigin(new NearResolver.Origin(elsewhere, true), here),
+                GatheringTools.searchOrigin(new NearResolver.Origin(elsewhere, true, false), here),
                 "a named point away from the companion stays an explicit origin");
+        assertEquals(
+                elsewhere,
+                GatheringTools.searchOrigin(new NearResolver.Origin(elsewhere, true, true), here),
+                "a remembered place is an explicit origin like any other named point");
         assertNull(
-                GatheringTools.searchOrigin(new NearResolver.Origin(here, false), here),
+                GatheringTools.searchOrigin(new NearResolver.Origin(here, false, false), here),
                 "an unnamed origin stays non-explicit");
+    }
+
+    @Test
+    void only_a_kept_place_origin_offers_the_place_advice() {
+        BlockPos elsewhere = new BlockPos(20, 64, 20);
+
+        assertTrue(
+                GatheringTools.originIsPlace(new NearResolver.Origin(elsewhere, true, true), elsewhere),
+                "a remembered place origin may point at go_to_place");
+        assertFalse(
+                GatheringTools.originIsPlace(new NearResolver.Origin(elsewhere, true, false), elsewhere),
+                "a coordinates or speaker origin has no place name");
+        assertFalse(
+                GatheringTools.originIsPlace(new NearResolver.Origin(elsewhere, true, true), null),
+                "a job that keeps no explicit origin never renders the place advice");
     }
 
     @Test

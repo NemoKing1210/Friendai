@@ -797,8 +797,11 @@ public class MineBlocksTests {
                     result.summary.contains(origin.getX() + " " + origin.getY() + " " + origin.getZ()),
                     "the miss must name the origin: " + result.summary);
             h.assertTrue(
+                    result.summary.contains("(go_to)"),
+                    "a coordinates origin is reached with go_to, which takes a point: " + result.summary);
+            h.assertFalse(
                     result.summary.contains("go_to_place"),
-                    "the miss must suggest going there first: " + result.summary);
+                    "a coordinates origin has no remembered place name for go_to_place: " + result.summary);
             h.assertFalse(
                     result.summary.contains("search_resource"),
                     "the miss must not point at a search that cannot use the origin: " + result.summary);

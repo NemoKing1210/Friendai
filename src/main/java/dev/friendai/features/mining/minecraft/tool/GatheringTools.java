@@ -290,11 +290,12 @@ public final class GatheringTools implements FeatureToolContributor {
         boolean requireTool = boolArg(a, "require_tool", false);
         // A placed-only job must never go looking for an unplaced block, so it never explores.
         boolean explore = boolArg(a, "explore", true) && !placed;
+        BlockPos searchFrom = searchOrigin(origin, c.blockPosition());
         return new MineBlocksTask(
                 matcher,
                 a.get("count").getAsInt(),
                 radius,
-                searchOrigin(origin, c.blockPosition()),
+                searchFrom,
                 collect,
                 placed,
                 requireTool,
@@ -302,7 +303,9 @@ public final class GatheringTools implements FeatureToolContributor {
                 untilCount,
                 blockSearch,
                 explore,
-                caller);
+                caller,
+                // Only a named origin can produce the explicit-origin miss sentence, so only then does the kind matter.
+                originIsPlace(origin, searchFrom));
     }
 
     /**
@@ -312,6 +315,15 @@ public final class GatheringTools implements FeatureToolContributor {
      */
     static BlockPos searchOrigin(NearResolver.Origin origin, BlockPos companionPosition) {
         return origin.explicit() && !origin.pos().equals(companionPosition) ? origin.pos() : null;
+    }
+
+    /**
+     * Whether the job's miss sentence may suggest {@code go_to_place}: only a remembered place, and only when the job
+     * actually keeps that origin. A job without an explicit origin never renders that sentence, so a stale flag would
+     * be invisible; package-private so a headless test can pin the rule.
+     */
+    static boolean originIsPlace(NearResolver.Origin origin, BlockPos searchFrom) {
+        return searchFrom != null && origin.place();
     }
 
     /** The search composition this instance was built with; {@link BlockSearchTaskFactory#NONE} disables it. */

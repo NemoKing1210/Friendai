@@ -19,8 +19,11 @@ public final class NearResolver {
     /** The player must be this close to the companion for "near me" to be a place it can work around. */
     private static final double MAX_PLAYER_DISTANCE = 64.0;
 
-    /** A resolved search origin, and whether the call named it rather than defaulting to the companion. */
-    public record Origin(BlockPos pos, boolean explicit) {}
+    /**
+     * A resolved search origin: its block, whether the call named it rather than defaulting to the companion, and
+     * whether it came from a remembered place (which {@code go_to_place} can navigate to by name).
+     */
+    public record Origin(BlockPos pos, boolean explicit, boolean place) {}
 
     private NearResolver() {}
 
@@ -30,7 +33,7 @@ public final class NearResolver {
      */
     public static Origin resolve(PlaceLookup places, CompanionEntity c, Caller caller, JsonObject args) {
         return switch (NearRequest.parse(args)) {
-            case NearRequest.Coordinates(int x, int y, int z) -> new Origin(new BlockPos(x, y, z), true);
+            case NearRequest.Coordinates(int x, int y, int z) -> new Origin(new BlockPos(x, y, z), true, false);
             case NearRequest.Place(String name) -> {
                 Place place = places.requireReachable(c, name, "a search");
                 yield new Origin(
@@ -38,10 +41,11 @@ public final class NearResolver {
                                 place.anchor().x(),
                                 place.anchor().y(),
                                 place.anchor().z()),
+                        true,
                         true);
             }
-            case NearRequest.Companion() -> new Origin(c.blockPosition(), false);
-            case NearRequest.Speaker() -> new Origin(speaker(c, caller), true);
+            case NearRequest.Companion() -> new Origin(c.blockPosition(), false, false);
+            case NearRequest.Speaker() -> new Origin(speaker(c, caller), true, false);
         };
     }
 

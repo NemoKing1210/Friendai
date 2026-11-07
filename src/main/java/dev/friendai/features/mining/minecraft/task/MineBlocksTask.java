@@ -102,6 +102,8 @@ public final class MineBlocksTask implements Task {
 
     /** Where to search from; null means around the companion. */
     private final BlockPos origin;
+    /** Whether {@link #origin} came from a remembered place, which the miss sentence reaches with go_to_place. */
+    private final boolean originIsPlace;
     /** Whether to walk around picking the drops up afterwards; drops at the feet are always taken. */
     private final boolean collect;
     /** When true, candidates come only from the placement ledger; unplaced siblings are never mined. */
@@ -215,6 +217,40 @@ public final class MineBlocksTask implements Task {
             BlockSearchTaskFactory searchFactory,
             boolean explore,
             Caller searchCaller) {
+        this(
+                matcher,
+                count,
+                radius,
+                origin,
+                collect,
+                placedOnly,
+                requireTool,
+                untilMatcher,
+                untilCount,
+                searchFactory,
+                explore,
+                searchCaller,
+                false);
+    }
+
+    /**
+     * @param originIsPlace whether the explicit origin came from a remembered place, which {@code go_to_place} can
+     *     navigate to by name; a coordinates or speaker origin is reached with {@code go_to}
+     */
+    public MineBlocksTask(
+            BlockFilter matcher,
+            int count,
+            int radius,
+            BlockPos origin,
+            boolean collect,
+            boolean placedOnly,
+            boolean requireTool,
+            ItemMatcher untilMatcher,
+            int untilCount,
+            BlockSearchTaskFactory searchFactory,
+            boolean explore,
+            Caller searchCaller,
+            boolean originIsPlace) {
         this.matcher = matcher;
         this.count = count;
         this.radius = radius;
@@ -224,6 +260,7 @@ public final class MineBlocksTask implements Task {
         this.requireTool = requireTool;
         this.untilMatcher = untilMatcher;
         this.untilCount = untilCount;
+        this.originIsPlace = originIsPlace;
         this.exploration = new Exploration(searchFactory, maySearch(explore, placedOnly, origin), searchCaller);
     }
 
@@ -702,7 +739,7 @@ public final class MineBlocksTask implements Task {
                 summary = minedThenReason(mined, count, searchReason);
             } else if (mined == 0) {
                 if (origin != null && !placedOnly) {
-                    summary = explicitOriginMiss(matcher.label(), radius, origin, hidden);
+                    summary = explicitOriginMiss(matcher.label(), radius, origin, hidden, originIsPlace);
                 } else {
                     summary = placedOnly
                             ? "no " + matcher.label() + " you placed nearby"
@@ -785,13 +822,18 @@ public final class MineBlocksTask implements Task {
      * The miss sentence for a job that was told to stay around a named origin. It names that origin and never points
      * at {@code search_resource}, which has no origin of its own and would search from the companion — the very
      * wandering the explicit-origin rule removes.
+     *
+     * <p>The advice names the tool that can actually reach the origin: {@code go_to_place} takes a remembered place's
+     * name, which only a {@code place:} origin has, and {@code go_to} takes the coordinates of a point or a player.
      */
-    static String explicitOriginMiss(String label, int radius, BlockPos origin, boolean hidden) {
+    static String explicitOriginMiss(String label, int radius, BlockPos origin, boolean hidden, boolean originIsPlace) {
         String where = origin.getX() + " " + origin.getY() + " " + origin.getZ();
         String head = hidden
                 ? "could not reach any " + label + " within " + radius + " blocks of " + where
                 : "no " + label + " observed or remembered within " + radius + " blocks of " + where;
-        return head + "; call mine_blocks without near to search from the companion, or go there first (go_to_place)";
+        String goThere = originIsPlace ? "go_to_place" : "go_to";
+        return head + "; call mine_blocks without near to search from the companion, or go there first (" + goThere
+                + ")";
     }
 
     /**
