@@ -78,7 +78,7 @@ public interface Task {
         return -1;
     }
 
-    /** The task's own deadline for the current wait, or zero to use the runner's stall limit. */
+    /** The task's own deadline for the current wait, or zero when the wait has no deadline of its own. */
     default int waitingLimitTicks() {
         return 0;
     }

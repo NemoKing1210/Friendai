@@ -23,7 +23,8 @@ public final class ProgressWatch {
     /**
      * @param stamp the task's progress stamp, or {@link #UNKNOWN} when it does not expose one
      * @param waitingTicks how long the task has legitimately waited, or a negative value when it is not waiting
-     * @param waitingLimitTicks the task's own deadline for that wait, or zero for the outer stall limit
+     * @param waitingLimitTicks the task's own deadline for that wait, or zero when the wait has no deadline; a
+     *     deadline is the only bound on a wait, so a task that reports one without a positive limit waits forever
      * @param activeTick the runner's monotonic active-tick counter
      * @param stallTicks how many ticks without a new stamp count as a stall
      */
