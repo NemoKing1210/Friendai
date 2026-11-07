@@ -16,7 +16,8 @@ import java.util.Set;
  * @param queueState the current queue, when a replan has to work around it
  * @param failure what went wrong last time, with facts and diagnosis; empty for a first plan
  * @param schemas the schemas of the tools the requester may plan with; a proposal may use no other tool
- * @param allTools every plannable tool name, so an unknown name is reported as unknown
+ * @param allTools every plannable tool name the requester may use before this occasion's scoping, so a real tool
+ *     outside the scope is reported as known but unusable while only a genuinely unknown name is reported as unknown
  */
 public record PlannerInput(
         Goal goal,

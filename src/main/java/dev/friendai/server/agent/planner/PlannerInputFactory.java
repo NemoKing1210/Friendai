@@ -138,7 +138,7 @@ public final class PlannerInputFactory {
     private Goal findGoal(long goalId) {
         GoalBoard board = goals == null ? null : goals.get();
         if (board == null) return null;
-        return goalId > 0 ? board.find(goalId).orElse(null) : board.primary().orElse(null);
+        return board.find(goalId).orElse(null);
     }
 
     private PlannerInput base(
@@ -163,16 +163,16 @@ public final class PlannerInputFactory {
             }
         }
         Set<String> scoped = PlannerScope.toolNames(subject, groups, planStepTools);
-        Map<String, TaskToolDefinition> selected = new LinkedHashMap<>();
+        Map<String, TaskToolDefinition> visible = new LinkedHashMap<>();
         source.forEach((name, definition) -> {
-            if (scoped.contains(name)) {
-                selected.put(name, definition);
+            if (!denied.contains(name) && caller.access().allows(definition.minAccess())) {
+                visible.put(name, definition);
             }
         });
         Map<String, JsonObject> schemas = new LinkedHashMap<>();
         List<PlannerToolDigest.Tool> described = new ArrayList<>();
-        selected.forEach((name, definition) -> {
-            if (!denied.contains(name) && caller.access().allows(definition.minAccess())) {
+        visible.forEach((name, definition) -> {
+            if (scoped.contains(name)) {
                 schemas.put(name, definition.schema());
                 described.add(new PlannerToolDigest.Tool(name, definition.description(), definition.schema()));
             }
@@ -182,6 +182,8 @@ public final class PlannerInputFactory {
         String queue = QueueText.show(queue(), facts, null, 20, false);
         List<Place> known =
                 settings.places.enabled && caller.access().allows(AccessLevel.TRUSTED) ? places.get() : List.of();
+        // allTools is the parser's "known" list and stays the full usable set, while schemas is what this occasion may
+        // actually use: a real tool outside a repair's scope is then reported as unusable, not as unknown.
         return new PlannerInput(
                 objective,
                 new CompanionPerception(companion, perception).describe(caller),
@@ -191,7 +193,7 @@ public final class PlannerInputFactory {
                 objective.lessons(),
                 failure,
                 schemas,
-                selected.keySet(),
+                visible.keySet(),
                 shift ? List.of() : verifiedFacts.get(),
                 List.of(),
                 0,

@@ -38,11 +38,4 @@ class PlannerScopeTest {
     void a_free_time_shift_keeps_every_plannable_tool() {
         assertEquals(ALL_TOOLS, PlannerScope.toolNames(new PlanSubject.FreeTimeShift(3), TOOLS, Set.of()));
     }
-
-    @Test
-    void a_step_missing_from_the_map_adds_only_its_name() {
-        assertEquals(
-                Set.of("mine_blocks", "mine_block_at", "ghost"),
-                PlannerScope.toolNames(new PlanSubject.TroubledPlan(7, "boom"), TOOLS, Set.of("mine_blocks", "ghost")));
-    }
 }

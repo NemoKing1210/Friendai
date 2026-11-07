@@ -341,7 +341,7 @@ final class PlannerFacade {
         }
 
         private String goalText(dev.friendai.agent.goal.GoalBoard board, long goalId) {
-            var found = goalId > 0 ? board.find(goalId) : board.primary();
+            var found = board.find(goalId);
             return found.filter(goal -> goal.status() == dev.friendai.agent.goal.GoalStatus.ACTIVE)
                     .map(dev.friendai.agent.goal.Goal::text)
                     .orElse(null);

@@ -29,7 +29,9 @@ public final class PlannerParser {
 
     /**
      * @param schemas the schemas of the tools the requester may plan with; any other tool is an error
-     * @param allTools every plannable tool name, so an unknown name is reported as unknown
+     * @param allTools every plannable tool name the requester may use before this occasion's scoping, so a real tool
+     *     outside the scope is reported as known but unusable while only a genuinely unknown name is reported as
+     *     unknown
      */
     public static Parsed parse(
             String modelText,

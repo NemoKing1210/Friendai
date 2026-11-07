@@ -10,24 +10,26 @@ import java.util.Set;
  * Which tools one planning occasion may plan with. Every occasion keeps the whole plannable set: an owner order
  * legitimately names a step from any group, so narrowing it by group would remove real capability. A repair is the one
  * exception — it keeps the groups its steps belong to, so the replacement step can use a sibling tool of the same
- * group, and a tool the plan already names survives even when its group is outside that set.
+ * group.
  *
- * <p>The rule is data, not a branch in the factory: the group a step maps to decides the repair scope.
+ * <p>Every tool in the map carries a {@link ToolGroup}, and a repair can only use tools present in the map because the
+ * caller intersects the selection with the plannable set before the planner sees it.
  */
 public final class PlannerScope {
     private PlannerScope() {}
 
     /**
      * The tool names this subject may plan with: every plannable tool, except that a repair keeps only the groups its
-     * steps belong to and adds every step name, even one absent from {@code tools}.
+     * steps belong to.
+     *
+     * @param planStepTools the tools the plan's jobs name; never null
      */
     public static Set<String> toolNames(PlanSubject subject, Map<String, ToolGroup> tools, Set<String> planStepTools) {
-        Set<String> steps = planStepTools == null ? Set.of() : planStepTools;
         if (!(subject instanceof PlanSubject.TroubledPlan)) {
             return new LinkedHashSet<>(tools.keySet());
         }
         Set<ToolGroup> repairGroups = EnumSet.noneOf(ToolGroup.class);
-        for (String step : steps) {
+        for (String step : planStepTools) {
             ToolGroup group = tools.get(step);
             if (group != null) {
                 repairGroups.add(group);
@@ -39,7 +41,6 @@ public final class PlannerScope {
                 kept.add(name);
             }
         });
-        kept.addAll(steps);
         return kept;
     }
 }
