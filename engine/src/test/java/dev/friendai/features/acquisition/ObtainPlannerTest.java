@@ -8,6 +8,7 @@ import dev.friendai.features.crafting.FakeRecipeBook;
 import dev.friendai.features.crafting.Ingredient;
 import dev.friendai.features.crafting.Recipe;
 import dev.friendai.features.crafting.Station;
+import dev.friendai.foundation.item.Tier;
 import dev.friendai.foundation.spatial.Pos;
 import java.util.List;
 import java.util.Map;
@@ -23,6 +24,7 @@ class ObtainPlannerTest {
     private static final String STONECUTTER = "minecraft:stonecutter";
     private static final String GRAVEL = "minecraft:gravel";
     private static final String FURNACE = "minecraft:furnace";
+    private static final String COAL = "minecraft:coal";
     private static final String IRON_ORE = "minecraft:iron_ore";
     private static final String COAL_ORE = "minecraft:coal_ore";
     private static final String RAW_IRON = "minecraft:raw_iron";
@@ -74,6 +76,23 @@ class ObtainPlannerTest {
     private static FakeRecipeBook bookWithHandCobblestone() {
         return book().add(new Recipe(
                 "test:cobblestone_from_gravel", COBBLESTONE, 1, List.of(Ingredient.of(GRAVEL)), Station.INVENTORY));
+    }
+
+    /** A vanilla-like book plus the furnace route from cobblestone to stone. */
+    private static FakeRecipeBook bookWithSmeltableStone() {
+        return book().add(new Recipe(
+                "test:stone_from_smelting_cobblestone",
+                STONE,
+                1,
+                List.of(Ingredient.of(COBBLESTONE)),
+                Station.FURNACE,
+                200));
+    }
+
+    /** Vanilla-like sources plus a stone block that drops stone, so the mine gate can be exercised. */
+    private static FakeSourceBook sourcesWithStoneBlock() {
+        return FakeSourceBook.vanillaLike()
+                .add(STONE, new Source.Mine(STONE, new ToolNeed(ToolKind.PICKAXE, Tier.WOOD), 1, true, 0));
     }
 
     private static WorldFacts worldWith(Set<String> stations, Map<String, Integer> blocks, boolean explore) {
@@ -660,6 +679,56 @@ class ObtainPlannerTest {
         assertTrue(plan.ok(), plan.missing().toString());
         assertFalse(plan.conditional(), plan.steps().toString());
         assertTrue(hasCraft(plan, FURNACE), plan.steps().toString());
+    }
+
+    @Test
+    void furnaceBesideTheCompanionKeepsTheSmeltRoute() {
+        ObtainPlan plan = ObtainPlanner.plan(
+                STONE,
+                4,
+                Map.of(COBBLESTONE, 4, COAL, 1),
+                bookWithSmeltableStone(),
+                sourcesWithStoneBlock(),
+                worldWith(Set.of(Station.FURNACE.noun()), Map.of(STONE, 10), false));
+
+        assertTrue(plan.ok(), plan.missing().toString());
+        assertTrue(
+                plan.steps().stream().anyMatch(ObtainStep.Smelt.class::isInstance),
+                plan.steps().toString());
+    }
+
+    @Test
+    void carriedFurnaceKeepsTheSmeltRoute() {
+        // A furnace in the bag is a station the batch layer would have used, so the plan must not mine.
+        ObtainPlan plan = ObtainPlanner.plan(
+                STONE,
+                4,
+                Map.of(COBBLESTONE, 4, COAL, 1, FURNACE, 1),
+                bookWithSmeltableStone(),
+                sourcesWithStoneBlock(),
+                worldWith(Set.of(Station.CRAFTING_TABLE.noun()), Map.of(STONE, 10), false));
+
+        assertTrue(plan.ok(), plan.missing().toString());
+        assertTrue(
+                plan.steps().stream().anyMatch(ObtainStep.Smelt.class::isInstance),
+                plan.steps().toString());
+    }
+
+    @Test
+    void smeltRouteIsDroppedWithoutItsStation() {
+        ObtainPlan plan = ObtainPlanner.plan(
+                STONE,
+                4,
+                Map.of(COBBLESTONE, 4, COAL, 1),
+                bookWithSmeltableStone(),
+                sourcesWithStoneBlock(),
+                worldWith(Set.of(Station.CRAFTING_TABLE.noun()), Map.of(STONE, 10), false));
+
+        assertFalse(plan.ok());
+        assertTrue(plan.missing().containsKey(STONE), plan.missing().toString());
+        assertFalse(
+                plan.steps().stream().anyMatch(ObtainStep.Smelt.class::isInstance),
+                plan.steps().toString());
     }
 
     @Test

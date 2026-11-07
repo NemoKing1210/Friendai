@@ -388,7 +388,7 @@ public final class ObtainPlanner {
             List<Provider> mines = mineProviders(item, allowExplore);
             boolean mineReachable = !mines.isEmpty();
             for (Recipe recipe : book.producing(item)) {
-                if (mineReachable && !stationUsable(recipe)) {
+                if (mineReachable && !stationUsable(recipe, sim)) {
                     continue;
                 }
                 if (recipe.station().isCooking()) {
@@ -673,15 +673,23 @@ public final class ObtainPlanner {
             return best;
         }
 
-        /** True when the recipe can be worked where the companion stands: hand crafting or its station nearby. */
-        private boolean stationUsable(Recipe recipe) {
+        /**
+         * True when the recipe can be worked where the companion stands: hand crafting, its station placed
+         * nearby, or the station item carried — the same availability {@code CraftPlanner.ensureStation}
+         * offers the batch layer, so the two do not disagree about a furnace in the bag.
+         */
+        private boolean stationUsable(Recipe recipe, Sim sim) {
             Station station = recipe.station();
-            return station == Station.INVENTORY || stationNearby(station);
+            if (station == Station.INVENTORY || stationNearby(station)) {
+                return true;
+            }
+            String item = book.stationItem(station);
+            return item != null && (sim.reserved.contains(item) || sim.available(item) > 0);
         }
 
+        /** {@code WorldScan} stores {@link Station#noun()} in {@code stationsNearby}; enum names never appear. */
         private boolean stationNearby(Station station) {
-            return world.stationsNearby().contains(station.noun())
-                    || world.stationsNearby().contains(station.name());
+            return world.stationsNearby().contains(station.noun());
         }
 
         /** Plans one cheap fuel item per eight smelted inputs. */
