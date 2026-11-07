@@ -9,7 +9,8 @@ import java.util.Set;
 import java.util.function.UnaryOperator;
 
 /**
- * Everything one planner call may see. All fields are plain data built by the caller on the server thread.
+ * Everything one planner call may see. The data fields are built by the caller on the server thread; the normalizers
+ * are the one part that runs later, inside the planner's completion callback off that thread.
  *
  * @param world the companion's surroundings and inventory, as in the prompt's state block
  * @param toolDigest the plannable tools with their schemas, already restricted to what the requester may use
@@ -19,7 +20,9 @@ import java.util.function.UnaryOperator;
  * @param schemas the schemas of the tools the requester may plan with; a proposal may use no other tool
  * @param allTools every plannable tool name the requester may use before this occasion's scoping, so a real tool
  *     outside the scope is reported as known but unusable while only a genuinely unknown name is reported as unknown
- * @param normalizers the documented argument aliases of those tools, keyed by tool name; a missing name means none
+ * @param normalizers the documented argument aliases of those tools, keyed by tool name; a missing name means none.
+ *     A normalizer executes in the planner's completion callback, off the server thread, so it must be pure and
+ *     thread-safe.
  */
 public record PlannerInput(
         Goal goal,

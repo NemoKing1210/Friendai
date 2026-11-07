@@ -35,6 +35,34 @@ class QueueParserTest {
     }
 
     @Test
+    void aNormalizerThatThrowsOrReturnsNothingIsAParseError() {
+        JsonArray input =
+                JsonParser.parseString("[{\"tool\":\"go_to\",\"args\":\"{}\"}]").getAsJsonArray();
+
+        var thrown = QueueParser.parsePlan(
+                input,
+                SCHEMAS,
+                Map.of("go_to", args -> {
+                    throw new IllegalStateException("broken normalizer");
+                }),
+                Set.of("go_to"),
+                32,
+                8192,
+                49152);
+        assertFalse(thrown.ok());
+        assertTrue(
+                thrown.errors().stream().anyMatch(error -> error.contains("arguments cannot be normalized")),
+                thrown.errors().toString());
+
+        var empty =
+                QueueParser.parsePlan(input, SCHEMAS, Map.of("go_to", args -> null), Set.of("go_to"), 32, 8192, 49152);
+        assertFalse(empty.ok());
+        assertTrue(
+                empty.errors().stream().anyMatch(error -> error.contains("arguments cannot be normalized")),
+                empty.errors().toString());
+    }
+
+    @Test
     void rejectsTooManyDependenciesAndBadAttemptCount() {
         String afters = "[1,1,1,1,1,1,1,1,1]";
         JsonArray many = JsonParser.parseString("[{\"tool\":\"go_to\"},{\"tool\":\"go_to\",\"after\":" + afters + "}]")

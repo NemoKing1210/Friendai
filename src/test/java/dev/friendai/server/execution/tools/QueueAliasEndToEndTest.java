@@ -18,26 +18,21 @@ import dev.friendai.execution.tool.ToolRegistry;
 import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.features.acquisition.minecraft.tool.ObtainTools;
 import java.util.Map;
-import java.util.Set;
 import org.junit.jupiter.api.Test;
 
-/** The documented aliases must survive the queue and planner paths, not only a direct tool call. */
+/**
+ * The documented aliases must survive the queue and planner paths, not only a direct tool call. The tests drive the
+ * production parse and update operations, which take the alias map from the tool definitions rather than a caller.
+ */
 class QueueAliasEndToEndTest {
     @Test
     void aQueuedObtainItemsStepAcceptsTheDocumentedAlias() {
-        TaskToolDefinition obtainItems = definitions().get("obtain_items");
+        Map<String, TaskToolDefinition> definitions = definitions();
         JsonArray steps = JsonParser.parseString(
                         "[{\"tool\":\"obtain_items\",\"args\":\"{\\\"item\\\":\\\"minecraft:stone\\\",\\\"count\\\":36}\"}]")
                 .getAsJsonArray();
 
-        QueueParser.PlanResult parsed = QueueParser.parsePlan(
-                steps,
-                Map.of("obtain_items", obtainItems.schema()),
-                Map.of("obtain_items", obtainItems.normalizer()),
-                Set.of("obtain_items"),
-                12,
-                8192,
-                49152);
+        QueueParser.PlanResult parsed = QueueTools.parsePlan(steps, definitions, definitions.keySet(), 12);
 
         assertTrue(parsed.ok(), () -> String.join("; ", parsed.errors()));
         QueuedStep step = ((PlanNode.Action) parsed.plan().nodes().get(0)).step();
@@ -51,10 +46,8 @@ class QueueAliasEndToEndTest {
     @Test
     void queueEditUpdateNormalizesTheSameAliasBeforeValidation() {
         TaskToolDefinition obtainItems = definitions().get("obtain_items");
-        JsonObject raw = JsonParser.parseString("{\"item\":\"minecraft:stone\",\"count\":36}")
-                .getAsJsonObject();
 
-        JsonObject normalized = QueueTools.normalizeEditArgs(obtainItems, raw.deepCopy());
+        JsonObject normalized = QueueTools.updateArgs(obtainItems, "{\"item\":\"minecraft:stone\",\"count\":36}");
 
         assertFalse(normalized.has("item"));
         assertEquals(1, normalized.getAsJsonArray("items").size());

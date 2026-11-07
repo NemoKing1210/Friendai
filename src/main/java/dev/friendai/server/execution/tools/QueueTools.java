@@ -294,16 +294,8 @@ public final class QueueTools implements FeatureToolContributor {
         if (forbidden != null)
             return ToolResult.error("Invalid plan: tool " + forbidden + " is not allowed in free time");
         Map<String, TaskToolDefinition> allowed = allowed(caller, all);
-        Map<String, JsonObject> schemas = new LinkedHashMap<>();
-        allowed.forEach((n, d) -> schemas.put(n, d.schema()));
-        var parsed = QueueParser.parsePlan(
-                input,
-                schemas,
-                normalizers(allowed),
-                all.keySet(),
-                c.serverSettings().tasks().queueMaxStepsPerAdd(),
-                LIMITS.maxArgsChars(),
-                LIMITS.maxAddChars());
+        var parsed = parsePlan(
+                input, allowed, all.keySet(), c.serverSettings().tasks().queueMaxStepsPerAdd());
         if (!parsed.ok()) return ToolResult.error("Invalid plan: " + String.join("; ", parsed.errors()));
         String invalidGuard = validatePlanGuards(parsed.plan().nodes(), "");
         if (invalidGuard != null) return ToolResult.error("Invalid plan: " + invalidGuard);
@@ -451,16 +443,7 @@ public final class QueueTools implements FeatureToolContributor {
             int maxSteps,
             boolean autoRepair) {
         Map<String, TaskToolDefinition> allowed = allowed(caller, all);
-        Map<String, JsonObject> schemas = new LinkedHashMap<>();
-        allowed.forEach((n, d) -> schemas.put(n, d.schema()));
-        var parsed = QueueParser.parsePlan(
-                steps,
-                schemas,
-                normalizers(allowed),
-                all.keySet(),
-                maxSteps,
-                LIMITS.maxArgsChars(),
-                LIMITS.maxAddChars());
+        var parsed = parsePlan(steps, allowed, all.keySet(), maxSteps);
         if (!parsed.ok())
             return ToolResult.error("Invalid plan:\n- " + String.join("\n- ", parsed.errors()) + "\nSubmitted plan:\n"
                     + normalizeForDisplay(steps));
@@ -753,10 +736,7 @@ public final class QueueTools implements FeatureToolContributor {
                     long id = required(args, "job");
                     JobData.validateTool(q.job(id).orElse(null), all, caller);
                     TaskToolDefinition d = all.get(q.job(id).orElseThrow().tool());
-                    JsonObject obj = normalizeEditArgs(
-                            d,
-                            JsonParser.parseString(args.get("args").getAsString())
-                                    .getAsJsonObject());
+                    JsonObject obj = updateArgs(d, args.get("args").getAsString());
                     if (d.creativeSensitive() && !CreativeModeService.mayStartWorldChangingTask(c, caller.uuid()))
                         return error(
                                 "Creative mode is active; only its online operator owner can request world-changing tasks.");
@@ -922,6 +902,32 @@ public final class QueueTools implements FeatureToolContributor {
         Map<String, UnaryOperator<JsonObject>> map = new LinkedHashMap<>();
         definitions.forEach((name, definition) -> map.put(name, definition.normalizer()));
         return map;
+    }
+
+    /**
+     * Parses plan steps with the full schema, documented-alias and limit wiring every queue entry point uses. The
+     * aliases come from the definitions, never from the caller, so a path cannot silently forget them.
+     */
+    static QueueParser.PlanResult parsePlan(
+            JsonArray input, Map<String, TaskToolDefinition> definitions, Set<String> allTools, int maxSteps) {
+        Map<String, JsonObject> schemas = new LinkedHashMap<>();
+        definitions.forEach((name, definition) -> schemas.put(name, definition.schema()));
+        return QueueParser.parsePlan(
+                input,
+                schemas,
+                normalizers(definitions),
+                allTools,
+                maxSteps,
+                LIMITS.maxArgsChars(),
+                LIMITS.maxAddChars());
+    }
+
+    /**
+     * The edited arguments of one {@code queue_edit update}: the raw replacement parsed and the tool's documented alias
+     * applied before validation, so a repair accepts the form a top-level call accepts.
+     */
+    static JsonObject updateArgs(TaskToolDefinition definition, String raw) {
+        return normalizeEditArgs(definition, JsonParser.parseString(raw).getAsJsonObject());
     }
 
     /**

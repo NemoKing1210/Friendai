@@ -6,6 +6,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.Strictness;
+import dev.friendai.execution.queue.PlanCodec;
 import dev.friendai.execution.tool.QueueParser;
 import java.util.List;
 import java.util.Map;
@@ -88,9 +89,14 @@ public final class PlannerParser {
                             String.join("; ", parsed.errors()),
                             1));
         }
+        // The proposal carries the canonical tree the parser validated, so its wire steps have the documented aliases
+        // already applied; a later consumer sees the same arguments as the plan and the queue.
         return new Parsed(
                 Optional.of(new PlanProposal(
-                        parsed.plan(), steps, note(root, "rationale"), note(root, "expected_outcome"))),
+                        parsed.plan(),
+                        PlanCodec.toJson(parsed.plan()),
+                        note(root, "rationale"),
+                        note(root, "expected_outcome"))),
                 List.of(),
                 null);
     }

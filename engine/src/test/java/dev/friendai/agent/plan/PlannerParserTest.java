@@ -9,9 +9,11 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.friendai.execution.queue.PlanNode;
 import dev.friendai.execution.queue.QueuedStep;
+import dev.friendai.execution.tool.QueueParser;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.UnaryOperator;
 import org.junit.jupiter.api.Test;
 
 class PlannerParserTest {
@@ -62,6 +64,43 @@ class PlannerParserTest {
                         .args()
                         .get("count")
                         .getAsInt());
+    }
+
+    @Test
+    void theProposalStepsCarryTheDocumentedAliasTheParserApplied() {
+        Map<String, UnaryOperator<JsonObject>> normalizers = Map.of("jump", args -> {
+            JsonObject normalized = args.deepCopy();
+            if (normalized.has("n")) {
+                normalized.add("count", normalized.remove("n"));
+            }
+            return normalized;
+        });
+
+        PlannerParser.Parsed parsed = PlannerParser.parse(
+                "{\"steps\":[{\"tool\":\"jump\",\"args\":{\"n\":2}}]}", SCHEMAS, normalizers, ALL, 12, 8192, 49152);
+
+        assertTrue(parsed.ok(), parsed.errors().toString());
+        JsonObject step = parsed.proposal().orElseThrow().stepsJson().get(0).getAsJsonObject();
+        JsonObject args = JsonParser.parseString(step.get("args").getAsString()).getAsJsonObject();
+        assertFalse(args.has("n"));
+        assertEquals(2, args.get("count").getAsInt());
+    }
+
+    @Test
+    void theProposalStepsCanBeParsedAgainByTheQueueParser() {
+        PlannerParser.Parsed parsed = parse("""
+                {"steps":[
+                  {"when":{"type":"fluid_ahead"},"then":[{"tool":"jump","args":{"count":2}}],
+                   "else":[{"repeat":{"steps":[{"tool":"go_to"}],
+                     "until":{"type":"time_elapsed","ticks":20},"max_iterations":2}}]}
+                ]}
+                """);
+        assertTrue(parsed.ok(), parsed.errors().toString());
+
+        QueueParser.PlanResult reparsed =
+                QueueParser.parsePlan(parsed.proposal().orElseThrow().stepsJson(), SCHEMAS, ALL, 12, 8192, 49152);
+
+        assertTrue(reparsed.ok(), reparsed.errors().toString());
     }
 
     @Test
