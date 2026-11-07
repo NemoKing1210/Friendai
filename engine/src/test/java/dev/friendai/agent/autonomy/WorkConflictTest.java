@@ -3,6 +3,7 @@ package dev.friendai.agent.autonomy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import dev.friendai.execution.queue.FailurePolicy;
 import dev.friendai.execution.queue.GuardAction;
@@ -39,6 +40,56 @@ class WorkConflictTest {
                 .isEmpty());
         assertTrue(WorkConflict.duplicate(queued, List.of(new ReflexStep("sleep", new JsonObject())))
                 .isEmpty());
+    }
+
+    @Test
+    void theSameBatchItemIsADuplicateAndTheRefusalNamesIt() {
+        List<Job> queued = List.of(job(1, "obtain_items", batch("minecraft:diamond"), JobState.RUNNING));
+
+        assertEquals(
+                "obtain_items minecraft:diamond",
+                WorkConflict.duplicate(queued, List.of(new ReflexStep("obtain_items", batch("minecraft:diamond"))))
+                        .orElseThrow());
+    }
+
+    @Test
+    void aDifferentBatchItemIsNotADuplicate() {
+        List<Job> queued = List.of(job(1, "obtain_items", batch("minecraft:diamond"), JobState.RUNNING));
+
+        assertTrue(
+                WorkConflict.duplicate(queued, List.of(new ReflexStep("obtain_items", batch("minecraft:stone"))))
+                        .isEmpty(),
+                "an unrelated item is still free work");
+    }
+
+    @Test
+    void aMixedItemAndBatchPairResolvesTheSameWay() {
+        List<Job> queued = List.of(job(1, "obtain_items", batch("minecraft:diamond"), JobState.RUNNING));
+
+        assertEquals(
+                "obtain_items minecraft:diamond",
+                WorkConflict.duplicate(
+                                queued, List.of(new ReflexStep("obtain_items", args("item", "minecraft:diamond"))))
+                        .orElseThrow());
+        assertTrue(
+                WorkConflict.duplicate(queued, List.of(new ReflexStep("obtain_items", args("item", "minecraft:stone"))))
+                        .isEmpty(),
+                "the single-item form names the same set as the batch form");
+    }
+
+    @Test
+    void overlappingBatchItemsCollideOnTheSharedItem() {
+        List<Job> queued =
+                List.of(job(1, "obtain_items", batch("minecraft:diamond", "minecraft:iron_ingot"), JobState.RUNNING));
+
+        assertEquals(
+                "obtain_items minecraft:diamond, minecraft:iron_ingot",
+                WorkConflict.duplicate(
+                                queued,
+                                List.of(new ReflexStep(
+                                        "obtain_items", batch("minecraft:iron_ingot", "minecraft:gold_ingot"))))
+                        .orElseThrow(),
+                "a batch collides when it shares at least one requested item");
     }
 
     @Test
@@ -85,6 +136,19 @@ class WorkConflictTest {
     private static JsonObject args(String key, String value) {
         JsonObject args = new JsonObject();
         args.addProperty(key, value);
+        return args;
+    }
+
+    private static JsonObject batch(String... itemIds) {
+        JsonArray items = new JsonArray();
+        for (String itemId : itemIds) {
+            JsonObject entry = new JsonObject();
+            entry.addProperty("item", itemId);
+            entry.addProperty("count", 1);
+            items.add(entry);
+        }
+        JsonObject args = new JsonObject();
+        args.add("items", items);
         return args;
     }
 

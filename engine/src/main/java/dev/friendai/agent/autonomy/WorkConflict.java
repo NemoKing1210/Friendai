@@ -1,11 +1,15 @@
 package dev.friendai.agent.autonomy;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import dev.friendai.execution.queue.Job;
 import dev.friendai.execution.queue.JobQueue;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * Refuses autonomous work the queue already holds: the same tool aimed at the same target. A second copy would
@@ -28,12 +32,12 @@ public final class WorkConflict {
             return Optional.empty();
         }
         for (ReflexStep step : steps) {
-            String target = target(step.args());
             for (Job job : jobs) {
                 if (JobQueue.terminal(job) || !job.tool().equals(step.tool())) {
                     continue;
                 }
-                if (target(job.args()).equals(target)) {
+                if (sameTarget(job.args(), step.args())) {
+                    String target = target(job.args());
                     return Optional.of(target.isBlank() ? step.tool() : step.tool() + " " + target);
                 }
             }
@@ -79,6 +83,76 @@ public final class WorkConflict {
                 return text;
             }
         }
+        JsonElement batch = args.get("items");
+        if (batch != null && batch.isJsonArray()) {
+            return String.join(", ", itemIds(batch.getAsJsonArray()));
+        }
         return "";
+    }
+
+    /**
+     * Two steps of the same tool work on the same target. A requested item set is a set: a batch request collides with
+     * another request when the two share at least one item id, so an unrelated item is still free work. Every other
+     * tool keeps the single-target comparison it had.
+     */
+    private static boolean sameTarget(JsonObject left, JsonObject right) {
+        Set<String> leftItems = requestedItems(left);
+        Set<String> rightItems = requestedItems(right);
+        if (!leftItems.isEmpty() && !rightItems.isEmpty()) {
+            return !Collections.disjoint(leftItems, rightItems);
+        }
+        return target(left).equals(target(right));
+    }
+
+    /**
+     * The item ids a step requests through the single-item or the batch form, or empty when it names neither. A
+     * higher-precedence target key keeps its existing single-target identity.
+     */
+    private static Set<String> requestedItems(JsonObject args) {
+        if (args == null) {
+            return Set.of();
+        }
+        JsonElement batch = args.get("items");
+        JsonElement single = args.get("item");
+        boolean hasBatch = batch != null && batch.isJsonArray();
+        boolean hasSingle = single != null
+                && single.isJsonPrimitive()
+                && !single.getAsString().isBlank();
+        if (!hasBatch && !hasSingle) {
+            return Set.of();
+        }
+        for (String key : TARGET_KEYS) {
+            if (key.equals("item")) {
+                break;
+            }
+            JsonElement value = args.get(key);
+            if (value != null
+                    && !value.isJsonNull()
+                    && !(value.isJsonPrimitive() && value.getAsString().isBlank())) {
+                return Set.of();
+            }
+        }
+        Set<String> ids = new TreeSet<>();
+        if (hasSingle) {
+            ids.add(single.getAsString());
+        }
+        if (hasBatch) {
+            ids.addAll(itemIds(batch.getAsJsonArray()));
+        }
+        return ids;
+    }
+
+    private static Set<String> itemIds(JsonArray items) {
+        Set<String> ids = new TreeSet<>();
+        for (JsonElement entry : items) {
+            if (entry == null || !entry.isJsonObject()) {
+                continue;
+            }
+            JsonElement item = entry.getAsJsonObject().get("item");
+            if (item != null && item.isJsonPrimitive() && !item.getAsString().isBlank()) {
+                ids.add(item.getAsString());
+            }
+        }
+        return ids;
     }
 }

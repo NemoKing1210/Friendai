@@ -54,6 +54,25 @@ class QueueAliasEndToEndTest {
         assertTrue(ArgValidator.validate(obtainItems.schema(), normalized).isEmpty());
     }
 
+    @Test
+    void aBrokenEditNormalizerLeavesTheArgumentsForValidationToReject() {
+        TaskToolDefinition obtainItems = definitions().get("obtain_items");
+        String raw = "{\"item\":\"minecraft:stone\",\"count\":36}";
+        JsonObject expected = JsonParser.parseString(raw).getAsJsonObject();
+
+        TaskToolDefinition thrown = obtainItems.withNormalizer(args -> {
+            throw new IllegalStateException("broken normalizer");
+        });
+        JsonObject keptAfterThrow = QueueTools.updateArgs(thrown, raw);
+        assertEquals(expected, keptAfterThrow);
+        assertFalse(ArgValidator.validate(thrown.schema(), keptAfterThrow).isEmpty());
+
+        TaskToolDefinition empty = obtainItems.withNormalizer(args -> null);
+        JsonObject keptAfterEmpty = QueueTools.updateArgs(empty, raw);
+        assertEquals(expected, keptAfterEmpty);
+        assertFalse(ArgValidator.validate(empty.schema(), keptAfterEmpty).isEmpty());
+    }
+
     private static Map<String, TaskToolDefinition> definitions() {
         FeatureToolRegistry registry = new FeatureToolRegistry(new ToolRegistry<>(), QueueAliasEndToEndTest::stubTool);
         new ObtainTools(new MinecraftObtainSubtaskFactory()).register(registry);
