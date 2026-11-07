@@ -7,51 +7,39 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Which tools one planning occasion may plan with. The planner prompt, its schema map and the parser's allowlist all
- * derive from this set, so a narrow occasion cannot pay for a tool it will never name and a repair cannot lose the tool
- * it has to repair.
+ * Which tools one planning occasion may plan with. Every occasion keeps the whole plannable set: an owner order
+ * legitimately names a step from any group, so narrowing it by group would remove real capability. A repair is the one
+ * exception — it keeps the groups its steps belong to, so the replacement step can use a sibling tool of the same
+ * group, and a tool the plan already names survives even when its group is outside that set.
  *
- * <p>The rule is data, not a branch in the factory: a group is dropped only when no plannable tool lives in it, so a
- * group that holds a real plan step — {@code wait}, a resource search, a known place, a flight, an interaction — is
- * kept with all of its tools. A goal and a free-time shift keep everything. A tool the catalog does not know is always
- * kept, matching {@code ToolCatalog}'s own rule, so a missing entry can never hide a tool by accident.
+ * <p>The rule is data, not a branch in the factory: the group a step maps to decides the repair scope.
  */
 public final class PlannerScope {
     private PlannerScope() {}
 
     /**
-     * The tool names this subject may plan with. A name absent from {@code groups} is always kept.
-     *
-     * @param plannable the tool names that may appear as a plan step; a group is kept while one of them lives in it
-     * @param planStepTools the tools the plan being repaired already names, kept whatever their group
+     * The tool names this subject may plan with: every plannable tool, except that a repair keeps only the groups its
+     * steps belong to and adds every step name, even one absent from {@code tools}.
      */
-    public static Set<String> toolNames(
-            PlanSubject subject, Map<String, ToolGroup> groups, Set<String> plannable, Set<String> planStepTools) {
+    public static Set<String> toolNames(PlanSubject subject, Map<String, ToolGroup> tools, Set<String> planStepTools) {
         Set<String> steps = planStepTools == null ? Set.of() : planStepTools;
-        Set<String> kept = new LinkedHashSet<>();
-        if (!restricted(subject)) {
-            kept.addAll(groups.keySet());
-            kept.addAll(steps);
-            return kept;
+        if (!(subject instanceof PlanSubject.TroubledPlan)) {
+            return new LinkedHashSet<>(tools.keySet());
         }
-        Set<ToolGroup> withAPlannableTool = EnumSet.noneOf(ToolGroup.class);
-        for (String name : plannable == null ? Set.<String>of() : plannable) {
-            ToolGroup group = groups.get(name);
+        Set<ToolGroup> repairGroups = EnumSet.noneOf(ToolGroup.class);
+        for (String step : steps) {
+            ToolGroup group = tools.get(step);
             if (group != null) {
-                withAPlannableTool.add(group);
+                repairGroups.add(group);
             }
         }
-        groups.forEach((name, group) -> {
-            if (steps.contains(name) || withAPlannableTool.contains(group)) {
+        Set<String> kept = new LinkedHashSet<>();
+        tools.forEach((name, group) -> {
+            if (repairGroups.contains(group)) {
                 kept.add(name);
             }
         });
         kept.addAll(steps);
         return kept;
-    }
-
-    /** An order and a repair plan world work; a goal and a shift may use every plannable tool. */
-    private static boolean restricted(PlanSubject subject) {
-        return subject instanceof PlanSubject.OwnerOrder || subject instanceof PlanSubject.TroubledPlan;
     }
 }

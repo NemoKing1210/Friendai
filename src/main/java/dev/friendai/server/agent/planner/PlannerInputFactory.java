@@ -162,7 +162,7 @@ public final class PlannerInputFactory {
                 planStepTools.add(job.tool());
             }
         }
-        Set<String> scoped = PlannerScope.toolNames(subject, groups, source.keySet(), planStepTools);
+        Set<String> scoped = PlannerScope.toolNames(subject, groups, planStepTools);
         Map<String, TaskToolDefinition> selected = new LinkedHashMap<>();
         source.forEach((name, definition) -> {
             if (scoped.contains(name)) {
