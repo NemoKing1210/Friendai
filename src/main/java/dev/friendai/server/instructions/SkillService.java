@@ -50,6 +50,16 @@ public final class SkillService implements AutoCloseable {
         return store;
     }
 
+    /** Loaded per-companion skill books, for the runtime health view. */
+    public java.util.Map<java.util.UUID, dev.friendai.foundation.persistence.StoreWriteStatus> statuses() {
+        return store.statuses();
+    }
+
+    /** The operator-scope skill book, reported apart from every companion's own book. */
+    public java.util.Map<java.util.UUID, dev.friendai.foundation.persistence.StoreWriteStatus> globalStatuses() {
+        return store.globalStatuses();
+    }
+
     public SkillActions actions() {
         return actions;
     }

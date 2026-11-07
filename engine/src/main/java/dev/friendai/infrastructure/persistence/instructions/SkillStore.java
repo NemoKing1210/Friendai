@@ -49,8 +49,18 @@ public final class SkillStore implements SkillRepository, AutoCloseable {
         return owners.status(owner);
     }
 
+    /** One status per loaded companion skill book, for the runtime health view. */
+    public java.util.Map<UUID, StoreWriteStatus> statuses() {
+        return owners.statuses();
+    }
+
     public StoreWriteStatus globalStatus() {
         return server.status(GLOBAL);
+    }
+
+    /** The server-scope book's status keyed by its own file identity, so the health view can name its scope. */
+    public java.util.Map<UUID, StoreWriteStatus> globalStatuses() {
+        return java.util.Map.of(GLOBAL, globalStatus());
     }
 
     public SkillBook book(UUID owner) {

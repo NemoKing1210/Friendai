@@ -55,6 +55,11 @@ public final class TranscriptStore implements AutoCloseable {
         return store.status(owner);
     }
 
+    /** One status per loaded owner, for the runtime health view. */
+    public java.util.Map<UUID, StoreWriteStatus> statuses() {
+        return store.statuses();
+    }
+
     /**
      * Applies the currently configured bounds to every book this store already loaded, in place, so a lowered cap
      * reaches a live transcript instead of waiting for a restart. Call on the owning server thread; nothing is

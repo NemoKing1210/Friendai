@@ -23,7 +23,8 @@ public final class ServerTickPipeline {
                 services.freeTimeStore(),
                 services.socialMemoryStore(),
                 services.terrainStore(),
-                services.routines());
+                services.routines(),
+                services::storeStatuses);
     }
 
     public void tick(ServerRuntime runtime) {

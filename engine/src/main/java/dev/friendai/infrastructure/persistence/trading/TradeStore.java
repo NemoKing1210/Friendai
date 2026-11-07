@@ -82,6 +82,11 @@ public final class TradeStore implements TradeBookRepository, AutoCloseable {
         return store.book(owner);
     }
 
+    /** One status per loaded owner, for the runtime health view. */
+    public java.util.Map<UUID, StoreWriteStatus> statuses() {
+        return store.statuses();
+    }
+
     public StoreWriteStatus status(UUID owner) {
         return store.status(owner);
     }

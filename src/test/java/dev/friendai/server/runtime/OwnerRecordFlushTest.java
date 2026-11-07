@@ -51,7 +51,7 @@ class OwnerRecordFlushTest {
                     new TerrainCell.CellKey("minecraft:overworld", 1, 2), "minecraft:plains", 64, false, "", 5));
             terrain.save(OWNER, grid);
 
-            new OwnerRecordFlush(profiles, goals, freeTime, social, terrain).tick();
+            new OwnerRecordFlush(profiles, goals, freeTime, social, terrain, null, () -> java.util.Map.of()).tick();
 
             awaitFile(records.resolve("profiles").resolve(OWNER + ".json"));
             awaitFile(records.resolve("goals").resolve(OWNER + ".json"));

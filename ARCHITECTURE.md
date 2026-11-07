@@ -487,7 +487,12 @@ Owner-file persistence uses the pure `StoreCodec<T>` contract (including bounded
 through `ServerRuntime.storeStatuses()`: it reports a store, owner, saved revision and reason only when the health
 changes (entering a failure or read-only protection, changing it, or recovering), so a full disk is visible as one log
 line instead of silent lag, and the same lines appear in `/friendai diagnose`; it never prints a path, a value or an
-exception message and never writes anything itself. `OwnerFileStore<T>` lazily loads records and captures
+exception message and never writes anything itself. `ServerServiceGraph.storeStatuses()` is the one store list: it
+covers memory, the transcript, companion profiles, per-companion and operator instruction skills (reported apart as
+`skills` and `skills-server`), goals, free time, social memory, terrain, routines, knowledge, places, placed blocks and
+trading, and `OwnerRecordFlush` reads that same view instead of keeping a second list. Appearance (`SkinStore`) and
+blueprints write synchronously and hand a failure to their caller, so they carry no stored status; a source test fails
+when a store the graph builds is neither reported nor documented as untracked. `OwnerFileStore<T>` lazily loads records and captures
 immutable UTF-8 bytes plus their revision on the server thread. At most one snapshot per owner is pending;
 a completion records only its own saved revision. A later server-thread flush captures any newer revision,
 and final close repeats that capture/wait cycle until settled, failed, or its 30-second bound expires.

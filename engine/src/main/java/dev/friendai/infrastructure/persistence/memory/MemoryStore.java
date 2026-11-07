@@ -69,6 +69,11 @@ public final class MemoryStore implements MemoryRepository, AutoCloseable {
         return store.status(owner);
     }
 
+    /** One status per loaded owner, for the runtime health view. */
+    public java.util.Map<UUID, StoreWriteStatus> statuses() {
+        return store.statuses();
+    }
+
     @Override
     public void close() {
         store.close();

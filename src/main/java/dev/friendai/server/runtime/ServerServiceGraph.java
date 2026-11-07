@@ -317,12 +317,20 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
             storeStatuses() {
         java.util.Map<String, java.util.Map<java.util.UUID, dev.friendai.foundation.persistence.StoreWriteStatus>>
                 sources = new java.util.LinkedHashMap<>();
+        sources.put("memory", memory.statuses());
+        sources.put("transcript", transcripts.statuses());
         sources.put("profiles", profiles.statuses());
+        sources.put("skills", skills.statuses());
+        sources.put("skills-server", skills.globalStatuses());
         sources.put("goals", goalStore.statuses());
         sources.put("free-time", freeTimeStore.statuses());
         sources.put("social", socialMemoryStore.statuses());
         sources.put("terrain", terrainStore.statuses());
         sources.put("routines", routines.statuses());
+        sources.put("knowledge", knowledge.statuses());
+        sources.put("places", places.statuses());
+        sources.put("placed", placed.statuses());
+        sources.put("trading", trading.statuses());
         return sources;
     }
 

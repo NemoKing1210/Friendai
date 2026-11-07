@@ -35,6 +35,11 @@ public final class PlacedStore implements AutoCloseable {
         this.store = stores.create(dir, new PlacedCodec(limits));
     }
 
+    /** One status per loaded owner, for the runtime health view. */
+    public java.util.Map<UUID, StoreWriteStatus> statuses() {
+        return store.statuses();
+    }
+
     public StoreWriteStatus status(UUID owner) {
         return store.status(owner);
     }
