@@ -180,13 +180,19 @@ public class PlannerTests {
             var goal = state.goals().board(player.getUUID()).primary().orElseThrow();
             h.assertTrue(goal.replans() == 1, "the replan is spent once, got " + goal.replans());
             h.assertTrue(goal.status() == dev.friendai.agent.goal.GoalStatus.ACTIVE, "the goal is not blocked");
-            // The old plan is reported once, when it blocks; a repair of a step in place is silent.
-            long reportsOfPlan = seen.stream()
-                    .filter(line -> line.contains("plan #" + planId))
-                    .count();
+            // The failed step is what the proposal replaces; patching the pending step behind it would leave the
+            // plan blocked on the same failure.
             h.assertTrue(
-                    reportsOfPlan == 1,
-                    "plan #" + planId + " must be reported exactly once, got " + reportsOfPlan + " " + seen);
+                    c.executionCoordinator().queue().jobsOfPlan(planId).stream()
+                            .noneMatch(job -> job.state() == dev.friendai.execution.queue.JobState.FAILED),
+                    "the repair must replace the failed step, not its pending successor: "
+                            + c.executionCoordinator().queue().jobsOfPlan(planId));
+            // The blocked plan reaches the model once the consultation is spent; a repair of a step in place is
+            // silent. A later request replays the same user line from history, so the check is that the report
+            // exists, not how many requests quote it.
+            h.assertTrue(
+                    seen.stream().anyMatch(line -> line.contains("plan #" + planId + " needs a decision")),
+                    "the blocked plan must reach the model: " + seen);
             h.succeed();
         });
     }

@@ -39,7 +39,7 @@ public final class PlanPatchPolicy {
     /**
      * The same rule for a repair that has not chosen a job yet, asked before a planner consultation is spent. It answers
      * whether a proposal for this plan could be applied at all. A whole structured tree that never started is replaced
-     * as a tree; otherwise the answer is exactly the per-job rule, so the preflight cannot drift from the patch it
+     * as a tree; otherwise the answer follows {@link #repairTarget}, so the preflight cannot drift from the patch it
      * guards.
      */
     public static Optional<String> rejectPlan(JobQueue queue, long planId) {
@@ -53,13 +53,29 @@ public final class PlanPatchPolicy {
                     ? Optional.empty()
                     : Optional.of("plan #" + planId + " has no step to repair");
         }
-        Optional<String> refusal = Optional.empty();
+        if (repairTarget(queue, planId).isPresent()) return Optional.empty();
         for (Job job : jobs) {
-            Optional<String> current = reject(queue, job.id());
-            if (current.isEmpty()) return Optional.empty();
-            if (refusal.isEmpty()) refusal = current;
+            Optional<String> refusal = reject(queue, job.id());
+            if (refusal.isPresent()) return refusal;
         }
-        return refusal;
+        return Optional.of("plan #" + planId + " has no step a repair can replace");
+    }
+
+    /**
+     * The job a repair replaces: a failed step first, because that failure is what blocked the plan and replacing a
+     * pending step behind it would leave the same work stuck; only when nothing failed is the first pending step the
+     * target. Empty means no step of this plan can be replaced, which is exactly what the preflight refuses.
+     */
+    public static Optional<Job> repairTarget(JobQueue queue, long planId) {
+        if (queue == null) return Optional.empty();
+        List<Job> jobs = queue.jobsOfPlan(planId);
+        for (Job job : jobs) {
+            if (job.state() == JobState.FAILED && reject(queue, job.id()).isEmpty()) return Optional.of(job);
+        }
+        for (Job job : jobs) {
+            if (job.state() == JobState.PENDING && reject(queue, job.id()).isEmpty()) return Optional.of(job);
+        }
+        return Optional.empty();
     }
 
     private static boolean insideFrame(PlanCursor cursor) {

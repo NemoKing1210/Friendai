@@ -102,6 +102,37 @@ class PlanPatchPolicyTest {
     }
 
     @Test
+    void theRepairTargetIsTheFailedStepBeforeAPendingSuccessor() {
+        JobQueue queue = new JobQueue(QueueLimits.DEFAULTS);
+        long plan =
+                queue.addPlan("p", List.of(step(), step()), PlanOptions.DEFAULT).planId();
+        List<Job> jobs = queue.jobsOfPlan(plan);
+        queue.fail(jobs.getFirst().id(), "no route");
+        assertTrue(
+                PlanPatchPolicy.repairTarget(queue, plan).orElseThrow().id()
+                        == jobs.getFirst().id(),
+                "a repair replaces the failed step; patching the pending one behind it leaves the plan stuck");
+        assertTrue(PlanPatchPolicy.rejectPlan(queue, plan).isEmpty(), "the preflight accepts what the target applies");
+
+        long single = queue.addPlan("s", List.of(step()), PlanOptions.DEFAULT).planId();
+        long only = queue.jobsOfPlan(single).getFirst().id();
+        queue.fail(only, "no route");
+        assertTrue(
+                PlanPatchPolicy.repairTarget(queue, single).orElseThrow().id() == only,
+                "a plan whose only step failed can still be repaired in place");
+        assertTrue(PlanPatchPolicy.rejectPlan(queue, single).isEmpty(), "and its preflight agrees");
+    }
+
+    @Test
+    void aPlanWithNoReplaceableStepHasNoRepairTarget() {
+        JobQueue queue = new JobQueue(QueueLimits.DEFAULTS);
+        long done = queue.addPlan("p", List.of(step()), PlanOptions.DEFAULT).planId();
+        queue.finish(queue.jobsOfPlan(done).getFirst().id(), "ok");
+        assertTrue(PlanPatchPolicy.repairTarget(queue, done).isEmpty(), "a finished step is not repaired");
+        assertTrue(PlanPatchPolicy.rejectPlan(queue, done).isPresent(), "and the preflight refuses the plan");
+    }
+
+    @Test
     void terminalAndUnknownJobsAreRejected() {
         JobQueue queue = new JobQueue(QueueLimits.DEFAULTS);
         long job = queue.addDirect(step()).id();

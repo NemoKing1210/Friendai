@@ -295,14 +295,15 @@ final class PlannerFacade {
                             patch.ok() ? "planner disposition=tree patched" : "planner disposition=tree patch refused");
                     return patch.ok() ? ToolResult.ok(patch.text()) : ToolResult.error(patch.text());
                 }
-                var pending = companion.executionCoordinator().queue().jobsOfPlan(planId).stream()
-                        .filter(job -> job.state() == dev.friendai.execution.queue.JobState.PENDING)
-                        .findFirst()
+                // The failed step is what blocked the plan, so it is what a repair replaces; only a plan with no
+                // failed step patches its first pending one. The preflight above uses the same selection.
+                var target = dev.friendai.execution.queue.PlanPatchPolicy.repairTarget(
+                                companion.executionCoordinator().queue(), planId)
                         .orElse(null);
-                if (pending == null) return ToolResult.error("plan #" + planId + " has no pending step to repair");
+                if (target == null) return ToolResult.error("plan #" + planId + " has no step to repair");
                 JsonObject edit = new JsonObject();
                 edit.addProperty("action", "replace");
-                edit.addProperty("job", pending.id());
+                edit.addProperty("job", target.id());
                 edit.addProperty("expected", proposal.targetFingerprint());
                 edit.add("steps", proposal.stepsJson());
                 ToolResult result = tools.bind(companion)
