@@ -140,6 +140,10 @@ public final class TurnRouter {
                 s.goalHasNoQueuedWork(),
                 s.goalUnmet(),
                 s.troubledPlanQueued(),
+                // The router cannot see the queue: the port's troubledPlanQueued already answers "queued and
+                // repairable" (PlannerFacade.ownsPlan checks queue.plan(id)). A troubled batch with no plan id
+                // names nothing, so no subject may be planned for it.
+                s.troubledPlanQueued() && s.troubledPlanId() > 0,
                 s.freeTimeShift(),
                 s.ownerCaller(),
                 s.budgetSpent(),

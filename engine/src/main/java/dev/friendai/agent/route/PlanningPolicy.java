@@ -61,7 +61,9 @@ public final class PlanningPolicy {
     }
 
     private static boolean troubled(PlanSignals signals) {
-        return signals.troubledPlanQueued() && !signals.budgetSpent();
+        // A failed plan that no longer exists cannot be repaired: naming it would only make the input factory
+        // refuse the consultation, so the policy does not ask for one.
+        return signals.troubledPlanQueued() && signals.troubledPlanLive() && !signals.budgetSpent();
     }
 
     private static boolean isPlanWorthyOwnerLine(PlanSignals signals) {

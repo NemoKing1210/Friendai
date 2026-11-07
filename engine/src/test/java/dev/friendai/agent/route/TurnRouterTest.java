@@ -2,6 +2,7 @@ package dev.friendai.agent.route;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.friendai.agent.plan.PlanSubject;
@@ -19,8 +20,34 @@ class TurnRouterTest {
 
     private RouteDecision route(
             TurnKind kind, String text, boolean goal, boolean blocked, int steps, boolean owner, boolean troubled) {
+        return route(kind, text, goal, blocked, steps, owner, troubled, 3L);
+    }
+
+    private RouteDecision route(
+            TurnKind kind,
+            String text,
+            boolean goal,
+            boolean blocked,
+            int steps,
+            boolean owner,
+            boolean troubled,
+            long troubledPlanId) {
         return router.route(new RouteSignals(
-                kind, text, goal, blocked, steps, owner, troubled, false, false, false, false, 3L, "", 0L, List.of(),
+                kind,
+                text,
+                goal,
+                blocked,
+                steps,
+                owner,
+                troubled,
+                false,
+                false,
+                false,
+                false,
+                troubledPlanId,
+                "",
+                0L,
+                List.of(),
                 0L));
     }
 
@@ -31,6 +58,15 @@ class TurnRouterTest {
         assertTrue(d.wantPlanner(), "a queued troubled plan may be replanned");
         assertEquals(new PlanSubject.TroubledPlan(3, ""), d.planning().subject());
         assertEquals(ToolGroup.values().length, d.groups().size());
+    }
+
+    @Test
+    void aCancelledTroubledPlanIsNotNamedAsThePlannerSubject() {
+        // The batch still holds the failure, but no plan id names a plan that exists.
+        RouteDecision d = route(TurnKind.EVENT, "", true, true, 0, true, true, 0L);
+        assertEquals(TurnMode.RECOVERY, d.mode());
+        assertFalse(d.wantPlanner(), "nothing is left to repair, so the planner is not consulted");
+        assertNull(d.planning().subject());
     }
 
     @Test
