@@ -129,6 +129,13 @@ public final class CompanionBrain {
     private boolean hasFinishedTurn;
     private long lastTurnEnd;
     private int generation;
+
+    /**
+     * The model request this turn is waiting on. Cancelling it releases the transport and any fallback request the
+     * streaming client started; the generation counter alone only hides the answer.
+     */
+    private CompletableFuture<LlmResponse> requestFuture;
+
     private long requestCounter;
     private long requestIdForGeneration;
     private int requestIdGeneration = -1;
@@ -304,6 +311,9 @@ public final class CompanionBrain {
         CompletableFuture<PlanProposal> planning = plannerFuture;
         plannerFuture = null;
         if (planning != null) planning.cancel(true);
+        CompletableFuture<LlmResponse> request = requestFuture;
+        requestFuture = null;
+        if (request != null) request.cancel(true);
         teachingContext = null;
         skillSession = SkillTurnSession.NONE;
         activePrincipal = null;
@@ -793,20 +803,22 @@ public final class CompanionBrain {
                 streamInFlight = true;
                 speechStream = ++streamSeq;
                 long stream = speechStream;
-                future = streaming
-                        .completeStreaming(
-                                system,
-                                history,
-                                sent,
-                                delta -> {
-                                    accumulator.accept(delta);
-                                    scheduler.execute(() -> releaseEarly(gen, stream, accumulator));
-                                },
-                                telemetry)
-                        .thenApply(response -> completeFromStream(accumulator, response));
+                CompletableFuture<LlmResponse> raw = streaming.completeStreaming(
+                        system,
+                        history,
+                        sent,
+                        delta -> {
+                            accumulator.accept(delta);
+                            scheduler.execute(() -> releaseEarly(gen, stream, accumulator));
+                        },
+                        telemetry);
+                // The raw request, before this turn's own mapping: cancelling the mapped stage would not reach it.
+                requestFuture = raw;
+                future = raw.thenApply(response -> completeFromStream(accumulator, response));
             } else {
                 streamInFlight = false;
                 future = active.complete(system, history, sent, telemetry);
+                requestFuture = future;
             }
         } catch (RuntimeException e) {
             future = CompletableFuture.failedFuture(e);
@@ -1185,6 +1197,7 @@ public final class CompanionBrain {
         teachingContext = null;
         thinking = false;
         streamInFlight = false;
+        requestFuture = null;
         hasFinishedTurn = true;
         lastTurnEnd = scheduler.nowMillis();
         // Internal state is already settled: an external indicator that fails must not stop the next turn.

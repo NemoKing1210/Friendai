@@ -230,6 +230,30 @@ class CompanionBrainStreamTest {
     }
 
     @Test
+    void aCancelledTurnCancelsTheStreamingRequest() {
+        CompletableFuture<LlmResponse> pending = new CompletableFuture<>();
+        StreamingLlmGateway gateway = new StreamingLlmGateway() {
+            @Override
+            public CompletableFuture<LlmResponse> complete(
+                    String system, List<Message> messages, List<ToolSpec> tools) {
+                throw new UnsupportedOperationException("streaming only");
+            }
+
+            @Override
+            public CompletableFuture<LlmResponse> completeStreaming(
+                    String system, List<Message> messages, List<ToolSpec> tools, Consumer<StreamDelta> onDelta) {
+                return pending;
+            }
+        };
+        CompanionBrain brain = brain(gateway, new FakeToolExecutor(), new RecordingSpeaker());
+
+        brain.post(new BrainEvent.PlayerSaid(OWNER, "Steve", "hi", BrainEvent.Source.CHAT));
+        brain.cancel();
+
+        assertTrue(pending.isCancelled(), "a stop must release the request it started, not only ignore its answer");
+    }
+
+    @Test
     void theFirstSafeSentenceSpeaksBeforeTheStreamCompletes() {
         CompletableFuture<LlmResponse> pending = new CompletableFuture<>();
         StreamingLlmGateway gateway = new StreamingLlmGateway() {
