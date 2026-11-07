@@ -32,7 +32,11 @@ public interface PlannerPort {
         }
     };
 
-    /** Whether this queue plan is the one the owner's primary goal follows; other plans' failures are not its business. */
+    /**
+     * Whether this queue plan still exists for this companion and its principal holds every step's access, so a
+     * failed or blocked step may be repaired. A cancelled plan or one whose principal lost access answers false
+     * and is never named as a planning subject. Ports that cannot inspect a queue keep the permissive default.
+     */
     default boolean ownsPlan(long planId) {
         return true;
     }

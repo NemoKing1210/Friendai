@@ -410,6 +410,12 @@ class CompanionBrainPlannerTest {
                 new PlanSubject.TroubledPlan(5, ""),
                 port.subjects.getLast(),
                 "the live plan is the subject, not the cancelled one");
+        assertEquals(
+                1,
+                port.subjects.stream()
+                        .filter(PlanSubject.TroubledPlan.class::isInstance)
+                        .count(),
+                "one consultation, and it is the live plan");
     }
 
     @Test

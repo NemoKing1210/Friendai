@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 import dev.friendai.agent.plan.PlanSubject;
-import dev.friendai.execution.queue.PlanStatus;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -55,7 +54,7 @@ class PlanningPolicyTest {
                 signals.shiftId());
     }
 
-    private static PlanSignals troubled(long planId, PlanStatus status, int replansLeft, boolean budgetSpent) {
+    private static PlanSignals troubled(long planId, boolean budgetSpent) {
         return new PlanSignals(
                 TurnMode.RECOVERY,
                 "",
@@ -65,7 +64,7 @@ class PlanningPolicyTest {
                 false,
                 false,
                 false,
-                status == PlanStatus.ACTIVE && replansLeft > 0 && !budgetSpent,
+                !budgetSpent,
                 false,
                 true,
                 budgetSpent,
@@ -119,7 +118,7 @@ class PlanningPolicyTest {
     }
 
     private static PlanSignals budgetSpentTrouble() {
-        return troubled(7, PlanStatus.ACTIVE, 2, true);
+        return troubled(7, true);
     }
 
     private static PlanSignals freeTime(long shiftId) {
@@ -198,11 +197,10 @@ class PlanningPolicyTest {
     void aQueuedTroubledPlanIsReplannedEvenForAGuest() {
         assertEquals(
                 new PlanSubject.TroubledPlan(7, "boom"),
-                policy.beforeTurn(troubled(7, PlanStatus.ACTIVE, 2, false)).subject());
+                policy.beforeTurn(troubled(7, false)).subject());
         assertEquals(
                 new PlanSubject.TroubledPlan(7, "boom"),
-                policy.beforeTurn(guest(troubled(7, PlanStatus.ACTIVE, 2, false)))
-                        .subject());
+                policy.beforeTurn(guest(troubled(7, false))).subject());
     }
 
     @Test
