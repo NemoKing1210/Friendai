@@ -389,9 +389,9 @@ public class TreeFellingTests {
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
-            h.assertTrue(h.getBlockState(new BlockPos(6, 6, 6)).isAir(), "the top log must be cut");
-            h.assertTrue(h.getBlockState(new BlockPos(6, 5, 6)).isAir(), "the second log must be cut");
-            h.assertTrue(h.getBlockState(new BlockPos(6, 2, 6)).is(Blocks.OAK_LOG), "the rest must stay");
+            h.assertTrue(h.getBlockState(new BlockPos(6, 2, 6)).isAir(), "the bottom log must be cut");
+            h.assertTrue(h.getBlockState(new BlockPos(6, 3, 6)).isAir(), "the second log must be cut");
+            h.assertTrue(h.getBlockState(new BlockPos(6, 6, 6)).is(Blocks.OAK_LOG), "the rest must stay");
             h.assertTrue(result.summary.contains("(limit)"), "summary " + result.summary);
         });
     }
