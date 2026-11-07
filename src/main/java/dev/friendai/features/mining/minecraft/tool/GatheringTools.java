@@ -162,7 +162,8 @@ public final class GatheringTools implements FeatureToolContributor {
                 "mine_blocks",
                 "Mine N blocks of the given block id or #tag near the companion and collect the drops. "
                         + "When the target has not been observed or remembered nearby, one bounded search runs first "
-                        + "and may walk away from the start to find it; pass explore:false to skip it. "
+                        + "and may walk away from the start to find it; pass explore:false to skip it. A call that "
+                        + "names near, a place or coordinates never searches away from that origin. "
                         + "One call mines up to 64 blocks; give count for the whole batch. "
                         + "For a standing tree use fell_tree: it climbs once and cuts the whole tree, while this tool "
                         + "would mine one log at a time. "
@@ -194,7 +195,10 @@ public final class GatheringTools implements FeatureToolContributor {
                         .bool(
                                 "require_tool",
                                 "Do not break a block that needs a harvest tool unless the companion carries one")
-                        .bool("explore", "Run one bounded search for an unseen target before giving up; default true")
+                        .bool(
+                                "explore",
+                                "Run one bounded search for an unseen target before giving up; default true. A call "
+                                        + "that names near, a place or coordinates never searches away from that origin")
                         .required("block", "count")
                         .build(),
                 (c, a) -> createMineTask(c, new Caller(null, "", AccessLevel.TRUSTED), a),

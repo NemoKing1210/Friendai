@@ -7,6 +7,7 @@ import dev.friendai.debug.WorkCell;
 import dev.friendai.debug.WorkKind;
 import dev.friendai.debug.WorkSet;
 import dev.friendai.debug.WorkStatus;
+import dev.friendai.execution.settings.ResourceSearchSettings;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.features.mining.MiningBounds;
 import dev.friendai.features.mining.minecraft.mining.BlockFilter;
@@ -115,10 +116,12 @@ public final class MineBlocksTask implements Task {
     private boolean sweepForUntil;
     private boolean finalSweep;
     private boolean toolSkipped;
-    /** The one search this job may run when a scan finds nothing; never searches when its factory is unavailable. */
+    /**
+     * The one search this job may run when a scan finds nothing; never searches when its factory is unavailable, when
+     * the call named its own origin, or when the job is placed-only. It also owns the job's principal, so the tick
+     * site cannot substitute a different authority.
+     */
     private final Exploration exploration;
-    /** The principal the mining job runs for; a delegated search keeps exactly this authority. */
-    private final Caller searchCaller;
     /**
      * After a successful search, the configured local reach around the companion. The search can end where the target
      * was seen, beyond this job's own radius, so the one re-scan and the walk that follows use this reach instead.
@@ -221,8 +224,22 @@ public final class MineBlocksTask implements Task {
         this.requireTool = requireTool;
         this.untilMatcher = untilMatcher;
         this.untilCount = untilCount;
-        this.searchCaller = searchCaller;
-        this.exploration = new Exploration(searchFactory, explore && !placedOnly);
+        this.exploration = new Exploration(searchFactory, maySearch(explore, placedOnly, origin), searchCaller);
+    }
+
+    /**
+     * Whether this job may delegate one bounded search when its own scan found nothing. A call that named its own
+     * origin ({@code near}, a remembered place or coordinates) never searches: the search starts from the companion
+     * and could walk away from the place the caller named, so the job reports what it could not find around that
+     * origin instead. A placed-only job never searches either, and {@code explore:false} always wins.
+     */
+    static boolean maySearch(boolean explore, boolean placedOnly, BlockPos origin) {
+        return explore && !placedOnly && origin == null;
+    }
+
+    /** The principal this job's delegated search runs with; package-private so a test can pin it to the call. */
+    Caller searchCaller() {
+        return exploration.caller();
     }
 
     @Override
@@ -660,13 +677,10 @@ public final class MineBlocksTask implements Task {
             String searchReason = "";
             if (!toolSkipped) {
                 // The budget is the live configured local search budget, not a number of its own: the server owner
-                // already tunes one bounded local search, and this job delegates to it.
-                Exploration.Step step = exploration.missing(
-                        c,
-                        searchCaller,
-                        matcher.includeLabel(),
-                        radius,
-                        c.resourceSearchSettings().localTicks());
+                // already tunes one bounded local search, and this job delegates to it. The origin is implicitly the
+                // companion: {@link #maySearch} never lets an explicit origin get here.
+                Exploration.Step step =
+                        exploration.missing(c, matcher.includeLabel(), radius, c.resourceSearchSettings());
                 if (step == Exploration.Step.RUNNING) {
                     return TaskStatus.RUNNING;
                 }
@@ -683,7 +697,9 @@ public final class MineBlocksTask implements Task {
             // delegated search itself reported (a missing pickaxe, an unavailable owner, its spent budget).
             boolean hidden = !blacklist.isEmpty();
             if (!searchReason.isBlank()) {
-                summary = searchReason;
+                // Keep what the job already achieved: the search's own reason replaces the scan's sentence, never
+                // the count of blocks the caller asked for.
+                summary = minedThenReason(mined, count, searchReason);
             } else if (mined == 0) {
                 summary = placedOnly
                         ? "no " + matcher.label() + " you placed nearby"
@@ -693,10 +709,13 @@ public final class MineBlocksTask implements Task {
                                         + " observed or remembered nearby; use search_resource to search for it, "
                                         + "or look_around for a visible exposure";
             } else {
-                summary = "mined " + mined + " of " + count + ", no more " + matcher.label()
-                        + (placedOnly
-                                ? " you placed nearby"
-                                : hidden ? " could be reached" : " observed or remembered nearby");
+                summary = minedThenReason(
+                        mined,
+                        count,
+                        "no more " + matcher.label()
+                                + (placedOnly
+                                        ? " you placed nearby"
+                                        : hidden ? " could be reached" : " observed or remembered nearby"));
             }
             if (toolSkipped && lastRefusal == null) {
                 summary = "no suitable tool to collect " + matcher.label() + " nearby";
@@ -756,6 +775,14 @@ public final class MineBlocksTask implements Task {
         }
         breaker = new BlockBreaker(candidates, matcher::test, true, true, !placedOnly, false, placements);
         return TaskStatus.RUNNING;
+    }
+
+    /**
+     * What a job that mined some blocks says when a later step failed: the achieved count stays, then the reason
+     * that stopped it. A job that mined nothing says only the reason.
+     */
+    static String minedThenReason(int mined, int count, String reason) {
+        return mined > 0 ? "mined " + mined + " of " + count + ", " + reason : reason;
     }
 
     /** The player sees a translated message; the model needs an English sentence it can act on. */
@@ -971,7 +998,8 @@ public final class MineBlocksTask implements Task {
     /**
      * The one search this job may perform when a scan finds no target: starts one child through the port, ticks it
      * over the following server ticks and reports whether the caller should scan once more. The child receives the
-     * job's own principal unchanged. Package-private so a headless test can drive it without a world.
+     * job's own principal, captured at construction, so no tick site can mint a different authority. Package-private
+     * so a headless test can drive it without a world.
      */
     static final class Exploration {
         enum Step {
@@ -988,19 +1016,26 @@ public final class MineBlocksTask implements Task {
 
         private final BlockSearchTaskFactory factory;
         private final boolean enabled;
+        private final Caller caller;
         private Task search;
         private boolean searched;
         private int ticks;
         /** What the search itself said when it failed or spent its budget; blank when it never reported anything. */
         private String failure = "";
 
-        Exploration(BlockSearchTaskFactory factory, boolean enabled) {
+        Exploration(BlockSearchTaskFactory factory, boolean enabled, Caller caller) {
             this.factory = factory == null ? BlockSearchTaskFactory.NONE : factory;
             this.enabled = enabled && this.factory != BlockSearchTaskFactory.NONE;
+            this.caller = caller;
         }
 
         boolean searching() {
             return search != null;
+        }
+
+        /** The job's principal, captured at construction and never minted by a tick. */
+        Caller caller() {
+            return caller;
         }
 
         /** The child's own actionable reason, so the job does not replace it with a generic refusal. */
@@ -1010,9 +1045,12 @@ public final class MineBlocksTask implements Task {
 
         /**
          * Called after a scan found nothing: creates the one search when it is allowed, then ticks it until it
-         * finishes or its budget is spent. At most one search is ever created per job.
+         * finishes or its budget is spent. The budget is the live configured local search budget, so the server
+         * owner tunes one bounded search rather than each task keeping a number of its own. At most one search is
+         * ever created per job.
          */
-        Step missing(TaskContext c, Caller caller, String blockOrTag, int radius, int maxTicks) {
+        Step missing(TaskContext c, String blockOrTag, int radius, ResourceSearchSettings settings) {
+            int maxTicks = settings.localTicks();
             if (search != null) {
                 TaskStatus status;
                 try {

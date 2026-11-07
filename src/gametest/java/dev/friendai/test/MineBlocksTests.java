@@ -755,16 +755,115 @@ public class MineBlocksTests {
         });
     }
 
-    /** The bounded search the mining job ticks for itself; one tick is enough for the re-scan to run. */
+    /**
+     * A call that named its own origin keeps the job around it: the one bounded search must not start from the
+     * companion and wander away from the place the caller named.
+     */
+    @GameTest(maxTicks = 400)
+    public void anExplicitOriginNeverSearchesAwayFromIt(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(java.util.UUID.randomUUID());
+        java.util.concurrent.atomic.AtomicInteger created = new java.util.concurrent.atomic.AtomicInteger();
+        MineBlocksTask task = new MineBlocksTask(
+                new BlockFilter(BlockMatcher.parse("minecraft:spruce_log").orElseThrow(), List.of()),
+                1,
+                8,
+                h.absolutePos(new BlockPos(12, 2, 12)),
+                false,
+                false,
+                false,
+                null,
+                0,
+                (companion, caller, blockOrTag, radius, maxTicks) -> {
+                    created.incrementAndGet();
+                    return new SearchStub();
+                },
+                true,
+                null);
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(task, "mine_blocks");
+        h.succeedWhen(() -> {
+            runner.tick();
+            if (result.status == null || result.status == TaskStatus.RUNNING) {
+                return;
+            }
+            h.assertTrue(result.status == TaskStatus.FAILED, "not finished: " + result.status + " " + result.summary);
+            h.assertValueEqual(created.get(), 0, "an explicit origin must not delegate a search");
+            h.assertTrue(result.summary.startsWith("no minecraft:spruce_log"), "summary was " + result.summary);
+        });
+    }
+
+    /**
+     * The tool call's caller reaches the delegated search unchanged: neither the tool nor the task may mint an
+     * authority of its own.
+     */
+    @GameTest(maxTicks = 400)
+    public void theDelegatedSearchKeepsTheToolsCaller(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(java.util.UUID.randomUUID());
+        java.util.concurrent.atomic.AtomicReference<dev.friendai.execution.tool.Caller> seen =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        dev.friendai.task.BlockSearchTaskFactory recording = (companion, caller, blockOrTag, radius, maxTicks) -> {
+            seen.set(caller);
+            return new SearchStub();
+        };
+        var tools = new dev.friendai.features.mining.minecraft.tool.GatheringTools(
+                () -> 8,
+                () -> 8,
+                () -> true,
+                () -> true,
+                ignored -> null,
+                dev.friendai.features.places.minecraft.PlaceService.unavailable(),
+                recording);
+        dev.friendai.execution.tool.Caller caller = new dev.friendai.execution.tool.Caller(
+                java.util.UUID.randomUUID(), "trusted", dev.friendai.execution.tool.AccessLevel.TRUSTED);
+        Task task = mineBlocksDefinition(tools)
+                .callerFactory()
+                .create(
+                        c,
+                        caller,
+                        JsonParser.parseString("{\"block\":\"minecraft:spruce_log\",\"count\":1}")
+                                .getAsJsonObject());
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(task, "mine_blocks");
+        h.succeedWhen(() -> {
+            runner.tick();
+            if (result.status == null || result.status == TaskStatus.RUNNING) {
+                return;
+            }
+            h.assertTrue(seen.get() != null, "the delegated search must run: " + result.summary);
+            h.assertTrue(
+                    seen.get() == caller,
+                    "the search must keep the tool call's caller, not a minted one: " + seen.get());
+        });
+    }
+
+    /** The one bounded search the mining job ticks for itself; one tick is enough for the re-scan to run. */
     private static final class SearchStub implements Task {
         private final Runnable onTick;
+        private final TaskStatus status;
+        private final String summary;
 
         SearchStub() {
-            this(null);
+            this(null, TaskStatus.SUCCESS, "");
         }
 
         SearchStub(Runnable onTick) {
+            this(onTick, TaskStatus.SUCCESS, "");
+        }
+
+        SearchStub(TaskStatus status, String summary) {
+            this(null, status, summary);
+        }
+
+        private SearchStub(Runnable onTick, TaskStatus status, String summary) {
             this.onTick = onTick;
+            this.status = status;
+            this.summary = summary;
         }
 
         @Override
@@ -780,7 +879,7 @@ public class MineBlocksTests {
             if (onTick != null) {
                 onTick.run();
             }
-            return TaskStatus.SUCCESS;
+            return status;
         }
 
         @Override
@@ -793,8 +892,92 @@ public class MineBlocksTests {
 
         @Override
         public String resultSummary() {
-            return "";
+            return summary;
         }
+    }
+
+    /**
+     * The tool definition {@code GatheringTools} registers, so a GameTest can drive its real caller-aware factory.
+     */
+    private static dev.friendai.server.execution.tools.TaskToolDefinition mineBlocksDefinition(
+            dev.friendai.features.mining.minecraft.tool.GatheringTools tools) {
+        dev.friendai.execution.tool.ToolRegistry<CompanionEntity> registry =
+                new dev.friendai.execution.tool.ToolRegistry<>();
+        var contributions = new dev.friendai.server.execution.tools.FeatureToolRegistry(
+                registry, definition -> new dev.friendai.execution.tool.Tool<CompanionEntity>() {
+                    @Override
+                    public String name() {
+                        return definition.name();
+                    }
+
+                    @Override
+                    public String description() {
+                        return definition.description();
+                    }
+
+                    @Override
+                    public com.google.gson.JsonObject schema() {
+                        return definition.schema();
+                    }
+
+                    @Override
+                    public dev.friendai.execution.tool.AccessLevel minAccess() {
+                        return definition.minAccess();
+                    }
+
+                    @Override
+                    public dev.friendai.execution.tool.ToolResult execute(
+                            CompanionEntity companion, com.google.gson.JsonObject args) {
+                        return dev.friendai.execution.tool.ToolResult.ok(definition.name());
+                    }
+                });
+        tools.register(contributions);
+        return contributions.taskDefinitions().get("mine_blocks");
+    }
+
+    /** A failed search after some blocks were mined keeps both the count and the search's reason. */
+    @GameTest(maxTicks = 1400)
+    public void aFailedSearchKeepsWhatWasAlreadyMined(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        BlockPos log = new BlockPos(5, 2, 2);
+        h.setBlock(log, Blocks.SPRUCE_LOG);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(java.util.UUID.randomUUID());
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(log)), "the log must be visible");
+        java.util.concurrent.atomic.AtomicInteger created = new java.util.concurrent.atomic.AtomicInteger();
+        MineBlocksTask task = new MineBlocksTask(
+                new BlockFilter(BlockMatcher.parse("minecraft:spruce_log").orElseThrow(), List.of()),
+                2,
+                8,
+                null,
+                true,
+                false,
+                false,
+                null,
+                0,
+                (companion, caller, blockOrTag, radius, maxTicks) -> {
+                    created.incrementAndGet();
+                    return new SearchStub(TaskStatus.FAILED, "search reached its configured tick budget");
+                },
+                true,
+                null);
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(task, "mine_blocks");
+        h.succeedWhen(() -> {
+            runner.tick();
+            if (result.status == null || result.status == TaskStatus.RUNNING) {
+                return;
+            }
+            h.assertTrue(result.status == TaskStatus.FAILED, "not finished: " + result.status + " " + result.summary);
+            h.assertValueEqual(created.get(), 1, "the one search ran");
+            h.assertTrue(
+                    result.summary.contains("mined 1 of 2"),
+                    "the achieved count must survive a failed search: " + result.summary);
+            h.assertTrue(
+                    result.summary.contains("search reached its configured tick budget"),
+                    "the search's reason must be reported: " + result.summary);
+        });
     }
 
     /** A log with every face but the floor covered: no standing spot can see it. */

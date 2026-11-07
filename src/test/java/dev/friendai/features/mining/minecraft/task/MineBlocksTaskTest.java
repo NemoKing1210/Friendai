@@ -6,13 +6,20 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.execution.settings.ResourceSearchSettings;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
+import dev.friendai.features.knowledge.search.EscortPolicy;
+import dev.friendai.features.mining.minecraft.mining.BlockFilter;
 import dev.friendai.task.BlockSearchTaskFactory;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.world.block.BlockMatcher;
+import java.util.List;
 import java.util.UUID;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.block.state.BlockState;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -26,47 +33,50 @@ class MineBlocksTaskTest {
     @Test
     void a_missing_target_starts_one_search_then_rescans() {
         RecordingFactory factory = new RecordingFactory(TaskStatus.SUCCESS);
-        MineBlocksTask.Exploration exploration = new MineBlocksTask.Exploration(factory, true);
+        MineBlocksTask.Exploration exploration = new MineBlocksTask.Exploration(factory, true, CALLER);
 
-        assertEquals(MineBlocksTask.Exploration.Step.RUNNING, missing(exploration));
+        assertEquals(MineBlocksTask.Exploration.Step.RUNNING, missing(exploration, 100));
         assertEquals(1, factory.created, "one search starts after the empty scan");
         assertTrue(factory.last.started, "the search is started");
-        assertSame(CALLER, factory.lastCaller, "the search keeps the direct caller's authority");
+        assertSame(CALLER, factory.lastCaller, "the search keeps the caller the job was built for");
 
         assertEquals(
-                MineBlocksTask.Exploration.Step.RESCAN, missing(exploration), "a finished search asks for a rescan");
+                MineBlocksTask.Exploration.Step.RESCAN,
+                missing(exploration, 100),
+                "a finished search asks for a rescan");
         assertTrue(factory.last.terminated, "a finished search gets its terminal cleanup");
         assertEquals(1, factory.created, "the re-scan must not start a second search");
-        assertEquals(MineBlocksTask.Exploration.Step.NONE, missing(exploration), "the one search is spent");
+        assertEquals(MineBlocksTask.Exploration.Step.NONE, missing(exploration, 100), "the one search is spent");
         assertEquals(1, factory.created);
     }
 
     @Test
     void explore_false_never_starts_a_search() {
         RecordingFactory factory = new RecordingFactory(TaskStatus.SUCCESS);
-        MineBlocksTask.Exploration exploration = new MineBlocksTask.Exploration(factory, false);
+        MineBlocksTask.Exploration exploration = new MineBlocksTask.Exploration(factory, false, CALLER);
 
-        assertEquals(MineBlocksTask.Exploration.Step.NONE, missing(exploration));
-        assertEquals(MineBlocksTask.Exploration.Step.NONE, missing(exploration));
+        assertEquals(MineBlocksTask.Exploration.Step.NONE, missing(exploration, 100));
+        assertEquals(MineBlocksTask.Exploration.Step.NONE, missing(exploration, 100));
         assertEquals(0, factory.created);
     }
 
     @Test
     void an_unavailable_factory_never_starts_a_search() {
-        MineBlocksTask.Exploration exploration = new MineBlocksTask.Exploration(BlockSearchTaskFactory.NONE, true);
+        MineBlocksTask.Exploration exploration =
+                new MineBlocksTask.Exploration(BlockSearchTaskFactory.NONE, true, CALLER);
 
-        assertEquals(MineBlocksTask.Exploration.Step.NONE, missing(exploration));
+        assertEquals(MineBlocksTask.Exploration.Step.NONE, missing(exploration, 100));
         assertFalse(exploration.searching());
     }
 
     @Test
     void a_failed_search_is_not_retried() {
         RecordingFactory factory = new RecordingFactory(TaskStatus.FAILED);
-        MineBlocksTask.Exploration exploration = new MineBlocksTask.Exploration(factory, true);
+        MineBlocksTask.Exploration exploration = new MineBlocksTask.Exploration(factory, true, CALLER);
 
-        assertEquals(MineBlocksTask.Exploration.Step.RUNNING, missing(exploration));
-        assertEquals(MineBlocksTask.Exploration.Step.NONE, missing(exploration));
-        assertEquals(MineBlocksTask.Exploration.Step.NONE, missing(exploration));
+        assertEquals(MineBlocksTask.Exploration.Step.RUNNING, missing(exploration, 100));
+        assertEquals(MineBlocksTask.Exploration.Step.NONE, missing(exploration, 100));
+        assertEquals(MineBlocksTask.Exploration.Step.NONE, missing(exploration, 100));
         assertEquals(1, factory.created);
     }
 
@@ -74,9 +84,9 @@ class MineBlocksTaskTest {
     void a_search_that_outlives_its_budget_is_stopped_and_reports_its_summary() {
         RecordingFactory factory = new RecordingFactory(TaskStatus.RUNNING);
         factory.summary = "search reached its configured tick budget";
-        MineBlocksTask.Exploration exploration = new MineBlocksTask.Exploration(factory, true);
+        MineBlocksTask.Exploration exploration = new MineBlocksTask.Exploration(factory, true, CALLER);
 
-        assertEquals(MineBlocksTask.Exploration.Step.RUNNING, missing(exploration));
+        assertEquals(MineBlocksTask.Exploration.Step.RUNNING, missing(exploration, 3));
         assertEquals(MineBlocksTask.Exploration.Step.RUNNING, missing(exploration, 3));
         assertEquals(MineBlocksTask.Exploration.Step.RUNNING, missing(exploration, 3));
         assertEquals(MineBlocksTask.Exploration.Step.NONE, missing(exploration, 3), "the third tick spends the budget");
@@ -94,10 +104,10 @@ class MineBlocksTaskTest {
     void a_failed_search_reports_its_own_actionable_reason() {
         RecordingFactory factory = new RecordingFactory(TaskStatus.FAILED);
         factory.summary = "not ready for mining search: need a suitable durable pickaxe";
-        MineBlocksTask.Exploration exploration = new MineBlocksTask.Exploration(factory, true);
+        MineBlocksTask.Exploration exploration = new MineBlocksTask.Exploration(factory, true, CALLER);
 
-        assertEquals(MineBlocksTask.Exploration.Step.RUNNING, missing(exploration));
-        assertEquals(MineBlocksTask.Exploration.Step.NONE, missing(exploration));
+        assertEquals(MineBlocksTask.Exploration.Step.RUNNING, missing(exploration, 100));
+        assertEquals(MineBlocksTask.Exploration.Step.NONE, missing(exploration, 100));
         assertEquals(
                 "not ready for mining search: need a suitable durable pickaxe",
                 exploration.failureSummary(),
@@ -108,10 +118,10 @@ class MineBlocksTaskTest {
     void a_successful_search_reports_no_failure() {
         RecordingFactory factory = new RecordingFactory(TaskStatus.SUCCESS);
         factory.summary = "found minecraft:stone by direct sight";
-        MineBlocksTask.Exploration exploration = new MineBlocksTask.Exploration(factory, true);
+        MineBlocksTask.Exploration exploration = new MineBlocksTask.Exploration(factory, true, CALLER);
 
-        assertEquals(MineBlocksTask.Exploration.Step.RUNNING, missing(exploration));
-        assertEquals(MineBlocksTask.Exploration.Step.RESCAN, missing(exploration));
+        assertEquals(MineBlocksTask.Exploration.Step.RUNNING, missing(exploration, 100));
+        assertEquals(MineBlocksTask.Exploration.Step.RESCAN, missing(exploration, 100));
         assertEquals("", exploration.failureSummary(), "a success is not a failure reason");
     }
 
@@ -119,10 +129,10 @@ class MineBlocksTaskTest {
     void a_factory_that_returns_null_is_not_asked_again() {
         RecordingFactory factory = new RecordingFactory(TaskStatus.SUCCESS);
         factory.unavailable = true;
-        MineBlocksTask.Exploration exploration = new MineBlocksTask.Exploration(factory, true);
+        MineBlocksTask.Exploration exploration = new MineBlocksTask.Exploration(factory, true, CALLER);
 
-        assertEquals(MineBlocksTask.Exploration.Step.NONE, missing(exploration));
-        assertEquals(MineBlocksTask.Exploration.Step.NONE, missing(exploration));
+        assertEquals(MineBlocksTask.Exploration.Step.NONE, missing(exploration, 100));
+        assertEquals(MineBlocksTask.Exploration.Step.NONE, missing(exploration, 100));
         assertEquals(1, factory.created);
     }
 
@@ -130,10 +140,10 @@ class MineBlocksTaskTest {
     void a_factory_that_throws_is_contained_and_not_retried() {
         RecordingFactory factory = new RecordingFactory(TaskStatus.SUCCESS);
         factory.throwing = true;
-        MineBlocksTask.Exploration exploration = new MineBlocksTask.Exploration(factory, true);
+        MineBlocksTask.Exploration exploration = new MineBlocksTask.Exploration(factory, true, CALLER);
 
-        assertEquals(MineBlocksTask.Exploration.Step.NONE, missing(exploration));
-        assertEquals(MineBlocksTask.Exploration.Step.NONE, missing(exploration));
+        assertEquals(MineBlocksTask.Exploration.Step.NONE, missing(exploration, 100));
+        assertEquals(MineBlocksTask.Exploration.Step.NONE, missing(exploration, 100));
         assertEquals(1, factory.created);
         assertFalse(exploration.searching());
     }
@@ -141,8 +151,8 @@ class MineBlocksTaskTest {
     @Test
     void stopping_the_job_stops_the_running_search() {
         RecordingFactory factory = new RecordingFactory(TaskStatus.RUNNING);
-        MineBlocksTask.Exploration exploration = new MineBlocksTask.Exploration(factory, true);
-        assertEquals(MineBlocksTask.Exploration.Step.RUNNING, missing(exploration));
+        MineBlocksTask.Exploration exploration = new MineBlocksTask.Exploration(factory, true, CALLER);
+        assertEquals(MineBlocksTask.Exploration.Step.RUNNING, missing(exploration, 100));
 
         exploration.stop(CONTEXT);
 
@@ -150,12 +160,84 @@ class MineBlocksTaskTest {
         assertFalse(exploration.searching());
     }
 
-    private static MineBlocksTask.Exploration.Step missing(MineBlocksTask.Exploration exploration) {
-        return missing(exploration, 100);
+    /**
+     * The budget is the configured local search budget, not a literal: a job handed a settings record with a short
+     * budget must pass that exact number to the search.
+     */
+    @Test
+    void the_search_budget_comes_from_the_resource_search_settings() {
+        RecordingFactory factory = new RecordingFactory(TaskStatus.RUNNING);
+        MineBlocksTask.Exploration exploration = new MineBlocksTask.Exploration(factory, true, CALLER);
+
+        assertEquals(MineBlocksTask.Exploration.Step.RUNNING, missing(exploration, 7));
+
+        assertEquals(7, factory.lastMaxTicks, "the configured local budget must reach the search");
+    }
+
+    /** A call that names its own origin keeps the job there instead of letting the search wander from it. */
+    @Test
+    void an_explicit_origin_never_delegates_a_search() {
+        assertFalse(
+                MineBlocksTask.maySearch(true, false, new BlockPos(1, 64, 1)),
+                "an explicit near, place or coordinate must not search away from it");
+        assertTrue(MineBlocksTask.maySearch(true, false, null), "an unnamed origin still searches");
+        assertFalse(MineBlocksTask.maySearch(false, false, null), "explore:false always wins");
+        assertFalse(MineBlocksTask.maySearch(true, true, null), "a placed-only job never searches");
+    }
+
+    /** The task hands its own caller to the exploration; nothing on the tick path can mint another one. */
+    @Test
+    void the_task_hands_its_own_caller_to_the_search() {
+        Caller caller = new Caller(UUID.randomUUID(), "trusted", AccessLevel.TRUSTED);
+        MineBlocksTask task = new MineBlocksTask(
+                new BlockFilter(new StubMatcher(), List.of()),
+                1,
+                8,
+                null,
+                false,
+                false,
+                false,
+                null,
+                0,
+                (companion, searchCaller, blockOrTag, radius, maxTicks) -> null,
+                true,
+                caller);
+
+        assertSame(caller, task.searchCaller(), "the task's caller, not a minted access level");
+    }
+
+    /** A failed search after some blocks were mined keeps both the achieved count and the search's own reason. */
+    @Test
+    void a_failed_search_after_mining_keeps_the_count_and_the_reason() {
+        assertEquals(
+                "mined 1 of 2, search reached its configured tick budget",
+                MineBlocksTask.minedThenReason(1, 2, "search reached its configured tick budget"),
+                "a job that mined something must not drop its count when the later search fails");
+        assertEquals(
+                "no minecraft:spruce_log observed or remembered nearby",
+                MineBlocksTask.minedThenReason(0, 2, "no minecraft:spruce_log observed or remembered nearby"),
+                "a job that mined nothing says only the reason");
     }
 
     private static MineBlocksTask.Exploration.Step missing(MineBlocksTask.Exploration exploration, int maxTicks) {
-        return exploration.missing(CONTEXT, CALLER, "minecraft:stone", 16, maxTicks);
+        return exploration.missing(CONTEXT, "minecraft:stone", 16, settings(maxTicks));
+    }
+
+    private static ResourceSearchSettings settings(int localTicks) {
+        return new ResourceSearchSettings(true, true, 64, localTicks, 512, 12_000, EscortPolicy.Config.DEFAULTS);
+    }
+
+    /** A matcher that needs no block registry, which a unit test does not bootstrap. */
+    private static final class StubMatcher implements BlockMatcher {
+        @Override
+        public boolean test(BlockState state) {
+            return false;
+        }
+
+        @Override
+        public String label() {
+            return "minecraft:stone";
+        }
     }
 
     private static final class RecordingFactory implements BlockSearchTaskFactory {
@@ -165,6 +247,7 @@ class MineBlocksTaskTest {
         boolean throwing;
         String summary = "";
         Caller lastCaller;
+        int lastMaxTicks;
         ScriptedTask last;
 
         RecordingFactory(TaskStatus result) {
@@ -175,6 +258,7 @@ class MineBlocksTaskTest {
         public Task create(CompanionEntity companion, Caller caller, String blockOrTag, int radius, int maxTicks) {
             created++;
             lastCaller = caller;
+            lastMaxTicks = maxTicks;
             if (throwing) {
                 throw new IllegalStateException("search composition failed");
             }

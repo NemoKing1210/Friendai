@@ -22,16 +22,23 @@ public final class MinecraftBlockSearchFactory implements BlockSearchTaskFactory
 
     @Override
     public Task create(CompanionEntity companion, Caller caller, String blockOrTag, int radius, int maxTicks) {
-        if (companion == null
-                || companion.ownerUuid() == null
-                || caller == null
-                || blockOrTag == null
-                || blockOrTag.isBlank()
-                || radius <= 0
-                || maxTicks <= 0
-                || caller.access().ordinal() < AccessLevel.TRUSTED.ordinal()) {
+        if (companion == null || companion.ownerUuid() == null || !accepts(caller, blockOrTag, radius, maxTicks)) {
             return null;
         }
         return new SearchResourceTask(blockOrTag, "auto", "local", "", caller, subtasks);
+    }
+
+    /**
+     * Whether a search may be created for this call. A delegated search never runs above the authority its caller
+     * already holds: a guest cannot borrow a search from a mining job. Package-private so a headless test can pin the
+     * refusal without a world.
+     */
+    static boolean accepts(Caller caller, String blockOrTag, int radius, int maxTicks) {
+        return caller != null
+                && blockOrTag != null
+                && !blockOrTag.isBlank()
+                && radius > 0
+                && maxTicks > 0
+                && caller.access().ordinal() >= AccessLevel.TRUSTED.ordinal();
     }
 }
