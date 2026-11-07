@@ -159,7 +159,14 @@ public final class MemoryRetrieval {
                 return "";
             }
             return MemoryPromptRenderer.renderSelection(
-                    book, owner, caller, settings.limits(), settings.compactAtPercent(), selectedFacts, clean);
+                    book,
+                    owner,
+                    caller,
+                    settings.limits(),
+                    settings.compactAtPercent(),
+                    selectedFacts,
+                    settings.maxChars(),
+                    clean);
         } catch (RuntimeException failed) {
             // A broken backend, a malformed index or an inconsistent book is never worth a failed turn.
             return "";

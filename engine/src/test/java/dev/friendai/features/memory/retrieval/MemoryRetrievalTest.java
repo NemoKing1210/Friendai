@@ -120,6 +120,26 @@ class MemoryRetrievalTest {
     }
 
     @Test
+    void selectedRowsNameTheirSubjectApartFromTheAuthor() {
+        MemoryBook book = new MemoryBook();
+        book.ensurePlayer(OWNER, "Ann");
+        book.ensurePlayer(GUEST, "Gus");
+        book.addFact(Subject.player(OWNER), Category.PREFERENCE, "Likes oak logs", GUEST, "Gus", 0, LIMITS);
+        book.addFact(Subject.player(GUEST), Category.PREFERENCE, "Likes oak stairs", OWNER, "Ann", 0, LIMITS);
+        book.addFact(Subject.WORLD, Category.PLACE, "The oak forest is north", OWNER, "Ann", 0, LIMITS);
+
+        String block = MemoryRetrieval.prompt(book, OWNER, owner(), "oak", settings(3), new RetrievalCache(), null);
+
+        assertTrue(block.contains("(about Ann): Likes oak logs (from Gus)"), block);
+        assertTrue(block.contains("(about Gus): Likes oak stairs"), block);
+        assertTrue(block.contains("(about World): The oak forest is north"), block);
+        assertEquals(
+                MemoryRetrieval.prompt(book, OWNER, owner(), "oak", settings(3), new RetrievalCache(), null),
+                block,
+                "the same query keeps the same rows in the same order");
+    }
+
+    @Test
     void aGuestNeverRetrievesOrEmbedsTheOwnersFacts() {
         MemoryBook book = bookWithFacts();
         Recording embedding = new Recording();

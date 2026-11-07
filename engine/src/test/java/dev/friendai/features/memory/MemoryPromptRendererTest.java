@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,6 +36,27 @@ class MemoryPromptRendererTest {
         book.addFact(Subject.player(G), Category.PROFILE, "Gus likes cats.", G, "Gus", 1, L);
         book.addFact(Subject.player(X), Category.PROFILE, "Alex builds.", X, "Alex", 1, L);
         book.addFact(Subject.player(X), Category.PLACE, "Alex mines at 5 6 7.", X, "Alex", 1, L);
+    }
+
+    @Test
+    void aSelectedBlockNamesEachSubjectAndFitsTheLabelBudget() {
+        List<Fact> facts = new ArrayList<>();
+        facts.addAll(book.facts(Subject.player(O)));
+        facts.addAll(book.facts(Subject.WORLD));
+        facts.addAll(book.facts(Subject.player(X)));
+
+        String block = MemoryPromptRenderer.renderSelection(book, O, ownerCaller, L, 90, facts, 10_000, text -> text);
+
+        assertTrue(block.contains("(about Steve): Do not move items between chests."), block);
+        assertTrue(block.contains("(about World): Main base at 120 64 -30"), block);
+        assertTrue(block.contains("(about Alex): Alex builds."), block);
+
+        String tight = MemoryPromptRenderer.renderSelection(book, O, ownerCaller, L, 90, facts, 80, text -> text);
+        String heading = "Closest remembered facts to what was just said (word match, not meaning):\n";
+        String body = tight.substring(tight.indexOf(heading) + heading.length());
+        assertTrue(body.length() <= 80, "labels count toward the budget: " + body);
+        assertTrue(tight.contains("(about Steve):"), "the best-ranked row stays: " + tight);
+        assertFalse(tight.contains("(about Alex):"), "the lowest-ranked row is dropped whole: " + tight);
     }
 
     @Test

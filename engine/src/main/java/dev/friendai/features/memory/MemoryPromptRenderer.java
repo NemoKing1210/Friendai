@@ -70,11 +70,38 @@ public final class MemoryPromptRenderer {
             int compactAtPercent,
             List<Fact> facts,
             java.util.function.UnaryOperator<String> redactor) {
+        return renderSelection(book, owner, caller, limits, compactAtPercent, facts, Integer.MAX_VALUE, redactor);
+    }
+
+    /**
+     * Renders the selected facts under a whole-row character budget. A selection names facts about several subjects
+     * out of order, so each row says which subject it is about; labels, ids and the author suffix count toward
+     * {@code maxChars}. The lowest-ranked rows are dropped whole — a row is never cut — and the best-ranked row is
+     * kept even when it alone is longer than the budget, because a block with no rows cannot answer the message.
+     *
+     * @param maxChars the row budget, or a non-positive value for no budget
+     */
+    public static String renderSelection(
+            MemoryBook book,
+            UUID owner,
+            Caller caller,
+            MemoryLimits limits,
+            int compactAtPercent,
+            List<Fact> facts,
+            int maxChars,
+            java.util.function.UnaryOperator<String> redactor) {
         if (book == null || owner == null || caller == null || facts == null || facts.isEmpty()) {
             return "";
         }
         java.util.function.UnaryOperator<String> clean = redactor == null ? text -> text : redactor;
-        String body = renderFacts(facts, owner, clean);
+        int budget = maxChars > 0 ? maxChars : Integer.MAX_VALUE;
+        String body = "";
+        for (int count = facts.size(); count > 0; count--) {
+            body = renderSelected(facts.subList(0, count), book, owner, clean);
+            if (body.length() <= budget || count == 1) {
+                break;
+            }
+        }
         if (body.isBlank()) {
             return "";
         }
@@ -136,23 +163,54 @@ public final class MemoryPromptRenderer {
     private static String renderFacts(List<Fact> facts, UUID owner, java.util.function.UnaryOperator<String> redactor) {
         StringBuilder text = new StringBuilder();
         for (int i = 0; i < facts.size(); i++) {
+            if (i > 0) {
+                text.append('\n');
+            }
+            text.append(row(facts.get(i), owner, null, redactor));
+        }
+        return text.toString();
+    }
+
+    /**
+     * Selected rows carry their subject because a selection mixes facts about the owner, other players and the world
+     * in rank order; the author suffix is a different fact and stays separate.
+     */
+    private static String renderSelected(
+            List<Fact> facts, MemoryBook book, UUID owner, java.util.function.UnaryOperator<String> redactor) {
+        StringBuilder text = new StringBuilder();
+        for (int i = 0; i < facts.size(); i++) {
             Fact fact = facts.get(i);
             if (i > 0) {
                 text.append('\n');
             }
-            text.append(" [")
-                    .append(fact.id())
-                    .append("] ")
-                    .append(fact.category().name())
-                    .append(": ")
-                    .append(redactor.apply(fact.text()));
-            if (!Objects.equals(fact.authorUuid(), owner)
-                    && fact.authorName() != null
-                    && !fact.authorName().isBlank()) {
-                text.append(" (from ").append(fact.authorName()).append(")");
-            }
+            text.append(row(fact, owner, subjectLabel(book, owner, fact.subject()), redactor));
         }
         return text.toString();
+    }
+
+    private static String row(
+            Fact fact, UUID owner, String subject, java.util.function.UnaryOperator<String> redactor) {
+        StringBuilder text = new StringBuilder(" [")
+                .append(fact.id())
+                .append("] ")
+                .append(fact.category().name());
+        if (subject != null) {
+            text.append(" (about ").append(subject).append(')');
+        }
+        text.append(": ").append(redactor.apply(fact.text()));
+        if (!Objects.equals(fact.authorUuid(), owner)
+                && fact.authorName() != null
+                && !fact.authorName().isBlank()) {
+            text.append(" (from ").append(fact.authorName()).append(")");
+        }
+        return text.toString();
+    }
+
+    private static String subjectLabel(MemoryBook book, UUID owner, Subject subject) {
+        if (subject instanceof Subject.Player player) {
+            return player.uuid().equals(owner) ? ownerName(book, owner) : playerName(book, player.uuid());
+        }
+        return "World";
     }
 
     private static String ownerName(MemoryBook book, UUID owner) {
