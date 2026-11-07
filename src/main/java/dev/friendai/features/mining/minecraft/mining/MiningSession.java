@@ -22,6 +22,7 @@ import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.task.TaskContext;
 import dev.friendai.world.block.BreakAction;
 import dev.friendai.world.block.MiningRefusal;
+import dev.friendai.world.block.MiningToolView;
 import dev.friendai.world.movement.Approach;
 import dev.friendai.world.movement.MaterialPicker;
 import dev.friendai.world.movement.PathExecutor;
@@ -32,6 +33,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.Container;
 import net.minecraft.world.level.block.state.BlockState;
 
 /** Shared bounded search and guarded execution for resource extraction and underground exploration. */
@@ -42,6 +44,15 @@ public final class MiningSession {
         EXTRACTED,
         EXHAUSTED,
         FAILED
+    }
+
+    /**
+     * The task's own cell rules for a fallback descent. The session never guesses them: a task that may take a
+     * container, work in a liquid or break without the right tool passes those flags along, and {@link #SAFE} refuses
+     * all three.
+     */
+    public record DescentRules(boolean containers, boolean allowLiquids, boolean requireTool) {
+        public static final DescentRules SAFE = new DescentRules(false, false, true);
     }
 
     private enum Mode {
@@ -268,12 +279,45 @@ public final class MiningSession {
      * allowSupport} is the existing rule that decides when breaking it is safe (a solid, non-lava landing below).
      */
     public boolean forceDescent(TaskContext context) {
+        return forceDescent(context, DescentRules.SAFE);
+    }
+
+    /**
+     * Whether the task's cell rules allow a fallback descent through this support. Pure, so the rule is unit-tested
+     * without a world: a container, a liquid or a block that needs the wrong tool is refused unless the task opted in.
+     */
+    public static boolean descentAllowed(
+            DescentRules rules, boolean container, boolean fluid, boolean needsTool, boolean hasTool) {
+        return (rules.containers() || !container)
+                && (rules.allowLiquids() || !fluid)
+                && (!rules.requireTool() || !needsTool || hasTool);
+    }
+
+    /**
+     * Starts one deterministic descent when a stance search has stalled: the block under the companion's feet is
+     * broken through the same {@link MiningRefusal}, {@link DropGuard} and {@link BreakAction} checks as every other
+     * break, so the body drops onto a fresh stance. Returns false, having changed nothing, while a route or break runs,
+     * when the cell below is already open or outside the session's bounds, when the task's own cell rules refuse it, or
+     * when any check refuses the break.
+     *
+     * <p>The normal target guard refuses a support cell by design; {@link MiningRefusal#check} with {@code
+     * allowSupport} is the existing rule that decides when breaking it is safe (a solid, non-lava landing below).
+     */
+    public boolean forceDescent(TaskContext context, DescentRules rules) {
         if (busy()) {
             return false;
         }
         BlockPos support = companion.blockPosition().below();
         Pos at = plain(support);
-        if (context.level().getBlockState(support).isAir() || !bounds.contains(at)) {
+        BlockState state = context.level().getBlockState(support);
+        if (state.isAir() || !bounds.contains(at)) {
+            return false;
+        }
+        boolean needsTool = state.requiresCorrectToolForDrops();
+        boolean hasTool =
+                !needsTool || MiningToolView.currentToolFor(companion, state).isPresent();
+        boolean container = context.level().getBlockEntity(support) instanceof Container;
+        if (!descentAllowed(rules, container, !state.getFluidState().isEmpty(), needsTool, hasTool)) {
             return false;
         }
         if (MiningRefusal.check(context, support, true) != null || !DropRoom.hasRoom(context, support)) {

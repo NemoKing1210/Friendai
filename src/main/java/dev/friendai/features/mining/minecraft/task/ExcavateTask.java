@@ -48,6 +48,8 @@ public final class ExcavateTask implements Task {
     private static final int UNLOADED_WAIT_TICKS = 40;
     private static final int SWEEP_EVERY_BREAKS = 16;
     private static final int MAX_FAILED_BATCHES = 3;
+    /** At most this many fallback descents per task, so a long dig cannot keep bolting a shaft under the region. */
+    private static final int MAX_FALLBACK_DESCENTS = 3;
 
     private final ExcavationSpec spec;
     private final List<Pos> order;
@@ -57,6 +59,7 @@ public final class ExcavateTask implements Task {
     private final ItemMatcher untilMatcher;
     private final StallFallback stallFallback = new StallFallback();
     private String fallbackReason = "";
+    private int fallbackDescents;
 
     private MiningSession session;
     private DropCollector sweep;
@@ -183,6 +186,7 @@ public final class ExcavateTask implements Task {
                     // A fallback descent also breaks the support cell; only a batched region target is region progress.
                     if (broken == null || session.isCurrentTarget(broken)) {
                         progress.markBroken();
+                        fallbackReason = "";
                     }
                     failedBatches = 0;
                     if (progress.broken() >= spec.count()) {
@@ -233,7 +237,11 @@ public final class ExcavateTask implements Task {
         if (stallFallback.observe(progress.broken(), session.phase()) != StallFallback.Decision.DIG) {
             return null;
         }
-        if (session.forceDescent(c)) {
+        boolean descended = fallbackDescents < MAX_FALLBACK_DESCENTS
+                && session.forceDescent(
+                        c, new MiningSession.DescentRules(spec.containers(), spec.allowLiquids(), spec.requireTool()));
+        if (descended) {
+            fallbackDescents++;
             fallbackReason = "fallback-dig";
             return null;
         }
@@ -307,6 +315,8 @@ public final class ExcavateTask implements Task {
         }
         unloadedWait = 0;
         session = new MiningSession(c.companion(), bounds(), batch.size() + 128, 6_000, placements);
+        // A new batch starts a new stall window; ticks accumulated for the previous one say nothing about it.
+        stallFallback.reset();
         session.setTargets(batch, state -> !state.isAir());
         return TaskStatus.RUNNING;
     }
@@ -406,7 +416,7 @@ public final class ExcavateTask implements Task {
                 idleTicks = 0;
                 return Decision.WAIT;
             }
-            if (++idleTicks <= STALL_FALLBACK_TICKS) {
+            if (++idleTicks < STALL_FALLBACK_TICKS) {
                 return Decision.WAIT;
             }
             idleTicks = 0;

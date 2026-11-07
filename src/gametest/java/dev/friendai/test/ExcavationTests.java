@@ -2,18 +2,18 @@ package dev.friendai.test;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
-import dev.friendai.features.mining.MiningBounds;
 import dev.friendai.features.mining.excavation.ExcavationDirection;
 import dev.friendai.features.mining.excavation.ExcavationGeometry;
 import dev.friendai.features.mining.excavation.ExcavationSpec;
-import dev.friendai.features.mining.minecraft.mining.MiningSession;
 import dev.friendai.features.mining.minecraft.task.ExcavateTask;
 import dev.friendai.features.mining.minecraft.task.MineBlockAtTask;
-import dev.friendai.foundation.spatial.Node;
+import dev.friendai.foundation.spatial.PathingConfig;
+import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
+import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -230,41 +230,117 @@ public class ExcavationTests {
         });
     }
 
+    /**
+     * A context whose path searches never expand: a budget of zero makes {@code PathSearch.step} return RUNNING
+     * without visiting a node, so the session stays in its approach phase and the stall fallback fires deterministically.
+     */
+    private static TaskContext stalledContext(GameTestHelper h, CompanionEntity c) {
+        PathingConfig pathing =
+                new PathingConfig(true, true, PathingConfig.DEFAULTS.breakBlacklist(), List.of(), 0, 20_000, 64);
+        return new TaskContext(
+                c, h.getLevel(), null, null, new ServerSettings(null, pathing, null, null, null, null, 16));
+    }
+
+    /** A region away from the support cell, so the fallback descent cannot count as region progress. */
+    private static ExcavateTask stalledExcavate(GameTestHelper h) {
+        BlockPos[] cells = {new BlockPos(4, 2, 2), new BlockPos(5, 2, 2), new BlockPos(4, 2, 3), new BlockPos(5, 2, 3)};
+        for (BlockPos cell : cells) {
+            h.setBlock(cell, Blocks.STONE);
+        }
+        return new ExcavateTask(spec(ExcavationGeometry.box(4, 2, 2, 5, 2, 3).orElseThrow(), cells.length));
+    }
+
     @GameTest(maxTicks = 400)
-    public void descentFallbackBreaksTheSupportBelowTheCompanion(GameTestHelper h) {
+    public void excavateFallbackDigsBelowAPlanningStall(GameTestHelper h) {
         CompanionEntity c = companion(h);
         h.setBlock(new BlockPos(2, 0, 2), Blocks.STONE);
-        MiningSession session = new MiningSession(c, new MiningBounds(new Node(2, 1, 2), 8), 8, 600);
+        TaskContext context = stalledContext(h, c);
+        ExcavateTask task = stalledExcavate(h);
+        BlockPos support = h.absolutePos(new BlockPos(2, 1, 2));
+        task.start(context);
 
-        h.assertTrue(session.forceDescent(new TaskContext(c, h.getLevel())), "the descent below the companion starts");
         h.succeedWhen(() -> {
-            TaskContext context = new TaskContext(c, h.getLevel());
-            MiningSession.State state = session.tick(context);
-            if (state == MiningSession.State.EXTRACTED) {
+            TaskStatus status = task.tick(context);
+            if (h.getLevel().getBlockState(support).isAir()) {
                 h.assertTrue(
-                        h.getLevel()
-                                .getBlockState(h.absolutePos(new BlockPos(2, 1, 2)))
-                                .isAir(),
-                        "the support under the companion was not broken");
-                h.assertTrue(c.blockPosition().getY() <= 1, "the companion did not drop onto the safe landing");
-            } else {
-                h.assertTrue(state == MiningSession.State.WORKING, "unexpected descent state: " + state);
+                        task.debugStatus().contains("fallback-dig"),
+                        "the fallback was not reported: " + task.debugStatus());
+                h.assertTrue(
+                        status == TaskStatus.RUNNING || status == TaskStatus.SUCCESS,
+                        "the fallback ended the task early: " + status + " " + task.debugStatus());
+                return;
             }
+            h.assertTrue(
+                    status == TaskStatus.RUNNING,
+                    "the task ended before the fallback: " + status + " " + task.debugStatus());
         });
     }
 
-    @GameTest(maxTicks = 200)
-    public void descentFallbackRefusesAnUnbreakableSupport(GameTestHelper h) {
+    @GameTest(maxTicks = 400)
+    public void excavateFallbackFailsWhenTheDescentIsRefused(GameTestHelper h) {
         CompanionEntity c = companion(h);
         h.setBlock(new BlockPos(2, 1, 2), Blocks.BEDROCK);
         h.setBlock(new BlockPos(2, 0, 2), Blocks.STONE);
-        MiningSession session = new MiningSession(c, new MiningBounds(new Node(2, 1, 2), 8), 8, 600);
+        TaskContext context = stalledContext(h, c);
+        ExcavateTask task = stalledExcavate(h);
+        BlockPos support = h.absolutePos(new BlockPos(2, 1, 2));
+        task.start(context);
 
-        h.assertFalse(
-                session.forceDescent(new TaskContext(c, h.getLevel())),
-                "bedrock under the companion must refuse the descent");
-        h.assertTrue(
-                h.getLevel().getBlockState(h.absolutePos(new BlockPos(2, 1, 2))).is(Blocks.BEDROCK),
-                "the refused support changed");
+        h.succeedWhen(() -> {
+            TaskStatus status = task.tick(context);
+            if (status == TaskStatus.RUNNING) {
+                return;
+            }
+            h.assertTrue(status == TaskStatus.FAILED, "unexpected task result: " + status + " " + task.debugStatus());
+            h.assertTrue(
+                    task.debugStatus().contains("fallback-refused"),
+                    "the refusal was not reported: " + task.debugStatus());
+            h.assertTrue(h.getLevel().getBlockState(support).is(Blocks.BEDROCK), "the refused support changed");
+        });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void excavateFallbackRefusesAnUnsafeLanding(GameTestHelper h) {
+        CompanionEntity c = companion(h);
+        h.setBlock(new BlockPos(2, 0, 2), Blocks.LAVA);
+        TaskContext context = stalledContext(h, c);
+        ExcavateTask task = stalledExcavate(h);
+        BlockPos support = h.absolutePos(new BlockPos(2, 1, 2));
+        task.start(context);
+
+        h.succeedWhen(() -> {
+            TaskStatus status = task.tick(context);
+            if (status == TaskStatus.RUNNING) {
+                return;
+            }
+            h.assertTrue(status == TaskStatus.FAILED, "unexpected task result: " + status + " " + task.debugStatus());
+            h.assertTrue(
+                    task.debugStatus().contains("fallback-refused"),
+                    "the unsafe landing was not refused: " + task.debugStatus());
+            h.assertTrue(h.getLevel().getBlockState(support).is(Blocks.STONE), "the support above lava was broken");
+            h.assertTrue(!c.isInLava(), "the companion ended in lava");
+        });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void excavateFallbackRefusesAContainerSupport(GameTestHelper h) {
+        CompanionEntity c = companion(h);
+        h.setBlock(new BlockPos(2, 1, 2), Blocks.CHEST);
+        TaskContext context = stalledContext(h, c);
+        ExcavateTask task = stalledExcavate(h);
+        BlockPos support = h.absolutePos(new BlockPos(2, 1, 2));
+        task.start(context);
+
+        h.succeedWhen(() -> {
+            TaskStatus status = task.tick(context);
+            if (status == TaskStatus.RUNNING) {
+                return;
+            }
+            h.assertTrue(status == TaskStatus.FAILED, "unexpected task result: " + status + " " + task.debugStatus());
+            h.assertTrue(
+                    task.debugStatus().contains("fallback-refused"),
+                    "the container support was not refused: " + task.debugStatus());
+            h.assertTrue(h.getLevel().getBlockState(support).is(Blocks.CHEST), "the container support was broken");
+        });
     }
 }
