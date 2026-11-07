@@ -170,8 +170,9 @@ Measured on JDK 25, Windows 11, one run each (a second run reproduced the same s
 
 **Verdict: no production change.** One idle tick's queue work (selection + every plan's status + the material
 reserve) is 35 µs at p95, 0.07 % of a 50 ms tick; at the queue sizes an owner actually holds the whole path is
-dominated by fixed per-call allocation, not by an algorithmic surprise. The health view costs 0.13–0.36 ms per
-store at 64–1,000 owners and runs once per five seconds, so caching it would save a fraction of a millisecond.
+dominated by fixed per-call allocation, not by an algorithmic surprise. The health view costs 0.13–0.36 ms for the
+whole population (one `statuses()` pass over 64 to 1,000 owners, so a few microseconds per store) and runs once per
+five seconds, so caching it would save a fraction of a millisecond.
 The only large figures are a fully dirty 10,000-owner flush (60–98 ms of caller-thread encoding, then 9,743
 `QUEUE_FULL` rejections because the writer queue is bounded on purpose and retries on the next pass) and the
 drain, which is disk-bound at about 1.2–1.6 ms per atomic replacement here and barely differs between an 8-fact

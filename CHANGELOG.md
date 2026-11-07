@@ -6,6 +6,25 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.210.0] - 2026-11-07
+
+### Added
+
+- Plan repair understands the tools it plans with: the planner is told which plan it repairs, which step comes next, and each tool's exact argument format.
+
+### Changed
+
+- A streamed reply that stops before the provider finishes is treated as incomplete instead of being spoken or acted on, and stopping a reply now stops the provider request and any fallback it had started.
+- The companion no longer asks the planner for a repair that could not be applied; it reports why the plan cannot be patched instead.
+- A failed plan's repair now replaces the step that failed, so the plan can continue instead of staying stuck on the same failure.
+- Retrieved memories name whose fact each one is, and the selected block stays within its text budget.
+
+### Fixed
+
+- A free-time plan drafted for a companion that died or was dismissed is no longer queued on the replacement body.
+- Changed transcript limits apply to already open conversations instead of waiting for a restart.
+- Every persistent store now reports a failed write or read-only protection in the companion log and in `/friendai diagnose`.
+
 ## [0.209.6] - 2026-11-07
 
 ### Fixed
