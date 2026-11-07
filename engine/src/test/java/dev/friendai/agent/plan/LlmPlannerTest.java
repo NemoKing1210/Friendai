@@ -88,23 +88,12 @@ class LlmPlannerTest {
     }
 
     @Test
-    void invalidThenValidReplyRetriesOnceWithTheErrors() throws Exception {
-        gateway.enqueue(FakeGateway.text("{\"steps\":[{\"tool\":\"teleport\"}]}"));
-        gateway.enqueue(FakeGateway.text(GOOD));
-        planner.propose(input()).get();
-        assertEquals(2, gateway.requests.size());
-        String secondUser = gateway.requests.get(1).messages().getLast().text();
-        assertTrue(secondUser.contains("unknown tool 'teleport'"), secondUser);
-    }
-
-    @Test
-    void twoInvalidRepliesFail() {
-        gateway.enqueue(FakeGateway.text("nope"));
-        gateway.enqueue(FakeGateway.text("still nope"));
+    void aRejectedReplyIsNotRequestedASecondTime() {
+        gateway.enqueue(FakeGateway.text("{\"steps\": []}"));
         ExecutionException e = assertThrows(
                 ExecutionException.class, () -> planner.propose(input()).get());
         assertTrue(e.getCause() instanceof PlannerException, String.valueOf(e.getCause()));
-        assertEquals(2, gateway.requests.size());
+        assertEquals(1, gateway.requests.size(), "a rejected reply is not re-sent");
     }
 
     @Test
@@ -195,19 +184,15 @@ class LlmPlannerTest {
     }
 
     @Test
-    void aCancelledTurnSendsNoRepairAfterAMalformedReply() {
-        ScriptedGateway flaky = new ScriptedGateway();
-        CompletableFuture<LlmResponse> reply = new CompletableFuture<>();
-        flaky.queue.add(reply);
-        AtomicBoolean cancelled = new AtomicBoolean(false);
-        LlmPlanner repairing = new LlmPlanner(() -> flaky, text -> text, 30, 12, 8192, 49152);
+    void aTurnCancelledBeforeTheFirstSendAsksForNothing() {
+        ScriptedGateway idle = new ScriptedGateway();
+        LlmPlanner repairing = new LlmPlanner(() -> idle, text -> text, 30, 12, 8192, 49152);
 
-        CompletableFuture<PlanProposal> future = repairing.propose(input(), cancelled::get);
-        cancelled.set(true);
-        reply.complete(FakeGateway.text("{\"steps\":[{\"tool\":\"teleport\"}]}"));
+        ExecutionException error = assertThrows(
+                ExecutionException.class,
+                () -> repairing.propose(input(), () -> true).get(5, TimeUnit.SECONDS));
 
-        ExecutionException error = assertThrows(ExecutionException.class, () -> future.get(5, TimeUnit.SECONDS));
         assertTrue(error.getCause() instanceof PlannerException, String.valueOf(error.getCause()));
-        assertEquals(1, flaky.jsonRequests.size(), "a stopped turn sends no repair request");
+        assertEquals(0, idle.jsonRequests.size(), "a stopped turn sends nothing");
     }
 }

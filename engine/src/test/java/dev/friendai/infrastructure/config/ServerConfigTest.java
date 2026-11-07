@@ -313,9 +313,25 @@ class ServerConfigTest {
         assertEquals(3, c.agent.maxReplans);
         assertEquals(30, c.agent.goalTickSec);
         assertEquals(24_000, c.agent.promptBudget);
-        assertEquals(60, c.agent.plannerTimeoutSec);
+        assertEquals(20, c.agent.plannerTimeoutSec);
         assertEquals(null, c.agent.planner);
         assertEquals(2, c.agent.plannerRetries);
+    }
+
+    @Test
+    void defaultsCapThePlannerAtTwentySeconds() {
+        assertEquals(20, ServerConfig.defaults().agent.plannerTimeoutSec);
+    }
+
+    @Test
+    void plannerTimeoutIsClampedToFiveThroughOneHundredTwenty() {
+        ServerConfig c = ServerConfig.defaults();
+        c.agent.plannerTimeoutSec = 1;
+        c.validate();
+        assertEquals(5, c.agent.plannerTimeoutSec);
+        c.agent.plannerTimeoutSec = 999;
+        c.validate();
+        assertEquals(120, c.agent.plannerTimeoutSec);
     }
 
     @Test
@@ -331,7 +347,7 @@ class ServerConfigTest {
         assertEquals(10, c.agent.maxReplans);
         assertEquals(10, c.agent.goalTickSec);
         assertEquals(2_000, c.agent.promptBudget);
-        assertEquals(10, c.agent.plannerTimeoutSec);
+        assertEquals(5, c.agent.plannerTimeoutSec);
         assertEquals(4, c.agent.plannerRetries);
         assertEquals("assistive", c.agent.autonomy);
         assertTrue(problems.stream().anyMatch(p -> p.contains("agent.autonomy")), problems.toString());

@@ -6,7 +6,6 @@ import dev.friendai.agent.llm.model.Message;
 import dev.friendai.agent.llm.model.StopReason;
 import dev.friendai.agent.turn.LlmGateway;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -17,7 +16,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
-/** Drafts bounded plans with evidence-based repairs. No tools execute on this worker thread. */
+/** Drafts bounded plans in one provider round trip. No tools execute on this worker thread. */
 public final class LlmPlanner implements Planner {
     public record Event(int attempt, String reply, PlanFailure failure, String disposition) {}
 
@@ -132,26 +131,10 @@ public final class LlmPlanner implements Planner {
                                 parsed.proposal().orElseThrow());
                     }
                     failure = new PlanFailure(failure.code(), cap(redact.apply(failure.detail()), 2000), number);
-                    boolean retry = number < attempts;
-                    emit(new Event(number, cap(clean, 8192), failure, retry ? "retry" : "given up"));
-                    if (!retry) return CompletableFuture.failedFuture(new PlannerException(failure));
-                    String repair = "Attempt " + number + " rejected: " + failure.code() + ": " + failure.detail()
-                            + "\nRepair the rejected reply and return only the complete JSON object.";
-                    if (failure.code() == PlanFailure.Code.TOO_LARGE)
-                        repair += " Produce a shorter plan within all queue limits.";
-                    if (failure.code() == PlanFailure.Code.TRUNCATED)
-                        repair += " More output room is available; keep the plan concise and finish the object.";
-                    List<Message> next = new ArrayList<>(messages);
-                    next.add(Message.assistant(cap(clean, 8192), List.of()));
-                    next.add(Message.user(redact.apply(repair)));
-                    return attempt(
-                            input,
-                            system,
-                            List.copyOf(next),
-                            number + 1,
-                            failure.code() == PlanFailure.Code.TRUNCATED ? Math.min(8, room * 2) : room,
-                            transportAlreadyRetried,
-                            cancelled);
+                    // A rejected reply is the answer. Repairing it costs a second full provider round trip, and the
+                    // model can carry on without a plan; only a transient transport fault is re-sent.
+                    emit(new Event(number, cap(clean, 8192), failure, "given up"));
+                    return CompletableFuture.failedFuture(new PlannerException(failure));
                 })
                 .exceptionallyCompose(error -> {
                     Throwable cause = PlanFailure.unwrap(error);

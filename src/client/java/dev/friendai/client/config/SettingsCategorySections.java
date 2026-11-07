@@ -256,9 +256,9 @@ final class SettingsCategorySections {
                 .option(Option.<Integer>createBuilder()
                         .name(tr("friendai.config.agent.planner_timeout_sec"))
                         .description(OptionDescription.of(tr("friendai.config.agent.planner_timeout_sec.tooltip")))
-                        .binding(60, () -> agent.plannerTimeoutSec, value -> agent.plannerTimeoutSec = value)
+                        .binding(20, () -> agent.plannerTimeoutSec, value -> agent.plannerTimeoutSec = value)
                         .controller(option ->
-                                IntegerFieldControllerBuilder.create(option).range(10, 300))
+                                IntegerFieldControllerBuilder.create(option).range(5, 120))
                         .build())
                 .option(Option.<Integer>createBuilder()
                         .name(tr("friendai.config.brain.max_tool_steps"))

@@ -71,35 +71,35 @@ class PlannerFailuresTest {
     }
 
     @Test
-    void retriesCarryRedactedEvidenceAndSpecificFailure() throws Exception {
+    void aRejectionCarriesRedactedEvidenceAndSpecificFailure() {
         FakeGateway gateway = new FakeGateway();
         gateway.enqueue(FakeGateway.text("secret-key prose"));
-        gateway.enqueue(FakeGateway.text(GOOD));
         List<LlmPlanner.Event> events = new ArrayList<>();
         var planner = new LlmPlanner(
                 () -> gateway, SecretRedactor.of(() -> List.of("secret-key")), 30, 12, 8192, 49152, 2, events::add);
-        planner.propose(input()).get();
-        var history = gateway.requests.get(1).messages();
-        assertEquals(Role.ASSISTANT, history.get(1).role());
-        assertEquals("*** prose", history.get(1).text());
-        assertTrue(history.get(2).text().contains("NO_JSON"));
+        var error = assertThrows(
+                ExecutionException.class, () -> planner.propose(input()).get());
+        assertTrue(error.getCause() instanceof PlannerException, String.valueOf(error.getCause()));
+        assertEquals(1, gateway.requests.size(), "a rejected reply is not sent a repair turn");
         assertTrue(events.stream().noneMatch(e -> e.toString().contains("secret-key")));
-        assertEquals(PlanFailure.Code.NO_JSON, events.get(0).failure().code());
+        assertEquals(PlanFailure.Code.NO_JSON, events.getFirst().failure().code());
+        assertEquals("given up", events.getFirst().disposition());
     }
 
     @Test
-    void truncationWinsOverEvenAValidObjectAndIncreasesOutputRoom() throws Exception {
+    void truncationWinsOverEvenAValidObject() {
         FakeGateway gateway = new FakeGateway();
         gateway.enqueue(new LlmResponse(GOOD, List.of(), StopReason.MAX_TOKENS, new Usage(1, 1)));
         gateway.enqueue(FakeGateway.text(GOOD));
         List<LlmPlanner.Event> events = new ArrayList<>();
-        new LlmPlanner(() -> gateway, s -> s, 30, 12, 8192, 49152, 2, events::add)
-                .propose(input())
-                .get();
+        var error = assertThrows(
+                ExecutionException.class,
+                () -> new LlmPlanner(() -> gateway, s -> s, 30, 12, 8192, 49152, 2, events::add)
+                        .propose(input())
+                        .get());
+        assertTrue(error.getCause() instanceof PlannerException, String.valueOf(error.getCause()));
         assertEquals(PlanFailure.Code.TRUNCATED, events.getFirst().failure().code());
-        assertTrue(gateway.jsonRequests.get(1).outputMultiplier()
-                > gateway.jsonRequests.get(0).outputMultiplier());
-        assertTrue(gateway.jsonRequests.size() == gateway.requests.size());
+        assertEquals(1, gateway.jsonRequests.size(), "a cut reply is not asked again");
     }
 
     @Test
@@ -119,21 +119,19 @@ class PlannerFailuresTest {
     }
 
     @Test
-    void configuredAttemptCountAndShorterPlanRepairAreHonored() {
+    void configuredAttemptCountBoundsOnlyTheTransportRetry() {
         FakeGateway gateway = new FakeGateway();
-        for (int i = 0; i < 3; i++)
-            gateway.enqueue(FakeGateway.text("{\"steps\":[{\"tool\":\"jump\"},{\"tool\":\"jump\"}]}"));
+        gateway.enqueueFailure(new LlmException(LlmErrorKind.TIMEOUT, "timed out"));
+        gateway.enqueue(FakeGateway.text(GOOD));
         var e = assertThrows(
                 ExecutionException.class,
-                () -> new LlmPlanner(() -> gateway, s -> s, 30, 1, 8192, 49152, 3, x -> {})
+                () -> new LlmPlanner(() -> gateway, s -> s, 30, 12, 8192, 49152, 1, x -> {})
                         .propose(input())
                         .get());
-        assertEquals(3, ((PlannerException) e.getCause()).failure().attempt());
         assertEquals(
-                PlanFailure.Code.TOO_LARGE,
+                PlanFailure.Code.REQUEST_FAILED,
                 ((PlannerException) e.getCause()).failure().code());
-        assertTrue(gateway.requests.get(1).messages().getLast().text().contains("shorter"));
-        assertEquals(3, gateway.requests.size());
+        assertEquals(1, gateway.requests.size(), "one attempt means no second send");
     }
 
     @Test
@@ -149,7 +147,7 @@ class PlannerFailuresTest {
     }
 
     @Test
-    void everyRejectedShapeCarriesItsEvidenceIntoTheRepairAndLog() throws Exception {
+    void everyRejectedShapeCarriesItsCodeAndIsNotResent() {
         String[] replies = {"prose", "", "{\"steps\":", "{\"steps\":[}"};
         PlanFailure.Code[] codes = {
             PlanFailure.Code.NO_JSON,
@@ -163,34 +161,43 @@ class PlannerFailuresTest {
                     replies[i], List.of(), i == 2 ? StopReason.MAX_TOKENS : StopReason.END, new Usage(0, 0)));
             gateway.enqueue(FakeGateway.text(GOOD));
             List<LlmPlanner.Event> events = new ArrayList<>();
-            new LlmPlanner(() -> gateway, s -> s, 30, 12, 8192, 49152, 2, events::add)
-                    .propose(input())
-                    .get();
+            var error = assertThrows(
+                    ExecutionException.class,
+                    () -> new LlmPlanner(() -> gateway, s -> s, 30, 12, 8192, 49152, 2, events::add)
+                            .propose(input())
+                            .get());
+            assertTrue(error.getCause() instanceof PlannerException, String.valueOf(error.getCause()));
             assertEquals(codes[i], events.getFirst().failure().code());
-            var history = gateway.requests.get(1).messages();
-            assertEquals(replies[i], history.get(1).text());
-            assertTrue(history.getLast()
-                    .text()
-                    .contains(events.getFirst().failure().detail()));
-            assertEquals("retry", events.getFirst().disposition());
-            assertEquals("validated", events.getLast().disposition());
+            assertEquals(replies[i], events.getFirst().reply());
+            assertEquals("given up", events.getFirst().disposition());
+            assertEquals(1, gateway.jsonRequests.size(), "a rejected reply is not asked again");
         }
     }
 
     @Test
-    void secretCrossingDiagnosticLimitIsRedactedBeforeTruncation() throws Exception {
+    void secretInARejectedReplyIsRedactedBeforeTruncation() {
         String secret = "s".repeat(2200);
         FakeGateway gateway = new FakeGateway();
         gateway.enqueue(FakeGateway.text("{\"steps\":[{\"tool\":\"" + secret + "\"}]}"));
         gateway.enqueue(FakeGateway.text(GOOD));
         List<LlmPlanner.Event> events = new ArrayList<>();
-        new LlmPlanner(() -> gateway, SecretRedactor.of(() -> List.of(secret)), 30, 12, 8192, 49152, 2, events::add)
-                .propose(input())
-                .get();
+        var error = assertThrows(
+                ExecutionException.class,
+                () -> new LlmPlanner(
+                                () -> gateway,
+                                SecretRedactor.of(() -> List.of(secret)),
+                                30,
+                                12,
+                                8192,
+                                49152,
+                                2,
+                                events::add)
+                        .propose(input())
+                        .get());
+        assertTrue(error.getCause() instanceof PlannerException, String.valueOf(error.getCause()));
         assertFalse(events.getFirst().failure().detail().contains("s".repeat(20)));
         assertTrue(events.getFirst().failure().detail().contains("***"));
-        assertTrue(gateway.requests.get(1).messages().stream()
-                .noneMatch(m -> m.text().contains("s".repeat(20))));
+        assertEquals(1, gateway.requests.size(), "the rejected reply is not sent again");
     }
 
     @Test

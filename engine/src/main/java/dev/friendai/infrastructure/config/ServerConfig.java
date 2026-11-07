@@ -135,10 +135,10 @@ public class ServerConfig {
         public int promptBudget = 24_000;
         /** Name of the profile used for the planner call; null uses the active profile. */
         public String planner = null;
-        /** Total planner attempts, including the first request. */
+        /** Total planner attempts, including the first request; a rejected reply is not re-sent. */
         public int plannerRetries = 2;
 
-        public int plannerTimeoutSec = 60;
+        public int plannerTimeoutSec = 20;
     }
 
     public static class ChatSection {
@@ -496,7 +496,7 @@ public class ServerConfig {
         }
         agent.maxReplans = clamp(problems, "agent.maxReplans", agent.maxReplans, 0, 10);
         agent.goalTickSec = clamp(problems, "agent.goalTickSec", agent.goalTickSec, 10, 600);
-        agent.plannerTimeoutSec = clamp(problems, "agent.plannerTimeoutSec", agent.plannerTimeoutSec, 10, 300);
+        agent.plannerTimeoutSec = clamp(problems, "agent.plannerTimeoutSec", agent.plannerTimeoutSec, 5, 120);
         agent.plannerRetries = clamp(problems, "agent.plannerRetries", agent.plannerRetries, 1, 4);
         if (agent.planner != null) {
             agent.planner = agent.planner.strip();
