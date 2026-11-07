@@ -50,7 +50,6 @@ import java.util.function.Supplier;
 public final class PlannerInputFactory {
     private final CompanionEntity companion;
     private final Supplier<PerceptionContext> perception;
-    private final Map<String, TaskToolDefinition> taskTools;
     private final Map<String, TaskToolDefinition> planTools;
     private final Supplier<List<Place>> places;
     private final Supplier<GoalBoard> goals;
@@ -61,7 +60,6 @@ public final class PlannerInputFactory {
     public PlannerInputFactory(
             CompanionEntity companion,
             Supplier<PerceptionContext> perception,
-            Map<String, TaskToolDefinition> taskTools,
             Map<String, TaskToolDefinition> planTools,
             Supplier<List<Place>> places,
             Supplier<GoalBoard> goals,
@@ -70,7 +68,6 @@ public final class PlannerInputFactory {
             Supplier<FreeTimeService> freeTime) {
         this.companion = companion;
         this.perception = perception;
-        this.taskTools = taskTools;
         this.planTools = planTools;
         this.places = places;
         this.goals = goals;
@@ -154,7 +151,7 @@ public final class PlannerInputFactory {
         ServerConfig settings = config.get();
         boolean shift = subject instanceof PlanSubject.FreeTimeShift;
         Set<String> denied = denied(subject);
-        Map<String, TaskToolDefinition> source = shift ? planTools : taskTools;
+        Map<String, TaskToolDefinition> source = planTools;
         Map<String, ToolGroup> groups = new LinkedHashMap<>();
         source.forEach(
                 (name, definition) -> groups.put(name, definition.catalogMeta().group()));
@@ -165,7 +162,7 @@ public final class PlannerInputFactory {
                 planStepTools.add(job.tool());
             }
         }
-        Set<String> scoped = PlannerScope.toolNames(subject, groups, planStepTools);
+        Set<String> scoped = PlannerScope.toolNames(subject, groups, source.keySet(), planStepTools);
         Map<String, TaskToolDefinition> selected = new LinkedHashMap<>();
         source.forEach((name, definition) -> {
             if (scoped.contains(name)) {

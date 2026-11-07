@@ -93,7 +93,6 @@ final class PlannerFacade {
         return new PlannerInputFactory(
                 companion,
                 perceptionContext,
-                taskTools,
                 planTools,
                 () -> places.book(owner).all(),
                 () -> goals.board(owner),

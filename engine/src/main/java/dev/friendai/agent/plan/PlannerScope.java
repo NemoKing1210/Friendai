@@ -1,6 +1,7 @@
 package dev.friendai.agent.plan;
 
 import dev.friendai.agent.tools.ToolGroup;
+import java.util.EnumSet;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
@@ -10,37 +11,41 @@ import java.util.Set;
  * derive from this set, so a narrow occasion cannot pay for a tool it will never name and a repair cannot lose the tool
  * it has to repair.
  *
- * <p>The rule is data, not a branch in the factory: an owner order plans world work, so the groups that answer a
- * question, move the body, edit a place or a setting, or talk to another player are dropped; a goal and a free-time
- * shift keep everything. A tool the catalog does not know is always kept, matching {@code ToolCatalog}'s own rule, so a
- * missing entry can never hide a tool by accident.
+ * <p>The rule is data, not a branch in the factory: a group is dropped only when no plannable tool lives in it, so a
+ * group that holds a real plan step — {@code wait}, a resource search, a known place, a flight, an interaction — is
+ * kept with all of its tools. A goal and a free-time shift keep everything. A tool the catalog does not know is always
+ * kept, matching {@code ToolCatalog}'s own rule, so a missing entry can never hide a tool by accident.
  */
 public final class PlannerScope {
-    /** Groups an owner order or a repair never plans with: none of them is a step of a queued job. */
-    private static final Set<ToolGroup> NOT_FOR_A_PLAN = Set.of(
-            ToolGroup.INFO,
-            ToolGroup.BODY,
-            ToolGroup.PLACE,
-            ToolGroup.TRUST,
-            ToolGroup.CONTROL,
-            ToolGroup.AUTONOMY,
-            ToolGroup.INTERACTION);
-
     private PlannerScope() {}
 
-    /** The tool names this subject may plan with. A name absent from {@code groups} is always kept. */
-    public static Set<String> toolNames(PlanSubject subject, Map<String, ToolGroup> groups, Set<String> planStepTools) {
+    /**
+     * The tool names this subject may plan with. A name absent from {@code groups} is always kept.
+     *
+     * @param plannable the tool names that may appear as a plan step; a group is kept while one of them lives in it
+     * @param planStepTools the tools the plan being repaired already names, kept whatever their group
+     */
+    public static Set<String> toolNames(
+            PlanSubject subject, Map<String, ToolGroup> groups, Set<String> plannable, Set<String> planStepTools) {
         Set<String> steps = planStepTools == null ? Set.of() : planStepTools;
         Set<String> kept = new LinkedHashSet<>();
         if (!restricted(subject)) {
             kept.addAll(groups.keySet());
-        } else {
-            groups.forEach((name, group) -> {
-                if (steps.contains(name) || !NOT_FOR_A_PLAN.contains(group)) {
-                    kept.add(name);
-                }
-            });
+            kept.addAll(steps);
+            return kept;
         }
+        Set<ToolGroup> withAPlannableTool = EnumSet.noneOf(ToolGroup.class);
+        for (String name : plannable == null ? Set.<String>of() : plannable) {
+            ToolGroup group = groups.get(name);
+            if (group != null) {
+                withAPlannableTool.add(group);
+            }
+        }
+        groups.forEach((name, group) -> {
+            if (steps.contains(name) || withAPlannableTool.contains(group)) {
+                kept.add(name);
+            }
+        });
         kept.addAll(steps);
         return kept;
     }
