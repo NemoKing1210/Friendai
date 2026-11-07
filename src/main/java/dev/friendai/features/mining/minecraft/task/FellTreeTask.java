@@ -27,7 +27,6 @@ import dev.friendai.world.movement.LevelCellView;
 import dev.friendai.world.movement.MoveHelper;
 import dev.friendai.world.movement.Sight;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -692,9 +691,9 @@ public final class FellTreeTask implements Task {
             }
         }
         for (BlockPos pos : remaining) {
-            blacklist.putIfAbsent(pos, "no stance reaches it");
+            blacklist.putIfAbsent(pos, "unreachable");
         }
-        return finish(c, resultStatus(cutCount), report(cutCount, total, label, skipped.size(), remaining));
+        return finish(c, resultStatus(cutCount), report(cutCount, total, label, skipped.size(), blacklist));
     }
 
     /**
@@ -843,20 +842,28 @@ public final class FellTreeTask implements Task {
 
     /**
      * The sentence a felling reports: what came down, what was not there when reached, and what is still standing with
-     * the coordinates of the first three such logs. The wording is pure so it can be pinned without a world, as
-     * {@code MineReport} does for a pointed mine; the task appends its own counters.
+     * the coordinates of the first three such logs. The shortfall names the reason it has for the cells it lists: the
+     * shared reason when every standing log has one, otherwise the reason of the first listed log, with the existing
+     * counters sentence carrying the full per-cell breakdown. The wording is pure so it can be pinned without a world,
+     * as {@code MineReport} does for a pointed mine; the task appends its own counters.
+     *
+     * @param left the standing logs by position, with the reason each one was not cut, in the order they should be
+     *     named
      */
-    static String report(int cutCount, int total, String label, int skipped, Collection<BlockPos> left) {
+    static String report(int cutCount, int total, String label, int skipped, Map<BlockPos, String> left) {
         String text = "felled " + cutCount + " of " + total + " " + label + " logs";
         if (skipped > 0) {
             text += "; skipped " + skipped + " that " + (skipped == 1 ? "was" : "were") + " not there when reached";
         }
         if (!left.isEmpty()) {
-            text += "; left " + left.size() + " unreachable at ";
+            // The map is ordered by the caller, so the first value is the reason of the first listed log whether the
+            // causes agree or not.
+            String reason = left.values().iterator().next();
+            text += "; left " + left.size() + " " + reason + " at ";
             int shown = 0;
-            for (BlockPos pos : left) {
+            for (BlockPos pos : left.keySet()) {
                 if (shown == MAX_SHORTFALL_COORDS) {
-                    // The count is of the unreachable logs, not of the coordinates named.
+                    // The count is of the standing logs, not of the coordinates named.
                     text += " and " + (left.size() - shown) + " more";
                     break;
                 }

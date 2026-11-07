@@ -429,16 +429,16 @@ public class TreeFellingTests {
             runner.tick();
             // The logs that came down are real work: one log that cannot be cut is a named shortfall, not a failure.
             h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.contains("unreachable at"), "summary " + result.summary);
-            h.assertTrue(result.summary.contains("protected"), "summary " + result.summary);
+            h.assertTrue(result.summary.contains("protected by the server at"), "summary " + result.summary);
+            h.assertTrue(!result.summary.contains("unreachable at"), "summary " + result.summary);
             h.assertTrue(h.getBlockState(new BlockPos(6, 5, 6)).is(Blocks.OAK_LOG), "the protected log must stay");
             h.assertTrue(h.getBlockState(new BlockPos(6, 2, 6)).isAir(), "the reachable logs must be cut");
         });
     }
 
-    /** One log of nine that cannot be cut must not discard the eight that came down; the shortfall is named instead. */
+    /** One protected log of nine must not discard the eight that came down; the shortfall names its real reason. */
     @GameTest(maxTicks = 4000)
-    public void oneUnreachableLogOfNineStillSucceeds(GameTestHelper h) {
+    public void oneProtectedLogOfNineStillSucceeds(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         List<BlockPos> logs = new java.util.ArrayList<>();
         for (int y = 2; y <= 10; y++) {
@@ -465,7 +465,7 @@ public class TreeFellingTests {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
             h.assertTrue(result.summary.contains("8 of 9"), "summary " + result.summary);
-            h.assertTrue(result.summary.contains("unreachable at"), "summary " + result.summary);
+            h.assertTrue(result.summary.contains("left 1 protected by the server at"), "summary " + result.summary);
             h.assertTrue(
                     h.getBlockState(new BlockPos(6, 10, 6)).is(Blocks.BIRCH_LOG),
                     "the log that cannot be cut must stay");
