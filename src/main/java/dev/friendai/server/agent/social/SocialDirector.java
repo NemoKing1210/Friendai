@@ -81,9 +81,9 @@ public final class SocialDirector {
     private record PendingTopic(String topic, long raisedAt) {}
 
     /** One line worth saying and its identity, committed only when the line is actually posted. */
-    private record Fact(String text, String key) {}
+    private record Fact(String text, String key, boolean deferDuringOwnerJob) {}
 
-    private record Held(String text, String key, long since) {}
+    private record Held(String text, String key, long since, boolean deferDuringOwnerJob) {}
 
     /** The owner said something: no unprompted line for the cadence's quiet window. */
     public void ownerSpoke(UUID owner, long gameTime) {
@@ -133,6 +133,11 @@ public final class SocialDirector {
             }
             Fact fact = nextFact(runtime, owner);
             ConversationCadence.Scene scene = scene(companion, player, hearing);
+            boolean activeJob = ownerJobActive(companion);
+            if (activeJob && fact != null && fact.deferDuringOwnerJob()) {
+                hold(owner, fact, now);
+                continue;
+            }
             if (scene == ConversationCadence.Scene.AWAY || !free(player, companion)) {
                 if (fact != null) {
                     hold(owner, fact, now);
@@ -143,7 +148,10 @@ public final class SocialDirector {
             if (!pace.maySpeak(scene, (int) now)) {
                 continue;
             }
-            held.remove(owner);
+            Held waiting = held.get(owner);
+            if (waiting != null && fact != null && waiting.key().equals(fact.key())) {
+                held.remove(owner);
+            }
             if (fact != null) {
                 // The line is only now committed: a quiet window or a held line must not consume the fact.
                 announced
@@ -158,6 +166,9 @@ public final class SocialDirector {
                 // A statement, not a question: nothing waits for an answer.
                 pace.recordLine(scene, (int) now, false, false);
                 activityOf(owner).line(true);
+                continue;
+            }
+            if (activeJob) {
                 continue;
             }
             // Free time has its own director choosing the next useful activity; a neutral "what next?" opening only
@@ -197,29 +208,48 @@ public final class SocialDirector {
         java.util.Set<String> spoken = announced.computeIfAbsent(owner, ignored -> new java.util.HashSet<>());
         Held waiting = held.get(owner);
         if (waiting != null) {
-            if (now - waiting.since() <= WAIT_TICKS) {
-                return new Fact(waiting.text(), waiting.key());
+            if (now - waiting.since() > WAIT_TICKS) {
+                held.remove(owner);
+                activityOf(owner).dropped();
+                // A line nobody could hear is dropped once; keeping its key stops the same fact from returning later.
+                spoken.add(waiting.key());
+                waiting = null;
+            } else if (!waiting.deferDuringOwnerJob()) {
+                return new Fact(waiting.text(), waiting.key(), false);
             }
-            held.remove(owner);
-            activityOf(owner).dropped();
-            // A line nobody could hear is dropped once; keeping its key stops the same fact from returning later.
-            spoken.add(waiting.key());
         }
+        Fact lowPriority = null;
         for (var happening : runtime.memory().book(owner).journal(owner).recent(6)) {
             if (!spoken.contains(happening.key())) {
-                return new Fact(happening.text(), happening.key());
+                Fact candidate = new Fact(
+                        happening.text(),
+                        happening.key(),
+                        happening.importance() == dev.friendai.foundation.social.Happening.Importance.LOW
+                                || happening.kind() == dev.friendai.foundation.social.Happening.Kind.ADVANCEMENT);
+                if (!candidate.deferDuringOwnerJob()) {
+                    return candidate;
+                }
+                if (lowPriority == null) {
+                    lowPriority = candidate;
+                }
             }
         }
         // No journal yet (an older world, or the feed was not registered): fall back to the recorded death.
         Optional<DeathRecord> death = CompanionCarryData.get(runtime.server()).lastDeath(owner);
-        if (death.isEmpty()) {
-            return null;
+        if (death.isPresent()) {
+            String key = "record:" + death.get().tick();
+            boolean journalAlreadyHasDeath = runtime.memory()
+                    .book(owner)
+                    .journal(owner)
+                    .contains("mydeath:" + death.get().tick());
+            if (!journalAlreadyHasDeath && !spoken.contains(key)) {
+                return new Fact("I died not long ago at " + death.get().describe() + ".", key, false);
+            }
         }
-        String key = "record:" + death.get().tick();
-        if (spoken.contains(key)) {
-            return null;
+        if (waiting != null) {
+            return new Fact(waiting.text(), waiting.key(), true);
         }
-        return new Fact("I died not long ago at " + death.get().describe() + ".", key);
+        return lowPriority;
     }
 
     /** A raised subject nobody answered stops counting as liked once its window closes. */
@@ -307,7 +337,7 @@ public final class SocialDirector {
         if (held.containsKey(owner)) {
             return;
         }
-        held.put(owner, new Held(fact.text(), fact.key(), now));
+        held.put(owner, new Held(fact.text(), fact.key(), now, fact.deferDuringOwnerJob()));
         activityOf(owner).held();
     }
 
@@ -362,9 +392,14 @@ public final class SocialDirector {
         if (player.level() != companion.level() || player.distanceTo(companion) > hearingRadius) {
             return ConversationCadence.Scene.AWAY;
         }
-        return companion.taskExecution().currentToolName().isEmpty()
-                ? ConversationCadence.Scene.FREE
-                : ConversationCadence.Scene.BUSY;
+        return ownerJobActive(companion) ? ConversationCadence.Scene.BUSY : ConversationCadence.Scene.FREE;
+    }
+
+    private static boolean ownerJobActive(CompanionEntity companion) {
+        String tool = companion.executionCoordinator().currentToolName();
+        return !tool.isEmpty()
+                && !tool.equals("follow")
+                && !companion.executionCoordinator().autonomousActive();
     }
 
     private static boolean free(ServerPlayer player, CompanionEntity companion) {

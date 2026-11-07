@@ -18,11 +18,13 @@ import dev.friendai.features.acquisition.minecraft.task.ObtainTask;
 import dev.friendai.features.crafting.CraftPlanner;
 import dev.friendai.features.exploration.minecraft.task.ExploreTask;
 import dev.friendai.features.inventory.minecraft.task.CheckContainerTask;
+import dev.friendai.features.inventory.minecraft.task.GiveItemsTask;
 import dev.friendai.foundation.item.Tier;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.server.execution.tools.MinecraftObtainSubtaskFactory;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.task.inventory.ItemMatcher;
 import dev.friendai.world.block.BlockMatcher;
 import java.util.List;
 import java.util.Optional;
@@ -31,11 +33,14 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.LeavesBlock;
 import net.minecraft.world.level.block.NetherWartBlock;
+import net.minecraft.world.phys.AABB;
 
 public class ObtainTests {
     /**
@@ -83,6 +88,112 @@ public class ObtainTests {
                                             .orElseThrow())
                             > 0,
                     "the companion must actually craft a stone pickaxe from the buried stone");
+        });
+    }
+
+    @GameTest(maxTicks = 18000)
+    public void callerObtainsAndDeliversStoneToolSetFromBuriedStone(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 200, 24);
+        for (int x = 0; x < 24; x++) {
+            for (int z = 0; z < 24; z++) {
+                for (int y = 194; y < 199; y++) h.setBlock(x, y, z, Blocks.STONE);
+                for (int y = 199; y <= 200; y++) h.setBlock(x, y, z, Blocks.DIRT);
+            }
+        }
+        var owner = GameTestSupport.mockPlayerAt(h, 10, 201, 10);
+        h.setBlock(8, 201, 10, Blocks.CRAFTING_TABLE);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 10, 201, 10);
+        companion.setOwner(owner.getUUID());
+        companion.inventory().setItem(0, new ItemStack(Items.WOODEN_PICKAXE));
+        companion.inventory().setItem(1, new ItemStack(Items.OAK_PLANKS, 4));
+        companion.inventory().setItem(2, new ItemStack(Items.STICK, 2));
+        companion.inventory().setItem(3, new ItemStack(Items.OAK_LOG, 8));
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, companion, h.absolutePos(new BlockPos(8, 201, 10))),
+                "crafting table should be visible");
+        Caller caller =
+                new Caller(owner.getUUID(), owner.getName().getString(), dev.friendai.execution.tool.AccessLevel.OWNER);
+        List<String> toolIds = List.of(
+                "minecraft:stone_pickaxe", "minecraft:stone_axe", "minecraft:stone_shovel", "minecraft:stone_sword");
+        List<Item> tools = List.of(Items.STONE_PICKAXE, Items.STONE_AXE, Items.STONE_SHOVEL, Items.STONE_SWORD);
+        Result result = new Result();
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 18000, () -> false);
+        runner.setEventSink(result);
+        runner.start(
+                new BatchObtainTask(
+                        toolIds.stream()
+                                .map(itemId -> new CraftPlanner.Target(itemId, 1))
+                                .toList(),
+                        false,
+                        true,
+                        64,
+                        17000,
+                        64,
+                        128,
+                        8000,
+                        "local",
+                        caller,
+                        null,
+                        new MinecraftObtainSubtaskFactory()),
+                "obtain_items");
+        int[] phase = {0};
+        int[] waitForPickup = {0};
+        boolean[] deliveryStarted = {false};
+        boolean[] completed = {false};
+        TaskTrace.of(h, runner, companion).succeedWhen(() -> {
+            if (phase[0] == 0) {
+                runner.tick();
+                h.assertTrue(result.status != null, "the buried-stone batch should finish");
+                h.assertTrue(result.status == TaskStatus.SUCCESS, result.summary + " at " + companion.blockPosition());
+                for (Item item : tools) {
+                    h.assertValueEqual(companion.inventory().countItem(item), 1, "crafted " + item);
+                }
+                result.status = null;
+                result.summary = null;
+                phase[0] = 1;
+            } else if (phase[0] <= tools.size()) {
+                if (!deliveryStarted[0]) {
+                    runner.start(
+                            new GiveItemsTask(
+                                    ItemMatcher.parse(toolIds.get(phase[0] - 1)).orElseThrow(), 1),
+                            "give_items");
+                    deliveryStarted[0] = true;
+                }
+                runner.tick();
+                if (result.status != null) {
+                    h.assertTrue(result.status == TaskStatus.SUCCESS, result.summary);
+                    result.status = null;
+                    result.summary = null;
+                    phase[0]++;
+                    deliveryStarted[0] = false;
+                }
+            } else {
+                waitForPickup[0]++;
+                if (waitForPickup[0] >= 12) {
+                    AABB aroundOwner = new AABB(owner.blockPosition()).inflate(8);
+                    for (ItemEntity drop : h.getLevel().getEntitiesOfClass(ItemEntity.class, aroundOwner)) {
+                        if (tools.stream().anyMatch(drop.getItem()::is)) {
+                            drop.playerTouch(owner);
+                        }
+                    }
+                }
+                boolean receivedAll = true;
+                for (Item item : tools) {
+                    int received = owner.getInventory().countItem(item);
+                    h.assertTrue(received <= 1, "owner received duplicate " + item + ": " + received);
+                    receivedAll &= received == 1;
+                }
+                if (receivedAll) {
+                    for (Item item : tools) {
+                        h.assertValueEqual(owner.getInventory().countItem(item), 1, "owner received " + item);
+                    }
+                    completed[0] = true;
+                }
+            }
+            if (phase[0] > tools.size()) {
+                h.assertTrue(waitForPickup[0] < 80, "owner did not pick up all delivered tools");
+            }
+            h.assertTrue(completed[0], "still working through the obtain and delivery sequence");
         });
     }
 

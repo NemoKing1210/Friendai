@@ -6,6 +6,14 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.209.6] - 2026-11-07
+
+### Fixed
+
+- Resource searches can find a visible block even when an older remembered location is empty or hidden.
+- A batch of crafts no longer repeatedly gathers the same missing crafting station.
+- Routine recovery and achievement chatter no longer interrupt an active order unnecessarily.
+
 ## [0.209.5] - 2026-11-07
 
 ### Fixed

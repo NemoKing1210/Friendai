@@ -154,6 +154,45 @@ public class SocialOpeningTests {
         });
     }
 
+    @GameTest(maxTicks = 3500)
+    public void aJournaledCompanionDeathDoesNotRepeatFromCarryFallback(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        ServerRuntime runtime = GameTestSupport.runtime(h.getLevel().getServer());
+        setOwnerLanguage(runtime, owner.getUUID(), "English");
+        Script script = new Script();
+        runtime.sessions().setGatewayOverride(owner.getUUID(), script);
+        CompanionManager.get(h.getLevel().getServer()).summon(owner);
+        long tick = h.getLevel().getGameTime();
+        runtime.memory()
+                .book(owner.getUUID())
+                .recordHappening(
+                        owner.getUUID(),
+                        new dev.friendai.foundation.social.Happening(
+                                dev.friendai.foundation.social.Happening.Kind.DEATH,
+                                dev.friendai.foundation.social.Happening.Importance.NORMAL,
+                                (int) tick,
+                                "mydeath:" + tick,
+                                "I died to a zombie"));
+        dev.friendai.entity.CompanionCarryData.get(h.getLevel().getServer())
+                .record(
+                        owner.getUUID(),
+                        new net.minecraft.nbt.CompoundTag(),
+                        new dev.friendai.features.survival.DeathRecord("overworld", 3, 2, 2, "entity", "zombie", tick));
+
+        long[] firstOpeningAt = {-1};
+        h.succeedWhen(() -> {
+            int count = openingsAbout(socialOpenings(script), "I died to a zombie");
+            if (count > 0 && firstOpeningAt[0] < 0) {
+                firstOpeningAt[0] = h.getLevel().getGameTime();
+            }
+            h.assertTrue(
+                    firstOpeningAt[0] >= 0 && h.getLevel().getGameTime() - firstOpeningAt[0] >= 3000,
+                    "wait through the cadence window after the first death line");
+            h.assertValueEqual(count, 1, "the journaled death should be delivered once; carry data must not repeat it");
+        });
+    }
+
     /**
      * One owner death is said once, and only where it can be heard: beside the companion it raises a single line, while
      * the same death next to a companion that stands far above the owner raises nothing at all.
@@ -317,6 +356,113 @@ public class SocialOpeningTests {
                             "a finished task must not be raised as a happening: " + opening);
                 }
                 h.succeed();
+            });
+        });
+    }
+
+    @GameTest(maxTicks = 1100)
+    public void advancementFactWaitsUntilAnOwnerJobFinishes(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        ServerRuntime runtime = GameTestSupport.runtime(h.getLevel().getServer());
+        setOwnerLanguage(runtime, owner.getUUID(), "English");
+        Script script = new Script();
+        runtime.sessions().setGatewayOverride(owner.getUUID(), script);
+        CompanionEntity companion =
+                CompanionManager.get(h.getLevel().getServer()).summon(owner);
+        runtime.memory()
+                .book(owner.getUUID())
+                .recordHappening(
+                        owner.getUUID(),
+                        new dev.friendai.foundation.social.Happening(
+                                dev.friendai.foundation.social.Happening.Kind.ADVANCEMENT,
+                                dev.friendai.foundation.social.Happening.Importance.HIGH,
+                                0,
+                                "advancement:busy-low",
+                                "you discovered a small cave"));
+        companion.executionCoordinator().start(new WaitTask(600), "wait");
+
+        h.runAfterDelay(160, () -> {
+            h.assertTrue(
+                    "wait".equals(companion.executionCoordinator().currentToolName()),
+                    "precondition: the owner job is still active");
+            h.assertTrue(
+                    socialOpenings(script).isEmpty(),
+                    "advancement facts and ambient topics stay quiet during an owner job");
+            h.assertTrue(
+                    journalKeys(runtime, owner).contains("advancement:busy-low"),
+                    "a deferred fact remains in the journal");
+            h.runAfterDelay(
+                    600,
+                    () -> h.succeedWhen(() -> {
+                        h.assertTrue(
+                                !"wait".equals(companion.executionCoordinator().currentToolName()),
+                                "the owner job should have finished");
+                        h.assertValueEqual(
+                                openingsAbout(socialOpenings(script), "you discovered a small cave"),
+                                1,
+                                "the retained fact is spoken once after the job finishes");
+                    }));
+        });
+    }
+
+    @GameTest(maxTicks = 5500)
+    public void importantFactBypassesDeferredAdvancement(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        ServerRuntime runtime = GameTestSupport.runtime(h.getLevel().getServer());
+        setOwnerLanguage(runtime, owner.getUUID(), "English");
+        Script script = new Script();
+        runtime.sessions().setGatewayOverride(owner.getUUID(), script);
+        CompanionEntity companion =
+                CompanionManager.get(h.getLevel().getServer()).summon(owner);
+        runtime.memory()
+                .book(owner.getUUID())
+                .recordHappening(
+                        owner.getUUID(),
+                        new dev.friendai.foundation.social.Happening(
+                                dev.friendai.foundation.social.Happening.Kind.ADVANCEMENT,
+                                dev.friendai.foundation.social.Happening.Importance.HIGH,
+                                0,
+                                "advancement:deferred-low",
+                                "you discovered a small cave"));
+        companion.executionCoordinator().start(new WaitTask(600), "wait");
+
+        h.runAfterDelay(160, () -> {
+            h.assertTrue(socialOpenings(script).isEmpty(), "the advancement fact is deferred while the job runs");
+            runtime.memory()
+                    .book(owner.getUUID())
+                    .recordHappening(
+                            owner.getUUID(),
+                            new dev.friendai.foundation.social.Happening(
+                                    dev.friendai.foundation.social.Happening.Kind.DEATH,
+                                    dev.friendai.foundation.social.Happening.Importance.HIGH,
+                                    1,
+                                    "death:urgent-during-job",
+                                    "you died to a creeper"));
+            h.runAfterDelay(80, () -> {
+                h.assertValueEqual(
+                        openingsAbout(socialOpenings(script), "you died to a creeper"),
+                        1,
+                        "an important fact bypasses the deferred low priority fact");
+                h.assertValueEqual(
+                        openingsAbout(socialOpenings(script), "you discovered a small cave"),
+                        0,
+                        "the advancement remains deferred while the job runs");
+                h.runAfterDelay(
+                        4300,
+                        () -> h.succeedWhen(() -> {
+                            h.assertTrue(
+                                    !"wait"
+                                            .equals(companion
+                                                    .executionCoordinator()
+                                                    .currentToolName()),
+                                    "the owner job should have finished");
+                            h.assertValueEqual(
+                                    openingsAbout(socialOpenings(script), "you discovered a small cave"),
+                                    1,
+                                    "the deferred fact is delivered after the job finishes");
+                        }));
             });
         });
     }

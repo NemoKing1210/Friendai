@@ -580,6 +580,135 @@ class CraftPlannerTest {
     }
 
     @Test
+    void materialsForSharesOneMissingStationAcrossFourTargets() {
+        FakeRecipeBook book = new FakeRecipeBook();
+        List<CraftPlanner.Target> targets = new java.util.ArrayList<>();
+        for (int i = 0; i < 4; i++) {
+            String item = "test:target_" + i;
+            book.add(new Recipe(item, item, 1, List.of(Ingredient.of("test:raw")), Station.CRAFTING_TABLE));
+            targets.add(new CraftPlanner.Target(item, 1));
+        }
+        assertEquals(
+                List.of(
+                        new CraftPlanner.RawNeed("minecraft:crafting_table", Set.of("minecraft:crafting_table"), 1),
+                        new CraftPlanner.RawNeed("test:raw", Set.of("test:raw"), 4)),
+                CraftPlanner.materialsFor(targets, Map.of(), book, Set.of()));
+    }
+
+    @Test
+    void materialsForSeparatesReusableStationFromConsumedStationItems() {
+        FakeRecipeBook book = new FakeRecipeBook()
+                .add(new Recipe(
+                        "test:output",
+                        "test:output",
+                        1,
+                        List.of(Ingredient.of("minecraft:crafting_table")),
+                        Station.CRAFTING_TABLE));
+        assertEquals(
+                List.of(new CraftPlanner.RawNeed("minecraft:crafting_table", Set.of("minecraft:crafting_table"), 4)),
+                CraftPlanner.materialsFor(
+                        List.of(new CraftPlanner.Target("test:output", 2), new CraftPlanner.Target("test:output", 1)),
+                        Map.of(),
+                        book,
+                        Set.of()));
+    }
+
+    @Test
+    void materialsForKeepsDifferentStationRequirements() {
+        FakeRecipeBook book = new FakeRecipeBook()
+                .add(new Recipe("test:a", "test:a", 1, List.of(), Station.CRAFTING_TABLE))
+                .add(new Recipe("test:b", "test:b", 1, List.of(), Station.STONECUTTER));
+        assertEquals(
+                List.of(
+                        new CraftPlanner.RawNeed("minecraft:crafting_table", Set.of("minecraft:crafting_table"), 1),
+                        new CraftPlanner.RawNeed("minecraft:stonecutter", Set.of("minecraft:stonecutter"), 1)),
+                CraftPlanner.materialsFor(
+                        List.of(new CraftPlanner.Target("test:a", 1), new CraftPlanner.Target("test:b", 1)),
+                        Map.of(),
+                        book,
+                        Set.of()));
+    }
+
+    @Test
+    void materialsForRecomputesStationDeficitAfterInventoryChanges() {
+        FakeRecipeBook book = new FakeRecipeBook()
+                .add(new Recipe(
+                        "test:table",
+                        "minecraft:crafting_table",
+                        1,
+                        List.of(Ingredient.of("test:wood"), Ingredient.of("test:wood")),
+                        Station.INVENTORY))
+                .add(new Recipe("test:output", "test:output", 1, List.of(), Station.CRAFTING_TABLE));
+        List<CraftPlanner.Target> targets =
+                List.of(new CraftPlanner.Target("test:output", 1), new CraftPlanner.Target("test:output", 1));
+        assertEquals(
+                List.of(new CraftPlanner.RawNeed("test:wood", Set.of("test:wood"), 1)),
+                CraftPlanner.materialsFor(targets, Map.of("test:wood", 1), book, Set.of()));
+        assertEquals(List.of(), CraftPlanner.materialsFor(targets, Map.of("test:wood", 2), book, Set.of()));
+        assertEquals(
+                List.of(new CraftPlanner.RawNeed("minecraft:crafting_table", Set.of("minecraft:crafting_table"), 1)),
+                CraftPlanner.materialsFor(targets, Map.of(), book, Set.of()));
+    }
+
+    @Test
+    void materialsForDiscardsStationRequirementsFromRejectedAlternativeAndNestedFailures() {
+        FakeRecipeBook book = new FakeRecipeBook()
+                .add(new Recipe(
+                        "test:rejected",
+                        "test:output",
+                        1,
+                        List.of(Ingredient.of("test:raw"), Ingredient.of("test:raw")),
+                        Station.STONECUTTER))
+                .add(new Recipe("test:chosen", "test:output", 1, List.of(), Station.CRAFTING_TABLE))
+                .add(new Recipe(
+                        "test:nested", "test:nested", 1, List.of(Ingredient.of("test:output")), Station.INVENTORY));
+        assertEquals(
+                List.of(
+                        new CraftPlanner.RawNeed("minecraft:crafting_table", Set.of("minecraft:crafting_table"), 1),
+                        new CraftPlanner.RawNeed("test:raw", Set.of("test:raw"), 1),
+                        new CraftPlanner.RawNeed("minecraft:stonecutter", Set.of("minecraft:stonecutter"), 1)),
+                CraftPlanner.materialsFor(
+                        List.of(
+                                new CraftPlanner.Target("test:output", 1),
+                                new CraftPlanner.Target("test:raw", 1),
+                                new CraftPlanner.Target("test:rejected_target", 1)),
+                        Map.of(),
+                        book.add(new Recipe("test:last", "test:rejected_target", 1, List.of(), Station.STONECUTTER)),
+                        Set.of()));
+        assertEquals(
+                List.of(
+                        new CraftPlanner.RawNeed("test:output", Set.of("test:output"), 1),
+                        new CraftPlanner.RawNeed("minecraft:crafting_table", Set.of("minecraft:crafting_table"), 1)),
+                CraftPlanner.materialsFor(
+                        List.of(new CraftPlanner.Target("test:nested", 1), new CraftPlanner.Target("test:output", 1)),
+                        Map.of(),
+                        book,
+                        Set.of()));
+    }
+
+    @Test
+    void materialsForSharesNestedStationDeficitsWithoutReusingConsumedInventory() {
+        FakeRecipeBook book = new FakeRecipeBook()
+                .add(new Recipe(
+                        "test:smithing",
+                        "minecraft:smithing_table",
+                        1,
+                        List.of(Ingredient.of("test:raw"), Ingredient.of("test:raw")),
+                        Station.CRAFTING_TABLE))
+                .add(new Recipe("test:a", "test:a", 1, List.of(Ingredient.of("test:raw")), Station.SMITHING_TABLE))
+                .add(new Recipe("test:b", "test:b", 1, List.of(), Station.CRAFTING_TABLE));
+        assertEquals(
+                List.of(
+                        new CraftPlanner.RawNeed("minecraft:crafting_table", Set.of("minecraft:crafting_table"), 1),
+                        new CraftPlanner.RawNeed("test:raw", Set.of("test:raw"), 2)),
+                CraftPlanner.materialsFor(
+                        List.of(new CraftPlanner.Target("test:a", 1), new CraftPlanner.Target("test:b", 1)),
+                        Map.of("test:raw", 1),
+                        book,
+                        Set.of()));
+    }
+
+    @Test
     void materialsForRejectsInvalidTargets() {
         assertThrows(
                 IllegalArgumentException.class,
