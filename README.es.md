@@ -178,7 +178,7 @@ Una solicitud compleja, una petición explícita de plan, un plan con problemas,
 | `promptBudget` | `24000` | Presupuesto de caracteres del prompt del sistema; `0` significa ilimitado. |
 | `planner` | ninguno | Nombre de un perfil para la planificación; vacío usa el perfil activo. |
 | `plannerMode` | `auto` | `auto` planifica un pedido complejo o pedido explícitamente, un plan con problemas, un objetivo pendiente y un turno de tiempo libre; `off` no consulta al planificador por ningún motivo, y el tiempo libre usa su alternativa determinista; `always` consulta por cada pedido accionable (para diagnóstico). |
-| `plannerRetries` | `2` | Envíos totales para una llamada al planificador (1–4). Solo se reenvía un fallo de conexión reintentable; un plan rechazado no. |
+| `plannerRetries` | `2` | Envíos totales al planificador (1–4). Un plan rechazado no se reenvía; un fallo de transporte dentro de un envío lo sigue reintentando la capa HTTP. |
 | `plannerTimeoutSec` | `20` | Cuánto puede tardar una llamada al planificador (5–120). |
 
 ## Comercio

@@ -51,9 +51,10 @@ public record PlanSignals(
 
     /**
      * The facts of a free-time shift's planner consultation: an event turn with one shift and no player text, so the
-     * same {@link PlanningPolicy} rule decides whether a shift is planned under the configured mode.
+     * same {@link PlanningPolicy} rule decides whether a shift is planned under the configured mode. A goal's replan
+     * budget has no meaning for a shift, so {@code budgetSpent} stays false here.
      */
-    public static PlanSignals freeTimeShift(long shiftId, boolean budgetSpent) {
+    public static PlanSignals freeTimeShift(long shiftId) {
         return new PlanSignals(
                 TurnMode.EVENT,
                 "",
@@ -66,7 +67,7 @@ public record PlanSignals(
                 false,
                 true,
                 true,
-                budgetSpent,
+                false,
                 0,
                 "",
                 0,

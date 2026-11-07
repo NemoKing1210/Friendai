@@ -178,7 +178,7 @@ Une demande complexe, une demande explicite de plan, un plan perturbé, un objec
 | `promptBudget` | `24000` | Budget en caractères du prompt système ; `0` signifie illimité. |
 | `planner` | aucun | Nom d'un profil à utiliser pour la planification ; vide utilise le profil actif. |
 | `plannerMode` | `auto` | `auto` planifie une demande complexe ou explicitement demandée, un plan perturbé, un objectif non atteint et un créneau de temps libre ; `off` ne consulte jamais le planificateur et le temps libre utilise son repli déterministe ; `always` consulte pour chaque demande réalisable (pour le diagnostic). |
-| `plannerRetries` | `2` | Nombre total d’envois pour un appel au planificateur (1–4). Seule une panne de connexion réessayable est renvoyée ; un plan refusé ne l’est pas. |
+| `plannerRetries` | `2` | Nombre total d’envois au planificateur (1–4). Un plan refusé n’est pas renvoyé ; une panne de transport dans un envoi est toujours réessayée par la couche HTTP. |
 | `plannerTimeoutSec` | `20` | Durée maximale d'un appel de planificateur (5–120). |
 
 ## Commerce

@@ -786,7 +786,7 @@
   "friendai.config.agent.planner": "Planer-Profil",
   "friendai.config.agent.planner.tooltip": "Profil, das Pläne entwirft. Eine leere Auswahl nutzt das aktive Profil. Wähle ein Modell, das JSON zurückgeben kann.",
   "friendai.config.agent.planner_retries": "Planer-Wiederholungen",
-  "friendai.config.agent.planner_retries.tooltip": "Gesamtzahl der Sendungen für einen Planer-Aufruf, inklusive der ersten (1–4, Standard 2). Nur ein wiederholbarer Verbindungsfehler wird erneut gesendet; ein vom Planer abgelehnter Plan wird nicht erneut gesendet. Zusätzliche Versuche können bezahlte Tokens verbrauchen.",
+  "friendai.config.agent.planner_retries.tooltip": "Gesamtzahl der Planer-Sendeversuche, inklusive des ersten (1–4, Standard 2); ein Transportfehler innerhalb eines Versuchs wird weiterhin von der HTTP-Schicht wiederholt. Ein vom Planer abgelehnter Plan wird nicht erneut gesendet. Zusätzliche Versuche können bezahlte Tokens verbrauchen.",
   "friendai.config.agent.planner_mode": "Planer-Modus",
   "friendai.config.agent.planner_mode.tooltip": "Wann der Begleiter vor dem Handeln den Planer fragt: auto plant einen komplexen oder ausdrücklich verlangten Auftrag, einen gestörten Plan, ein offenes Ziel und eine Freizeit-Schicht; off fragt bei keinem Anlass (Auftrag, Ziel, gestörtem Plan oder Freizeit), und die Freizeit nutzt ihre deterministische Ersatzlösung; always fragt bei jedem ausführbaren Auftrag (zur Diagnose).",
   "friendai.config.tasks.place_interval": "Bautempo (Ticks pro Block)",

@@ -228,7 +228,7 @@ A complex request, an explicit request for a plan, a live troubled plan, an idle
 | `promptBudget` | `24000` | Character budget of the system prompt; `0` means unlimited. |
 | `planner` | none | Name of a profile to use for planning; empty uses the active profile. |
 | `plannerMode` | `auto` | `auto` plans a complex or explicitly requested order, a troubled plan, an unmet goal and a free-time shift; `off` never asks the planner about any of them, so free time uses its deterministic fallback; `always` asks about every actionable order, for diagnosis. |
-| `plannerRetries` | `2` | Total send attempts for one planner call (1–4). Only a retryable transport fault is re-sent; a plan the planner rejects is not sent again. |
+| `plannerRetries` | `2` | Total planner send attempts (1–4). A plan the planner rejects is not sent again; a transport fault *inside* one send is still retried by the HTTP layer, so this is a count of sends, not of HTTP requests. |
 | `plannerTimeoutSec` | `20` | How long a planner call may take (5–120). |
 
 ## Routines

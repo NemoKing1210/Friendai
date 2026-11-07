@@ -783,7 +783,7 @@
   "friendai.config.agent.planner": "Perfil del planificador",
   "friendai.config.agent.planner.tooltip": "Perfil que se usa para redactar planes. Si no eliges ninguno, se usa el perfil activo. Elige un modelo capaz de devolver JSON.",
   "friendai.config.agent.planner_retries": "Reintentos del planificador",
-  "friendai.config.agent.planner_retries.tooltip": "Envíos totales para una llamada al planificador, incluido el primero (1–4, predeterminado 2). Solo se reenvía un fallo de conexión reintentable; un plan que el planificador rechaza no se vuelve a enviar. Los envíos extra pueden consumir tokens de pago.",
+  "friendai.config.agent.planner_retries.tooltip": "Envíos totales al planificador, incluido el primero (1–4, predeterminado 2); un fallo de transporte dentro de un envío lo sigue reintentando la capa HTTP. Un plan que el planificador rechaza no se vuelve a enviar. Los envíos extra pueden consumir tokens de pago.",
   "friendai.config.agent.planner_mode": "Modo del planificador",
   "friendai.config.agent.planner_mode.tooltip": "Cuándo consulta el acompañante al planificador antes de actuar: auto planifica un pedido complejo o pedido explícitamente, un plan con problemas, un objetivo pendiente y un turno de tiempo libre; off no consulta por ningún motivo (pedido, objetivo, plan con problemas ni tiempo libre), y el tiempo libre usa su alternativa determinista; always consulta por cada pedido accionable (para diagnóstico).",
   "friendai.config.tasks.place_interval": "Ritmo de construcción (ticks por bloque)",

@@ -137,7 +137,10 @@ public class ServerConfig {
         public int promptBudget = 24_000;
         /** Name of the profile used for the planner call; null uses the active profile. */
         public String planner = null;
-        /** Total sends for one planner request, including the first; a rejected reply is not re-sent. */
+        /**
+         * Total planner send attempts, including the first; a rejected reply is not re-sent, while a transport fault
+         * inside one attempt is still retried by the HTTP layer.
+         */
         public int plannerRetries = 2;
 
         public int plannerTimeoutSec = 20;

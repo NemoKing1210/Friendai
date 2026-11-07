@@ -178,7 +178,7 @@ Eine komplexe Anfrage, eine ausdrückliche Plananfrage, ein gestörter Plan, ein
 | `promptBudget` | `24000` | Zeichenbudget des System-Prompts; `0` bedeutet unbegrenzt. |
 | `planner` | keins | Name eines Profils für die Planung; leer verwendet das aktive Profil. |
 | `plannerMode` | `auto` | `auto` plant einen komplexen oder ausdrücklich verlangten Auftrag, einen gestörten Plan, ein offenes Ziel und eine Freizeit-Schicht; `off` fragt den Planer bei keinem Anlass, und die Freizeit nutzt ihre deterministische Ersatzlösung; `always` fragt bei jedem ausführbaren Auftrag (zur Diagnose). |
-| `plannerRetries` | `2` | Gesamtzahl der Sendungen für einen Planer-Aufruf (1–4). Nur ein wiederholbarer Verbindungsfehler wird erneut gesendet; ein abgelehnter Plan nicht. |
+| `plannerRetries` | `2` | Gesamtzahl der Planer-Sendeversuche (1–4). Ein abgelehnter Plan wird nicht erneut gesendet; ein Transportfehler innerhalb eines Versuchs wird weiterhin von der HTTP-Schicht wiederholt. |
 | `plannerTimeoutSec` | `20` | Wie lange ein Planer-Aufruf dauern darf (5–120). |
 
 ## Handel

@@ -160,8 +160,7 @@ final class ShiftPlanRequester {
         int epoch = planEpoch.getOrDefault(owner, 0);
         Caller caller = new Caller(owner, "", AccessLevel.OWNER);
         PlanSubject subject = new PlanSubject.FreeTimeShift(shiftId);
-        PlanningDecision decision =
-                planningPolicy.beforeTurn(PlanSignals.freeTimeShift(shiftId, false), plannerMode.get());
+        PlanningDecision decision = planningPolicy.beforeTurn(PlanSignals.freeTimeShift(shiftId), plannerMode.get());
         if (!decision.required()) {
             brains.plannerDebug(owner, "planner disposition=given up: " + decision.reason());
             fallBackWithoutPlanner(owner, companion, shiftId, minutes, subject, decision.reason());

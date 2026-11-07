@@ -29,9 +29,10 @@ public final class PlanningPolicy {
 
     /**
      * Decides the planning need under one eagerness setting. {@link PlannerMode#OFF} never asks about any subject;
-     * {@link PlannerMode#ALWAYS} also drafts a plan for an actionable owner order — one that names a recognized kind
-     * of work, a complex marker or an explicit plan request — so a greeting costs no planner request. An event turn
-     * has no player text, so a free-time shift or an unmet goal is decided by the ordinary rules.
+     * {@link PlannerMode#ALWAYS} also drafts a plan for an actionable owner order — an order turn whose owner text
+     * names a recognized kind of work, carries a complexity marker or asks for a plan — while a line with no
+     * recognized kind of work and no complexity marker still costs no planner request. An event turn has no player
+     * text, so a free-time shift or an unmet goal is decided by the ordinary rules.
      */
     public PlanningDecision beforeTurn(PlanSignals signals, PlannerMode mode) {
         if (mode == PlannerMode.OFF) return PlanningDecision.none(PLANNER_OFF);
