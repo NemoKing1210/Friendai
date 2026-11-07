@@ -24,6 +24,22 @@ class GatheringToolsTest {
         assertTrue(properties.has("until_item"));
         assertTrue(properties.has("until_count"));
         assertTrue(properties.has("require_tool"));
+        assertTrue(properties.has("explore"));
+    }
+
+    /**
+     * The flag is part of the accepted argument set, so a caller can turn the one search off; the world-touching
+     * creation path needs a bootstrapped server and is covered by the GameTest.
+     */
+    @Test
+    void mineBlocksAcceptsTheExploreFlag() {
+        IllegalArgumentException error = assertThrows(
+                IllegalArgumentException.class,
+                () -> definition("mine_blocks").factory().create(null, args("""
+                        {"block":"minecraft:stone","count":1,"explore":false,"wrong":true}
+                        """)));
+
+        assertTrue(error.getMessage().contains("explore"));
     }
 
     @Test

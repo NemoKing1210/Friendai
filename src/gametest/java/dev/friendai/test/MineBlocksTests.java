@@ -12,6 +12,7 @@ import dev.friendai.features.mining.minecraft.task.MineBlockAtTask;
 import dev.friendai.features.mining.minecraft.task.MineBlocksTask;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.execution.TaskEventSink;
+import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.inventory.ItemMatcher;
@@ -604,6 +605,100 @@ public class MineBlocksTests {
     /** Persistent leaves, so they do not decay while the test waits. */
     private static void leaf(GameTestHelper h, int x, int y, int z) {
         h.setBlock(new BlockPos(x, y, z), Blocks.OAK_LEAVES.defaultBlockState().setValue(LeavesBlock.PERSISTENT, true));
+    }
+
+    /**
+     * An unseen target is looked for once through the bound search port, then the job reports the existing message.
+     */
+    @GameTest(maxTicks = 200)
+    public void missingTargetSearchesOnceBeforeFailing(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        java.util.concurrent.atomic.AtomicInteger created = new java.util.concurrent.atomic.AtomicInteger();
+        MineBlocksTask task = new MineBlocksTask(
+                new BlockFilter(BlockMatcher.parse("minecraft:spruce_log").orElseThrow(), List.of()),
+                3,
+                16,
+                null,
+                false,
+                false,
+                false,
+                null,
+                0,
+                (companion, blockOrTag, radius, maxTicks) -> {
+                    created.incrementAndGet();
+                    return new SearchStub();
+                },
+                true);
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(task, "mine_blocks");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.FAILED, "not finished: " + result.status + " " + result.summary);
+            h.assertValueEqual(created.get(), 1, "exactly one bounded search");
+            h.assertTrue(result.summary.startsWith("no minecraft:spruce_log"), "summary was " + result.summary);
+        });
+    }
+
+    /** explore:false keeps the old refusal byte for byte and never creates a search. */
+    @GameTest(maxTicks = 200)
+    public void exploreFalseNeverSearches(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        java.util.concurrent.atomic.AtomicInteger created = new java.util.concurrent.atomic.AtomicInteger();
+        MineBlocksTask task = new MineBlocksTask(
+                new BlockFilter(BlockMatcher.parse("minecraft:spruce_log").orElseThrow(), List.of()),
+                3,
+                16,
+                null,
+                false,
+                false,
+                false,
+                null,
+                0,
+                (companion, blockOrTag, radius, maxTicks) -> {
+                    created.incrementAndGet();
+                    return new SearchStub();
+                },
+                false);
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(task, "mine_blocks");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.FAILED, "not finished: " + result.status + " " + result.summary);
+            h.assertValueEqual(created.get(), 0, "explore:false must not search");
+        });
+    }
+
+    /** The bounded search the mining job ticks for itself; one tick is enough for the re-scan to run. */
+    private static final class SearchStub implements Task {
+        @Override
+        public String type() {
+            return "search_resource";
+        }
+
+        @Override
+        public void start(TaskContext c) {}
+
+        @Override
+        public TaskStatus tick(TaskContext c) {
+            return TaskStatus.SUCCESS;
+        }
+
+        @Override
+        public void stop(TaskContext c) {}
+
+        @Override
+        public String describe() {
+            return "searching for the block";
+        }
+
+        @Override
+        public String resultSummary() {
+            return "";
+        }
     }
 
     /** A log with every face but the floor covered: no standing spot can see it. */

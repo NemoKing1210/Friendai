@@ -30,6 +30,11 @@ public final class BlockFilter implements BlockMatcher {
         return true;
     }
 
+    /** The included block id or tag, without the exclusions {@link #label()} names. */
+    public String includeLabel() {
+        return include.label();
+    }
+
     /** The include label followed by every exclusion, in the order the caller supplied them. */
     @Override
     public String label() {

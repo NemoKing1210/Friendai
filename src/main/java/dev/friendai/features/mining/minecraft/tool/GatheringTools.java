@@ -21,6 +21,7 @@ import dev.friendai.perception.resource.ResourceCandidates;
 import dev.friendai.server.execution.tools.FeatureToolContributor;
 import dev.friendai.server.execution.tools.FeatureToolRegistry;
 import dev.friendai.server.execution.tools.TaskToolDefinition;
+import dev.friendai.task.BlockSearchTaskFactory;
 import dev.friendai.task.Task;
 import dev.friendai.task.inventory.ItemMatcher;
 import dev.friendai.world.block.BlockMatcher;
@@ -43,6 +44,7 @@ public final class GatheringTools implements FeatureToolContributor {
     private final BooleanSupplier fellCollectDrops;
     private final Function<CompanionEntity, ResourceCandidates> resourceCandidates;
     private final PlaceService places;
+    private final BlockSearchTaskFactory blockSearch;
 
     public GatheringTools(IntSupplier mineRadius, IntSupplier treeRadius) {
         this(mineRadius, treeRadius, () -> true, () -> true);
@@ -87,12 +89,31 @@ public final class GatheringTools implements FeatureToolContributor {
             BooleanSupplier fellCollectDrops,
             Function<CompanionEntity, ResourceCandidates> resourceCandidates,
             PlaceService places) {
+        this(
+                mineRadius,
+                treeRadius,
+                mineCollectDrops,
+                fellCollectDrops,
+                resourceCandidates,
+                places,
+                BlockSearchTaskFactory.NONE);
+    }
+
+    public GatheringTools(
+            IntSupplier mineRadius,
+            IntSupplier treeRadius,
+            BooleanSupplier mineCollectDrops,
+            BooleanSupplier fellCollectDrops,
+            Function<CompanionEntity, ResourceCandidates> resourceCandidates,
+            PlaceService places,
+            BlockSearchTaskFactory blockSearch) {
         this.mineRadius = mineRadius;
         this.treeRadius = treeRadius;
         this.mineCollectDrops = mineCollectDrops;
         this.fellCollectDrops = fellCollectDrops;
         this.resourceCandidates = resourceCandidates;
         this.places = java.util.Objects.requireNonNull(places);
+        this.blockSearch = java.util.Objects.requireNonNull(blockSearch);
     }
 
     @Override
@@ -139,7 +160,10 @@ public final class GatheringTools implements FeatureToolContributor {
         excludeItem.addProperty("type", "string");
         registry.registerTask(task(
                 "mine_blocks",
-                "Mine N blocks of the given block id or #tag near the companion and collect the drops. It mines only blocks you have observed or remembered; it does not search for unseen blocks. Use search_resource for a buried resource. One call mines up to 64 blocks; give count for the whole batch. "
+                "Mine N blocks of the given block id or #tag near the companion and collect the drops. "
+                        + "When the target has not been observed or remembered nearby, one bounded search runs first; "
+                        + "pass explore:false to skip it. "
+                        + "One call mines up to 64 blocks; give count for the whole batch. "
                         + "For a standing tree use fell_tree: it climbs once and cuts the whole tree, while this tool "
                         + "would mine one log at a time. "
                         + "Stone and ores need a pickaxe of sufficient tier; without one the task refuses "
@@ -170,6 +194,7 @@ public final class GatheringTools implements FeatureToolContributor {
                         .bool(
                                 "require_tool",
                                 "Do not break a block that needs a harvest tool unless the companion carries one")
+                        .bool("explore", "Run one bounded search for an unseen target before giving up; default true")
                         .required("block", "count")
                         .build(),
                 (c, a) -> createMineTask(c, new Caller(null, "", AccessLevel.TRUSTED), a),
@@ -231,7 +256,8 @@ public final class GatheringTools implements FeatureToolContributor {
                 "placed",
                 "until_item",
                 "until_count",
-                "require_tool");
+                "require_tool",
+                "explore");
         boolean collect = boolArg(a, "collect", mineCollectDrops.getAsBoolean());
         String untilItem = stringOrNull(a, "until_item");
         boolean hasUntilCount = a.has("until_count") && !a.get("until_count").isJsonNull();
@@ -258,6 +284,8 @@ public final class GatheringTools implements FeatureToolContributor {
                 && a.get("placed").getAsBoolean();
         int radius = a.has("radius") ? a.get("radius").getAsInt() : mineRadius.getAsInt();
         boolean requireTool = boolArg(a, "require_tool", false);
+        // A placed-only job must never go looking for an unplaced block, so it never explores.
+        boolean explore = boolArg(a, "explore", true) && !placed;
         return new MineBlocksTask(
                 matcher,
                 a.get("count").getAsInt(),
@@ -267,7 +295,9 @@ public final class GatheringTools implements FeatureToolContributor {
                 placed,
                 requireTool,
                 untilMatcher,
-                untilCount);
+                untilCount,
+                blockSearch,
+                explore);
     }
 
     private Task createFellTask(CompanionEntity c, Caller caller, JsonObject a) {

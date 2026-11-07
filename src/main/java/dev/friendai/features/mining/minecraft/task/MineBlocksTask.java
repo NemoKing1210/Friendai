@@ -21,6 +21,7 @@ import dev.friendai.features.places.PlaceAutoRegistration;
 import dev.friendai.features.places.PlaceCandidate;
 import dev.friendai.foundation.spatial.Node;
 import dev.friendai.foundation.spatial.Pos;
+import dev.friendai.task.BlockSearchTaskFactory;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
@@ -41,9 +42,12 @@ import net.minecraft.tags.BlockTags;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Finds, walks to, breaks N blocks of a kind and sweeps up what they drop. */
 public final class MineBlocksTask implements Task {
+    private static final Logger LOGGER = LoggerFactory.getLogger("friendai/task");
     private final BlockFilter matcher;
     private final int count;
     private final int radius;
@@ -59,6 +63,8 @@ public final class MineBlocksTask implements Task {
     private static final int OBSERVATION_WAIT_TICKS = 400;
     /** How many cells of the planned passage the overlay draws around a mining session. */
     private static final int PASSAGE_DEBUG_CELLS = 64;
+    /** How long one search for an unseen target may run: the configured local search budget's default. */
+    private static final int SEARCH_MAX_TICKS = 2_400;
 
     private BlockBreaker breaker;
     /** Whether the job already let itself break the block it stands on, once per remaining target. */
@@ -110,6 +116,8 @@ public final class MineBlocksTask implements Task {
     private boolean sweepForUntil;
     private boolean finalSweep;
     private boolean toolSkipped;
+    /** The one search this job may run when a scan finds nothing; never searches when its factory is unavailable. */
+    private final Exploration exploration;
 
     public MineBlocksTask(BlockMatcher matcher, int count, int radius) {
         this(matcher, count, radius, null, true, false);
@@ -134,6 +142,37 @@ public final class MineBlocksTask implements Task {
             boolean requireTool,
             ItemMatcher untilMatcher,
             int untilCount) {
+        this(
+                matcher,
+                count,
+                radius,
+                origin,
+                collect,
+                placedOnly,
+                requireTool,
+                untilMatcher,
+                untilCount,
+                BlockSearchTaskFactory.NONE,
+                true);
+    }
+
+    /**
+     * @param searchFactory the port one bounded search for an unseen target goes through; {@link
+     *     BlockSearchTaskFactory#NONE} disables it
+     * @param explore whether a scan that finds nothing may run that search once; a placed-only job never does
+     */
+    public MineBlocksTask(
+            BlockFilter matcher,
+            int count,
+            int radius,
+            BlockPos origin,
+            boolean collect,
+            boolean placedOnly,
+            boolean requireTool,
+            ItemMatcher untilMatcher,
+            int untilCount,
+            BlockSearchTaskFactory searchFactory,
+            boolean explore) {
         this.matcher = matcher;
         this.count = count;
         this.radius = radius;
@@ -143,6 +182,7 @@ public final class MineBlocksTask implements Task {
         this.requireTool = requireTool;
         this.untilMatcher = untilMatcher;
         this.untilCount = untilCount;
+        this.exploration = new Exploration(searchFactory, explore && !placedOnly);
     }
 
     @Override
@@ -572,6 +612,16 @@ public final class MineBlocksTask implements Task {
                 return TaskStatus.RUNNING;
             }
             pendingObservation = null;
+            if (!toolSkipped) {
+                Exploration.Step step = exploration.missing(c, matcher.includeLabel(), radius, SEARCH_MAX_TICKS);
+                if (step == Exploration.Step.RUNNING) {
+                    return TaskStatus.RUNNING;
+                }
+                if (step == Exploration.Step.RESCAN) {
+                    // The search found something new: scan once more with the evidence it gathered.
+                    return search(c);
+                }
+            }
             // Say which it is: nothing around, or blocks that were found and could not be reached.
             boolean hidden = !blacklist.isEmpty();
             if (mined == 0) {
@@ -746,6 +796,7 @@ public final class MineBlocksTask implements Task {
 
     @Override
     public void stop(TaskContext c) {
+        exploration.stop(c);
         if (platform != null) {
             platform.stop();
             platform = null;
@@ -809,6 +860,7 @@ public final class MineBlocksTask implements Task {
             if (failure != null) text.append(" failure=").append(failure.key());
         }
         if (pendingObservation != null) text.append(" waiting=").append(observationWaitTicks);
+        if (exploration.searching()) text.append(" searching");
         if (lastRefusal != null) text.append(" refused=").append(lastRefusal.describe());
         return text.toString();
     }
@@ -854,5 +906,122 @@ public final class MineBlocksTask implements Task {
                         new Pos(maxMined.getX(), maxMined.getY(), maxMined.getZ()),
                         matcher.label())
                 .orElse(null);
+    }
+
+    /**
+     * The one search this job may perform when a scan finds no target: starts one child through the port, ticks it
+     * over the following server ticks and reports whether the caller should scan once more. Package-private so a
+     * headless test can drive it without a world; the child only sees the context the caller passes.
+     */
+    static final class Exploration {
+        enum Step {
+            /** No search ran, none is available, the budget is spent, or the search failed: use the scan's message. */
+            NONE,
+            /** The search is still running: the job keeps ticking. */
+            RUNNING,
+            /** The search succeeded: the caller scans the world once more. */
+            RESCAN
+        }
+
+        private final BlockSearchTaskFactory factory;
+        private final boolean enabled;
+        private Task search;
+        private boolean searched;
+        private int ticks;
+
+        Exploration(BlockSearchTaskFactory factory, boolean enabled) {
+            this.factory = factory == null ? BlockSearchTaskFactory.NONE : factory;
+            this.enabled = enabled && this.factory != BlockSearchTaskFactory.NONE;
+        }
+
+        boolean searching() {
+            return search != null;
+        }
+
+        /**
+         * Called after a scan found nothing: creates the one search when it is allowed, then ticks it until it
+         * finishes or its budget is spent. At most one search is ever created per job.
+         */
+        Step missing(TaskContext c, String blockOrTag, int radius, int maxTicks) {
+            if (search != null) {
+                TaskStatus status;
+                try {
+                    status = search.tick(c);
+                } catch (RuntimeException e) {
+                    LOGGER.warn("Block search crashed; the mining job reports its own result", e);
+                    terminate(c);
+                    return Step.NONE;
+                }
+                if (status == TaskStatus.RUNNING) {
+                    if (++ticks >= maxTicks) {
+                        terminate(c);
+                        return Step.NONE;
+                    }
+                    return Step.RUNNING;
+                }
+                Task finished = search;
+                search = null;
+                release(c, finished);
+                return status == TaskStatus.SUCCESS ? Step.RESCAN : Step.NONE;
+            }
+            if (!enabled || searched) {
+                return Step.NONE;
+            }
+            searched = true;
+            Task created = null;
+            try {
+                created = factory.create(c.companion(), blockOrTag, radius, maxTicks);
+                if (created == null) {
+                    return Step.NONE;
+                }
+                created.start(c);
+            } catch (RuntimeException e) {
+                LOGGER.warn("Block search could not start; the mining job reports its own result", e);
+                if (created != null) {
+                    safeStop(c, created);
+                    release(c, created);
+                }
+                return Step.NONE;
+            }
+            search = created;
+            ticks = 0;
+            return Step.RUNNING;
+        }
+
+        void stop(TaskContext c) {
+            if (search != null) {
+                Task stopping = search;
+                search = null;
+                safeStop(c, stopping);
+            }
+        }
+
+        /** Ends a search that outlived its budget, the way a timeout ends a plan step. */
+        private void terminate(TaskContext c) {
+            Task finished = search;
+            search = null;
+            if (finished == null) {
+                return;
+            }
+            safeStop(c, finished);
+            release(c, finished);
+        }
+
+        private static void safeStop(TaskContext c, Task task) {
+            try {
+                task.stop(c);
+            } catch (RuntimeException e) {
+                LOGGER.warn("Block search failed to stop", e);
+            }
+        }
+
+        /** Terminal cleanup for a child that ended on its own; cancellation uses {@link Task#stop}. */
+        private static void release(TaskContext c, Task task) {
+            try {
+                task.onTerminal(c);
+            } catch (RuntimeException e) {
+                LOGGER.warn("Block search failed terminal cleanup", e);
+            }
+        }
     }
 }

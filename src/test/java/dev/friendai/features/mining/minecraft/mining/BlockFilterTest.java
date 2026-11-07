@@ -28,6 +28,14 @@ class BlockFilterTest {
     }
 
     @Test
+    void includeLabelKeepsTheExclusionsOut() {
+        BlockFilter filter = new BlockFilter(matcher("stone", true), List.of(matcher("dirt", true)));
+
+        assertEquals("stone", filter.includeLabel());
+        assertEquals("stone except dirt", filter.label());
+    }
+
+    @Test
     void parseRejectsBlankParts() {
         assertTrue(BlockFilter.parse("", List.of()).isEmpty());
         assertTrue(BlockFilter.parse("stone", List.of(" ")).isEmpty());

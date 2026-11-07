@@ -46,6 +46,7 @@ import dev.friendai.server.agent.perception.PerceptionContext;
 import dev.friendai.server.execution.tools.ControlTools;
 import dev.friendai.server.execution.tools.FeatureToolContributor;
 import dev.friendai.server.execution.tools.FeatureToolRegistry;
+import dev.friendai.server.execution.tools.MinecraftBlockSearchFactory;
 import dev.friendai.server.execution.tools.MinecraftObtainSubtaskFactory;
 import dev.friendai.server.execution.tools.QueueToolAccess;
 import dev.friendai.server.execution.tools.QueueTools;
@@ -122,7 +123,8 @@ public final class FriendaiTools {
                         mineCollectDrops,
                         fellCollectDrops,
                         dependencies.resourceCandidates(),
-                        dependencies.places()),
+                        dependencies.places(),
+                        new MinecraftBlockSearchFactory(obtainSubtasks)),
                 new ExcavationTools(mineCollectDrops, dependencies.places()),
                 new InventoryTools(),
                 new ObtainTools(obtainSubtasks),
