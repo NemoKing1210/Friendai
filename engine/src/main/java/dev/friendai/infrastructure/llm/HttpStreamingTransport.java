@@ -57,6 +57,8 @@ public final class HttpStreamingTransport implements StreamingHttpTransport {
                         return;
                     }
                     if (response.statusCode() / 100 != 2) {
+                        // A refused body is never read; subscribing and cancelling releases it instead of leaking it.
+                        release(response.body());
                         done.completeExceptionally(new IOException("HTTP " + response.statusCode()));
                         return;
                     }
@@ -111,6 +113,25 @@ public final class HttpStreamingTransport implements StreamingHttpTransport {
             }
         });
         return done;
+    }
+
+    /** Releases an unread response body; without a subscriber the connection would stay open until collected. */
+    private static void release(Flow.Publisher<List<ByteBuffer>> body) {
+        body.subscribe(new Flow.Subscriber<>() {
+            @Override
+            public void onSubscribe(Flow.Subscription subscription) {
+                subscription.cancel();
+            }
+
+            @Override
+            public void onNext(List<ByteBuffer> item) {}
+
+            @Override
+            public void onError(Throwable error) {}
+
+            @Override
+            public void onComplete() {}
+        });
     }
 
     private static byte[] bytes(List<ByteBuffer> buffers) {

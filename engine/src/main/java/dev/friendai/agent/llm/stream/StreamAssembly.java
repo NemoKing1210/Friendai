@@ -30,6 +30,7 @@ public final class StreamAssembly {
     private int outputTokens;
     private StopReason stop;
     private boolean started;
+    private boolean terminal;
 
     public StreamAssembly() {
         this(null);
@@ -70,12 +71,28 @@ public final class StreamAssembly {
     }
 
     public void stop(StopReason reason) {
-        if (reason != null) stop = reason;
+        if (reason != null) {
+            stop = reason;
+            terminal = true;
+        }
+    }
+
+    /** The provider closed the stream without naming a stop reason. */
+    public void done() {
+        terminal = true;
     }
 
     /** Whether the provider actually streamed something a fallback no longer needs to produce. */
     public boolean started() {
         return started;
+    }
+
+    /**
+     * Whether the provider said the reply is complete. Content alone is not a terminal state: a body that ended after
+     * a text or tool-call fragment may have been cut off, and treating it as the answer would speak or run half of one.
+     */
+    public boolean terminal() {
+        return terminal;
     }
 
     public LlmResponse response() {

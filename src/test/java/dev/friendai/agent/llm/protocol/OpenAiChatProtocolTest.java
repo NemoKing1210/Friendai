@@ -3,6 +3,7 @@ package dev.friendai.agent.llm.protocol;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -15,6 +16,8 @@ import dev.friendai.agent.llm.model.ToolSpec;
 import dev.friendai.agent.llm.model.Usage;
 import dev.friendai.agent.llm.provider.AuthStyle;
 import dev.friendai.agent.llm.provider.Endpoint;
+import dev.friendai.agent.llm.stream.SseFrames;
+import dev.friendai.agent.llm.stream.StreamAssembly;
 import dev.friendai.llm.http.HttpTransport;
 import dev.friendai.testutil.MockHttpServer;
 import java.net.http.HttpClient;
@@ -158,6 +161,25 @@ class OpenAiChatProtocolTest {
             assertEquals("/chat/completions", r.path());
             assertEquals("Bearer k", r.header("Authorization"));
         }
+    }
+
+    @Test
+    void aDoneFrameMarksTheAssemblyTerminal() {
+        StreamAssembly assembly = new StreamAssembly();
+        protocol.onFrame(new SseFrames.Frame("message", "[DONE]"), assembly);
+
+        assertTrue(assembly.terminal(), "the provider said the reply ended");
+    }
+
+    @Test
+    void aFinishReasonMarksTheAssemblyTerminalWithoutADoneFrame() {
+        StreamAssembly assembly = new StreamAssembly();
+        protocol.onFrame(
+                new SseFrames.Frame(
+                        "message", "{\"choices\":[{\"delta\":{\"content\":\"ok\"},\"finish_reason\":\"stop\"}]}"),
+                assembly);
+
+        assertTrue(assembly.terminal(), "a finish reason is the provider's terminal state");
     }
 
     @Test

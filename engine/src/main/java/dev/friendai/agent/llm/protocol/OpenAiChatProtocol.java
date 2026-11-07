@@ -68,7 +68,11 @@ public final class OpenAiChatProtocol implements LlmProtocol, StreamingProtocol 
     @Override
     public void onFrame(SseFrames.Frame frame, StreamAssembly assembly) {
         String payload = frame.data().strip();
-        if (payload.isEmpty() || "[DONE]".equals(payload)) {
+        if (payload.isEmpty()) {
+            return;
+        }
+        if ("[DONE]".equals(payload)) {
+            assembly.done();
             return;
         }
         JsonObject chunk;

@@ -3,6 +3,8 @@ package dev.friendai.llm;
 import com.google.gson.JsonObject;
 import dev.friendai.agent.llm.RequestTelemetry;
 import dev.friendai.agent.llm.StreamingHttpTransport;
+import dev.friendai.agent.llm.model.LlmErrorKind;
+import dev.friendai.agent.llm.model.LlmException;
 import dev.friendai.agent.llm.model.LlmRequest;
 import dev.friendai.agent.llm.model.LlmResponse;
 import dev.friendai.agent.llm.model.Message;
@@ -105,6 +107,9 @@ public final class LlmClient implements LlmGateway, StreamingLlmGateway {
             SseFrames frames = new SseFrames();
             StreamAssembly assembly = new StreamAssembly(onDelta);
             CompletableFuture<LlmResponse> result = new CompletableFuture<>();
+            // The ordinary request a refused stream falls back to, so cancelling the caller cancels it too.
+            java.util.concurrent.atomic.AtomicReference<CompletableFuture<LlmResponse>> fallback =
+                    new java.util.concurrent.atomic.AtomicReference<>();
             CompletableFuture<Void> body = streaming.postStream(
                     ProtocolSupport.uri(route.endpoint(), protocol.streamingPath()),
                     ProtocolSupport.headers(route.endpoint()),
@@ -116,29 +121,65 @@ public final class LlmClient implements LlmGateway, StreamingLlmGateway {
                     },
                     telemetry == null ? RequestTelemetry.NONE : telemetry);
             body.whenComplete((ignored, error) -> {
-                for (SseFrames.Frame frame : frames.finish()) {
-                    protocol.onFrame(frame, assembly);
+                try {
+                    // A stop wins over every late frame, including the one that refills the assembled response.
+                    if (result.isCancelled()) return;
+                    for (SseFrames.Frame frame : frames.finish()) {
+                        protocol.onFrame(frame, assembly);
+                    }
+                    if (assembly.started() && assembly.terminal()) {
+                        // The assembled response is authoritative; deltas only told the turn what to say early.
+                        if (onDelta != null) onDelta.accept(new StreamDelta.Done());
+                        result.complete(assembly.response());
+                        return;
+                    }
+                    if (!assembly.started()) {
+                        // Nothing usable streamed: one ordinary request, exactly as a non-streaming profile does.
+                        fallback(system, messages, tools, telemetry, result, fallback);
+                        return;
+                    }
+                    // Something streamed but the provider never closed the reply: a partial answer is not an answer.
+                    result.completeExceptionally(new LlmException(
+                            LlmErrorKind.PARSE, "the streamed reply ended before the provider finished it"));
+                } catch (RuntimeException broken) {
+                    // A faulty terminal frame or a throwing delta consumer must still settle the caller's future.
+                    result.completeExceptionally(broken);
                 }
-                if (error == null && assembly.started()) {
-                    // The assembled response is authoritative; deltas only told the turn what to say early.
-                    if (onDelta != null) onDelta.accept(new StreamDelta.Done());
-                    result.complete(assembly.response());
-                    return;
-                }
-                // Nothing usable streamed: one ordinary request, exactly as a non-streaming profile does.
-                complete(system, messages, tools, false, profile.maxTokens(), telemetry)
-                        .whenComplete((response, fallbackError) -> {
-                            if (fallbackError != null) result.completeExceptionally(fallbackError);
-                            else result.complete(response);
-                        });
             });
             result.whenComplete((response, error) -> {
-                if (result.isCancelled()) body.cancel(true);
+                if (result.isCancelled()) {
+                    body.cancel(true);
+                    CompletableFuture<LlmResponse> active = fallback.get();
+                    if (active != null) active.cancel(true);
+                }
             });
             return result;
         } catch (RuntimeException e) {
             return CompletableFuture.failedFuture(e);
         }
+    }
+
+    /** One ordinary request when the stream carried nothing usable; the caller's cancel reaches it. */
+    private void fallback(
+            String system,
+            List<Message> messages,
+            List<ToolSpec> tools,
+            RequestTelemetry telemetry,
+            CompletableFuture<LlmResponse> result,
+            java.util.concurrent.atomic.AtomicReference<CompletableFuture<LlmResponse>> active) {
+        if (result.isCancelled()) return;
+        CompletableFuture<LlmResponse> request =
+                complete(system, messages, tools, false, profile.maxTokens(), telemetry);
+        active.set(request);
+        if (result.isCancelled()) {
+            // Cancelled between the check above and the hand-over: the fallback must not outlive its caller.
+            request.cancel(true);
+            return;
+        }
+        request.whenComplete((response, error) -> {
+            if (error != null) result.completeExceptionally(error);
+            else result.complete(response);
+        });
     }
 
     private CompletableFuture<LlmResponse> complete(
