@@ -19,6 +19,7 @@ public final class MiningGoal implements PathGoal {
     private final Set<Pos> protectedSupports;
     private final Set<Node> excludedStances;
     private final boolean allowOccludedApproach;
+    private final boolean stepDownTargets;
 
     public MiningGoal(List<Pos> targets, double reach, double eyeHeight, Set<Pos> protectedSupports) {
         this(targets, reach, eyeHeight, protectedSupports, Set.of());
@@ -36,12 +37,29 @@ public final class MiningGoal implements PathGoal {
             Set<Pos> protectedSupports,
             Set<Node> excludedStances,
             boolean allowOccludedApproach) {
+        this(targets, reach, eyeHeight, protectedSupports, excludedStances, allowOccludedApproach, false);
+    }
+
+    /**
+     * @param stepDownTargets the caller planned a carved passage, so a target one block forward and one block down is
+     *     an intended step rather than an underfoot resource; see
+     *     {@link MiningSafety#canBreak(CellView, Node, Pos, Set, boolean)}.
+     */
+    public MiningGoal(
+            List<Pos> targets,
+            double reach,
+            double eyeHeight,
+            Set<Pos> protectedSupports,
+            Set<Node> excludedStances,
+            boolean allowOccludedApproach,
+            boolean stepDownTargets) {
         this.targets = List.copyOf(targets);
         this.reach = reach;
         this.eyeHeight = eyeHeight;
         this.protectedSupports = Set.copyOf(protectedSupports);
         this.excludedStances = Set.copyOf(excludedStances);
         this.allowOccludedApproach = allowOccludedApproach;
+        this.stepDownTargets = stepDownTargets;
     }
 
     @Override
@@ -60,7 +78,7 @@ public final class MiningGoal implements PathGoal {
             double dy = target.y() + 0.5 - (node.y() + eyeHeight);
             double dz = target.z() + 0.5 - (node.z() + 0.5);
             if (dx * dx + dy * dy + dz * dz <= reach * reach
-                    && MiningSafety.canApproach(view, node, target, protectedSupports)) {
+                    && MiningSafety.canApproach(view, node, target, protectedSupports, stepDownTargets)) {
                 return Optional.of(target);
             }
         }
@@ -73,7 +91,7 @@ public final class MiningGoal implements PathGoal {
             return Optional.empty();
         }
         for (Pos target : targets) {
-            if (MiningSafety.canBreak(view, node, target, protectedSupports)
+            if (MiningSafety.canBreak(view, node, target, protectedSupports, stepDownTargets)
                     && new GoalReach(List.of(target), reach, eyeHeight).reachedTarget(node, view) != null) {
                 return Optional.of(target);
             }

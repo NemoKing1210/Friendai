@@ -6,6 +6,10 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+### Fixed
+
+- A staircase dug with `excavate` is now a walkable passage: it is always at least three blocks high and the companion carves it from inside its own cross-section instead of opening a side tunnel for every step.
+
 ## [0.211.0] - 2026-11-07
 
 ### Added

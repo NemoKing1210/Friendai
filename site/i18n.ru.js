@@ -94,8 +94,8 @@ const RU = {
     "Добыть до 64 блоков одного типа за один вызов; древесину получает из целых сваленных деревьев; один раз ищет цель, которую ещё не видел.",
   "Mine the block you point at, follow its vein, and report what was taken.":
     "Добыть указанный блок, пройти по его жиле и сообщить, что подобрано.",
-  "Mine a box, tunnel, stair, shaft or strip mine in one call, with drops and safety; a stall digs down one safe cell, at most three times.":
-    "Прорыть коробку, тоннель, лестницу, шахту или штрек за один вызов, с дропом и безопасностью; при остановке копает вниз на одну безопасную клетку, не более трёх раз.",
+  "Mine a box, tunnel, stair, shaft or strip mine in one call, with drops and safety; a stair is carved as a walkable passage, and a stall digs down one safe cell, at most three times.":
+    "Прорыть коробку, тоннель, лестницу, шахту или штрек за один вызов, с дропом и безопасностью; лестница прорубается как проход, по которому можно идти, а при остановке он копает вниз на одну безопасную клетку, не более трёх раз.",
   "Collect every drop in the radius in one call.": "Подобрать все выпавшие предметы в радиусе за один вызов.",
   "Scan for trees.": "Найти деревья.",
   "Scan for blocks and ore veins.": "Найти блоки и рудные жилы.",

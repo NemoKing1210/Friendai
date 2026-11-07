@@ -47,6 +47,19 @@ public final class MiningSafety {
 
     /** Whether a target may be extracted from this stance without removing its feet, head, or support. */
     public static boolean canBreak(CellView view, Node stance, Pos target, Set<Pos> protectedSupports) {
+        return canBreak(view, stance, target, protectedSupports, false);
+    }
+
+    /**
+     * Whether a planned passage may take the cell one block forward and one block down, the move every descending
+     * stair is made of. The plain rule keeps a full block between the entity's nominal cell and a floor resource,
+     * because the live footprint can extend over an adjacent support when movement has not centered perfectly in its
+     * destination cell. A caller that planned the drop as a step ({@code stepDown}) may take it, but only when the
+     * cell above the target is already open and the cell below it holds a body, so the result is a step and not a
+     * hole.
+     */
+    public static boolean canBreak(
+            CellView view, Node stance, Pos target, Set<Pos> protectedSupports, boolean stepDown) {
         if (target.equals(stance.pos())
                 || target.equals(stance.head())
                 || target.equals(stance.support())
@@ -55,17 +68,23 @@ public final class MiningSafety {
                 || !safeTarget(view, target)) {
             return false;
         }
-        // Keep a full block between the entity's nominal cell and a floor resource: the live footprint can extend
-        // over an adjacent support when movement has not centered perfectly in its destination cell.
         if (target.y() == stance.y() - 1
                 && Math.max(Math.abs(target.x() - stance.x()), Math.abs(target.z() - stance.z())) == 1) {
-            return false;
+            return stepDown
+                    && view.at(target.offset(0, 1, 0)).free()
+                    && view.at(target.offset(0, -1, 0)).supports();
         }
         return true;
     }
 
     /** A supported approach cell may still need its feet or head cleared by the final planned edge. */
     public static boolean canApproach(CellView view, Node stance, Pos target, Set<Pos> protectedSupports) {
+        return canApproach(view, stance, target, protectedSupports, false);
+    }
+
+    /** The approach form of {@link #canBreak(CellView, Node, Pos, Set, boolean)}: a planned step may be approached. */
+    public static boolean canApproach(
+            CellView view, Node stance, Pos target, Set<Pos> protectedSupports, boolean stepDown) {
         if (target.equals(stance.pos())
                 || target.equals(stance.head())
                 || target.equals(stance.support())
@@ -77,7 +96,9 @@ public final class MiningSafety {
         }
         if (target.y() == stance.y() - 1
                 && Math.max(Math.abs(target.x() - stance.x()), Math.abs(target.z() - stance.z())) == 1) {
-            return false;
+            return stepDown
+                    && view.at(target.offset(0, 1, 0)).free()
+                    && view.at(target.offset(0, -1, 0)).supports();
         }
         Cell feet = view.at(stance.pos());
         Cell head = view.at(stance.head());

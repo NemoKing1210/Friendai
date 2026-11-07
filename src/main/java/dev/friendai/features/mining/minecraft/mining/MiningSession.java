@@ -76,6 +76,9 @@ public final class MiningSession {
     private final Set<Node> excludedStances = new HashSet<>();
     private List<BlockPos> targets = List.of();
     private Predicate<BlockState> matches = state -> false;
+    /** The target batch is a carved passage, so a forward-down cell is an intended step (see {@link #setTargets}). */
+    private boolean stepDownTargets;
+
     private Mode mode;
     private int targetY;
     private int heading;
@@ -133,12 +136,22 @@ public final class MiningSession {
 
     /** Selects a batch of explicitly requested resources while keeping this session's route and limits. */
     public void setTargets(List<BlockPos> targets, Predicate<BlockState> matches) {
+        setTargets(targets, matches, false);
+    }
+
+    /**
+     * Selects a batch and says whether a target one block forward and one block down is an intended step. An
+     * excavation region planned its own passage, so its cells may be carved from the step above; a resource request
+     * keeps the stricter floor rule and takes a side stance instead.
+     */
+    public void setTargets(List<BlockPos> targets, Predicate<BlockState> matches, boolean stepDownTargets) {
         if (executor != null || extraction != null) {
             throw new IllegalStateException("Cannot replace mining targets while an action is active");
         }
         this.mode = Mode.TARGETS;
         this.targets = new ArrayList<>(targets);
         this.matches = matches;
+        this.stepDownTargets = stepDownTargets;
         this.target = null;
         this.failure = null;
         this.primaryFailure = null;
@@ -168,6 +181,7 @@ public final class MiningSession {
         this.targetY = targetY;
         this.heading = heading;
         this.targets = List.of();
+        this.stepDownTargets = false;
         this.target = null;
         this.failure = null;
         this.primaryFailure = null;
@@ -428,7 +442,7 @@ public final class MiningSession {
             setPhase("extract");
             search = null;
             catchChecked = false;
-            if (!guard(context).allowTarget(context, target)) {
+            if (!guard(context).allowTarget(context, target, stepDownTargets)) {
                 UserMessage reason = guard(context).targetFailure(context, target);
                 if (reason.key().equals("friendai.mining.no_tool")
                         || reason.key().equals("friendai.mining.unsafe_passage")
@@ -537,7 +551,7 @@ public final class MiningSession {
     private State tickExtraction(TaskContext context) {
         MiningRefusal supportRefusal = descent && target != null ? MiningRefusal.check(context, target, true) : null;
         boolean refused = target == null
-                || (descent ? supportRefusal != null : !guard(context).allowTarget(context, target));
+                || (descent ? supportRefusal != null : !guard(context).allowTarget(context, target, stepDownTargets));
         if (refused) {
             if (extraction != null) {
                 extraction.stop(context);
@@ -725,7 +739,8 @@ public final class MiningSession {
                 companion.getEyeHeight(),
                 supports,
                 excludedStances,
-                closeApproach);
+                closeApproach,
+                stepDownTargets);
         MiningPathPolicy miningPolicy = new MiningPathPolicy(view, bounds, supports, CostModel.DEFAULTS);
         PathPolicy policy = (freshView, step) -> {
             // A body standing on one of its targets has to leave that cell before it can be mined, and the move

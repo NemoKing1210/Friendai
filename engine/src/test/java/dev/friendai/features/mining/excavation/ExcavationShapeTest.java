@@ -35,10 +35,29 @@ class ExcavationShapeTest {
         ExcavationGeometry stair = ExcavationGeometry.stair(ExcavationDirection.EAST, 0, 2, 0, 3, 1, 2)
                 .orElseThrow();
 
-        assertEquals(6, stair.volume());
-        assertTrue(stair.contains(Pos.of(0, 3, 0)));
+        assertEquals(9, stair.volume());
+        assertTrue(stair.contains(Pos.of(0, 4, 0)), "the headroom cell of the first step is part of the passage");
         assertTrue(stair.contains(Pos.of(2, 1, 0)));
         assertFalse(stair.contains(Pos.of(2, 3, 0)));
+    }
+
+    @Test
+    void stairIsAlwaysHighEnoughToWalkDown() {
+        ExcavationGeometry stair = ExcavationGeometry.stair(ExcavationDirection.EAST, 0, 2, 0, 3, 1, 1)
+                .orElseThrow();
+
+        assertEquals(ExcavationGeometry.MIN_STAIR_HEIGHT, stair.height(), "a stair is a passage, not a trench");
+        assertEquals(9, stair.volume());
+        assertTrue(stair.contains(Pos.of(0, 3, 0)), "the head cell of the first step is part of the passage");
+    }
+
+    @Test
+    void tallStairKeepsTheRequestedHeight() {
+        assertEquals(
+                5,
+                ExcavationGeometry.stair(ExcavationDirection.EAST, 0, 2, 0, 2, 1, 5)
+                        .orElseThrow()
+                        .height());
     }
 
     @Test

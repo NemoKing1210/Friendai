@@ -77,6 +77,52 @@ class MiningSafetyTest {
     }
 
     @Test
+    void aPlannedStairStepIsBreakableFromTheStepAbove() {
+        GridCellView view =
+                new GridCellView("#####/#####/#####", "#####/#####/#####", "...../...../.....", "...../...../.....");
+        Node stance = new Node(1, 2, 1);
+        Pos step = new Pos(2, 1, 1);
+
+        assertFalse(MiningSafety.canBreak(view, stance, step, Set.of()), "a floor resource keeps the side-stance rule");
+        assertTrue(
+                MiningSafety.canBreak(view, stance, step, Set.of(), true),
+                "a planned step may be carved from the step above");
+        assertTrue(
+                MiningSafety.canApproach(view, stance, step, Set.of(), true),
+                "a planned step may also be approached from the step above");
+    }
+
+    @Test
+    void aStepDownNeedsAnOpenHeadAndALanding() {
+        Node stance = new Node(1, 2, 1);
+        Pos step = new Pos(2, 1, 1);
+        GridCellView covered =
+                new GridCellView("#####/#####/#####", "#####/#####/#####", "...../..#../.....", "...../...../.....");
+        GridCellView noLanding =
+                new GridCellView("#####/##.##/#####", "#####/#####/#####", "...../...../.....", "...../...../.....");
+
+        assertFalse(
+                MiningSafety.canBreak(covered, stance, step, Set.of(), true),
+                "a solid head cell is not a walkable step");
+        assertFalse(
+                MiningSafety.canBreak(noLanding, stance, step, Set.of(), true),
+                "a step with nothing under it is not a landing");
+    }
+
+    @Test
+    void aCarvedStairGoalAcceptsTheStepAbove() {
+        GridCellView view =
+                new GridCellView("#####/#####/#####", "#####/#####/#####", "...../...../.....", "...../...../.....");
+        Pos step = new Pos(2, 1, 1);
+        Node above = new Node(1, 2, 1);
+
+        assertFalse(new MiningGoal(List.of(step), 4, 1.62, Set.of()).isGoal(above, view));
+        assertTrue(
+                new MiningGoal(List.of(step), 4, 1.62, Set.of(), Set.of(), false, true).isGoal(above, view),
+                "a carved passage accepts its own next step");
+    }
+
+    @Test
     void targetAdjacentToWaterOrFallingBlockIsRejected() {
         GridCellView water =
                 new GridCellView("#####/#####/#####", "#####/#####/#####", "...../..~../.....", "...../...../.....");

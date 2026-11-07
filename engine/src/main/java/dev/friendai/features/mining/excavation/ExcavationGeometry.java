@@ -30,6 +30,13 @@ public record ExcavationGeometry(
     public static final int MAX_CROSS = 5;
     public static final int MAX_BRANCHES = 16;
     public static final int MAX_SPACING = 8;
+    /**
+     * A stair is a passage a body walks down and back up, so its cross-section always carries one cell of headroom
+     * above the body. A full-block step is only passable when the cell above the next step's head is open: with a
+     * two-cell cross-section the ceiling turns the step into a wall the body cannot lower itself past, and the route
+     * planner has to open a tunnel beside the stair instead of walking it.
+     */
+    public static final int MIN_STAIR_HEIGHT = 3;
 
     public ExcavationGeometry {
         Objects.requireNonNull(shape, "shape");
@@ -107,15 +114,18 @@ public record ExcavationGeometry(
         if (length < 1 || length > MAX_LENGTH || width < 1 || width > MAX_CROSS || height < 1 || height > MAX_CROSS) {
             return Optional.empty();
         }
-        long volume = (long) length * width * height;
+        // A stair shorter than MIN_STAIR_HEIGHT is a trench with a ceiling: a body cannot walk down it and the
+        // companion has to mine every step from the side. Asking for a stair therefore always carves a passage.
+        int crossHeight = shape == ExcavationShape.STAIR ? Math.max(MIN_STAIR_HEIGHT, height) : height;
+        long volume = (long) length * width * crossHeight;
         if (shape == ExcavationShape.STRIP && branches > 0) {
-            volume += (long) branches * branchLength * height;
+            volume += (long) branches * branchLength * crossHeight;
         }
         if (volume > MAX_VOLUME) {
             return Optional.empty();
         }
         return Optional.of(new ExcavationGeometry(
-                shape, x, y, z, 0, 0, 0, direction, length, width, height, branches, spacing, branchLength));
+                shape, x, y, z, 0, 0, 0, direction, length, width, crossHeight, branches, spacing, branchLength));
     }
 
     public int volume() {

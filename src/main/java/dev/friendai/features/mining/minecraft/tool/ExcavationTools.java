@@ -98,7 +98,7 @@ public final class ExcavationTools implements FeatureToolContributor {
                         "up")
                 .integer("length", "How many cells the run advances", 1, 128)
                 .integer("width", "Cross-section width, 1-5", 1, 5)
-                .integer("height", "Cross-section height, 1-5", 1, 5)
+                .integer("height", "Cross-section height, 1-5; a stair is always at least 3 so it can be walked", 1, 5)
                 .integer("branches", "Strip-mine side branches", 0, 16)
                 .integer("spacing", "Cells between strip branches", 2, 8)
                 .integer("branch_length", "How far each strip branch runs", 1, 128)
@@ -287,7 +287,9 @@ public final class ExcavationTools implements FeatureToolContributor {
 
     private static ToolMeta metadata() {
         String hint = "- Use excavate for a shape: box (two corners in box), tunnel (run direction/length), stair "
-                + "(descends one block per step), shaft (down/up) or strip (branches). One call covers the region; "
+                + "(descends one block per step, always at least three blocks high), shaft (down/up) or strip "
+                + "(branches). "
+                + "One call covers the region; "
                 + "count stops early, until_item/until_count stop on taken items.\n"
                 + "- Protected places, containers and lava are never broken by default; containers:true is the only "
                 + "opt-in. Use clear_area to clear a plot for building, not to mine its solids.";

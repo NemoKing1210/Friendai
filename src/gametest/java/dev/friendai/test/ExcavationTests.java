@@ -137,6 +137,80 @@ public class ExcavationTests {
         });
     }
 
+    /**
+     * A descending stair is a passage, not a row of holes: every cross-section of the stair carries the body and one
+     * cell of headroom above it, and the companion digs it from inside the stair, so no cell beside the corridor is
+     * ever opened. This is the shape an owner reported as a low staircase the companion could not walk down and had to
+     * mine from the side.
+     */
+    @GameTest(maxTicks = 4000)
+    public void stairLeavesAWalkablePassage(GameTestHelper h) {
+        int base = 240;
+        int height = ExcavationGeometry.MIN_STAIR_HEIGHT;
+        GameTestSupport.platformAt(h, base, 24);
+        for (int x = 3; x <= 11; x++) {
+            for (int z = 3; z <= 7; z++) {
+                for (int y = base - 8; y <= base + 4; y++) {
+                    h.setBlock(x, y, z, Blocks.STONE);
+                }
+            }
+        }
+        for (int dy = 0; dy < height; dy++) {
+            h.setBlock(4, base + 1 + dy, 5, Blocks.AIR);
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 4, base + 1, 5);
+        c.setOwner(java.util.UUID.randomUUID());
+        c.inventory().addItem(new ItemStack(Items.DIAMOND_PICKAXE));
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        int length = 6;
+        BlockPos origin = h.absolutePos(new BlockPos(4, base + 1, 5));
+        ExcavateTask task = new ExcavateTask(spec(
+                ExcavationGeometry.stair(
+                                ExcavationDirection.EAST, origin.getX(), origin.getY(), origin.getZ(), length, 1, 2)
+                        .orElseThrow(),
+                length * height));
+        runner.start(task, "excavate");
+
+        TaskTrace.of(h, runner, c).succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(
+                    result.status != null && result.status != TaskStatus.RUNNING,
+                    "the stair job is still running: " + task.debugStatus());
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "stair failed: " + result.summary);
+            StringBuilder holes = new StringBuilder();
+            for (int step = 0; step < length; step++) {
+                for (int dy = 0; dy < height; dy++) {
+                    BlockPos cell = new BlockPos(4 + step, base + 1 - step + dy, 5);
+                    if (!h.getLevel().getBlockState(h.absolutePos(cell)).isAir()) {
+                        holes.append(step).append(':').append(cell).append("; ");
+                    }
+                }
+            }
+            h.assertTrue(holes.isEmpty(), "the stair still has unbroken cells: " + holes + "; " + task.debugStatus());
+            StringBuilder outside = new StringBuilder();
+            for (int x = 4; x < 4 + length; x++) {
+                for (int y = base - 6; y <= base + 3; y++) {
+                    for (int z = 4; z <= 6; z++) {
+                        int step = x - 4;
+                        boolean stair = z == 5 && y >= base + 1 - step && y < base + 1 - step + height;
+                        if (!stair && !h.getBlockState(new BlockPos(x, y, z)).is(Blocks.STONE)) {
+                            outside.append(x)
+                                    .append(' ')
+                                    .append(y)
+                                    .append(' ')
+                                    .append(z)
+                                    .append("; ");
+                        }
+                    }
+                }
+            }
+            h.assertTrue(
+                    outside.isEmpty(),
+                    "the stair opened cells beside its own cross-section: " + outside + "; " + task.debugStatus());
+        });
+    }
+
     @GameTest(maxTicks = 1200)
     public void containersAreSkippedByDefault(GameTestHelper h) {
         CompanionEntity c = companion(h);

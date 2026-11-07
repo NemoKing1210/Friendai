@@ -81,6 +81,15 @@ public final class ExcavationGuard implements PathExecutionGuard {
 
     /** Safe for a single explicitly requested resource, even when pathing blacklists its block tag. */
     public boolean allowTarget(TaskContext context, BlockPos target) {
+        return allowTarget(context, target, false);
+    }
+
+    /**
+     * @param stepDown the target batch is a carved passage, so a cell one block forward and one block down is an
+     *     intended step of it; see {@link MiningSafety#canBreak(CellView, dev.friendai.foundation.spatial.Node,
+     *     Pos, Set, boolean)}.
+     */
+    public boolean allowTarget(TaskContext context, BlockPos target, boolean stepDown) {
         CompanionEntity companion = context.companion();
         ServerLevel level = context.level();
         Pos targetPos = plain(target);
@@ -103,7 +112,7 @@ public final class ExcavationGuard implements PathExecutionGuard {
         CellView view = planningView(context, context.pathingConfig());
         var block = companion.blockPosition();
         var stance = new dev.friendai.foundation.spatial.Node(block.getX(), block.getY(), block.getZ());
-        return MiningSafety.canBreak(view, stance, targetPos, protectedSupports);
+        return MiningSafety.canBreak(view, stance, targetPos, protectedSupports, stepDown);
     }
 
     /** Localized explanation for a refused explicit target. */

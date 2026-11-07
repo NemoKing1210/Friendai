@@ -325,7 +325,9 @@ public final class ExcavateTask implements Task {
         session = new MiningSession(c.companion(), bounds(), batch.size() + 128, 6_000, placements);
         // A new batch starts a new stall window; ticks accumulated for the previous one say nothing about it.
         stallFallback.reset();
-        session.setTargets(batch, state -> !state.isAir());
+        // The geometry ordered these cells as a passage, so a forward-down cell is the next step of it, not an
+        // underfoot resource: carving it from the step above keeps the stair inside its own cross-section.
+        session.setTargets(batch, state -> !state.isAir(), true);
         return TaskStatus.RUNNING;
     }
 
