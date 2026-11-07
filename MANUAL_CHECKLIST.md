@@ -22,6 +22,7 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] The same in Russian ("Friendai, добудь 3 дерева"): the companion answers in Russian.
 - [ ] "Friendai, chop that tree" next to a tall tree: it is felled from the lowest log up, the logs are collected and the result is reported.
 - [ ] In a forest, ask for a wooden pickaxe: one tree is felled completely before the next is touched, and no half-cut trunk is left behind.
+- [ ] In a forest, ask for a set of stone tools and time the first dig: the companion mines stone instead of first crafting a wooden pickaxe from the scarce logs, and the first dig lands within a few seconds.
 - [ ] In a savanna with only acacia and no oak, ask for stone tools: the companion uses the acacia logs at hand instead of walking away to find oak.
 - [ ] Observe a tree, wait about five seconds, then ask it to chop the tree: the recent sighting is still used.
 - [ ] Fill the companion's inventory, then ask it to chop one log: the log stays in place and the reply says the inventory is full.
@@ -38,6 +39,8 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] A failed step produces a plan decision event and the companion repairs it with `queue_edit` without resending the whole plan.
 - [ ] Give a two-kind order ("bring me ten oak logs and then build a three-block wall") with a real provider: the world log shows one `route.decision` naming an `owner_order` subject, then `plan.request` and `plan.delivered` with a plan id and a duration, and the first reply already works from the queued plan instead of one tool call at a time. With the provider unreachable, the same order shows `plan.failed` and `plan.fallback`, and the companion carries on without claiming a plan exists.
 - [ ] With a real provider, ask for a simple order with enough supplied context that does not trigger the preliminary planner. Expect one `llm.request`, one queued plan and a visible acknowledgement. Separately test a complex order: preliminary planning is allowed, but no duplicate plan is added. Test missing context and invalid plan repair: follow-ups are allowed. Check first-turn voice and a later turn after a controlled speech-delivery failure.
+- [ ] With a real provider and `agent.plannerMode` set to `always`, a simple one-step order still shows a `plan.request`; back on `auto` the same order answers without one.
+- [ ] With a real provider slower than the 20 s `plannerTimeoutSec` default, the turn continues without a plan and reports the fallback instead of hanging.
 - [ ] Reload a world mid-plan: ready work resumes, and a job whose tool disappeared reports that it needs repair.
 - [ ] `queue_show` remains readable with 50+ jobs and truncates long arguments and results.
 - [ ] A fight and a starving entry each interrupt the running queue job and resume it afterwards.
@@ -141,6 +144,7 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] Check readability and frame rate while facing the work set and while looking away; distant cells should be culled, and cells behind the camera should stay visible.
 - [ ] Toggle the overlay while the world is still loading or the server is busy: the row says **Waiting for the server…** until data arrives, and a rejected switch does not turn the row on.
 - [ ] Run an excavation order: the region's cells, the current cell and any catch platform appear while it digs.
+- [ ] Run an excavation into a deep shaft where the next cell cannot be reached by walking: after a stall it digs safely down one cell, at most three times per task, and then fails with a clear reason instead of waiting out the timeout.
 - [ ] Disconnect and reconnect as an operator; the saved preference should restore after support/operator state arrives. Verify a non-operator receives no debug stream.
 
 ## Voice

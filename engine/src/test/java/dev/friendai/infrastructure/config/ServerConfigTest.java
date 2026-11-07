@@ -314,8 +314,27 @@ class ServerConfigTest {
         assertEquals(30, c.agent.goalTickSec);
         assertEquals(24_000, c.agent.promptBudget);
         assertEquals(20, c.agent.plannerTimeoutSec);
+        assertEquals("auto", c.agent.plannerMode);
         assertEquals(null, c.agent.planner);
         assertEquals(2, c.agent.plannerRetries);
+    }
+
+    @Test
+    void plannerModeIsNormalizedAndFallsBackToAuto() {
+        ServerConfig c = ServerConfig.defaults();
+        c.agent.plannerMode = " ALWAYS ";
+        c.validate();
+        assertEquals("always", c.agent.plannerMode);
+
+        c.agent.plannerMode = "sometimes";
+        List<String> problems = c.validate();
+        assertEquals("auto", c.agent.plannerMode);
+        assertTrue(problems.stream().anyMatch(p -> p.contains("agent.plannerMode")), problems.toString());
+
+        c.agent.plannerMode = null;
+        problems = c.validate();
+        assertEquals("auto", c.agent.plannerMode);
+        assertTrue(problems.stream().anyMatch(p -> p.contains("agent.plannerMode")), problems.toString());
     }
 
     @Test

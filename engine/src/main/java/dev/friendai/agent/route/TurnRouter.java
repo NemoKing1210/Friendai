@@ -42,6 +42,12 @@ public final class TurnRouter {
     }
 
     public RouteDecision route(RouteSignals s) {
+        return route(s, PlannerMode.AUTO);
+    }
+
+    /** Routes the turn and applies the configured planner eagerness to its planning decision. */
+    public RouteDecision route(RouteSignals s, PlannerMode plannerMode) {
+        PlannerMode mode = plannerMode == null ? PlannerMode.AUTO : plannerMode;
         // Read the player's words before the plan branch: a failed plan can arrive beside a new order, and the
         // order is what the planner should plan. Empty text keeps the recovery turn's subject the troubled plan.
         String text = s.playerText().length() > MAX_TEXT ? s.playerText().substring(0, MAX_TEXT) : s.playerText();
@@ -55,15 +61,15 @@ public final class TurnRouter {
             return new RouteDecision(
                     TurnMode.RECOVERY,
                     all(),
-                    plan(TurnMode.RECOVERY, s, text, kinds, complex, planRequest),
+                    plan(mode, TurnMode.RECOVERY, s, text, kinds, complex, planRequest),
                     "a plan failed or needs a decision");
         }
         if (s.turn() == TurnKind.EVENT || lower.isEmpty()) {
-            TurnMode mode = s.turn() == TurnKind.EVENT ? TurnMode.EVENT : TurnMode.ACTION;
+            TurnMode turnMode = s.turn() == TurnKind.EVENT ? TurnMode.EVENT : TurnMode.ACTION;
             return new RouteDecision(
-                    mode,
+                    turnMode,
                     all(),
-                    plan(mode, s, text, 0, false, false),
+                    plan(mode, turnMode, s, text, 0, false, false),
                     s.turn() == TurnKind.EVENT ? "no player message" : "empty player message");
         }
         Set<ToolGroup> groups = EnumSet.noneOf(ToolGroup.class);
@@ -75,7 +81,7 @@ public final class TurnRouter {
             return new RouteDecision(
                     TurnMode.CHAT,
                     EnumSet.of(ToolGroup.INFO, ToolGroup.MEMORY, ToolGroup.INVENTORY),
-                    plan(TurnMode.CHAT, s, text, 0, false, false),
+                    plan(mode, TurnMode.CHAT, s, text, 0, false, false),
                     "a shopping advice question, not an order");
         }
         if (question && groups.contains(ToolGroup.TRADING) && vocabulary.startsWithQuestionMarker(lower, tokens)) {
@@ -84,7 +90,7 @@ public final class TurnRouter {
             return new RouteDecision(
                     TurnMode.CHAT,
                     chatGroups,
-                    plan(TurnMode.CHAT, s, text, 0, false, false),
+                    plan(mode, TurnMode.CHAT, s, text, 0, false, false),
                     "a question about remembered market facts, not an order");
         }
         if (question && verbs.isEmpty()) {
@@ -93,7 +99,7 @@ public final class TurnRouter {
             return new RouteDecision(
                     TurnMode.CHAT,
                     chatGroups,
-                    plan(TurnMode.CHAT, s, text, 0, false, false),
+                    plan(mode, TurnMode.CHAT, s, text, 0, false, false),
                     "a question with no action in it");
         }
         int score = kinds + (complex ? 1 : 0) + (planRequest ? 1 : 0);
@@ -103,14 +109,14 @@ public final class TurnRouter {
             return new RouteDecision(
                     TurnMode.GOAL,
                     groups.isEmpty() ? all() : groups,
-                    plan(TurnMode.GOAL, s, text, kinds, complex, planRequest),
+                    plan(mode, TurnMode.GOAL, s, text, kinds, complex, planRequest),
                     "several kinds of work (score " + score + ")");
         }
         if (groups.isEmpty()) {
             return new RouteDecision(
                     TurnMode.ACTION,
                     all(),
-                    plan(TurnMode.ACTION, s, text, kinds, complex, planRequest),
+                    plan(mode, TurnMode.ACTION, s, text, kinds, complex, planRequest),
                     "no recognized words");
         }
         // Movement and the read-only info tools (find_trees, find_blocks, player_view) help every action.
@@ -119,13 +125,19 @@ public final class TurnRouter {
         return new RouteDecision(
                 TurnMode.ACTION,
                 groups,
-                plan(TurnMode.ACTION, s, text, kinds, complex, planRequest),
+                plan(mode, TurnMode.ACTION, s, text, kinds, complex, planRequest),
                 "matched " + groups);
     }
 
     private PlanningDecision plan(
-            TurnMode mode, RouteSignals s, String text, int kinds, boolean complex, boolean planRequest) {
-        return planningPolicy.beforeTurn(planSignals(mode, s, text, kinds, complex, planRequest));
+            PlannerMode plannerMode,
+            TurnMode mode,
+            RouteSignals s,
+            String text,
+            int kinds,
+            boolean complex,
+            boolean planRequest) {
+        return planningPolicy.beforeTurn(planSignals(mode, s, text, kinds, complex, planRequest), plannerMode);
     }
 
     private static PlanSignals planSignals(

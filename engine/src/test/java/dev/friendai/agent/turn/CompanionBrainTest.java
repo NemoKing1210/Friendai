@@ -178,7 +178,8 @@ class CompanionBrainTest {
     private void routedToolbox(boolean routing) {
         tools.available.clear();
         tools.available.addAll(List.of(spec("stop"), spec("stay"), spec("mine_blocks"), spec("request_tools")));
-        brain.setAgentSettings(() -> new AgentSettings(routing, AgentSettings.Autonomy.ASSISTIVE, 3, 30, 0, 60));
+        brain.setAgentSettings(() -> new AgentSettings(
+                routing, AgentSettings.Autonomy.ASSISTIVE, 3, 30, 0, 60, dev.friendai.agent.route.PlannerMode.AUTO));
     }
 
     @Test

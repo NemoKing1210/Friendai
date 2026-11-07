@@ -278,6 +278,16 @@ class SettingsModelTest {
         assertEquals(expected, List.copyOf(SettingsModel.search("voice")));
     }
 
+    @Test
+    void plannerModeIsAnAdvancedPlanningSetting() {
+        SettingsModel.Entry mode =
+                SettingsModel.entry("friendai.config.agent.planner_mode").orElseThrow();
+        assertEquals("planning", mode.category());
+        assertTrue(mode.advanced());
+        assertTrue(SettingsModel.matches("planner mode", mode.key()));
+        assertFalse(SettingsModel.show(mode.key(), false));
+    }
+
     private static SettingsModel.Row row(SettingsModel.Kind kind) {
         return new SettingsModel.Row(null, "", "", kind);
     }

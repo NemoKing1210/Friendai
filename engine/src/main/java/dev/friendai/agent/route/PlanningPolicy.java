@@ -19,9 +19,31 @@ public final class PlanningPolicy {
     static final String PLAN_TROUBLE = "plan-trouble";
     static final String GOAL_UNMET = "goal-unmet";
     static final String FREE_TIME_SHIFT = "free-time-shift";
+    static final String PLANNER_OFF = "planner-off";
+    static final String PLANNER_ALWAYS = "planner-always";
 
-    /** Decides the planning need before the first model request of the turn. */
+    /** Decides the planning need before the first model request of the turn, with the default eagerness. */
     public PlanningDecision beforeTurn(PlanSignals signals) {
+        return beforeTurn(signals, PlannerMode.AUTO);
+    }
+
+    /**
+     * Decides the planning need under one eagerness setting. {@link PlannerMode#OFF} never asks; {@link
+     * PlannerMode#ALWAYS} also drafts a plan for every actionable owner order, which is the diagnosis setting. An
+     * event turn has no player text, so a free-time shift or an unmet goal is still decided by the ordinary rules and
+     * a shift is never turned into an owner order.
+     */
+    public PlanningDecision beforeTurn(PlanSignals signals, PlannerMode mode) {
+        if (mode == PlannerMode.OFF) return PlanningDecision.none(PLANNER_OFF);
+        PlanningDecision automatic = automaticDecision(signals);
+        if (mode == PlannerMode.ALWAYS && !automatic.required()) {
+            PlanningDecision forced = forcedOwnerOrder(signals);
+            if (forced != null) return forced;
+        }
+        return automatic;
+    }
+
+    private PlanningDecision automaticDecision(PlanSignals signals) {
         if (signals == null || signals.mode() == TurnMode.CHAT) return PlanningDecision.none(NO_OCCASION);
         boolean ownerLine = isPlanWorthyOwnerLine(signals);
         if (ownerLine) {
@@ -49,6 +71,17 @@ public final class PlanningPolicy {
                     PlanNeed.REQUIRED, new PlanSubject.FreeTimeShift(signals.shiftId()), FREE_TIME_SHIFT);
         }
         return PlanningDecision.none(NO_OCCASION);
+    }
+
+    /** The plan {@link PlannerMode#ALWAYS} forces for an actionable owner line, or null when there is none. */
+    private static PlanningDecision forcedOwnerOrder(PlanSignals signals) {
+        if (signals == null || signals.mode() == TurnMode.CHAT) return null;
+        boolean orderMode = signals.mode() == TurnMode.ACTION
+                || signals.mode() == TurnMode.GOAL
+                || signals.mode() == TurnMode.RECOVERY;
+        if (!orderMode || !signals.ownerCaller() || signals.playerText().isBlank()) return null;
+        return new PlanningDecision(
+                PlanNeed.REQUIRED, new PlanSubject.OwnerOrder(signals.playerText()), PLANNER_ALWAYS);
     }
 
     /** The free-time driver's entry: a shift with no plan and budget left asks for one. */

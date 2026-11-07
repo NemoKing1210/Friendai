@@ -282,7 +282,8 @@ public final class ScenarioRunner {
                 defaults.maxReplans(),
                 defaults.goalTickSec(),
                 s.effectivePromptBudget(),
-                defaults.plannerTimeoutSec());
+                defaults.plannerTimeoutSec(),
+                defaults.plannerMode());
     }
 
     /**

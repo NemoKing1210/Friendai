@@ -606,7 +606,7 @@ public final class CompanionBrain {
                 goalView.goalId(),
                 goalView.unmet(),
                 0L);
-        decision = router.route(turnSignals);
+        decision = router.route(turnSignals, agentSettings.get().plannerMode());
         observe(o -> o.onRouteDecision(decision));
         // Only an explicit owner trade action may mint a spend scope. Topics, fallback routing and queued
         // work cannot turn a read-only question into authority behind the chat tool filter.

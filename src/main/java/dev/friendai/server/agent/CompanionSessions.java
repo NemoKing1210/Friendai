@@ -8,6 +8,7 @@ import dev.friendai.agent.goal.GoalService;
 import dev.friendai.agent.llm.model.ToolCall;
 import dev.friendai.agent.llm.model.ToolSpec;
 import dev.friendai.agent.prompt.ContinuityPrompt;
+import dev.friendai.agent.route.PlannerMode;
 import dev.friendai.agent.turn.AccessResolver;
 import dev.friendai.agent.turn.BrainEvent;
 import dev.friendai.agent.turn.BrainObservers;
@@ -1014,7 +1015,8 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                 config.agent.maxReplans,
                 config.agent.goalTickSec,
                 config.agent.promptBudget,
-                config.agent.plannerTimeoutSec));
+                config.agent.plannerTimeoutSec,
+                PlannerMode.parse(config.agent.plannerMode)));
         brain.setPlaceSource(caller -> config.places.enabled ? placeService.promptBlock(companion, caller) : "");
         brain.setPlacedSource(caller -> config.places.enabled ? placedService.promptBlock(companion, caller) : "");
         brain.setGoalSource(caller -> {

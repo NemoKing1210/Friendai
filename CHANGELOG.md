@@ -6,9 +6,26 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.211.0] - 2026-11-07
+
+### Added
+
+- `agent.plannerMode` chooses when the companion drafts a plan before acting: `auto` by default, `off`, or `always` for diagnosis.
+- `mine_blocks` searches once for a target it has not seen, and `obtain_items` accepts the `item` and `count` arguments described in its documentation.
+
 ### Changed
 
+- The companion drafts a plan at most once per turn, before it answers, and never again after it has queued one.
 - A goal the companion sets for itself no longer makes it stop to draft another plan before acting, so a simple order starts moving sooner.
+- The planner's default timeout is 20 seconds (adjustable 5–120), and the planner retry setting now bounds transport retries only; a plan the planner rejects is not sent again.
+- The companion mines an item it can mine instead of crafting it from a rarer ingredient, and a batch that cannot make a needed station tries the next recipe route instead of failing.
+
+### Fixed
+
+- A partly felled tree is reported as a success that names the logs left standing, instead of as a failure that hides the work done.
+- An excavation that cannot reach its next cell digs down one safe cell, at most three times, before it gives up with a clear reason.
+- A task that crashes now names its exception class and a redacted message instead of a generic error.
+- Tool arguments written in their documented alias form are accepted in plans and queue edits, not only in a direct call.
 
 ## [0.210.0] - 2026-11-07
 

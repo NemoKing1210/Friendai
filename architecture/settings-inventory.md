@@ -89,6 +89,7 @@ and applied by `/friendai reload`. See `FriendaiConfigScreen` for the category e
 | Agent | agent.goalTickSec | int | 30 | 10..600 | agent.goal_tick_sec | yes |
 | Agent | agent.promptBudget | int | 24_000 | 2000..60000 | agent.prompt_budget | yes |
 | Agent | agent.planner | String | null |  | agent.planner | yes |
+| Agent | agent.plannerMode | String | "auto" |  | agent.planner_mode | yes |
 | Agent | agent.plannerRetries | int | 2 | 1..4 | agent.planner_retries | yes |
 | Agent | agent.plannerTimeoutSec | int | 20 | 5..120 | agent.planner_timeout_sec | yes |
 | Autonomy | autonomy.enabled | boolean | true |  | autonomy.enabled | no |

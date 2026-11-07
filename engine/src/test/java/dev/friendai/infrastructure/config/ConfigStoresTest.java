@@ -116,6 +116,41 @@ class ConfigStoresTest {
     }
 
     @Test
+    void schema22GainsThePlannerModeAndKeepsAnOwnersTimeoutAndUnknownFields() throws IOException {
+        Path path = dir.resolve("server-22-planner.json");
+        Files.writeString(path, """
+                {"version":22,"agent":{"plannerTimeoutSec":45},
+                 "custom":{"x":1}}
+                """);
+        var store = ConfigStores.server(path);
+        ServerConfig config = store.load();
+
+        assertEquals(ServerConfig.VERSION, config.version);
+        assertEquals("auto", config.agent.plannerMode, "the new planner mode is auto unless chosen");
+        assertEquals(45, config.agent.plannerTimeoutSec, "a timeout the owner chose is kept");
+
+        store.save(config);
+        assertEquals(
+                1, json(path).getAsJsonObject("custom").get("x").getAsInt(), "an unknown field survives the upgrade");
+        assertEquals(
+                "auto", json(path).getAsJsonObject("agent").get("plannerMode").getAsString());
+    }
+
+    @Test
+    void schema22MovesTheOldPlannerTimeoutDefaultToTwenty() throws IOException {
+        Path path = dir.resolve("server-22-old-timeout.json");
+        Files.writeString(path, "{\"version\":22,\"agent\":{\"plannerTimeoutSec\":60}}");
+        assertEquals(20, ConfigStores.server(path).load().agent.plannerTimeoutSec);
+    }
+
+    @Test
+    void aFreshFileTakesThePlannerDefaults() {
+        ServerConfig config = ConfigStores.server(dir.resolve("absent.json")).load();
+        assertEquals("auto", config.agent.plannerMode);
+        assertEquals(20, config.agent.plannerTimeoutSec);
+    }
+
+    @Test
     void anExplicitRetrievalChoiceSurvivesAndOnlyLexicalTurnsItOn() throws IOException {
         Path path = dir.resolve("server-retrieval.json");
         Files.writeString(path, """

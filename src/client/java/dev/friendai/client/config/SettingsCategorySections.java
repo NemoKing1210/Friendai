@@ -260,6 +260,18 @@ final class SettingsCategorySections {
                         .controller(option ->
                                 IntegerFieldControllerBuilder.create(option).range(5, 120))
                         .build())
+                .option(Option.<String>createBuilder()
+                        .name(tr("friendai.config.agent.planner_mode"))
+                        .description(OptionDescription.of(tr("friendai.config.agent.planner_mode.tooltip")))
+                        .binding(
+                                "auto",
+                                () -> agent.plannerMode,
+                                value -> agent.plannerMode = value == null ? "auto" : value)
+                        .controller(option -> DropdownStringControllerBuilder.create(option)
+                                .values(List.of("auto", "off", "always"))
+                                .allowAnyValue(false)
+                                .allowEmptyValue(false))
+                        .build())
                 .option(Option.<Integer>createBuilder()
                         .name(tr("friendai.config.brain.max_tool_steps"))
                         .description(OptionDescription.of(tr("friendai.config.brain.max_tool_steps.tooltip")))

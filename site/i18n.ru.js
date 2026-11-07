@@ -89,13 +89,13 @@ const RU = {
   /* ---- Mining ---- */
   "Mining & Gathering": "Добыча и сбор",
   "Collects raw materials: trees, ores, drops. Tool choice comes from item data components, never hard-coded tiers.": "Собирает сырьё: деревья, руды, выпавшие предметы. Инструмент выбирается по компонентам предмета, а не по зашитым уровням.",
-  "Fell a whole tree from the base when one stance reaches it, or from the crown.": "Срубить дерево целиком снизу, если до него можно дотянуться с одной позиции, или сверху.",
-  "Mine up to 64 blocks of a type in one call; wood comes from whole felled trees.":
-    "Добыть до 64 блоков одного типа за один вызов; древесину получает из целых сваленных деревьев.",
+  "Fell a whole tree from the base when one stance reaches it, or from the crown; a partly felled tree reports the logs left standing.": "Срубить дерево целиком снизу, если до него можно дотянуться с одной позиции, или сверху; частично срубленное дерево сообщает, какие брёвна остались.",
+  "Mine up to 64 blocks of a type in one call; wood comes from whole felled trees; searches once for a target you have not seen.":
+    "Добыть до 64 блоков одного типа за один вызов; древесину получает из целых сваленных деревьев; один раз ищет цель, которую ещё не видел.",
   "Mine the block you point at, follow its vein, and report what was taken.":
     "Добыть указанный блок, пройти по его жиле и сообщить, что подобрано.",
-  "Mine a box, tunnel, stair, shaft or strip mine in one call, with drops and safety.":
-    "Прорыть коробку, тоннель, лестницу, шахту или штрек за один вызов, с дропом и безопасностью.",
+  "Mine a box, tunnel, stair, shaft or strip mine in one call, with drops and safety; a stall digs down one safe cell, at most three times.":
+    "Прорыть коробку, тоннель, лестницу, шахту или штрек за один вызов, с дропом и безопасностью; при остановке копает вниз на одну безопасную клетку, не более трёх раз.",
   "Collect every drop in the radius in one call.": "Подобрать все выпавшие предметы в радиусе за один вызов.",
   "Scan for trees.": "Найти деревья.",
   "Scan for blocks and ore veins.": "Найти блоки и рудные жилы.",
@@ -235,8 +235,8 @@ const RU = {
   "Ask for an item and it works out how: inventory, chests, craft, smelt, mine, hunt, harvest, shear, milk or explore.": "Попросите предмет, и он сам решит как: инвентарь, сундуки, крафт, плавка, добыча, охота, урожай, стрижка, дойка или разведка.",
   "Get an item by any means; wood is felled as whole trees.":
     "Получить предмет любым способом; древесину добывает, свалив деревья целиком.",
-  "Gather every material for a set of items once, then craft them all; wood is felled as whole trees.":
-    "Собрать все материалы для набора предметов один раз, а потом создать их все; древесину добывает, свалив деревья целиком.",
+  "Gather every material for a set of items once, then craft them all; accepts the item/count aliases; mines a mineable item instead of crafting it from a rarer one; wood is felled as whole trees.":
+    "Собрать все материалы для набора предметов один раз, а потом создать их все; принимает псевдонимы item/count; добывает предмет, который можно добыть, вместо крафта из более редкого; древесину добывает, свалив деревья целиком.",
   "Show the plan without doing it.": "Показать план, не выполняя его.",
   "Explore to find a resource.": "Отправиться на поиск ресурса.",
   "What it already knows about.": "Что ему уже известно.",
@@ -503,7 +503,7 @@ const RU = {
   "TurnRouter": "TurnRouter",
   "Picks chat, action, goal, recovery or event, and which tool groups are visible; PlanningPolicy then names what a plan-worthy turn is about.": "Выбирает режим: чат, действие, цель, восстановление или событие, и какие группы инструментов видны; затем PlanningPolicy решает, о чём стоит планировать.",
   "Planner": "Планировщик",
-  "Ordinary orders with enough context can answer and queue in one request. Complex orders retain preliminary planning; troubled plans, unmet goals and free time also use the planner.": "Обычные приказы с достаточным контекстом можно выполнить ответом и постановкой плана в очередь за один запрос. Сложные приказы по-прежнему используют предварительное планирование; сорванные планы, недостигнутые цели и свободное время тоже обращаются к планировщику.",
+  "Ordinary orders with enough context can answer and queue in one request. Complex orders retain preliminary planning; troubled plans, unmet goals and free time also use the planner. It runs once, before the model answers, never after a step.": "Обычные приказы с достаточным контекстом можно выполнить ответом и постановкой плана в очередь за один запрос. Сложные приказы по-прежнему используют предварительное планирование; сорванные планы, недостигнутые цели и свободное время тоже обращаются к планировщику. Планировщик вызывается один раз, до ответа модели, и никогда после шага.",
   "PromptBuilder": "PromptBuilder",
   "Identity, memory, perception, skills and mission, cut to a character budget.": "Личность, память, восприятие, навыки и миссия, обрезанные по лимиту символов.",
   "LLM gateway": "LLM-шлюз",

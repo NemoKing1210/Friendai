@@ -16,12 +16,13 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 
 /** friendai-server.json. */
 public class ServerConfig {
-    public static final int VERSION = 22;
+    public static final int VERSION = 23;
 
     public int version = VERSION;
     public String activeProfile = "main";
@@ -135,10 +136,12 @@ public class ServerConfig {
         public int promptBudget = 24_000;
         /** Name of the profile used for the planner call; null uses the active profile. */
         public String planner = null;
-        /** Total planner attempts, including the first request; a rejected reply is not re-sent. */
+        /** Transport retries for one planner request; a rejected reply is the answer and is not re-sent. */
         public int plannerRetries = 2;
 
         public int plannerTimeoutSec = 20;
+        /** auto plans complex or explicit orders and troubled plans; off never asks; always asks for every order. */
+        public String plannerMode = "auto";
     }
 
     public static class ChatSection {
@@ -498,6 +501,13 @@ public class ServerConfig {
         agent.goalTickSec = clamp(problems, "agent.goalTickSec", agent.goalTickSec, 10, 600);
         agent.plannerTimeoutSec = clamp(problems, "agent.plannerTimeoutSec", agent.plannerTimeoutSec, 5, 120);
         agent.plannerRetries = clamp(problems, "agent.plannerRetries", agent.plannerRetries, 1, 4);
+        String plannerMode =
+                agent.plannerMode == null ? "" : agent.plannerMode.strip().toLowerCase(Locale.ROOT);
+        if (!List.of("auto", "off", "always").contains(plannerMode)) {
+            problems.add("agent.plannerMode " + agent.plannerMode + " is not auto, off or always, using auto");
+            plannerMode = "auto";
+        }
+        agent.plannerMode = plannerMode;
         if (agent.planner != null) {
             agent.planner = agent.planner.strip();
             if (agent.planner.isEmpty()) {

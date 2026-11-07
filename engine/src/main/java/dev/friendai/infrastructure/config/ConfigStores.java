@@ -31,7 +31,8 @@ public final class ConfigStores {
                     ADDITIVE, // 18 -> 19: transcript retention and memory compaction
                     ADDITIVE, // 19 -> 20: ambient speech, enabled by default
                     ADDITIVE, // 20 -> 21: logging, normal by default
-                    ADDITIVE)); // 21 -> 22: lexical memory retrieval, off by default
+                    ADDITIVE, // 21 -> 22: lexical memory retrieval, off by default
+                    ConfigStores::plannerModeAndTimeout)); // 22 -> 23: planner mode and a 20 s timeout
     private static final ConfigMigration CLIENT = new ConfigMigration(
             1,
             List.of(
@@ -65,6 +66,22 @@ public final class ConfigStores {
     private static void renamePersona(JsonObject json) {
         JsonObject companion = object(json, "companion");
         move(companion, "persona", companion, "description");
+    }
+
+    /**
+     * Adds the planner mode and moves the planner timeout from its old 60 s default to 20 s. Only the old default is
+     * rewritten, so a timeout the owner chose is kept; a missing key takes the new default from the field initializer.
+     */
+    private static void plannerModeAndTimeout(JsonObject json) {
+        JsonObject agent = object(json, "agent");
+        if (!agent.has("plannerMode")) agent.addProperty("plannerMode", "auto");
+        JsonElement timeout = agent.get("plannerTimeoutSec");
+        if (timeout != null
+                && timeout.isJsonPrimitive()
+                && timeout.getAsJsonPrimitive().isNumber()
+                && timeout.getAsInt() == 60) {
+            agent.addProperty("plannerTimeoutSec", 20);
+        }
     }
 
     /**

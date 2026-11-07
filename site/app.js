@@ -27,7 +27,7 @@ const CATS = [
   { id: "mining", domain: "hands", name: "Mining & Gathering", icon: "⛏️", color: COLORS.iron,
     desc: "Collects raw materials: trees, ores, drops. Tool choice comes from item data components, never hard-coded tiers.",
     items: [
-      "fell_tree|Fell a whole tree from the base when one stance reaches it, or from the crown.", "mine_blocks|Mine up to 64 blocks of a type in one call; wood comes from whole felled trees.", "mine_block_at|Mine the block you point at, follow its vein, and report what was taken.", "excavate|Mine a box, tunnel, stair, shaft or strip mine in one call, with drops and safety.",
+      "fell_tree|Fell a whole tree from the base when one stance reaches it, or from the crown; a partly felled tree reports the logs left standing.", "mine_blocks|Mine up to 64 blocks of a type in one call; wood comes from whole felled trees; searches once for a target you have not seen.", "mine_block_at|Mine the block you point at, follow its vein, and report what was taken.", "excavate|Mine a box, tunnel, stair, shaft or strip mine in one call, with drops and safety; a stall digs down one safe cell, at most three times.",
       "pickup_items|Collect every drop in the radius in one call.", "find_trees|Scan for trees.", "find_blocks|Scan for blocks and ore veins.",
       "find_placed|List blocks the companion placed earlier.",
       "~Vein follower|Mines a whole vein, not one block.", "~Tool selection|Picks the best tool from the stack's tool component.", "~Safe digging|Checks support and hazards before approaching.",
@@ -80,7 +80,7 @@ const CATS = [
   { id: "acquire", domain: "hands", name: "Resource Acquisition", icon: "🧭", color: COLORS.diamond,
     desc: "Ask for an item and it works out how: inventory, chests, craft, smelt, mine, hunt, harvest, shear, milk or explore.",
     items: [
-      "obtain_item|Get an item by any means; wood is felled as whole trees.", "obtain_items|Gather every material for a set of items once, then craft them all; wood is felled as whole trees.", "plan_obtain|Show the plan without doing it.", "search_resource|Explore to find a resource.",
+      "obtain_item|Get an item by any means; wood is felled as whole trees.", "obtain_items|Gather every material for a set of items once, then craft them all; accepts the item/count aliases; mines a mineable item instead of crafting it from a rarer one; wood is felled as whole trees.", "plan_obtain|Show the plan without doing it.", "search_resource|Explore to find a resource.",
       "known_resources|What it already knows about.", "search_hint|Give it a hint where to look.", "find_target|Resolve a search target.", "find_structure|Find a village, fortress or stronghold by markers.", "search_structure|Travel to a verified structure instance.",
       "~Obtain planner|Depth up to 8, nine step kinds.", "~Frontier search|Biome edges, water, hazards and trails.", "~Search budget|Gives up sensibly." ] },
   { id: "trading", domain: "hands", name: "Trading", icon: "💎", color: COLORS.lapis,
@@ -425,7 +425,7 @@ const FLOW = {
     { id: "picker", x: 270, y: 480, label: "Companion picker", icon: "👥", color: COLORS.water, kind: "cat", desc: "Own companion in hearing range, else the nearest other whose owner is online." },
     { id: "brain", x: 500, y: 300, label: "CompanionBrain", icon: "🧠", color: COLORS.amethyst, kind: "hub", desc: "The per-owner agent loop. One principal per turn; late replies are dropped by a generation counter." },
     { id: "router", x: 500, y: 110, label: "TurnRouter", icon: "🚦", color: COLORS.gold, kind: "cat", desc: "Picks chat, action, goal, recovery or event, and which tool groups are visible; PlanningPolicy then names what a plan-worthy turn is about." },
-    { id: "planner", x: 500, y: 500, label: "Planner", icon: "📋", color: COLORS.nether, kind: "cat", desc: "Ordinary orders with enough context can answer and queue in one request. Complex orders retain preliminary planning; troubled plans, unmet goals and free time also use the planner." },
+    { id: "planner", x: 500, y: 500, label: "Planner", icon: "📋", color: COLORS.nether, kind: "cat", desc: "Ordinary orders with enough context can answer and queue in one request. Complex orders retain preliminary planning; troubled plans, unmet goals and free time also use the planner. It runs once, before the model answers, never after a step." },
     { id: "prompt", x: 730, y: 110, label: "PromptBuilder", icon: "📜", color: COLORS.gold, kind: "cat", desc: "Identity, memory, perception, skills and mission, cut to a character budget." },
     { id: "llm", x: 730, y: 300, label: "LLM gateway", icon: "☁️", color: COLORS.water, kind: "cat", desc: "OpenAI chat and responses, Anthropic, Gemini, Ollama. Retries only retryable errors; keys stay in headers." },
     { id: "tools", x: 730, y: 500, label: "ToolRegistry", icon: "🧰", color: COLORS.iron, kind: "cat", desc: "Validates arguments and access. Never throws: bad input becomes an error result." },

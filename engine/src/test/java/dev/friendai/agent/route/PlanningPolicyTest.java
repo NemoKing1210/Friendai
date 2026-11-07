@@ -233,4 +233,47 @@ class PlanningPolicyTest {
         assertEquals(
                 new PlanSubject.FreeTimeShift(9), policy.beforeTurn(freeTime(9)).subject());
     }
+
+    @Test
+    void plannerOffNeverAsks() {
+        PlanningDecision decision = policy.beforeTurn(signals(TurnMode.GOAL, 3, true, true), PlannerMode.OFF);
+        assertEquals(PlanNeed.NONE, decision.need());
+        assertEquals("planner-off", decision.reason());
+        assertNull(decision.subject());
+    }
+
+    @Test
+    void plannerAlwaysPlansEveryActionableOwnerOrder() {
+        PlanningDecision decision = policy.beforeTurn(signals(TurnMode.ACTION, 1, false, false), PlannerMode.ALWAYS);
+        assertEquals(PlanNeed.REQUIRED, decision.need());
+        assertEquals(new PlanSubject.OwnerOrder(ORDER), decision.subject());
+        assertEquals("planner-always", decision.reason());
+    }
+
+    @Test
+    void plannerAlwaysNeverPlansAChatOrAGuestOrder() {
+        assertEquals(
+                PlanNeed.NONE,
+                policy.beforeTurn(signals(TurnMode.CHAT, 1, false, false), PlannerMode.ALWAYS)
+                        .need());
+        assertEquals(
+                PlanNeed.NONE,
+                policy.beforeTurn(guest(signals(TurnMode.ACTION, 1, false, false)), PlannerMode.ALWAYS)
+                        .need());
+    }
+
+    @Test
+    void plannerAlwaysLeavesAFreeTimeShiftToItsDriver() {
+        assertEquals(
+                new PlanSubject.FreeTimeShift(9),
+                policy.beforeTurn(freeTime(9), PlannerMode.ALWAYS).subject());
+    }
+
+    @Test
+    void plannerModeUnknownTextReadsAsAuto() {
+        assertEquals(PlannerMode.AUTO, PlannerMode.parse("bogus"));
+        assertEquals(PlannerMode.AUTO, PlannerMode.parse(null));
+        assertEquals(PlannerMode.OFF, PlannerMode.parse(" OFF "));
+        assertEquals(PlannerMode.ALWAYS, PlannerMode.parse("always"));
+    }
 }

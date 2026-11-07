@@ -270,6 +270,8 @@ public final class SettingsModel {
         entries.add(advanced("friendai.config.agent.goal_tick_sec", "planning", "goal", "tick", "interval"));
         entries.add(advanced("friendai.config.agent.prompt_budget", "planning", "prompt", "budget", "tokens"));
         entries.add(advanced("friendai.config.agent.planner_timeout_sec", "planning", "planner", "timeout"));
+        entries.add(
+                advanced("friendai.config.agent.planner_mode", "planning", "planner", "mode", "auto", "off", "always"));
         entries.add(advanced("friendai.config.brain.max_tool_steps", "planning", "tool", "steps", "turns"));
         entries.add(advanced("friendai.config.brain.history_messages", "planning", "history", "messages"));
         entries.add(advanced("friendai.config.brain.request_timeout_sec", "planning", "timeout", "request"));

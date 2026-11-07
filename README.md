@@ -217,7 +217,7 @@ Search policy is under `tasks.resources` in `config/friendai-server.json`: local
 
 For an objective with several parts ("build a house and bring iron") the companion records a goal with how it will know it is done, and the goal survives plans, failures, death and restarts. It keeps working on it through the task queue, reads the facts of every finished task (items gained and lost, what is still unmet) and, when a step fails, gets a diagnosis and a remedy it has not tried yet. After a few failed repairs it stops and asks you what blocks it.
 
-A complex request, or a failed plan with replans left, is first drafted by a separate planner call that returns a validated plan; the plan is queued with your access level and can never use a tool you may not use. Settings live under `agent` in `config/friendai-server.json`:
+A complex request, an explicit request for a plan, a live troubled plan, an idle unmet goal or a free-time shift is first drafted by a separate planner call that returns a validated plan; the plan is queued with your access level and can never use a tool you may not use. The planner is consulted at most once per turn, before the model answers, and never again after the model has queued a plan of its own. Settings live under `agent` in `config/friendai-server.json`:
 
 | Setting | Default | Meaning |
 |---|---|---|
@@ -227,7 +227,9 @@ A complex request, or a failed plan with replans left, is first drafted by a sep
 | `goalTickSec` | `30` | Seconds between nudges toward an unfinished goal (10–600). |
 | `promptBudget` | `24000` | Character budget of the system prompt; `0` means unlimited. |
 | `planner` | none | Name of a profile to use for planning; empty uses the active profile. |
-| `plannerTimeoutSec` | `60` | How long a planner call may take (10–300). |
+| `plannerMode` | `auto` | `auto` plans a complex or explicitly requested order, a troubled plan and an unmet goal; `off` never asks the planner about an order; `always` asks about every actionable order, for diagnosis. Free time keeps its own planning. |
+| `plannerRetries` | `2` | Transport retries for one planner call (1–4). A plan the planner rejects is not sent again. |
+| `plannerTimeoutSec` | `20` | How long a planner call may take (5–120). |
 
 ## Routines
 
