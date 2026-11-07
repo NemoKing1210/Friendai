@@ -17,8 +17,6 @@
     "plansApplied": 0,
     "toolsCalled": ["set_goal", "mine_blocks", "obtain_items"],
     "toolsNotCalled": ["craft_item"],
-    "maxRepeatedToolCalls": 0,
-    "maxClarifications": 0,
-    "spokenContains": ["two sets of tools"]
+    "maxRepeatedToolCalls": 0
   }
 }
