@@ -351,8 +351,17 @@ public final class CraftPlanner {
             if (!anyIngredientPresent(recipes, sim) && (!item.equals(target) || cyclic(item))) {
                 // Nothing can start: a dependency is reported itself (a station goal, an iron ingot). The
                 // requested target is the exception, because naming its ingredients is more useful there —
-                // unless it only feeds its own recipe loop (ingot → block → ingot).
-                return Attempt.missing(item, qty);
+                // unless it only feeds its own recipe loop (ingot → block → ingot). A dependency whose branch
+                // was rejected only because this plan may not use a station keeps its station mark, so the
+                // caller learns which station it cannot do without instead of gathering the item as raw stock.
+                Attempt dependency = Attempt.missing(item, qty);
+                for (Attempt branch : failed) {
+                    for (Station station : branch.unavailableStations()) {
+                        dependency.markStation(station);
+                        dependency.unavailableStations.add(station);
+                    }
+                }
+                return dependency;
             }
             int chosenIndex = 0;
             for (int i = 1; i < failed.size(); i++) {
@@ -407,10 +416,10 @@ public final class CraftPlanner {
          * few items the latter is short of: the caller has already decided those stations cannot be made here.
          */
         private static boolean cheaperFailure(Attempt candidate, Attempt best) {
-            if (candidate.unavailableStations().size()
-                    != best.unavailableStations().size()) {
-                return candidate.unavailableStations().size()
-                        < best.unavailableStations().size();
+            int candidateStations = candidate.unavailableStations().size();
+            int bestStations = best.unavailableStations().size();
+            if (candidateStations != bestStations) {
+                return candidateStations < bestStations;
             }
             return candidate.missingTotal() < best.missingTotal();
         }
@@ -445,9 +454,7 @@ public final class CraftPlanner {
          * craft goal of its own whose item then stays in the simulation reserved for the station.
          */
         private Attempt ensureStation(Station station, int depth, Set<String> path, Sim sim) {
-            if (station == Station.INVENTORY
-                    || stationsNearby.contains(station)
-                    || sim.missingStations.contains(station)) {
+            if (station == Station.INVENTORY || stationsNearby.contains(station)) {
                 return new Attempt();
             }
             String item = book.stationItem(station);
@@ -455,6 +462,9 @@ public final class CraftPlanner {
                 // A route this plan may not take: name the station itself so the caller learns which one the
                 // rejected route needs, and mark the branch so one that avoids it is preferred.
                 return Attempt.stationRequired(station, item);
+            }
+            if (sim.missingStations.contains(station)) {
+                return new Attempt();
             }
             if (item == null) {
                 // A book that names no item for a non-inventory station leaves nothing to craft or carry.
@@ -502,6 +512,7 @@ public final class CraftPlanner {
                     return new Attempt();
                 }
             }
+            Attempt missing = Attempt.missing(ingredient.label(), ingredient.items(), 1);
             for (String id : ingredient.items()) {
                 Sim copy = sim.copy();
                 Attempt attempt = need(id, 1, depth, path, copy);
@@ -509,8 +520,14 @@ public final class CraftPlanner {
                     sim.adopt(copy);
                     return attempt;
                 }
+                // The ingredient is named by the tag, not by the alternative: keep a station the alternative
+                // could only satisfy at a rejected station, so the caller can report that station.
+                for (Station station : attempt.unavailableStations()) {
+                    missing.markStation(station);
+                    missing.unavailableStations.add(station);
+                }
             }
-            return Attempt.missing(ingredient.label(), ingredient.items(), 1);
+            return missing;
         }
 
         private static boolean anyIngredientPresent(List<Recipe> recipes, Sim sim) {

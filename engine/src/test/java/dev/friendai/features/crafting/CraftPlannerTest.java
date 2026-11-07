@@ -795,6 +795,25 @@ class CraftPlannerTest {
     }
 
     @Test
+    void anIngredientOnlyAnUnavailableStationProducesKeepsTheStationMark() {
+        FakeRecipeBook book = new FakeRecipeBook()
+                .add(new Recipe("test:cut", "test:cut", 1, List.of(Ingredient.of("test:raw")), Station.STONECUTTER))
+                .add(new Recipe(
+                        "test:output", "test:output", 1, List.of(Ingredient.of("test:cut")), Station.INVENTORY));
+        List<CraftPlanner.Target> targets = List.of(new CraftPlanner.Target("test:output", 1));
+
+        // Nothing carried can start the cut and the station that makes it is ruled out, so the nested dependency
+        // names the station rather than turning into an ordinary item the batch would gather.
+        assertEquals(
+                List.of(new CraftPlanner.RawNeed("test:cut", Set.of("test:cut"), 1, Station.STONECUTTER)),
+                CraftPlanner.materialsFor(targets, Map.of(), book, Set.of(), Set.of(Station.STONECUTTER)));
+        // First pass, before any station is ruled out: the deep dependency is still reported as itself.
+        assertEquals(
+                List.of(new CraftPlanner.RawNeed("test:cut", Set.of("test:cut"), 1)),
+                CraftPlanner.materialsFor(targets, Map.of(), book, Set.of()));
+    }
+
+    @Test
     void materialsForRejectsInvalidTargets() {
         assertThrows(
                 IllegalArgumentException.class,
