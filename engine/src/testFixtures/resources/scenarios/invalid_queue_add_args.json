@@ -18,7 +18,6 @@
     "plansApplied": 0,
     "toolsCalled": ["set_goal", "queue_add"],
     "maxRepeatedToolCalls": 1,
-    "maxClarifications": 0,
-    "spokenContains": ["corrected plan"]
+    "maxClarifications": 0
   }
 }
