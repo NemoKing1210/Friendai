@@ -21,6 +21,8 @@ class ObtainPlannerTest {
     private static final String COBBLESTONE = "minecraft:cobblestone";
     private static final String STONE = "minecraft:stone";
     private static final String STONECUTTER = "minecraft:stonecutter";
+    private static final String GRAVEL = "minecraft:gravel";
+    private static final String FURNACE = "minecraft:furnace";
     private static final String IRON_ORE = "minecraft:iron_ore";
     private static final String COAL_ORE = "minecraft:coal_ore";
     private static final String RAW_IRON = "minecraft:raw_iron";
@@ -66,6 +68,16 @@ class ObtainPlannerTest {
                 1,
                 List.of(Ingredient.of(STONE)),
                 Station.STONECUTTER));
+    }
+
+    /** A vanilla-like book plus a hand recipe for cobblestone, which needs no station at all. */
+    private static FakeRecipeBook bookWithHandCobblestone() {
+        return book().add(new Recipe(
+                "test:cobblestone_from_gravel", COBBLESTONE, 1, List.of(Ingredient.of(GRAVEL)), Station.INVENTORY));
+    }
+
+    private static WorldFacts worldWith(Set<String> stations, Map<String, Integer> blocks, boolean explore) {
+        return new WorldFacts(blocks, Map.of(), Map.of(), Map.of(), stations, explore, true);
     }
 
     private static WorldFacts world(
@@ -582,6 +594,72 @@ class ObtainPlannerTest {
 
         assertTrue(plan.ok(), plan.missing().toString());
         assertTrue(hasCraft(plan, COBBLESTONE), plan.steps().toString());
+    }
+
+    @Test
+    void stationBesideTheCompanionKeepsTheCraftRoute() {
+        // A stonecutter right there must not be ignored just because the block can also be mined: carrying
+        // the stone already makes the stonecutting route the cheaper one.
+        ObtainPlan plan = ObtainPlanner.plan(
+                COBBLESTONE,
+                36,
+                Map.of(STONE, 36),
+                bookWithStonecutterCobblestone(),
+                FakeSourceBook.vanillaLike(),
+                worldWith(Set.of(Station.CRAFTING_TABLE.noun(), Station.STONECUTTER.noun()), Map.of(), true));
+
+        assertTrue(plan.ok(), plan.missing().toString());
+        assertTrue(hasCraft(plan, COBBLESTONE), plan.steps().toString());
+        assertFalse(
+                plan.steps().stream().anyMatch(step -> step instanceof ObtainStep.Mine),
+                plan.steps().toString());
+    }
+
+    @Test
+    void handRecipeStaysWhenTheBlockCanBeMined() {
+        ObtainPlan plan = ObtainPlanner.plan(
+                COBBLESTONE,
+                36,
+                Map.of(GRAVEL, 36),
+                bookWithHandCobblestone(),
+                FakeSourceBook.vanillaLike(),
+                worldWith(Set.of(Station.CRAFTING_TABLE.noun()), Map.of(STONE, 10), false));
+
+        assertTrue(plan.ok(), plan.missing().toString());
+        assertTrue(hasCraft(plan, COBBLESTONE), plan.steps().toString());
+    }
+
+    @Test
+    void rememberedSiteDoesNotSuppressAnIngredientCraft() {
+        // The first ingredient pass resolves without exploration consent: a remembered site alone must not
+        // hide the hand recipe that actually obtains the cobblestone.
+        ResourceCandidate remembered = new ResourceCandidate(
+                41,
+                STONE,
+                "minecraft:overworld",
+                new Pos(40, 64, 0),
+                new Pos(39, 64, 0),
+                5,
+                1_200,
+                false,
+                false,
+                184.0);
+        WorldFacts facts = new WorldFacts(
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Set.of(Station.CRAFTING_TABLE.noun()),
+                true,
+                true,
+                List.of(remembered));
+
+        ObtainPlan plan = ObtainPlanner.plan(
+                FURNACE, 1, Map.of(GRAVEL, 8), bookWithHandCobblestone(), FakeSourceBook.vanillaLike(), facts);
+
+        assertTrue(plan.ok(), plan.missing().toString());
+        assertFalse(plan.conditional(), plan.steps().toString());
+        assertTrue(hasCraft(plan, FURNACE), plan.steps().toString());
     }
 
     @Test

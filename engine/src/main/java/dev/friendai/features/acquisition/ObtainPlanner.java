@@ -379,27 +379,30 @@ public final class ObtainPlanner {
             if (sim.containers.getOrDefault(item, 0) > 0) {
                 providers.add(new ContainerProvider(item));
             }
-            // Mining wins over crafting whenever the block is reachable. On 2026-11-07 a real
-            // `obtain_items minecraft:cobblestone` planned `cobblestone_from_stone_stonecutting` and
-            // believed it could craft the stonecutter that recipe needs, then failed against a world
-            // without one; a mineable target is never routed through a recipe that wants a rarer input
-            // or a station while its own block can be mined.
+            // On 2026-11-07 a real `obtain_items minecraft:cobblestone` planned
+            // `cobblestone_from_stone_stonecutting` and believed it could craft the stonecutter that
+            // recipe needs, then failed against a world without one. A recipe whose station is not
+            // here must not compete with mining the block itself; a station that is already here keeps
+            // the recipe in the pool and the cost ranking decides, so carrying stone beside a placed
+            // stonecutter still crafts.
             List<Provider> mines = mineProviders(item, allowExplore);
-            if (mines.isEmpty()) {
-                for (Recipe recipe : book.producing(item)) {
-                    if (recipe.station().isCooking()) {
-                        providers.add(new SmeltProvider(recipe, allowExplore));
-                    } else {
-                        providers.add(new CraftProvider(recipe, allowExplore));
-                    }
+            boolean mineReachable = !mines.isEmpty();
+            for (Recipe recipe : book.producing(item)) {
+                if (mineReachable && !stationUsable(recipe)) {
+                    continue;
                 }
-            } else {
-                providers.addAll(mines);
+                if (recipe.station().isCooking()) {
+                    providers.add(new SmeltProvider(recipe, allowExplore));
+                } else {
+                    providers.add(new CraftProvider(recipe, allowExplore));
+                }
             }
+            providers.addAll(mines);
             for (Source source : sources.sourcesOf(item)) {
                 switch (source) {
                     case Source.Mine ignored -> {
-                        // Collected before the craft providers: a reachable mine source removes them.
+                        // Collected before the recipes: a reachable mine source hides a recipe whose
+                        // station is not here.
                     }
                     case Source.Hunt hunt -> providers.add(new HuntProvider(hunt));
                     case Source.Harvest harvest -> providers.add(new HarvestProvider(harvest));
@@ -454,7 +457,7 @@ public final class ObtainPlanner {
                 if (world.blocksNearby().getOrDefault(mine.block(), 0) > 0) {
                     providers.add(new MineProvider(item, mine, false));
                 }
-                if (world.exploreAllowed()) {
+                if (allowExplore && world.exploreAllowed()) {
                     world.resourceCandidates().stream()
                             .filter(candidate -> !candidate.visibleNow()
                                     && candidate.blockId().equals(mine.block()))
@@ -668,6 +671,12 @@ public final class ObtainPlanner {
             }
             sim.adopt(bestSim);
             return best;
+        }
+
+        /** True when the recipe can be worked where the companion stands: hand crafting or its station nearby. */
+        private boolean stationUsable(Recipe recipe) {
+            Station station = recipe.station();
+            return station == Station.INVENTORY || stationNearby(station);
         }
 
         private boolean stationNearby(Station station) {
