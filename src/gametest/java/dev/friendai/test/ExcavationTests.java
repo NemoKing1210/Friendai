@@ -2,13 +2,17 @@ package dev.friendai.test;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.features.mining.MiningBounds;
 import dev.friendai.features.mining.excavation.ExcavationDirection;
 import dev.friendai.features.mining.excavation.ExcavationGeometry;
 import dev.friendai.features.mining.excavation.ExcavationSpec;
+import dev.friendai.features.mining.minecraft.mining.MiningSession;
 import dev.friendai.features.mining.minecraft.task.ExcavateTask;
 import dev.friendai.features.mining.minecraft.task.MineBlockAtTask;
+import dev.friendai.foundation.spatial.Node;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.execution.TaskEventSink;
+import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
@@ -224,5 +228,43 @@ public class ExcavationTests {
                     "the neighbour above lava was broken: " + result.summary);
             h.assertTrue(!c.isInLava(), "the companion ended in lava");
         });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void descentFallbackBreaksTheSupportBelowTheCompanion(GameTestHelper h) {
+        CompanionEntity c = companion(h);
+        h.setBlock(new BlockPos(2, 0, 2), Blocks.STONE);
+        MiningSession session = new MiningSession(c, new MiningBounds(new Node(2, 1, 2), 8), 8, 600);
+
+        h.assertTrue(session.forceDescent(new TaskContext(c, h.getLevel())), "the descent below the companion starts");
+        h.succeedWhen(() -> {
+            TaskContext context = new TaskContext(c, h.getLevel());
+            MiningSession.State state = session.tick(context);
+            if (state == MiningSession.State.EXTRACTED) {
+                h.assertTrue(
+                        h.getLevel()
+                                .getBlockState(h.absolutePos(new BlockPos(2, 1, 2)))
+                                .isAir(),
+                        "the support under the companion was not broken");
+                h.assertTrue(c.blockPosition().getY() <= 1, "the companion did not drop onto the safe landing");
+            } else {
+                h.assertTrue(state == MiningSession.State.WORKING, "unexpected descent state: " + state);
+            }
+        });
+    }
+
+    @GameTest(maxTicks = 200)
+    public void descentFallbackRefusesAnUnbreakableSupport(GameTestHelper h) {
+        CompanionEntity c = companion(h);
+        h.setBlock(new BlockPos(2, 1, 2), Blocks.BEDROCK);
+        h.setBlock(new BlockPos(2, 0, 2), Blocks.STONE);
+        MiningSession session = new MiningSession(c, new MiningBounds(new Node(2, 1, 2), 8), 8, 600);
+
+        h.assertFalse(
+                session.forceDescent(new TaskContext(c, h.getLevel())),
+                "bedrock under the companion must refuse the descent");
+        h.assertTrue(
+                h.getLevel().getBlockState(h.absolutePos(new BlockPos(2, 1, 2))).is(Blocks.BEDROCK),
+                "the refused support changed");
     }
 }

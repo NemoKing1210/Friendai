@@ -96,6 +96,8 @@ public final class MiningSession {
     private String phase = "";
     /** Which plan attempt last gave up, for the debug line; empty while the session is getting on with the job. */
     private String diagnostic = "";
+    /** The current break is the fallback descent of the support cell, which the normal target guard refuses. */
+    private boolean descent;
 
     public MiningSession(CompanionEntity companion, MiningBounds bounds, int maxBlocks, int maxTicks) {
         this(companion, bounds, maxBlocks, maxTicks, new PlacementLedger());
@@ -133,6 +135,7 @@ public final class MiningSession {
         this.diagnostic = "";
         this.airborneTicks = 0;
         this.lastState = State.WORKING;
+        this.descent = false;
         this.search = null;
         this.goal = null;
         this.exploration = null;
@@ -160,6 +163,7 @@ public final class MiningSession {
         this.toolFailure = null;
         this.diagnostic = "";
         this.lastState = State.WORKING;
+        this.descent = false;
         this.search = null;
         this.goal = null;
         this.exploration = null;
@@ -196,6 +200,11 @@ public final class MiningSession {
     /** Immutable copy of the current task-owned candidate set for diagnostics. */
     public List<BlockPos> targets() {
         return targets.stream().map(BlockPos::immutable).toList();
+    }
+
+    /** Whether {@code pos} is one of this batch's outstanding targets, so breaking it is region progress. */
+    public boolean isCurrentTarget(BlockPos pos) {
+        return targets.contains(pos);
     }
 
     public UserMessage failure() {
@@ -244,6 +253,50 @@ public final class MiningSession {
         return brokenBlocks;
     }
 
+    /** Whether a route, a break or a catch platform is already running; a stalled planning phase is not work. */
+    public boolean busy() {
+        return executor != null || extraction != null || platform != null;
+    }
+
+    /**
+     * Starts one deterministic descent when a stance search has stalled: the block under the companion's feet is
+     * broken through the same {@link MiningRefusal}, {@link DropGuard} and {@link BreakAction} checks as every other
+     * break, so the body drops onto a fresh stance. Returns false, having changed nothing, while a route or break runs,
+     * when the cell below is already open or outside the session's bounds, or when any check refuses the break.
+     *
+     * <p>The normal target guard refuses a support cell by design; {@link MiningRefusal#check} with {@code
+     * allowSupport} is the existing rule that decides when breaking it is safe (a solid, non-lava landing below).
+     */
+    public boolean forceDescent(TaskContext context) {
+        if (busy()) {
+            return false;
+        }
+        BlockPos support = companion.blockPosition().below();
+        Pos at = plain(support);
+        if (context.level().getBlockState(support).isAir() || !bounds.contains(at)) {
+            return false;
+        }
+        if (MiningRefusal.check(context, support, true) != null || !DropRoom.hasRoom(context, support)) {
+            return false;
+        }
+        DropGuard.Plan plan = DropGuard.plan(context, support, placements);
+        if (plan.refusal() != null) {
+            return false;
+        }
+        search = null;
+        exploration = null;
+        activeSteps = List.of();
+        remainingSteps = List.of();
+        target = support;
+        descent = true;
+        catchChecked = true;
+        platform = plan.platform();
+        diagnostic = "";
+        extraction = new BreakAction(support, true);
+        setPhase("extract");
+        return true;
+    }
+
     /** Previously used supports stay intact so the companion can return along its route. */
     public boolean protects(BlockPos pos) {
         return supports.contains(plain(pos));
@@ -289,6 +342,7 @@ public final class MiningSession {
         exploration = null;
         activeSteps = List.of();
         remainingSteps = List.of();
+        descent = false;
     }
 
     private State tickTargets(TaskContext context) {
@@ -450,7 +504,10 @@ public final class MiningSession {
     }
 
     private State tickExtraction(TaskContext context) {
-        if (target == null || !guard(context).allowTarget(context, target)) {
+        MiningRefusal supportRefusal = descent && target != null ? MiningRefusal.check(context, target, true) : null;
+        boolean refused = target == null
+                || (descent ? supportRefusal != null : !guard(context).allowTarget(context, target));
+        if (refused) {
             if (extraction != null) {
                 extraction.stop(context);
                 extraction = null;
@@ -460,8 +517,10 @@ public final class MiningSession {
             }
             UserMessage lost = target == null
                     ? UserMessage.of("friendai.mining.unreachable")
-                    : guard(context).targetFailure(context, target);
+                    : descent ? ownerMessage(supportRefusal) : guard(context).targetFailure(context, target);
             diagnostic = target == null ? "target-gone" : "target-refused-" + shortKey(lost.key());
+            target = null;
+            descent = false;
             return retryPlan(lost);
         }
         if (!DropRoom.hasRoom(context, target)) {
@@ -471,6 +530,7 @@ public final class MiningSession {
             }
             target = null;
             search = null;
+            descent = false;
             diagnostic = "inventory-full";
             return fail(UserMessage.of("friendai.mining.inventory_full"));
         }
@@ -486,6 +546,7 @@ public final class MiningSession {
                 }
                 target = null;
                 search = null;
+                descent = false;
                 diagnostic = "catch-refused";
                 return retryPlan(refusal);
             }
@@ -508,6 +569,7 @@ public final class MiningSession {
                 excludedTargets.add(plain(target));
                 target = null;
                 search = null;
+                descent = false;
                 diagnostic = "platform-refused";
                 return retryPlan(ownerMessage(refusal));
             }
@@ -525,6 +587,7 @@ public final class MiningSession {
             noProgressPlans = 0;
             diagnostic = "";
             search = null;
+            descent = false;
             return lastState = State.EXTRACTED;
         }
         if (target != null) {
@@ -536,6 +599,7 @@ public final class MiningSession {
         }
         target = null;
         search = null;
+        descent = false;
         diagnostic = result == BreakAction.State.BLOCKED ? "break-blocked" : "break-failed";
         return retryPlan(
                 result == BreakAction.State.BLOCKED

@@ -41,6 +41,9 @@ import net.minecraft.world.phys.Vec3;
  * counters. Every break therefore passes the same protection, support, drop and tool checks as {@code mine_blocks}.
  */
 public final class ExcavateTask implements Task {
+    /** Ticks a session may stay in approach or descend without breaking another block before one descent is tried. */
+    public static final int STALL_FALLBACK_TICKS = 200;
+
     private static final int BATCH = 64;
     private static final int UNLOADED_WAIT_TICKS = 40;
     private static final int SWEEP_EVERY_BREAKS = 16;
@@ -52,6 +55,8 @@ public final class ExcavateTask implements Task {
     private final ExcavationProgress progress;
     private final PlacementLedger placements = new PlacementLedger();
     private final ItemMatcher untilMatcher;
+    private final StallFallback stallFallback = new StallFallback();
+    private String fallbackReason = "";
 
     private MiningSession session;
     private DropCollector sweep;
@@ -164,13 +169,21 @@ public final class ExcavateTask implements Task {
             return TaskStatus.RUNNING;
         }
         if (session != null) {
+            TaskStatus stalled = tickStallFallback(c);
+            if (stalled != null) {
+                return stalled;
+            }
             MiningSession.State state = session.tick(c);
             switch (state) {
                 case WORKING:
                     return TaskStatus.RUNNING;
                 case EXTRACTED:
-                    progress.markBroken();
-                    lastBroken = session.target();
+                    BlockPos broken = session.target();
+                    lastBroken = broken;
+                    // A fallback descent also breaks the support cell; only a batched region target is region progress.
+                    if (broken == null || session.isCurrentTarget(broken)) {
+                        progress.markBroken();
+                    }
                     failedBatches = 0;
                     if (progress.broken() >= spec.count()) {
                         session.stop(c);
@@ -205,6 +218,32 @@ public final class ExcavateTask implements Task {
             }
         }
         return feed(c);
+    }
+
+    /**
+     * Feeds the bounded stall rule and runs its one deterministic descent when it fires. A session already walking a
+     * route or breaking a block is making progress the stamp cannot show, so the window restarts instead of forcing a
+     * second action on top of a running one. Null means the caller should keep ticking the session.
+     */
+    private TaskStatus tickStallFallback(TaskContext c) {
+        if (session.busy()) {
+            stallFallback.reset();
+            return null;
+        }
+        if (stallFallback.observe(progress.broken(), session.phase()) != StallFallback.Decision.DIG) {
+            return null;
+        }
+        if (session.forceDescent(c)) {
+            fallbackReason = "fallback-dig";
+            return null;
+        }
+        fallbackReason = "fallback-refused";
+        session.stop(c);
+        session = null;
+        UserMessage failure = fallbackRefusal();
+        return finish(
+                TaskStatus.FAILED,
+                ExcavationReport.partial(ExcavationText.label(spec), progress, failureText(failure)));
     }
 
     private TaskStatus feed(TaskContext c) {
@@ -322,7 +361,7 @@ public final class ExcavateTask implements Task {
         return status;
     }
 
-    private static String failureText(UserMessage failure) {
+    static String failureText(UserMessage failure) {
         return switch (failure.key()) {
             case "friendai.mining.no_tool" -> "no suitable tool for the next block";
             case "friendai.mining.unsafe_support" -> "a cell supports the companion or its route";
@@ -336,6 +375,47 @@ public final class ExcavateTask implements Task {
             case "friendai.mining.inventory_full" -> "the inventory is full";
             default -> failure.key();
         };
+    }
+
+    /** The typed refusal a fallback that cannot dig reports, shared with the tests that pin it. */
+    static UserMessage fallbackRefusal() {
+        return UserMessage.of("friendai.mining.unreachable");
+    }
+
+    /**
+     * The bounded stall rule: {@link #STALL_FALLBACK_TICKS} ticks without another broken block while the session is
+     * planning an approach or descent. It is pure so the rule is unit-tested without a world; the break itself is
+     * {@link MiningSession#forceDescent(TaskContext)}.
+     */
+    static final class StallFallback {
+        /** Where one stalled tick leads: keep waiting, or try the one bounded descent below the companion. */
+        enum Decision {
+            WAIT,
+            DIG
+        }
+
+        private long stamp = Long.MIN_VALUE;
+        private int idleTicks;
+
+        Decision observe(long stamp, String phase) {
+            if (stamp != this.stamp) {
+                this.stamp = stamp;
+                idleTicks = 0;
+            }
+            if (!"approach".equals(phase) && !"descend".equals(phase)) {
+                idleTicks = 0;
+                return Decision.WAIT;
+            }
+            if (++idleTicks <= STALL_FALLBACK_TICKS) {
+                return Decision.WAIT;
+            }
+            idleTicks = 0;
+            return Decision.DIG;
+        }
+
+        void reset() {
+            idleTicks = 0;
+        }
     }
 
     @Override
@@ -428,6 +508,9 @@ public final class ExcavateTask implements Task {
             if (!reason.isEmpty()) {
                 text.append(", ").append(reason);
             }
+        }
+        if (!fallbackReason.isEmpty()) {
+            text.append(", ").append(fallbackReason);
         }
         return text.toString();
     }
