@@ -32,3 +32,6 @@ planning_first_order.json
 recovery_without_goal.json
 planner_transport_failure_falls_back.json
 invalid_queue_add_args.json
+stone_tools_from_forest.json
+cobblestone_station_trap.json
+unreachable_tree_top.json

@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Test;
@@ -41,5 +42,17 @@ class ScenarioSuiteTest {
                 2,
                 result.toolsCalled().stream().filter("queue_add"::equals).count(),
                 "the invalid call and the corrected one");
+    }
+
+    /**
+     * The 2026-11-07 throughput and mining regressions are fixtures, so a file that is not in {@code index.txt} would
+     * never run: this test fails before the scenario does.
+     */
+    @Test
+    void theThroughputRegressionFixturesAreRegistered() throws IOException {
+        var names = ScenarioResources.loadAll().stream().map(Scenario::name).toList();
+        for (String fixture : List.of("stone_tools_from_forest", "cobblestone_station_trap", "unreachable_tree_top")) {
+            assertTrue(names.contains(fixture), fixture + ".json is missing from scenarios/index.txt");
+        }
     }
 }

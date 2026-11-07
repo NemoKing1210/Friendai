@@ -1,0 +1,24 @@
+{
+  "name": "stone_tools_from_forest",
+  "access": "owner",
+  "playerSays": "make me and yourself stone tools",
+  "toolResults": [
+    {"tool": "mine_blocks", "error": true, "content": "no reachable target of minecraft:stone was observed nearby"},
+    {"tool": "obtain_items", "content": "mined 6 minecraft:cobblestone, crafted 4 minecraft:stick and 2 sets of stone tools"}
+  ],
+  "replies": [
+    {"text": "", "tools": ["set_goal", "mine_blocks"]},
+    {"text": "", "tools": ["obtain_items"]},
+    {"text": "The forest gave me enough stone for two sets of tools.", "tools": []}
+  ],
+  "expect": {
+    "maxRequests": 3,
+    "plannerConsulted": 0,
+    "plansApplied": 0,
+    "toolsCalled": ["set_goal", "mine_blocks", "obtain_items"],
+    "toolsNotCalled": ["craft_item"],
+    "maxRepeatedToolCalls": 0,
+    "maxClarifications": 0,
+    "spokenContains": ["two sets of tools"]
+  }
+}

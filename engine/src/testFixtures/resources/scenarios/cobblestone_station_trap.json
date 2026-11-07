@@ -1,0 +1,21 @@
+{
+  "name": "cobblestone_station_trap",
+  "access": "owner",
+  "playerSays": "bring me 36 cobblestone",
+  "toolResults": [
+    {"tool": "obtain_items", "content": "mined 36 minecraft:cobblestone with a pickaxe; 36 blocks were broken"}
+  ],
+  "replies": [
+    {"text": "", "tools": ["obtain_items"]},
+    {"text": "Mining the cobblestone directly is the shortest route.", "tools": []}
+  ],
+  "expect": {
+    "maxRequests": 2,
+    "plannerConsulted": 0,
+    "toolsCalled": ["obtain_items"],
+    "toolsNotCalled": ["craft_item", "obtain_item"],
+    "maxRepeatedToolCalls": 0,
+    "maxClarifications": 0,
+    "spokenContains": ["shortest route"]
+  }
+}

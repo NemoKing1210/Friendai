@@ -43,7 +43,10 @@ class ScenarioBaselineTest {
             "hour_autonomous",
             "planning_first_order",
             "recovery_without_goal",
-            "planner_transport_failure_falls_back");
+            "planner_transport_failure_falls_back",
+            "stone_tools_from_forest",
+            "cobblestone_station_trap",
+            "unreachable_tree_top");
 
     private static final Duration RUN_BOUND = Duration.ofSeconds(30);
 
