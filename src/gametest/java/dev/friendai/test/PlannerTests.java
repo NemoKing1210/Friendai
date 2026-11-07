@@ -64,8 +64,15 @@ public class PlannerTests {
 
     /** A planner that always proposes one jump, and counts how often it was asked. */
     private static dev.friendai.agent.plan.Planner jumpPlanner(AtomicInteger asked) {
+        return jumpPlanner(asked, input -> {});
+    }
+
+    /** The same planner, also handing the input it received to the test. */
+    private static dev.friendai.agent.plan.Planner jumpPlanner(
+            AtomicInteger asked, java.util.function.Consumer<dev.friendai.agent.plan.PlannerInput> capture) {
         return input -> {
             asked.incrementAndGet();
+            capture.accept(input);
             JsonArray steps = new JsonArray();
             JsonObject step = new JsonObject();
             step.addProperty("tool", "jump");
@@ -177,7 +184,9 @@ public class PlannerTests {
         ServerRuntime state = GameTestSupport.runtime(server);
         CompanionSessions brains = state.sessions();
         AtomicInteger asked = new AtomicInteger();
-        brains.setPlannerOverride(player.getUUID(), jumpPlanner(asked));
+        java.util.concurrent.atomic.AtomicReference<dev.friendai.agent.plan.PlannerInput> captured =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        brains.setPlannerOverride(player.getUUID(), jumpPlanner(asked, captured::set));
         brains.setGatewayOverride(
                 player.getUUID(),
                 new CompanionControlTests.Script().text("[silent]").text("[silent]"));
@@ -191,6 +200,18 @@ public class PlannerTests {
         h.assertTrue(firstPlan != 0, "linked to the goal");
         h.succeedWhen(() -> {
             h.assertTrue(asked.get() == 1, "the blocked plan asks the planner once, asked=" + asked.get());
+            var input = captured.get();
+            h.assertTrue(input != null, "the planner received an input");
+            h.assertTrue(
+                    input.targetPlanId() == firstPlan,
+                    "the input keeps the plan it repairs: " + input.targetPlanId() + " first=" + firstPlan);
+            h.assertFalse(input.targetFingerprint().isBlank(), "the stale-check fingerprint survives attachment");
+            h.assertFalse(
+                    input.pendingNodePath().isBlank(),
+                    "the model learns where the plan stands: " + input.pendingNodePath());
+            h.assertTrue(
+                    input.toolDigest().contains("slot: string[mainhand|offhand|head|chest|legs|feet]"),
+                    "the digest carries a closed enum, not prose: " + input.toolDigest());
             var goal = state.goals().board(player.getUUID()).primary().orElseThrow();
             h.assertTrue(
                     goal.planId() == firstPlan,

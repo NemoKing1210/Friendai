@@ -11,6 +11,7 @@ import dev.friendai.agent.goal.GoalStatus;
 import dev.friendai.agent.plan.PlanSubject;
 import dev.friendai.agent.plan.PlannerInput;
 import dev.friendai.agent.plan.PlannerObjective;
+import dev.friendai.agent.plan.PlannerToolDigest;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.queue.JobQueue;
 import dev.friendai.execution.queue.PlanFingerprint;
@@ -155,11 +156,11 @@ public final class PlannerInputFactory {
         Set<String> denied = denied(subject);
         Map<String, TaskToolDefinition> source = shift ? planTools : taskTools;
         Map<String, JsonObject> schemas = new LinkedHashMap<>();
-        StringBuilder digest = new StringBuilder();
+        List<PlannerToolDigest.Tool> described = new ArrayList<>();
         source.forEach((name, definition) -> {
             if (!denied.contains(name) && caller.access().allows(definition.minAccess())) {
                 schemas.put(name, definition.schema());
-                digest.append("- ").append(describeTool(definition)).append('\n');
+                described.add(new PlannerToolDigest.Tool(name, definition.description(), definition.schema()));
             }
         });
         CompanionGuardFacts facts = new CompanionGuardFacts(companion);
@@ -170,7 +171,7 @@ public final class PlannerInputFactory {
         return new PlannerInput(
                 objective,
                 new CompanionPerception(companion, perception).describe(caller),
-                digest.toString(),
+                PlannerToolDigest.build(described),
                 PlaceText.planner(known, settings.places.plannerLimit),
                 Optional.of(queue),
                 objective.lessons(),
@@ -201,25 +202,5 @@ public final class PlannerInputFactory {
                 .ifPresent(record ->
                         lessons.add("Most recent failed activity: " + record.goal() + ": " + record.summary()));
         return lessons;
-    }
-
-    /** {@code name(arg*, arg): first sentence of the description}; a star marks a required argument. */
-    static String describeTool(TaskToolDefinition definition) {
-        JsonObject schema = definition.schema();
-        Set<String> required = new java.util.HashSet<>();
-        if (schema.has("required")) {
-            schema.getAsJsonArray("required").forEach(element -> required.add(element.getAsString()));
-        }
-        List<String> args = new ArrayList<>();
-        if (schema.has("properties")) {
-            for (String arg : schema.getAsJsonObject("properties").keySet()) {
-                args.add(arg + (required.contains(arg) ? "*" : ""));
-            }
-        }
-        String description = definition.description() == null ? "" : definition.description();
-        int stop = description.indexOf(". ");
-        String first = stop > 0 ? description.substring(0, stop + 1) : description;
-        return definition.name() + "(" + String.join(", ", args) + "): "
-                + (first.length() > 200 ? first.substring(0, 200) : first);
     }
 }
