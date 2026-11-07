@@ -14,19 +14,18 @@ class TurnRouterTest {
     private final TurnRouter router = new TurnRouter(IntentVocabulary.load());
 
     private RouteDecision player(String text, boolean goal) {
-        return route(TurnKind.PLAYER, text, goal, false, 0, true, false);
+        return route(TurnKind.PLAYER, text, goal, false, true, false);
     }
 
     private RouteDecision route(
-            TurnKind kind, String text, boolean goal, boolean blocked, int steps, boolean owner, boolean troubled) {
+            TurnKind kind, String text, boolean goal, boolean blocked, boolean owner, boolean troubled) {
         return router.route(new RouteSignals(
-                kind, text, goal, blocked, steps, owner, troubled, false, false, false, false, 3L, "", 0L, List.of(),
-                0L));
+                kind, text, goal, blocked, owner, troubled, false, false, false, false, 3L, "", 0L, List.of(), 0L));
     }
 
     @Test
     void blockedEventRoutesToRecovery() {
-        RouteDecision d = route(TurnKind.EVENT, "", true, true, 3, true, true);
+        RouteDecision d = route(TurnKind.EVENT, "", true, true, true, true);
         assertEquals(TurnMode.RECOVERY, d.mode());
         assertTrue(d.wantPlanner(), "a queued troubled plan may be replanned");
         assertEquals(new PlanSubject.TroubledPlan(3, ""), d.planning().subject());
@@ -35,7 +34,7 @@ class TurnRouterTest {
 
     @Test
     void anOwnerOrderInTheSameBatchAsAFailedPlanWinsThePlanner() {
-        RouteDecision d = route(TurnKind.PLAYER, "build a house and bring iron", true, true, 3, true, true);
+        RouteDecision d = route(TurnKind.PLAYER, "build a house and bring iron", true, true, true, true);
         assertEquals(TurnMode.RECOVERY, d.mode());
         assertTrue(d.planning().subject() instanceof PlanSubject.OwnerOrder, "the owner's line is the plan's subject");
         assertEquals("owner-line-first", d.planning().reason());
@@ -166,7 +165,7 @@ class TurnRouterTest {
 
     @Test
     void eventTurnRoutesToEvent() {
-        RouteDecision d = route(TurnKind.EVENT, "", false, false, 0, true, false);
+        RouteDecision d = route(TurnKind.EVENT, "", false, false, true, false);
         assertEquals(TurnMode.EVENT, d.mode());
         assertFalse(d.wantPlanner());
     }

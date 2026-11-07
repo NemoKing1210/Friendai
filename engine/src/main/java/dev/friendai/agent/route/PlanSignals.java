@@ -12,7 +12,6 @@ import java.util.List;
  * @param distinctKindsOfWork how many unrelated kinds of work the player's verbs name
  * @param complexMarker the vocabulary recognized an order that usually needs several steps
  * @param explicitPlanRequest the player asked for a plan
- * @param hasActivePrimaryGoal the owner already has a primary goal; it never suppresses an owner order
  * @param goalHasNoQueuedWork the active goal has no plan or the plan has no pending work
  * @param goalTickWithUnmet the batch holds a goal tick whose criteria are still unmet
  * @param troubledPlanQueued the batch holds a failed or blocked plan this companion may replan
@@ -31,7 +30,6 @@ public record PlanSignals(
         int distinctKindsOfWork,
         boolean complexMarker,
         boolean explicitPlanRequest,
-        boolean hasActivePrimaryGoal,
         boolean goalHasNoQueuedWork,
         boolean goalTickWithUnmet,
         boolean troubledPlanQueued,
@@ -59,7 +57,6 @@ public record PlanSignals(
                 TurnMode.EVENT,
                 "",
                 0,
-                false,
                 false,
                 false,
                 false,

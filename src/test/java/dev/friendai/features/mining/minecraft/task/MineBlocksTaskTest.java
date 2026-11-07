@@ -12,6 +12,7 @@ import dev.friendai.execution.tool.Caller;
 import dev.friendai.features.knowledge.search.EscortPolicy;
 import dev.friendai.features.mining.minecraft.mining.BlockFilter;
 import dev.friendai.task.BlockSearchTaskFactory;
+import dev.friendai.task.ProgressWatch;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
@@ -172,6 +173,27 @@ class MineBlocksTaskTest {
         assertEquals(MineBlocksTask.Exploration.Step.RUNNING, missing(exploration, 7));
 
         assertEquals(7, factory.lastMaxTicks, "the configured local budget must reach the search");
+    }
+
+    /**
+     * A running search is a wait the job declares, not an outer stall: the search's own budget is what ends it, so the
+     * runner must leave it alone for the whole configured window even when that window is longer than its stall limit.
+     */
+    @Test
+    void a_running_search_is_a_bounded_wait_not_a_stall() {
+        RecordingFactory factory = new RecordingFactory(TaskStatus.RUNNING);
+        MineBlocksTask.Exploration exploration = new MineBlocksTask.Exploration(factory, true, CALLER);
+        ProgressWatch watch = new ProgressWatch(0);
+
+        for (int tick = 0; tick < 99; tick++) {
+            assertEquals(MineBlocksTask.Exploration.Step.RUNNING, missing(exploration, 100), "tick " + tick);
+            assertEquals(
+                    ProgressWatch.Status.WAITING,
+                    watch.observe(7L, exploration.waitingTicks(), exploration.waitingLimitTicks(), tick, 50),
+                    "tick " + tick);
+        }
+
+        assertEquals(100, exploration.waitingLimitTicks(), "the declared wait is the search's own budget");
     }
 
     /** A call that names its own origin keeps the job there instead of letting the search wander from it. */

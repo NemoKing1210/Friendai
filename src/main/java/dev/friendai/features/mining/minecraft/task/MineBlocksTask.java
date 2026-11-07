@@ -824,7 +824,7 @@ public final class MineBlocksTask implements Task {
      * wandering the explicit-origin rule removes.
      *
      * <p>The advice names the tool that can actually reach the origin: {@code go_to_place} takes a remembered place's
-     * name, which only a {@code place:} origin has, and {@code go_to} takes the coordinates of a point or a player.
+     * name, which only a {@code place:} origin has, and {@code go_to} takes the coordinates of a point or the owner.
      */
     static String explicitOriginMiss(String label, int radius, BlockPos origin, boolean hidden, boolean originIsPlace) {
         String where = origin.getX() + " " + origin.getY() + " " + origin.getZ();
@@ -977,6 +977,25 @@ public final class MineBlocksTask implements Task {
         return mined;
     }
 
+    /**
+     * The job's two silent waits are bounded work, not a stall: the one delegated search runs under its own configured
+     * budget, and the observation pause gives newly exposed faces a chance to be seen. Reporting them here keeps the
+     * runner's generic stall window from cutting either one short.
+     */
+    @Override
+    public int waitingTicks() {
+        if (exploration.searching()) return exploration.waitingTicks();
+        if (pendingObservation != null) return observationWaitTicks;
+        return -1;
+    }
+
+    @Override
+    public int waitingLimitTicks() {
+        if (exploration.searching()) return exploration.waitingLimitTicks();
+        if (pendingObservation != null) return OBSERVATION_WAIT_TICKS;
+        return 0;
+    }
+
     @Override
     public String describe() {
         return "mining " + count + " " + matcher.label()
@@ -1079,6 +1098,8 @@ public final class MineBlocksTask implements Task {
         private Task search;
         private boolean searched;
         private int ticks;
+        /** The budget of the running search, captured when the job asked for it. */
+        private int limit;
         /** What the search itself said when it failed or spent its budget; blank when it never reported anything. */
         private String failure = "";
 
@@ -1090,6 +1111,16 @@ public final class MineBlocksTask implements Task {
 
         boolean searching() {
             return search != null;
+        }
+
+        /** How long the running search has waited, or -1 when no search is running. */
+        int waitingTicks() {
+            return search == null ? -1 : ticks;
+        }
+
+        /** The running search's own budget, or zero when no search is running. */
+        int waitingLimitTicks() {
+            return search == null ? 0 : limit;
         }
 
         /** The job's principal, captured at construction and never minted by a tick. */
@@ -1110,6 +1141,7 @@ public final class MineBlocksTask implements Task {
          */
         Step missing(TaskContext c, String blockOrTag, int radius, ResourceSearchSettings settings) {
             int maxTicks = settings.localTicks();
+            this.limit = maxTicks;
             if (search != null) {
                 TaskStatus status;
                 try {

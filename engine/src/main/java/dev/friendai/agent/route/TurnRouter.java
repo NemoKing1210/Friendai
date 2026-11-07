@@ -148,7 +148,6 @@ public final class TurnRouter {
                 kinds,
                 complex,
                 planRequest,
-                s.hasActiveGoal(),
                 s.goalHasNoQueuedWork(),
                 s.goalUnmet(),
                 s.troubledPlanQueued(),

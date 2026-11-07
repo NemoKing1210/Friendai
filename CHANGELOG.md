@@ -30,6 +30,7 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 - An excavation that cannot reach its next cell digs down one safe cell, at most three times, before it gives up with a clear reason.
 - A task that crashes now names its exception class and a redacted message instead of a generic error.
 - Tool arguments written in their documented alias form are accepted in plans and queue edits, not only in a direct call.
+- A long search for a block, or an excavation waiting on a stalled approach, is no longer cut short by the task watchdog.
 
 ## [0.210.0] - 2026-11-07
 

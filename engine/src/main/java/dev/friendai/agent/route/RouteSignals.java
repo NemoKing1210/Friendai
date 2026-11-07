@@ -8,7 +8,6 @@ import java.util.List;
  *
  * @param playerText the joined player messages of the turn; empty on an event turn
  * @param planBlockedOrFailed the batch holds a failed or blocked plan event
- * @param linkedPlanSteps jobs left in the active goal's plan, or zero
  * @param ownerCaller the turn's principal is the owner
  * @param troubledPlanQueued the failed or blocked plan belongs to this companion and may be replanned
  * @param goalUnmet the batch holds a goal tick whose criteria are still unmet
@@ -26,7 +25,6 @@ public record RouteSignals(
         String playerText,
         boolean hasActiveGoal,
         boolean planBlockedOrFailed,
-        int linkedPlanSteps,
         boolean ownerCaller,
         boolean troubledPlanQueued,
         boolean goalUnmet,

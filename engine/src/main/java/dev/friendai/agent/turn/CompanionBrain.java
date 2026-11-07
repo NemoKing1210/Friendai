@@ -594,7 +594,6 @@ public final class CompanionBrain {
                 String.join("\n", turnPlayerTexts),
                 !goalView.isEmpty(),
                 planTrouble,
-                0,
                 level == AccessLevel.OWNER,
                 ownsTroubledPlan,
                 goalTickWithUnmet,

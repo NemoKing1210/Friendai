@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import dev.friendai.features.mining.minecraft.mining.MiningSession;
 import dev.friendai.features.mining.minecraft.mining.MiningSession.DescentRules;
 import dev.friendai.features.mining.minecraft.task.ExcavateTask.StallFallback;
+import dev.friendai.task.ProgressWatch;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -55,6 +56,28 @@ class ExcavateFallbackTest {
         }
 
         assertEquals(StallFallback.Decision.DIG, fallback.observe(3, "descend"));
+    }
+
+    /**
+     * The window before the one descent is a wait the job declares, not an outer stall: the runner must let the rule
+     * reach its own 200-tick decision even when its stall limit is shorter.
+     */
+    @Test
+    void the_stall_window_is_a_declared_wait_not_an_outer_stall() {
+        StallFallback fallback = new StallFallback();
+        ProgressWatch watch = new ProgressWatch(0);
+
+        for (int tick = 0; tick < ExcavateTask.STALL_FALLBACK_TICKS - 1; tick++) {
+            assertEquals(StallFallback.Decision.WAIT, fallback.observe(8, "approach"), "tick " + (tick + 1));
+            assertEquals(tick + 1, fallback.waitingTicks(), "tick " + (tick + 1));
+            assertEquals(
+                    ProgressWatch.Status.WAITING,
+                    watch.observe(7L, fallback.waitingTicks(), ExcavateTask.STALL_FALLBACK_TICKS, tick, 50),
+                    "tick " + (tick + 1));
+        }
+
+        assertEquals(StallFallback.Decision.DIG, fallback.observe(8, "approach"), "the two-hundredth tick digs");
+        assertEquals(-1, fallback.waitingTicks(), "the declared wait ends when the fallback fires");
     }
 
     @Test

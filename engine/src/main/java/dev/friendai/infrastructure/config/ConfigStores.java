@@ -69,8 +69,9 @@ public final class ConfigStores {
     }
 
     /**
-     * Adds the planner mode and moves the planner timeout from its old 60 s default to 20 s. Only the old default is
-     * rewritten, so a timeout the owner chose is kept; a missing key takes the new default from the field initializer.
+     * Adds the planner mode and moves the planner timeout from its old 60 s default to 20 s. Every stored 60 is
+     * rewritten, because the file cannot tell the old default from a deliberate 60; a missing key takes the new
+     * default from the field initializer.
      */
     private static void plannerModeAndTimeout(JsonObject json) {
         JsonObject agent = object(json, "agent");

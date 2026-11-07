@@ -441,6 +441,11 @@ public final class ExcavateTask implements Task {
             return Decision.DIG;
         }
 
+        /** How long the stalled window has been open, or -1 when the session is not waiting (yet). */
+        int waitingTicks() {
+            return idleTicks > 0 ? idleTicks : -1;
+        }
+
         void reset() {
             idleTicks = 0;
         }
@@ -567,6 +572,20 @@ public final class ExcavateTask implements Task {
     @Override
     public long progressStamp() {
         return progress.broken();
+    }
+
+    /**
+     * The ticks before the one bounded descent are a wait the job itself measures, not a stall: the rule needs its
+     * full window to decide, so the runner's generic stall limit must not end the job first.
+     */
+    @Override
+    public int waitingTicks() {
+        return session == null || session.busy() ? -1 : stallFallback.waitingTicks();
+    }
+
+    @Override
+    public int waitingLimitTicks() {
+        return STALL_FALLBACK_TICKS;
     }
 
     @Override
