@@ -206,6 +206,24 @@ class MineBlocksTaskTest {
         assertSame(caller, task.searchCaller(), "the task's caller, not a minted access level");
     }
 
+    /**
+     * The explicit-origin miss names the place and does not point at a tool that cannot honour the origin. The
+     * companion-centred advice is unchanged.
+     */
+    @Test
+    void an_explicit_origin_miss_names_the_origin_and_not_a_search_that_cannot_use_it() {
+        String miss = MineBlocksTask.explicitOriginMiss("minecraft:oak_log", 16, new BlockPos(10, 64, 10), false);
+
+        assertTrue(miss.contains("within 16 blocks of 10 64 10"), miss);
+        assertTrue(miss.contains("mine_blocks without near"), miss);
+        assertTrue(miss.contains("go_to_place"), miss);
+        assertFalse(miss.contains("search_resource"), "search_resource cannot search around the named origin");
+        assertTrue(
+                MineBlocksTask.explicitOriginMiss("minecraft:oak_log", 16, new BlockPos(10, 64, 10), true)
+                        .startsWith("could not reach any"),
+                "a found-but-unreachable block must not be described as unseen");
+    }
+
     /** A failed search after some blocks were mined keeps both the achieved count and the search's own reason. */
     @Test
     void a_failed_search_after_mining_keeps_the_count_and_the_reason() {

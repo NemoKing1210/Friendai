@@ -1,5 +1,7 @@
 package dev.friendai.features.mining.minecraft.tool;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -15,6 +17,8 @@ import dev.friendai.features.places.minecraft.PlaceService;
 import dev.friendai.server.execution.tools.FeatureToolRegistry;
 import dev.friendai.server.execution.tools.TaskToolDefinition;
 import dev.friendai.task.BlockSearchTaskFactory;
+import dev.friendai.world.targeting.NearResolver;
+import net.minecraft.core.BlockPos;
 import org.junit.jupiter.api.Test;
 
 class GatheringToolsTest {
@@ -47,6 +51,23 @@ class GatheringToolsTest {
                 BlockSearchTaskFactory.NONE,
                 new GatheringTools(() -> 8, () -> 8).blockSearchFactory(),
                 "the default composition never searches");
+    }
+
+    @Test
+    void a_named_origin_at_the_companions_own_position_is_not_explicit() {
+        BlockPos here = new BlockPos(10, 64, 10);
+        BlockPos elsewhere = new BlockPos(20, 64, 20);
+
+        assertNull(
+                GatheringTools.searchOrigin(new NearResolver.Origin(here, true), here),
+                "a point where the companion already stands must not disable its one search");
+        assertEquals(
+                elsewhere,
+                GatheringTools.searchOrigin(new NearResolver.Origin(elsewhere, true), here),
+                "a named point away from the companion stays an explicit origin");
+        assertNull(
+                GatheringTools.searchOrigin(new NearResolver.Origin(here, false), here),
+                "an unnamed origin stays non-explicit");
     }
 
     @Test

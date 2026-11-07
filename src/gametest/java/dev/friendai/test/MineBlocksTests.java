@@ -765,11 +765,12 @@ public class MineBlocksTests {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.setOwner(java.util.UUID.randomUUID());
         java.util.concurrent.atomic.AtomicInteger created = new java.util.concurrent.atomic.AtomicInteger();
+        BlockPos origin = h.absolutePos(new BlockPos(12, 2, 12));
         MineBlocksTask task = new MineBlocksTask(
                 new BlockFilter(BlockMatcher.parse("minecraft:spruce_log").orElseThrow(), List.of()),
                 1,
                 8,
-                h.absolutePos(new BlockPos(12, 2, 12)),
+                origin,
                 false,
                 false,
                 false,
@@ -792,6 +793,15 @@ public class MineBlocksTests {
             h.assertTrue(result.status == TaskStatus.FAILED, "not finished: " + result.status + " " + result.summary);
             h.assertValueEqual(created.get(), 0, "an explicit origin must not delegate a search");
             h.assertTrue(result.summary.startsWith("no minecraft:spruce_log"), "summary was " + result.summary);
+            h.assertTrue(
+                    result.summary.contains(origin.getX() + " " + origin.getY() + " " + origin.getZ()),
+                    "the miss must name the origin: " + result.summary);
+            h.assertTrue(
+                    result.summary.contains("go_to_place"),
+                    "the miss must suggest going there first: " + result.summary);
+            h.assertFalse(
+                    result.summary.contains("search_resource"),
+                    "the miss must not point at a search that cannot use the origin: " + result.summary);
         });
     }
 

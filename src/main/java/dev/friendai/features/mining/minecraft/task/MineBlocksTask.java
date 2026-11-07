@@ -701,13 +701,17 @@ public final class MineBlocksTask implements Task {
                 // the count of blocks the caller asked for.
                 summary = minedThenReason(mined, count, searchReason);
             } else if (mined == 0) {
-                summary = placedOnly
-                        ? "no " + matcher.label() + " you placed nearby"
-                        : hidden
-                                ? "could not reach any " + matcher.label() + " nearby"
-                                : "no " + matcher.label()
-                                        + " observed or remembered nearby; use search_resource to search for it, "
-                                        + "or look_around for a visible exposure";
+                if (origin != null && !placedOnly) {
+                    summary = explicitOriginMiss(matcher.label(), radius, origin, hidden);
+                } else {
+                    summary = placedOnly
+                            ? "no " + matcher.label() + " you placed nearby"
+                            : hidden
+                                    ? "could not reach any " + matcher.label() + " nearby"
+                                    : "no " + matcher.label()
+                                            + " observed or remembered nearby; use search_resource to search for it, "
+                                            + "or look_around for a visible exposure";
+                }
             } else {
                 summary = minedThenReason(
                         mined,
@@ -775,6 +779,19 @@ public final class MineBlocksTask implements Task {
         }
         breaker = new BlockBreaker(candidates, matcher::test, true, true, !placedOnly, false, placements);
         return TaskStatus.RUNNING;
+    }
+
+    /**
+     * The miss sentence for a job that was told to stay around a named origin. It names that origin and never points
+     * at {@code search_resource}, which has no origin of its own and would search from the companion — the very
+     * wandering the explicit-origin rule removes.
+     */
+    static String explicitOriginMiss(String label, int radius, BlockPos origin, boolean hidden) {
+        String where = origin.getX() + " " + origin.getY() + " " + origin.getZ();
+        String head = hidden
+                ? "could not reach any " + label + " within " + radius + " blocks of " + where
+                : "no " + label + " observed or remembered within " + radius + " blocks of " + where;
+        return head + "; call mine_blocks without near to search from the companion, or go there first (go_to_place)";
     }
 
     /**

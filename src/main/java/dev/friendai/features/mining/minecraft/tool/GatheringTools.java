@@ -163,7 +163,7 @@ public final class GatheringTools implements FeatureToolContributor {
                 "Mine N blocks of the given block id or #tag near the companion and collect the drops. "
                         + "When the target has not been observed or remembered nearby, one bounded search runs first "
                         + "and may walk away from the start to find it; pass explore:false to skip it. A call that "
-                        + "names near, a place or coordinates never searches away from that origin. "
+                        + "names a place, me or coordinates never searches away from that origin. "
                         + "One call mines up to 64 blocks; give count for the whole batch. "
                         + "For a standing tree use fell_tree: it climbs once and cuts the whole tree, while this tool "
                         + "would mine one log at a time. "
@@ -198,7 +198,7 @@ public final class GatheringTools implements FeatureToolContributor {
                         .bool(
                                 "explore",
                                 "Run one bounded search for an unseen target before giving up; default true. A call "
-                                        + "that names near, a place or coordinates never searches away from that origin")
+                                        + "that names a place, me or coordinates never searches away from that origin")
                         .required("block", "count")
                         .build(),
                 (c, a) -> createMineTask(c, new Caller(null, "", AccessLevel.TRUSTED), a),
@@ -294,7 +294,7 @@ public final class GatheringTools implements FeatureToolContributor {
                 matcher,
                 a.get("count").getAsInt(),
                 radius,
-                origin.explicit() ? origin.pos() : null,
+                searchOrigin(origin, c.blockPosition()),
                 collect,
                 placed,
                 requireTool,
@@ -303,6 +303,15 @@ public final class GatheringTools implements FeatureToolContributor {
                 blockSearch,
                 explore,
                 caller);
+    }
+
+    /**
+     * The origin a mining job searches from, or null when the call did not name one. A named point where the
+     * companion already stands is not an explicit origin for the job: searching from the companion is the same place,
+     * so the one bounded search stays allowed. Package-private so a headless test can pin the rule.
+     */
+    static BlockPos searchOrigin(NearResolver.Origin origin, BlockPos companionPosition) {
+        return origin.explicit() && !origin.pos().equals(companionPosition) ? origin.pos() : null;
     }
 
     /** The search composition this instance was built with; {@link BlockSearchTaskFactory#NONE} disables it. */
