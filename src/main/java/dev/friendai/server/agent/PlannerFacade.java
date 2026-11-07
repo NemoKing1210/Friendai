@@ -335,9 +335,6 @@ final class PlannerFacade {
                 return dev.friendai.agent.plan.PlannerObjective.forOrder(order.text())
                         .text();
             }
-            if (subject instanceof dev.friendai.agent.plan.PlanSubject.ModelGoal goal) {
-                return goalText(board, goal.goalId());
-            }
             if (subject instanceof dev.friendai.agent.plan.PlanSubject.ActiveGoal goal) {
                 return goalText(board, goal.goalId());
             }

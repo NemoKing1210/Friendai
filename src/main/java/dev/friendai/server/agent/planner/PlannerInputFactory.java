@@ -11,8 +11,11 @@ import dev.friendai.agent.goal.GoalStatus;
 import dev.friendai.agent.plan.PlanSubject;
 import dev.friendai.agent.plan.PlannerInput;
 import dev.friendai.agent.plan.PlannerObjective;
+import dev.friendai.agent.plan.PlannerScope;
 import dev.friendai.agent.plan.PlannerToolDigest;
+import dev.friendai.agent.tools.ToolGroup;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.execution.queue.Job;
 import dev.friendai.execution.queue.JobQueue;
 import dev.friendai.execution.queue.PlanFingerprint;
 import dev.friendai.execution.queue.PlanRecord;
@@ -29,6 +32,7 @@ import dev.friendai.server.execution.tools.TaskToolDefinition;
 import dev.friendai.task.queue.CompanionGuardFacts;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -85,9 +89,6 @@ public final class PlannerInputFactory {
         if (subject == null || caller == null) return Optional.empty();
         String reason = failure == null ? "" : failure;
         if (subject instanceof PlanSubject.OwnerOrder order) return order(order, caller, reason);
-        if (subject instanceof PlanSubject.ModelGoal goal) {
-            return goalObjective(subject, goal.goalId(), List.of(), caller, reason);
-        }
         if (subject instanceof PlanSubject.ActiveGoal goal) {
             return goalObjective(subject, goal.goalId(), goal.unmet(), caller, reason);
         }
@@ -103,8 +104,7 @@ public final class PlannerInputFactory {
 
     /**
      * A goal subject plans a new plan for the goal; it never targets the goal's current plan, because the policy only
-     * names a goal whose plan is absent or has no queued work. A zero id means the primary goal, which is what a
-     * {@code set_goal} response just created.
+     * names a goal whose plan is absent or has no queued work.
      */
     private Optional<PlannerInput> goalObjective(
             PlanSubject subject, long goalId, List<String> unmet, Caller caller, String failure) {
@@ -155,9 +155,26 @@ public final class PlannerInputFactory {
         boolean shift = subject instanceof PlanSubject.FreeTimeShift;
         Set<String> denied = denied(subject);
         Map<String, TaskToolDefinition> source = shift ? planTools : taskTools;
+        Map<String, ToolGroup> groups = new LinkedHashMap<>();
+        source.forEach(
+                (name, definition) -> groups.put(name, definition.catalogMeta().group()));
+        Set<String> planStepTools = new LinkedHashSet<>();
+        if (subject instanceof PlanSubject.TroubledPlan troubled) {
+            // Every job of the plan, not only the pending ones, so the tool of the step that failed stays available.
+            for (Job job : queue().jobsOfPlan(troubled.planId())) {
+                planStepTools.add(job.tool());
+            }
+        }
+        Set<String> scoped = PlannerScope.toolNames(subject, groups, planStepTools);
+        Map<String, TaskToolDefinition> selected = new LinkedHashMap<>();
+        source.forEach((name, definition) -> {
+            if (scoped.contains(name)) {
+                selected.put(name, definition);
+            }
+        });
         Map<String, JsonObject> schemas = new LinkedHashMap<>();
         List<PlannerToolDigest.Tool> described = new ArrayList<>();
-        source.forEach((name, definition) -> {
+        selected.forEach((name, definition) -> {
             if (!denied.contains(name) && caller.access().allows(definition.minAccess())) {
                 schemas.put(name, definition.schema());
                 described.add(new PlannerToolDigest.Tool(name, definition.description(), definition.schema()));
@@ -177,7 +194,7 @@ public final class PlannerInputFactory {
                 objective.lessons(),
                 failure,
                 schemas,
-                source.keySet(),
+                selected.keySet(),
                 shift ? List.of() : verifiedFacts.get(),
                 List.of(),
                 0,

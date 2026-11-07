@@ -160,7 +160,7 @@ class CompanionBrainPlannerTest {
     }
 
     @Test
-    void aModelGoalAcrossStepsDoesNotConsultThePlanner() {
+    void aModelSetGoalAcrossStepsDoesNotConsultThePlanner() {
         gateway.enqueue(calls("", call("g1", "set_goal")));
         gateway.enqueue(calls("", call("g2", "set_goal")));
         gateway.enqueue(text("Done."));

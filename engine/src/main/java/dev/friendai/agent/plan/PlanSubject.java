@@ -16,9 +16,6 @@ public sealed interface PlanSubject {
         }
     }
 
-    /** The model called {@code set_goal} on this turn and queued no plan itself. */
-    record ModelGoal(long goalId) implements PlanSubject {}
-
     /** An active goal whose criteria are still unmet and which has no queued work. */
     record ActiveGoal(long goalId, List<String> unmet) implements PlanSubject {
         public ActiveGoal {

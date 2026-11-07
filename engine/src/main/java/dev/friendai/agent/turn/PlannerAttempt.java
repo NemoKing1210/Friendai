@@ -35,7 +35,6 @@ public record PlannerAttempt(
 
     public static String kind(PlanSubject subject) {
         if (subject instanceof PlanSubject.OwnerOrder) return "owner_order";
-        if (subject instanceof PlanSubject.ModelGoal) return "model_goal";
         if (subject instanceof PlanSubject.ActiveGoal) return "active_goal";
         if (subject instanceof PlanSubject.TroubledPlan) return "troubled_plan";
         if (subject instanceof PlanSubject.FreeTimeShift) return "free_time_shift";
@@ -43,7 +42,6 @@ public record PlannerAttempt(
     }
 
     public static long id(PlanSubject subject) {
-        if (subject instanceof PlanSubject.ModelGoal goal) return goal.goalId();
         if (subject instanceof PlanSubject.ActiveGoal goal) return goal.goalId();
         if (subject instanceof PlanSubject.TroubledPlan plan) return plan.planId();
         if (subject instanceof PlanSubject.FreeTimeShift shift) return shift.shiftId();
