@@ -647,10 +647,11 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
         if (session != null && session.brain() != null) session.brain().cancel();
     }
 
-    /** The owner's companion is gone (death, dismissal, unload): drop its brain. */
+    /** The owner's companion is gone (death, dismissal, unload): drop its brain and any planner answer for it. */
     public void onCompanionRemoved(UUID owner) {
         CompanionSession session = sessions.get(owner);
         if (session != null) session.invalidateBrain();
+        freeTime.onCompanionInvalidated(owner);
     }
 
     /** Invalidates entity-bound work before a replacement companion receives a new session brain. */
@@ -732,8 +733,14 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
     public void stopAcceptingWork() {
         if (!acceptingWork) return;
         acceptingWork = false;
+        freeTime.close();
         for (CompanionSession session : sessions.snapshot()) session.invalidateBrain();
         invalidateTradingAuthorities("server stopping");
+    }
+
+    /** Whether this runtime still accepts new work; a late planner answer checks it before applying anything. */
+    boolean acceptingWork() {
+        return acceptingWork;
     }
 
     @Override

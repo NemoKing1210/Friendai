@@ -26,7 +26,6 @@ import dev.friendai.server.execution.tools.TaskToolDefinition;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 
@@ -72,13 +71,42 @@ final class ShiftPlanRequester {
                 boolean report);
     }
 
+    /** One in-flight proposal. It owns its cancellation flag, so no callback reads a server-owned map off-thread. */
+    static final class Request {
+        private final java.util.concurrent.atomic.AtomicBoolean cancelled =
+                new java.util.concurrent.atomic.AtomicBoolean();
+
+        void cancel() {
+            cancelled.set(true);
+        }
+
+        boolean isCancelled() {
+            return cancelled.get();
+        }
+    }
+
+    /** The driver's book of in-flight requests: one per owner, and only the current one may be released. */
+    interface PendingRequests {
+        Request begin(UUID owner);
+
+        void release(UUID owner, Request request);
+    }
+
+    /** What a late answer must still find true on the server thread before it applies itself. */
+    interface Liveness {
+        boolean acceptingWork();
+
+        boolean isCurrent(UUID owner, CompanionEntity companion);
+    }
+
     private final CompanionSessions brains;
     private final FreeTimeService service;
     private final ShiftReporter reporter;
     private final AutonomyFactsBuilder facts;
     private final PlaceService placeService;
     private final Map<UUID, Integer> planEpoch;
-    private final Set<UUID> planning;
+    private final PendingRequests pending;
+    private final Liveness liveness;
     private final Function<UUID, ShiftBudget> budgets;
     private final Map<String, TaskToolDefinition> taskTools;
     private final Map<String, TaskToolDefinition> planTools;
@@ -93,7 +121,8 @@ final class ShiftPlanRequester {
             AutonomyFactsBuilder facts,
             PlaceService placeService,
             Map<UUID, Integer> planEpoch,
-            Set<UUID> planning,
+            PendingRequests pending,
+            Liveness liveness,
             Function<UUID, ShiftBudget> budgets,
             Map<String, TaskToolDefinition> taskTools,
             Map<String, TaskToolDefinition> planTools,
@@ -106,7 +135,8 @@ final class ShiftPlanRequester {
         this.facts = facts;
         this.placeService = placeService;
         this.planEpoch = planEpoch;
-        this.planning = planning;
+        this.pending = pending;
+        this.liveness = liveness;
         this.budgets = budgets;
         this.taskTools = taskTools;
         this.planTools = planTools;
@@ -125,17 +155,21 @@ final class ShiftPlanRequester {
             logPlanner(owner, subject, "fallback", "no-input", 0L, 0L);
             return;
         }
-        planning.add(owner);
+        Request request = pending.begin(owner);
         logPlanner(owner, subject, "request", "", -1L, 0L);
         long startedAt = System.nanoTime();
-        brains.propose(owner, input.get(), true)
+        brains.propose(owner, input.get(), true, request::isCancelled)
                 .whenComplete((proposal, error) -> brains.onServerThread(() -> {
+                    pending.release(owner, request);
                     long durationMs = (System.nanoTime() - startedAt) / 1_000_000L;
-                    if (epoch != planEpoch.getOrDefault(owner, 0)) {
+                    if (request.isCancelled() || epoch != planEpoch.getOrDefault(owner, 0)) {
                         logPlanner(owner, subject, "fallback", "stale", durationMs, 0L);
-                        return; // a teleport, a dismissal or a stop made this answer stale
+                        return; // a stop, a teleport, a death or a dismissal made this answer stale
                     }
-                    planning.remove(owner);
+                    if (!liveness.acceptingWork() || !liveness.isCurrent(owner, companion)) {
+                        logPlanner(owner, subject, "fallback", "stale", durationMs, 0L);
+                        return; // the runtime stopped, or this body is no longer the owner's companion
+                    }
                     FreeTime state = service.state(owner);
                     if (!state.on() || state.shift() == null || state.shift().id() != shiftId) {
                         logPlanner(owner, subject, "fallback", "stale", durationMs, 0L);

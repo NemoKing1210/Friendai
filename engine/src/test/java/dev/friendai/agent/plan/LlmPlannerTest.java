@@ -193,4 +193,21 @@ class LlmPlannerTest {
         assertTrue(error.getCause() instanceof PlannerException, String.valueOf(error.getCause()));
         assertEquals(1, flaky.jsonRequests.size(), "a stopped turn sends nothing more");
     }
+
+    @Test
+    void aCancelledTurnSendsNoRepairAfterAMalformedReply() {
+        ScriptedGateway flaky = new ScriptedGateway();
+        CompletableFuture<LlmResponse> reply = new CompletableFuture<>();
+        flaky.queue.add(reply);
+        AtomicBoolean cancelled = new AtomicBoolean(false);
+        LlmPlanner repairing = new LlmPlanner(() -> flaky, text -> text, 30, 12, 8192, 49152);
+
+        CompletableFuture<PlanProposal> future = repairing.propose(input(), cancelled::get);
+        cancelled.set(true);
+        reply.complete(FakeGateway.text("{\"steps\":[{\"tool\":\"teleport\"}]}"));
+
+        ExecutionException error = assertThrows(ExecutionException.class, () -> future.get(5, TimeUnit.SECONDS));
+        assertTrue(error.getCause() instanceof PlannerException, String.valueOf(error.getCause()));
+        assertEquals(1, flaky.jsonRequests.size(), "a stopped turn sends no repair request");
+    }
 }

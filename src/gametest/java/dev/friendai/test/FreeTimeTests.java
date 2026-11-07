@@ -988,6 +988,103 @@ public class FreeTimeTests {
         });
     }
 
+    /** A held planner answer plus the stop predicate of every request the caller made, newest last. */
+    private record HeldPlan(
+            CompletableFuture<dev.friendai.agent.plan.PlanProposal> answer,
+            java.util.List<java.util.function.BooleanSupplier> stops) {}
+
+    private static HeldPlan heldPlan(dev.friendai.server.agent.CompanionSessions brains, UUID owner) {
+        var pending = new CompletableFuture<dev.friendai.agent.plan.PlanProposal>();
+        var stops = new java.util.concurrent.CopyOnWriteArrayList<java.util.function.BooleanSupplier>();
+        brains.setPlannerOverride(owner, new dev.friendai.agent.plan.Planner() {
+            @Override
+            public CompletableFuture<dev.friendai.agent.plan.PlanProposal> propose(
+                    dev.friendai.agent.plan.PlannerInput input) {
+                return pending;
+            }
+
+            @Override
+            public CompletableFuture<dev.friendai.agent.plan.PlanProposal> propose(
+                    dev.friendai.agent.plan.PlannerInput input, java.util.function.BooleanSupplier cancelled) {
+                stops.add(cancelled);
+                return pending;
+            }
+        });
+        return new HeldPlan(pending, stops);
+    }
+
+    /** A proposal that arrives after the body left the world must not queue work for it. */
+    @GameTest(maxTicks = 400)
+    public void latePlanAfterDeathIsDropped(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity c = onlineCompanion(h);
+        UUID owner = c.ownerUuid();
+        var brains = GameTestSupport.runtime(h.getLevel().getServer()).sessions();
+        var held = heldPlan(brains, owner);
+        driver(h).start(c, dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, "");
+        boolean[] sent = {false};
+        boolean[] toldStopped = {false};
+        int[] waited = {0};
+        h.succeedWhen(() -> {
+            if (!sent[0]) {
+                h.assertTrue(driver(h).state(owner).awaitingChoice(), "the director is asked to choose");
+                var chosen = driver(h).choose(c, "practise jumping", java.util.List.of(), "", 5, "EXPLORE");
+                h.assertTrue(!chosen.error(), "choose refused: " + chosen.content());
+                // The same notification the death and unload path sends before a replacement body exists.
+                dev.friendai.entity.CompanionManager.get(h.getLevel().getServer())
+                        .unregister(c);
+                toldStopped[0] = lastStopped(held);
+                held.answer().complete(jumpPlan());
+                sent[0] = true;
+                h.assertTrue(false, "let the late answer arrive");
+            }
+            h.assertTrue(++waited[0] >= 40, "waiting for the late answer: " + waited[0]);
+            h.assertTrue(toldStopped[0], "the pending request learns that its body is gone");
+            h.assertValueEqual(c.executionCoordinator().queue().planCount(), 0, "a plan for a removed body");
+            var state = driver(h).state(owner);
+            h.assertTrue(state.shift() == null || state.shift().planId() == 0, "the shift is not linked: " + state);
+            h.succeed();
+        });
+    }
+
+    /** Whether the newest planner request was told to stop; the request the test is holding is the last one. */
+    private static boolean lastStopped(HeldPlan held) {
+        return !held.stops().isEmpty() && held.stops().getLast().getAsBoolean();
+    }
+
+    /** A proposal that arrives after the runtime stopped accepting work must not queue anything. */
+    @GameTest(maxTicks = 400)
+    public void latePlanAfterShutdownIsDropped(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity c = onlineCompanion(h);
+        UUID owner = c.ownerUuid();
+        var brains = GameTestSupport.runtime(h.getLevel().getServer()).sessions();
+        var held = heldPlan(brains, owner);
+        driver(h).start(c, dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, "");
+        boolean[] sent = {false};
+        boolean[] toldStopped = {false};
+        int[] waited = {0};
+        h.succeedWhen(() -> {
+            if (!sent[0]) {
+                h.assertTrue(driver(h).state(owner).awaitingChoice(), "the director is asked to choose");
+                var chosen = driver(h).choose(c, "practise jumping", java.util.List.of(), "", 5, "EXPLORE");
+                h.assertTrue(!chosen.error(), "choose refused: " + chosen.content());
+                // The shutdown path closes free time before the acknowledgement is awaited.
+                driver(h).close();
+                toldStopped[0] = lastStopped(held);
+                held.answer().complete(jumpPlan());
+                sent[0] = true;
+                h.assertTrue(false, "let the late answer arrive");
+            }
+            h.assertTrue(++waited[0] >= 40, "waiting for the late answer: " + waited[0]);
+            h.assertTrue(toldStopped[0], "the pending request learns that the runtime stopped");
+            h.assertValueEqual(c.executionCoordinator().queue().planCount(), 0, "a plan after shutdown");
+            var state = driver(h).state(owner);
+            h.assertTrue(state.shift() == null || state.shift().planId() == 0, "the shift is not linked: " + state);
+            h.succeed();
+        });
+    }
+
     @GameTest(maxTicks = 600)
     public void awayLinesWaitForTheOwner(GameTestHelper h) {
         GameTestSupport.platform(h, 16);

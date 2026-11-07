@@ -99,7 +99,8 @@ public final class FreeTimeDriver {
     private final ReflexQueue reflexQueue;
     private final ShiftPlanRequester planRequester;
     private final Map<UUID, Long> awaitingSince = new HashMap<>();
-    private final Set<UUID> planning = new java.util.HashSet<>();
+    /** Each owner's in-flight planner request; the request itself owns the cancellation flag. */
+    private final Map<UUID, ShiftPlanRequester.Request> planRequests = new HashMap<>();
     /** Bumped whenever an owner's pending planner reply stops being welcome. */
     private final Map<UUID, Integer> planEpoch = new HashMap<>();
 
@@ -180,7 +181,34 @@ public final class FreeTimeDriver {
                 facts,
                 placeService,
                 planEpoch,
-                planning,
+                new ShiftPlanRequester.PendingRequests() {
+                    @Override
+                    public ShiftPlanRequester.Request begin(UUID owner) {
+                        ShiftPlanRequester.Request request = new ShiftPlanRequester.Request();
+                        ShiftPlanRequester.Request previous = planRequests.put(owner, request);
+                        if (previous != null) {
+                            previous.cancel();
+                        }
+                        return request;
+                    }
+
+                    @Override
+                    public void release(UUID owner, ShiftPlanRequester.Request request) {
+                        planRequests.remove(owner, request);
+                    }
+                },
+                new ShiftPlanRequester.Liveness() {
+                    @Override
+                    public boolean acceptingWork() {
+                        return brains.acceptingWork();
+                    }
+
+                    @Override
+                    public boolean isCurrent(UUID owner, CompanionEntity companion) {
+                        return !companion.isRemoved()
+                                && CompanionManager.get(server).find(owner).orElse(null) == companion;
+                    }
+                },
                 this::budget,
                 taskTools,
                 planTools,
@@ -307,7 +335,22 @@ public final class FreeTimeDriver {
      */
     public void invalidatePlanning(UUID owner) {
         planEpoch.merge(owner, 1, Integer::sum);
-        planning.remove(owner);
+        ShiftPlanRequester.Request request = planRequests.remove(owner);
+        if (request != null) {
+            request.cancel();
+        }
+    }
+
+    /** The owner's body left the world (death, dismissal, unload): no answer may touch it any more. */
+    void onCompanionInvalidated(UUID owner) {
+        invalidatePlanning(owner);
+    }
+
+    /** The runtime stopped accepting work: every pending proposal is abandoned exactly once. */
+    public void close() {
+        for (UUID owner : List.copyOf(planRequests.keySet())) {
+            invalidatePlanning(owner);
+        }
     }
 
     public void stop(UUID owner, String reason) {
@@ -716,7 +759,7 @@ public final class FreeTimeDriver {
 
     /** A planner request for this owner's shift has not answered yet. */
     boolean planningInFlight(UUID owner) {
-        return planning.contains(owner);
+        return planRequests.containsKey(owner);
     }
 
     /**
