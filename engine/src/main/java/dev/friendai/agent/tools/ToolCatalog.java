@@ -311,7 +311,7 @@ public final class ToolCatalog {
         hint(
                 metas,
                 "excavate",
-                "- Use excavate for a shape: box (two corners in box), tunnel (run direction/length), stair (descends one block per step), shaft (down/up) or strip (branches). One call covers the region; count stops early, until_item/until_count stop on taken items.\n"
+                "- Use excavate for a shape: box (two corners in box), tunnel (run direction/length), stair (descends one block per step, always at least three blocks high), shaft (down/up) or strip (branches). One call covers the region; count stops early, until_item/until_count stop on taken items.\n"
                         + "- Protected places, containers and lava are never broken by default; containers:true is the only opt-in. Use clear_area to clear a plot for building, not to mine its solids.");
         hint(
                 metas,

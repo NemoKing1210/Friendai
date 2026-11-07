@@ -64,7 +64,7 @@ Tool notes:
 - radius widens or narrows this call. exclude skips ids or tags. until_item/until_count stop once that many items were actually taken, e.g. until_item "minecraft:raw_iron" with until_count 16. require_tool:true refuses a block that needs a tool the companion does not carry.
 - Use mine_block_at when the owner points at one block: it mines that block and continues into its connected vein, then says how many it mined and what it took. Use mine_blocks to collect a number of blocks of a kind found around you; use fell_tree for a whole tree.
 - vein:false mines only the pointed block; vein_limit caps the vein. collect:false skips the drop sweep when speed matters.
-- Use excavate for a shape: box (two corners in box), tunnel (run direction/length), stair (descends one block per step), shaft (down/up) or strip (branches). One call covers the region; count stops early, until_item/until_count stop on taken items.
+- Use excavate for a shape: box (two corners in box), tunnel (run direction/length), stair (descends one block per step, always at least three blocks high), shaft (down/up) or strip (branches). One call covers the region; count stops early, until_item/until_count stop on taken items.
 - Protected places, containers and lava are never broken by default; containers:true is the only opt-in. Use clear_area to clear a plot for building, not to mine its solids.
 - To pick up what fell around a block you placed, pass placed:true; the round is centred on that block, not on you.
 - Use it to finish a job that was for the owner: their request is the permission to hand the items over, so give them yourself instead of asking.
