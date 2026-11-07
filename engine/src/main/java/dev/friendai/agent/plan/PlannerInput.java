@@ -168,7 +168,10 @@ public record PlannerInput(
                 allTools,
                 verified,
                 sections,
-                budget);
+                budget,
+                targetPlanId,
+                targetFingerprint,
+                pendingNodePath);
     }
 
     public PlannerInput {

@@ -150,6 +150,32 @@ class PlannerPromptTest {
     }
 
     @Test
+    void thePendingActionSurvivesInstructionAttachment() {
+        PlannerInput in = new PlannerInput(
+                goal(),
+                "Position: 1 2 3",
+                "- jump {}",
+                "",
+                Optional.empty(),
+                List.of(),
+                "",
+                Map.of(),
+                Set.of("jump"),
+                List.of(),
+                List.of(),
+                0,
+                9L,
+                "fingerprint-9",
+                "2/3");
+
+        PlannerInput attached = in.withInstructions(
+                List.of(new dev.friendai.agent.prompt.SkillPromptSection("extra", "extra text", 1)), 4096);
+        String user = PlannerPrompt.user(attached, text -> text);
+
+        assertTrue(user.contains("Pending action: 2/3"), user);
+    }
+
+    @Test
     void aPromptWithoutVerifiedFactsDoesNotClaimAny() {
         String user = PlannerPrompt.user(
                 PlannerInput.promptOnly(goal(), "Position: 1 2 3", "- jump {}", "", Optional.empty(), List.of(), ""),
