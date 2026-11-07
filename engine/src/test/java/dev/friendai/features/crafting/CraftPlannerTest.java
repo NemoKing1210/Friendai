@@ -590,7 +590,11 @@ class CraftPlannerTest {
         }
         assertEquals(
                 List.of(
-                        new CraftPlanner.RawNeed("minecraft:crafting_table", Set.of("minecraft:crafting_table"), 1),
+                        new CraftPlanner.RawNeed(
+                                "minecraft:crafting_table",
+                                Set.of("minecraft:crafting_table"),
+                                1,
+                                Station.CRAFTING_TABLE),
                         new CraftPlanner.RawNeed("test:raw", Set.of("test:raw"), 4)),
                 CraftPlanner.materialsFor(targets, Map.of(), book, Set.of()));
     }
@@ -620,8 +624,13 @@ class CraftPlannerTest {
                 .add(new Recipe("test:b", "test:b", 1, List.of(), Station.STONECUTTER));
         assertEquals(
                 List.of(
-                        new CraftPlanner.RawNeed("minecraft:crafting_table", Set.of("minecraft:crafting_table"), 1),
-                        new CraftPlanner.RawNeed("minecraft:stonecutter", Set.of("minecraft:stonecutter"), 1)),
+                        new CraftPlanner.RawNeed(
+                                "minecraft:crafting_table",
+                                Set.of("minecraft:crafting_table"),
+                                1,
+                                Station.CRAFTING_TABLE),
+                        new CraftPlanner.RawNeed(
+                                "minecraft:stonecutter", Set.of("minecraft:stonecutter"), 1, Station.STONECUTTER)),
                 CraftPlanner.materialsFor(
                         List.of(new CraftPlanner.Target("test:a", 1), new CraftPlanner.Target("test:b", 1)),
                         Map.of(),
@@ -642,11 +651,12 @@ class CraftPlannerTest {
         List<CraftPlanner.Target> targets =
                 List.of(new CraftPlanner.Target("test:output", 1), new CraftPlanner.Target("test:output", 1));
         assertEquals(
-                List.of(new CraftPlanner.RawNeed("test:wood", Set.of("test:wood"), 1)),
+                List.of(new CraftPlanner.RawNeed("test:wood", Set.of("test:wood"), 1, Station.CRAFTING_TABLE)),
                 CraftPlanner.materialsFor(targets, Map.of("test:wood", 1), book, Set.of()));
         assertEquals(List.of(), CraftPlanner.materialsFor(targets, Map.of("test:wood", 2), book, Set.of()));
         assertEquals(
-                List.of(new CraftPlanner.RawNeed("minecraft:crafting_table", Set.of("minecraft:crafting_table"), 1)),
+                List.of(new CraftPlanner.RawNeed(
+                        "minecraft:crafting_table", Set.of("minecraft:crafting_table"), 1, Station.CRAFTING_TABLE)),
                 CraftPlanner.materialsFor(targets, Map.of(), book, Set.of()));
     }
 
@@ -664,9 +674,14 @@ class CraftPlannerTest {
                         "test:nested", "test:nested", 1, List.of(Ingredient.of("test:output")), Station.INVENTORY));
         assertEquals(
                 List.of(
-                        new CraftPlanner.RawNeed("minecraft:crafting_table", Set.of("minecraft:crafting_table"), 1),
+                        new CraftPlanner.RawNeed(
+                                "minecraft:crafting_table",
+                                Set.of("minecraft:crafting_table"),
+                                1,
+                                Station.CRAFTING_TABLE),
                         new CraftPlanner.RawNeed("test:raw", Set.of("test:raw"), 1),
-                        new CraftPlanner.RawNeed("minecraft:stonecutter", Set.of("minecraft:stonecutter"), 1)),
+                        new CraftPlanner.RawNeed(
+                                "minecraft:stonecutter", Set.of("minecraft:stonecutter"), 1, Station.STONECUTTER)),
                 CraftPlanner.materialsFor(
                         List.of(
                                 new CraftPlanner.Target("test:output", 1),
@@ -678,7 +693,11 @@ class CraftPlannerTest {
         assertEquals(
                 List.of(
                         new CraftPlanner.RawNeed("test:output", Set.of("test:output"), 1),
-                        new CraftPlanner.RawNeed("minecraft:crafting_table", Set.of("minecraft:crafting_table"), 1)),
+                        new CraftPlanner.RawNeed(
+                                "minecraft:crafting_table",
+                                Set.of("minecraft:crafting_table"),
+                                1,
+                                Station.CRAFTING_TABLE)),
                 CraftPlanner.materialsFor(
                         List.of(new CraftPlanner.Target("test:nested", 1), new CraftPlanner.Target("test:output", 1)),
                         Map.of(),
@@ -699,13 +718,80 @@ class CraftPlannerTest {
                 .add(new Recipe("test:b", "test:b", 1, List.of(), Station.CRAFTING_TABLE));
         assertEquals(
                 List.of(
-                        new CraftPlanner.RawNeed("minecraft:crafting_table", Set.of("minecraft:crafting_table"), 1),
+                        new CraftPlanner.RawNeed(
+                                "minecraft:crafting_table",
+                                Set.of("minecraft:crafting_table"),
+                                1,
+                                Station.CRAFTING_TABLE),
                         new CraftPlanner.RawNeed("test:raw", Set.of("test:raw"), 2)),
                 CraftPlanner.materialsFor(
                         List.of(new CraftPlanner.Target("test:a", 1), new CraftPlanner.Target("test:b", 1)),
                         Map.of("test:raw", 1),
                         book,
                         Set.of()));
+    }
+
+    @Test
+    void aStationNeedIsMarkedAndIsNeverAGatherGoalOfItsOwn() {
+        // Andesite stairs have a stonecutter recipe (1 andesite each) and a crafting-table recipe (6 andesite
+        // for four). The stonecutter route looks cheaper, but with nothing carried the station cannot be made:
+        // the need must be recognizable as a station requirement instead of an ordinary raw item.
+        List<CraftPlanner.RawNeed> needs = CraftPlanner.materialsFor(
+                List.of(new CraftPlanner.Target("minecraft:andesite_stairs", 4)),
+                Map.of(),
+                FakeRecipeBook.vanillaLike(),
+                Set.of());
+
+        assertTrue(
+                needs.stream().anyMatch(need -> need.stationNeed() && need.station() == Station.STONECUTTER),
+                needs::toString);
+        assertTrue(
+                needs.stream()
+                        .noneMatch(
+                                need -> need.stationNeed() && need.candidates().isEmpty()),
+                needs::toString);
+        assertTrue(
+                needs.stream()
+                        .anyMatch(need -> !need.stationNeed() && need.label().equals("minecraft:andesite")),
+                needs::toString);
+    }
+
+    @Test
+    void anImpossibleStationRouteFallsBackToTheNextRecipe() {
+        // The stonecutter cannot be made here, so the crafting-table route for the same target is planned instead
+        // of turning the station into a gather goal.
+        assertEquals(
+                List.of(
+                        new CraftPlanner.RawNeed(
+                                "minecraft:crafting_table",
+                                Set.of("minecraft:crafting_table"),
+                                1,
+                                Station.CRAFTING_TABLE),
+                        new CraftPlanner.RawNeed("minecraft:andesite", Set.of("minecraft:andesite"), 6)),
+                CraftPlanner.materialsFor(
+                        List.of(new CraftPlanner.Target("minecraft:andesite_stairs", 4)),
+                        Map.of(),
+                        FakeRecipeBook.vanillaLike(),
+                        Set.of(),
+                        Set.of(Station.STONECUTTER)));
+    }
+
+    @Test
+    void anUnavailableStationIsStillReportedWhenNoRouteAvoidsIt() {
+        FakeRecipeBook book = new FakeRecipeBook()
+                .add(new Recipe("test:cut", "test:cut", 1, List.of(Ingredient.of("test:raw")), Station.STONECUTTER));
+
+        // Only one recipe exists and it runs at the unavailable station: the plan must still say which station
+        // it cannot do without, so the caller can report it instead of wandering off for its ingredients.
+        assertEquals(
+                List.of(new CraftPlanner.RawNeed(
+                        "minecraft:stonecutter", Set.of("minecraft:stonecutter"), 1, Station.STONECUTTER)),
+                CraftPlanner.materialsFor(
+                        List.of(new CraftPlanner.Target("test:cut", 1)),
+                        Map.of("test:raw", 1),
+                        book,
+                        Set.of(),
+                        Set.of(Station.STONECUTTER)));
     }
 
     @Test

@@ -12,6 +12,8 @@ import dev.friendai.features.acquisition.minecraft.ObtainSubtaskFactory;
 import dev.friendai.features.acquisition.minecraft.search.DropIndex;
 import dev.friendai.features.acquisition.minecraft.search.WorldScan;
 import dev.friendai.features.crafting.CraftPlanner;
+import dev.friendai.features.crafting.RecipeBook;
+import dev.friendai.features.crafting.Station;
 import dev.friendai.features.crafting.minecraft.RecipeIndex;
 import dev.friendai.features.crafting.minecraft.Stations;
 import dev.friendai.features.creative.CreativeAction;
@@ -20,6 +22,7 @@ import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.inventory.ItemMatcher;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -67,6 +70,9 @@ public final class BatchObtainTask implements Task {
     private final TradingContext tradingContext;
     private final ObtainSubtaskFactory subtaskFactory;
     private final Set<String> failedKeys = new LinkedHashSet<>();
+    /** Stations found impossible here; the material plan is re-run avoiding each one. */
+    private final Set<Station> blockedStations = EnumSet.noneOf(Station.class);
+
     private Task current;
     private ChildKind childKind = ChildKind.NONE;
     private String childKey = "";
@@ -165,6 +171,7 @@ public final class BatchObtainTask implements Task {
         lastGatherSummary = "";
         summary = "";
         failedKeys.clear();
+        blockedStations.clear();
         children = 0;
         ticks = 0;
     }
@@ -216,10 +223,28 @@ public final class BatchObtainTask implements Task {
         }
         ServerLevel level = c.level();
         Map<String, Integer> inventory = AcquiredItems.inventoryMap(companion);
-        List<CraftPlanner.RawNeed> demand = CraftPlanner.materialsFor(
-                planningWindow(remaining), inventory, RecipeIndex.of(level), Stations.available(level, companion));
-        if (!demand.isEmpty()) {
-            CraftPlanner.RawNeed need = demand.get(0);
+        RecipeIndex book = RecipeIndex.of(level);
+        Set<Station> stations = Stations.available(level, companion);
+        List<CraftPlanner.RawNeed> demand =
+                CraftPlanner.materialsFor(planningWindow(remaining), inventory, book, stations, blockedStations);
+        while (!demand.isEmpty()) {
+            CraftPlanner.RawNeed need = nextNeed(demand);
+            if (need.stationNeed()) {
+                if (blockedStations.contains(need.station())) {
+                    // The plan that avoided this station still needs it: nothing else can make the target.
+                    return fail("station " + stationId(book, need) + " is required and cannot be made here");
+                }
+                String station = chooseObtainable(level, companion, inventory, need);
+                if (station == null) {
+                    // The station is neither nearby, carried nor craftable from anything reachable here. Plan a
+                    // route that avoids it rather than sending the companion off after an item it cannot make.
+                    blockedStations.add(need.station());
+                    demand = CraftPlanner.materialsFor(
+                            planningWindow(remaining), inventory, book, stations, blockedStations);
+                    continue;
+                }
+                return gather(c, companion, need, station, remaining.get(0).item());
+            }
             String candidate = choose(level, companion, inventory, need);
             if (candidate == null) {
                 String text = "couldn't get " + need.count() + " " + need.label() + " for "
@@ -229,16 +254,7 @@ public final class BatchObtainTask implements Task {
                 }
                 return fail(text);
             }
-            // The need is what the shared material plan is still short of; the child asks for that plus what the bag
-            // already holds, because an ObtainTask succeeds once the total it was sent for is in the inventory.
-            int wanted = need.count() + AcquiredItems.have(companion, candidate);
-            return startChild(
-                    c,
-                    obtain(candidate, wanted),
-                    ChildKind.GATHER,
-                    need.label() + "|" + candidate,
-                    need.label(),
-                    remaining.get(0).item());
+            return gather(c, companion, need, candidate, remaining.get(0).item());
         }
         CraftPlanner.Target target = remaining.get(0);
         int missing = target.count() - AcquiredItems.have(companion, target.item());
@@ -273,15 +289,25 @@ public final class BatchObtainTask implements Task {
      */
     private String choose(
             ServerLevel level, CompanionEntity companion, Map<String, Integer> inventory, CraftPlanner.RawNeed need) {
-        List<String> candidates = new ArrayList<>();
-        for (String candidate : need.candidates()) {
-            if (candidate == null || candidate.isBlank() || candidates.size() >= MAX_CANDIDATES) {
-                continue;
-            }
-            if (!failedKeys.contains(need.label() + "|" + candidate)) {
-                candidates.add(candidate);
-            }
-        }
+        return choose(level, companion, inventory, need, true);
+    }
+
+    /**
+     * The first candidate with an actionable plan here, never a hopeful fallback: a station that cannot be made has
+     * to be recognized as impossible instead of starting a gather child that is bound to fail.
+     */
+    private String chooseObtainable(
+            ServerLevel level, CompanionEntity companion, Map<String, Integer> inventory, CraftPlanner.RawNeed need) {
+        return choose(level, companion, inventory, need, false);
+    }
+
+    private String choose(
+            ServerLevel level,
+            CompanionEntity companion,
+            Map<String, Integer> inventory,
+            CraftPlanner.RawNeed need,
+            boolean fallbackToFirst) {
+        List<String> candidates = candidates(need);
         if (candidates.isEmpty()) {
             return null;
         }
@@ -295,7 +321,50 @@ public final class BatchObtainTask implements Task {
                 return candidate;
             }
         }
-        return candidates.get(0);
+        return fallbackToFirst ? candidates.get(0) : null;
+    }
+
+    /** The need's candidates nobody has failed yet, in preference order. */
+    private List<String> candidates(CraftPlanner.RawNeed need) {
+        List<String> candidates = new ArrayList<>();
+        for (String candidate : need.candidates()) {
+            if (candidate == null || candidate.isBlank() || candidates.size() >= MAX_CANDIDATES) {
+                continue;
+            }
+            if (!failedKeys.contains(need.label() + "|" + candidate)) {
+                candidates.add(candidate);
+            }
+        }
+        return candidates;
+    }
+
+    /**
+     * A raw item before a station: gathering material is always progress, while a station may be impossible to make
+     * where the companion stands.
+     */
+    static CraftPlanner.RawNeed nextNeed(List<CraftPlanner.RawNeed> demand) {
+        for (CraftPlanner.RawNeed need : demand) {
+            if (!need.stationNeed()) {
+                return need;
+            }
+        }
+        return demand.get(0);
+    }
+
+    /** How the failure names a station: its item id when the book knows one, its own label otherwise. */
+    private static String stationId(RecipeBook book, CraftPlanner.RawNeed need) {
+        Station station = need.station();
+        String id = station == null ? null : book.stationItem(station);
+        return id == null || id.isBlank() ? need.label() : id;
+    }
+
+    private TaskStatus gather(
+            TaskContext c, CompanionEntity companion, CraftPlanner.RawNeed need, String candidate, String target) {
+        // The need is what the shared material plan is still short of; the child asks for that plus what the bag
+        // already holds, because an ObtainTask succeeds once the total it was sent for is in the inventory.
+        int wanted = need.count() + AcquiredItems.have(companion, candidate);
+        return startChild(
+                c, obtain(candidate, wanted), ChildKind.GATHER, need.label() + "|" + candidate, need.label(), target);
     }
 
     /** The craft planner accepts at most eight targets per demand; the rest are planned on the next tick. */

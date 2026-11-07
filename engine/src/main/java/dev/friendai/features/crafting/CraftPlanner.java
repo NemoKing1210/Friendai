@@ -44,8 +44,10 @@ public final class CraftPlanner {
     /**
      * One raw item a target set still needs: how it is named in a message, the concrete item ids that satisfy it, and
      * how many. The candidate list is empty only when a recipe book names no item for a station it requires.
+     * {@code station} is set when the need exists only because a recipe requires that crafting station, so a caller
+     * can decide whether the station can be made at all instead of gathering it like an ordinary raw item.
      */
-    public record RawNeed(String label, Set<String> candidates, int count) {
+    public record RawNeed(String label, Set<String> candidates, int count, Station station) {
         public RawNeed {
             if (label == null || label.isBlank()) {
                 throw new IllegalArgumentException("a need must be named");
@@ -54,6 +56,16 @@ public final class CraftPlanner {
                 throw new IllegalArgumentException("a need must be positive: " + count);
             }
             candidates = candidates == null ? Set.of() : Collections.unmodifiableSet(new LinkedHashSet<>(candidates));
+        }
+
+        /** An ordinary raw item, which no station requirement is attached to. */
+        public RawNeed(String label, Set<String> candidates, int count) {
+            this(label, candidates, count, null);
+        }
+
+        /** True when the need is a crafting station a recipe requires rather than material to gather. */
+        public boolean stationNeed() {
+            return station != null;
         }
     }
 
@@ -64,6 +76,19 @@ public final class CraftPlanner {
      */
     public static List<RawNeed> materialsFor(
             List<Target> targets, Map<String, Integer> inventory, RecipeBook book, Set<Station> stationsNearby) {
+        return materialsFor(targets, inventory, book, stationsNearby, Set.of());
+    }
+
+    /**
+     * The same demand without any recipe that runs at one of {@code unavailableStations}: the caller has found that
+     * those stations cannot be made where the companion is, so a plan is asked for a route that avoids them.
+     */
+    public static List<RawNeed> materialsFor(
+            List<Target> targets,
+            Map<String, Integer> inventory,
+            RecipeBook book,
+            Set<Station> stationsNearby,
+            Set<Station> unavailableStations) {
         Objects.requireNonNull(targets, "targets");
         if (targets.isEmpty() || targets.size() > MAX_TARGETS) {
             throw new IllegalArgumentException("targets must have 1 to " + MAX_TARGETS + " entries");
@@ -78,14 +103,15 @@ public final class CraftPlanner {
             });
         }
         Set<Station> nearby = stationsNearby == null ? EnumSet.noneOf(Station.class) : stationsNearby;
+        Set<Station> unavailable = unavailableStations == null ? EnumSet.noneOf(Station.class) : unavailableStations;
         Map<String, Need> missing = new LinkedHashMap<>();
         for (Target target : targets) {
-            Attempt attempt = new Search(target.item(), book, nearby, true)
+            Attempt attempt = new Search(target.item(), book, nearby, true, unavailable)
                     .need(target.item(), target.count(), 0, new LinkedHashSet<>(), sim);
             attempt.missing.forEach((label, need) -> missing.merge(label, need, Need::merge));
         }
         return missing.values().stream()
-                .map(need -> new RawNeed(need.label, need.candidates, need.count))
+                .map(need -> new RawNeed(need.label, need.candidates, need.count, need.station))
                 .toList();
     }
 
@@ -256,18 +282,29 @@ public final class CraftPlanner {
         private final String target;
         private final RecipeBook book;
         private final Set<Station> stationsNearby;
+        private final Set<Station> unavailableStations;
         private final boolean materials;
         private final Map<String, Boolean> cycles = new HashMap<>();
 
         Search(String target, RecipeBook book, Set<Station> stationsNearby) {
-            this(target, book, stationsNearby, false);
+            this(target, book, stationsNearby, false, Set.of());
         }
 
         Search(String target, RecipeBook book, Set<Station> stationsNearby, boolean materials) {
+            this(target, book, stationsNearby, materials, Set.of());
+        }
+
+        Search(
+                String target,
+                RecipeBook book,
+                Set<Station> stationsNearby,
+                boolean materials,
+                Set<Station> unavailableStations) {
             this.materials = materials;
             this.target = target;
             this.book = book;
             this.stationsNearby = stationsNearby;
+            this.unavailableStations = unavailableStations;
         }
 
         /**
@@ -318,13 +355,12 @@ public final class CraftPlanner {
                 return Attempt.missing(item, qty);
             }
             int chosenIndex = 0;
-            Attempt chosen = failed.get(0);
             for (int i = 1; i < failed.size(); i++) {
-                if (failed.get(i).missingTotal() < chosen.missingTotal()) {
-                    chosen = failed.get(i);
+                if (cheaperFailure(failed.get(i), failed.get(chosenIndex))) {
                     chosenIndex = i;
                 }
             }
+            Attempt chosen = failed.get(chosenIndex);
             if (materials) {
                 // Its deficits are returned to the caller, so its consumed resources and reusable station
                 // requirements belong to this branch too. Losing branches never publish either.
@@ -366,6 +402,19 @@ public final class CraftPlanner {
             return candidate.stationPenalty < best.stationPenalty;
         }
 
+        /**
+         * Among failed branches, one that needs no station this plan may not use wins over one that does, however
+         * few items the latter is short of: the caller has already decided those stations cannot be made here.
+         */
+        private static boolean cheaperFailure(Attempt candidate, Attempt best) {
+            if (candidate.unavailableStations().size()
+                    != best.unavailableStations().size()) {
+                return candidate.unavailableStations().size()
+                        < best.unavailableStations().size();
+            }
+            return candidate.missingTotal() < best.missingTotal();
+        }
+
         private Attempt tryRecipe(String item, Recipe recipe, int qty, int depth, Set<String> path, Sim sim) {
             int times = (qty + recipe.outputCount() - 1) / recipe.outputCount();
             Set<String> nextPath = new LinkedHashSet<>(path);
@@ -402,12 +451,17 @@ public final class CraftPlanner {
                 return new Attempt();
             }
             String item = book.stationItem(station);
+            if (unavailableStations.contains(station)) {
+                // A route this plan may not take: name the station itself so the caller learns which one the
+                // rejected route needs, and mark the branch so one that avoids it is preferred.
+                return Attempt.stationRequired(station, item);
+            }
             if (item == null) {
                 // A book that names no item for a non-inventory station leaves nothing to craft or carry.
                 if (materials) {
                     sim.missingStations.add(station);
                 }
-                return Attempt.missing(station.noun(), List.of(), 1);
+                return Attempt.stationRequired(station, null);
             }
             if (sim.craftedStations.contains(station) || sim.reserved.contains(item)) {
                 return new Attempt();
@@ -423,6 +477,8 @@ public final class CraftPlanner {
                     // ingredient with the same label. This assumption is scoped to this simulation branch.
                     sim.missingStations.add(station);
                 }
+                // Every deficit of this attempt is a station requirement: making the station is why it exists.
+                attempt.markStation(station);
                 return attempt;
             }
             if (sim.items.getOrDefault(item, 0) < 1) {
@@ -504,6 +560,7 @@ public final class CraftPlanner {
         private final Map<String, Recipe> stepRecipes = new HashMap<>();
         private final Map<String, Need> missing = new LinkedHashMap<>();
         private final Set<Station> stationsCrafted = EnumSet.noneOf(Station.class);
+        private final Set<Station> unavailableStations = EnumSet.noneOf(Station.class);
         private int crafts;
         private int stationPenalty;
 
@@ -513,7 +570,17 @@ public final class CraftPlanner {
 
         static Attempt missing(String label, Collection<String> candidates, int qty) {
             Attempt attempt = new Attempt();
-            attempt.missing.put(label, new Need(label, new LinkedHashSet<>(candidates), qty));
+            attempt.missing.put(label, new Need(label, new LinkedHashSet<>(candidates), qty, null));
+            return attempt;
+        }
+
+        /** A station a rejected route needs: reported by its own item, and marked as an unavailable requirement. */
+        static Attempt stationRequired(Station station, String item) {
+            Attempt attempt = new Attempt();
+            String label = item == null ? station.noun() : item;
+            Collection<String> candidates = item == null ? List.of() : List.of(item);
+            attempt.missing.put(label, new Need(label, new LinkedHashSet<>(candidates), 1, station));
+            attempt.unavailableStations.add(station);
             return attempt;
         }
 
@@ -529,6 +596,16 @@ public final class CraftPlanner {
             return missing.values().stream().mapToInt(Need::count).sum();
         }
 
+        /** The stations this branch needs even though the caller ruled them out. */
+        Set<Station> unavailableStations() {
+            return unavailableStations;
+        }
+
+        /** Marks every deficit as belonging to {@code station}; a need already named for another station keeps it. */
+        void markStation(Station station) {
+            missing.replaceAll((label, need) -> need.withStation(station));
+        }
+
         void merge(Attempt other) {
             other.stepTimes.forEach((id, times) -> {
                 stepTimes.merge(id, times, Integer::sum);
@@ -537,6 +614,7 @@ public final class CraftPlanner {
             other.missing.forEach((label, need) -> missing.merge(label, need, Need::merge));
             crafts += other.crafts;
             stationsCrafted.addAll(other.stationsCrafted);
+            unavailableStations.addAll(other.unavailableStations);
         }
 
         void addStep(Recipe recipe, int times) {
@@ -556,15 +634,25 @@ public final class CraftPlanner {
      * One missing ingredient as the batch resolver needs it: the message label, the ids that satisfy it in preference
      * order, and how many are wanted. Merging two needs of the same label unions their candidates and sums the count.
      */
-    private record Need(String label, Set<String> candidates, int count) {
+    private record Need(String label, Set<String> candidates, int count, Station station) {
         Need {
             candidates = Collections.unmodifiableSet(new LinkedHashSet<>(candidates));
         }
 
+        /** This need named for {@code value} unless another station requirement already named it. */
+        Need withStation(Station value) {
+            return station == null ? new Need(label, candidates, count, value) : this;
+        }
+
+        /**
+         * The union of candidates and the summed count. The station survives only when both occurrences are
+         * station requirements: a need that is also consumed as an ordinary ingredient is gathered like one.
+         */
         Need merge(Need other) {
             Set<String> union = new LinkedHashSet<>(candidates);
             union.addAll(other.candidates);
-            return new Need(label, union, count + other.count);
+            Station station = this.station != null && other.station != null ? this.station : null;
+            return new Need(label, union, count + other.count, station);
         }
     }
 }
