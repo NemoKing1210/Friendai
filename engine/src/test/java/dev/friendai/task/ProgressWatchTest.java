@@ -41,6 +41,22 @@ class ProgressWatchTest {
     }
 
     @Test
+    void aDeclaredWaitRestartsTheStallClockWhenItEnds() {
+        ProgressWatch watch = new ProgressWatch(0);
+        assertEquals(ProgressWatch.Status.PROGRESS, watch.observe(8, -1, 0, 1, 50));
+        for (int tick = 2; tick <= 101; tick++) {
+            assertEquals(ProgressWatch.Status.WAITING, watch.observe(8, tick, 200, tick, 50), "tick " + tick);
+        }
+        assertEquals(
+                ProgressWatch.Status.PROGRESS,
+                watch.observe(8, -1, 0, 102, 50),
+                "the first tick after the declared wait must not count the wait as a stall");
+        assertEquals(ProgressWatch.Status.PROGRESS, watch.observe(8, -1, 0, 150, 50));
+        assertEquals(
+                ProgressWatch.Status.STALLED, watch.observe(8, -1, 0, 151, 50), "the ordinary window applies again");
+    }
+
+    @Test
     void aWaitWithoutItsOwnDeadlineUsesTheRunnerLimit() {
         ProgressWatch watch = new ProgressWatch(0);
         assertEquals(ProgressWatch.Status.WAITING, watch.observe(1, 100, 0, 100, 20));

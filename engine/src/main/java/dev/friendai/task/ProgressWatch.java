@@ -29,6 +29,8 @@ public final class ProgressWatch {
      */
     public Status observe(long stamp, int waitingTicks, int waitingLimitTicks, int activeTick, int stallTicks) {
         if (waitingTicks >= 0) {
+            // Time spent in a declared wait is not the task's stall time, so the window restarts when the wait ends.
+            lastChange = activeTick;
             if (waitingLimitTicks > 0 && waitingTicks > waitingLimitTicks) {
                 return Status.STALLED;
             }

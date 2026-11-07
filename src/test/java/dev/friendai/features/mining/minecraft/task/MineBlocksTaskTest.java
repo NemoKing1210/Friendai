@@ -185,7 +185,12 @@ class MineBlocksTaskTest {
         MineBlocksTask.Exploration exploration = new MineBlocksTask.Exploration(factory, true, CALLER);
         ProgressWatch watch = new ProgressWatch(0);
 
-        for (int tick = 0; tick < 99; tick++) {
+        // The last break established the stamp before the search began.
+        assertEquals(
+                ProgressWatch.Status.PROGRESS,
+                watch.observe(7L, exploration.waitingTicks(), exploration.waitingLimitTicks(), 0, 50));
+
+        for (int tick = 1; tick <= 100; tick++) {
             assertEquals(MineBlocksTask.Exploration.Step.RUNNING, missing(exploration, 100), "tick " + tick);
             assertEquals(
                     ProgressWatch.Status.WAITING,
@@ -194,6 +199,15 @@ class MineBlocksTaskTest {
         }
 
         assertEquals(100, exploration.waitingLimitTicks(), "the declared wait is the search's own budget");
+
+        // The following tick spends the budget and ends the wait: the stall window must restart, not fire.
+        assertEquals(
+                MineBlocksTask.Exploration.Step.NONE, missing(exploration, 100), "the last tick of the search budget");
+        assertEquals(-1, exploration.waitingTicks(), "the search is over");
+        assertEquals(
+                ProgressWatch.Status.PROGRESS,
+                watch.observe(7L, exploration.waitingTicks(), exploration.waitingLimitTicks(), 101, 50),
+                "the stall window restarts when the declared wait ends");
     }
 
     /** A call that names its own origin keeps the job there instead of letting the search wander from it. */

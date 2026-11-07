@@ -88,6 +88,12 @@ public final class MineBlocksTask implements Task {
 
     private BlockPos pendingObservation;
     private int observationWaitTicks;
+    /**
+     * True only on a tick that returns from the observation branch, so the declared wait cannot cover the sweep or
+     * the temporary-block cleanup that run while {@link #pendingObservation} is still set.
+     */
+    private boolean observationWaitActive;
+
     private String summary = "";
     /** The last typed refusal, so a job that stops says what stopped it. */
     private MiningRefusal lastRefusal;
@@ -397,6 +403,7 @@ public final class MineBlocksTask implements Task {
 
     @Override
     public TaskStatus tick(TaskContext c) {
+        observationWaitActive = false;
         if (cleanup != null) {
             TemporaryBlockCleanup.State state = cleanup.tick(c);
             if (state == TemporaryBlockCleanup.State.WORKING) {
@@ -708,6 +715,7 @@ public final class MineBlocksTask implements Task {
                         observer.inspect(pendingObservation.relative(side));
                     }
                 }
+                observationWaitActive = true;
                 return TaskStatus.RUNNING;
             }
             pendingObservation = null;
@@ -985,14 +993,14 @@ public final class MineBlocksTask implements Task {
     @Override
     public int waitingTicks() {
         if (exploration.searching()) return exploration.waitingTicks();
-        if (pendingObservation != null) return observationWaitTicks;
+        if (observationWaitActive) return observationWaitTicks;
         return -1;
     }
 
     @Override
     public int waitingLimitTicks() {
         if (exploration.searching()) return exploration.waitingLimitTicks();
-        if (pendingObservation != null) return OBSERVATION_WAIT_TICKS;
+        if (observationWaitActive) return OBSERVATION_WAIT_TICKS;
         return 0;
     }
 
@@ -1098,7 +1106,7 @@ public final class MineBlocksTask implements Task {
         private Task search;
         private boolean searched;
         private int ticks;
-        /** The budget of the running search, captured when the job asked for it. */
+        /** The live search budget, re-read on every call so the declared limit matches the cap on that tick. */
         private int limit;
         /** What the search itself said when it failed or spent its budget; blank when it never reported anything. */
         private String failure = "";

@@ -67,17 +67,24 @@ class ExcavateFallbackTest {
         StallFallback fallback = new StallFallback();
         ProgressWatch watch = new ProgressWatch(0);
 
+        // The last broken block established the stamp before the stall window opened.
+        assertEquals(ProgressWatch.Status.PROGRESS, watch.observe(7L, -1, 0, 0, 50));
+
         for (int tick = 0; tick < ExcavateTask.STALL_FALLBACK_TICKS - 1; tick++) {
             assertEquals(StallFallback.Decision.WAIT, fallback.observe(8, "approach"), "tick " + (tick + 1));
             assertEquals(tick + 1, fallback.waitingTicks(), "tick " + (tick + 1));
             assertEquals(
                     ProgressWatch.Status.WAITING,
-                    watch.observe(7L, fallback.waitingTicks(), ExcavateTask.STALL_FALLBACK_TICKS, tick, 50),
+                    watch.observe(7L, fallback.waitingTicks(), ExcavateTask.STALL_FALLBACK_TICKS, tick + 1, 50),
                     "tick " + (tick + 1));
         }
 
         assertEquals(StallFallback.Decision.DIG, fallback.observe(8, "approach"), "the two-hundredth tick digs");
         assertEquals(-1, fallback.waitingTicks(), "the declared wait ends when the fallback fires");
+        assertEquals(
+                ProgressWatch.Status.PROGRESS,
+                watch.observe(7L, fallback.waitingTicks(), 0, ExcavateTask.STALL_FALLBACK_TICKS, 50),
+                "the stall window restarts when the declared wait ends");
     }
 
     @Test

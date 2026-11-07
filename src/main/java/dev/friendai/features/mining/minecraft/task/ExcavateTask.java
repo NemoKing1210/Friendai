@@ -585,7 +585,7 @@ public final class ExcavateTask implements Task {
 
     @Override
     public int waitingLimitTicks() {
-        return STALL_FALLBACK_TICKS;
+        return waitingTicks() >= 0 ? STALL_FALLBACK_TICKS : 0;
     }
 
     @Override
