@@ -44,6 +44,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.UnaryOperator;
 
 /** LLM-facing queue operations. */
 public final class QueueTools implements FeatureToolContributor {
@@ -298,6 +299,7 @@ public final class QueueTools implements FeatureToolContributor {
         var parsed = QueueParser.parsePlan(
                 input,
                 schemas,
+                normalizers(allowed),
                 all.keySet(),
                 c.serverSettings().tasks().queueMaxStepsPerAdd(),
                 LIMITS.maxArgsChars(),
@@ -405,6 +407,7 @@ public final class QueueTools implements FeatureToolContributor {
         var parsed = QueueParser.parseFlatActions(
                 args.getAsJsonArray("steps"),
                 schemas,
+                normalizers(allowed),
                 all.keySet(),
                 companion.serverSettings().tasks().queueMaxStepsPerAdd(),
                 LIMITS.maxArgsChars(),
@@ -451,7 +454,13 @@ public final class QueueTools implements FeatureToolContributor {
         Map<String, JsonObject> schemas = new LinkedHashMap<>();
         allowed.forEach((n, d) -> schemas.put(n, d.schema()));
         var parsed = QueueParser.parsePlan(
-                steps, schemas, all.keySet(), maxSteps, LIMITS.maxArgsChars(), LIMITS.maxAddChars());
+                steps,
+                schemas,
+                normalizers(allowed),
+                all.keySet(),
+                maxSteps,
+                LIMITS.maxArgsChars(),
+                LIMITS.maxAddChars());
         if (!parsed.ok())
             return ToolResult.error("Invalid plan:\n- " + String.join("\n- ", parsed.errors()) + "\nSubmitted plan:\n"
                     + normalizeForDisplay(steps));
@@ -743,9 +752,11 @@ public final class QueueTools implements FeatureToolContributor {
                     if (!args.has("args")) return error("queue_edit requires args");
                     long id = required(args, "job");
                     JobData.validateTool(q.job(id).orElse(null), all, caller);
-                    JsonObject obj = JsonParser.parseString(args.get("args").getAsString())
-                            .getAsJsonObject();
                     TaskToolDefinition d = all.get(q.job(id).orElseThrow().tool());
+                    JsonObject obj = normalizeEditArgs(
+                            d,
+                            JsonParser.parseString(args.get("args").getAsString())
+                                    .getAsJsonObject());
                     if (d.creativeSensitive() && !CreativeModeService.mayStartWorldChangingTask(c, caller.uuid()))
                         return error(
                                 "Creative mode is active; only its online operator owner can request world-changing tasks.");
@@ -777,6 +788,7 @@ public final class QueueTools implements FeatureToolContributor {
                     var parsed = QueueParser.parseFlatActions(
                             args.getAsJsonArray("steps"),
                             schemas,
+                            normalizers(allowed),
                             all.keySet(),
                             c.serverSettings().tasks().queueMaxStepsPerAdd(),
                             LIMITS.maxArgsChars(),
@@ -903,6 +915,27 @@ public final class QueueTools implements FeatureToolContributor {
             if (caller.access().allows(d.minAccess())) map.put(n, d);
         });
         return map;
+    }
+
+    /** The documented argument aliases of the tools a plan may use, keyed by tool name. */
+    private static Map<String, UnaryOperator<JsonObject>> normalizers(Map<String, TaskToolDefinition> definitions) {
+        Map<String, UnaryOperator<JsonObject>> map = new LinkedHashMap<>();
+        definitions.forEach((name, definition) -> map.put(name, definition.normalizer()));
+        return map;
+    }
+
+    /**
+     * Applies a tool's documented alias to edited arguments, so a repair is not refused for a form a top-level call
+     * accepts. A normalizer that throws or returns nothing leaves the arguments untouched for validation to report.
+     */
+    static JsonObject normalizeEditArgs(TaskToolDefinition definition, JsonObject args) {
+        if (definition == null || args == null) return args;
+        try {
+            JsonObject normalized = definition.normalizer().apply(args);
+            return normalized == null ? args : normalized;
+        } catch (RuntimeException e) {
+            return args;
+        }
     }
 
     private static void registerFactories(

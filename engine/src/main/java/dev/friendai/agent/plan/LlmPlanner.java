@@ -118,7 +118,13 @@ public final class LlmPlanner implements Planner {
                                 PlanFailure.Code.TRUNCATED, "reply was cut at the output token limit", number);
                     else {
                         parsed = PlannerParser.parse(
-                                response.text(), input.schemas(), input.allTools(), maxSteps, maxArgs, maxTotal);
+                                response.text(),
+                                input.schemas(),
+                                input.normalizers(),
+                                input.allTools(),
+                                maxSteps,
+                                maxArgs,
+                                maxTotal);
                         failure = parsed.ok() ? null : parsed.failure().atAttempt(number);
                     }
                     String clean = redact.apply(response.text());

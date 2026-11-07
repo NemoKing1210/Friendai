@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.UnaryOperator;
 
 /** Turns the planner's text into a validated {@link PlanProposal}, or the failure that rejected it. */
 public final class PlannerParser {
@@ -40,6 +41,22 @@ public final class PlannerParser {
             int maxSteps,
             int maxArgs,
             int maxTotal) {
+        return parse(modelText, schemas, Map.of(), allTools, maxSteps, maxArgs, maxTotal);
+    }
+
+    /**
+     * @param schemas the schemas of the tools the requester may plan with; any other tool is an error
+     * @param normalizers the documented argument aliases of those tools, keyed by tool name
+     * @param allTools every plannable tool name, so an unknown name is reported as unknown
+     */
+    public static Parsed parse(
+            String modelText,
+            Map<String, JsonObject> schemas,
+            Map<String, UnaryOperator<JsonObject>> normalizers,
+            Set<String> allTools,
+            int maxSteps,
+            int maxArgs,
+            int maxTotal) {
         if (modelText != null && modelText.length() > MAX_REPLY_CHARS)
             return failed(PlanFailure.Code.TOO_LARGE, "reply exceeds " + MAX_REPLY_CHARS + " characters");
         if (modelText == null || modelText.isBlank())
@@ -58,7 +75,8 @@ public final class PlannerParser {
             return failed(PlanFailure.Code.STEPS_INVALID, "the object needs a \"steps\" array");
         }
         JsonArray steps = normalize(root.getAsJsonArray("steps"));
-        QueueParser.PlanResult parsed = QueueParser.parsePlan(steps, schemas, allTools, maxSteps, maxArgs, maxTotal);
+        QueueParser.PlanResult parsed =
+                QueueParser.parsePlan(steps, schemas, normalizers, allTools, maxSteps, maxArgs, maxTotal);
         if (!parsed.ok()) {
             boolean oversized =
                     parsed.errors().stream().anyMatch(e -> e.contains("exceeds") || e.contains("arguments exceed"));

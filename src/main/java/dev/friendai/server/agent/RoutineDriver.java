@@ -39,6 +39,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import net.minecraft.server.MinecraftServer;
@@ -411,10 +412,15 @@ public final class RoutineDriver {
             }
         });
         Map<String, JsonObject> schemas = new LinkedHashMap<>();
-        allowed.forEach((tool, definition) -> schemas.put(tool, definition.schema()));
+        Map<String, UnaryOperator<JsonObject>> normalizers = new LinkedHashMap<>();
+        allowed.forEach((tool, definition) -> {
+            schemas.put(tool, definition.schema());
+            normalizers.put(tool, definition.normalizer());
+        });
         var parsed = QueueParser.parseFlatActions(
                 input,
                 schemas,
+                normalizers,
                 allowed.keySet(),
                 Routine.MAX_STEPS,
                 Routine.MAX_ARGS_CHARS,

@@ -39,6 +39,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 /**
  * Builds every planner input from one place. The brain, recovery and free time differ only in the objective and the
@@ -170,10 +171,12 @@ public final class PlannerInputFactory {
             }
         });
         Map<String, JsonObject> schemas = new LinkedHashMap<>();
+        Map<String, UnaryOperator<JsonObject>> normalizers = new LinkedHashMap<>();
         List<PlannerToolDigest.Tool> described = new ArrayList<>();
         visible.forEach((name, definition) -> {
             if (scoped.contains(name)) {
                 schemas.put(name, definition.schema());
+                normalizers.put(name, definition.normalizer());
                 described.add(new PlannerToolDigest.Tool(name, definition.description(), definition.schema()));
             }
         });
@@ -199,7 +202,8 @@ public final class PlannerInputFactory {
                 0,
                 targetPlanId,
                 targetPlanId == 0 ? "" : PlanFingerprint.of(queue(), targetPlanId),
-                pendingNodePath);
+                pendingNodePath,
+                normalizers);
     }
 
     private JobQueue queue() {

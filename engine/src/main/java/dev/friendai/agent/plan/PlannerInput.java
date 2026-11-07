@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.UnaryOperator;
 
 /**
  * Everything one planner call may see. All fields are plain data built by the caller on the server thread.
@@ -18,6 +19,7 @@ import java.util.Set;
  * @param schemas the schemas of the tools the requester may plan with; a proposal may use no other tool
  * @param allTools every plannable tool name the requester may use before this occasion's scoping, so a real tool
  *     outside the scope is reported as known but unusable while only a genuinely unknown name is reported as unknown
+ * @param normalizers the documented argument aliases of those tools, keyed by tool name; a missing name means none
  */
 public record PlannerInput(
         Goal goal,
@@ -34,7 +36,44 @@ public record PlannerInput(
         int promptBudget,
         long targetPlanId,
         String targetFingerprint,
-        String pendingNodePath) {
+        String pendingNodePath,
+        Map<String, UnaryOperator<JsonObject>> normalizers) {
+    /** The shape without per-tool argument aliases, preserving callers added before them. */
+    public PlannerInput(
+            Goal goal,
+            String world,
+            String toolDigest,
+            String knowledge,
+            Optional<String> queueState,
+            List<String> lessons,
+            String failure,
+            Map<String, JsonObject> schemas,
+            Set<String> allTools,
+            List<String> verified,
+            List<dev.friendai.agent.prompt.PromptSection> instructions,
+            int promptBudget,
+            long targetPlanId,
+            String targetFingerprint,
+            String pendingNodePath) {
+        this(
+                goal,
+                world,
+                toolDigest,
+                knowledge,
+                queueState,
+                lessons,
+                failure,
+                schemas,
+                allTools,
+                verified,
+                instructions,
+                promptBudget,
+                targetPlanId,
+                targetFingerprint,
+                pendingNodePath,
+                Map.of());
+    }
+
     /** The target-plan shape without a pending path, preserving callers added before it. */
     public PlannerInput(
             Goal goal,
@@ -172,7 +211,8 @@ public record PlannerInput(
                 budget,
                 targetPlanId,
                 targetFingerprint,
-                pendingNodePath);
+                pendingNodePath,
+                normalizers);
     }
 
     public PlannerInput {
@@ -186,6 +226,7 @@ public record PlannerInput(
         schemas = schemas == null ? Map.of() : Map.copyOf(schemas);
         allTools = allTools == null ? Set.of() : Set.copyOf(allTools);
         verified = verified == null ? List.of() : List.copyOf(verified);
+        normalizers = normalizers == null ? Map.of() : Map.copyOf(normalizers);
     }
 
     /** A prompt-only input, for tests and callers that never parse a reply. */

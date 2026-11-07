@@ -23,7 +23,8 @@ public interface Tool<C> {
 
     /**
      * Maps a documented argument alias onto the canonical schema shape before validation. The registry validates and
-     * executes the returned object, so an override must never widen access or replace validation.
+     * executes the returned object, so an override must never widen access or replace validation, and it must not
+     * mutate the input object: return a new object when the arguments change.
      */
     default JsonObject normalizeArguments(JsonObject args) {
         return args;

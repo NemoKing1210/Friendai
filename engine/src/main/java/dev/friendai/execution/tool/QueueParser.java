@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.UnaryOperator;
 
 /** Pure validation of flat queues and conditional plan trees. */
 public final class QueueParser {
@@ -44,7 +45,7 @@ public final class QueueParser {
 
     private QueueParser() {}
 
-    /** Parses the flat action list used to replace one queued job. Conditional plans are not accepted here. */
+    /** Parses a flat action list with no argument aliases. */
     public static Result parseFlatActions(
             JsonArray input,
             Map<String, JsonObject> schemas,
@@ -52,7 +53,19 @@ public final class QueueParser {
             int maxSteps,
             int maxArgs,
             int maxTotal) {
-        PlanResult parsed = parsePlan(input, schemas, allTools, maxSteps, maxArgs, maxTotal);
+        return parseFlatActions(input, schemas, Map.of(), allTools, maxSteps, maxArgs, maxTotal);
+    }
+
+    /** Parses the flat action list used to replace one queued job. Conditional plans are not accepted here. */
+    public static Result parseFlatActions(
+            JsonArray input,
+            Map<String, JsonObject> schemas,
+            Map<String, UnaryOperator<JsonObject>> normalizers,
+            Set<String> allTools,
+            int maxSteps,
+            int maxArgs,
+            int maxTotal) {
+        PlanResult parsed = parsePlan(input, schemas, normalizers, allTools, maxSteps, maxArgs, maxTotal);
         if (!parsed.ok()) return new Result(List.of(), parsed.errors());
         List<QueuedStep> flat = new ArrayList<>();
         for (PlanNode node : parsed.plan().nodes()) {
@@ -64,6 +77,7 @@ public final class QueueParser {
         return new Result(flat, List.of());
     }
 
+    /** Parses a plan with no argument aliases. */
     public static PlanResult parsePlan(
             JsonArray input,
             Map<String, JsonObject> schemas,
@@ -71,10 +85,25 @@ public final class QueueParser {
             int maxSteps,
             int maxArgs,
             int maxTotal) {
+        return parsePlan(input, schemas, Map.of(), allTools, maxSteps, maxArgs, maxTotal);
+    }
+
+    /**
+     * Parses a plan, applying each tool's documented argument normalizer to a deep copy before validation. The caller's
+     * tree is never mutated; the normalized arguments are what the resulting steps carry.
+     */
+    public static PlanResult parsePlan(
+            JsonArray input,
+            Map<String, JsonObject> schemas,
+            Map<String, UnaryOperator<JsonObject>> normalizers,
+            Set<String> allTools,
+            int maxSteps,
+            int maxArgs,
+            int maxTotal) {
         if (input == null || input.isEmpty()) return new PlanResult(null, List.of("a plan needs at least 1 step"));
         List<String> errors = new ArrayList<>();
         Counter counter = new Counter();
-        List<PlanNode> nodes = parseNodes(input, "", 1, schemas, allTools, maxArgs, counter, errors);
+        List<PlanNode> nodes = parseNodes(input, "", 1, schemas, normalizers, allTools, maxArgs, counter, errors);
         PlanDefinition plan = null;
         if (errors.isEmpty()) {
             try {
@@ -100,6 +129,7 @@ public final class QueueParser {
             String parentPath,
             int depth,
             Map<String, JsonObject> schemas,
+            Map<String, UnaryOperator<JsonObject>> normalizers,
             Set<String> allTools,
             int maxArgs,
             Counter counter,
@@ -127,15 +157,16 @@ public final class QueueParser {
                 continue;
             }
             if (action) {
-                PlanNode.Action parsed = parseAction(object, nodePath, i, schemas, allTools, maxArgs, counter, errors);
+                PlanNode.Action parsed =
+                        parseAction(object, nodePath, i, schemas, normalizers, allTools, maxArgs, counter, errors);
                 if (parsed != null) result.add(parsed);
             } else if (conditional) {
-                PlanNode.Conditional parsed =
-                        parseConditional(object, nodePath, depth, schemas, allTools, maxArgs, counter, errors);
+                PlanNode.Conditional parsed = parseConditional(
+                        object, nodePath, depth, schemas, normalizers, allTools, maxArgs, counter, errors);
                 if (parsed != null) result.add(parsed);
             } else {
                 PlanNode.Repeat parsed =
-                        parseRepeat(object, nodePath, depth, schemas, allTools, maxArgs, counter, errors);
+                        parseRepeat(object, nodePath, depth, schemas, normalizers, allTools, maxArgs, counter, errors);
                 if (parsed != null) result.add(parsed);
             }
         }
@@ -147,6 +178,7 @@ public final class QueueParser {
             String path,
             int localIndex,
             Map<String, JsonObject> schemas,
+            Map<String, UnaryOperator<JsonObject>> normalizers,
             Set<String> allTools,
             int maxArgs,
             Counter counter,
@@ -189,6 +221,20 @@ public final class QueueParser {
                 errors.add(path(path, "args is not a JSON object"));
                 return null;
             }
+        }
+        UnaryOperator<JsonObject> normalizer = normalizers.get(tool);
+        if (normalizer != null) {
+            JsonObject normalized;
+            try {
+                normalized = normalizer.apply(args.deepCopy());
+            } catch (RuntimeException e) {
+                normalized = null;
+            }
+            if (normalized == null) {
+                errors.add(path(path, "arguments cannot be normalized"));
+                return null;
+            }
+            args = normalized;
         }
         int argSize = args.toString().length();
         counter.argumentChars += argSize;
@@ -237,6 +283,7 @@ public final class QueueParser {
             String path,
             int depth,
             Map<String, JsonObject> schemas,
+            Map<String, UnaryOperator<JsonObject>> normalizers,
             Set<String> allTools,
             int maxArgs,
             Counter counter,
@@ -251,10 +298,28 @@ public final class QueueParser {
                 obj.has("else") ? array(obj.get("else"), path + " → if → else", false, errors) : new JsonArray();
         List<PlanNode> thenNodes = thenArray == null
                 ? List.of()
-                : parseNodes(thenArray, path + " → then", depth + 1, schemas, allTools, maxArgs, counter, errors);
+                : parseNodes(
+                        thenArray,
+                        path + " → then",
+                        depth + 1,
+                        schemas,
+                        normalizers,
+                        allTools,
+                        maxArgs,
+                        counter,
+                        errors);
         List<PlanNode> elseNodes = elseArray == null
                 ? List.of()
-                : parseNodes(elseArray, path + " → else", depth + 1, schemas, allTools, maxArgs, counter, errors);
+                : parseNodes(
+                        elseArray,
+                        path + " → else",
+                        depth + 1,
+                        schemas,
+                        normalizers,
+                        allTools,
+                        maxArgs,
+                        counter,
+                        errors);
         if (condition == null || thenArray == null || elseArray == null) return null;
         return new PlanNode.Conditional(condition, thenNodes, elseNodes);
     }
@@ -264,6 +329,7 @@ public final class QueueParser {
             String path,
             int depth,
             Map<String, JsonObject> schemas,
+            Map<String, UnaryOperator<JsonObject>> normalizers,
             Set<String> allTools,
             int maxArgs,
             Counter counter,
@@ -288,7 +354,8 @@ public final class QueueParser {
             errors.add(path(repeatPath, "max_iterations must be between 1 and " + MAX_REPEAT));
         List<PlanNode> body = bodyArray == null
                 ? List.of()
-                : parseNodes(bodyArray, repeatPath, depth + 1, schemas, allTools, maxArgs, counter, errors);
+                : parseNodes(
+                        bodyArray, repeatPath, depth + 1, schemas, normalizers, allTools, maxArgs, counter, errors);
         if (bodyArray == null
                 || until == null
                 || iterations == null
