@@ -80,7 +80,7 @@ public final class CraftPlanner {
         Set<Station> nearby = stationsNearby == null ? EnumSet.noneOf(Station.class) : stationsNearby;
         Map<String, Need> missing = new LinkedHashMap<>();
         for (Target target : targets) {
-            Attempt attempt = new Search(target.item(), book, nearby)
+            Attempt attempt = new Search(target.item(), book, nearby, true)
                     .need(target.item(), target.count(), 0, new LinkedHashSet<>(), sim);
             attempt.missing.forEach((label, need) -> missing.merge(label, need, Need::merge));
         }
@@ -229,12 +229,14 @@ public final class CraftPlanner {
         final Map<String, Integer> items = new LinkedHashMap<>();
         final Set<String> reserved = new LinkedHashSet<>();
         final Set<Station> craftedStations = EnumSet.noneOf(Station.class);
+        final Set<Station> missingStations = EnumSet.noneOf(Station.class);
 
         Sim copy() {
             Sim copy = new Sim();
             copy.items.putAll(items);
             copy.reserved.addAll(reserved);
             copy.craftedStations.addAll(craftedStations);
+            copy.missingStations.addAll(missingStations);
             return copy;
         }
 
@@ -245,6 +247,8 @@ public final class CraftPlanner {
             reserved.addAll(other.reserved);
             craftedStations.clear();
             craftedStations.addAll(other.craftedStations);
+            missingStations.clear();
+            missingStations.addAll(other.missingStations);
         }
     }
 
@@ -252,9 +256,15 @@ public final class CraftPlanner {
         private final String target;
         private final RecipeBook book;
         private final Set<Station> stationsNearby;
+        private final boolean materials;
         private final Map<String, Boolean> cycles = new HashMap<>();
 
         Search(String target, RecipeBook book, Set<Station> stationsNearby) {
+            this(target, book, stationsNearby, false);
+        }
+
+        Search(String target, RecipeBook book, Set<Station> stationsNearby, boolean materials) {
+            this.materials = materials;
             this.target = target;
             this.book = book;
             this.stationsNearby = stationsNearby;
@@ -283,6 +293,7 @@ public final class CraftPlanner {
             Attempt best = null;
             Sim bestSim = null;
             List<Attempt> failed = new ArrayList<>();
+            List<Sim> failedSims = new ArrayList<>();
             for (Recipe recipe : recipes) {
                 Sim copy = sim.copy();
                 Attempt attempt = tryRecipe(item, recipe, qty, depth, path, copy);
@@ -293,6 +304,7 @@ public final class CraftPlanner {
                     }
                 } else {
                     failed.add(attempt);
+                    failedSims.add(copy);
                 }
             }
             if (best != null) {
@@ -305,11 +317,18 @@ public final class CraftPlanner {
                 // unless it only feeds its own recipe loop (ingot → block → ingot).
                 return Attempt.missing(item, qty);
             }
+            int chosenIndex = 0;
             Attempt chosen = failed.get(0);
             for (int i = 1; i < failed.size(); i++) {
                 if (failed.get(i).missingTotal() < chosen.missingTotal()) {
                     chosen = failed.get(i);
+                    chosenIndex = i;
                 }
+            }
+            if (materials) {
+                // Its deficits are returned to the caller, so its consumed resources and reusable station
+                // requirements belong to this branch too. Losing branches never publish either.
+                sim.adopt(failedSims.get(chosenIndex));
             }
             return chosen;
         }
@@ -377,13 +396,18 @@ public final class CraftPlanner {
          * craft goal of its own whose item then stays in the simulation reserved for the station.
          */
         private Attempt ensureStation(Station station, int depth, Set<String> path, Sim sim) {
-            if (station == Station.INVENTORY || stationsNearby.contains(station)) {
+            if (station == Station.INVENTORY
+                    || stationsNearby.contains(station)
+                    || sim.missingStations.contains(station)) {
                 return new Attempt();
             }
             String item = book.stationItem(station);
             if (item == null) {
                 // A book that names no item for a non-inventory station leaves nothing to craft or carry.
-                return Attempt.missing(station.noun(), 1);
+                if (materials) {
+                    sim.missingStations.add(station);
+                }
+                return Attempt.missing(station.noun(), List.of(), 1);
             }
             if (sim.craftedStations.contains(station) || sim.reserved.contains(item)) {
                 return new Attempt();
@@ -394,6 +418,11 @@ public final class CraftPlanner {
             }
             Attempt attempt = need(item, 1, depth, path, sim);
             if (!attempt.ok()) {
+                if (materials) {
+                    // The returned deficit pays for one reusable station, independently of any consumed
+                    // ingredient with the same label. This assumption is scoped to this simulation branch.
+                    sim.missingStations.add(station);
+                }
                 return attempt;
             }
             if (sim.items.getOrDefault(item, 0) < 1) {

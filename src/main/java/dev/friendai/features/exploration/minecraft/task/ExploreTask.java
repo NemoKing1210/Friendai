@@ -41,6 +41,10 @@ public final class ExploreTask implements Task {
     private static final int BRANCH = 32;
     private static final int TORCH_EVERY = 8;
     private static final int MAX_NO_PROGRESS = 200;
+    /** Check several remembered positions without allowing old, missing blocks to mask a visible one. */
+    private static final int MAX_SIGHT_CANDIDATES = 32;
+
+    private static final int MAX_MINING_DIAGNOSTIC_LENGTH = 256;
 
     private final BlockMatcher target;
     private final boolean down;
@@ -67,6 +71,7 @@ public final class ExploreTask implements Task {
 
     private Direction heading;
     private MiningSession miningSession;
+    private MiningSession.State miningState;
 
     public ExploreTask(BlockMatcher target, boolean down, int depthY, int maxRadius, int maxBlocks, int maxTicks) {
         this.target = target;
@@ -230,6 +235,7 @@ public final class ExploreTask implements Task {
             miningSession.explore(legalTargetY, headingIndex(heading));
         }
         MiningSession.State state = miningSession.tick(c);
+        miningState = state;
         blocksDug = miningSession.brokenBlocks();
         branchSteps = miningSession.completedExplorationSteps();
         if (blocksDug - lastTorchBlockCount >= TORCH_EVERY) {
@@ -273,13 +279,14 @@ public final class ExploreTask implements Task {
         ServerLevel level = context.level();
         CompanionEntity companion = context.companion();
         var evidence = context.resources();
-        return evidence.knownOrVisible(companion, target, down ? 6 : Math.min(16, maxRadius), 1).stream()
+        return evidence
+                .knownOrVisible(companion, target, down ? 6 : Math.min(16, maxRadius), MAX_SIGHT_CANDIDATES)
+                .stream()
+                .filter(level::hasChunkAt)
+                .filter(pos -> target.test(level.getBlockState(pos)) && Sight.canSee(level, companion, pos))
                 .findFirst()
                 .map(pos -> {
                     BlockState state = level.getBlockState(pos);
-                    if (!target.test(state) || !Sight.canSee(level, companion, pos)) {
-                        return false;
-                    }
                     summary = "found " + BuiltInRegistries.BLOCK.getKey(state.getBlock()) + " at " + pos.getX() + " "
                             + pos.getY() + " " + pos.getZ();
                     evidence.observe(
@@ -317,6 +324,14 @@ public final class ExploreTask implements Task {
             if (!why.isBlank()) {
                 summary += " (" + why + ")";
             }
+            String phase = miningSession.phase();
+            String diagnostic = "underground explore failed state=" + miningState + " phase="
+                    + (phase.isBlank() ? "none" : phase) + " broken=" + blocksDug + " "
+                    + (why.isBlank() ? "why=none" : why);
+            c.debug(
+                    diagnostic.length() <= MAX_MINING_DIAGNOSTIC_LENGTH
+                            ? diagnostic
+                            : diagnostic.substring(0, MAX_MINING_DIAGNOSTIC_LENGTH));
         }
         return TaskStatus.FAILED;
     }

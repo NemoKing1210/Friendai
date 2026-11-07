@@ -1037,6 +1037,11 @@ public final class CompanionBrain {
             endTurn();
             return;
         }
+        if (queuedByModel && !anyCallFailed && !queueMutatedBesidesAdd && spoken == null && isRecoveryTurn()) {
+            // A replacement plan is the useful outcome of an autonomous recovery; do not ask the model to narrate it.
+            endTurn();
+            return;
+        }
         PlanningDecision after = router.afterStep(
                 decision.mode(),
                 turnSignals.withGoal(setGoalId),
@@ -1046,6 +1051,15 @@ public final class CompanionBrain {
             return;
         }
         requestStep(gen);
+    }
+
+    private boolean isRecoveryTurn() {
+        return turnKind == TurnKind.EVENT
+                && (decision.mode() == TurnMode.RECOVERY
+                        || turnEvent instanceof BrainEvent.Replan
+                        || turnEvent instanceof BrainEvent.PlanBlocked
+                        || turnEvent instanceof BrainEvent.TaskFinished task && !task.success()
+                        || turnEvent instanceof BrainEvent.PlanFinished plan && !plan.success());
     }
 
     /** The goal id a successful {@code set_goal} reports; zero when the text does not carry one. */

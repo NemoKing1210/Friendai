@@ -77,6 +77,44 @@ class CompanionBrainOneShotTest {
     }
 
     @Test
+    void silentRecoveryThatQueuesReplacementPlanEndsWithoutNarration() {
+        gateway.enqueue(calls("", call("q1", "queue_add")));
+
+        brain.post(new BrainEvent.PlanBlocked(7, "obtain stone", 12, "mine_blocks", "missing cobblestone", 2));
+
+        assertEquals(1, gateway.requests.size(), "a successful replacement plan completes the recovery turn");
+        assertTrue(speaker.said.isEmpty(), "routine recovery does not need spoken narration");
+        assertFalse(brain.isThinking());
+    }
+
+    @Test
+    void failedRecoveryQueueAddStillGetsFollowUp() {
+        tools.results.put("queue_add", new ArrayDeque<>(List.of(ToolResult.error("invalid replacement"))));
+        gateway.enqueue(calls("", call("q1", "queue_add")));
+        gateway.enqueue(text("I could not queue a replacement."));
+
+        brain.post(new BrainEvent.PlanBlocked(7, "obtain stone", 12, "mine_blocks", "missing cobblestone", 2));
+
+        assertEquals(2, gateway.requests.size(), "the model must see the rejected replacement plan");
+        assertEquals(List.of("I could not queue a replacement."), speaker.said);
+    }
+
+    @Test
+    void silentQueueAddInMixedRecoveryAndPlayerBatchStillGetsFollowUp() {
+        var firstTurn = gateway.enqueuePending();
+        gateway.enqueue(calls("", call("q1", "queue_add")));
+        gateway.enqueue(text("I queued the replacement; here is what happened."));
+
+        brain.post(said("hello"));
+        brain.post(new BrainEvent.PlanBlocked(7, "obtain stone", 12, "mine_blocks", "missing cobblestone", 2));
+        brain.post(said("how will this work?"));
+        firstTurn.complete(text("Hello."));
+
+        assertEquals(3, gateway.requests.size(), "the mixed player and recovery batch must not end on a silent add");
+        assertEquals(List.of("Hello.", "I queued the replacement; here is what happened."), speaker.said);
+    }
+
+    @Test
     void filteredTextWithASuccessfulPlanStillGetsAReply() {
         List<String> unanswerable =
                 List.of("[silent]", "<tool_calls><invoke name=\"queue_add\"></invoke></tool_calls>", "task #42");

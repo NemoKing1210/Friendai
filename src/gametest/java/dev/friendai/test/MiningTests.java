@@ -622,6 +622,64 @@ public class MiningTests {
         });
     }
 
+    /** A known ore face across a lava moat has no safe mining stance; route planning must give up promptly. */
+    @GameTest(maxTicks = 240)
+    public void unreachableOreAcrossLavaMoatFailsAfterBoundedNoProgressPlans(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 120, 32);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 121, 6);
+        companion.inventory().addItem(Items.IRON_PICKAXE.getDefaultInstance());
+        companion.setOwner(java.util.UUID.randomUUID());
+
+        BlockPos ore = new BlockPos(12, 121, 6);
+        h.setBlock(ore, Blocks.IRON_ORE);
+        // The target is visible and known, but every horizontal mining stance is lava and the top stance is sealed.
+        // The solid floor keeps the moat finite; the companion has no blocks with which to bridge it.
+        for (int x = 7; x <= 17; x++) {
+            for (int z = 1; z <= 11; z++) {
+                if (x == ore.getX() && z == ore.getZ()) {
+                    continue;
+                }
+                h.setBlock(x, 121, z, Blocks.LAVA);
+            }
+        }
+        h.setBlock(ore.above(), Blocks.BEDROCK);
+        BlockPos absoluteOre = h.absolutePos(ore);
+        BlockPos at = companion.blockPosition();
+        GameTestSupport.runtime(h.getLevel().getServer())
+                .resourceCandidates()
+                .observe(
+                        companion,
+                        new dev.friendai.features.knowledge.ResourceObservation(
+                                "minecraft:iron_ore",
+                                new dev.friendai.features.knowledge.ResourceObservation.Location(
+                                        h.getLevel().dimension().identifier().toString(),
+                                        new Pos(absoluteOre.getX(), absoluteOre.getY(), absoluteOre.getZ())),
+                                new Pos(at.getX(), at.getY(), at.getZ()),
+                                h.getLevel().getServer().overworld().getGameTime()));
+
+        Outcome outcome = new Outcome();
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 300, () -> false);
+        runner.setEventSink(outcome);
+        MineBlocksTask task =
+                new MineBlocksTask(BlockMatcher.parse("minecraft:iron_ore").orElseThrow(), 1, 16);
+        runner.start(task, "mine_blocks");
+
+        TaskTrace.of(h, runner, companion).succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(outcome.status != null, "unreachable mining route did not terminate: " + task.debugStatus());
+            h.assertTrue(
+                    outcome.status == TaskStatus.FAILED,
+                    "an unreachable target must fail, not succeed: " + outcome.status + " " + outcome.summary);
+            h.assertTrue(
+                    outcome.summary.contains("cannot be reached safely")
+                            || outcome.summary.contains("passage is unsafe to excavate"),
+                    "the failure should explain the unreachable or unsafe passage: " + outcome.summary);
+            h.assertTrue(
+                    h.getLevel().getBlockState(absoluteOre).is(Blocks.IRON_ORE), "the unreachable ore was altered");
+            h.assertTrue(!companion.isInLava(), "the companion entered the moat while giving up");
+        });
+    }
+
     @GameTest(maxTicks = 400)
     public void stoneBrokenByHandDropsNothing(GameTestHelper h) {
         GameTestSupport.platform(h, 8);
