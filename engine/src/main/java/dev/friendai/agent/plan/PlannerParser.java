@@ -12,7 +12,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-/** Turns the planner's text into a validated {@link PlanProposal}, or a list of errors to show it on a retry. */
+/** Turns the planner's text into a validated {@link PlanProposal}, or the failure that rejected it. */
 public final class PlannerParser {
     static final int MAX_NOTE = 240;
     static final int MAX_REPLY_CHARS = 196608;

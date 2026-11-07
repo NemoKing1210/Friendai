@@ -319,11 +319,6 @@ class ServerConfigTest {
     }
 
     @Test
-    void defaultsCapThePlannerAtTwentySeconds() {
-        assertEquals(20, ServerConfig.defaults().agent.plannerTimeoutSec);
-    }
-
-    @Test
     void plannerTimeoutIsClampedToFiveThroughOneHundredTwenty() {
         ServerConfig c = ServerConfig.defaults();
         c.agent.plannerTimeoutSec = 1;

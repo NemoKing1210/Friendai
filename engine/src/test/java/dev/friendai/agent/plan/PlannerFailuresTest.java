@@ -90,7 +90,6 @@ class PlannerFailuresTest {
     void truncationWinsOverEvenAValidObject() {
         FakeGateway gateway = new FakeGateway();
         gateway.enqueue(new LlmResponse(GOOD, List.of(), StopReason.MAX_TOKENS, new Usage(1, 1)));
-        gateway.enqueue(FakeGateway.text(GOOD));
         List<LlmPlanner.Event> events = new ArrayList<>();
         var error = assertThrows(
                 ExecutionException.class,
@@ -159,7 +158,6 @@ class PlannerFailuresTest {
             FakeGateway gateway = new FakeGateway();
             gateway.enqueue(new LlmResponse(
                     replies[i], List.of(), i == 2 ? StopReason.MAX_TOKENS : StopReason.END, new Usage(0, 0)));
-            gateway.enqueue(FakeGateway.text(GOOD));
             List<LlmPlanner.Event> events = new ArrayList<>();
             var error = assertThrows(
                     ExecutionException.class,
@@ -179,7 +177,6 @@ class PlannerFailuresTest {
         String secret = "s".repeat(2200);
         FakeGateway gateway = new FakeGateway();
         gateway.enqueue(FakeGateway.text("{\"steps\":[{\"tool\":\"" + secret + "\"}]}"));
-        gateway.enqueue(FakeGateway.text(GOOD));
         List<LlmPlanner.Event> events = new ArrayList<>();
         var error = assertThrows(
                 ExecutionException.class,

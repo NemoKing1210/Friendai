@@ -16,7 +16,10 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
-/** Drafts bounded plans in one provider round trip. No tools execute on this worker thread. */
+/**
+ * Drafts a bounded plan in one provider request. A rejected reply is final; only a transient transport fault is
+ * re-sent. No tools execute on this worker thread.
+ */
 public final class LlmPlanner implements Planner {
     public record Event(int attempt, String reply, PlanFailure failure, String disposition) {}
 
@@ -25,6 +28,9 @@ public final class LlmPlanner implements Planner {
      * can always carry on without it, so a second full round of attempts is not worth the wait.
      */
     private static final long TRANSPORT_RETRY_MILLIS = 250L;
+
+    /** The normal output room; the planner never asks for a larger one. */
+    private static final int OUTPUT_MULTIPLIER = 1;
 
     private final Supplier<LlmGateway> gateway;
     private final UnaryOperator<String> redact;
@@ -72,7 +78,6 @@ public final class LlmPlanner implements Planner {
                 redact.apply(PlannerPrompt.system(input)),
                 List.of(Message.user(PlannerPrompt.user(input, redact))),
                 1,
-                1,
                 false,
                 cancelled);
     }
@@ -82,26 +87,18 @@ public final class LlmPlanner implements Planner {
             String system,
             List<Message> messages,
             int number,
-            int room,
             boolean transportAlreadyRetried,
             BooleanSupplier cancelled) {
         if (cancelled.getAsBoolean()) return cancelledAt(number);
         CompletableFuture<LlmResponse> request;
         try {
-            request = gateway.get().completeJson(system, messages, room);
+            request = gateway.get().completeJson(system, messages, OUTPUT_MULTIPLIER);
         } catch (RuntimeException e) {
-            return transportFailed(e, input, system, messages, number, room, transportAlreadyRetried, cancelled);
+            return transportFailed(e, input, system, messages, number, transportAlreadyRetried, cancelled);
         }
         if (request == null) {
             return transportFailed(
-                    new IllegalStateException(),
-                    input,
-                    system,
-                    messages,
-                    number,
-                    room,
-                    transportAlreadyRetried,
-                    cancelled);
+                    new IllegalStateException(), input, system, messages, number, transportAlreadyRetried, cancelled);
         }
         return request.orTimeout(timeoutSec, TimeUnit.SECONDS)
                 .handle((response, error) -> {
@@ -138,19 +135,18 @@ public final class LlmPlanner implements Planner {
                 })
                 .exceptionallyCompose(error -> {
                     Throwable cause = PlanFailure.unwrap(error);
-                    // A rejected reply has already spent its attempts; only a transport fault may be re-sent.
+                    // A rejected reply is final; only a transport fault may be re-sent.
                     if (cause instanceof PlannerException planner) {
                         return CompletableFuture.failedFuture(planner);
                     }
-                    return transportFailed(
-                            cause, input, system, messages, number, room, transportAlreadyRetried, cancelled);
+                    return transportFailed(cause, input, system, messages, number, transportAlreadyRetried, cancelled);
                 });
     }
 
     /**
      * A provider fault is retried once when the kind says a second send can work, the plan has attempts left and
      * nobody has stopped the turn; otherwise it is the answer. The retry repeats the same request, so a transient
-     * fault never costs a model a repair turn.
+     * fault never costs the plan its one drafting chance.
      */
     private CompletableFuture<PlanProposal> transportFailed(
             Throwable error,
@@ -158,7 +154,6 @@ public final class LlmPlanner implements Planner {
             String system,
             List<Message> messages,
             int number,
-            int room,
             boolean transportAlreadyRetried,
             BooleanSupplier cancelled) {
         Throwable cause = PlanFailure.unwrap(error);
@@ -172,7 +167,7 @@ public final class LlmPlanner implements Planner {
         if (cancelled.getAsBoolean()) return cancelledAt(number);
         emit(new Event(number, "", failure, "transport-retry"));
         return delayed(Duration.ofMillis(TRANSPORT_RETRY_MILLIS * number))
-                .thenCompose(ignored -> attempt(input, system, messages, number + 1, room, true, cancelled));
+                .thenCompose(ignored -> attempt(input, system, messages, number + 1, true, cancelled));
     }
 
     private CompletableFuture<PlanProposal> cancelledAt(int number) {
