@@ -774,8 +774,8 @@ const DOC = {
       { title: "Configuration", sub: "`config/friendai-server.json` and `config/friendai-client.json`", color: COLORS.gold,
         hub: { label: "Config", icon: "⚙️", color: COLORS.gold, desc: "A key may be written as `env:NAME` so it never sits in a file." },
         items: [
-          "~Server schema 22|Tasks, agent, places, autonomy, chunk loading, build pace, logging.",
-          "~Client schema 9|Voice recognition and synthesis, provider maps, UI preferences.",
+          "~Server schema 23|Tasks, agent, places, autonomy, chunk loading, build pace, logging.",
+          "~Client schema 10|Voice recognition and synthesis, provider maps, UI preferences.",
           "~Adjacent migrations|`ConfigMigration` steps from every supported version; its tests are the source of truth.",
           "~Unknown and future|Left untouched; server startup uses in-memory defaults.",
           "~Unique backups|A byte-exact `.vN.<id>.bak` before an atomic replacement.",

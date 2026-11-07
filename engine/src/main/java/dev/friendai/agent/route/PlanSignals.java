@@ -48,4 +48,29 @@ public record PlanSignals(
         failure = failure == null ? "" : failure;
         unmet = unmet == null ? List.of() : List.copyOf(unmet);
     }
+
+    /**
+     * The facts of a free-time shift's planner consultation: an event turn with one shift and no player text, so the
+     * same {@link PlanningPolicy} rule decides whether a shift is planned under the configured mode.
+     */
+    public static PlanSignals freeTimeShift(long shiftId, boolean budgetSpent) {
+        return new PlanSignals(
+                TurnMode.EVENT,
+                "",
+                0,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                true,
+                true,
+                budgetSpent,
+                0,
+                "",
+                0,
+                List.of(),
+                shiftId);
+    }
 }

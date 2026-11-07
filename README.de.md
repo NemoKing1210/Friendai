@@ -167,7 +167,7 @@ Die Suchrichtlinie steht unter `tasks.resources` in `config/friendai-server.json
 
 Für ein Ziel mit mehreren Teilen („baue ein Haus und bring Eisen“) legt der Gefährte ein Ziel samt der Bedingung an, an der er erkennt, dass es erreicht ist, und das Ziel übersteht Pläne, Fehlschläge, Tod und Neustarts. Er arbeitet über die Aufgabenwarteschlange daran weiter, liest die Fakten jeder abgeschlossenen Aufgabe (gewonnene und verlorene Gegenstände, was noch fehlt) und bekommt bei einem fehlgeschlagenen Schritt eine Diagnose und einen noch nicht versuchten Ausweg. Nach einigen erfolglosen Reparaturen hält er inne und fragt dich, was ihn blockiert.
 
-Eine komplexe Anfrage oder ein fehlgeschlagener Plan mit verbleibenden Neuplanungen wird zuerst von einem eigenen Planer-Aufruf entworfen, der einen geprüften Plan zurückgibt; der Plan wird mit deiner Zugriffsebene eingereiht und kann nie ein Werkzeug verwenden, das du nicht verwenden darfst. Die Einstellungen stehen unter `agent` in `config/friendai-server.json`:
+Eine komplexe Anfrage, eine ausdrückliche Plananfrage, ein gestörter Plan, ein offenes Ziel ohne eingereihte Arbeit oder eine Freizeit-Schicht wird zuerst von einem eigenen Planer-Aufruf entworfen, der einen geprüften Plan zurückgibt; der Plan wird mit deiner Zugriffsebene eingereiht und kann nie ein Werkzeug verwenden, das du nicht verwenden darfst. Der Planer wird höchstens einmal pro Zug befragt, vor der Antwort des Modells, und nie, nachdem das Modell selbst einen Plan eingereiht hat. Die Einstellungen stehen unter `agent` in `config/friendai-server.json`:
 
 | Einstellung | Standard | Bedeutung |
 |---|---|---|
@@ -177,7 +177,9 @@ Eine komplexe Anfrage oder ein fehlgeschlagener Plan mit verbleibenden Neuplanun
 | `goalTickSec` | `30` | Sekunden zwischen Anstößen Richtung unerledigtes Ziel (10–600). |
 | `promptBudget` | `24000` | Zeichenbudget des System-Prompts; `0` bedeutet unbegrenzt. |
 | `planner` | keins | Name eines Profils für die Planung; leer verwendet das aktive Profil. |
-| `plannerTimeoutSec` | `60` | Wie lange ein Planer-Aufruf dauern darf (10–300). |
+| `plannerMode` | `auto` | `auto` plant einen komplexen oder ausdrücklich verlangten Auftrag, einen gestörten Plan, ein offenes Ziel und eine Freizeit-Schicht; `off` fragt den Planer bei keinem Anlass, und die Freizeit nutzt ihre deterministische Ersatzlösung; `always` fragt bei jedem ausführbaren Auftrag (zur Diagnose). |
+| `plannerRetries` | `2` | Gesamtzahl der Sendungen für einen Planer-Aufruf (1–4). Nur ein wiederholbarer Verbindungsfehler wird erneut gesendet; ein abgelehnter Plan nicht. |
+| `plannerTimeoutSec` | `20` | Wie lange ein Planer-Aufruf dauern darf (5–120). |
 
 ## Handel
 

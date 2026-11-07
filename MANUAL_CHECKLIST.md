@@ -38,7 +38,7 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] A real provider drives a 20+ step plan and moves or reprioritizes a pending job while it is running.
 - [ ] A failed step produces a plan decision event and the companion repairs it with `queue_edit` without resending the whole plan.
 - [ ] Give a two-kind order ("bring me ten oak logs and then build a three-block wall") with a real provider: the world log shows one `route.decision` naming an `owner_order` subject, then `plan.request` and `plan.delivered` with a plan id and a duration, and the first reply already works from the queued plan instead of one tool call at a time. With the provider unreachable, the same order shows `plan.failed` and `plan.fallback`, and the companion carries on without claiming a plan exists.
-- [ ] With a real provider, ask for a simple order with enough supplied context that does not trigger the preliminary planner. Expect one `llm.request`, one queued plan and a visible acknowledgement. Separately test a complex order: preliminary planning is allowed, but no duplicate plan is added. Test missing context and invalid plan repair: follow-ups are allowed. Check first-turn voice and a later turn after a controlled speech-delivery failure.
+- [ ] With a real provider, ask for a simple order with enough supplied context that does not trigger the preliminary planner. Expect one `llm.request`, one queued plan and a visible acknowledgement. Separately test a complex order: preliminary planning is allowed, but no duplicate plan is added. Test missing context: the model plans the steps itself. Force an invalid plan (a step naming an unknown or forbidden tool): the planner's rejected reply reaches the model once, no second planner request is sent, and the companion carries on. Check first-turn voice and a later turn after a controlled speech-delivery failure.
 - [ ] With a real provider and `agent.plannerMode` set to `always`, a simple one-step order still shows a `plan.request`; back on `auto` the same order answers without one.
 - [ ] With a real provider slower than the 20 s `plannerTimeoutSec` default, the turn continues without a plan and reports the fallback instead of hanging.
 - [ ] Reload a world mid-plan: ready work resumes, and a job whose tool disappeared reports that it needs repair.
@@ -129,6 +129,7 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 
   The layout, keyboard and contrast halves of this line are automated: `./gradlew runClientGameTest` opens a real client and checks that every settings field and the companion menu fit in all eight languages at GUI scale 4 and that Tab, the tab bar and Escape work without a mouse; `UiContrastTest` measures every colour pair the menu draws against the WCAG minimum. What remains for a person is a screen reader reading the controls, the mod running without YACL, a LAN host and a non-operator client.
 - [ ] Visit every tab: Provider, Companion, Chat, Planning, Tasks, World, Trading, Resources, Free time, Memory, Mining and Voice each open and keep their values.
+- [ ] In Planning under Advanced, **Planner mode** offers `auto`, `off` and `always`; pick `always`, save, reopen and confirm it is kept, then switch back to `auto`. **Planner retries** accepts 1–4 and is labelled as total send attempts. The automated client test does not open these two rows.
 - [ ] Trigger a validation error.
 - [ ] Reset one option and undo it.
 - [ ] Reset a whole category and then everything: each value returns to its shipped default in the draft, a category reset leaves the other categories' edits alone, and Save is still required.
@@ -543,7 +544,7 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] Anthropic Messages: capture one redacted request/reply and stop_reason; verify prompt-only JSON guidance (no unsupported JSON-mode field).
 - [ ] Gemini: capture one redacted request/reply and finishReason; verify responseMimeType=application/json.
 - [ ] Ollama: capture one redacted request/reply and done_reason; verify format=json.
-- [ ] In both GUI languages select the planner profile and total attempts, save/reload, and confirm the effective model in free-time status and operator debug. With a malformed reply verify one actionable chat line, shift end/backoff, and a bounded redacted operator planner entry. Confirm model-facing logs never expose the raw planner reply.
+- [ ] In both GUI languages select the planner profile, planner mode and planner retries, save/reload, and confirm the effective model in free-time status and operator debug. With a malformed reply verify one actionable chat line, shift end/backoff, and a bounded redacted operator planner entry. Confirm model-facing logs never expose the raw planner reply.
 
 These live provider and GUI checks were not performed by the automated implementation. Keep API keys and personal prompts out of captured samples; retain only short operator-local excerpts.
 

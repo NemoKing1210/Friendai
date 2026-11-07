@@ -155,6 +155,20 @@ class LlmPlannerTest {
     }
 
     @Test
+    void theConfiguredAttemptsBoundEveryRetryableTransportFault() throws Exception {
+        ScriptedGateway flaky = new ScriptedGateway();
+        flaky.failNext(new LlmException(LlmErrorKind.TIMEOUT, "timed out"));
+        flaky.failNext(new LlmException(LlmErrorKind.TIMEOUT, "timed out"));
+        flaky.enqueue(GOOD);
+        LlmPlanner retrying = new LlmPlanner(() -> flaky, text -> text, 30, 12, 8192, 49152, 3, event -> {});
+
+        PlanProposal proposal = retrying.propose(input()).get(5, TimeUnit.SECONDS);
+
+        assertEquals("r", proposal.rationale());
+        assertEquals(3, flaky.jsonRequests.size(), "two re-sends fit the three configured attempts");
+    }
+
+    @Test
     void anAuthFailureIsNotRetried() {
         ScriptedGateway flaky = new ScriptedGateway();
         flaky.failNext(new LlmException(LlmErrorKind.AUTH, "bad key"));

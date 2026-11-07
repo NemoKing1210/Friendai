@@ -5,6 +5,7 @@ import static dev.friendai.client.config.SettingsWidgets.scoped;
 import static dev.friendai.client.config.SettingsWidgets.stringOption;
 import static dev.friendai.client.config.SettingsWidgets.tr;
 
+import dev.friendai.agent.route.PlannerMode;
 import dev.friendai.features.mining.MiningRuntimeSettings;
 import dev.friendai.infrastructure.config.ClientConfig;
 import dev.friendai.infrastructure.config.ServerConfig;
@@ -268,7 +269,7 @@ final class SettingsCategorySections {
                                 () -> agent.plannerMode,
                                 value -> agent.plannerMode = value == null ? "auto" : value)
                         .controller(option -> DropdownStringControllerBuilder.create(option)
-                                .values(List.of("auto", "off", "always"))
+                                .values(PlannerMode.CONFIG_VALUES)
                                 .allowAnyValue(false)
                                 .allowEmptyValue(false))
                         .build())

@@ -251,6 +251,12 @@ class PlanningPolicyTest {
     }
 
     @Test
+    void plannerAlwaysLeavesALineWithNoWorkNamedAlone() {
+        PlanningDecision greeting = policy.beforeTurn(signals(TurnMode.ACTION, 0, false, false), PlannerMode.ALWAYS);
+        assertEquals(PlanNeed.NONE, greeting.need(), "a greeting names no work, so it costs no planner request");
+    }
+
+    @Test
     void plannerAlwaysNeverPlansAChatOrAGuestOrder() {
         assertEquals(
                 PlanNeed.NONE,
@@ -260,6 +266,14 @@ class PlanningPolicyTest {
                 PlanNeed.NONE,
                 policy.beforeTurn(guest(signals(TurnMode.ACTION, 1, false, false)), PlannerMode.ALWAYS)
                         .need());
+    }
+
+    @Test
+    void plannerOffAlsoLeavesAFreeTimeShiftUnplanned() {
+        assertEquals(
+                PlanNeed.NONE,
+                policy.beforeTurn(freeTime(9), PlannerMode.OFF).need(),
+                "off means off for every subject, free time included");
     }
 
     @Test
@@ -275,5 +289,14 @@ class PlanningPolicyTest {
         assertEquals(PlannerMode.AUTO, PlannerMode.parse(null));
         assertEquals(PlannerMode.OFF, PlannerMode.parse(" OFF "));
         assertEquals(PlannerMode.ALWAYS, PlannerMode.parse("always"));
+    }
+
+    @Test
+    void theConfiguredSpellingsFollowTheEnumOrder() {
+        assertEquals(PlannerMode.values().length, PlannerMode.CONFIG_VALUES.size());
+        for (PlannerMode mode : PlannerMode.values()) {
+            assertEquals(mode.name().toLowerCase(java.util.Locale.ROOT), PlannerMode.CONFIG_VALUES.get(mode.ordinal()));
+            assertEquals(mode, PlannerMode.parse(PlannerMode.CONFIG_VALUES.get(mode.ordinal())));
+        }
     }
 }

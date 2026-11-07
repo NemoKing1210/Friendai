@@ -17,6 +17,10 @@ import dev.friendai.agent.plan.PlanFailure;
 import dev.friendai.agent.plan.PlanSubject;
 import dev.friendai.agent.plan.PlannerException;
 import dev.friendai.agent.plan.PlannerInput;
+import dev.friendai.agent.route.PlanSignals;
+import dev.friendai.agent.route.PlannerMode;
+import dev.friendai.agent.route.PlanningDecision;
+import dev.friendai.agent.route.PlanningPolicy;
 import dev.friendai.agent.turn.PlannerAttempt;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.tool.AccessLevel;
@@ -28,6 +32,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * Asks the planner for one free-time shift's plan and applies the answer: queue it, fall back to a deterministic
@@ -112,6 +117,8 @@ final class ShiftPlanRequester {
     private final Map<String, TaskToolDefinition> planTools;
     private final Refusal refusal;
     private final Queuer queuer;
+    private final PlanningPolicy planningPolicy;
+    private final Supplier<PlannerMode> plannerMode;
     private final ShiftEnd end;
 
     ShiftPlanRequester(
@@ -128,6 +135,8 @@ final class ShiftPlanRequester {
             Map<String, TaskToolDefinition> planTools,
             Refusal refusal,
             Queuer queuer,
+            PlanningPolicy planningPolicy,
+            Supplier<PlannerMode> plannerMode,
             ShiftEnd end) {
         this.brains = brains;
         this.service = service;
@@ -142,6 +151,8 @@ final class ShiftPlanRequester {
         this.planTools = planTools;
         this.refusal = refusal;
         this.queuer = queuer;
+        this.planningPolicy = planningPolicy;
+        this.plannerMode = plannerMode;
         this.end = end;
     }
 
@@ -149,6 +160,13 @@ final class ShiftPlanRequester {
         int epoch = planEpoch.getOrDefault(owner, 0);
         Caller caller = new Caller(owner, "", AccessLevel.OWNER);
         PlanSubject subject = new PlanSubject.FreeTimeShift(shiftId);
+        PlanningDecision decision =
+                planningPolicy.beforeTurn(PlanSignals.freeTimeShift(shiftId, false), plannerMode.get());
+        if (!decision.required()) {
+            brains.plannerDebug(owner, "planner disposition=given up: " + decision.reason());
+            fallBackWithoutPlanner(owner, companion, shiftId, minutes, subject, decision.reason());
+            return;
+        }
         Optional<PlannerInput> input = brains.plannerInputs(owner, companion).build(subject, caller, "");
         if (input.isEmpty()) {
             brains.plannerDebug(owner, "planner disposition=given up: the shift ended before it could be planned");
@@ -276,6 +294,46 @@ final class ShiftPlanRequester {
                     facts.invalidate(owner);
                     brains.plannerDebug(owner, "planner disposition=queued plan #" + plan.get());
                 }));
+    }
+
+    /**
+     * The shift the mode left unplanned: the same deterministic template the failure path uses, or an honest end with
+     * the reason. Free time is never left waiting for a reply that was never requested.
+     */
+    private void fallBackWithoutPlanner(
+            UUID owner, CompanionEntity companion, long shiftId, int minutes, PlanSubject subject, String reason) {
+        FreeTime state = service.state(owner);
+        if (!state.on() || state.shift() == null || state.shift().id() != shiftId) {
+            logPlanner(owner, subject, "fallback", "stale", 0L, 0L);
+            return;
+        }
+        long now = FreeTimeDriver.now();
+        AutonomyFacts f = facts.build(companion, owner, now, placeService);
+        Optional<List<ReflexStep>> template = ReflexPlans.fallback(state.shift().need(), f);
+        if (template.isPresent()
+                && refusal.check(companion, false, template.get()).isEmpty()) {
+            Optional<Long> fallback =
+                    queuer.queueSteps(owner, companion, state.shift().goal(), template.get(), minutes, taskTools);
+            if (fallback.isPresent()) {
+                service.linkPlan(owner, fallback.get());
+                brains.logFreeTime(FreeTimeLogEvents.start(
+                        owner,
+                        companion.getUUID(),
+                        brains.logSession(owner),
+                        fallback.get(),
+                        state.shift().need().name(),
+                        state.shift().goal()));
+                facts.invalidate(owner);
+                budgets.apply(owner).failed();
+                brains.plannerDebug(owner, "planner disposition=queued fallback");
+                logPlanner(owner, subject, "fallback", "template", 0L, fallback.get());
+                return;
+            }
+        }
+        end.finish(
+                owner, companion, state.shift(), false, "no plan: " + reason, ShiftStopWhen.WORK_CONFLICTS, now, true);
+        budgets.apply(owner).failed();
+        logPlanner(owner, subject, "fallback", reason, 0L, 0L);
     }
 
     /** One durable planner record for the shift's consultation; the subject carries the shift id, never its text. */

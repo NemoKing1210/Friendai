@@ -3,6 +3,7 @@ package dev.friendai.infrastructure.config;
 import dev.friendai.agent.autonomy.AutonomySettings;
 import dev.friendai.agent.llm.provider.LlmProfile;
 import dev.friendai.agent.llm.provider.RoutingRule;
+import dev.friendai.agent.route.PlannerMode;
 import dev.friendai.features.memory.MemoryLimits;
 import dev.friendai.features.mining.MiningRuntimeSettings;
 import dev.friendai.features.social.InteractionStyle;
@@ -136,7 +137,7 @@ public class ServerConfig {
         public int promptBudget = 24_000;
         /** Name of the profile used for the planner call; null uses the active profile. */
         public String planner = null;
-        /** Transport retries for one planner request; a rejected reply is the answer and is not re-sent. */
+        /** Total sends for one planner request, including the first; a rejected reply is not re-sent. */
         public int plannerRetries = 2;
 
         public int plannerTimeoutSec = 20;
@@ -503,7 +504,7 @@ public class ServerConfig {
         agent.plannerRetries = clamp(problems, "agent.plannerRetries", agent.plannerRetries, 1, 4);
         String plannerMode =
                 agent.plannerMode == null ? "" : agent.plannerMode.strip().toLowerCase(Locale.ROOT);
-        if (!List.of("auto", "off", "always").contains(plannerMode)) {
+        if (!PlannerMode.CONFIG_VALUES.contains(plannerMode)) {
             problems.add("agent.plannerMode " + agent.plannerMode + " is not auto, off or always, using auto");
             plannerMode = "auto";
         }

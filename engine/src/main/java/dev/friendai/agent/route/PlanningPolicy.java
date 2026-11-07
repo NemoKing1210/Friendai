@@ -28,10 +28,10 @@ public final class PlanningPolicy {
     }
 
     /**
-     * Decides the planning need under one eagerness setting. {@link PlannerMode#OFF} never asks; {@link
-     * PlannerMode#ALWAYS} also drafts a plan for every actionable owner order, which is the diagnosis setting. An
-     * event turn has no player text, so a free-time shift or an unmet goal is still decided by the ordinary rules and
-     * a shift is never turned into an owner order.
+     * Decides the planning need under one eagerness setting. {@link PlannerMode#OFF} never asks about any subject;
+     * {@link PlannerMode#ALWAYS} also drafts a plan for an actionable owner order — one that names a recognized kind
+     * of work, a complex marker or an explicit plan request — so a greeting costs no planner request. An event turn
+     * has no player text, so a free-time shift or an unmet goal is decided by the ordinary rules.
      */
     public PlanningDecision beforeTurn(PlanSignals signals, PlannerMode mode) {
         if (mode == PlannerMode.OFF) return PlanningDecision.none(PLANNER_OFF);
@@ -73,24 +73,20 @@ public final class PlanningPolicy {
         return PlanningDecision.none(NO_OCCASION);
     }
 
-    /** The plan {@link PlannerMode#ALWAYS} forces for an actionable owner line, or null when there is none. */
+    /** The plan {@link PlannerMode#ALWAYS} forces for an actionable owner line, or null when there is no work named. */
     private static PlanningDecision forcedOwnerOrder(PlanSignals signals) {
         if (signals == null || signals.mode() == TurnMode.CHAT) return null;
         boolean orderMode = signals.mode() == TurnMode.ACTION
                 || signals.mode() == TurnMode.GOAL
                 || signals.mode() == TurnMode.RECOVERY;
-        if (!orderMode || !signals.ownerCaller() || signals.playerText().isBlank()) return null;
+        boolean namesWork =
+                signals.distinctKindsOfWork() > 0 || signals.complexMarker() || signals.explicitPlanRequest();
+        if (!orderMode
+                || !namesWork
+                || !signals.ownerCaller()
+                || signals.playerText().isBlank()) return null;
         return new PlanningDecision(
                 PlanNeed.REQUIRED, new PlanSubject.OwnerOrder(signals.playerText()), PLANNER_ALWAYS);
-    }
-
-    /** The free-time driver's entry: a shift with no plan and budget left asks for one. */
-    public PlanningDecision forShift(PlanSignals signals) {
-        if (signals != null && signals.freeTimeShift() && !signals.budgetSpent()) {
-            return new PlanningDecision(
-                    PlanNeed.REQUIRED, new PlanSubject.FreeTimeShift(signals.shiftId()), FREE_TIME_SHIFT);
-        }
-        return PlanningDecision.none(NO_OCCASION);
     }
 
     private static boolean troubled(PlanSignals signals) {

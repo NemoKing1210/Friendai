@@ -1137,10 +1137,10 @@ Object.assign(RU, {
   "Config": "Конфиг",
   "A key may be written as `env:NAME` so it never sits in a file.":
     "Ключ можно записать как `env:NAME`, чтобы он не лежал в файле.",
-  "Server schema 22": "Схема сервера 22",
+  "Server schema 23": "Схема сервера 23",
   "Tasks, agent, places, autonomy, chunk loading, build pace, logging.":
     "Задачи, агент, места, автономность, загрузка чанков, темп стройки, логирование.",
-  "Client schema 9": "Схема клиента 9",
+  "Client schema 10": "Схема клиента 10",
   "Voice recognition and synthesis, provider maps, UI preferences.":
     "Распознавание и синтез речи, карты провайдеров, настройки интерфейса.",
   "Adjacent migrations": "Соседние миграции",

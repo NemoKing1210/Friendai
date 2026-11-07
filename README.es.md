@@ -167,7 +167,7 @@ La política de búsqueda está en `tasks.resources` de `config/friendai-server.
 
 Para un objetivo con varias partes («construye una casa y trae hierro») el compañero registra un objetivo con la forma en que sabrá que está terminado, y el objetivo sobrevive a planes, fallos, muerte y reinicios. Sigue trabajando en él a través de la cola de tareas, lee los hechos de cada tarea terminada (objetos ganados y perdidos, lo que sigue sin cumplirse) y, cuando falla un paso, obtiene un diagnóstico y un remedio que aún no ha probado. Tras unos cuantos intentos de arreglo fallidos se detiene y te pregunta qué se lo impide.
 
-Una solicitud compleja, o un plan fallido con replanificaciones restantes, se redacta primero mediante una llamada aparte al planificador que devuelve un plan validado; el plan se pone en cola con tu nivel de acceso y nunca puede usar una herramienta que tú no puedas usar. Los ajustes están en `agent` de `config/friendai-server.json`:
+Una solicitud compleja, una petición explícita de plan, un plan con problemas, un objetivo pendiente sin trabajo en cola o un turno de tiempo libre se redacta primero mediante una llamada aparte al planificador que devuelve un plan validado; el plan se pone en cola con tu nivel de acceso y nunca puede usar una herramienta que tú no puedas usar. El planificador se consulta como máximo una vez por turno, antes de que responda el modelo, y nunca después de que el modelo haya puesto su propio plan en cola. Los ajustes están en `agent` de `config/friendai-server.json`:
 
 | Ajuste | Valor predeterminado | Significado |
 |---|---|---|
@@ -177,7 +177,9 @@ Una solicitud compleja, o un plan fallido con replanificaciones restantes, se re
 | `goalTickSec` | `30` | Segundos entre empujones hacia un objetivo sin terminar (10–600). |
 | `promptBudget` | `24000` | Presupuesto de caracteres del prompt del sistema; `0` significa ilimitado. |
 | `planner` | ninguno | Nombre de un perfil para la planificación; vacío usa el perfil activo. |
-| `plannerTimeoutSec` | `60` | Cuánto puede tardar una llamada al planificador (10–300). |
+| `plannerMode` | `auto` | `auto` planifica un pedido complejo o pedido explícitamente, un plan con problemas, un objetivo pendiente y un turno de tiempo libre; `off` no consulta al planificador por ningún motivo, y el tiempo libre usa su alternativa determinista; `always` consulta por cada pedido accionable (para diagnóstico). |
+| `plannerRetries` | `2` | Envíos totales para una llamada al planificador (1–4). Solo se reenvía un fallo de conexión reintentable; un plan rechazado no. |
+| `plannerTimeoutSec` | `20` | Cuánto puede tardar una llamada al planificador (5–120). |
 
 ## Comercio
 

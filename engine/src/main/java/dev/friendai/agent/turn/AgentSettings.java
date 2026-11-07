@@ -18,7 +18,7 @@ public record AgentSettings(
         PlannerMode plannerMode) {
 
     public static final AgentSettings DEFAULTS =
-            new AgentSettings(true, Autonomy.ASSISTIVE, 3, 30, 24_000, 60, PlannerMode.AUTO);
+            new AgentSettings(true, Autonomy.ASSISTIVE, 3, 30, 24_000, 20, PlannerMode.AUTO);
 
     /** How much the companion may do without being asked. */
     public enum Autonomy {

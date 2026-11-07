@@ -21,6 +21,7 @@ import dev.friendai.agent.plan.PlanSubject;
 import dev.friendai.agent.plan.PlannerException;
 import dev.friendai.agent.plan.PlannerInput;
 import dev.friendai.agent.recover.FailureHandler;
+import dev.friendai.agent.route.PlannerMode;
 import dev.friendai.execution.queue.GuardAction;
 import dev.friendai.execution.queue.PlanDefinition;
 import dev.friendai.execution.queue.PlanNode;
@@ -143,6 +144,41 @@ class CompanionBrainPlannerTest {
                         .anyMatch(m ->
                                 m.text().contains("PLANNER_REPLY") || m.text().contains(BUILD_AND_BRING)),
                 "a planner turn's owner history must not reach a guest request");
+    }
+
+    @Test
+    void plannerAlwaysConsultsOnASimpleActionableOrder() {
+        plannerMode(PlannerMode.ALWAYS);
+        gateway.enqueue(text("On it."));
+
+        brain.post(said("mine some iron"));
+
+        assertEquals(1, port.proposed.size(), "always plans an actionable order, however simple");
+        assertTrue(port.subjects.get(0) instanceof PlanSubject.OwnerOrder, "the order is the subject");
+    }
+
+    @Test
+    void plannerOffNeverConsultsEvenForAComplexOrder() {
+        plannerMode(PlannerMode.OFF);
+        gateway.enqueue(text("I will do it myself."));
+
+        brain.post(said(BUILD_AND_BRING));
+
+        assertTrue(port.proposed.isEmpty(), "off suppresses the planner the brain would otherwise ask");
+        assertTrue(port.failures.isEmpty());
+        assertEquals(1, gateway.requests.size(), "the model answers without a plan");
+    }
+
+    private void plannerMode(PlannerMode mode) {
+        AgentSettings defaults = AgentSettings.DEFAULTS;
+        brain.setAgentSettings(() -> new AgentSettings(
+                defaults.toolRouting(),
+                defaults.autonomy(),
+                defaults.maxReplans(),
+                defaults.goalTickSec(),
+                defaults.promptBudget(),
+                defaults.plannerTimeoutSec(),
+                mode));
     }
 
     private static BrainEvent said(String text) {

@@ -10,14 +10,14 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ### Added
 
-- `agent.plannerMode` chooses when the companion drafts a plan before acting: `auto` by default, `off`, or `always` for diagnosis.
+- `agent.plannerMode` chooses when the companion drafts a plan before acting: `auto` by default, `off` for no planning at all — owner orders, goals, troubled plans and free time then use the model or the deterministic fallback — or `always` to plan every actionable order, for diagnosis.
 - `mine_blocks` searches once for a target it has not seen, and `obtain_items` accepts the `item` and `count` arguments described in its documentation.
 
 ### Changed
 
 - The companion drafts a plan at most once per turn, before it answers, and never again after it has queued one.
 - A goal the companion sets for itself no longer makes it stop to draft another plan before acting, so a simple order starts moving sooner.
-- The planner's default timeout is 20 seconds (adjustable 5–120), and the planner retry setting now bounds transport retries only; a plan the planner rejects is not sent again.
+- The planner's default timeout is 20 seconds (adjustable 5–120), and `agent.plannerRetries` now means the total sends for one planner call; only a retryable connection fault is sent again, and a plan the planner rejects never is.
 - The companion mines an item it can mine instead of crafting it from a rarer ingredient, and a batch that cannot make a needed station tries the next recipe route instead of failing.
 
 ### Fixed

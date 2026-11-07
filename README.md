@@ -227,8 +227,8 @@ A complex request, an explicit request for a plan, a live troubled plan, an idle
 | `goalTickSec` | `30` | Seconds between nudges toward an unfinished goal (10–600). |
 | `promptBudget` | `24000` | Character budget of the system prompt; `0` means unlimited. |
 | `planner` | none | Name of a profile to use for planning; empty uses the active profile. |
-| `plannerMode` | `auto` | `auto` plans a complex or explicitly requested order, a troubled plan and an unmet goal; `off` never asks the planner about an order; `always` asks about every actionable order, for diagnosis. Free time keeps its own planning. |
-| `plannerRetries` | `2` | Transport retries for one planner call (1–4). A plan the planner rejects is not sent again. |
+| `plannerMode` | `auto` | `auto` plans a complex or explicitly requested order, a troubled plan, an unmet goal and a free-time shift; `off` never asks the planner about any of them, so free time uses its deterministic fallback; `always` asks about every actionable order, for diagnosis. |
+| `plannerRetries` | `2` | Total send attempts for one planner call (1–4). Only a retryable transport fault is re-sent; a plan the planner rejects is not sent again. |
 | `plannerTimeoutSec` | `20` | How long a planner call may take (5–120). |
 
 ## Routines

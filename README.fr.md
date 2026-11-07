@@ -167,7 +167,7 @@ La politique de recherche se trouve sous `tasks.resources` dans `config/friendai
 
 Pour un objectif en plusieurs parties (« construire une maison et apporter du fer »), le compagnon enregistre un but avec les critères qui lui diront qu'il est atteint, et ce but survit aux plans, aux échecs, à la mort et aux redémarrages. Il continue d'y travailler via la file de tâches, lit les faits de chaque tâche terminée (objets gagnés et perdus, ce qui reste non satisfait) et, lorsqu'une étape échoue, reçoit un diagnostic et un remède qu'il n'a pas encore essayé. Après quelques réparations infructueuses, il s'arrête et vous demande ce qui le bloque.
 
-Une demande complexe, ou un plan échoué auquel il reste des replanifications, est d'abord ébauché par un appel de planificateur séparé qui renvoie un plan validé ; le plan est mis en file avec votre niveau d'accès et ne peut jamais utiliser un outil que vous n'avez pas le droit d'utiliser. Les réglages se trouvent sous `agent` dans `config/friendai-server.json` :
+Une demande complexe, une demande explicite de plan, un plan perturbé, un objectif non atteint sans travail en file ou un créneau de temps libre est d'abord ébauché par un appel de planificateur séparé qui renvoie un plan validé ; le plan est mis en file avec votre niveau d'accès et ne peut jamais utiliser un outil que vous n'avez pas le droit d'utiliser. Le planificateur est consulté au plus une fois par tour, avant la réponse du modèle, et jamais après que le modèle a mis son propre plan en file. Les réglages se trouvent sous `agent` dans `config/friendai-server.json` :
 
 | Réglage | Par défaut | Signification |
 |---|---|---|
@@ -177,7 +177,9 @@ Une demande complexe, ou un plan échoué auquel il reste des replanifications, 
 | `goalTickSec` | `30` | Secondes entre deux relances vers un objectif inachevé (10–600). |
 | `promptBudget` | `24000` | Budget en caractères du prompt système ; `0` signifie illimité. |
 | `planner` | aucun | Nom d'un profil à utiliser pour la planification ; vide utilise le profil actif. |
-| `plannerTimeoutSec` | `60` | Durée maximale d'un appel de planificateur (10–300). |
+| `plannerMode` | `auto` | `auto` planifie une demande complexe ou explicitement demandée, un plan perturbé, un objectif non atteint et un créneau de temps libre ; `off` ne consulte jamais le planificateur et le temps libre utilise son repli déterministe ; `always` consulte pour chaque demande réalisable (pour le diagnostic). |
+| `plannerRetries` | `2` | Nombre total d’envois pour un appel au planificateur (1–4). Seule une panne de connexion réessayable est renvoyée ; un plan refusé ne l’est pas. |
+| `plannerTimeoutSec` | `20` | Durée maximale d'un appel de planificateur (5–120). |
 
 ## Commerce
 

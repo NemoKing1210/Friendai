@@ -25,6 +25,8 @@ import dev.friendai.agent.autonomy.ShiftOutcome;
 import dev.friendai.agent.autonomy.ShiftPolicy;
 import dev.friendai.agent.autonomy.ShiftStopWhen;
 import dev.friendai.agent.autonomy.WorkConflict;
+import dev.friendai.agent.route.PlannerMode;
+import dev.friendai.agent.route.PlanningPolicy;
 import dev.friendai.agent.turn.AgentSettings.Autonomy;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
@@ -236,6 +238,8 @@ public final class FreeTimeDriver {
                         return FreeTimeDriver.this.queue(owner, companion, goal, steps, minutes, tools);
                     }
                 },
+                new PlanningPolicy(),
+                () -> PlannerMode.parse(config.get().agent.plannerMode),
                 this::finishShift);
     }
 
