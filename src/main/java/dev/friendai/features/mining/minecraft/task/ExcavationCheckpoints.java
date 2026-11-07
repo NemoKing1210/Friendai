@@ -12,9 +12,16 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 
-/** Versioned checkpoint for {@link ExcavateTask}; the deterministic order is rebuilt from the spec. */
+/**
+ * Versioned checkpoint for {@link ExcavateTask}; the deterministic order is rebuilt from the spec. The trailing
+ * fallback-descent counter is optional: a payload written before it existed stops at {@link #BASE_FIELDS} and reads
+ * as zero descents, so an in-progress excavation survives that update instead of being rejected as unsupported.
+ */
 public final class ExcavationCheckpoints {
-    private static final String VERSION = "v2";
+    private static final String VERSION = "v1";
+    /** Fields of the original v1 payload, ending with the taken-item map. */
+    private static final int BASE_FIELDS = 27;
+    /** Current payload: the base fields plus the trailing fallback-descent counter. */
     private static final int FIELDS = 28;
 
     private ExcavationCheckpoints() {}
@@ -68,7 +75,7 @@ public final class ExcavationCheckpoints {
         }
         try {
             String[] p = state.data().split("\\|", -1);
-            if (p.length != FIELDS || !VERSION.equals(p[0])) {
+            if ((p.length != BASE_FIELDS && p.length != FIELDS) || !VERSION.equals(p[0])) {
                 return Optional.empty();
             }
             ExcavationShape shape = ExcavationShape.parse(p[1]).orElse(null);
@@ -112,7 +119,8 @@ public final class ExcavationCheckpoints {
             }
             ExcavationProgress progress = new ExcavationProgress();
             progress.restore(intValue(p[24]), intValue(p[25]), taken(p[26]));
-            return Optional.of(ExcavateTask.resume(spec, intValue(p[23]), progress, intValue(p[27])));
+            int fallbackDescents = p.length == FIELDS ? intValue(p[BASE_FIELDS]) : 0;
+            return Optional.of(ExcavateTask.resume(spec, intValue(p[23]), progress, fallbackDescents));
         } catch (RuntimeException invalid) {
             return Optional.empty();
         }
