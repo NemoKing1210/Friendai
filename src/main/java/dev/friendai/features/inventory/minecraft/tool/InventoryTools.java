@@ -43,7 +43,7 @@ public final class InventoryTools implements FeatureToolContributor {
     public void register(FeatureToolRegistry registry) {
         registry.registerTask(task(
                 "give_items",
-                "Walk to the owner and give them items from the companion's inventory.",
+                "Walk to the owner and give them items from the companion's inventory. Example: {\"item\":\"minecraft:bread\",\"count\":8}.",
                 SchemaBuilder.object()
                         .string("item", "Item id like minecraft:oak_log, or a tag like #minecraft:planks")
                         .integer("count", "How many items to give", 1, 64)

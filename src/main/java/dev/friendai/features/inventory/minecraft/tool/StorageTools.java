@@ -134,6 +134,7 @@ public final class StorageTools implements FeatureToolContributor {
                 false,
                 metadata("move_items"),
                 null,
+                null,
                 null));
         registry.registerTool(findStoredItem(access), metadata("find_stored_item"));
     }

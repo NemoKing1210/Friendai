@@ -21,6 +21,14 @@ public interface Tool<C> {
         return true;
     }
 
+    /**
+     * Maps a documented argument alias onto the canonical schema shape before validation. The registry validates and
+     * executes the returned object, so an override must never widen access or replace validation.
+     */
+    default JsonObject normalizeArguments(JsonObject args) {
+        return args;
+    }
+
     /** Called with arguments that already passed validation. */
     ToolResult execute(C ctx, JsonObject args);
 

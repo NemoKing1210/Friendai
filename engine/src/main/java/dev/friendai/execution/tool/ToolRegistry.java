@@ -75,16 +75,29 @@ public final class ToolRegistry<C> {
         }
         JsonObject args = call.arguments();
         if (args == null) {
-            return ToolResult.error("Tool " + call.name() + " got invalid JSON arguments: " + call.rawArguments());
+            return invalidJson(call);
         }
-        List<String> problems = ArgValidator.validate(tool.schema(), args);
+        JsonObject normalized;
+        try {
+            normalized = tool.normalizeArguments(args);
+        } catch (RuntimeException e) {
+            return invalidJson(call);
+        }
+        if (normalized == null) {
+            return invalidJson(call);
+        }
+        List<String> problems = ArgValidator.validate(tool.schema(), normalized);
         if (!problems.isEmpty()) {
             return ToolResult.error("Invalid arguments for " + call.name() + ": " + String.join("; ", problems));
         }
         try {
-            return tool.execute(ctx, caller, args);
+            return tool.execute(ctx, caller, normalized);
         } catch (RuntimeException e) {
             return ToolResult.error("Tool " + call.name() + " failed: " + e.getMessage());
         }
+    }
+
+    private static ToolResult invalidJson(ToolCall call) {
+        return ToolResult.error("Tool " + call.name() + " got invalid JSON arguments: " + call.rawArguments());
     }
 }

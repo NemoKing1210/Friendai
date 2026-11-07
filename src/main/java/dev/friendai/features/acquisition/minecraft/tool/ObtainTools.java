@@ -1,5 +1,6 @@
 package dev.friendai.features.acquisition.minecraft.tool;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import dev.friendai.agent.tools.Cost;
@@ -89,18 +90,19 @@ public final class ObtainTools implements FeatureToolContributor {
                 .required("items")
                 .build();
         TaskToolDefinition batch = new TaskToolDefinition(
-                "obtain_items",
-                "Get several finished items together. Computes every raw material the set needs, obtains all of it once, then crafts the items; a material shared by several items is gathered once. Use it for a tool set, a set of builds or any multi-item order.",
-                batchSchema,
-                (c, a) -> new BatchObtainTask(
-                        targets(a), flag(a, "use_containers", true), flag(a, "explore", true), subtaskFactory),
-                (c, caller, a) -> callerObtainItems(c, caller, a, subtaskFactory),
-                true,
-                AccessLevel.TRUSTED,
-                TaskToolDefinition.QueueTraits.DEFAULT,
-                true,
-                true,
-                metadata("obtain_items"));
+                        "obtain_items",
+                        "Get several finished items together. Computes every raw material the set needs, obtains all of it once, then crafts the items; a material shared by several items is gathered once. Use it for a tool set, a set of builds or any multi-item order. Example: {\"items\":[{\"item\":\"minecraft:stone_pickaxe\",\"count\":1},{\"item\":\"minecraft:stone_axe\",\"count\":1}]}; the single-item form {\"item\":\"minecraft:cobblestone\",\"count\":36} is accepted too.",
+                        batchSchema,
+                        (c, a) -> new BatchObtainTask(
+                                targets(a), flag(a, "use_containers", true), flag(a, "explore", true), subtaskFactory),
+                        (c, caller, a) -> callerObtainItems(c, caller, a, subtaskFactory),
+                        true,
+                        AccessLevel.TRUSTED,
+                        TaskToolDefinition.QueueTraits.DEFAULT,
+                        true,
+                        true,
+                        metadata("obtain_items"))
+                .withNormalizer(ObtainTools::normalizeBatchArguments);
         registry.registerTask(batch);
         registry.registerTool(
                 new Tool<>() {
@@ -190,6 +192,30 @@ public final class ObtainTools implements FeatureToolContributor {
                 caller,
                 options.trading(),
                 subtaskFactory);
+    }
+
+    /**
+     * Accepts the documented single-item alias for {@code obtain_items}: {@code item} with an optional {@code count}
+     * becomes one entry of {@code items}. The canonical {@code items} form is returned untouched.
+     */
+    static JsonObject normalizeBatchArguments(JsonObject args) {
+        if (args == null || args.has("items") || !args.has("item")) {
+            return args;
+        }
+        JsonObject entry = new JsonObject();
+        entry.add("item", args.get("item"));
+        if (args.has("count") && !args.get("count").isJsonNull()) {
+            entry.add("count", args.get("count"));
+        } else {
+            entry.addProperty("count", 1);
+        }
+        JsonObject normalized = args.deepCopy();
+        normalized.remove("item");
+        normalized.remove("count");
+        JsonArray items = new JsonArray();
+        items.add(entry);
+        normalized.add("items", items);
+        return normalized;
     }
 
     /** The finished items of an {@code obtain_items} call, in the order the model asked for them. */

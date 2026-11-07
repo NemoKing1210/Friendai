@@ -2,6 +2,7 @@ package dev.friendai.execution.tool;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.JsonObject;
@@ -237,6 +238,88 @@ class ToolRegistryTest {
                 id + "/Bob/guest",
                 ex.execute(call("who", "{\"count\":1}"), new Caller(id, "Bob", AccessLevel.GUEST))
                         .content());
+    }
+
+    @Test
+    void argumentsAreNormalizedBeforeValidationAndExecution() {
+        Tool<String> aliased = new Tool<>() {
+            @Override
+            public String name() {
+                return "aliased";
+            }
+
+            @Override
+            public String description() {
+                return "Accepts the documented alias";
+            }
+
+            @Override
+            public JsonObject schema() {
+                return SchemaBuilder.object()
+                        .integer("count", "How many", 1, 10)
+                        .required("count")
+                        .build();
+            }
+
+            @Override
+            public JsonObject normalizeArguments(JsonObject args) {
+                if (args.has("count") || !args.has("n")) {
+                    return args;
+                }
+                JsonObject normalized = new JsonObject();
+                normalized.add("count", args.get("n"));
+                return normalized;
+            }
+
+            @Override
+            public ToolResult execute(String ctx, JsonObject args) {
+                executed.add(ctx + ":" + args.get("count").getAsInt());
+                return ToolResult.ok("done");
+            }
+        };
+        ToolExecutor ex = new ToolRegistry<String>().register(aliased).bind("ctx");
+
+        ToolResult res = ex.execute(call("aliased", "{\"n\":4}"));
+
+        assertFalse(res.error());
+        assertEquals(List.of("ctx:4"), executed);
+    }
+
+    @Test
+    void aToolWithoutAnAliasReceivesTheSameArgumentInstance() {
+        JsonObject[] received = new JsonObject[1];
+        Tool<String> plain = new Tool<>() {
+            @Override
+            public String name() {
+                return "plain";
+            }
+
+            @Override
+            public String description() {
+                return "Keeps its arguments";
+            }
+
+            @Override
+            public JsonObject schema() {
+                return SchemaBuilder.object()
+                        .integer("count", "How many", 1, 10)
+                        .required("count")
+                        .build();
+            }
+
+            @Override
+            public ToolResult execute(String ctx, JsonObject args) {
+                received[0] = args;
+                return ToolResult.ok("done");
+            }
+        };
+        ToolExecutor ex = new ToolRegistry<String>().register(plain).bind("ctx");
+        JsonObject parsed = JsonParser.parseString("{\"count\":2}").getAsJsonObject();
+
+        ToolResult res = ex.execute(new ToolCall("1", "plain", parsed, parsed.toString(), null));
+
+        assertFalse(res.error());
+        assertSame(parsed, received[0]);
     }
 
     @Test

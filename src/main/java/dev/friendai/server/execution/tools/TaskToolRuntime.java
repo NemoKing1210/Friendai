@@ -42,6 +42,11 @@ public final class TaskToolRuntime {
             }
 
             @Override
+            public JsonObject normalizeArguments(JsonObject args) {
+                return definition.normalizer().apply(args);
+            }
+
+            @Override
             public AccessLevel minAccess() {
                 return definition.minAccess();
             }

@@ -7,6 +7,7 @@ import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.task.Task;
 import java.util.Objects;
+import java.util.function.UnaryOperator;
 
 /** Runtime, task-factory, restore and catalog metadata contributed for one task-backed tool. */
 public record TaskToolDefinition(
@@ -22,7 +23,8 @@ public record TaskToolDefinition(
         boolean creativeSensitive,
         ToolMeta catalogMeta,
         String checkpointType,
-        CheckpointRestorer checkpointRestorer) {
+        CheckpointRestorer checkpointRestorer,
+        UnaryOperator<JsonObject> normalizer) {
     public TaskToolDefinition(
             String name,
             String description,
@@ -43,6 +45,7 @@ public record TaskToolDefinition(
                 true,
                 true,
                 catalogMeta,
+                null,
                 null,
                 null);
     }
@@ -78,6 +81,7 @@ public record TaskToolDefinition(
         }
         if (checkpointRestorer != null && !restorable)
             throw new IllegalArgumentException("a checkpoint restorer requires a restorable task: " + name);
+        if (normalizer == null) normalizer = args -> args;
     }
 
     /** The legacy shape without a contributed checkpoint; restorable tasks add one with {@link #withCheckpoint}. */
@@ -106,6 +110,7 @@ public record TaskToolDefinition(
                 creativeSensitive,
                 catalogMeta,
                 null,
+                null,
                 null);
     }
 
@@ -124,7 +129,30 @@ public record TaskToolDefinition(
                 creativeSensitive,
                 catalogMeta,
                 type,
-                restorer);
+                restorer,
+                normalizer);
+    }
+
+    /**
+     * Declares the documented argument aliases this tool accepts. The runtime applies the mapping before validation,
+     * so an alias must produce the canonical schema shape rather than bypassing it.
+     */
+    public TaskToolDefinition withNormalizer(UnaryOperator<JsonObject> mapper) {
+        return new TaskToolDefinition(
+                name,
+                description,
+                schema,
+                factory,
+                callerFactory,
+                plannable,
+                minAccess,
+                queueTraits,
+                restorable,
+                creativeSensitive,
+                catalogMeta,
+                checkpointType,
+                checkpointRestorer,
+                mapper);
     }
 
     public TaskToolDefinition asCreativeSafe() {
@@ -141,7 +169,8 @@ public record TaskToolDefinition(
                 false,
                 catalogMeta,
                 checkpointType,
-                checkpointRestorer);
+                checkpointRestorer,
+                normalizer);
     }
 
     @FunctionalInterface
