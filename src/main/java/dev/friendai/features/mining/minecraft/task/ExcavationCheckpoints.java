@@ -14,8 +14,8 @@ import java.util.Optional;
 
 /** Versioned checkpoint for {@link ExcavateTask}; the deterministic order is rebuilt from the spec. */
 public final class ExcavationCheckpoints {
-    private static final String VERSION = "v1";
-    private static final int FIELDS = 27;
+    private static final String VERSION = "v2";
+    private static final int FIELDS = 28;
 
     private ExcavationCheckpoints() {}
 
@@ -54,6 +54,7 @@ public final class ExcavationCheckpoints {
             taken.append(entry.getKey()).append('=').append(entry.getValue());
         }
         text.append('|').append(taken);
+        append(text, task.fallbackDescents());
         return text.toString();
     }
 
@@ -111,7 +112,7 @@ public final class ExcavationCheckpoints {
             }
             ExcavationProgress progress = new ExcavationProgress();
             progress.restore(intValue(p[24]), intValue(p[25]), taken(p[26]));
-            return Optional.of(ExcavateTask.resume(spec, intValue(p[23]), progress));
+            return Optional.of(ExcavateTask.resume(spec, intValue(p[23]), progress, intValue(p[27])));
         } catch (RuntimeException invalid) {
             return Optional.empty();
         }

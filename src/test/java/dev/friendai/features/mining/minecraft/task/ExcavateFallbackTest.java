@@ -76,4 +76,10 @@ class ExcavateFallbackTest {
                 "friendai.mining.unreachable", ExcavateTask.fallbackRefusal().key());
         assertEquals("a cell cannot be reached safely", ExcavateTask.failureText(ExcavateTask.fallbackRefusal()));
     }
+
+    @Test
+    void the_descent_cap_reuses_the_existing_search_limit_message() {
+        assertEquals("friendai.mining.search_limit", ExcavateTask.fallbackCap().key());
+        assertEquals("the search limit was reached", ExcavateTask.failureText(ExcavateTask.fallbackCap()));
+    }
 }

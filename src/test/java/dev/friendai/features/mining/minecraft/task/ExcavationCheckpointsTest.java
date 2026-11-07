@@ -18,7 +18,7 @@ class ExcavationCheckpointsTest {
         ExcavationSpec spec = ExcavationSpec.of(
                         ExcavationGeometry.box(0, 0, 0, 2, 1, 1).orElseThrow(), 5, null, 0, true, false, false, true, 0)
                 .orElseThrow();
-        ExcavateTask task = new ExcavateTask(spec, 3, progress(2, 1, "minecraft:cobblestone", 4));
+        ExcavateTask task = new ExcavateTask(spec, 3, progress(2, 1, "minecraft:cobblestone", 4), 2);
 
         String data = task.saveData();
         Optional<Task> restored = ExcavationCheckpoints.excavate(new TaskState("excavate", data), null);
@@ -30,11 +30,12 @@ class ExcavationCheckpointsTest {
         assertEquals(2, resumed.progress().broken());
         assertEquals(1, resumed.progress().skipped());
         assertEquals(4, resumed.progress().taken().get("minecraft:cobblestone"));
+        assertEquals(2, resumed.fallbackDescents());
     }
 
     @Test
     void rejectsAnUnknownVersionOrMalformedPayload() {
-        assertTrue(ExcavationCheckpoints.excavate(new TaskState("excavate", "v2|box"), null)
+        assertTrue(ExcavationCheckpoints.excavate(new TaskState("excavate", "v3|box"), null)
                 .isEmpty());
         assertTrue(ExcavationCheckpoints.excavate(new TaskState("excavate", "v1|box"), null)
                 .isEmpty());

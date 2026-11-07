@@ -72,20 +72,30 @@ public final class ExcavateTask implements Task {
     private TaskStatus pendingStatus;
 
     public ExcavateTask(ExcavationSpec spec) {
-        this(spec, 0, new ExcavationProgress());
+        this(spec, 0, new ExcavationProgress(), 0);
     }
 
     public ExcavateTask(ExcavationSpec spec, int nextIndex, ExcavationProgress progress) {
+        this(spec, nextIndex, progress, 0);
+    }
+
+    public ExcavateTask(ExcavationSpec spec, int nextIndex, ExcavationProgress progress, int fallbackDescents) {
         this.spec = spec;
         this.order = spec.geometry().cells();
         this.nextIndex = Math.max(0, Math.min(nextIndex, order.size()));
         this.progress = progress;
+        this.fallbackDescents = Math.max(0, Math.min(fallbackDescents, MAX_FALLBACK_DESCENTS));
         this.untilMatcher =
                 spec.hasUntil() ? ItemMatcher.parse(spec.untilItem()).orElse(null) : null;
     }
 
     public static ExcavateTask resume(ExcavationSpec spec, int nextIndex, ExcavationProgress progress) {
-        return new ExcavateTask(spec, nextIndex, progress);
+        return new ExcavateTask(spec, nextIndex, progress, 0);
+    }
+
+    public static ExcavateTask resume(
+            ExcavationSpec spec, int nextIndex, ExcavationProgress progress, int fallbackDescents) {
+        return new ExcavateTask(spec, nextIndex, progress, fallbackDescents);
     }
 
     ExcavationSpec spec() {
@@ -98,6 +108,10 @@ public final class ExcavateTask implements Task {
 
     ExcavationProgress progress() {
         return progress;
+    }
+
+    int fallbackDescents() {
+        return fallbackDescents;
     }
 
     @Override
@@ -237,7 +251,8 @@ public final class ExcavateTask implements Task {
         if (stallFallback.observe(progress.broken(), session.phase()) != StallFallback.Decision.DIG) {
             return null;
         }
-        boolean descended = fallbackDescents < MAX_FALLBACK_DESCENTS
+        boolean withinCap = fallbackDescents < MAX_FALLBACK_DESCENTS;
+        boolean descended = withinCap
                 && session.forceDescent(
                         c, new MiningSession.DescentRules(spec.containers(), spec.allowLiquids(), spec.requireTool()));
         if (descended) {
@@ -245,13 +260,14 @@ public final class ExcavateTask implements Task {
             fallbackReason = "fallback-dig";
             return null;
         }
-        fallbackReason = "fallback-refused";
+        boolean capped = !withinCap;
+        fallbackReason = capped ? "fallback-cap" : "fallback-refused";
         session.stop(c);
         session = null;
-        UserMessage failure = fallbackRefusal();
-        return finish(
-                TaskStatus.FAILED,
-                ExcavationReport.partial(ExcavationText.label(spec), progress, failureText(failure)));
+        String reason = capped
+                ? failureText(fallbackCap()) + " (fallback descents capped at " + MAX_FALLBACK_DESCENTS + ")"
+                : failureText(fallbackRefusal());
+        return finish(TaskStatus.FAILED, ExcavationReport.partial(ExcavationText.label(spec), progress, reason));
     }
 
     private TaskStatus feed(TaskContext c) {
@@ -393,9 +409,17 @@ public final class ExcavateTask implements Task {
     }
 
     /**
+     * The typed message a fallback that spent its descent cap reports. The cap is not a safety refusal, so it reuses
+     * the existing search-limit wording instead of pretending a cell was unreachable.
+     */
+    static UserMessage fallbackCap() {
+        return UserMessage.of("friendai.mining.search_limit");
+    }
+
+    /**
      * The bounded stall rule: {@link #STALL_FALLBACK_TICKS} ticks without another broken block while the session is
      * planning an approach or descent. It is pure so the rule is unit-tested without a world; the break itself is
-     * {@link MiningSession#forceDescent(TaskContext)}.
+     * {@link MiningSession#forceDescent(TaskContext, MiningSession.DescentRules)}.
      */
     static final class StallFallback {
         /** Where one stalled tick leads: keep waiting, or try the one bounded descent below the companion. */

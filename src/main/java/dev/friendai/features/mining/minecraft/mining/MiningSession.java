@@ -270,19 +270,6 @@ public final class MiningSession {
     }
 
     /**
-     * Starts one deterministic descent when a stance search has stalled: the block under the companion's feet is
-     * broken through the same {@link MiningRefusal}, {@link DropGuard} and {@link BreakAction} checks as every other
-     * break, so the body drops onto a fresh stance. Returns false, having changed nothing, while a route or break runs,
-     * when the cell below is already open or outside the session's bounds, or when any check refuses the break.
-     *
-     * <p>The normal target guard refuses a support cell by design; {@link MiningRefusal#check} with {@code
-     * allowSupport} is the existing rule that decides when breaking it is safe (a solid, non-lava landing below).
-     */
-    public boolean forceDescent(TaskContext context) {
-        return forceDescent(context, DescentRules.SAFE);
-    }
-
-    /**
      * Whether the task's cell rules allow a fallback descent through this support. Pure, so the rule is unit-tested
      * without a world: a container, a liquid or a block that needs the wrong tool is refused unless the task opted in.
      */
