@@ -245,7 +245,11 @@ public class ExcavationTests {
         return r;
     }
 
-    /** A region away from the support cell, so the fallback descent cannot count as region progress. */
+    /**
+     * A region away from the support cell, so the fallback descent cannot count as region progress. The geometry
+     * carries world coordinates because the task reads the level directly: a spec built from test-relative corners
+     * points at an unloaded chunk, so the session would give up on the missing chunk instead of maturing the stall.
+     */
     private static ExcavateTask stalledExcavate(GameTestHelper h) {
         return stalledExcavate(h, true);
     }
@@ -255,8 +259,12 @@ public class ExcavationTests {
         for (BlockPos cell : cells) {
             h.setBlock(cell, Blocks.STONE);
         }
+        BlockPos first = h.absolutePos(cells[0]);
+        BlockPos last = h.absolutePos(cells[3]);
         ExcavationSpec spec = ExcavationSpec.of(
-                        ExcavationGeometry.box(4, 2, 2, 5, 2, 3).orElseThrow(),
+                        ExcavationGeometry.box(
+                                        first.getX(), first.getY(), first.getZ(), last.getX(), last.getY(), last.getZ())
+                                .orElseThrow(),
                         cells.length,
                         null,
                         0,
@@ -340,22 +348,30 @@ public class ExcavationTests {
     @GameTest(maxTicks = 400)
     public void excavateFallbackRefusesAContainerSupport(GameTestHelper h) {
         CompanionEntity c = companion(h);
-        h.setBlock(new BlockPos(2, 1, 2), Blocks.CHEST);
+        // A chest is not a full cube: its 0.875 collision top drops blockPosition() into the cell above it, so the
+        // inspected support is the empty cell below and the Container branch is never reached. A shulker box is a
+        // full cube, so the companion stands on it and the support read below its feet is the container itself.
+        h.setBlock(new BlockPos(2, 1, 2), Blocks.SHULKER_BOX);
+        h.setBlock(new BlockPos(2, 0, 2), Blocks.STONE);
         Result result = new Result();
         ExecutionCoordinator runner = stalledRunner(c, result);
         ExcavateTask task = stalledExcavate(h);
-        BlockPos support = h.absolutePos(new BlockPos(2, 1, 2));
         runner.start(task, "excavate");
 
         TaskTrace.of(h, runner, c).succeedWhen(() -> {
             runner.tick();
+            BlockPos support = c.blockPosition().below();
+            h.assertTrue(
+                    h.getLevel().getBlockState(support).is(Blocks.SHULKER_BOX),
+                    "the companion should stand on a full-cube container support: " + support);
             h.assertTrue(
                     result.status == TaskStatus.FAILED,
                     "still running after the container support: " + task.debugStatus());
             h.assertTrue(
                     task.debugStatus().contains("fallback-refused"),
                     "the container support was not refused: " + task.debugStatus());
-            h.assertTrue(h.getLevel().getBlockState(support).is(Blocks.CHEST), "the container support was broken");
+            h.assertTrue(
+                    h.getLevel().getBlockState(support).is(Blocks.SHULKER_BOX), "the container support was broken");
         });
     }
 
@@ -363,6 +379,7 @@ public class ExcavationTests {
      * The fallback is capped at three descents, so the fourth stalled window must end the task rather than bolting
      * another shaft under the region. The column under the floor stays solid for four falls: with the cap removed the
      * fourth cell would be dug, and the test would fail on the still-solid assertion instead of waiting out its budget.
+     * The companion must also stay over that column, or a raised cap could pass by digging somewhere else.
      */
     @GameTest(maxTicks = 2400)
     public void excavateFallbackStopsAtTheDescentCap(GameTestHelper h) {
@@ -373,11 +390,16 @@ public class ExcavationTests {
         Result result = new Result();
         ExecutionCoordinator runner = stalledRunner(c, result);
         ExcavateTask task = stalledExcavate(h, false);
+        BlockPos column = h.absolutePos(new BlockPos(2, 0, 2));
         BlockPos fourth = h.absolutePos(new BlockPos(2, -2, 2));
         runner.start(task, "excavate");
 
         TaskTrace.of(h, runner, c).succeedWhen(() -> {
             runner.tick();
+            h.assertTrue(
+                    c.blockPosition().getX() == column.getX()
+                            && c.blockPosition().getZ() == column.getZ(),
+                    "the companion drifted off the shaft: " + c.blockPosition());
             h.assertTrue(
                     h.getLevel().getBlockState(fourth).is(Blocks.STONE),
                     "a fourth descent dug below the cap: " + task.debugStatus());

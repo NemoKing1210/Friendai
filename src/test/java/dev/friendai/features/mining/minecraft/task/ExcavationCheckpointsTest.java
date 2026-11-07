@@ -64,6 +64,42 @@ class ExcavationCheckpointsTest {
                 .isPresent());
     }
 
+    @Test
+    void roundTripKeepsAFreshTaskWithNoProgress() {
+        ExcavationSpec spec = ExcavationSpec.of(
+                        ExcavationGeometry.box(0, 0, 0, 2, 1, 1).orElseThrow(), 5, null, 0, true, false, false, true, 0)
+                .orElseThrow();
+        ExcavateTask task = new ExcavateTask(spec);
+
+        Optional<Task> restored = ExcavationCheckpoints.excavate(new TaskState("excavate", task.saveData()), null);
+
+        assertTrue(restored.isPresent());
+        ExcavateTask resumed = (ExcavateTask) restored.get();
+        assertEquals(0, resumed.nextIndex());
+        assertEquals(0, resumed.progress().broken());
+        assertEquals(0, resumed.progress().skipped());
+        assertTrue(resumed.progress().taken().isEmpty());
+        assertEquals(0, resumed.fallbackDescents());
+    }
+
+    @Test
+    void rejectsFieldCountsBesideTheTwoSupportedShapes() {
+        ExcavationSpec spec = ExcavationSpec.of(
+                        ExcavationGeometry.box(0, 0, 0, 2, 1, 1).orElseThrow(), 5, null, 0, true, false, false, true, 0)
+                .orElseThrow();
+        ExcavateTask task = new ExcavateTask(spec, 1, progress(1, 0, "minecraft:cobblestone", 2), 1);
+        String[] fields = task.saveData().split("\\|", -1);
+        assertEquals(28, fields.length);
+
+        String twentySix = String.join("|", java.util.Arrays.copyOf(fields, 26));
+        String twentyNine = String.join("|", fields) + "|0";
+
+        assertTrue(ExcavationCheckpoints.excavate(new TaskState("excavate", twentySix), null)
+                .isEmpty());
+        assertTrue(ExcavationCheckpoints.excavate(new TaskState("excavate", twentyNine), null)
+                .isEmpty());
+    }
+
     private static ExcavationProgress progress(int broken, int skipped, String item, int count) {
         ExcavationProgress progress = new ExcavationProgress();
         for (int i = 0; i < broken; i++) {

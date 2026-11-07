@@ -75,10 +75,6 @@ public final class ExcavateTask implements Task {
         this(spec, 0, new ExcavationProgress(), 0);
     }
 
-    public ExcavateTask(ExcavationSpec spec, int nextIndex, ExcavationProgress progress) {
-        this(spec, nextIndex, progress, 0);
-    }
-
     public ExcavateTask(ExcavationSpec spec, int nextIndex, ExcavationProgress progress, int fallbackDescents) {
         this.spec = spec;
         this.order = spec.geometry().cells();
@@ -87,10 +83,6 @@ public final class ExcavateTask implements Task {
         this.fallbackDescents = Math.max(0, Math.min(fallbackDescents, MAX_FALLBACK_DESCENTS));
         this.untilMatcher =
                 spec.hasUntil() ? ItemMatcher.parse(spec.untilItem()).orElse(null) : null;
-    }
-
-    public static ExcavateTask resume(ExcavationSpec spec, int nextIndex, ExcavationProgress progress) {
-        return new ExcavateTask(spec, nextIndex, progress, 0);
     }
 
     public static ExcavateTask resume(
