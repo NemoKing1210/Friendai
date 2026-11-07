@@ -1,6 +1,7 @@
 package dev.friendai.features.memory.transcript;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -161,6 +162,53 @@ class TranscriptBookTest {
         assertTrue(book.revision() > before);
         book.markClean();
         assertTrue(!book.isDirty());
+    }
+
+    @Test
+    void applyingLowerLimitsRewritesTheLiveBookInPlace() {
+        TranscriptBook book = new TranscriptBook(LIMITS);
+        book.add(ALEX, "Alex", Speaker.PLAYER, "one", 1_000);
+        book.add(ALEX, "Alex", Speaker.PLAYER, "abcdefghij", 2_000);
+        book.add(ALEX, "Alex", Speaker.PLAYER, "three", 3_000);
+        book.markClean();
+        long revision = book.revision();
+
+        book.applyLimits(new TranscriptLimits(2, 5, 10_000, 64 * 1024), 3_500);
+
+        assertEquals(
+                List.of(2L, 3L),
+                book.snapshot().stream().map(TranscriptEntry::id).toList());
+        assertEquals("abcd…", book.snapshot().getFirst().text(), "stored text is capped by the new limit");
+        assertEquals("three", book.snapshot().getLast().text());
+        assertTrue(book.revision() > revision);
+        assertTrue(book.isDirty());
+        assertEquals(4, book.add(ALEX, "Alex", Speaker.PLAYER, "four", 4_000).id(), "ids stay monotonic");
+    }
+
+    @Test
+    void applyingTheSameLimitsWithoutADataChangeBumpsNothing() {
+        TranscriptBook book = new TranscriptBook(LIMITS);
+        book.add(ALEX, "Alex", Speaker.PLAYER, "one", 1_000);
+        book.markClean();
+        long revision = book.revision();
+
+        book.applyLimits(LIMITS, 1_500);
+
+        assertEquals(revision, book.revision());
+        assertFalse(book.isDirty());
+        assertEquals("one", book.snapshot().getFirst().text());
+    }
+
+    @Test
+    void applyingAnAgeLimitDropsOldLinesFromTheLiveBook() {
+        TranscriptBook book = new TranscriptBook(LIMITS);
+        book.add(ALEX, "Alex", Speaker.PLAYER, "old", 1_000);
+        book.add(ALEX, "Alex", Speaker.PLAYER, "new", 9_000);
+
+        book.applyLimits(new TranscriptLimits(10, 40, 1_000, 64 * 1024), 9_500);
+
+        assertEquals(List.of("new"), texts(book.snapshot()));
+        assertEquals(3, book.nextId());
     }
 
     private static List<String> texts(List<TranscriptEntry> entries) {

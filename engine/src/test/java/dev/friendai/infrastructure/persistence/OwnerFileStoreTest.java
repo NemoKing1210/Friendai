@@ -66,6 +66,27 @@ class OwnerFileStoreTest {
     };
 
     @Test
+    void forEachLoadedVisitsOnlyTheValuesThatWereLoaded() {
+        UUID first = UUID.randomUUID();
+        UUID second = UUID.randomUUID();
+        java.util.Map<UUID, Integer> visited = new java.util.HashMap<>();
+        try (OwnerFileStore<Counter> store = OwnerFileStore.withWriterThread(temp, COUNTER_CODEC)) {
+            store.forEachLoaded((owner, counter) -> visited.put(owner, counter.value()));
+            assertTrue(visited.isEmpty(), "an unopened store has no loaded values");
+
+            store.book(first).increment();
+            store.book(first).increment();
+            store.forEachLoaded((owner, counter) -> visited.put(owner, counter.value()));
+            assertEquals(java.util.Map.of(first, 2), visited, "only the loaded owner is visited");
+
+            store.book(second);
+            visited.clear();
+            store.forEachLoaded((owner, counter) -> visited.put(owner, counter.value()));
+            assertEquals(java.util.Map.of(first, 2, second, 0), visited);
+        }
+    }
+
+    @Test
     void oversizedOriginalCannotBeOverwrittenAfterMutation() throws IOException {
         UUID owner = UUID.randomUUID();
         Path file = temp.resolve(owner + ".json");

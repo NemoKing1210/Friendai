@@ -561,6 +561,8 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
         List<String> problems = configuration.apply(cfg);
         logProblems(problems);
         this.config = cfg;
+        // A transcript book keeps the limits it was opened with; apply the reloaded bounds to the live books.
+        transcripts.applyLimits(System.currentTimeMillis());
         if (tradingWasEnabled && !configuration.current().trading().enabled()) {
             tradeSessionGuard.closeAll("trading disabled by server config");
             sessions.invalidateTradingAuthorities("trading disabled by server config");

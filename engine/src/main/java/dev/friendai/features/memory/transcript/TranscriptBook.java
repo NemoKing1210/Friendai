@@ -12,7 +12,7 @@ import java.util.UUID;
  * when to persist. Text is normalized and capped here, so a caller cannot grow the file by accident.
  */
 public final class TranscriptBook {
-    private final TranscriptLimits limits;
+    private TranscriptLimits limits;
     private final TreeMap<Long, TranscriptEntry> entries = new TreeMap<>();
     private long nextId = 1;
     private long revision;
@@ -43,6 +43,30 @@ public final class TranscriptBook {
         dirty = true;
         revision++;
         return entry;
+    }
+
+    /**
+     * Applies new bounds to this live book in place, so a reloaded config reaches a transcript the server already
+     * opened. The object, its stored ids and {@link #nextId()} stay as they are; existing text is normalized and
+     * capped, entries are pruned by the new age and count limits, and only a real data change marks the book dirty.
+     */
+    public synchronized void applyLimits(TranscriptLimits limits, long now) {
+        if (limits == null) {
+            return;
+        }
+        this.limits = limits;
+        boolean changed = pruneLocked(now);
+        for (java.util.Map.Entry<Long, TranscriptEntry> entry : entries.entrySet()) {
+            TranscriptEntry capped = capped(entry.getValue());
+            if (capped != entry.getValue()) {
+                entry.setValue(capped);
+                changed = true;
+            }
+        }
+        if (changed) {
+            dirty = true;
+            revision++;
+        }
     }
 
     /** Drops entries older than the retention window, then the oldest entries beyond the count cap. */
@@ -175,5 +199,14 @@ public final class TranscriptBook {
             return text;
         }
         return text.substring(0, Math.max(0, limits.maxTextChars() - 1)) + "…";
+    }
+
+    /** The same entry with its text re-normalized and capped, or the entry itself when nothing would change. */
+    private TranscriptEntry capped(TranscriptEntry entry) {
+        String text = truncate(normalize(entry.text()));
+        return text.equals(entry.text())
+                ? entry
+                : new TranscriptEntry(
+                        entry.id(), entry.atMillis(), entry.playerUuid(), entry.playerName(), entry.speaker(), text);
     }
 }

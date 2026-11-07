@@ -293,6 +293,18 @@ public final class OwnerFileStore<T> implements AutoCloseable {
                 readOnly.get(owner));
     }
 
+    /**
+     * Visits every value this store has already loaded, on the owning thread. The callback runs under the store lock:
+     * it must not add or load a record, call back into the store, or touch disk. The seam exists so a live-config
+     * change can reach loaded values without exposing the map or creating a second owner cache.
+     */
+    public synchronized void forEachLoaded(java.util.function.BiConsumer<UUID, T> action) {
+        java.util.Objects.requireNonNull(action, "action");
+        for (Map.Entry<UUID, T> entry : values.entrySet()) {
+            action.accept(entry.getKey(), entry.getValue());
+        }
+    }
+
     /** One status per loaded owner, for a runtime health view that must not read the records themselves. */
     public synchronized java.util.Map<UUID, StoreWriteStatus> statuses() {
         java.util.Map<UUID, StoreWriteStatus> out = new java.util.LinkedHashMap<>();

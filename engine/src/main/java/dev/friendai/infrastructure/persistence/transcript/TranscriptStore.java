@@ -22,20 +22,28 @@ public final class TranscriptStore implements AutoCloseable {
     public static final long FLUSH_INTERVAL_MS = OwnerFileStore.FLUSH_INTERVAL_MS;
 
     private final OwnerFileStore<TranscriptBook> store;
+    private final Supplier<TranscriptLimits> limits;
 
     public TranscriptStore(Path dir, TranscriptLimits limits) {
         this(dir, () -> limits);
     }
 
     public TranscriptStore(Path dir, Supplier<TranscriptLimits> limits) {
-        this.store = new OwnerFileStore<>(
-                dir, new Codec(limits), new OwnerStoreWriter(), OwnerFileStore.WriterOwnership.OWNED, new Policy());
+        this(dir, limits, new OwnerStoreWriter(), OwnerFileStore.WriterOwnership.OWNED);
     }
 
     /** Production stores borrow the runtime writer; closing this store never closes it. */
     public TranscriptStore(Path dir, Supplier<TranscriptLimits> limits, OwnerStoreWriter writer) {
-        this.store = new OwnerFileStore<>(
-                dir, new Codec(limits), writer, OwnerFileStore.WriterOwnership.BORROWED, new Policy());
+        this(dir, limits, writer, OwnerFileStore.WriterOwnership.BORROWED);
+    }
+
+    private TranscriptStore(
+            Path dir,
+            Supplier<TranscriptLimits> limits,
+            OwnerStoreWriter writer,
+            OwnerFileStore.WriterOwnership ownership) {
+        this.limits = limits;
+        this.store = new OwnerFileStore<>(dir, new Codec(limits), writer, ownership, new Policy());
     }
 
     /** Loads lazily; a missing file creates an empty in-memory book without touching disk. */
@@ -45,6 +53,19 @@ public final class TranscriptStore implements AutoCloseable {
 
     public StoreWriteStatus status(UUID owner) {
         return store.status(owner);
+    }
+
+    /**
+     * Applies the currently configured bounds to every book this store already loaded, in place, so a lowered cap
+     * reaches a live transcript instead of waiting for a restart. Call on the owning server thread; nothing is
+     * written and a protected original stays read-only.
+     */
+    public void applyLimits(long nowMillis) {
+        TranscriptLimits current = limits.get();
+        if (current == null) {
+            return;
+        }
+        store.forEachLoaded((owner, book) -> book.applyLimits(current, nowMillis));
     }
 
     public void flushIfDue(long nowMillis) {
