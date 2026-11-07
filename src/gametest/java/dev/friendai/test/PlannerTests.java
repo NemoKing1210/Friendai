@@ -25,8 +25,14 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
 
 public class PlannerTests {
-    private static final String FAILING_PLAN =
-            "{\"goal\":\"tools\",\"steps\":[{\"tool\":\"craft_item\",\"args\":\"{\\\"item\\\":\\\"minecraft:diamond_pickaxe\\\",\\\"count\\\":1}\"}]}";
+    /**
+     * A flat plan whose second step waits for the first: the failure leaves a pending step behind it, which is the
+     * supported repair shape the planner may be consulted for.
+     */
+    private static final String FLAT_FAILING_PLAN = "{\"goal\":\"tools\",\"optimize\":true,\"steps\":["
+            + "{\"tool\":\"craft_item\",\"args\":\"{\\\"item\\\":\\\"minecraft:diamond_pickaxe\\\",\\\"count\\\":1}\"},"
+            + "{\"tool\":\"jump\",\"after\":[1]}]}";
+
     private static final String FAILING_PLAN_WITH_A_STEP_LEFT = "{\"goal\":\"iron\",\"steps\":["
             + "{\"tool\":\"craft_item\",\"args\":\"{\\\"item\\\":\\\"minecraft:diamond_pickaxe\\\",\\\"count\\\":1}\"},"
             + "{\"tool\":\"jump\"}]}";
@@ -130,51 +136,66 @@ public class PlannerTests {
         });
     }
 
+    /**
+     * A plan repaired step by step is the supported shape: the flat plan keeps a pending step behind the failed one, so
+     * the planner is asked once with that plan as its target and the stale-check fingerprint attached.
+     */
     @GameTest(maxTicks = 700)
-    public void replacing_a_plan_spends_exactly_one_replan_and_asks_once(GameTestHelper h) {
+    public void a_flat_plan_repair_asks_the_planner_once_with_its_target(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
         var server = h.getLevel().getServer();
         ServerRuntime state = GameTestSupport.runtime(server);
         CompanionSessions brains = state.sessions();
         AtomicInteger asked = new AtomicInteger();
-        brains.setPlannerOverride(player.getUUID(), jumpPlanner(asked));
-        AtomicInteger requests = new AtomicInteger();
+        java.util.concurrent.atomic.AtomicReference<dev.friendai.agent.plan.PlannerInput> captured =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        brains.setPlannerOverride(player.getUUID(), jumpPlanner(asked, captured::set));
         List<String> seen = new java.util.concurrent.CopyOnWriteArrayList<>();
         brains.setGatewayOverride(player.getUUID(), (system, messages, tools) -> {
-            requests.incrementAndGet();
-            seen.add(messages.get(messages.size() - 1).text());
-            return CompletableFuture.completedFuture(new dev.friendai.agent.llm.model.LlmResponse(
-                    "[silent]",
-                    List.of(),
-                    dev.friendai.agent.llm.model.StopReason.END,
-                    new dev.friendai.agent.llm.model.Usage(0, 0)));
+            for (var message : messages) seen.add(message.text());
+            return CompletableFuture.completedFuture(
+                    new LlmResponse("[silent]", List.of(), StopReason.END, new Usage(0, 0)));
         });
         CompanionEntity c = CompanionManager.get(server).summon(player);
         brains.post(player.getUUID(), new BrainEvent.WorldNotice("ready"));
         Caller owner = new Caller(player.getUUID(), "Steve", AccessLevel.OWNER);
         h.assertFalse(call(c, owner, "set_goal", "{\"text\":\"get a pickaxe\"}").error(), "goal set");
-        h.assertFalse(call(c, owner, "queue_add", FAILING_PLAN).error(), "failing plan queued and linked");
-        // Give the failure, the replan and any wrongly triggered second replan time to happen.
+        h.assertFalse(call(c, owner, "queue_add", FLAT_FAILING_PLAN).error(), "flat plan queued and linked");
+        long planId =
+                state.goals().board(player.getUUID()).primary().orElseThrow().planId();
+        h.assertTrue(planId != 0, "linked to the goal");
+        // Give the failure, the repair and any wrongly triggered second repair time to happen.
         h.runAfterDelay(400, () -> {
             h.assertTrue(asked.get() == 1, "exactly one planner call, got " + asked.get());
+            var input = captured.get();
+            h.assertTrue(input != null, "the planner received an input");
+            h.assertTrue(
+                    input.targetPlanId() == planId,
+                    "the input keeps the plan it repairs: " + input.targetPlanId() + " first=" + planId);
+            h.assertFalse(input.targetFingerprint().isBlank(), "the stale-check fingerprint survives attachment");
+            h.assertTrue(
+                    input.toolDigest().contains("station: string[keep|take]"),
+                    "the digest carries a closed enum, not prose: " + input.toolDigest());
             var goal = state.goals().board(player.getUUID()).primary().orElseThrow();
             h.assertTrue(goal.replans() == 1, "the replan is spent once, got " + goal.replans());
             h.assertTrue(goal.status() == dev.friendai.agent.goal.GoalStatus.ACTIVE, "the goal is not blocked");
-            // The old plan is reported once, when it blocks; cancelling it for the replacement is silent.
-            long reportsOfOldPlan =
-                    seen.stream().filter(line -> line.contains("plan #1")).count();
+            // The old plan is reported once, when it blocks; a repair of a step in place is silent.
+            long reportsOfPlan = seen.stream()
+                    .filter(line -> line.contains("plan #" + planId))
+                    .count();
             h.assertTrue(
-                    reportsOfOldPlan == 1,
-                    "plan #1 must be reported exactly once, got " + reportsOfOldPlan + " " + seen);
+                    reportsOfPlan == 1,
+                    "plan #" + planId + " must be reported exactly once, got " + reportsOfPlan + " " + seen);
             h.succeed();
         });
     }
 
     /**
-     * A plan that stopped mid-tree for a decision is never rewritten behind its interpreter cursor: the planner is
-     * consulted once, its proposal is refused, and the plan stays where the owner can decide. The goal keeps the
-     * plan it linked instead of silently following a replacement.
+     * A plan that stopped mid-tree for a decision is never rewritten behind its interpreter cursor. The planner is not
+     * consulted at all for it: a proposal could not be applied, so the consultation would only spend a provider call,
+     * and the plan stays where the owner can decide. The goal keeps the plan it linked, and the blocked report still
+     * reaches the model turn.
      */
     @GameTest(maxTicks = 600)
     public void recovery_replan_leaves_a_started_plan_for_the_owners_decision(GameTestHelper h) {
@@ -187,9 +208,12 @@ public class PlannerTests {
         java.util.concurrent.atomic.AtomicReference<dev.friendai.agent.plan.PlannerInput> captured =
                 new java.util.concurrent.atomic.AtomicReference<>();
         brains.setPlannerOverride(player.getUUID(), jumpPlanner(asked, captured::set));
-        brains.setGatewayOverride(
-                player.getUUID(),
-                new CompanionControlTests.Script().text("[silent]").text("[silent]"));
+        List<String> seen = new java.util.concurrent.CopyOnWriteArrayList<>();
+        brains.setGatewayOverride(player.getUUID(), (system, messages, tools) -> {
+            for (var message : messages) seen.add(message.text());
+            return CompletableFuture.completedFuture(
+                    new LlmResponse("[silent]", List.of(), StopReason.END, new Usage(0, 0)));
+        });
         CompanionEntity c = CompanionManager.get(server).summon(player);
         brains.post(player.getUUID(), new BrainEvent.WorldNotice("ready"));
         Caller owner = new Caller(player.getUUID(), "Steve", AccessLevel.OWNER);
@@ -199,19 +223,11 @@ public class PlannerTests {
                 state.goals().board(player.getUUID()).primary().orElseThrow().planId();
         h.assertTrue(firstPlan != 0, "linked to the goal");
         h.succeedWhen(() -> {
-            h.assertTrue(asked.get() == 1, "the blocked plan asks the planner once, asked=" + asked.get());
-            var input = captured.get();
-            h.assertTrue(input != null, "the planner received an input");
+            h.assertTrue(asked.get() == 0, "the unrepairable plan never reaches the planner, asked=" + asked.get());
+            h.assertTrue(captured.get() == null, "no input was built for it");
             h.assertTrue(
-                    input.targetPlanId() == firstPlan,
-                    "the input keeps the plan it repairs: " + input.targetPlanId() + " first=" + firstPlan);
-            h.assertFalse(input.targetFingerprint().isBlank(), "the stale-check fingerprint survives attachment");
-            h.assertFalse(
-                    input.pendingNodePath().isBlank(),
-                    "the model learns where the plan stands: " + input.pendingNodePath());
-            h.assertTrue(
-                    input.toolDigest().contains("slot: string[mainhand|offhand|head|chest|legs|feet]"),
-                    "the digest carries a closed enum, not prose: " + input.toolDigest());
+                    seen.stream().anyMatch(line -> line.contains("plan #" + firstPlan + " needs a decision")),
+                    "the blocked plan is still reported to the model: " + seen);
             var goal = state.goals().board(player.getUUID()).primary().orElseThrow();
             h.assertTrue(
                     goal.planId() == firstPlan,

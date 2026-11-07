@@ -63,6 +63,45 @@ class PlanPatchPolicyTest {
     }
 
     @Test
+    void aPlanPreflightAcceptsWhatARepairCanStillApply() {
+        JobQueue queue = new JobQueue(QueueLimits.DEFAULTS);
+        long plan = queue.addPlan("p", List.of(step()), PlanOptions.DEFAULT).planId();
+        assertTrue(PlanPatchPolicy.rejectPlan(queue, plan).isEmpty(), "a pending flat step is repairable");
+
+        long failed = queue.addPlan("f", List.of(step()), PlanOptions.DEFAULT).planId();
+        queue.fail(queue.jobsOfPlan(failed).getFirst().id(), "no route");
+        assertTrue(
+                PlanPatchPolicy.rejectPlan(queue, failed).isEmpty(),
+                "a failed flat step is still replaced by the legacy repair");
+
+        long structured = queue.addStructuredPlan(
+                "s", new PlanDefinition(List.of(new PlanNode.Action(step()))), PlanOptions.DEFAULT);
+        assertTrue(
+                PlanPatchPolicy.rejectPlan(queue, structured).isEmpty(),
+                "a structured plan with no job yet is repaired as a whole tree");
+    }
+
+    @Test
+    void aPlanPreflightRefusesAStartedFrameAndAFinishedPlan() {
+        JobQueue queue = new JobQueue(QueueLimits.DEFAULTS);
+        long done = queue.addPlan("p", List.of(step()), PlanOptions.DEFAULT).planId();
+        queue.finish(queue.jobsOfPlan(done).getFirst().id(), "ok");
+        assertTrue(
+                PlanPatchPolicy.rejectPlan(queue, done).orElseThrow().contains("terminal"),
+                "a proposal for a plan whose only step already succeeded cannot be applied");
+
+        long structured = queue.addStructuredPlan(
+                "s", new PlanDefinition(List.of(new PlanNode.Action(step()))), PlanOptions.DEFAULT);
+        queue.addJob(structured, step());
+        assertTrue(
+                PlanPatchPolicy.rejectPlan(queue, structured).orElseThrow().contains("active structured frame"),
+                "a started structured frame is never rewritten behind its cursor");
+
+        assertTrue(
+                PlanPatchPolicy.rejectPlan(queue, 999).orElseThrow().contains("unknown"), "an unknown plan is refused");
+    }
+
+    @Test
     void terminalAndUnknownJobsAreRejected() {
         JobQueue queue = new JobQueue(QueueLimits.DEFAULTS);
         long job = queue.addDirect(step()).id();

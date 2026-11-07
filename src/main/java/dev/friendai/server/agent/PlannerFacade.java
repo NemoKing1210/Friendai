@@ -199,6 +199,15 @@ final class PlannerFacade {
         public Optional<PlannerInput> inputFor(
                 dev.friendai.agent.plan.PlanSubject subject, Caller caller, String failure) {
             if (subject instanceof dev.friendai.agent.plan.PlanSubject.TroubledPlan trouble) {
+                // Preflight the targeted frame with the same rule the patch itself enforces: a proposal that could not
+                // be applied must not cost a provider call or a replan attempt. The failure is still reported to the
+                // model, which is where the owner's recovery line comes from.
+                Optional<String> refusal = dev.friendai.execution.queue.PlanPatchPolicy.rejectPlan(
+                        companion.executionCoordinator().queue(), trouble.planId());
+                if (refusal.isPresent()) {
+                    debugLog(owner, "planner skipped: " + refusal.get());
+                    return Optional.empty();
+                }
                 // A plan that follows a goal spends the goal's own replan budget; a planless one spends a
                 // runtime-only counter, so a plan cannot replan forever without a goal record to stop it.
                 if (!hasLinkedGoal(trouble.planId())) {

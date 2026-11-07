@@ -1,5 +1,6 @@
 package dev.friendai.execution.queue;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -32,12 +33,41 @@ public final class PlanPatchPolicy {
             return Optional.empty();
         }
         if (JobQueue.terminal(job)) return Optional.of("#" + jobId + " is already terminal");
-        PlanCursor cursor = plan.cursor();
-        if (cursor != null
-                && (!cursor.stack().isEmpty() || !cursor.pendingActionPath().isEmpty())) {
-            return Optional.of("plan #" + plan.id()
-                    + " is inside an active structured frame; let it stop or cancel it before patching");
+        return insideFrame(plan.cursor()) ? Optional.of(frameRefusal(plan.id())) : Optional.empty();
+    }
+
+    /**
+     * The same rule for a repair that has not chosen a job yet, asked before a planner consultation is spent. It answers
+     * whether a proposal for this plan could be applied at all. A whole structured tree that never started is replaced
+     * as a tree; otherwise the answer is exactly the per-job rule, so the preflight cannot drift from the patch it
+     * guards.
+     */
+    public static Optional<String> rejectPlan(JobQueue queue, long planId) {
+        if (queue == null) return Optional.of("queue is unavailable");
+        PlanRecord plan = queue.plan(planId).orElse(null);
+        if (plan == null) return Optional.of("unknown plan #" + planId);
+        List<Job> jobs = queue.jobsOfPlan(planId);
+        if (jobs.isEmpty()) {
+            // Nothing has started: the whole tree is replaced, which is the one path that works without a job.
+            return plan.definition() != null
+                    ? Optional.empty()
+                    : Optional.of("plan #" + planId + " has no step to repair");
         }
-        return Optional.empty();
+        Optional<String> refusal = Optional.empty();
+        for (Job job : jobs) {
+            Optional<String> current = reject(queue, job.id());
+            if (current.isEmpty()) return Optional.empty();
+            if (refusal.isEmpty()) refusal = current;
+        }
+        return refusal;
+    }
+
+    private static boolean insideFrame(PlanCursor cursor) {
+        return cursor != null
+                && (!cursor.stack().isEmpty() || !cursor.pendingActionPath().isEmpty());
+    }
+
+    private static String frameRefusal(long planId) {
+        return "plan #" + planId + " is inside an active structured frame; let it stop or cancel it before patching";
     }
 }
