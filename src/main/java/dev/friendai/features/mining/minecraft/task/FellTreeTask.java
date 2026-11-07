@@ -27,6 +27,7 @@ import dev.friendai.world.movement.LevelCellView;
 import dev.friendai.world.movement.MoveHelper;
 import dev.friendai.world.movement.Sight;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -66,6 +67,8 @@ public final class FellTreeTask implements Task {
     private static final int MAX_LEAVES_PER_DROP = 3;
     /** How often the cut looks for a stranded drop, in ticks. */
     private static final int RESCUE_SCAN_TICKS = 10;
+    /** How many unreachable log coordinates one report names before it counts the rest. */
+    private static final int MAX_SHORTFALL_COORDS = 3;
     /** How many logs one frame may walk down through while looking for the log that hides the planned one. */
     private static final int MAX_BLOCKER_DEPTH = 32;
     /** How far below a leaf the rescue looks for the cell the item will land on. */
@@ -679,9 +682,7 @@ public final class FellTreeTask implements Task {
         }
         if (limit > 0 && cutCount >= limit) {
             return finish(
-                    c,
-                    blacklist.isEmpty() && skipped.isEmpty() ? TaskStatus.SUCCESS : TaskStatus.FAILED,
-                    "felled " + cutCount + " of " + total + " " + label + " logs (limit)");
+                    c, resultStatus(cutCount), "felled " + cutCount + " of " + total + " " + label + " logs (limit)");
         }
         if (settleTicks < RESCUE_SETTLE_TICKS) {
             settleTicks++;
@@ -693,15 +694,7 @@ public final class FellTreeTask implements Task {
         for (BlockPos pos : remaining) {
             blacklist.putIfAbsent(pos, "no stance reaches it");
         }
-        TaskStatus status = blacklist.isEmpty() && remaining.isEmpty() && skipped.isEmpty()
-                ? TaskStatus.SUCCESS
-                : TaskStatus.FAILED;
-        String text = "felled " + cutCount + " of " + total + " " + label + " logs";
-        if (!skipped.isEmpty()) {
-            text += "; skipped " + skipped.size() + " that " + (skipped.size() == 1 ? "was" : "were")
-                    + " not there when reached";
-        }
-        return finish(c, status, text);
+        return finish(c, resultStatus(cutCount), report(cutCount, total, label, skipped.size(), remaining));
     }
 
     /**
@@ -837,6 +830,44 @@ public final class FellTreeTask implements Task {
             text.append(')');
         }
         return text.toString();
+    }
+
+    /**
+     * The status a felling reports: a tree that gave at least one log is a success even when the rest is out of reach,
+     * so one unreachable log does not block a plan that already delivered real work. Only a tree that gave nothing
+     * fails; a refusal before the first cut stays a failure through its own path.
+     */
+    static TaskStatus resultStatus(int cutCount) {
+        return cutCount > 0 ? TaskStatus.SUCCESS : TaskStatus.FAILED;
+    }
+
+    /**
+     * The sentence a felling reports: what came down, what was not there when reached, and what is still standing with
+     * the coordinates of the first three such logs. The wording is pure so it can be pinned without a world, as
+     * {@code MineReport} does for a pointed mine; the task appends its own counters.
+     */
+    static String report(int cutCount, int total, String label, int skipped, Collection<BlockPos> left) {
+        String text = "felled " + cutCount + " of " + total + " " + label + " logs";
+        if (skipped > 0) {
+            text += "; skipped " + skipped + " that " + (skipped == 1 ? "was" : "were") + " not there when reached";
+        }
+        if (!left.isEmpty()) {
+            text += "; left " + left.size() + " unreachable at ";
+            int shown = 0;
+            for (BlockPos pos : left) {
+                if (shown == MAX_SHORTFALL_COORDS) {
+                    // The count is of the unreachable logs, not of the coordinates named.
+                    text += " and " + (left.size() - shown) + " more";
+                    break;
+                }
+                if (shown > 0) {
+                    text += ", ";
+                }
+                text += coords(pos);
+                shown++;
+            }
+        }
+        return text;
     }
 
     /**

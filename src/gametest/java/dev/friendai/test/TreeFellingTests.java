@@ -427,10 +427,52 @@ public class TreeFellingTests {
         ExecutionCoordinator runner = start(c, result, new FellTreeTask(treeAt(h, 6, 6), oak(), 0, false));
         h.succeedWhen(() -> {
             runner.tick();
-            h.assertTrue(result.status == TaskStatus.FAILED, "status " + result.status + " " + result.summary);
+            // The logs that came down are real work: one log that cannot be cut is a named shortfall, not a failure.
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.contains("unreachable at"), "summary " + result.summary);
             h.assertTrue(result.summary.contains("protected"), "summary " + result.summary);
             h.assertTrue(h.getBlockState(new BlockPos(6, 5, 6)).is(Blocks.OAK_LOG), "the protected log must stay");
             h.assertTrue(h.getBlockState(new BlockPos(6, 2, 6)).isAir(), "the reachable logs must be cut");
+        });
+    }
+
+    /** One log of nine that cannot be cut must not discard the eight that came down; the shortfall is named instead. */
+    @GameTest(maxTicks = 4000)
+    public void oneUnreachableLogOfNineStillSucceeds(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        List<BlockPos> logs = new java.util.ArrayList<>();
+        for (int y = 2; y <= 10; y++) {
+            BlockPos p = new BlockPos(6, y, 6);
+            h.setBlock(p, Blocks.BIRCH_LOG);
+            logs.add(p);
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.DIRT, 32));
+        c.inventory().addItem(new ItemStack(Items.IRON_AXE));
+        BlockPos blocked = h.absolutePos(new BlockPos(6, 10, 6));
+        c.hands().overrideProtection(p -> p.equals(blocked));
+        Result result = new Result();
+        ExecutionCoordinator runner = start(
+                c,
+                result,
+                new FellTreeTask(
+                        info(h, logs, "birch_log", 9),
+                        BlockMatcher.parse("minecraft:birch_log").orElseThrow(),
+                        0,
+                        false),
+                400);
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
+            h.assertTrue(result.summary.contains("8 of 9"), "summary " + result.summary);
+            h.assertTrue(result.summary.contains("unreachable at"), "summary " + result.summary);
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(6, 10, 6)).is(Blocks.BIRCH_LOG),
+                    "the log that cannot be cut must stay");
+            for (int y = 2; y <= 9; y++) {
+                h.assertTrue(
+                        h.getBlockState(new BlockPos(6, y, 6)).isAir(), "log left at y " + y + "; " + result.summary);
+            }
         });
     }
 
