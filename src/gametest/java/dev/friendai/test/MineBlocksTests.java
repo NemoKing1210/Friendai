@@ -1,15 +1,18 @@
 package dev.friendai.test;
 
+import com.google.gson.JsonParser;
 import dev.friendai.debug.DebugAction;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.features.inventory.minecraft.task.PickupItemsTask;
+import dev.friendai.features.memory.minecraft.tool.MemoryAccess;
 import dev.friendai.features.mining.MiningBounds;
 import dev.friendai.features.mining.minecraft.mining.BlockFilter;
 import dev.friendai.features.mining.minecraft.mining.MiningSession;
 import dev.friendai.features.mining.minecraft.mining.SoftCover;
 import dev.friendai.features.mining.minecraft.task.MineBlockAtTask;
 import dev.friendai.features.mining.minecraft.task.MineBlocksTask;
+import dev.friendai.server.agent.tools.FriendaiTools;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.Task;
@@ -625,11 +628,12 @@ public class MineBlocksTests {
                 false,
                 null,
                 0,
-                (companion, blockOrTag, radius, maxTicks) -> {
+                (companion, caller, blockOrTag, radius, maxTicks) -> {
                     created.incrementAndGet();
                     return new SearchStub();
                 },
-                true);
+                true,
+                null);
         Result result = new Result();
         ExecutionCoordinator runner = runner(c, result);
         runner.start(task, "mine_blocks");
@@ -638,6 +642,84 @@ public class MineBlocksTests {
             h.assertTrue(result.status == TaskStatus.FAILED, "not finished: " + result.status + " " + result.summary);
             h.assertValueEqual(created.get(), 1, "exactly one bounded search");
             h.assertTrue(result.summary.startsWith("no minecraft:spruce_log"), "summary was " + result.summary);
+        });
+    }
+
+    /**
+     * The search sees a target the job's own radius could not: the one re-scan must use the search's reach and the
+     * job must then mine the block, not merely finish.
+     */
+    @GameTest(maxTicks = 1600)
+    public void aSearchThatSeesTheTargetLetsTheJobMineIt(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        BlockPos log = new BlockPos(10, 2, 2);
+        h.setBlock(log, Blocks.SPRUCE_LOG);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        java.util.concurrent.atomic.AtomicInteger created = new java.util.concurrent.atomic.AtomicInteger();
+        MineBlocksTask task = new MineBlocksTask(
+                new BlockFilter(BlockMatcher.parse("minecraft:spruce_log").orElseThrow(), List.of()),
+                1,
+                4,
+                null,
+                true,
+                false,
+                false,
+                null,
+                0,
+                (companion, caller, blockOrTag, radius, maxTicks) -> {
+                    created.incrementAndGet();
+                    return new SearchStub(() -> GameTestSupport.observeVisible(h, companion, h.absolutePos(log)));
+                },
+                true,
+                null);
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(task, "mine_blocks");
+        h.succeedWhen(() -> {
+            runner.tick();
+            if (result.status == null || result.status == TaskStatus.RUNNING) {
+                return;
+            }
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertValueEqual(created.get(), 1, "exactly one bounded search");
+            h.assertTrue(h.getBlockState(log).isAir(), "the block the search saw must be mined: " + result.summary);
+            h.assertTrue(
+                    c.inventory().countItem(Items.SPRUCE_LOG) >= 1,
+                    "the mined drop must be collected: " + result.summary);
+        });
+    }
+
+    /**
+     * The real {@code FriendaiTools} composition hands {@code mine_blocks} a working search. The server search cannot
+     * finish without an online owner here, which is exactly the actionable reason the job must report instead of the
+     * generic "observed or remembered nearby" refusal a disabled port would leave.
+     */
+    @GameTest(maxTicks = 600)
+    public void realCompositionSurfacesTheSearchReason(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(java.util.UUID.randomUUID());
+        var mineBlocks =
+                FriendaiTools.build(() -> 8, MemoryAccess.DISABLED).taskTools().get("mine_blocks");
+        Task task = mineBlocks
+                .factory()
+                .create(
+                        c,
+                        JsonParser.parseString("{\"block\":\"minecraft:spruce_log\",\"count\":1}")
+                                .getAsJsonObject());
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(task, "mine_blocks");
+        h.succeedWhen(() -> {
+            runner.tick();
+            if (result.status == null || result.status == TaskStatus.RUNNING) {
+                return;
+            }
+            h.assertTrue(result.status == TaskStatus.FAILED, "not finished: " + result.status + " " + result.summary);
+            h.assertFalse(
+                    result.summary.startsWith("no minecraft:spruce_log observed or remembered nearby"),
+                    "a wired search must replace the disabled-port refusal: " + result.summary);
+            h.assertTrue(result.summary.contains("search"), "the search's own reason is reported: " + result.summary);
         });
     }
 
@@ -657,11 +739,12 @@ public class MineBlocksTests {
                 false,
                 null,
                 0,
-                (companion, blockOrTag, radius, maxTicks) -> {
+                (companion, caller, blockOrTag, radius, maxTicks) -> {
                     created.incrementAndGet();
                     return new SearchStub();
                 },
-                false);
+                false,
+                null);
         Result result = new Result();
         ExecutionCoordinator runner = runner(c, result);
         runner.start(task, "mine_blocks");
@@ -674,6 +757,16 @@ public class MineBlocksTests {
 
     /** The bounded search the mining job ticks for itself; one tick is enough for the re-scan to run. */
     private static final class SearchStub implements Task {
+        private final Runnable onTick;
+
+        SearchStub() {
+            this(null);
+        }
+
+        SearchStub(Runnable onTick) {
+            this.onTick = onTick;
+        }
+
         @Override
         public String type() {
             return "search_resource";
@@ -684,6 +777,9 @@ public class MineBlocksTests {
 
         @Override
         public TaskStatus tick(TaskContext c) {
+            if (onTick != null) {
+                onTick.run();
+            }
             return TaskStatus.SUCCESS;
         }
 

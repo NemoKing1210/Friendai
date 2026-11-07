@@ -1,5 +1,6 @@
 package dev.friendai.features.mining.minecraft.tool;
 
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -10,8 +11,10 @@ import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Tool;
 import dev.friendai.execution.tool.ToolRegistry;
 import dev.friendai.execution.tool.ToolResult;
+import dev.friendai.features.places.minecraft.PlaceService;
 import dev.friendai.server.execution.tools.FeatureToolRegistry;
 import dev.friendai.server.execution.tools.TaskToolDefinition;
+import dev.friendai.task.BlockSearchTaskFactory;
 import org.junit.jupiter.api.Test;
 
 class GatheringToolsTest {
@@ -28,18 +31,22 @@ class GatheringToolsTest {
     }
 
     /**
-     * The flag is part of the accepted argument set, so a caller can turn the one search off; the world-touching
-     * creation path needs a bootstrapped server and is covered by the GameTest.
+     * The task creation itself parses a block id and needs a bootstrapped registry, so the wiring is checked at the
+     * seam that holds it: the composition keeps the factory it was given, and the default composition has none.
+     * {@code MineBlocksTests.realCompositionSurfacesTheSearchReason} exercises the wired task in a world.
      */
     @Test
-    void mineBlocksAcceptsTheExploreFlag() {
-        IllegalArgumentException error = assertThrows(
-                IllegalArgumentException.class,
-                () -> definition("mine_blocks").factory().create(null, args("""
-                        {"block":"minecraft:stone","count":1,"explore":false,"wrong":true}
-                        """)));
+    void theCompositionKeepsTheBlockSearchFactoryItWasGiven() {
+        BlockSearchTaskFactory search = (companion, caller, blockOrTag, radius, maxTicks) -> null;
 
-        assertTrue(error.getMessage().contains("explore"));
+        GatheringTools wired = new GatheringTools(
+                () -> 8, () -> 8, () -> true, () -> true, ignored -> null, PlaceService.unavailable(), search);
+
+        assertSame(search, wired.blockSearchFactory(), "the server's search must reach the mining task");
+        assertSame(
+                BlockSearchTaskFactory.NONE,
+                new GatheringTools(() -> 8, () -> 8).blockSearchFactory(),
+                "the default composition never searches");
     }
 
     @Test

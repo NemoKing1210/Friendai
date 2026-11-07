@@ -161,8 +161,8 @@ public final class GatheringTools implements FeatureToolContributor {
         registry.registerTask(task(
                 "mine_blocks",
                 "Mine N blocks of the given block id or #tag near the companion and collect the drops. "
-                        + "When the target has not been observed or remembered nearby, one bounded search runs first; "
-                        + "pass explore:false to skip it. "
+                        + "When the target has not been observed or remembered nearby, one bounded search runs first "
+                        + "and may walk away from the start to find it; pass explore:false to skip it. "
                         + "One call mines up to 64 blocks; give count for the whole batch. "
                         + "For a standing tree use fell_tree: it climbs once and cuts the whole tree, while this tool "
                         + "would mine one log at a time. "
@@ -297,7 +297,13 @@ public final class GatheringTools implements FeatureToolContributor {
                 untilMatcher,
                 untilCount,
                 blockSearch,
-                explore);
+                explore,
+                caller);
+    }
+
+    /** The search composition this instance was built with; {@link BlockSearchTaskFactory#NONE} disables it. */
+    BlockSearchTaskFactory blockSearchFactory() {
+        return blockSearch;
     }
 
     private Task createFellTask(CompanionEntity c, Caller caller, JsonObject a) {

@@ -2,13 +2,17 @@ package dev.friendai.features.mining.minecraft.task;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.execution.tool.AccessLevel;
+import dev.friendai.execution.tool.Caller;
 import dev.friendai.task.BlockSearchTaskFactory;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -17,6 +21,7 @@ import org.junit.jupiter.api.Test;
  */
 class MineBlocksTaskTest {
     private static final TaskContext CONTEXT = new TaskContext(null, null, null, null, null);
+    private static final Caller CALLER = new Caller(UUID.randomUUID(), "owner", AccessLevel.TRUSTED);
 
     @Test
     void a_missing_target_starts_one_search_then_rescans() {
@@ -26,6 +31,7 @@ class MineBlocksTaskTest {
         assertEquals(MineBlocksTask.Exploration.Step.RUNNING, missing(exploration));
         assertEquals(1, factory.created, "one search starts after the empty scan");
         assertTrue(factory.last.started, "the search is started");
+        assertSame(CALLER, factory.lastCaller, "the search keeps the direct caller's authority");
 
         assertEquals(
                 MineBlocksTask.Exploration.Step.RESCAN, missing(exploration), "a finished search asks for a rescan");
@@ -65,8 +71,9 @@ class MineBlocksTaskTest {
     }
 
     @Test
-    void a_search_that_outlives_its_budget_is_stopped() {
+    void a_search_that_outlives_its_budget_is_stopped_and_reports_its_summary() {
         RecordingFactory factory = new RecordingFactory(TaskStatus.RUNNING);
+        factory.summary = "search reached its configured tick budget";
         MineBlocksTask.Exploration exploration = new MineBlocksTask.Exploration(factory, true);
 
         assertEquals(MineBlocksTask.Exploration.Step.RUNNING, missing(exploration));
@@ -77,6 +84,35 @@ class MineBlocksTaskTest {
         assertTrue(factory.last.terminated, "an over-budget search gets its terminal cleanup");
         assertEquals(3, factory.last.ticks, "exactly maxTicks ticks");
         assertEquals(1, factory.created);
+        assertEquals(
+                "search reached its configured tick budget",
+                exploration.failureSummary(),
+                "a capped search must not have its reason discarded");
+    }
+
+    @Test
+    void a_failed_search_reports_its_own_actionable_reason() {
+        RecordingFactory factory = new RecordingFactory(TaskStatus.FAILED);
+        factory.summary = "not ready for mining search: need a suitable durable pickaxe";
+        MineBlocksTask.Exploration exploration = new MineBlocksTask.Exploration(factory, true);
+
+        assertEquals(MineBlocksTask.Exploration.Step.RUNNING, missing(exploration));
+        assertEquals(MineBlocksTask.Exploration.Step.NONE, missing(exploration));
+        assertEquals(
+                "not ready for mining search: need a suitable durable pickaxe",
+                exploration.failureSummary(),
+                "the job reports the search's reason instead of a generic refusal");
+    }
+
+    @Test
+    void a_successful_search_reports_no_failure() {
+        RecordingFactory factory = new RecordingFactory(TaskStatus.SUCCESS);
+        factory.summary = "found minecraft:stone by direct sight";
+        MineBlocksTask.Exploration exploration = new MineBlocksTask.Exploration(factory, true);
+
+        assertEquals(MineBlocksTask.Exploration.Step.RUNNING, missing(exploration));
+        assertEquals(MineBlocksTask.Exploration.Step.RESCAN, missing(exploration));
+        assertEquals("", exploration.failureSummary(), "a success is not a failure reason");
     }
 
     @Test
@@ -119,7 +155,7 @@ class MineBlocksTaskTest {
     }
 
     private static MineBlocksTask.Exploration.Step missing(MineBlocksTask.Exploration exploration, int maxTicks) {
-        return exploration.missing(CONTEXT, "minecraft:stone", 16, maxTicks);
+        return exploration.missing(CONTEXT, CALLER, "minecraft:stone", 16, maxTicks);
     }
 
     private static final class RecordingFactory implements BlockSearchTaskFactory {
@@ -127,6 +163,8 @@ class MineBlocksTaskTest {
         int created;
         boolean unavailable;
         boolean throwing;
+        String summary = "";
+        Caller lastCaller;
         ScriptedTask last;
 
         RecordingFactory(TaskStatus result) {
@@ -134,28 +172,31 @@ class MineBlocksTaskTest {
         }
 
         @Override
-        public Task create(CompanionEntity companion, String blockOrTag, int radius, int maxTicks) {
+        public Task create(CompanionEntity companion, Caller caller, String blockOrTag, int radius, int maxTicks) {
             created++;
+            lastCaller = caller;
             if (throwing) {
                 throw new IllegalStateException("search composition failed");
             }
             if (unavailable) {
                 return null;
             }
-            last = new ScriptedTask(result);
+            last = new ScriptedTask(result, summary);
             return last;
         }
     }
 
     private static final class ScriptedTask implements Task {
         private final TaskStatus result;
+        private final String summary;
         boolean started;
         boolean stopped;
         boolean terminated;
         int ticks;
 
-        ScriptedTask(TaskStatus result) {
+        ScriptedTask(TaskStatus result, String summary) {
             this.result = result;
+            this.summary = summary;
         }
 
         @Override
@@ -191,7 +232,7 @@ class MineBlocksTaskTest {
 
         @Override
         public String resultSummary() {
-            return "";
+            return summary;
         }
     }
 }
