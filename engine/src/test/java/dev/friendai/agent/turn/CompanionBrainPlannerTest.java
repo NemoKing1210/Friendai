@@ -37,6 +37,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import org.junit.jupiter.api.BeforeEach;
@@ -55,10 +56,12 @@ class CompanionBrainPlannerTest {
         final List<java.util.function.BooleanSupplier> cancellation = new ArrayList<>();
         boolean hasGoal = true;
         boolean owned = true;
+        /** Plans that are still queued; empty means every plan the fake is asked about is owned. */
+        final Set<Long> ownedPlans = new HashSet<>();
 
         @Override
         public boolean ownsPlan(long planId) {
-            return owned;
+            return owned && (ownedPlans.isEmpty() || ownedPlans.contains(planId));
         }
 
         CompletableFuture<PlanProposal> answer = CompletableFuture.completedFuture(proposal());
@@ -388,6 +391,25 @@ class CompanionBrainPlannerTest {
         gateway.enqueue(text("[silent]"));
         brain.post(new BrainEvent.PlanBlocked(6, "errand", 9, "go_to", "can't reach 1 2 3", 1));
         assertTrue(port.failures.isEmpty(), "a plan whose principal no longer holds it is not replanned");
+    }
+
+    @Test
+    void aBatchNamesTheFirstTroubledPlanThatStillExists() {
+        // Plan #3 was cancelled before the batch drained; #5 is still queued and repairable.
+        port.ownedPlans.add(5L);
+        port.answer = new CompletableFuture<>();
+        gateway.enqueue(text("On it."));
+        gateway.enqueue(text("[silent]"));
+        // Keep the brain busy so both blockers land in one batch; distinct tools and reasons keep them audible.
+        brain.post(said(BUILD_AND_BRING));
+        brain.post(new BrainEvent.PlanBlocked(3, "house", 7, "go_to", "can't reach 1 2 3", 3));
+        brain.post(new BrainEvent.PlanBlocked(5, "house", 7, "build_structure", "missing materials", 3));
+        port.answer.complete(proposal());
+
+        assertEquals(
+                new PlanSubject.TroubledPlan(5, ""),
+                port.subjects.getLast(),
+                "the live plan is the subject, not the cancelled one");
     }
 
     @Test

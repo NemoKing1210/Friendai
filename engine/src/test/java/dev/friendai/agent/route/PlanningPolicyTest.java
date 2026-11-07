@@ -25,36 +25,11 @@ class PlanningPolicyTest {
                 false,
                 false,
                 false,
-                false,
                 true,
                 false,
                 0L,
                 "",
                 5L,
-                List.of(),
-                0L);
-    }
-
-    /** A recovery batch that holds a plan trouble, with the plan live or gone. */
-    private static PlanSignals signals(
-            TurnMode mode, boolean troubledQueued, boolean troubledLive, boolean budgetSpent) {
-        return new PlanSignals(
-                mode,
-                "",
-                0,
-                false,
-                false,
-                false,
-                false,
-                false,
-                troubledQueued,
-                troubledLive,
-                false,
-                true,
-                budgetSpent,
-                7L,
-                "boom",
-                0L,
                 List.of(),
                 0L);
     }
@@ -70,7 +45,6 @@ class PlanningPolicyTest {
                 signals.goalHasNoQueuedWork(),
                 signals.goalTickWithUnmet(),
                 signals.troubledPlanQueued(),
-                signals.troubledPlanLive(),
                 signals.freeTimeShift(),
                 false,
                 signals.budgetSpent(),
@@ -82,7 +56,6 @@ class PlanningPolicyTest {
     }
 
     private static PlanSignals troubled(long planId, PlanStatus status, int replansLeft, boolean budgetSpent) {
-        boolean replannable = status == PlanStatus.ACTIVE && replansLeft > 0 && !budgetSpent;
         return new PlanSignals(
                 TurnMode.RECOVERY,
                 "",
@@ -92,8 +65,7 @@ class PlanningPolicyTest {
                 false,
                 false,
                 false,
-                replannable,
-                replannable,
+                status == PlanStatus.ACTIVE && replansLeft > 0 && !budgetSpent,
                 false,
                 true,
                 budgetSpent,
@@ -114,7 +86,6 @@ class PlanningPolicyTest {
                 false,
                 false,
                 false,
-                true,
                 true,
                 false,
                 true,
@@ -138,7 +109,6 @@ class PlanningPolicyTest {
                 unmet,
                 false,
                 false,
-                false,
                 true,
                 false,
                 0L,
@@ -157,7 +127,6 @@ class PlanningPolicyTest {
                 TurnMode.EVENT,
                 "",
                 0,
-                false,
                 false,
                 false,
                 false,
@@ -234,25 +203,6 @@ class PlanningPolicyTest {
                 new PlanSubject.TroubledPlan(7, "boom"),
                 policy.beforeTurn(guest(troubled(7, PlanStatus.ACTIVE, 2, false)))
                         .subject());
-    }
-
-    @Test
-    void aCancelledTroubledPlanIsNotPlannedAgain() {
-        assertEquals(
-                PlanNeed.NONE,
-                policy.beforeTurn(signals(TurnMode.RECOVERY, true, false, false))
-                        .need());
-        assertEquals(
-                "no-plan-occasion",
-                policy.beforeTurn(signals(TurnMode.RECOVERY, true, false, false))
-                        .reason());
-    }
-
-    @Test
-    void aLiveTroubledPlanIsStillPlanned() {
-        assertEquals(
-                new PlanSubject.TroubledPlan(7, "boom"),
-                policy.beforeTurn(signals(TurnMode.RECOVERY, true, true, false)).subject());
     }
 
     @Test

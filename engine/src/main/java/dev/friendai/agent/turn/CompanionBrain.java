@@ -572,7 +572,17 @@ public final class CompanionBrain {
                 .filter(id -> id >= 0)
                 .toList();
         boolean planTrouble = !troubledPlans.isEmpty();
-        ownsTroubledPlan = troubledPlans.stream().anyMatch(plannerPort::ownsPlan);
+        // Several blocked plans can share one batch, and one of them may already be cancelled or revoked. Name
+        // the first plan that still exists and may be repaired, so the subject is a plan the input factory can
+        // actually use instead of one it must refuse.
+        long troubledPlan = 0L;
+        for (long planId : troubledPlans) {
+            if (plannerPort.ownsPlan(planId)) {
+                troubledPlan = planId;
+                break;
+            }
+        }
+        ownsTroubledPlan = troubledPlan > 0;
         boolean budgetSpent =
                 batch.stream().anyMatch(event -> event.toPromptLine().contains(BUDGET_SPENT));
         GoalView goalView = goalSource.view(candidateCaller);
@@ -591,7 +601,7 @@ public final class CompanionBrain {
                 !goalView.planQueued(),
                 false,
                 budgetSpent,
-                troubledPlans.isEmpty() ? 0L : troubledPlans.get(0),
+                troubledPlan,
                 "",
                 goalView.goalId(),
                 goalView.unmet(),

@@ -16,7 +16,6 @@ import java.util.List;
  * @param goalHasNoQueuedWork the active goal has no plan or the plan has no pending work
  * @param goalTickWithUnmet the batch holds a goal tick whose criteria are still unmet
  * @param troubledPlanQueued the batch holds a failed or blocked plan this companion may replan
- * @param troubledPlanLive the troubled plan still exists and may actually be repaired
  * @param freeTimeShift the batch opens a free-time shift that has no plan
  * @param ownerCaller the turn's principal is the owner
  * @param budgetSpent the replan budget is exhausted
@@ -36,7 +35,6 @@ public record PlanSignals(
         boolean goalHasNoQueuedWork,
         boolean goalTickWithUnmet,
         boolean troubledPlanQueued,
-        boolean troubledPlanLive,
         boolean freeTimeShift,
         boolean ownerCaller,
         boolean budgetSpent,
