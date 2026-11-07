@@ -10,6 +10,7 @@ import dev.friendai.features.creative.CreativeActionContext;
 import dev.friendai.foundation.diagnostics.DiagnosticClock;
 import dev.friendai.foundation.diagnostics.LogContext;
 import dev.friendai.server.configuration.ServerSettings;
+import dev.friendai.server.runtime.ServerRuntimeRegistry;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskPhase;
@@ -21,6 +22,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.IntSupplier;
+import java.util.function.UnaryOperator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -60,7 +62,11 @@ public final class ActiveTaskController {
 
     public record Completion(ActiveTask active, TaskStatus status, String summary) {}
 
+    /** A crash summary names the exception, not its arguments; its message part stays inside this bound. */
+    static final int MAX_CRASH_MESSAGE_CHARS = 160;
+
     private final IntSupplier timeoutSec;
+    private UnaryOperator<String> redactor;
     private ActiveTask current;
     private ActiveTask frozen;
     private int frozenElapsed;
@@ -91,6 +97,15 @@ public final class ActiveTaskController {
     /** Installs the structured lifecycle publisher; the default drops nothing and logs nothing by itself. */
     public void setDiagnostics(Consumer<TaskLogEvent> diagnostics) {
         this.diagnostics = diagnostics == null ? event -> {} : diagnostics;
+    }
+
+    /**
+     * Installs the diagnostics redactor applied to a crash message; a null value resolves the owning server runtime's
+     * redactor on demand. The summary never carries a stack, and a message that reaches a prompt or a player is masked
+     * before it is shortened.
+     */
+    public void setRedactor(UnaryOperator<String> redactor) {
+        this.redactor = redactor;
     }
 
     /** Starts a task whose prior runner policy has already settled any active task. */
@@ -150,9 +165,14 @@ public final class ActiveTaskController {
         try {
             status = active.task().tick(activeContext);
         } catch (RuntimeException e) {
-            LOGGER.warn("Task {} crashed", active.toolName(), e);
+            LOGGER.warn(
+                    "Task {} ({}) crashed at active tick {}",
+                    active.toolName(),
+                    active.task().type(),
+                    activeTicks,
+                    e);
             status = TaskStatus.FAILED;
-            summary = "task crashed: " + e.getClass().getSimpleName();
+            summary = crashSummary(e, activeContext);
         }
         active.timing().onTick(clock.nanoTime() - processingStart);
         if (current != active) return Optional.empty();
@@ -399,6 +419,34 @@ public final class ActiveTaskController {
                 active.settings(),
                 active.logContext(),
                 base.structureBuilder());
+    }
+
+    /** The exception a task threw, named and with its masked message; never a stack, an argument list or a path. */
+    private String crashSummary(RuntimeException crash, TaskContext context) {
+        String type = crash.getClass().getSimpleName();
+        if (type.isBlank()) type = crash.getClass().getName();
+        String message = crash.getMessage();
+        String detail = message == null || message.isBlank() ? "no message" : message.strip();
+        detail = detail.replaceAll("\\s+", " ");
+        detail = bound(redactorFor(context).apply(detail), MAX_CRASH_MESSAGE_CHARS);
+        return "task crashed: " + type + ": " + detail;
+    }
+
+    /** The installed redactor, the server runtime's own one, or a pass-through when neither can be reached. */
+    private UnaryOperator<String> redactorFor(TaskContext context) {
+        if (redactor != null) return redactor;
+        if (context == null || context.level() == null) return text -> text;
+        try {
+            return ServerRuntimeRegistry.find(context.level().getServer())
+                    .map(runtime -> runtime.sessions().redactor())
+                    .orElse(text -> text);
+        } catch (RuntimeException unavailable) {
+            return text -> text;
+        }
+    }
+
+    private static String bound(String text, int max) {
+        return text.length() <= max ? text : text.substring(0, max);
     }
 
     private void safeStop(Task task, TaskContext taskContext, String reason) {
