@@ -60,6 +60,52 @@ class OwnerStoreBenchmarkTest {
         }
     }
 
+    @Test
+    void scenariosSeparateSnapshotFromDrainAndReportSaturation() throws Exception {
+        List<OwnerStoreBenchmark.Scenario> scenarios = OwnerStoreBenchmark.runScenarios(List.of(8L, 64L, 1_000L), 3);
+        assertEquals(18, scenarios.size(), "three populations x two record sizes x three dirty populations");
+        for (OwnerStoreBenchmark.Scenario row : scenarios) {
+            assertTrue(row.snapshotP95Nanos() >= row.snapshotP50Nanos(), "snapshot p95: " + row);
+            assertTrue(row.drainP95Nanos() >= row.drainP50Nanos(), "drain p95: " + row);
+            assertTrue(row.drainP95Nanos() >= row.snapshotP50Nanos(), "the drain includes the snapshot: " + row);
+            assertTrue(row.statusP50Nanos() > 0, "the status view was timed: " + row);
+            assertTrue(row.acceptedWrites() > 0, "the warm pass settled every owner: " + row);
+            assertTrue(row.filesWritten() > 0, "the population reached disk: " + row);
+        }
+        OwnerStoreBenchmark.Scenario saturated = scenarios.stream()
+                .filter(row -> row.owners() == 1_000
+                        && row.dirty().equals("all")
+                        && row.record().equals("small"))
+                .findFirst()
+                .orElseThrow();
+        assertTrue(
+                saturated.queueFull() > 0,
+                "a fully dirty population cannot fit the bounded writer in one pass: " + saturated);
+        assertEquals(
+                0,
+                scenarios.stream()
+                        .filter(row -> row.dirty().equals("idle"))
+                        .mapToLong(OwnerStoreBenchmark.Scenario::queueFull)
+                        .sum(),
+                "an idle population never saturates the writer");
+        assertTrue(Files.exists(Path.of("build/owner-store-scenarios.json")));
+        assertTrue(Files.exists(Path.of("build/owner-store-scenarios.md")));
+    }
+
+    @Test
+    void scenariosReportTheTenThousandOwnerTrend() throws Exception {
+        List<OwnerStoreBenchmark.Scenario> scenarios = OwnerStoreBenchmark.runScenarios(List.of(10_000L), 2);
+        assertEquals(6, scenarios.size());
+        for (OwnerStoreBenchmark.Scenario row : scenarios) {
+            assertTrue(row.owners() == 10_000);
+            assertTrue(row.snapshotP95Nanos() >= row.snapshotP50Nanos());
+            assertTrue(row.acceptedWrites() > 0);
+            assertTrue(row.retainedHeapBytes() > 0);
+            assertTrue(row.statusBytes() != 0, "the status pass allocation is reported or -1");
+        }
+        assertTrue(Files.exists(Path.of("build/owner-store-scenarios.json")));
+    }
+
     private static void deleteTree(Path root) throws IOException {
         if (!Files.exists(root)) {
             return;
