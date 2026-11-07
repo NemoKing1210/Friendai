@@ -18,7 +18,9 @@ import org.junit.jupiter.api.Test;
 class ObtainPlannerTest {
     private static final String OAK_LOG = "minecraft:oak_log";
     private static final String ACACIA_LOG = "minecraft:acacia_log";
+    private static final String COBBLESTONE = "minecraft:cobblestone";
     private static final String STONE = "minecraft:stone";
+    private static final String STONECUTTER = "minecraft:stonecutter";
     private static final String IRON_ORE = "minecraft:iron_ore";
     private static final String COAL_ORE = "minecraft:coal_ore";
     private static final String RAW_IRON = "minecraft:raw_iron";
@@ -54,6 +56,16 @@ class ObtainPlannerTest {
                         List.of(Ingredient.of("minecraft:raw_gold")),
                         Station.FURNACE,
                         200));
+    }
+
+    /** A vanilla-like book plus the stonecutter route from stone, the recipe that trapped a real session. */
+    private static FakeRecipeBook bookWithStonecutterCobblestone() {
+        return book().add(new Recipe(
+                "minecraft:cobblestone_from_stone_stonecutting",
+                COBBLESTONE,
+                1,
+                List.of(Ingredient.of(STONE)),
+                Station.STONECUTTER));
     }
 
     private static WorldFacts world(
@@ -517,6 +529,59 @@ class ObtainPlannerTest {
         assertTrue(
                 plan.steps().stream().anyMatch(step -> step instanceof ObtainStep.Mine),
                 plan.steps().toString());
+    }
+
+    @Test
+    void cobblestoneIsMinedInsteadOfStonecutFromStone() {
+        // The carried stone and iron would let the planner craft a stonecutter, which is exactly the trap:
+        // the route compiles into a Craft step that needs a station the world may not have.
+        ObtainPlan plan = ObtainPlanner.plan(
+                COBBLESTONE,
+                36,
+                Map.of(STONE, 39, IRON_INGOT, 1),
+                bookWithStonecutterCobblestone(),
+                FakeSourceBook.vanillaLike(),
+                world(Map.of(), true));
+
+        assertTrue(plan.ok(), plan.missing().toString());
+        assertTrue(
+                plan.steps().stream()
+                        .anyMatch(step -> step instanceof ObtainStep.Mine mine
+                                && mine.block().equals(STONE)),
+                plan.steps().toString());
+        assertFalse(hasCraft(plan, COBBLESTONE), plan.steps().toString());
+        assertFalse(hasCraft(plan, STONECUTTER), plan.steps().toString());
+        assertFalse(
+                plan.steps().toString().contains("stonecutter"), plan.steps().toString());
+    }
+
+    @Test
+    void cobblestoneWithoutMineOrExploreReportsTheBlock() {
+        ObtainPlan plan = ObtainPlanner.plan(
+                COBBLESTONE,
+                36,
+                Map.of(),
+                bookWithStonecutterCobblestone(),
+                FakeSourceBook.vanillaLike(),
+                world(Map.of(), false));
+
+        assertFalse(plan.ok());
+        assertTrue(plan.missing().containsKey(COBBLESTONE), plan.missing().toString());
+        assertFalse(plan.missing().containsKey(STONECUTTER), plan.missing().toString());
+    }
+
+    @Test
+    void craftRouteSurvivesWhenNothingCanBeMined() {
+        ObtainPlan plan = ObtainPlanner.plan(
+                COBBLESTONE,
+                36,
+                Map.of(STONE, 39, IRON_INGOT, 1),
+                bookWithStonecutterCobblestone(),
+                FakeSourceBook.vanillaLike(),
+                world(Map.of(), false));
+
+        assertTrue(plan.ok(), plan.missing().toString());
+        assertTrue(hasCraft(plan, COBBLESTONE), plan.steps().toString());
     }
 
     @Test

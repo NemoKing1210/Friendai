@@ -379,36 +379,27 @@ public final class ObtainPlanner {
             if (sim.containers.getOrDefault(item, 0) > 0) {
                 providers.add(new ContainerProvider(item));
             }
-            for (Recipe recipe : book.producing(item)) {
-                if (recipe.station().isCooking()) {
-                    providers.add(new SmeltProvider(recipe, allowExplore));
-                } else {
-                    providers.add(new CraftProvider(recipe, allowExplore));
+            // Mining wins over crafting whenever the block is reachable. On 2026-11-07 a real
+            // `obtain_items minecraft:cobblestone` planned `cobblestone_from_stone_stonecutting` and
+            // believed it could craft the stonecutter that recipe needs, then failed against a world
+            // without one; a mineable target is never routed through a recipe that wants a rarer input
+            // or a station while its own block can be mined.
+            List<Provider> mines = mineProviders(item, allowExplore);
+            if (mines.isEmpty()) {
+                for (Recipe recipe : book.producing(item)) {
+                    if (recipe.station().isCooking()) {
+                        providers.add(new SmeltProvider(recipe, allowExplore));
+                    } else {
+                        providers.add(new CraftProvider(recipe, allowExplore));
+                    }
                 }
+            } else {
+                providers.addAll(mines);
             }
             for (Source source : sources.sourcesOf(item)) {
                 switch (source) {
-                    case Source.Mine mine -> {
-                        if (world.blocksNearby().getOrDefault(mine.block(), 0) > 0) {
-                            providers.add(new MineProvider(item, mine, false));
-                        }
-                        if (world.exploreAllowed()) {
-                            world.resourceCandidates().stream()
-                                    .filter(candidate -> !candidate.visibleNow()
-                                            && candidate.blockId().equals(mine.block()))
-                                    .filter(candidate ->
-                                            !world.excludedSiteIds().contains(candidate.siteId()))
-                                    .sorted(java.util.Comparator.comparingLong(ResourceCandidate::siteId)
-                                            .thenComparing(ResourceCandidate::blockId))
-                                    .forEach(candidate -> providers.add(new VisitProvider(item, mine, candidate)));
-                        }
-                        if (allowExplore && world.exploreAllowed() && explorable(item, mine)) {
-                            boolean hasRememberedSite = world.resourceCandidates().stream()
-                                    .anyMatch(candidate -> !candidate.visibleNow()
-                                            && candidate.blockId().equals(mine.block())
-                                            && !world.excludedSiteIds().contains(candidate.siteId()));
-                            if (!hasRememberedSite) providers.add(new MineProvider(item, mine, true));
-                        }
+                    case Source.Mine ignored -> {
+                        // Collected before the craft providers: a reachable mine source removes them.
                     }
                     case Source.Hunt hunt -> providers.add(new HuntProvider(hunt));
                     case Source.Harvest harvest -> providers.add(new HarvestProvider(harvest));
@@ -449,6 +440,36 @@ public final class ObtainPlanner {
                 }
                 for (java.util.UUID traderId : plan.needsInspection())
                     providers.add(new InspectTraderProvider(traderId));
+            }
+            return providers;
+        }
+
+        /** Mine and visit providers for {@code item}; empty when no mine source is reachable right now. */
+        private List<Provider> mineProviders(String item, boolean allowExplore) {
+            List<Provider> providers = new ArrayList<>();
+            for (Source source : sources.sourcesOf(item)) {
+                if (!(source instanceof Source.Mine mine)) {
+                    continue;
+                }
+                if (world.blocksNearby().getOrDefault(mine.block(), 0) > 0) {
+                    providers.add(new MineProvider(item, mine, false));
+                }
+                if (world.exploreAllowed()) {
+                    world.resourceCandidates().stream()
+                            .filter(candidate -> !candidate.visibleNow()
+                                    && candidate.blockId().equals(mine.block()))
+                            .filter(candidate -> !world.excludedSiteIds().contains(candidate.siteId()))
+                            .sorted(java.util.Comparator.comparingLong(ResourceCandidate::siteId)
+                                    .thenComparing(ResourceCandidate::blockId))
+                            .forEach(candidate -> providers.add(new VisitProvider(item, mine, candidate)));
+                }
+                if (allowExplore && world.exploreAllowed() && explorable(item, mine)) {
+                    boolean hasRememberedSite = world.resourceCandidates().stream()
+                            .anyMatch(candidate -> !candidate.visibleNow()
+                                    && candidate.blockId().equals(mine.block())
+                                    && !world.excludedSiteIds().contains(candidate.siteId()));
+                    if (!hasRememberedSite) providers.add(new MineProvider(item, mine, true));
+                }
             }
             return providers;
         }
