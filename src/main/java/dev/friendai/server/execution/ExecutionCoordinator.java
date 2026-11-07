@@ -181,6 +181,11 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         events.sink(eventSink);
     }
 
+    /** Installs the redactor every crash summary uses; the owning session passes the gateway's configured secrets. */
+    public void setRedactor(java.util.function.UnaryOperator<String> redactor) {
+        activeTasks.setRedactor(redactor);
+    }
+
     public void setPaused(boolean paused) {
         this.paused = paused;
     }
@@ -853,12 +858,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
             return activeTasks.start(task, start);
         } catch (RuntimeException e) {
             LOGGER.warn("Task {} failed to start", name, e);
-            if (emit)
-                emit(sink -> sink.onFinished(
-                        start.id(),
-                        name,
-                        TaskStatus.FAILED,
-                        "task crashed: " + e.getClass().getSimpleName()));
+            if (emit) emit(sink -> sink.onFinished(start.id(), name, TaskStatus.FAILED, activeTasks.crashSummary(e)));
             if (interrupt) resumeFrozen();
             else startNextOrDefault();
             return start.id();
@@ -988,9 +988,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
             queueDriver.resetBlockedClock();
             return true;
         } catch (RuntimeException e) {
-            String reason = e instanceof IllegalArgumentException
-                    ? e.getMessage()
-                    : "task crashed: " + e.getClass().getSimpleName();
+            String reason = e instanceof IllegalArgumentException ? e.getMessage() : activeTasks.crashSummary(e);
             var failed = queueDriver.fail(job.id(), reason);
             if (!failed.retried() && isStructuredPlan(job.planId()))
                 handleStructuredActionFailure(job.planId(), job.id(), reason);
@@ -1267,7 +1265,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
                             LogContext.NONE,
                             "restore"));
         } catch (RuntimeException e) {
-            queueDriver.fail(activeJob.id(), "task crashed: " + e.getClass().getSimpleName());
+            queueDriver.fail(activeJob.id(), activeTasks.crashSummary(e));
         }
     }
 

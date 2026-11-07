@@ -1064,6 +1064,8 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                                 : dev.friendai.foundation.teaching.TeachingContext.OutcomeKind.GOAL_FAILURE,
                         text));
         companion.executionCoordinator().setStructureBuilder(new ConstructionStructureBuilder());
+        // A crash summary can reach a prompt or the owner, so it is masked with the same configured secrets.
+        companion.executionCoordinator().setRedactor(gateways.redactor());
         companion.executionCoordinator().setRepairFactory((context, args) -> {
             var definition = taskTools.get("obtain_item");
             if (definition == null) throw new IllegalStateException("obtain_item is unavailable");

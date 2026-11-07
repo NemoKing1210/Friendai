@@ -1,6 +1,7 @@
 package dev.friendai.server.execution;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import dev.friendai.foundation.diagnostics.SecretRedactor;
 import dev.friendai.server.configuration.ServerSettings;
@@ -50,6 +51,51 @@ class ActiveTaskCrashSummaryTest {
         var completion = crashOf(new IllegalStateException("first line\nsecond line"));
 
         assertEquals("task crashed: IllegalStateException: first line second line", completion.summary());
+    }
+
+    @Test
+    void aSecretIsRedactedBeforeTheMessageIsCut() {
+        ActiveTaskController controller = new ActiveTaskController(() -> 300);
+        controller.setRedactor(SecretRedactor.of(() -> List.of("sk-live-123")));
+        // The secret starts at offset 150, so a 160-character cut taken before redaction would slice it in half.
+        String message = "a".repeat(150) + "sk-live-123" + "b".repeat(400);
+
+        var completion = crashOf(controller, new IllegalStateException(message));
+
+        assertEquals(
+                "task crashed: IllegalStateException: " + "a".repeat(150) + "***" + "b".repeat(7),
+                completion.summary());
+        assertFalse(completion.summary().contains("sk-live"), "a cut secret must never survive the summary");
+    }
+
+    @Test
+    void aSecretSpanningALineBreakIsStillMasked() {
+        ActiveTaskController controller = new ActiveTaskController(() -> 300);
+        controller.setRedactor(SecretRedactor.of(() -> List.of("sk-\nsecret")));
+
+        var completion = crashOf(controller, new IllegalStateException("bad sk-\nsecret end"));
+
+        assertEquals("task crashed: IllegalStateException: bad *** end", completion.summary());
+    }
+
+    @Test
+    void theCutNeverSplitsASurrogatePair() {
+        String emoji = "😀";
+        var completion = crashOf(new IllegalStateException("a".repeat(159) + emoji + "b".repeat(10)));
+
+        assertEquals("task crashed: IllegalStateException: " + "a".repeat(159) + emoji, completion.summary());
+    }
+
+    @Test
+    void aRedactorThatThrowsDegradesToTheClassAlone() {
+        ActiveTaskController controller = new ActiveTaskController(() -> 300);
+        controller.setRedactor(text -> {
+            throw new IllegalStateException("redactor failed");
+        });
+
+        var completion = crashOf(controller, new IllegalStateException("some detail"));
+
+        assertEquals("task crashed: IllegalStateException: no message", completion.summary());
     }
 
     private ActiveTaskController.Completion crashOf(RuntimeException crash) {

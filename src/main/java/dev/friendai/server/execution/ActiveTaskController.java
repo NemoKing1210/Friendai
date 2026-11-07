@@ -10,7 +10,6 @@ import dev.friendai.features.creative.CreativeActionContext;
 import dev.friendai.foundation.diagnostics.DiagnosticClock;
 import dev.friendai.foundation.diagnostics.LogContext;
 import dev.friendai.server.configuration.ServerSettings;
-import dev.friendai.server.runtime.ServerRuntimeRegistry;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskPhase;
@@ -64,6 +63,8 @@ public final class ActiveTaskController {
 
     /** A crash summary names the exception, not its arguments; its message part stays inside this bound. */
     static final int MAX_CRASH_MESSAGE_CHARS = 160;
+    /** The raw message is scanned only up to this window, so a huge provider body cannot cost a crash a scan. */
+    static final int MAX_CRASH_RAW_CHARS = 4096;
 
     private final IntSupplier timeoutSec;
     private UnaryOperator<String> redactor;
@@ -100,9 +101,9 @@ public final class ActiveTaskController {
     }
 
     /**
-     * Installs the diagnostics redactor applied to a crash message; a null value resolves the owning server runtime's
-     * redactor on demand. The summary never carries a stack, and a message that reaches a prompt or a player is masked
-     * before it is shortened.
+     * Installs the diagnostics redactor applied to a crash message. The owning session supplies the gateway's redactor,
+     * so the summary that reaches a prompt or a player is masked; null leaves the text unchanged. The summary never
+     * carries a stack, and redaction happens before the message is shortened.
      */
     public void setRedactor(UnaryOperator<String> redactor) {
         this.redactor = redactor;
@@ -172,7 +173,7 @@ public final class ActiveTaskController {
                     activeTicks,
                     e);
             status = TaskStatus.FAILED;
-            summary = crashSummary(e, activeContext);
+            summary = crashSummary(e);
         }
         active.timing().onTick(clock.nanoTime() - processingStart);
         if (current != active) return Optional.empty();
@@ -421,32 +422,40 @@ public final class ActiveTaskController {
                 base.structureBuilder());
     }
 
-    /** The exception a task threw, named and with its masked message; never a stack, an argument list or a path. */
-    private String crashSummary(RuntimeException crash, TaskContext context) {
+    /**
+     * The exception a task threw, named and with its masked message; never a stack, an argument list or a path. The
+     * package-private shape is shared with the restore and activation paths so one failure phrase has one form.
+     */
+    String crashSummary(RuntimeException crash) {
         String type = crash.getClass().getSimpleName();
         if (type.isBlank()) type = crash.getClass().getName();
-        String message = crash.getMessage();
-        String detail = message == null || message.isBlank() ? "no message" : message.strip();
-        detail = detail.replaceAll("\\s+", " ");
-        detail = bound(redactorFor(context).apply(detail), MAX_CRASH_MESSAGE_CHARS);
+        String detail;
+        try {
+            detail = crashDetail(crash.getMessage(), redactor);
+        } catch (RuntimeException redactionFailed) {
+            // The crash handler must not throw; a failing redactor degrades to the class alone.
+            detail = "no message";
+        }
         return "task crashed: " + type + ": " + detail;
     }
 
-    /** The installed redactor, the server runtime's own one, or a pass-through when neither can be reached. */
-    private UnaryOperator<String> redactorFor(TaskContext context) {
-        if (redactor != null) return redactor;
-        if (context == null || context.level() == null) return text -> text;
-        try {
-            return ServerRuntimeRegistry.find(context.level().getServer())
-                    .map(runtime -> runtime.sessions().redactor())
-                    .orElse(text -> text);
-        } catch (RuntimeException unavailable) {
-            return text -> text;
-        }
+    /**
+     * A message that is safe to show: bounded before the regex runs, masked before whitespace is collapsed (a
+     * configured secret may contain a line break), then cut to one prompt-sized line.
+     */
+    private static String crashDetail(String message, UnaryOperator<String> redactor) {
+        if (message == null) return "no message";
+        String window = bound(message, MAX_CRASH_RAW_CHARS);
+        if (window.isBlank()) return "no message";
+        String masked = redactor == null ? window : redactor.apply(window);
+        String single = masked.strip().replaceAll("\\s+", " ");
+        return single.isBlank() ? "no message" : bound(single, MAX_CRASH_MESSAGE_CHARS);
     }
 
-    private static String bound(String text, int max) {
-        return text.length() <= max ? text : text.substring(0, max);
+    /** Cuts on a code-point boundary so an emoji or another surrogate pair is never left half-written. */
+    private static String bound(String text, int maxCodePoints) {
+        if (text.codePointCount(0, text.length()) <= maxCodePoints) return text;
+        return text.substring(0, text.offsetByCodePoints(0, maxCodePoints));
     }
 
     private void safeStop(Task task, TaskContext taskContext, String reason) {
