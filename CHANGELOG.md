@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.211.2] - 2026-11-08
+
+### Changed
+
+- Task logs now explain progress, waits, mining refusals and uncollected drops. Server clock gaps name the interrupted task; periodic state records use progress events, with snapshots reserved for stalls.
+
 ### Fixed
 
 - A staircase dug with `excavate` is now a walkable passage: it is always at least three blocks high and the companion carves it from inside its own cross-section instead of opening a side tunnel for every step.
