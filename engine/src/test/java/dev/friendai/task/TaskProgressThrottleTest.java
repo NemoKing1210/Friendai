@@ -152,6 +152,48 @@ class TaskProgressThrottleTest {
         assertNotNull(observe(throttle, TaskPhase.STARTED, -1, ProgressWatch.UNKNOWN, 2));
     }
 
+    @Test
+    void dueIsReadOnlyAndAgreesWithObserve() {
+        TaskProgressThrottle throttle = new TaskProgressThrottle();
+        assertTrue(throttle.due(1, TaskPhase.PROGRESS, 1L, 0));
+        assertTrue(throttle.due(1, TaskPhase.PROGRESS, 1L, 0));
+        assertNotNull(observe(throttle, TaskPhase.PROGRESS, -1, 1, 0));
+        assertFalse(throttle.due(1, TaskPhase.PROGRESS, 1L, 100));
+        assertFalse(throttle.due(1, TaskPhase.PROGRESS, 2L, 99));
+        assertTrue(throttle.due(1, TaskPhase.PROGRESS, 2L, 100));
+        assertFalse(throttle.due(1, TaskPhase.PROGRESS, ProgressWatch.UNKNOWN, 100));
+        assertNotNull(observe(throttle, TaskPhase.WAITING, -1, 1, 1));
+        assertTrue(throttle.due(1, TaskPhase.PROGRESS, 1L, 2));
+        assertFalse(throttle.due(2, null, 1L, 2));
+        assertTrue(throttle.due(2, TaskPhase.WAITING, 1L, 2));
+        throttle.reset();
+        assertTrue(throttle.due(1, TaskPhase.WAITING, 1L, 2));
+    }
+
+    @Test
+    void percentOnlyProgressRetainsItsCadence() {
+        TaskProgressThrottle throttle = new TaskProgressThrottle();
+        observe(throttle, TaskPhase.PROGRESS, 10, 1, 0);
+        assertFalse(throttle.due(1, TaskPhase.PROGRESS, 11, 1, 99));
+        assertTrue(throttle.due(1, TaskPhase.PROGRESS, 11, 1, 100));
+        assertNotNull(observe(throttle, TaskPhase.PROGRESS, 11, 1, 100));
+        observe(throttle, TaskPhase.PROGRESS, 140, 1, 200);
+        assertFalse(throttle.due(1, TaskPhase.PROGRESS, 101, 1, 300));
+    }
+
+    @Test
+    void aDiagnosticSampleRestartsCadenceWithoutInventingProgress() {
+        TaskProgressThrottle throttle = new TaskProgressThrottle();
+        observe(throttle, TaskPhase.PROGRESS, -1, 1, 1);
+        throttle.recordSample(201);
+        assertFalse(throttle.due(1, TaskPhase.PROGRESS, 2, 202));
+        assertFalse(throttle.due(1, TaskPhase.PROGRESS, 2, 300));
+        assertTrue(throttle.due(1, TaskPhase.PROGRESS, 2, 301));
+        assertFalse(throttle.due(1, TaskPhase.PROGRESS, 1, 301));
+        assertTrue(throttle.due(1, TaskPhase.WAITING, 1, 202));
+        assertTrue(throttle.due(1, TaskPhase.PROGRESS, 10, 1, 301));
+    }
+
     private static TaskProgress observe(
             TaskProgressThrottle throttle, TaskPhase phase, int percent, long stamp, int tick) {
         return throttle.observe(1, "mine_blocks", phase, percent, DETAIL, stamp, tick);

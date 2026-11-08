@@ -16,6 +16,47 @@ class TaskLogEventsTest {
     private static final UUID COMPANION = UUID.fromString("00000000-0000-0000-0000-000000000002");
 
     @Test
+    void contextualFactsCannotForgePhaseOrGapFields() {
+        var context = new dev.friendai.foundation.diagnostics.LogContext("trace", 1, 3, 9, 7, 11, 2, 1, "call", 0);
+        var facts = new java.util.LinkedHashMap<String, String>();
+        facts.put("phase", "forged");
+        facts.put("reason", "forged");
+        facts.put("detail", "forged");
+        facts.put("waitingTicks", "5");
+        facts.put("waitingLimitTicks", "20");
+        facts.put("stamp", "4");
+        var phase = TaskLogEvents.phaseEvent(
+                context, "mine", dev.friendai.task.TaskPhase.WAITING, -1, "waiting", "full detail", facts);
+        assertEquals("task.phase", phase.event());
+        assertEquals("waiting", phase.facts().get("phase"));
+        assertEquals("waiting", phase.facts().get("reason"));
+        assertEquals("full detail", phase.facts().get("detail"));
+        assertEquals("forged", facts.get("phase"));
+        var data = dev.friendai.foundation.diagnostics.LogEventData.build(context, phase.facts());
+        assertEquals("5", data.get("waitingTicks"));
+        assertEquals("20", data.get("waitingLimitTicks"));
+        assertEquals("4", data.get("stamp"));
+        assertEquals(
+                "task.progress",
+                TaskLogEvents.phaseEvent(
+                                context, "mine", dev.friendai.task.TaskPhase.PROGRESS, -1, "running", "detail", facts)
+                        .event());
+        facts.put("tool", "mine");
+        var gap = TaskLogEvents.clockGap(context, 45452, facts);
+        assertEquals(context, gap.context());
+        assertEquals("mine", gap.tool());
+        assertEquals(45452, gap.durationMs());
+        assertEquals("45452", gap.facts().get("gapMs"));
+        assertEquals("unknown", gap.facts().get("reason"));
+        assertEquals(TaskLogEvent.Parent.EXECUTION, gap.parent());
+        var detached = TaskLogEvents.clockGap(45452);
+        assertEquals(dev.friendai.foundation.diagnostics.LogContext.NONE, detached.context());
+        assertEquals("", detached.tool());
+        assertEquals(TaskLogEvent.Parent.INVOCATION, detached.parent());
+        assertEquals(0, TaskLogEvents.clockGap(-1).durationMs());
+    }
+
+    @Test
     void startCarriesEveryIdentifier() {
         LogRecord record = TaskLogEvents.start(OWNER, COMPANION, "s", 7L, 3L, 9L, "mine_block_at");
         assertEquals(LogEvents.TASK_START, record.event());

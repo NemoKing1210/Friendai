@@ -85,9 +85,25 @@ public final class TaskLogEvents {
     /** A bounded phase fact; a repeated PROGRESS is already throttled by the caller. */
     public static TaskLogEvent phaseEvent(
             LogContext context, String tool, TaskPhase phase, int percent, String reason, String detail) {
+        return phaseEvent(context, tool, phase, percent, reason, detail, Map.of());
+    }
+
+    /** A phase fact with caller metadata; canonical lifecycle fields always win. */
+    public static TaskLogEvent phaseEvent(
+            LogContext context,
+            String tool,
+            TaskPhase phase,
+            int percent,
+            String reason,
+            String detail,
+            Map<String, String> extraFacts) {
         requireTool(tool);
         TaskPhase value = phase == null ? TaskPhase.PROGRESS : phase;
         Map<String, String> facts = new LinkedHashMap<>();
+        if (extraFacts != null) facts.putAll(extraFacts);
+        facts.remove("percent");
+        facts.remove("reason");
+        facts.remove("detail");
         facts.put("phase", value.name().toLowerCase(Locale.ROOT));
         if (percent >= 0) facts.put("percent", Integer.toString(percent));
         if (reason != null && !reason.isBlank()) facts.put("reason", reason);
@@ -159,14 +175,26 @@ public final class TaskLogEvents {
 
     /** One observed server tick gap; the reason is unknown, never inferred as a pause. */
     public static TaskLogEvent clockGap(long gapMs) {
+        return clockGap(LogContext.NONE, gapMs, Map.of());
+    }
+
+    /** Captures a gap under the interrupted activation without inferring why time passed. */
+    public static TaskLogEvent clockGap(LogContext context, long gapMs, Map<String, String> facts) {
+        LogContext identity = context == null ? LogContext.NONE : context;
+        Map<String, String> data = new LinkedHashMap<>();
+        data.put("reason", "unknown");
+        data.put("gapMs", Long.toString(Math.max(0L, gapMs)));
+        if (facts != null) data.putAll(facts);
+        data.put("reason", "unknown");
+        data.put("gapMs", Long.toString(Math.max(0L, gapMs)));
         return new TaskLogEvent(
-                LogContext.NONE,
-                TaskLogEvent.Parent.INVOCATION,
+                identity,
+                identity.execution() > 0 ? TaskLogEvent.Parent.EXECUTION : TaskLogEvent.Parent.INVOCATION,
                 LogEvents.CLOCK_GAP,
-                "",
+                data.getOrDefault("tool", ""),
                 "unknown",
                 Math.max(0L, gapMs),
-                Map.of("reason", "unknown", "gapMs", Long.toString(Math.max(0L, gapMs))));
+                data);
     }
 
     public static TaskLogEvent cancelEvent(LogContext context, String tool, String reason) {

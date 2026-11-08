@@ -49,23 +49,34 @@ public final class TaskProgressThrottle {
      */
     public TaskProgress observe(
             int id, String tool, TaskPhase next, int percent, String detail, long stamp, int activeTick) {
-        if (next == null) return null;
-        if (id != taskId) {
-            reset();
-            taskId = id;
-        }
-        // Clamp once, so a stored milestone and the published one agree about what counts as movement.
+        if (!due(id, next, percent, stamp, activeTick)) return null;
+        taskId = id;
         percent = Math.max(-1, Math.min(100, percent));
-        boolean due = deservesEvent(phase, next);
-        if (!due && next == TaskPhase.PROGRESS) {
-            due = progressed(percent, stamp) && activeTick - eventTick >= PROGRESS_INTERVAL_TICKS;
-        }
-        if (!due) return null;
         phase = next;
         this.stamp = stamp;
         this.percent = percent;
         eventTick = activeTick;
         return new TaskProgress(id, tool, next, percent, detail);
+    }
+
+    /** Records a periodic diagnostic publication without claiming new progress evidence. */
+    public void recordSample(int activeTick) {
+        eventTick = activeTick;
+    }
+
+    /** Read-only preflight; expensive detail can be collected only after this returns true. */
+    public boolean due(int id, TaskPhase next, long stamp, int activeTick) {
+        return due(id, next, -1, stamp, activeTick);
+    }
+
+    /** Percent-aware preflight using exactly the same clamping and cadence as observation. */
+    public boolean due(int id, TaskPhase next, int percent, long stamp, int activeTick) {
+        if (next == null) return false;
+        if (id != taskId || deservesEvent(phase, next)) return true;
+        percent = Math.max(-1, Math.min(100, percent));
+        return next == TaskPhase.PROGRESS
+                && progressed(percent, stamp)
+                && activeTick - eventTick >= PROGRESS_INTERVAL_TICKS;
     }
 
     /** A phase is only the label of a milestone; a repeated PROGRESS also needs the task's stamp or percent to move. */

@@ -35,12 +35,16 @@ class TaskDiagnosticEpisodeTest {
     }
 
     @Test
-    void aLegitimateWaitNeverWarns() {
+    void waitingSamplesRetainTheirCadence() {
         TaskDiagnosticEpisode episode = new TaskDiagnosticEpisode();
-        episode.sample(0, ProgressWatch.UNKNOWN, true, "");
-
-        assertFalse(episode.sample(1_000, ProgressWatch.UNKNOWN, true, ""));
-        assertFalse(episode.sample(5_000, ProgressWatch.UNKNOWN, true, "waiting_drop"));
+        episode.sample(0, 1L, true, "waiting");
+        assertFalse(episode.sample(199, 1L, true, "waiting"));
+        assertTrue(episode.sample(200, 1L, true, "waiting"));
+        assertFalse(episode.sample(201, 1L, true, "waiting"));
+        assertTrue(episode.sample(400, 1L, true, "waiting"));
+        assertFalse(episode.sample(450, 2L, true, "waiting"));
+        assertFalse(episode.sample(649, 2L, true, "waiting"));
+        assertTrue(episode.sample(650, 2L, true, "waiting"));
     }
 
     @Test
