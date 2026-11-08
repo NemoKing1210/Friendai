@@ -3,6 +3,8 @@ package dev.friendai.test;
 import com.google.gson.JsonObject;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.execution.log.TaskLogCorrelation;
+import dev.friendai.execution.log.TaskLogEvent;
 import dev.friendai.execution.queue.FailurePolicy;
 import dev.friendai.execution.queue.Guard;
 import dev.friendai.execution.queue.GuardAction;
@@ -14,6 +16,10 @@ import dev.friendai.execution.queue.QueueHold;
 import dev.friendai.execution.queue.QueuedStep;
 import dev.friendai.features.interaction.minecraft.task.WaitTask;
 import dev.friendai.features.navigation.minecraft.task.StayTask;
+import dev.friendai.foundation.diagnostics.DiagnosticClock;
+import dev.friendai.foundation.diagnostics.LogContext;
+import dev.friendai.foundation.diagnostics.LogEvents;
+import dev.friendai.server.execution.DiagnosticClockTestAccess;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.Task;
@@ -27,6 +33,26 @@ import net.minecraft.gametest.framework.GameTestHelper;
 public class ActiveTaskLifecycleTests {
     private static final class Events implements TaskEventSink {
         final List<String> log = new ArrayList<>();
+        final List<TaskLogEvent> diagnostics = new ArrayList<>();
+
+        @Override
+        public void onDiagnostic(TaskLogEvent event) {
+            diagnostics.add(event);
+        }
+
+        List<TaskLogEvent> named(String name) {
+            return diagnostics.stream()
+                    .filter(event -> event.event().equals(name))
+                    .toList();
+        }
+
+        List<TaskLogEvent> states() {
+            return diagnostics.stream()
+                    .filter(event -> event.event().equals(LogEvents.TASK_PROGRESS)
+                            || event.event().equals(LogEvents.TASK_PHASE))
+                    .toList();
+        }
+
         Runnable onCancel = () -> {};
 
         @Override
@@ -100,6 +126,279 @@ public class ActiveTaskLifecycleTests {
 
         @Override
         public void stop(TaskContext context) {}
+    }
+
+    private static final class MutableClock implements DiagnosticClock {
+        long millis = 10000;
+
+        @Override
+        public long wallMillis() {
+            return millis;
+        }
+
+        @Override
+        public long nanoTime() {
+            return millis * 1000000L;
+        }
+    }
+
+    private static final class DiagnosticTask implements Task {
+        long stamp = 7;
+        int waiting = -1;
+        int ticks;
+        String detail = "extract 4 67 -10 waiting for drop";
+        Runnable afterTick = () -> {};
+
+        @Override
+        public String type() {
+            return "diagnostic_fixture";
+        }
+
+        @Override
+        public void start(TaskContext context) {}
+
+        @Override
+        public TaskStatus tick(TaskContext context) {
+            ticks++;
+            afterTick.run();
+            return TaskStatus.RUNNING;
+        }
+
+        @Override
+        public void stop(TaskContext context) {}
+
+        @Override
+        public String describe() {
+            return "diagnostic fixture";
+        }
+
+        @Override
+        public String debugStatus() {
+            return detail;
+        }
+
+        @Override
+        public String resultSummary() {
+            return "diagnostic fixture finished";
+        }
+
+        @Override
+        public long progressStamp() {
+            return stamp;
+        }
+
+        @Override
+        public int waitingTicks() {
+            return waiting;
+        }
+
+        @Override
+        public int waitingLimitTicks() {
+            return 600;
+        }
+    }
+
+    @GameTest
+    public void staticStampReportsInitialAndTwoNoProgressHeartbeats(GameTestHelper h) {
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ExecutionCoordinator runner = DiagnosticClockTestAccess.create(companion, new MutableClock());
+        Events events = new Events();
+        runner.setEventSink(events);
+        runner.start(new DiagnosticTask(), "static_diagnostic");
+        try {
+            for (int i = 0; i < 401; i++) runner.tick();
+            h.assertValueEqual(events.states().size(), 3, "initial, +200 and +400 active ticks");
+            h.assertValueEqual(
+                    events.states().stream().map(e -> e.facts().get("reason")).toList(),
+                    List.of("running", "no_progress", "no_progress"),
+                    "heartbeat reasons");
+            h.assertTrue(events.named(LogEvents.TASK_SNAPSHOT).isEmpty(), "periodic work must not emit snapshots");
+        } finally {
+            runner.stopAll("test cleanup");
+        }
+        h.succeed();
+    }
+
+    @GameTest
+    public void movingStampReportsAtOneHundredActiveTicks(GameTestHelper h) {
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ExecutionCoordinator runner = DiagnosticClockTestAccess.create(companion, new MutableClock());
+        Events events = new Events();
+        runner.setEventSink(events);
+        DiagnosticTask task = new DiagnosticTask();
+        task.afterTick = () -> task.stamp++;
+        runner.start(task, "moving_diagnostic");
+        try {
+            for (int i = 0; i < 100; i++) runner.tick();
+            h.assertValueEqual(events.states().size(), 1, "no heartbeat before +100");
+            runner.tick();
+            h.assertValueEqual(events.states().size(), 2, "heartbeat at +100");
+            for (int i = 0; i < 100; i++) runner.tick();
+            h.assertValueEqual(events.states().size(), 3, "heartbeat at +200");
+        } finally {
+            runner.stopAll("test cleanup");
+        }
+        h.succeed();
+    }
+
+    @GameTest
+    public void waitingReportsEntryPeriodicSampleAndImmediateExit(GameTestHelper h) {
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ExecutionCoordinator runner = DiagnosticClockTestAccess.create(companion, new MutableClock());
+        Events events = new Events();
+        runner.setEventSink(events);
+        DiagnosticTask task = new DiagnosticTask();
+        task.waiting = 0;
+        runner.start(task, "waiting_diagnostic");
+        try {
+            for (int i = 0; i < 201; i++) {
+                task.waiting = i;
+                runner.tick();
+            }
+            h.assertValueEqual(events.states().size(), 2, "waiting entry and +200 sample");
+            TaskLogEvent entry = events.states().getFirst();
+            TaskLogEvent sample = events.states().getLast();
+            h.assertValueEqual(entry.event(), LogEvents.TASK_PHASE, "waiting transition event");
+            h.assertValueEqual(sample.event(), LogEvents.TASK_PROGRESS, "waiting heartbeat event");
+            h.assertValueEqual(sample.facts().get("phase"), "waiting", "waiting phase");
+            h.assertValueEqual(sample.facts().get("reason"), "waiting", "waiting reason");
+            h.assertValueEqual(sample.facts().get("waitingTicks"), "200", "waiting duration");
+            h.assertValueEqual(sample.facts().get("waitingLimitTicks"), "600", "waiting limit");
+            h.assertValueEqual(sample.facts().get("stamp"), "7", "progress stamp");
+            h.assertValueEqual(sample.facts().get("detail"), task.detail, "complete task detail");
+            task.waiting = -1;
+            runner.tick();
+            h.assertValueEqual(events.states().size(), 3, "leaving waiting emits immediately");
+            h.assertValueEqual(events.states().getLast().facts().get("phase"), "progress", "running phase");
+        } finally {
+            runner.stopAll("test cleanup");
+        }
+        h.succeed();
+    }
+
+    @GameTest
+    public void clockGapCapturesTheInterruptedExecutionBeforeItsNextTick(GameTestHelper h) {
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        MutableClock clock = new MutableClock();
+        ExecutionCoordinator runner = DiagnosticClockTestAccess.create(companion, clock);
+        Events events = new Events();
+        runner.setEventSink(events);
+        DiagnosticTask task = new DiagnosticTask();
+        QueuedStep step = new QueuedStep(
+                "gap_diagnostic", new JsonObject(), null, List.of(), GuardAction.WAIT, FailurePolicy.ASK, 1, List.of());
+        long plan = runner.enqueuePlan("gap identity", List.of(step), List.of(context -> task), PlanOptions.DEFAULT);
+        long job = runner.queue().jobsOfPlan(plan).getFirst().id();
+        try {
+            runner.tick();
+            TaskLogEvent start = events.named(LogEvents.TASK_START).getFirst();
+            String interrupted = task.detail;
+            task.afterTick = () -> task.detail = "resumed at a different cell";
+            clock.millis += 45452;
+            runner.tick();
+            h.assertValueEqual(events.named(LogEvents.CLOCK_GAP).size(), 1, "one observed gap");
+            TaskLogEvent gap = events.named(LogEvents.CLOCK_GAP).getFirst();
+            h.assertValueEqual(gap.tool(), "gap_diagnostic", "interrupted tool");
+            h.assertValueEqual(gap.context(), start.context(), "complete activation identity");
+            h.assertValueEqual(gap.context().plan(), plan, "plan identity");
+            h.assertValueEqual(gap.context().job(), job, "job identity");
+            h.assertTrue(gap.context().task() > 0, "task identity");
+            h.assertValueEqual(
+                    gap.facts().get("task"), Long.toString(start.context().task()), "task fact");
+            h.assertValueEqual(gap.facts().get("plan"), Long.toString(plan), "plan fact");
+            h.assertValueEqual(gap.facts().get("job"), Long.toString(job), "job fact");
+            h.assertValueEqual(gap.facts().get("phase"), interrupted, "phase before resuming");
+            h.assertValueEqual(gap.facts().get("reason"), "unknown", "gap cause stays unknown");
+            h.assertValueEqual(gap.facts().get("gapMs"), "45452", "wall gap duration");
+            h.assertValueEqual(gap.durationMs(), 45452L, "event duration");
+            TaskLogCorrelation correlation = new TaskLogCorrelation();
+            correlation.recordStart(start, 123);
+            h.assertValueEqual(correlation.parentSeq(gap), 123L, "gap descends from its task start");
+            h.assertValueEqual(task.detail, "resumed at a different cell", "task resumed after capture");
+            h.assertValueEqual(task.ticks, 2, "wall time does not create extra delivered ticks");
+            h.assertValueEqual(events.states().size(), 1, "wall gap does not advance heartbeat cadence");
+        } finally {
+            runner.stopAll("test cleanup");
+        }
+        h.succeed();
+    }
+
+    @GameTest
+    public void clockGapPrefersCurrentAndFallsBackToFrozenWork(GameTestHelper h) {
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        MutableClock clock = new MutableClock();
+        ExecutionCoordinator runner = DiagnosticClockTestAccess.create(companion, clock);
+        Events events = new Events();
+        runner.setEventSink(events);
+        DiagnosticTask frozen = new DiagnosticTask();
+        runner.start(frozen, "frozen_diagnostic");
+        runner.tick();
+        DiagnosticClockTestAccess.freezeCurrent(runner);
+        frozen.detail = " ";
+        runner.setPaused(true);
+        try {
+            clock.millis += 2000;
+            runner.tick();
+            h.assertValueEqual(
+                    events.named(LogEvents.CLOCK_GAP).getFirst().tool(), "frozen_diagnostic", "frozen fallback");
+            h.assertValueEqual(
+                    events.named(LogEvents.CLOCK_GAP).getFirst().facts().get("phase"),
+                    "diagnostic fixture",
+                    "blank detail falls back to description");
+            clock.millis += 50;
+            runner.tick();
+            runner.interrupt(new DiagnosticTask(), "urgent_diagnostic");
+            clock.millis += 2000;
+            runner.tick();
+            h.assertValueEqual(events.named(LogEvents.CLOCK_GAP).size(), 2, "two separate observed gaps");
+            h.assertValueEqual(
+                    events.named(LogEvents.CLOCK_GAP).getLast().tool(), "urgent_diagnostic", "current beats frozen");
+            h.assertValueEqual(frozen.ticks, 1, "held/frozen work never resumed");
+        } finally {
+            runner.stopAll("test cleanup");
+        }
+        h.succeed();
+    }
+
+    @GameTest
+    public void idleClockGapHonorsBoundaryRollbackAndConsecutiveSuppression(GameTestHelper h) {
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        MutableClock clock = new MutableClock();
+        ExecutionCoordinator runner = DiagnosticClockTestAccess.create(companion, clock);
+        Events events = new Events();
+        runner.setEventSink(events);
+        try {
+            runner.tick();
+            clock.millis += 1000;
+            runner.tick();
+            h.assertTrue(events.named(LogEvents.CLOCK_GAP).isEmpty(), "1000ms is not a gap");
+            clock.millis -= 300;
+            runner.tick();
+            h.assertTrue(events.named(LogEvents.CLOCK_GAP).isEmpty(), "clock rollback is not a gap");
+            clock.millis += 1001;
+            runner.tick();
+            h.assertValueEqual(events.named(LogEvents.CLOCK_GAP).size(), 1, "1001ms exceeds threshold");
+            TaskLogEvent gap = events.named(LogEvents.CLOCK_GAP).getFirst();
+            h.assertValueEqual(gap.context(), LogContext.NONE, "idle context");
+            h.assertValueEqual(gap.tool(), "", "idle tool");
+            h.assertValueEqual(gap.parent(), TaskLogEvent.Parent.INVOCATION, "idle parent");
+            h.assertTrue(!gap.facts().containsKey("phase"), "idle has no invented phase");
+            clock.millis += 2000;
+            runner.tick();
+            h.assertValueEqual(events.named(LogEvents.CLOCK_GAP).size(), 1, "consecutive large gaps are suppressed");
+            clock.millis += 1000;
+            runner.tick();
+            clock.millis += 2000;
+            runner.tick();
+            h.assertValueEqual(events.named(LogEvents.CLOCK_GAP).size(), 2, "normal tick resets suppression");
+            clock.millis -= 50;
+            runner.tick();
+            clock.millis += 2000;
+            runner.tick();
+            h.assertValueEqual(events.named(LogEvents.CLOCK_GAP).size(), 3, "rollback also resets suppression");
+        } finally {
+            runner.stopAll("test cleanup");
+        }
+        h.succeed();
     }
 
     @GameTest(maxTicks = 40)
@@ -271,6 +570,8 @@ public class ActiveTaskLifecycleTests {
         h.assertTrue(
                 events.log.equals(List.of("cancelled:replace_during_tick:replaced by a new task")),
                 "terminal events were " + events.log);
+        h.assertTrue(events.states().isEmpty(), "the replaced activation must not emit state after replacement");
+        runner.stop("test cleanup");
         h.succeed();
     }
 

@@ -3,6 +3,8 @@ package dev.friendai.server.execution;
 import com.google.gson.JsonObject;
 import dev.friendai.agent.verify.LoopMetrics;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.execution.log.TaskLogEvent;
+import dev.friendai.execution.log.TaskLogEvents;
 import dev.friendai.execution.queue.GuardFacts;
 import dev.friendai.execution.queue.Job;
 import dev.friendai.execution.queue.JobQueue;
@@ -23,6 +25,7 @@ import dev.friendai.features.creative.CreativeAction;
 import dev.friendai.features.creative.CreativeActionContext;
 import dev.friendai.features.navigation.minecraft.task.FollowTask;
 import dev.friendai.features.places.PlaceCandidate;
+import dev.friendai.foundation.diagnostics.DiagnosticClock;
 import dev.friendai.foundation.diagnostics.LogContext;
 import dev.friendai.foundation.movement.MovementOrders;
 import dev.friendai.server.configuration.ServerSettings;
@@ -89,8 +92,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     private long materialReserveTick = Long.MIN_VALUE;
     private int materialReserveTaskId = -1;
 
-    private final dev.friendai.foundation.diagnostics.DiagnosticClock diagnosticClock =
-            dev.friendai.foundation.diagnostics.DiagnosticClock.system();
+    private final DiagnosticClock diagnosticClock;
     private long lastTickWall = -1L;
     private boolean clockGapReported;
 
@@ -124,12 +126,23 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
             BooleanSupplier defaultFollow,
             BooleanSupplier mayFollowOwner,
             Supplier<ServerSettings> settingsSupplier) {
+        this(companion, timeoutSec, defaultFollow, mayFollowOwner, settingsSupplier, DiagnosticClock.system());
+    }
+
+    ExecutionCoordinator(
+            CompanionEntity companion,
+            IntSupplier timeoutSec,
+            BooleanSupplier defaultFollow,
+            BooleanSupplier mayFollowOwner,
+            Supplier<ServerSettings> settingsSupplier,
+            DiagnosticClock clock) {
         this.companion = companion;
         this.timeoutSec = timeoutSec;
         this.defaultFollow = defaultFollow;
         this.mayFollowOwner = mayFollowOwner;
         this.settingsSupplier = settingsSupplier;
-        this.activeTasks = new ActiveTaskController(timeoutSec);
+        this.diagnosticClock = clock;
+        this.activeTasks = new ActiveTaskController(timeoutSec, clock);
         this.activeTasks.setDiagnostics(event -> emit(sink -> sink.onDiagnostic(event)));
         this.queueDriver = new QueueDriver(this);
         this.mutations = new QueueMutationService(this);
@@ -694,7 +707,24 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
             long gap = now - lastTickWall;
             if (gap > 1000L && !clockGapReported) {
                 clockGapReported = true;
-                emit(sink -> sink.onDiagnostic(dev.friendai.execution.log.TaskLogEvents.clockGap(gap)));
+                ActiveTask interrupted = activeTask();
+                if (interrupted == null) interrupted = frozenTask();
+                TaskLogEvent event;
+                if (interrupted == null) {
+                    event = TaskLogEvents.clockGap(gap);
+                } else {
+                    String phase = interrupted.task().debugStatus();
+                    if (phase == null || phase.isBlank())
+                        phase = interrupted.task().describe();
+                    Map<String, String> facts = new java.util.LinkedHashMap<>();
+                    facts.put("tool", interrupted.toolName());
+                    facts.put("task", Integer.toString(interrupted.id()));
+                    facts.put("plan", Long.toString(interrupted.planId()));
+                    facts.put("job", Long.toString(interrupted.jobId()));
+                    facts.put("phase", phase == null ? "" : phase);
+                    event = TaskLogEvents.clockGap(interrupted.logContext(), gap, facts);
+                }
+                emit(sink -> sink.onDiagnostic(event));
             } else if (gap <= 1000L) {
                 clockGapReported = false;
             }

@@ -179,37 +179,34 @@ public final class ActiveTaskController {
         if (current != active) return Optional.empty();
         if (status == TaskStatus.RUNNING) {
             int stallTicks = Math.max(20, active.timeoutSec() * 10);
-            dev.friendai.task.ProgressWatch.Status progress = active.progress()
-                    .observe(
-                            active.task().progressStamp(),
-                            active.task().waitingTicks(),
-                            active.task().waitingLimitTicks(),
-                            activeTicks,
-                            stallTicks);
+            long stamp = active.task().progressStamp();
+            int waitingTicks = active.task().waitingTicks();
+            int waitingLimitTicks = active.task().waitingLimitTicks();
+            dev.friendai.task.ProgressWatch.Status progress =
+                    active.progress().observe(stamp, waitingTicks, waitingLimitTicks, activeTicks, stallTicks);
             if (progress == dev.friendai.task.ProgressWatch.Status.STALLED) {
+                String detail = phaseOf(active);
+                if (current != active) return Optional.empty();
                 diagnostics.accept(TaskLogEvents.snapshotEvent(
                         active.logContext(),
                         active.toolName(),
                         "stalled",
-                        snapshotFacts(active, stallTicks, "stalled")));
+                        snapshotFacts(active, stallTicks, stamp, detail)));
                 safeStop(active.task(), activeContext, "no progress");
+                if (current != active) return Optional.empty();
                 status = TaskStatus.FAILED;
-                String phase = active.task().debugStatus();
-                if (phase == null || phase.isBlank()) phase = active.task().describe();
-                summary = "no progress for " + Math.max(1, stallTicks / 20) + "s: " + phase;
-            } else if (progress == dev.friendai.task.ProgressWatch.Status.PROGRESS
-                    && active.episode().sample(activeTicks, active.task().progressStamp(), false, phaseOf(active))) {
-                diagnostics.accept(TaskLogEvents.snapshotEvent(
-                        active.logContext(),
-                        active.toolName(),
-                        "no_progress",
-                        snapshotFacts(active, stallTicks, "no_progress")));
+                summary = "no progress for " + Math.max(1, stallTicks / 20) + "s: " + detail;
+            } else {
+                reportRunningState(active, stamp, waitingTicks, waitingLimitTicks);
+                if (current != active) return Optional.empty();
             }
         }
+
         if (status == TaskStatus.RUNNING
                 && active.task().hasTimeout()
                 && activeTicks - active.startActiveTick() > active.timeoutSec() * 20) {
             safeStop(active.task(), activeContext, "timed out");
+            if (current != active) return Optional.empty();
             status = TaskStatus.FAILED;
             summary = "timed out";
         }
@@ -369,11 +366,57 @@ public final class ActiveTaskController {
         ActiveTask active = current;
         if (active == null || phase == null) return false;
         TaskProgress event = active.progressThrottle()
-                .observe(active.id(), active.toolName(), phase, percent, detail, stamp, activeTicks);
+                .observe(
+                        active.id(),
+                        active.toolName(),
+                        phase,
+                        percent,
+                        detail,
+                        stamp,
+                        activeTicks - active.startActiveTick());
         if (event == null) return false;
         diagnostics.accept(TaskLogEvents.phaseEvent(
                 active.logContext(), active.toolName(), event.phase(), event.percent(), reason, event.detail()));
         return true;
+    }
+
+    private void reportRunningState(ActiveTask active, long stamp, int waitingTicks, int waitingLimitTicks) {
+        int localTick = activeTicks - active.startActiveTick();
+        boolean waiting = waitingTicks >= 0;
+        TaskPhase phase = waiting ? TaskPhase.WAITING : TaskPhase.PROGRESS;
+        String label = waiting ? "waiting" : "running";
+        boolean phaseDue = active.progressThrottle().due(active.id(), phase, stamp, localTick);
+        boolean sampleDue = active.episode().sample(localTick, stamp, waiting, label);
+        if (!phaseDue && !sampleDue) return;
+        String detail = phaseOf(active);
+        if (current != active) return;
+        Map<String, String> facts = Map.of(
+                "waitingTicks", Integer.toString(waitingTicks),
+                "waitingLimitTicks", Integer.toString(waitingLimitTicks),
+                "stamp", Long.toString(stamp));
+        if (phaseDue) {
+            active.progressThrottle().observe(active.id(), active.toolName(), phase, -1, detail, stamp, localTick);
+        }
+        if (!phaseDue) active.progressThrottle().recordSample(localTick);
+        TaskLogEvent event = TaskLogEvents.phaseEvent(
+                active.logContext(),
+                active.toolName(),
+                phase,
+                -1,
+                phaseDue ? label : waiting ? "waiting" : "no_progress",
+                detail,
+                facts);
+        if (!phaseDue && waiting) {
+            event = new TaskLogEvent(
+                    event.context(),
+                    event.parent(),
+                    dev.friendai.foundation.diagnostics.LogEvents.TASK_PROGRESS,
+                    event.tool(),
+                    event.status(),
+                    event.durationMs(),
+                    event.facts());
+        }
+        diagnostics.accept(event);
     }
 
     private static Map<String, String> terminalFacts(
@@ -390,18 +433,18 @@ public final class ActiveTaskController {
     }
 
     /** Everything a pre-stop snapshot needs, collected before a stop/cleanup can clear the task. */
-    private java.util.Map<String, String> snapshotFacts(ActiveTask active, int stallTicks, String reason) {
+    private java.util.Map<String, String> snapshotFacts(ActiveTask active, int stallTicks, long stamp, String detail) {
         ExecutionTiming.Snapshot measured = active.timing().snapshot();
         java.util.Map<String, String> facts = new java.util.LinkedHashMap<>();
-        facts.put("reason", reason);
-        facts.put("phase", phaseOf(active));
+        facts.put("reason", "stalled");
+        facts.put("phase", detail);
         facts.put("ticksSinceChange", Integer.toString(active.progress().ticksSinceChange(activeTicks)));
         facts.put("activeTicks", Long.toString(measured.activeTicks()));
         facts.put("heldTicks", Long.toString(measured.heldTicks()));
         facts.put("tickNanos", Long.toString(measured.tickNanos()));
         facts.put("stallTicks", Integer.toString(stallTicks));
         facts.put("timeoutSec", Integer.toString(active.timeoutSec()));
-        facts.put("stamp", Long.toString(active.task().progressStamp()));
+        facts.put("stamp", Long.toString(stamp));
         return facts;
     }
 
