@@ -1162,7 +1162,7 @@ public final class FellTreeTask implements Task {
                 + (stageIndex < stages.size() ? stages.get(stageIndex).feetY() : -1) + " log=" + logIndex
                 + " breaker=" + (breaker != null ? String.valueOf(breaker.target()) : "-") + " placed="
                 + (scaffold != null ? scaffold.used() : -1) + " attempted=" + cutCount + "/" + total + " refusal="
-                + refusal;
+                + refusal + (sweep != null ? ", collecting drops " + sweep.debugStatus() : "");
     }
 
     @Override

@@ -426,7 +426,7 @@ public final class ClearAreaTask implements Task {
     @Override
     public String debugStatus() {
         return "clearing " + (planned - queue.size()) + "/" + planned + ", " + clearedTotal + " cleared, "
-                + skippedTotal + " skipped";
+                + skippedTotal + " skipped" + (sweep != null ? ", collecting drops " + sweep.debugStatus() : "");
     }
 
     @Override

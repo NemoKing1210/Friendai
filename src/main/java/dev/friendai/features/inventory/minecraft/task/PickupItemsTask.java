@@ -102,6 +102,11 @@ public final class PickupItemsTask implements Task {
     }
 
     @Override
+    public String debugStatus() {
+        return describe() + (collector != null ? ", collecting drops " + collector.debugStatus() : "");
+    }
+
+    @Override
     public String resultSummary() {
         return summary;
     }

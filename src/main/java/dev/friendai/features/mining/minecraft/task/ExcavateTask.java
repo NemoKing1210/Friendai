@@ -530,7 +530,7 @@ public final class ExcavateTask implements Task {
                 .append(" broken, skipped ")
                 .append(progress.skipped());
         if (sweep != null) {
-            text.append(", collecting drops");
+            text.append(", collecting drops ").append(sweep.debugStatus());
         }
         if (cleanup != null) {
             text.append(", cleaning up temporary blocks");

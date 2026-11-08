@@ -2,11 +2,28 @@ package dev.friendai.test;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.execution.log.TaskLogEvent;
+import dev.friendai.features.construction.minecraft.task.ClearAreaTask;
+import dev.friendai.features.inventory.minecraft.task.PickupItemsTask;
+import dev.friendai.features.mining.excavation.ExcavationGeometry;
+import dev.friendai.features.mining.excavation.ExcavationSpec;
+import dev.friendai.features.mining.minecraft.mining.TreeFinder;
+import dev.friendai.features.mining.minecraft.task.ExcavateTask;
+import dev.friendai.features.mining.minecraft.task.FellTreeTask;
+import dev.friendai.features.navigation.minecraft.task.StayTask;
+import dev.friendai.foundation.diagnostics.LogContext;
+import dev.friendai.foundation.diagnostics.LogEventData;
+import dev.friendai.server.execution.ExecutionCoordinator;
+import dev.friendai.server.execution.TaskEventSink;
+import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
+import dev.friendai.task.TaskStatus;
 import dev.friendai.task.inventory.DropCollector;
 import dev.friendai.task.inventory.DropSettle;
 import dev.friendai.world.movement.LevelCellView;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -39,6 +56,155 @@ public class DropPickupTests {
 
     private static boolean stoneAt(GameTestHelper h, int x, int y, int z) {
         return h.getLevel().getBlockState(h.absolutePos(new BlockPos(x, y, z))).is(Blocks.STONE);
+    }
+
+    private static final class Diagnostics implements TaskEventSink {
+        final List<TaskLogEvent> events = new ArrayList<>();
+
+        @Override
+        public void onFinished(int id, String tool, TaskStatus status, String summary) {}
+
+        @Override
+        public void onCancelled(int id, String tool, String reason) {}
+
+        @Override
+        public void onDiagnostic(TaskLogEvent event) {
+            events.add(event);
+        }
+
+        List<TaskLogEvent> reason(String reason) {
+            return events.stream()
+                    .filter(e -> reason.equals(e.facts().get("reason")))
+                    .toList();
+        }
+    }
+
+    private static ExecutionCoordinator recordingRunner(CompanionEntity c, Diagnostics events) {
+        ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 300, () -> false);
+        runner.setEventSink(events);
+        runner.start(new StayTask(), "pickup_items");
+        return runner;
+    }
+
+    @GameTest
+    public void waitingDiagnosticsUseCachedDropFacts(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        Diagnostics events = new Diagnostics();
+        ExecutionCoordinator runner = recordingRunner(c, events);
+        TaskContext context = new TaskContext(c, h.getLevel(), runner);
+        ItemEntity delayed = drop(h, 6.5, 2, 2.5, new ItemStack(Items.COBBLESTONE));
+        delayed.setOnGround(true);
+        delayed.setDefaultPickUpDelay();
+        ItemEntity falling = drop(h, 7.5, 5, 2.5, new ItemStack(Items.DIRT));
+        falling.setOnGround(false);
+        falling.setNoPickUpDelay();
+        ItemEntity both = drop(h, 7.5, 6, 2.5, new ItemStack(Items.GRAVEL));
+        both.setOnGround(false);
+        both.setDefaultPickUpDelay();
+        DropCollector collector = new DropCollector(c.position(), 8);
+        for (int i = 0; i < 8; i++) collector.tick(context);
+        h.assertValueEqual(events.reason("waiting_drop").size(), 1, "one decision per waiting episode");
+        TaskLogEvent event = events.reason("waiting_drop").getFirst();
+        h.assertValueEqual(event.event(), "inventory.delta", "existing decision event");
+        Map<String, String> facts = event.facts();
+        h.assertValueEqual(facts.get("drops"), "3", "eligible drops");
+        h.assertValueEqual(facts.get("aimed"), "0", "neither drop is ready");
+        h.assertValueEqual(facts.get("delayed"), "3", "falling and delayed counted once");
+        h.assertValueEqual(facts.get("collected"), "0", "preserved receipt total");
+        h.assertValueEqual(facts.get("elapsed"), "1", "waiting episode starts on first tick");
+        String first = delayed.blockPosition().toShortString();
+        h.assertValueEqual(facts.get("first"), first, "nearest eligible cell");
+        String cached = collector.debugStatus();
+        h.assertTrue(cached.contains("drops=3 aimed=0 delayed=3 first=" + first + " elapsed=8"), cached);
+        delayed.discard();
+        falling.discard();
+        both.discard();
+        h.assertValueEqual(collector.debugStatus(), cached, "status must not rescan removed entities");
+        collector.stop(context);
+        runner.stopWithoutCleanup("test complete");
+        h.succeed();
+    }
+
+    @GameTest
+    public void roundDiagnosticsKeepBoundedLeftoversAndTotals(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        Diagnostics events = new Diagnostics();
+        ExecutionCoordinator runner = recordingRunner(c, events);
+        TaskContext context = new TaskContext(c, h.getLevel(), runner);
+        for (var item : List.of(
+                Items.STONE,
+                Items.DIRT,
+                Items.GRANITE,
+                Items.DIORITE,
+                Items.ANDESITE,
+                Items.SAND,
+                Items.GRAVEL,
+                Items.COBBLESTONE)) {
+            drop(h, 2.5, 2, 2.5, new ItemStack(item));
+        }
+        List<ItemEntity> left = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            ItemEntity item = drop(h, 6.5, 5 + i, 2.5, new ItemStack(Items.OAK_LOG));
+            item.setOnGround(true);
+            left.add(item);
+        }
+        DropCollector collector = new DropCollector(c.position(), 12);
+        DropCollector.State state = DropCollector.State.COLLECTING;
+        for (int i = 0; i < 121 && state != DropCollector.State.DONE; i++) state = collector.tick(context);
+        h.assertValueEqual(state, DropCollector.State.DONE, "round retains its tick budget");
+        TaskLogEvent event = events.reason("pickup_round").getFirst();
+        h.assertValueEqual(event.facts().get("left"), "5", "all leftovers counted");
+        String packed = event.facts().get("leftovers");
+        h.assertValueEqual(packed.split("; ").length, 4, "only four leftover cells published");
+        h.assertFalse(packed.contains(left.get(4).blockPosition().toShortString()), "fifth cell omitted");
+        LogContext full = new LogContext("trace", 1, 2, 3, 4, 5, 6, 7, "", 0);
+        Map<String, String> data = LogEventData.build(full, event.facts());
+        h.assertTrue(data.size() <= 16, "existing data cap");
+        h.assertValueEqual(data.get("reason"), "pickup_round", "reason survives full context");
+        h.assertValueEqual(data.get("collected"), "8", "total survives full context");
+        h.assertValueEqual(data.get("left"), "5", "left count survives full context");
+        h.assertValueEqual(data.get("leftovers"), packed, "leftover cells survive full context");
+        h.assertTrue(data.containsKey("truncated"), "omitted receipt summary is explicit");
+        for (ItemEntity item : left) item.discard();
+        DropCollector empty = new DropCollector(c.position(), 12);
+        h.assertValueEqual(empty.tick(context), DropCollector.State.DONE, "empty round completes");
+        TaskLogEvent emptyEvent = events.reason("pickup_round").getLast();
+        h.assertValueEqual(emptyEvent.facts().get("left"), "0", "empty round has no leftovers");
+        h.assertTrue(empty.debugStatus().contains("first=none"), "empty round invents no nearest cell");
+        runner.stopWithoutCleanup("test complete");
+        h.succeed();
+    }
+
+    @GameTest
+    public void collectingTaskStatusesRetainTheirStage(GameTestHelper h) throws ReflectiveOperationException {
+        BlockPos at = h.absolutePos(new BlockPos(2, 2, 2));
+        var geometry = ExcavationGeometry.box(at.getX(), at.getY(), at.getZ(), at.getX(), at.getY(), at.getZ())
+                .orElseThrow();
+        var spec = ExcavationSpec.of(geometry, 1, null, 0, true, false, false, false, 0)
+                .orElseThrow();
+        Task[] tasks = {
+            new PickupItemsTask(8),
+            new ClearAreaTask(at, 1, 1, 1, false, true),
+            new ExcavateTask(spec),
+            new FellTreeTask(
+                    new TreeFinder.TreeInfo("oak_log", List.of(at), at, 1, TreeFinder.Kind.STANDING_TREE, 0, "north"),
+                    null,
+                    1,
+                    true)
+        };
+        for (Task task : tasks) {
+            String prefix = task.debugStatus();
+            // Focus this fixture on status composition, without executing the unrelated mining/building stages.
+            var field = task.getClass().getDeclaredField(task instanceof PickupItemsTask ? "collector" : "sweep");
+            field.setAccessible(true);
+            field.set(task, new DropCollector(Vec3.atCenterOf(at), 8));
+            String status = task.debugStatus();
+            h.assertTrue(status.startsWith(prefix), "stage retained: " + status);
+            h.assertTrue(status.contains("drops=0 aimed=0 delayed=0 first=none elapsed=0"), status);
+        }
+        h.succeed();
     }
 
     @GameTest(maxTicks = 200)

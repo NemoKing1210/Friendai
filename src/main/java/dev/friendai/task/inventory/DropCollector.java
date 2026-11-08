@@ -70,6 +70,10 @@ public final class DropCollector {
     private List<ItemEntity> drops = List.of();
     /** The drops a route may aim at: the ones lying still enough for their position to mean something. */
     private List<ItemEntity> aimed = List.of();
+    /** Cached by the existing scan; status never reads live entities or the world. */
+    private @Nullable BlockPos first;
+
+    private int delayed;
 
     private List<DropPoint> goalPoints = List.of();
     private List<Leftover> leftovers = List.of();
@@ -135,9 +139,7 @@ public final class DropCollector {
             if (!waitingReported) {
                 waitingReported = true;
                 c.decision(
-                        dev.friendai.foundation.diagnostics.LogEvents.INVENTORY_DELTA,
-                        "waiting_drop",
-                        java.util.Map.of("collected", Integer.toString(collected)));
+                        dev.friendai.foundation.diagnostics.LogEvents.INVENTORY_DELTA, "waiting_drop", waitingFacts());
             }
             return State.COLLECTING;
         }
@@ -151,31 +153,59 @@ public final class DropCollector {
         return State.COLLECTING;
     }
 
-    /** How many items this round has moved into the inventory. */
-    /** One bounded per-item summary for the round: ids and counts only, at most eight entries. */
     private State roundDone(TaskContext c) {
         if (!reportedRound) {
             reportedRound = true;
-            java.util.Map<String, Integer> counts = new java.util.LinkedHashMap<>();
-            for (ItemStack stack : collectedStacks()) {
-                String id = net.minecraft.core.registries.BuiltInRegistries.ITEM
-                        .getKey(stack.getItem())
-                        .toString();
-                counts.merge(id, stack.getCount(), Integer::sum);
-            }
-            java.util.Map<String, String> facts = new java.util.LinkedHashMap<>();
-            facts.put("collected", Integer.toString(collected));
-            int index = 0;
-            for (var entry : counts.entrySet()) {
-                if (index >= 8) break;
-                index++;
-                facts.put("item" + index, entry.getKey() + " x" + entry.getValue());
-            }
-            c.decision(dev.friendai.foundation.diagnostics.LogEvents.INVENTORY_DELTA, "pickup_round", facts);
+            c.decision(dev.friendai.foundation.diagnostics.LogEvents.INVENTORY_DELTA, "pickup_round", roundFacts());
         }
         return State.DONE;
     }
 
+    /** One status line from the most recent scan, without inspecting live entities or the world. */
+    public String debugStatus() {
+        return "drops=" + drops.size() + " aimed=" + aimed.size() + " delayed=" + delayed + " first="
+                + (first == null ? "none" : first.toShortString()) + " elapsed=" + ticks;
+    }
+
+    private Map<String, String> waitingFacts() {
+        Map<String, String> facts = new java.util.LinkedHashMap<>();
+        facts.put("collected", Integer.toString(collected));
+        facts.put("drops", Integer.toString(drops.size()));
+        facts.put("aimed", Integer.toString(aimed.size()));
+        facts.put("delayed", Integer.toString(delayed));
+        facts.put("first", first == null ? "none" : first.toShortString());
+        facts.put("elapsed", Integer.toString(ticks));
+        return facts;
+    }
+
+    /** Keep the reason and totals before bounded receipt summaries so they survive the shared data cap. */
+    private Map<String, String> roundFacts() {
+        Map<String, String> facts = new java.util.LinkedHashMap<>();
+        facts.put("reason", "pickup_round");
+        facts.put("collected", Integer.toString(collected));
+        facts.put("left", Integer.toString(leftovers.size()));
+        StringBuilder cells = new StringBuilder();
+        for (int i = 0; i < Math.min(4, leftovers.size()); i++) {
+            if (i > 0) cells.append("; ");
+            cells.append(leftovers.get(i).cell().toShortString());
+        }
+        facts.put("leftovers", cells.toString());
+        Map<String, Integer> counts = new java.util.LinkedHashMap<>();
+        for (ItemStack stack : receipts) {
+            String id = net.minecraft.core.registries.BuiltInRegistries.ITEM
+                    .getKey(stack.getItem())
+                    .toString();
+            counts.merge(id, stack.getCount(), Integer::sum);
+        }
+        int index = 0;
+        for (var entry : counts.entrySet()) {
+            if (index >= 8) break;
+            facts.put("item" + ++index, entry.getKey() + " x" + entry.getValue());
+        }
+        return facts;
+    }
+
+    /** How many items this round has moved into the inventory. */
     public int collected() {
         return collected;
     }
@@ -266,10 +296,17 @@ public final class DropCollector {
                 .filter(e -> wanted(e, companion))
                 .sorted(Comparator.comparingDouble(e -> e.distanceToSqr(companion)))
                 .toList();
-        aimed = drops.stream()
-                .filter(e -> !e.hasPickUpDelay() && atRest(e))
-                .limit(MAX_GOALS)
-                .toList();
+        first = drops.isEmpty() ? null : drops.getFirst().blockPosition().immutable();
+        delayed = 0;
+        List<ItemEntity> ready = new ArrayList<>(Math.min(MAX_GOALS, drops.size()));
+        for (ItemEntity drop : drops) {
+            if (drop.hasPickUpDelay() || !atRest(drop)) {
+                delayed++;
+            } else if (ready.size() < MAX_GOALS) {
+                ready.add(drop);
+            }
+        }
+        aimed = ready;
     }
 
     /** A drop this round would take if it could: of the right kind, hazard-free and one the companion may collect. */
