@@ -6,6 +6,7 @@ import dev.friendai.features.mining.ExplorationPlanner;
 import dev.friendai.features.mining.MiningBounds;
 import dev.friendai.features.mining.MiningGoal;
 import dev.friendai.features.mining.MiningPathPolicy;
+import dev.friendai.foundation.diagnostics.LogEvents;
 import dev.friendai.foundation.mining.DropRisk;
 import dev.friendai.foundation.spatial.CostModel;
 import dev.friendai.foundation.spatial.Move;
@@ -30,6 +31,7 @@ import dev.friendai.world.placement.PlacementLedger;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
@@ -421,14 +423,14 @@ public final class MiningSession {
                 return State.WORKING;
             }
             diagnostic = "no-path";
-            return retryPlan("friendai.mining.unreachable");
+            return retryPlan(context, "friendai.mining.unreachable");
         }
         Path passage = path.passagePrefix().orElse(null);
         if (passage == null) {
             // A partial route that places a block is a stair cut short; the route that would reach is planned from
             // the material the companion carries, so search again rather than spend the block on half a rise.
             diagnostic = "cut-passage";
-            return retryPlan("friendai.mining.unreachable");
+            return retryPlan(context, "friendai.mining.unreachable");
         }
         Node current = node();
         if (passage.steps().isEmpty()) {
@@ -436,7 +438,7 @@ public final class MiningSession {
             if (visibleTarget.isEmpty()) {
                 excludedStances.add(current);
                 diagnostic = "blind-stance";
-                return retryPlan("friendai.mining.unreachable");
+                return retryPlan(context, "friendai.mining.unreachable");
             }
             target = blockPos(visibleTarget.get());
             setPhase("extract");
@@ -452,7 +454,7 @@ public final class MiningSession {
                     excludedStances.add(current);
                 }
                 diagnostic = "refused-" + shortKey(reason.key());
-                return retryPlan(reason);
+                return retryPlan(context, reason);
             }
             extraction = new BreakAction(target);
             return State.WORKING;
@@ -497,7 +499,7 @@ public final class MiningSession {
         if (result == ExplorationPlanner.Status.NO_ROUTE) {
             exploration = null;
             diagnostic = "no-route";
-            return retryPlan("friendai.mining.unreachable");
+            return retryPlan(context, "friendai.mining.unreachable");
         }
         PathStep next = exploration.nextStep().orElseThrow();
         setPhase(phaseFor(next.move()));
@@ -520,7 +522,7 @@ public final class MiningSession {
             search = null;
             exploration = null;
             diagnostic = "walk-failed";
-            return retryPlan("friendai.mining.unsafe_passage");
+            return retryPlan(context, "friendai.mining.unsafe_passage");
         }
         brokenBlocks += executor.brokenBlocks();
         executor.stop(context);
@@ -566,7 +568,7 @@ public final class MiningSession {
             diagnostic = target == null ? "target-gone" : "target-refused-" + shortKey(lost.key());
             target = null;
             descent = false;
-            return retryPlan(lost);
+            return retryPlan(context, lost);
         }
         if (!DropRoom.hasRoom(context, target)) {
             if (extraction != null) {
@@ -593,7 +595,7 @@ public final class MiningSession {
                 search = null;
                 descent = false;
                 diagnostic = "catch-refused";
-                return retryPlan(refusal);
+                return retryPlan(context, refusal);
             }
             platform = plan.platform();
         }
@@ -616,7 +618,7 @@ public final class MiningSession {
                 search = null;
                 descent = false;
                 diagnostic = "platform-refused";
-                return retryPlan(ownerMessage(refusal));
+                return retryPlan(context, ownerMessage(refusal));
             }
         }
         BreakAction.State result = extraction.tick(context, matches);
@@ -647,6 +649,7 @@ public final class MiningSession {
         descent = false;
         diagnostic = result == BreakAction.State.BLOCKED ? "break-blocked" : "break-failed";
         return retryPlan(
+                context,
                 result == BreakAction.State.BLOCKED
                         ? ownerMessage(refusal)
                         : UserMessage.of("friendai.mining.unreachable"));
@@ -796,11 +799,22 @@ public final class MiningSession {
         return true;
     }
 
-    private State retryPlan(String key) {
-        return retryPlan(UserMessage.of(key));
+    private State retryPlan(TaskContext context, String key) {
+        return retryPlan(context, UserMessage.of(key));
     }
 
-    private State retryPlan(UserMessage reason) {
+    private State retryPlan(TaskContext context, UserMessage reason) {
+        if (!diagnostic.isEmpty()) {
+            context.decision(
+                    LogEvents.RESOURCE_DECISION,
+                    "diagnostic",
+                    Map.of(
+                            "diagnostic", diagnostic,
+                            "target", target == null ? "none" : coords(target),
+                            "excludedTargets", Integer.toString(excludedTargets.size()),
+                            "excludedStances", Integer.toString(excludedStances.size()),
+                            "candidates", Integer.toString(targets.size())));
+        }
         noProgressPlans++;
         if (primaryFailure == null) {
             primaryFailure = reason;

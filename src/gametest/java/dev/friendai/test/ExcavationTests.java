@@ -2,16 +2,24 @@ package dev.friendai.test;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.execution.log.TaskLogEvent;
+import dev.friendai.features.mining.MiningBounds;
 import dev.friendai.features.mining.excavation.ExcavationDirection;
 import dev.friendai.features.mining.excavation.ExcavationGeometry;
 import dev.friendai.features.mining.excavation.ExcavationSpec;
+import dev.friendai.features.mining.minecraft.mining.MiningSession;
 import dev.friendai.features.mining.minecraft.task.ExcavateTask;
 import dev.friendai.features.mining.minecraft.task.MineBlockAtTask;
+import dev.friendai.foundation.diagnostics.LogEvents;
+import dev.friendai.foundation.spatial.Node;
 import dev.friendai.foundation.spatial.PathingConfig;
 import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.execution.TaskEventSink;
+import dev.friendai.task.Task;
+import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
+import java.util.ArrayList;
 import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
@@ -25,11 +33,17 @@ public class ExcavationTests {
     private static final class Result implements TaskEventSink {
         TaskStatus status;
         String summary;
+        final List<TaskLogEvent> diagnostics = new ArrayList<>();
 
         @Override
         public void onFinished(int id, String toolName, TaskStatus status, String summary) {
             this.status = status;
             this.summary = summary;
+        }
+
+        @Override
+        public void onDiagnostic(TaskLogEvent event) {
+            diagnostics.add(event);
         }
 
         @Override
@@ -80,6 +94,122 @@ public class ExcavationTests {
         BlockPos b = h.absolutePos(last);
         return ExcavationGeometry.box(a.getX(), a.getY(), a.getZ(), b.getX(), b.getY(), b.getZ())
                 .orElseThrow();
+    }
+
+    /** Ticks the real session through the ordinary diagnostic boundary without changing its retry policy. */
+    private static final class MiningProbe implements Task {
+        final MiningSession session;
+        final List<String> retryStates = new ArrayList<>();
+
+        MiningProbe(CompanionEntity companion, BlockPos target) {
+            BlockPos at = companion.blockPosition();
+            session = new MiningSession(
+                    companion, new MiningBounds(new Node(at.getX(), at.getY(), at.getZ()), 8), 1, 200);
+            session.setTargets(List.of(target), state -> state.is(Blocks.STONE));
+        }
+
+        @Override
+        public String type() {
+            return "mine_block_at";
+        }
+
+        @Override
+        public void start(TaskContext context) {}
+
+        @Override
+        public TaskStatus tick(TaskContext context) {
+            MiningSession.State state = session.tick(context);
+            String detail = session.debugReason();
+            if (detail.contains(" x" + (retryStates.size() + 1) + " cand=")) {
+                retryStates.add(detail);
+            }
+            return switch (state) {
+                case WORKING -> TaskStatus.RUNNING;
+                case FAILED -> TaskStatus.FAILED;
+                case EXTRACTED, EXHAUSTED -> TaskStatus.SUCCESS;
+            };
+        }
+
+        @Override
+        public void stop(TaskContext context) {
+            session.stop(context);
+        }
+
+        @Override
+        public String describe() {
+            return "mining diagnostic probe";
+        }
+
+        @Override
+        public String resultSummary() {
+            return session.failure() == null ? "mined" : session.failure().key();
+        }
+    }
+
+    @GameTest(maxTicks = 300)
+    public void miningRetriesReportOwnedRefusalFacts(GameTestHelper h) {
+        CompanionEntity c = companion(h);
+        c.inventory().clearContent();
+        BlockPos cell = new BlockPos(4, 2, 2);
+        h.setBlock(cell, Blocks.STONE);
+        BlockPos target = h.absolutePos(cell);
+        MiningProbe task = new MiningProbe(c, target);
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(task, "mine_block_at");
+
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.FAILED, "the refusal has not reached the retry cap");
+            List<TaskLogEvent> retries = result.diagnostics.stream()
+                    .filter(event -> event.event().equals(LogEvents.RESOURCE_DECISION)
+                            && "diagnostic".equals(event.facts().get("reason")))
+                    .toList();
+            h.assertTrue(retries.size() == 3, "each of the three retries must report once: " + retries);
+            h.assertTrue(task.retryStates.size() == 3, "the session retry cap changed: " + task.retryStates);
+            for (int index = 0; index < retries.size(); index++) {
+                TaskLogEvent event = retries.get(index);
+                String code = index == 0 ? "refused-no_tool" : "no-path";
+                h.assertTrue(code.equals(event.facts().get("diagnostic")), "wrong retry code: " + event);
+                h.assertTrue(
+                        (target.getX() + " " + target.getY() + " " + target.getZ())
+                                .equals(event.facts().get("target")),
+                        "retry lost its selected target: " + event);
+                h.assertTrue("1".equals(event.facts().get("excludedTargets")), "wrong excluded target count: " + event);
+                h.assertTrue("0".equals(event.facts().get("excludedStances")), "wrong excluded stance count: " + event);
+                h.assertTrue("1".equals(event.facts().get("candidates")), "wrong remaining candidate count: " + event);
+                h.assertTrue(
+                        task.retryStates.get(index).contains("x" + (index + 1) + " cand=1 ex=1/0"),
+                        "facts differ from session-owned collections: " + task.retryStates);
+            }
+            h.assertTrue(
+                    "friendai.mining.no_tool".equals(task.session.failure().key()),
+                    "later unreachable retries replaced the typed refusal: " + result.summary);
+            h.assertTrue(h.getBlockState(cell).is(Blocks.STONE), "a refused target was broken");
+        });
+    }
+
+    @GameTest(maxTicks = 300)
+    public void successfulMiningHasNoRetryDiagnostic(GameTestHelper h) {
+        CompanionEntity c = companion(h);
+        BlockPos cell = new BlockPos(4, 2, 2);
+        h.setBlock(cell, Blocks.STONE);
+        MiningProbe task = new MiningProbe(c, h.absolutePos(cell));
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(task, "mine_block_at");
+
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "the successful mine is still running");
+            h.assertTrue(task.session.debugReason().isEmpty(), "successful mining retained a diagnostic");
+            h.assertTrue(
+                    result.diagnostics.stream()
+                            .noneMatch(event -> event.event().equals(LogEvents.RESOURCE_DECISION)
+                                    && "diagnostic".equals(event.facts().get("reason"))),
+                    "an empty mining diagnostic emitted a decision");
+            h.assertTrue(h.getBlockState(cell).isAir(), "successful mining did not break the target");
+        });
     }
 
     @GameTest(maxTicks = 1600)
