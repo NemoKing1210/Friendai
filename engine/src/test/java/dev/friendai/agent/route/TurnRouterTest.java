@@ -93,6 +93,40 @@ class TurnRouterTest {
     }
 
     @Test
+    void gatheringOrdersFromAVoiceSessionKeepTheGatheringTools() {
+        // In order: "Take a couple of bushes and a couple of clay we are standing on", "Yes, take it and follow me
+        // afterwards", "Chop some firewood and follow me", "Then don't mine the red sand, only the bushes, they are
+        // quick to collect with one click, aren't they?".
+        for (String text : List.of(
+                "Забери пару кустов и пару глины на которой мы стоим.",
+                "Да, бери и следуй за мной после.",
+                "Наруби дров и иди за мной",
+                "Тогда красный песок не добывай, только кусты, их же быстро собрать одним кликом или нет?",
+                "take the bushes and follow me",
+                "grab some sand")) {
+            RouteDecision d = player(text, false);
+            assertFalse(d.mode() == TurnMode.CHAT, text);
+            assertTrue(d.groups().contains(ToolGroup.GATHERING), text);
+        }
+    }
+
+    @Test
+    void takingIsATopicNotASecondKindOfWork() {
+        // "Yes, take it and follow me afterwards": one movement order that refers to the previous reply.
+        RouteDecision d = player("Да, бери и следуй за мной после.", false);
+        assertEquals(TurnMode.ACTION, d.mode());
+        assertFalse(d.wantPlanner(), "a follow-up that says 'take it' is not an objective to plan");
+    }
+
+    @Test
+    void eatingAndSleepingShowTheSurvivalTools() {
+        // The last two are "eat something" and "have a sleep" in Russian.
+        for (String text : List.of("eat something", "sleep in the bed", "съешь что-нибудь", "поспи")) {
+            assertTrue(player(text, false).groups().contains(ToolGroup.SURVIVAL), text);
+        }
+    }
+
+    @Test
     void tradingQuestionsStayChatAndMayUseReadOnlyTradeContext() {
         RouteDecision en = player("What trades does the villager have?", false);
         assertEquals(TurnMode.CHAT, en.mode());

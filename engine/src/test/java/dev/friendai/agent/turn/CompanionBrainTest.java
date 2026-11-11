@@ -261,6 +261,67 @@ class CompanionBrainTest {
     }
 
     @Test
+    void aRefusedHiddenToolCallBringsItsSchemaForTheRetry() {
+        routedToolbox(true);
+        tools.results
+                .computeIfAbsent("mine_blocks", name -> new java.util.ArrayDeque<>())
+                .add(dev.friendai.execution.tool.ToolResult.error(
+                        "Invalid arguments for mine_blocks: missing required argument 'block'"));
+        gateway.enqueue(calls("", call("m1", "mine_blocks")));
+        gateway.enqueue(calls("", call("m2", "mine_blocks")));
+        gateway.enqueue(text("Mining."));
+
+        brain.post(said("where are you?"));
+
+        assertFalse(toolNames(gateway.requests.get(0)).contains("mine_blocks"), "the chat turn starts without it");
+        assertTrue(toolNames(gateway.requests.get(1)).contains("mine_blocks"), "the retry sees the schema");
+        Message refused = gateway.requests.get(1).messages().stream()
+                .filter(m -> m.role() == Role.TOOL)
+                .findFirst()
+                .orElseThrow();
+        assertTrue(refused.text().contains("missing required argument 'block'"), refused.text());
+        assertTrue(refused.text().contains("gathering tools were not loaded"), refused.text());
+        assertEquals(List.of("mine_blocks", "mine_blocks"), tools.executed);
+    }
+
+    @Test
+    void aHiddenToolThatSucceedsKeepsItsResultAndStaysVisibleForTheTurn() {
+        routedToolbox(true);
+        gateway.enqueue(calls("", call("m1", "mine_blocks")));
+        gateway.enqueue(text("Mining."));
+        gateway.enqueue(text("Right here."));
+
+        brain.post(said("where are you?"));
+        brain.post(said("where are you now?"));
+
+        Message result = gateway.requests.get(1).messages().stream()
+                .filter(m -> m.role() == Role.TOOL)
+                .findFirst()
+                .orElseThrow();
+        assertEquals("ok mine_blocks", result.text());
+        assertTrue(toolNames(gateway.requests.get(1)).contains("mine_blocks"));
+        assertFalse(toolNames(gateway.requests.get(2)).contains("mine_blocks"), "the next turn is routed afresh");
+    }
+
+    @Test
+    void aCallToAnOfferedToolAddsNoNote() {
+        routedToolbox(true);
+        tools.results
+                .computeIfAbsent("mine_blocks", name -> new java.util.ArrayDeque<>())
+                .add(dev.friendai.execution.tool.ToolResult.error("no such block nearby"));
+        gateway.enqueue(calls("", call("m1", "mine_blocks")));
+        gateway.enqueue(text("Nothing to mine."));
+
+        brain.post(said("mine some stone"));
+
+        Message result = gateway.requests.get(1).messages().stream()
+                .filter(m -> m.role() == Role.TOOL)
+                .findFirst()
+                .orElseThrow();
+        assertEquals("no such block nearby", result.text());
+    }
+
+    @Test
     void hiddenToolNameIsStillCaughtByReplyGuard() {
         routedToolbox(true);
         gateway.enqueue(text("I will use mine_blocks now."));

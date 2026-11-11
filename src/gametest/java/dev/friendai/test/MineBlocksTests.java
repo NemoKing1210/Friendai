@@ -167,6 +167,82 @@ public class MineBlocksTests {
         });
     }
 
+    /** A badlands floor: red sand over the stone platform, so every target here stands on or beside a falling block. */
+    private static void redSandFloor(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        for (int x = 0; x < 16; x++) {
+            for (int z = 0; z < 16; z++) h.setBlock(x, 2, z, Blocks.RED_SAND);
+        }
+    }
+
+    @GameTest(maxTicks = 600)
+    public void minesDeadBushesStandingOnRedSand(GameTestHelper h) {
+        redSandFloor(h);
+        BlockPos[] bushes = {new BlockPos(6, 3, 3), new BlockPos(9, 3, 6), new BlockPos(4, 3, 9)};
+        for (BlockPos bush : bushes) h.setBlock(bush, Blocks.DEAD_BUSH);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 3, 2);
+        c.setOwner(java.util.UUID.randomUUID());
+        for (BlockPos bush : bushes) {
+            h.assertTrue(
+                    GameTestSupport.observeVisible(h, c, h.absolutePos(bush)), "bush should be visible at " + bush);
+        }
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(mine("minecraft:dead_bush", 2), "mine_blocks");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(
+                    countBlocks(h, Blocks.DEAD_BUSH, bushes) == 1,
+                    "bushes left: " + countBlocks(h, Blocks.DEAD_BUSH, bushes));
+        });
+    }
+
+    @GameTest(maxTicks = 900)
+    public void minesRedSandOutOfTheFloor(GameTestHelper h) {
+        redSandFloor(h);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 3, 2);
+        c.setOwner(java.util.UUID.randomUUID());
+        for (BlockPos sand : new BlockPos[] {new BlockPos(5, 2, 2), new BlockPos(6, 2, 3), new BlockPos(5, 2, 5)}) {
+            h.assertTrue(
+                    GameTestSupport.observeVisible(h, c, h.absolutePos(sand)), "sand should be visible at " + sand);
+        }
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(mine("minecraft:red_sand", 2), "mine_blocks");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(
+                    c.inventory().countItem(Items.RED_SAND) >= 2,
+                    "sand collected: " + c.inventory().countItem(Items.RED_SAND));
+        });
+    }
+
+    @GameTest(maxTicks = 600)
+    public void minesAnOreWithGravelBesideAndAboveIt(GameTestHelper h) {
+        redSandFloor(h);
+        BlockPos ore = new BlockPos(6, 3, 3);
+        h.setBlock(ore, Blocks.NETHER_QUARTZ_ORE);
+        h.setBlock(ore.east(), Blocks.GRAVEL);
+        h.setBlock(ore.above(), Blocks.GRAVEL);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 3, 2);
+        c.setOwner(java.util.UUID.randomUUID());
+        c.inventory().addItem(Items.WOODEN_PICKAXE.getDefaultInstance());
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(ore)), "ore should be visible");
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(mine("minecraft:nether_quartz_ore", 1), "mine_blocks");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(
+                    !h.getLevel().getBlockState(h.absolutePos(ore)).is(Blocks.NETHER_QUARTZ_ORE),
+                    "the ore must be gone; the gravel above may have dropped into its cell");
+            h.assertTrue(c.isAlive() && !c.isInWall(), "the companion must not be buried by the gravel");
+        });
+    }
+
     @GameTest(maxTicks = 1200)
     public void partialWhenNotEnough(GameTestHelper h) {
         GameTestSupport.platform(h, 16);

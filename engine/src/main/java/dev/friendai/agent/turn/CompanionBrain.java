@@ -143,6 +143,9 @@ public final class CompanionBrain {
     private final Deque<SpokenLine> recentSpeech = new ArrayDeque<>();
 
     private Set<String> turnToolNames = Set.of();
+    /** The tools whose schemas the latest request carried; a call outside it was written from memory. */
+    private Set<String> offeredTools = Set.of();
+
     private final TurnRouter router = new TurnRouter(IntentVocabulary.load());
     private final ToolCatalog catalog;
     /** The tool groups this turn may use; widened by request_tools, reset at every turn start. */
@@ -780,6 +783,7 @@ public final class CompanionBrain {
             turnToolNames = socialTurn
                     ? java.util.Set.of()
                     : specs.stream().map(ToolSpec::name).collect(Collectors.toUnmodifiableSet());
+            offeredTools = sent.stream().map(ToolSpec::name).collect(Collectors.toUnmodifiableSet());
             String system = buildSystemPrompt(plannerNote);
             plannerNote = "";
             java.util.List<dev.friendai.agent.llm.model.Message> history = memory.snapshot();
@@ -1004,6 +1008,7 @@ public final class CompanionBrain {
         for (ToolCall call : calls) {
             ToolResult result;
             observe(o -> o.onToolCall(call));
+            Optional<ToolGroup> revealed = revealHiddenGroup(call.name());
             try {
                 if ("trade_item".equals(call.name())
                         && (decision.mode() == TurnMode.CHAT
@@ -1015,6 +1020,12 @@ public final class CompanionBrain {
             } catch (RuntimeException e) {
                 LOGGER.warn("Tool {} threw", call.name(), e);
                 result = ToolResult.error("Tool " + call.name() + " failed: " + e.getMessage());
+            }
+            if (result.error() && revealed.isPresent()) {
+                result = ToolResult.error(result.content() + " The "
+                        + revealed.get().name().toLowerCase(java.util.Locale.ROOT)
+                        + " tools were not loaded when you made this call; they are loaded now, so read the schema of "
+                        + call.name() + " and call it again.");
             }
             ToolResult finalResult = result;
             observe(o -> o.onToolResult(call, finalResult));
@@ -1084,6 +1095,23 @@ public final class CompanionBrain {
             return finished.planId();
         }
         return -1;
+    }
+
+    /**
+     * Shows the group of a tool the model called although routing had hidden it. Such a call is written from memory,
+     * without a schema, which is where a refused argument comes from; with the group visible for the rest of the turn
+     * the next request carries the schema, so the model can repeat the call correctly instead of guessing again.
+     */
+    private Optional<ToolGroup> revealHiddenGroup(String tool) {
+        if (socialTurn || offeredTools.contains(tool) || !agentSettings.get().toolRouting()) {
+            return Optional.empty();
+        }
+        Optional<ToolGroup> group =
+                catalog.meta(tool).filter(meta -> !meta.core()).map(dev.friendai.agent.tools.ToolMeta::group);
+        if (group.isEmpty() || !visibleGroups.add(group.get())) {
+            return Optional.empty();
+        }
+        return group;
     }
 
     /** Unlocks a tool group for the rest of the turn; an unknown group is an error listing the valid ones. */

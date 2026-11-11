@@ -6,6 +6,15 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.211.3] - 2026-11-11
+
+### Fixed
+
+- The companion now mines a block that stands on or beside sand, red sand or gravel — a dead bush in the desert, an ore next to gravel — and sand or gravel itself. Such a block used to be reported as unreachable after a long wait. Only a falling block directly over the companion's own head is still left alone.
+- A number or an on/off value the model wrote in quotes (`"count": "2"`) is accepted in a tool call, a plan step and a queue edit instead of failing the order.
+- When the model calls a tool that was hidden for the current message, the companion loads that tool's group for the rest of the turn, so a refused call can be repeated correctly instead of failing again and again.
+- Russian orders with "take", "pick up", "chop", "mine" and "collect" verb forms, and English "take", "grab", "cut" and "break", now keep the gathering tools available; "eat" and "sleep" orders show the eating and sleeping tools.
+
 ## [0.211.2] - 2026-11-08
 
 ### Changed

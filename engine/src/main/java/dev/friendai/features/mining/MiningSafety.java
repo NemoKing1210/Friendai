@@ -65,7 +65,7 @@ public final class MiningSafety {
                 || target.equals(stance.support())
                 || protectedSupports.contains(target)
                 || !safeNode(view, stance)
-                || !safeTarget(view, target)) {
+                || !safeTarget(view, stance, target)) {
             return false;
         }
         if (target.y() == stance.y() - 1
@@ -91,7 +91,7 @@ public final class MiningSafety {
                 || protectedSupports.contains(target)
                 || !view.at(stance.support()).supports()
                 || view.at(stance.support()).kind() == Cell.Kind.UNLOADED
-                || !safeTarget(view, target)) {
+                || !safeTarget(view, stance, target)) {
             return false;
         }
         if (target.y() == stance.y() - 1
@@ -108,11 +108,10 @@ public final class MiningSafety {
         return true;
     }
 
-    private static boolean safeTarget(CellView view, Pos target) {
+    private static boolean safeTarget(CellView view, Node stance, Pos target) {
         Cell targetCell = view.at(target);
         if (targetCell.kind() == Cell.Kind.UNLOADED
                 || targetCell.hazard()
-                || targetCell.falls()
                 || targetCell.kind() == Cell.Kind.WATER
                 || targetCell.kind() == Cell.Kind.LAVA) {
             return false;
@@ -121,12 +120,24 @@ public final class MiningSafety {
             Cell neighbor = view.at(target.x() + d[0], target.y() + d[1], target.z() + d[2]);
             if (neighbor.kind() == Cell.Kind.UNLOADED
                     || neighbor.kind() == Cell.Kind.WATER
-                    || neighbor.kind() == Cell.Kind.LAVA
-                    || neighbor.falls()) {
+                    || neighbor.kind() == Cell.Kind.LAVA) {
                 return false;
             }
         }
-        return true;
+        return !buriesStance(view, stance, target);
+    }
+
+    /**
+     * Whether breaking the target brings a falling block down on the body. Sand and gravel only ever move straight
+     * down: a falling target, or the falling column resting on it, drops through the target's own column and nowhere
+     * else. That is a danger only when the body stands in that column; sand under a plant, gravel beside an ore and a
+     * sand floor two cells away stay where they are or fall clear of the stance.
+     */
+    private static boolean buriesStance(CellView view, Node stance, Pos target) {
+        if (target.x() != stance.x() || target.z() != stance.z()) {
+            return false;
+        }
+        return view.at(target).falls() || view.at(target.offset(0, 1, 0)).falls();
     }
 
     /** Whether this edge is cardinal, dry, supported, and can be traversed back without more world changes. */

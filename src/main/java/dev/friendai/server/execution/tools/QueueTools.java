@@ -26,6 +26,7 @@ import dev.friendai.execution.queue.QueueText;
 import dev.friendai.execution.queue.QueueTradeScope;
 import dev.friendai.execution.queue.QueuedStep;
 import dev.friendai.execution.tool.AccessLevel;
+import dev.friendai.execution.tool.ArgCoercion;
 import dev.friendai.execution.tool.ArgValidator;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.QueueParser;
@@ -936,12 +937,15 @@ public final class QueueTools implements FeatureToolContributor {
      */
     static JsonObject normalizeEditArgs(TaskToolDefinition definition, JsonObject args) {
         if (definition == null || args == null) return args;
+        JsonObject shaped = args;
         try {
             JsonObject normalized = definition.normalizer().apply(args);
-            return normalized == null ? args : normalized;
+            if (normalized != null) shaped = normalized;
         } catch (RuntimeException e) {
-            return args;
+            // The arguments stay as written; validation reports what is wrong with them.
         }
+        // A quoted number or flag is repaired here as it is for a direct call and a plan step.
+        return ArgCoercion.coerce(definition.schema(), shaped);
     }
 
     private static void registerFactories(
