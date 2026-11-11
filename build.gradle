@@ -30,6 +30,14 @@ loom {
 			sourceSet sourceSets.client
 		}
 	}
+
+	runs {
+		client {
+			// Without a username the dev client is a random "PlayerNNN" on every launch, and so is its offline UUID:
+			// the companion summoned in the last session then belongs to a stranger and ignores today's orders.
+			programArgs "--username", providers.environmentVariable("FRIENDAI_DEV_USERNAME").getOrElse("FriendaiDev")
+		}
+	}
 }
 
 fabricApi {
