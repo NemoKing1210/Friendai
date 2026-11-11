@@ -283,25 +283,17 @@ public final class ResourceObserver {
             queue.removeFirst();
             rays++;
             forgetTarget(pending);
-            if (outcome == ResourceSight.Outcome.VISIBLE
-                    && pending.origin.distanceToSqr(companion.getEyePosition()) <= 4.0) {
+            boolean fromHere = pending.origin.distanceToSqr(companion.getEyePosition()) <= 4.0;
+            if (fromHere) {
+                // Thin blocks the ray passed on its way are seen whether or not it then met an opaque block.
+                for (BlockPos seen : pending.job.glimpsed()) {
+                    record(seen, observations, emitted);
+                }
+            }
+            if (outcome == ResourceSight.Outcome.VISIBLE && fromHere) {
                 BlockPos hit = pending.job.hitBlock();
                 if (hit != null) {
-                    ServerLevel level = (ServerLevel) companion.level();
-                    long observedTick = level.getServer().overworld().getGameTime();
-                    String blockId = BuiltInRegistries.BLOCK
-                            .getKey(level.getBlockState(hit).getBlock())
-                            .toString();
-                    ResourceObservation.Location location =
-                            new ResourceObservation.Location(dimension, new Pos(hit.getX(), hit.getY(), hit.getZ()));
-                    if (emitted.add(location)) {
-                        BlockPos viewpoint = companion.blockPosition();
-                        observations.add(new ResourceObservation(
-                                blockId,
-                                location,
-                                new Pos(viewpoint.getX(), viewpoint.getY(), viewpoint.getZ()),
-                                observedTick));
-                    }
+                    long observedTick = record(hit, observations, emitted);
                     if (pending.job.unobstructedOpenCorridor()) {
                         List<Pos> openCells = pending.job.openAirCells().stream()
                                 .map(cell -> new Pos(cell.getX(), cell.getY(), cell.getZ()))
@@ -322,6 +314,24 @@ public final class ResourceObserver {
             }
         }
         return new ObservationBatch(List.copyOf(observations), List.copyOf(caveEntrances), rays, cells, queue.size());
+    }
+
+    /** Adds one sighting of the block at {@code pos} unless this batch already has it; returns the observed tick. */
+    private long record(
+            BlockPos pos, List<ResourceObservation> observations, Set<ResourceObservation.Location> emitted) {
+        ServerLevel level = (ServerLevel) companion.level();
+        long observedTick = level.getServer().overworld().getGameTime();
+        ResourceObservation.Location location =
+                new ResourceObservation.Location(dimension, new Pos(pos.getX(), pos.getY(), pos.getZ()));
+        if (emitted.add(location)) {
+            String blockId = BuiltInRegistries.BLOCK
+                    .getKey(level.getBlockState(pos).getBlock())
+                    .toString();
+            BlockPos viewpoint = companion.blockPosition();
+            observations.add(new ResourceObservation(
+                    blockId, location, new Pos(viewpoint.getX(), viewpoint.getY(), viewpoint.getZ()), observedTick));
+        }
+        return observedTick;
     }
 
     private void forgetTarget(PendingRay ray) {
