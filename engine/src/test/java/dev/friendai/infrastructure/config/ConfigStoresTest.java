@@ -412,6 +412,47 @@ class ConfigStoresTest {
     }
 
     @Test
+    void clientV10GetsTheBuiltInPlaybackAndKeepsItsSpeechSettingsAndUnknownFields() throws IOException {
+        Path path = dir.resolve("client-v10.json");
+        Files.writeString(path, """
+                {"version":10,"voice":{"streamReplies":false,"tts":{"enabled":true,"provider":"elevenlabs",
+                "volume":0.4,"spatial":false,"outputDevice":"Speakers","extension":7}}}
+                """);
+        var store = ConfigStores.client(path);
+        ClientConfig config = store.load();
+        assertEquals(ClientConfig.CURRENT_VERSION, config.version);
+        assertEquals("builtin", config.voice.tts.playback, "an upgrade never routes speech through another mod");
+        assertTrue(config.voice.tts.enabled);
+        assertEquals("elevenlabs", config.voice.tts.provider);
+        assertEquals(0.4, config.voice.tts.volume);
+        assertFalse(config.voice.tts.spatial);
+        assertEquals("Speakers", config.voice.tts.outputDevice);
+        assertFalse(config.voice.streamReplies);
+        store.save(config);
+        JsonObject tts = json(path).getAsJsonObject("voice").getAsJsonObject("tts");
+        assertEquals("builtin", tts.get("playback").getAsString());
+        assertEquals(7, tts.get("extension").getAsInt());
+    }
+
+    @Test
+    void anExplicitVoiceChatPlaybackSurvivesAReloadAndAnUnknownOneBecomesBuiltIn() throws IOException {
+        Path path = dir.resolve("client-playback.json");
+        Files.writeString(path, """
+                {"version":11,"voice":{"tts":{"playback":"voicechat"}}}
+                """);
+        var store = ConfigStores.client(path);
+        ClientConfig config = store.load();
+        assertEquals("voicechat", config.voice.tts.playback);
+        store.save(config);
+        assertEquals("voicechat", store.load().voice.tts.playback);
+
+        Files.writeString(path, """
+                {"version":11,"voice":{"tts":{"playback":"plasmo"}}}
+                """);
+        assertEquals("builtin", ConfigStores.client(path).load().voice.tts.playback);
+    }
+
+    @Test
     void clientV2MovesNestedProviderSettingsWithoutLosingCredentialsOrMute() throws IOException {
         Path path = dir.resolve("client-v2.json");
         Files.writeString(path, """

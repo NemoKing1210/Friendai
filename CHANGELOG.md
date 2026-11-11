@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.212.0] - 2026-11-12
+
+### Added
+
+- **Voice output** in Settings → Voice → Synthesis (`voice.tts.playback`): with the optional Simple Voice Chat mod installed and connected, the companion's spoken replies can play through it from the companion's position, so Sound Physics Remastered adds reverb and muffles the voice behind walls. The default stays the built-in output, which also takes over whenever Simple Voice Chat cannot be used.
+
 ## [0.211.3] - 2026-11-11
 
 ### Fixed

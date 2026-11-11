@@ -205,6 +205,9 @@ final class PackageDependencyRules {
             if (isOptionalUiPackage(target) && !isUnder(source, "dev.friendai.client.config")) {
                 add(violations, "optional-integration-isolation", edge);
             }
+            if (isOptionalVoiceChatPackage(target) && !isVoiceChatAdapter(source)) {
+                add(violations, "optional-integration-isolation", edge);
+            }
             if (isUnder(source, "dev.friendai.presentation")
                     && isUnder(target, "dev.friendai.features")
                     && !isFeatureView(target)) {
@@ -260,6 +263,7 @@ final class PackageDependencyRules {
     private static boolean isEngineForbiddenDependency(String className) {
         return isPlatformPackage(className)
                 || isOptionalUiPackage(className)
+                || isOptionalVoiceChatPackage(className)
                 || isUnder(className, "io.github.givimad.whisperjni")
                 || isUnder(className, "com.k2fsa.sherpa.onnx");
     }
@@ -362,6 +366,16 @@ final class PackageDependencyRules {
 
     private static boolean isOptionalUiPackage(String className) {
         return isUnder(className, "dev.isxander.yacl3") || isUnder(className, "com.terraformersmc.modmenu");
+    }
+
+    private static boolean isOptionalVoiceChatPackage(String className) {
+        return isUnder(className, "de.maxhenkel.voicechat");
+    }
+
+    /** The plugin Simple Voice Chat loads and the client playback backend built on its API. */
+    private static boolean isVoiceChatAdapter(String className) {
+        return isUnder(className, "dev.friendai.integration.voicechat")
+                || isUnder(className, "dev.friendai.client.voicechat");
     }
 
     private static boolean isFeatureView(String className) {

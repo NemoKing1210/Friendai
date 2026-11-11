@@ -44,7 +44,8 @@ public final class ConfigStores {
                     ConfigStores::disableOutlineByDefault, // 6 -> 7: the outline is off unless asked for
                     ADDITIVE, // 7 -> 8: client logging, normal by default
                     ADDITIVE, // 8 -> 9: hands-free wake word, disabled by default
-                    ConfigStores::removeSocialOutline)); // 9 -> 10: the outline is stored with the companion
+                    ConfigStores::removeSocialOutline, // 9 -> 10: the outline is stored with the companion
+                    ADDITIVE)); // 10 -> 11: speech playback backend, built-in by default
 
     private ConfigStores() {}
 
