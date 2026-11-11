@@ -20,7 +20,13 @@ import net.minecraft.world.level.block.state.BlockState;
  * remembered must still be visible from where the companion stands; {@link TreeFinder#findObserved} validates it.
  */
 public final class FellTreeSearchTask implements Task {
-    private static final int TREE_SEARCH_WAIT_TICKS = 100;
+    /**
+     * How long the companion looks around before saying there is no tree. A trunk ten blocks off is a narrow target
+     * for one sweep's rays, so a companion summoned a moment ago needs several sweeps to see it; five seconds made
+     * "chop some wood" fail beside a tree in plain view.
+     */
+    static final int TREE_SEARCH_WAIT_TICKS = 300;
+
     private static final int MAX_OBSERVATIONS = 1_024;
     /** Rebuilding the observation maps every tick spends the same 1024 entries for no new evidence. */
     private static final int SCAN_INTERVAL_TICKS = 5;

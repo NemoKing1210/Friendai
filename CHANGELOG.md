@@ -22,6 +22,11 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 - Asked about a block "near us" that stands a little farther than the model looked, the companion is told where the nearest one is instead of answering that there is none.
 - The lighting skill now says plainly that it placed no torch on ground that is already lit and points to placing the torch directly, so "put a couple of torches here" in daylight is not answered with a promise and nothing placed.
 - The obtain skill tells the model that plain "stone" means cobblestone and iron ore means raw iron, so these orders no longer fail looking for the smelted block or for ore only Silk Touch can keep.
+- "Chop some wood" right after the companion was summoned looks around for up to fifteen seconds before saying there is no tree, instead of giving up after five beside an oak in plain view.
+
+### Added
+
+- A generated house takes `"windows": "none"` for solid walls and `"door": "none"` for an open doorway, so "build a small plank house" no longer stops for a missing door and glass panes.
 
 ## [0.211.2] - 2026-11-08
 
