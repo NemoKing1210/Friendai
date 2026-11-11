@@ -15,6 +15,7 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 - When the model calls a tool that was hidden for the current message, the companion loads that tool's group for the rest of the turn, so a refused call can be repeated correctly instead of failing again and again.
 - Russian orders with "take", "pick up", "chop", "mine" and "collect" verb forms, and English "take", "grab", "cut" and "break", now keep the gathering tools available; "eat" and "sleep" orders show the eating and sleeping tools.
 - The companion now notices dead bushes, flowers, saplings and other thin plants its eyes pass over, so "take the bushes we are standing on" finds them instead of answering that there are none nearby. A plant behind a wall stays unseen.
+- An idle companion near a villager or wandering trader it cannot reach no longer walks to it every ten seconds and no longer interrupts the conversation to report it; it checks each trader's offers at most once every five minutes, quietly.
 
 ## [0.211.2] - 2026-11-08
 

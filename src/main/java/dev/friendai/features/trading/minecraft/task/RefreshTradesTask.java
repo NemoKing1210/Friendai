@@ -13,6 +13,9 @@ public final class RefreshTradesTask implements Task {
 
     private final List<UUID> traders;
     private final long deadlineTick;
+    /** An idle refresh the server started on its own: its outcome is bookkeeping, not news for the brain. */
+    private final boolean quiet;
+
     private int index;
     private int inspected;
     private InspectTraderTask current;
@@ -24,6 +27,10 @@ public final class RefreshTradesTask implements Task {
     }
 
     public RefreshTradesTask(List<UUID> traders, long deadlineTick) {
+        this(traders, deadlineTick, false);
+    }
+
+    public RefreshTradesTask(List<UUID> traders, long deadlineTick, boolean quiet) {
         if (traders == null
                 || traders.isEmpty()
                 || traders.size() > MAX_TRADERS
@@ -34,11 +41,22 @@ public final class RefreshTradesTask implements Task {
         }
         this.traders = List.copyOf(traders);
         this.deadlineTick = deadlineTick;
+        this.quiet = quiet;
     }
 
     @Override
     public String type() {
         return "refresh_trades";
+    }
+
+    @Override
+    public boolean emitsEvents() {
+        return !quiet;
+    }
+
+    /** The exact traders this refresh inspects, in order. */
+    public List<UUID> traders() {
+        return traders;
     }
 
     @Override
