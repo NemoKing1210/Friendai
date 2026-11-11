@@ -44,6 +44,8 @@ import net.minecraft.world.phys.Vec3;
 public final class BlockInfoTools implements FeatureToolContributor {
     private static final double SPEAKER_VIEW_RANGE = 32.0;
     private static final double LOOK_RANGE = 64.0;
+    /** How far an empty find_blocks answer still looks for the nearest known block to name. */
+    private static final int FARTHEST_HINT = 32;
 
     private final IntSupplier mineRadius;
     private final IntSupplier treeRadius;
@@ -177,6 +179,19 @@ public final class BlockInfoTools implements FeatureToolContributor {
         List<BlockPos> found =
                 resources == null ? List.of() : resources.knownOrVisible(companion, matcher, radius, limit);
         if (found.isEmpty()) {
+            // "Near us" is a player's word, not a radius: a block just past the asked radius is still the one they
+            // mean, so name it instead of reporting that there is none.
+            List<BlockPos> beyond = resources == null || radius >= FARTHEST_HINT
+                    ? List.of()
+                    : resources.knownOrVisible(companion, matcher, FARTHEST_HINT, 1);
+            if (!beyond.isEmpty()) {
+                BlockPos nearest = beyond.get(0);
+                double distance = Math.sqrt(Vec3.atCenterOf(nearest).distanceToSqr(companion.position()));
+                return ToolResult.ok("no " + matcher.label() + " within " + radius + " blocks, but the nearest "
+                        + "observed or remembered one is at " + nearest.getX() + " " + nearest.getY() + " "
+                        + nearest.getZ() + " (" + String.format(Locale.ROOT, "%.1f", distance)
+                        + " blocks away); mine it or ask again with a larger radius");
+            }
             return ToolResult.ok("no " + matcher.label() + " observed or remembered within " + radius
                     + " blocks; use search_resource to search for it, or look_around for a visible exposure");
         }

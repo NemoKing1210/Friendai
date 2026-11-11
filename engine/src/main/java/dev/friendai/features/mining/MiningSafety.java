@@ -108,10 +108,14 @@ public final class MiningSafety {
         return true;
     }
 
+    /**
+     * Whether breaking the target is safe from this stance. A cactus, a berry bush or a magma block is a hazard to
+     * stand in or against, not to break from reach: the move generator already keeps the stance off its neighbours,
+     * so such a target stays a target. Lava, water and an unloaded cell are never one.
+     */
     private static boolean safeTarget(CellView view, Node stance, Pos target) {
         Cell targetCell = view.at(target);
         if (targetCell.kind() == Cell.Kind.UNLOADED
-                || targetCell.hazard()
                 || targetCell.kind() == Cell.Kind.WATER
                 || targetCell.kind() == Cell.Kind.LAVA) {
             return false;

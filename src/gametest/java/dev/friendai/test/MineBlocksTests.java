@@ -198,6 +198,30 @@ public class MineBlocksTests {
         });
     }
 
+    /**
+     * A live session: "break that cactus near us" sat in the approach phase for minutes with no path. A cactus hurts
+     * whoever stands against it, so the cells beside it are no stance, but it is broken from reach like any block.
+     */
+    @GameTest(maxTicks = 900)
+    public void minesATwoBlockCactusStandingOnSand(GameTestHelper h) {
+        redSandFloor(h);
+        BlockPos base = new BlockPos(8, 3, 7);
+        h.setBlock(base, Blocks.CACTUS);
+        h.setBlock(base.above(), Blocks.CACTUS);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 3, 2);
+        c.setOwner(java.util.UUID.randomUUID());
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(base)), "cactus should be visible");
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(mine("minecraft:cactus", 1), "mine_blocks");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertFalse(h.getBlockState(base).is(Blocks.CACTUS), "the cactus still stands");
+            h.assertTrue(c.isAlive() && c.getHealth() > 10, "health " + c.getHealth());
+        });
+    }
+
     @GameTest(maxTicks = 900)
     public void minesRedSandOutOfTheFloor(GameTestHelper h) {
         redSandFloor(h);

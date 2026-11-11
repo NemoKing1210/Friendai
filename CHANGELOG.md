@@ -16,6 +16,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 - Russian orders with "take", "pick up", "chop", "mine" and "collect" verb forms, and English "take", "grab", "cut" and "break", now keep the gathering tools available; "eat" and "sleep" orders show the eating and sleeping tools.
 - The companion now notices dead bushes, flowers, saplings and other thin plants its eyes pass over, so "take the bushes we are standing on" finds them instead of answering that there are none nearby. A plant behind a wall stays unseen.
 - An idle companion near a villager or wandering trader it cannot reach no longer walks to it every ten seconds and no longer interrupts the conversation to report it; it checks each trader's offers at most once every five minutes, quietly.
+- The companion breaks a cactus from a safe distance. It used to look for a place to stand for minutes and give up, because the cells right beside a cactus hurt.
+- A companion respawning at the world spawn no longer suffocates when that spawn lies inside sand or stone, as it often does in a desert; it appears on the nearest free surface instead.
+- Flowers, grass, crops and other thin plants are noticed whenever the companion's line of sight passes over them, and "pick the flowers" or "find a cactus" can now search the surroundings instead of failing with "no search strategy".
+- Asked about a block "near us" that stands a little farther than the model looked, the companion is told where the nearest one is instead of answering that there is none.
+- The lighting skill now says plainly that it placed no torch on ground that is already lit and points to placing the torch directly, so "put a couple of torches here" in daylight is not answered with a promise and nothing placed.
+- The obtain skill tells the model that plain "stone" means cobblestone and iron ore means raw iron, so these orders no longer fail looking for the smelted block or for ore only Silk Touch can keep.
 
 ## [0.211.2] - 2026-11-08
 

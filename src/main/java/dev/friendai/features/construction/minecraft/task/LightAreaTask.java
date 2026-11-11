@@ -67,7 +67,8 @@ public final class LightAreaTask implements Task {
                 return placed.isEmpty() ? TaskStatus.FAILED : TaskStatus.SUCCESS;
             }
             summary = placed.isEmpty()
-                    ? "no dark spots within " + radius + " blocks"
+                    ? "no dark spots within " + radius + " blocks, so no torch was placed: the area is already lit; "
+                            + "to put a torch at a chosen spot anyway, use place_block with minecraft:torch"
                     : "placed " + placed.size() + " torches; no dark spots left within " + radius + " blocks";
             return TaskStatus.SUCCESS;
         }

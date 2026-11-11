@@ -143,6 +143,25 @@ class MiningSafetyTest {
     }
 
     @Test
+    void aCactusIsBrokenFromReach() {
+        // A two-block cactus on sand: it hurts whoever stands against it, but breaking it from reach is ordinary.
+        GridCellView desert =
+                new GridCellView("#####/#####/#####", "ggggg/ggggg/ggggg", "...../...^./.....", "...../...^./.....");
+        MiningGoal goal = new MiningGoal(List.of(new Pos(3, 2, 1)), 4, 1.62, Set.of());
+
+        assertTrue(goal.isGoal(new Node(1, 2, 1), desert), "two cells away the cactus is in reach");
+    }
+
+    @Test
+    void lavaIsStillNoTarget() {
+        GridCellView pool =
+                new GridCellView("#####/#####/#####", "#####/#####/#####", "...../...L./.....", "...../...../.....");
+        MiningGoal goal = new MiningGoal(List.of(new Pos(3, 2, 1)), 4, 1.62, Set.of());
+
+        assertFalse(goal.isGoal(new Node(1, 2, 1), pool));
+    }
+
+    @Test
     void aSandFloorIsMinedFromTwoCellsAway() {
         GridCellView desert =
                 new GridCellView("#####/#####/#####", "ggggg/ggggg/ggggg", "...../...../.....", "...../...../.....");

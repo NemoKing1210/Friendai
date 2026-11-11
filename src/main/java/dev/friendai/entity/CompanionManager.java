@@ -28,6 +28,7 @@ import net.minecraft.world.level.block.HorizontalDirectionalBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BedPart;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.portal.TeleportTransition;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
@@ -249,7 +250,9 @@ public final class CompanionManager {
             BlockPos sharedSpawn = level.getRespawnData().pos();
             spawn = safeSpawnSpot(level, List.of(sharedSpawn));
             if (spawn == null) {
-                spawn = sharedSpawn;
+                // The shared spawn is a column, not a free cell: in a desert or under a build it can sit inside
+                // sand or stone, and a body put there suffocates at once and dies again.
+                spawn = surfaceSpawnSpot(level, sharedSpawn);
             }
         }
         CompanionEntity companion = FriendaiEntities.COMPANION.create(level, EntitySpawnReason.COMMAND);
@@ -313,6 +316,32 @@ public final class CompanionManager {
             candidates.add(head.relative(direction));
         }
         return safeSpawnSpot(level, candidates);
+    }
+
+    /** How far around the shared spawn a free surface cell is looked for, in blocks. */
+    static final int SURFACE_SEARCH_RADIUS = 8;
+
+    /**
+     * The nearest loaded surface cell around {@code origin} where a body stands free, nearest ring first; the top of
+     * the origin's own column when none is free, which is still above ground instead of inside it.
+     */
+    public static BlockPos surfaceSpawnSpot(ServerLevel level, BlockPos origin) {
+        List<BlockPos> candidates = new ArrayList<>();
+        for (int ring = 0; ring <= SURFACE_SEARCH_RADIUS; ring++) {
+            for (int dx = -ring; dx <= ring; dx++) {
+                for (int dz = -ring; dz <= ring; dz++) {
+                    if (Math.max(Math.abs(dx), Math.abs(dz)) != ring) continue;
+                    BlockPos column = origin.offset(dx, 0, dz);
+                    if (!level.hasChunkAt(column)) continue;
+                    candidates.add(level.getHeightmapPos(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, column));
+                }
+            }
+        }
+        BlockPos safe = safeSpawnSpot(level, candidates);
+        if (safe != null) return safe;
+        return level.hasChunkAt(origin)
+                ? level.getHeightmapPos(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, origin)
+                : origin;
     }
 
     private static BlockPos safeSpawnSpot(ServerLevel level, List<BlockPos> candidates) {

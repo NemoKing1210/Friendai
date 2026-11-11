@@ -49,7 +49,9 @@ final class BuildingTools {
                 registry,
                 ToolGroup.BUILDING,
                 "light_area",
-                "Place torches from the inventory where it is dark around the companion.",
+                "Place torches from the inventory only where it is dark around the companion; in daylight or a lit "
+                        + "area it places none. To put a torch where the owner asks regardless of light, use place_block "
+                        + "with minecraft:torch.",
                 SchemaBuilder.object()
                         .integer("radius", "How far around the companion to light up, in blocks", 1, 16)
                         .build(),

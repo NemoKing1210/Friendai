@@ -40,8 +40,8 @@ public final class ResourceSight {
         boolean unobstructedOpenCorridor();
 
         /**
-         * Thin blocks the ray passed through before it stopped: a dead bush, a flower, a sapling. They hide nothing,
-         * so they never end the ray, but their visible shape was in direct line of sight and is evidence like a hit.
+         * Thin blocks whose cells the ray crossed before it stopped: a dead bush, a flower, a sapling, a crop. They
+         * hide nothing, so they never end the ray, but they stood in direct line of sight and are evidence like a hit.
          */
         List<BlockPos> glimpsed();
     }
@@ -107,7 +107,7 @@ public final class ResourceSight {
                 if (state.isAir()) openAirCells.add(pos.immutable());
                 else {
                     unobstructedOpenCorridor = false;
-                    glimpse(state, pos, delta);
+                    glimpse(state, pos);
                 }
                 double next = nextBoundary(from, delta, cursor, pos);
                 if (!(next > cursor + EPSILON)) next = cursor + 1.0e-5;
@@ -148,27 +148,23 @@ public final class ResourceSight {
         }
 
         /**
-         * Records a block the ray passes through when its visible outline lies on the ray: it does not occlude, so
-         * the ray goes on, but the eye saw it. The aimed target is the ray's own business, a fluid is not a block one
-         * sees the outline of, and one cell per kind is enough evidence for one ray.
+         * Records a thin block whose cell the ray passes through: it does not occlude, so the ray goes on, but the
+         * cell was in plain view and a flower or a bush fills much of it. A ray is a line where an eye sees a cone, so
+         * demanding that the line hit a poppy's narrow stem would leave a meadow unseen for minutes. The aimed target
+         * is the ray's own business, a fluid or an outline-less block is nothing one sees, and one cell per kind is
+         * enough evidence for one ray.
          */
-        private void glimpse(BlockState state, BlockPos pos, Vec3 delta) {
+        private void glimpse(BlockState state, BlockPos pos) {
             if (glimpsed.size() >= MAX_GLIMPSES_PER_RAY
                     || pos.equals(target)
                     || !state.getFluidState().isEmpty()
                     || !state.getOcclusionShape().isEmpty()
-                    || glimpsedKinds.contains(state.getBlock())) {
+                    || glimpsedKinds.contains(state.getBlock())
+                    || state.getShape(level, pos).isEmpty()) {
                 return;
             }
-            VoxelShape shape = state.getShape(level, pos);
-            for (AABB local : shape.toAabbs()) {
-                AABB world = local.move(pos.getX(), pos.getY(), pos.getZ());
-                if (intersectsSegment(from, delta, world)) {
-                    glimpsedKinds.add(state.getBlock());
-                    glimpsed.add(pos.immutable());
-                    return;
-                }
-            }
+            glimpsedKinds.add(state.getBlock());
+            glimpsed.add(pos.immutable());
         }
 
         @Override
