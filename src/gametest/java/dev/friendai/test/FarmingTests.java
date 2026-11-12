@@ -340,6 +340,47 @@ public class FarmingTests {
         });
     }
 
+    /**
+     * "Plant wheat" with a hoe and seeds on grass beside water: the model named the crop and left till out, and the
+     * pass found "nothing to do". Naming a crop now tills unless till is explicitly false.
+     */
+    @GameTest
+    public void namingACropTillsGrassNextToWater(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        for (int x = 4; x <= 6; x++) {
+            for (int z = 4; z <= 6; z++) {
+                h.setBlock(x, 1, z, x == 5 && z == 5 ? Blocks.WATER : Blocks.GRASS_BLOCK);
+            }
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.WOODEN_HOE));
+        c.inventory().addItem(new ItemStack(Items.WHEAT_SEEDS, 8));
+        var tools = GameTestToolRegistry.create(c, () -> 32).bind(c);
+        BlockPos centre = h.absolutePos(new BlockPos(5, 2, 5));
+        String at = "\"x\":" + centre.getX() + ",\"y\":" + centre.getY() + ",\"z\":" + centre.getZ();
+        String sow = "{" + at + ",\"crop\":\"minecraft:wheat_seeds\"}";
+        String noTill = "{" + at + ",\"crop\":\"minecraft:wheat_seeds\",\"till\":false}";
+        var planned = tools.execute(new dev.friendai.agent.llm.model.ToolCall(
+                "farm-test",
+                "plan_farm",
+                com.google.gson.JsonParser.parseString(sow).getAsJsonObject(),
+                sow,
+                null));
+        h.assertTrue(
+                !planned.error() && planned.content().contains("till"),
+                "naming a crop plans tilling: " + planned.content());
+        var refused = tools.execute(new dev.friendai.agent.llm.model.ToolCall(
+                "farm-test",
+                "plan_farm",
+                com.google.gson.JsonParser.parseString(noTill).getAsJsonObject(),
+                noTill,
+                null));
+        h.assertTrue(
+                refused.content().equals("nothing to do"),
+                "an explicit till=false still leaves the grass alone: " + refused.content());
+        h.succeed();
+    }
+
     @GameTest(maxTicks = 600)
     public void tillWithoutHoe(GameTestHelper h) {
         GameTestSupport.platform(h, 16);

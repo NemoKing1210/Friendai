@@ -28,6 +28,7 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 - One-step orders such as "get some stone" or "get iron ore" are no longer sent to the planner as if they were several jobs: a single word now counts as one kind of work, even when two vocabulary entries match it.
 - "Make some planks" or "plant carrots" are no longer taken for a request to draw up a plan; "plan", "then" and the other ordering words count only as whole words.
 - "Bring me eight planks" now ends with the planks handed over: the companion sees its giving tools for "bring" and "fetch" orders, and the obtain skill tells it to queue the hand-over after getting the item.
+- "Plant wheat" with a hoe and seeds beside water now hoes the grass and sows it: naming a crop for a farm pass tills soil next to water unless told not to, where it used to answer "nothing to do".
 
 ### Added
 
