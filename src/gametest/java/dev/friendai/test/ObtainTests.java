@@ -43,6 +43,60 @@ import net.minecraft.world.level.block.NetherWartBlock;
 import net.minecraft.world.phys.AABB;
 
 public class ObtainTests {
+    @GameTest(maxTicks = 100)
+    public void birchKitFixtureStartsEmptyWithSafeSources(GameTestHelper h) {
+        ResourceWorkFixture.BirchKit fixture = ResourceWorkFixture.birchKit(h);
+        CompanionEntity companion = fixture.companion();
+        h.assertTrue(companion.inventory().isEmpty(), "the companion should start with an empty bag");
+        h.assertTrue(
+                h.getLevel()
+                                .getServer()
+                                .getPlayerList()
+                                .getPlayer(fixture.owner().getUUID())
+                        == fixture.owner(),
+                "the owner should be online for pickup tests");
+        h.assertValueEqual(fixture.trees().size(), 2, "birch sources");
+        for (List<BlockPos> tree : fixture.trees()) {
+            h.assertValueEqual(tree.size(), 5, "logs in a birch tree");
+            for (BlockPos log : tree) h.assertTrue(h.getBlockState(log).is(Blocks.BIRCH_LOG), "birch log at " + log);
+        }
+        h.assertValueEqual(fixture.stoneSource().size(), 18, "safe exposed stone blocks");
+        h.assertTrue(
+                GameTestSupport.observeVisible(
+                        h, companion, h.absolutePos(fixture.stoneSource().getFirst())),
+                "the safe stone source should be visible");
+        h.assertTrue(h.getBlockState(fixture.stationSpot()).isAir(), "there should be room for a station");
+        for (BlockPos obstruction : fixture.deliveryObstruction()) {
+            h.assertTrue(h.getBlockState(obstruction).is(Blocks.COBBLESTONE), "delivery obstruction at " + obstruction);
+        }
+        ResourceWorkFixture.removeDeliveryObstruction(h, fixture);
+        for (BlockPos obstruction : fixture.deliveryObstruction()) {
+            h.assertTrue(
+                    h.getBlockState(obstruction).isAir(), "delivery obstruction should be removable at " + obstruction);
+        }
+        h.assertValueEqual(
+                fixture.owner().blockPosition(), h.absolutePos(fixture.ownerPickup()), "the owner pickup point");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 100)
+    public void undergroundReturnFixtureHasAReversibleRouteAndRemovableObstruction(GameTestHelper h) {
+        ResourceWorkFixture.UndergroundReturn fixture = ResourceWorkFixture.undergroundReturn(h);
+        h.assertValueEqual(fixture.anchor().getY(), fixture.surfaceY() + 1, "the surface return anchor");
+        for (BlockPos cell : fixture.routeCells()) {
+            h.assertTrue(h.getBlockState(cell).isAir(), "return route cell should be clear at " + cell);
+        }
+        for (BlockPos support : fixture.routeSupports()) {
+            h.assertTrue(h.getBlockState(support).is(Blocks.STONE), "return route support at " + support);
+        }
+        h.assertTrue(h.getBlockState(fixture.stoneTarget()).is(Blocks.IRON_ORE), "the underground target");
+        h.setBlock(fixture.obstruction(), Blocks.STONE);
+        h.assertTrue(h.getBlockState(fixture.obstruction()).is(Blocks.STONE), "the return obstruction should be live");
+        h.setBlock(fixture.obstruction(), Blocks.AIR);
+        h.assertTrue(h.getBlockState(fixture.obstruction()).isAir(), "the return obstruction should be removable");
+        h.succeed();
+    }
+
     /**
      * The whole chain from a bare pit: dig down until the stone is exposed, see it, and craft a pickaxe from it. Every
      * candidate comes from the observation store, so this test fails unless the face a dig just opened survives the
