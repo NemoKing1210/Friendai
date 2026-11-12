@@ -14,6 +14,7 @@ import dev.friendai.features.mining.minecraft.mining.TreeFinder;
 import dev.friendai.features.mining.tree.TreeSummary;
 import dev.friendai.features.mining.tree.TreeText;
 import dev.friendai.features.places.minecraft.PlaceService;
+import dev.friendai.perception.resource.FocusedLook;
 import dev.friendai.perception.resource.ResourceCandidates;
 import dev.friendai.server.execution.tools.FeatureToolContributor;
 import dev.friendai.server.execution.tools.FeatureToolRegistry;
@@ -178,6 +179,13 @@ public final class BlockInfoTools implements FeatureToolContributor {
         int limit = args.has("limit") ? args.get("limit").getAsInt() : 5;
         List<BlockPos> found =
                 resources == null ? List.of() : resources.knownOrVisible(companion, matcher, radius, limit);
+        if (found.isEmpty()
+                && resources != null
+                && companion.level() instanceof ServerLevel level
+                && FocusedLook.lookFor(level, companion, resources, matcher::test, radius) > 0) {
+            // Nothing seen yet is not nothing there: a deliberate look found it in plain view.
+            found = resources.knownOrVisible(companion, matcher, radius, limit);
+        }
         if (found.isEmpty()) {
             // "Near us" is a player's word, not a radius: a block just past the asked radius is still the one they
             // mean, so name it instead of reporting that there is none.

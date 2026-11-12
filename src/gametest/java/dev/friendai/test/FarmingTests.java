@@ -376,7 +376,7 @@ public class FarmingTests {
                 noTill,
                 null));
         h.assertTrue(
-                refused.content().equals("nothing to do"),
+                refused.content().startsWith("nothing to do"),
                 "an explicit till=false still leaves the grass alone: " + refused.content());
         h.succeed();
     }
@@ -482,6 +482,21 @@ public class FarmingTests {
         h.assertTrue(
                 result.summary.contains("the nearest soil next to water to till is at "),
                 "the failure names where to farm: " + result.summary);
+        // The preview the model tries first must not read as "there is no soil here" either.
+        BlockPos at = h.absolutePos(new BlockPos(12, 2, 12));
+        String json = "{\"x\":" + at.getX() + ",\"y\":" + at.getY() + ",\"z\":" + at.getZ()
+                + ",\"radius\":3,\"crop\":\"minecraft:wheat_seeds\"}";
+        var preview = GameTestToolRegistry.create(c, () -> 32)
+                .bind(c)
+                .execute(new dev.friendai.agent.llm.model.ToolCall(
+                        "farm-test",
+                        "plan_farm",
+                        com.google.gson.JsonParser.parseString(json).getAsJsonObject(),
+                        json,
+                        null));
+        h.assertTrue(
+                preview.content().startsWith("nothing to do; the nearest soil next to water to till is at "),
+                "the preview names where to farm: " + preview.content());
         h.succeed();
     }
 

@@ -629,6 +629,31 @@ public class ToolTests {
         h.succeed();
     }
 
+    /**
+     * "Mine that diamond" right after a summon: the passive sweeps had not reached the ore in plain view yet and the
+     * companion said it saw none. A deliberate look now finds it, while ore sealed inside stone stays unseen.
+     */
+    @GameTest
+    public void findBlocksLooksForAVisibleBlockItHasNotSeenYet(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        BlockPos inView = new BlockPos(10, 2, 4);
+        h.setBlock(inView, Blocks.DIAMOND_ORE);
+        BlockPos sealed = new BlockPos(10, 3, 11);
+        for (int x = 9; x <= 11; x++) {
+            for (int y = 2; y <= 4; y++) {
+                for (int z = 10; z <= 12; z++) h.setBlock(x, y, z, Blocks.STONE);
+            }
+        }
+        h.setBlock(sealed, Blocks.DIAMOND_ORE);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 4);
+        c.setOwner(java.util.UUID.randomUUID());
+        ToolResult r = run(tools(c), "find_blocks", "{\"block\":\"minecraft:diamond_ore\",\"radius\":16}");
+        h.assertTrue(!r.error() && r.content().contains(coords(h.absolutePos(inView))), "content was " + r.content());
+        h.assertTrue(
+                !r.content().contains(coords(h.absolutePos(sealed))), "sealed ore must stay unseen: " + r.content());
+        h.succeed();
+    }
+
     @GameTest
     public void findBlocksNone(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);

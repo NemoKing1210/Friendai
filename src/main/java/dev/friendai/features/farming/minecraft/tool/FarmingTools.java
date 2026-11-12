@@ -14,6 +14,7 @@ import dev.friendai.features.farming.FarmPlanner;
 import dev.friendai.features.farming.minecraft.CropIndex;
 import dev.friendai.features.farming.minecraft.Crops;
 import dev.friendai.features.farming.minecraft.FarmSnapshotBuilder;
+import dev.friendai.features.farming.minecraft.FarmWorkHint;
 import dev.friendai.features.farming.minecraft.task.BonemealTask;
 import dev.friendai.features.farming.minecraft.task.FarmCheckpoints;
 import dev.friendai.features.farming.minecraft.task.FarmTask;
@@ -204,8 +205,9 @@ public final class FarmingTools implements FeatureToolContributor {
         Item crop = crop(args);
         int radius = Math.max(1, Math.min(16, radius(args, 8)));
         TaskContext context = new TaskContext(c, (ServerLevel) c.level());
+        BlockPos centre = center(c, args);
         FarmPlan plan = FarmPlanner.plan(
-                FarmSnapshotBuilder.build(context, center(c, args), radius, Set.of()),
+                FarmSnapshotBuilder.build(context, centre, radius, Set.of()),
                 new FarmGoal(
                         crop == null
                                 ? null
@@ -215,7 +217,11 @@ public final class FarmingTools implements FeatureToolContributor {
                         0,
                         FarmGoal.DEFAULT_MAX_STEPS),
                 CropIndex.of(context.level()));
-        return ToolResult.ok(plan.describe());
+        String described = plan.describe();
+        // A preview that finds nothing names the nearest work, as the pass itself does, so "nothing to do" around a
+        // guessed radius does not read as "there is no soil here".
+        if (described.equals("nothing to do")) described += FarmWorkHint.nearest(context, centre, radius, till(args));
+        return ToolResult.ok(described);
     }
 
     private static @Nullable Item crop(JsonObject args) {

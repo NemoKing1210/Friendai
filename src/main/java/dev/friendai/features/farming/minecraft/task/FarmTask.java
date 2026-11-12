@@ -2,11 +2,9 @@ package dev.friendai.features.farming.minecraft.task;
 
 import dev.friendai.debug.DebugTarget;
 import dev.friendai.debug.WorkSet;
-import dev.friendai.features.farming.CellKind;
 import dev.friendai.features.farming.FarmReport;
-import dev.friendai.features.farming.FieldCell;
 import dev.friendai.features.farming.minecraft.FarmPass;
-import dev.friendai.features.farming.minecraft.FarmSnapshotBuilder;
+import dev.friendai.features.farming.minecraft.FarmWorkHint;
 import dev.friendai.features.places.PlaceCandidate;
 import dev.friendai.foundation.places.Place;
 import dev.friendai.foundation.places.PlaceKind;
@@ -16,7 +14,6 @@ import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
-import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.item.Item;
@@ -68,41 +65,9 @@ public final class FarmTask implements Task {
                 && report.replanted() == 0
                 && report.planted() == 0
                 && report.tilled() == 0;
-        if (nothing) summary += nearestWork(c);
+        if (nothing) summary += FarmWorkHint.nearest(c, center, radius, till);
         return nothing ? TaskStatus.FAILED : TaskStatus.SUCCESS;
     }
-
-    /**
-     * Where the nearest work lies when the pass found none: a model that guessed a small radius around the companion
-     * ("plant wheat" with radius 3, the grass by the water five blocks off) learns where to farm instead of giving up.
-     */
-    private String nearestWork(TaskContext c) {
-        if (radius >= HINT_RADIUS) return "";
-        FieldCell nearest = null;
-        for (FieldCell cell :
-                FarmSnapshotBuilder.build(c, center, HINT_RADIUS, Set.of()).cells()) {
-            boolean work = cell.kind() == CellKind.RIPE
-                    || cell.kind() == CellKind.EMPTY_SOIL
-                    || till && cell.kind() == CellKind.TILLABLE;
-            if (work && (nearest == null || flat(cell) < flat(nearest))) nearest = cell;
-        }
-        if (nearest == null) return "; nothing to farm within " + HINT_RADIUS + " blocks either";
-        BlockPos at = center.offset(nearest.dx(), nearest.dy(), nearest.dz());
-        String what = switch (nearest.kind()) {
-            case RIPE -> "ripe crop";
-            case EMPTY_SOIL -> "empty farmland";
-            default -> "soil next to water to till";
-        };
-        return "; the nearest " + what + " is at " + at.getX() + " " + at.getY() + " " + at.getZ() + ", "
-                + Math.round(Math.sqrt(flat(nearest))) + " blocks away: farm around it or with a larger radius";
-    }
-
-    private static int flat(FieldCell cell) {
-        return cell.dx() * cell.dx() + cell.dz() * cell.dz();
-    }
-
-    /** How far a pass that found nothing looks for the nearest work to name. */
-    private static final int HINT_RADIUS = 16;
 
     @Override
     public void stop(TaskContext c) {

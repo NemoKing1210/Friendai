@@ -33,7 +33,8 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 - "Plant wheat" with a hoe and seeds beside water now hoes the grass and sows it: naming a crop for a farm pass tills soil next to water unless told not to, where it used to answer "nothing to do".
 - Taking an item from storage during an obtain order goes to the chest the item was seen in, not to whichever chest is nearest.
 - The companion no longer stops remembering the chests it opens once it has looked at a lot of the world: the oldest memories make room instead.
-- A farm pass that finds nothing in its radius now says where the nearest ripe crop, empty farmland or soil beside water is, so a too-small guess around the companion is corrected instead of ending the order.
+- A farm pass that finds nothing in its radius, and its preview, now say where the nearest ripe crop, empty farmland or soil beside water is, so a too-small guess around the companion is corrected instead of ending the order.
+- Right after it arrives, the companion no longer says it sees no diamond ore (or any other block) standing in plain view: asked about a block it has not seen yet, it takes a deliberate look, and only what its eyes actually reach counts — ore sealed in stone stays unseen.
 
 ## [0.211.3] - 2026-11-11
 
