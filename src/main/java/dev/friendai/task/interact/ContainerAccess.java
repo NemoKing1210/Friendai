@@ -1,6 +1,7 @@
 package dev.friendai.task.interact;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.knowledge.ContainerFreshness;
 import dev.friendai.features.knowledge.ResourceKnowledge;
 import dev.friendai.features.knowledge.ResourceObservation;
 import dev.friendai.foundation.spatial.Pos;
@@ -136,6 +137,93 @@ public final class ContainerAccess {
         ServerLevel level = context.level();
         CompanionEntity companion = context.companion();
         if (companion.ownerUuid() == null) return;
+        Contents contents = contents(container);
+        BlockPos canonical = canonicalChest(level, pos);
+        long tick = level.getServer().overworld().getGameTime();
+        ResourceKnowledge book = context.ownerKnowledge();
+        // recordContainer replaces the earlier record itself and keeps it when nothing can make room.
+        book.recordContainer(new ResourceKnowledge.ContainerObservation(
+                location(level, canonical),
+                contents.items(),
+                tick,
+                shortLabel(level, canonical),
+                contents.used(),
+                container.getContainerSize()));
+    }
+
+    /**
+     * The live view: for {@link ContainerFreshness#LIVE_TICKS} after the companion opened a container it still sees
+     * what happens inside, the owner's own changes included, without another trip. Re-reads every live record of this
+     * level whose chunk is loaded and forgets one whose container is gone. The window is never renewed here: only
+     * opening the container again starts a new one. Server thread only.
+     */
+    public static void refreshLive(ServerLevel level, ResourceKnowledge book) {
+        long now = level.getServer().overworld().getGameTime();
+        String dimension = level.dimension().identifier().toString();
+        for (ResourceKnowledge.ContainerObservation observation : book.containerObservations()) {
+            if (!dimension.equals(observation.location().dimension())
+                    || !ContainerFreshness.live(observation.observedTick(), now)) continue;
+            Pos at = observation.location().pos();
+            BlockPos pos = new BlockPos(at.x(), at.y(), at.z());
+            if (!level.hasChunkAt(pos)) continue;
+            Optional<Container> container = at(level, pos);
+            if (container.isEmpty()) {
+                book.invalidateContainer(observation.location());
+                continue;
+            }
+            Contents contents = contents(container.get());
+            book.refreshContainer(observation.location(), contents.items(), contents.used());
+        }
+    }
+
+    /** True when the container at a canonical position was opened within the live window. */
+    public static boolean seenLive(ResourceKnowledge book, ServerLevel level, BlockPos canonical) {
+        long now = level.getServer().overworld().getGameTime();
+        ResourceObservation.Location location = location(level, canonical);
+        for (ResourceKnowledge.ContainerObservation observation : book.containerObservations()) {
+            if (observation.location().equals(location)) {
+                return ContainerFreshness.live(observation.observedTick(), now);
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The nearest remembered container within radius whose record holds an item the predicate accepts, live records
+     * first: the companion goes to the chest it saw the item in, not to whichever chest is closest.
+     */
+    public static Optional<BlockPos> recordedWith(TaskContext context, Predicate<String> itemId, int radius) {
+        ServerLevel level = context.level();
+        if (context.companion().ownerUuid() == null) return Optional.empty();
+        ResourceKnowledge book = context.ownerKnowledge();
+        refreshLive(level, book);
+        long now = level.getServer().overworld().getGameTime();
+        String dimension = level.dimension().identifier().toString();
+        BlockPos origin = context.companion().blockPosition();
+        BlockPos best = null;
+        boolean bestLive = false;
+        double bestDistance = Double.MAX_VALUE;
+        for (ResourceKnowledge.ContainerObservation observation : book.containerObservations()) {
+            if (!dimension.equals(observation.location().dimension())
+                    || !ContainerFreshness.remembered(observation.observedTick(), now)
+                    || observation.items().keySet().stream().noneMatch(itemId)) continue;
+            Pos at = observation.location().pos();
+            BlockPos pos = new BlockPos(at.x(), at.y(), at.z());
+            double distance = origin.distSqr(pos);
+            if (distance > (double) radius * radius) continue;
+            boolean live = ContainerFreshness.live(observation.observedTick(), now);
+            if (best == null || live && !bestLive || live == bestLive && distance < bestDistance) {
+                best = pos;
+                bestLive = live;
+                bestDistance = distance;
+            }
+        }
+        return Optional.ofNullable(best);
+    }
+
+    private record Contents(Map<String, Integer> items, int used) {}
+
+    private static Contents contents(Container container) {
         Map<String, Integer> items = new LinkedHashMap<>();
         int used = 0;
         for (int slot = 0; slot < container.getContainerSize(); slot++) {
@@ -145,15 +233,13 @@ public final class ContainerAccess {
                 items.merge(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString(), stack.getCount(), Integer::sum);
             }
         }
-        BlockPos canonical = canonicalChest(level, pos);
-        var location = new ResourceObservation.Location(
+        return new Contents(items, used);
+    }
+
+    private static ResourceObservation.Location location(ServerLevel level, BlockPos canonical) {
+        return new ResourceObservation.Location(
                 level.dimension().identifier().toString(),
                 new Pos(canonical.getX(), canonical.getY(), canonical.getZ()));
-        long tick = level.getServer().overworld().getGameTime();
-        ResourceKnowledge book = context.ownerKnowledge();
-        book.invalidateContainer(location);
-        book.recordContainer(new ResourceKnowledge.ContainerObservation(
-                location, items, tick, shortLabel(level, canonical), used, container.getContainerSize()));
     }
 
     /**

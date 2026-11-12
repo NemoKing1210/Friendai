@@ -34,9 +34,28 @@ class StorageTextTest {
         String text = StorageText.found("minecraft:iron_ingot", 37, List.of(fresh, stale));
         assertTrue(
                 text.startsWith("37 minecraft:iron_ingot recorded: 32 in a chest at 12 64 -3 "
-                        + "(minecraft:overworld, checked 120 ticks ago)"),
+                        + "(minecraft:overworld, opened under a minute ago, still in view)"),
                 text);
-        assertTrue(text.contains("5 in a barrel at 1 64 2 (minecraft:overworld, checked 800 ticks ago, stale)"), text);
+        assertTrue(
+                text.contains("5 in a barrel at 1 64 2 (minecraft:overworld, opened under a minute ago, stale)"), text);
+    }
+
+    @Test
+    void aRecordPastTheLiveWindowMayHaveChangedAndSaysHowToLookAgain() {
+        var dated = new StoredCandidate(
+                new ContainerRecord(
+                        new StorageKey("minecraft:overworld", 3, 64, 3),
+                        "chest",
+                        0,
+                        1,
+                        27,
+                        Map.of("minecraft:ender_pearl", 2)),
+                2,
+                StorageLimits.LIVE_TICKS + 12 * 1_200,
+                false);
+        String text = StorageText.found("minecraft:ender_pearl", 2, List.of(dated));
+        assertTrue(text.contains("(minecraft:overworld, opened 17 min ago, may have changed)"), text);
+        assertTrue(text.endsWith("check_containers looks again"), text);
     }
 
     @Test

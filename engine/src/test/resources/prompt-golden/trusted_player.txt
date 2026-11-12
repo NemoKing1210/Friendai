@@ -68,6 +68,7 @@ Tool notes:
 - Use it to finish a job that was for the owner: their request is the permission to hand the items over, so give them yourself instead of asking.
 - Use clear_area to empty a plot before building: it clears vegetation and snow by default, takes water sources when it carries an empty bucket, and breaks solid blocks only with blocks=true. Chests, lava and protected places are never touched.
 - When the player says to store it again in the container you placed, pass placed:true; it uses the nearest container from your placement record.
+- When an item may be in the chests here but you have not looked in them for a while, use check_containers before deciding to craft, mine or hunt it.
 - To unload loot at the base, use deposit_items with the storage place name; it keeps your tools and food. Use store_items only for one container or one item.
 - When you are hungry with no food: if the owner is near, ask them; otherwise call get_food.
 - To get an item you don't have, prefer obtain_item over long hand-written plans; use plan_obtain to explain what it will take.

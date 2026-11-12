@@ -5,9 +5,11 @@ import dev.friendai.features.acquisition.WorldFacts;
 import dev.friendai.features.crafting.Station;
 import dev.friendai.features.crafting.minecraft.Stations;
 import dev.friendai.features.farming.minecraft.Crops;
+import dev.friendai.features.knowledge.ContainerFreshness;
 import dev.friendai.features.knowledge.ResourceKnowledge;
 import dev.friendai.perception.resource.ResourceCandidates;
 import dev.friendai.task.TaskContext;
+import dev.friendai.task.interact.ContainerAccess;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
@@ -92,12 +94,15 @@ public final class WorldScan {
         if (companion.ownerUuid() == null) return Map.of();
         Map<String, Integer> counts = new LinkedHashMap<>();
         var book = context.ownerKnowledge();
+        // What changed inside a container opened a few minutes ago is still seen; older records are a hint.
+        ContainerAccess.refreshLive(level, book);
         String dimension = level.dimension().identifier().toString();
         BlockPos origin = companion.blockPosition();
         long now = level.getServer().overworld().getGameTime();
         for (ResourceKnowledge.ContainerObservation observation : book.containerObservations()) {
             var location = observation.location();
-            if (!dimension.equals(location.dimension()) || now - observation.observedTick() > 24_000) continue;
+            if (!dimension.equals(location.dimension())
+                    || !ContainerFreshness.remembered(observation.observedTick(), now)) continue;
             var pos = location.pos();
             double dx = pos.x() - origin.getX();
             double dy = pos.y() - origin.getY();

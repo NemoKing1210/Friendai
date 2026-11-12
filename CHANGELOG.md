@@ -6,14 +6,16 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
-## [0.211.3] - 2026-11-11
+## [0.212.0] - 2026-11-12
+
+### Added
+
+- Asked for an item it does not carry, the companion first looks through the chests and barrels within sixteen blocks that it has not opened in the last five minutes, and takes the item from the one that holds it, before deciding it must craft, mine or hunt it. The new `check_containers` order does the same on request.
+- For five minutes after the companion opens a container it still sees what you put in or take out; after that it remembers the contents as possibly out of date and says so, until it looks again.
+- A generated house takes `"windows": "none"` for solid walls and `"door": "none"` for an open doorway, so "build a small plank house" no longer stops for a missing door and glass panes.
 
 ### Fixed
 
-- The companion now mines a block that stands on or beside sand, red sand or gravel — a dead bush in the desert, an ore next to gravel — and sand or gravel itself. Such a block used to be reported as unreachable after a long wait. Only a falling block directly over the companion's own head is still left alone.
-- A number or an on/off value the model wrote in quotes (`"count": "2"`) is accepted in a tool call, a plan step and a queue edit instead of failing the order.
-- When the model calls a tool that was hidden for the current message, the companion loads that tool's group for the rest of the turn, so a refused call can be repeated correctly instead of failing again and again.
-- Russian orders with "take", "pick up", "chop", "mine" and "collect" verb forms, and English "take", "grab", "cut" and "break", now keep the gathering tools available; "eat" and "sleep" orders show the eating and sleeping tools.
 - The companion now notices dead bushes, flowers, saplings and other thin plants its eyes pass over, so "take the bushes we are standing on" finds them instead of answering that there are none nearby. A plant behind a wall stays unseen.
 - An idle companion near a villager or wandering trader it cannot reach no longer walks to it every ten seconds and no longer interrupts the conversation to report it; it checks each trader's offers at most once every five minutes, quietly.
 - The companion breaks a cactus from a safe distance. It used to look for a place to stand for minutes and give up, because the cells right beside a cactus hurt.
@@ -29,11 +31,18 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 - "Make some planks" or "plant carrots" are no longer taken for a request to draw up a plan; "plan", "then" and the other ordering words count only as whole words.
 - "Bring me eight planks" now ends with the planks handed over: the companion sees its giving tools for "bring" and "fetch" orders, and the obtain skill tells it to queue the hand-over after getting the item.
 - "Plant wheat" with a hoe and seeds beside water now hoes the grass and sows it: naming a crop for a farm pass tills soil next to water unless told not to, where it used to answer "nothing to do".
+- Taking an item from storage during an obtain order goes to the chest the item was seen in, not to whichever chest is nearest.
+- The companion no longer stops remembering the chests it opens once it has looked at a lot of the world: the oldest memories make room instead.
 - A farm pass that finds nothing in its radius now says where the nearest ripe crop, empty farmland or soil beside water is, so a too-small guess around the companion is corrected instead of ending the order.
 
-### Added
+## [0.211.3] - 2026-11-11
 
-- A generated house takes `"windows": "none"` for solid walls and `"door": "none"` for an open doorway, so "build a small plank house" no longer stops for a missing door and glass panes.
+### Fixed
+
+- The companion now mines a block that stands on or beside sand, red sand or gravel — a dead bush in the desert, an ore next to gravel — and sand or gravel itself. Such a block used to be reported as unreachable after a long wait. Only a falling block directly over the companion's own head is still left alone.
+- A number or an on/off value the model wrote in quotes (`"count": "2"`) is accepted in a tool call, a plan step and a queue edit instead of failing the order.
+- When the model calls a tool that was hidden for the current message, the companion loads that tool's group for the rest of the turn, so a refused call can be repeated correctly instead of failing again and again.
+- Russian orders with "take", "pick up", "chop", "mine" and "collect" verb forms, and English "take", "grab", "cut" and "break", now keep the gathering tools available; "eat" and "sleep" orders show the eating and sleeping tools.
 
 ## [0.211.2] - 2026-11-08
 

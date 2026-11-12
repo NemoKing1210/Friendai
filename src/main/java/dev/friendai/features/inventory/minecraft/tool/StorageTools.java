@@ -20,6 +20,7 @@ import dev.friendai.features.storage.StoredCandidate;
 import dev.friendai.server.execution.tools.FeatureToolContributor;
 import dev.friendai.server.execution.tools.FeatureToolRegistry;
 import dev.friendai.server.execution.tools.TaskToolDefinition;
+import dev.friendai.task.interact.ContainerTour;
 import dev.friendai.task.inventory.ItemMatcher;
 import java.util.List;
 import java.util.Objects;
@@ -89,6 +90,20 @@ public final class StorageTools implements FeatureToolContributor {
                                 .integer("z", "Container Z coordinate")
                                 .build(),
                         (c, a) -> new CheckContainerTask(optionalPos(a)))
+                .asCreativeSafe());
+        registry.registerTask(task(
+                        "check_containers",
+                        "Open every chest, barrel and other storage container nearby that you have not looked into in"
+                                + " the last five minutes and report what they hold. For five minutes after opening a"
+                                + " container you still see changes inside it; after that what you remember may be"
+                                + " out of date, and this looks again.",
+                        SchemaBuilder.object()
+                                .integer("radius", "How far around you to look, in blocks", 4, ContainerTour.RADIUS)
+                                .build(),
+                        (c, a) -> ContainerTour.around(
+                                a.has("radius") && !a.get("radius").isJsonNull()
+                                        ? a.get("radius").getAsInt()
+                                        : ContainerTour.RADIUS))
                 .asCreativeSafe());
         registry.registerTask(task(
                 "deposit_items",

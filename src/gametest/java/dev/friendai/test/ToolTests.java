@@ -343,6 +343,7 @@ public class ToolTests {
                 "store_items",
                 "take_items",
                 "check_container",
+                "check_containers",
                 "deposit_items",
                 "find_stored_item",
                 "move_items",
