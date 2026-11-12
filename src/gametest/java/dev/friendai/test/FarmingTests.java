@@ -453,7 +453,35 @@ public class FarmingTests {
         runner.start(new FarmTask(h.absolutePos(new BlockPos(5, 2, 5)), 8, null, false), "farm");
         runner.tick();
         h.assertValueEqual(result.status, TaskStatus.FAILED, "status");
-        h.assertValueEqual(result.summary, "nothing to harvest or plant within 8 blocks", "summary");
+        h.assertTrue(
+                result.summary.startsWith("nothing to harvest or plant within 8 blocks; "),
+                "summary was " + result.summary);
+        h.succeed();
+    }
+
+    /**
+     * "Plant wheat" farmed a radius of three around the companion while the grass by the water lay farther off; the
+     * failure now names the nearest soil to till, so the next call can go there.
+     */
+    @GameTest(maxTicks = 200)
+    public void aPassThatFindsNothingNamesTheNearestSoil(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        for (int x = 4; x <= 6; x++) {
+            for (int z = 4; z <= 6; z++) {
+                h.setBlock(x, 1, z, x == 5 && z == 5 ? Blocks.WATER : Blocks.GRASS_BLOCK);
+            }
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 12, 2, 12);
+        c.inventory().addItem(new ItemStack(Items.WOODEN_HOE));
+        c.inventory().addItem(new ItemStack(Items.WHEAT_SEEDS, 8));
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(new FarmTask(h.absolutePos(new BlockPos(12, 2, 12)), 3, Items.WHEAT_SEEDS, true), "farm");
+        runner.tick();
+        h.assertValueEqual(result.status, TaskStatus.FAILED, "status");
+        h.assertTrue(
+                result.summary.contains("the nearest soil next to water to till is at "),
+                "the failure names where to farm: " + result.summary);
         h.succeed();
     }
 
