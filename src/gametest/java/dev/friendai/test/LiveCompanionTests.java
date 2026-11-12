@@ -3,8 +3,11 @@ package dev.friendai.test;
 import com.google.gson.Gson;
 import dev.friendai.agent.llm.provider.ProviderRegistry;
 import dev.friendai.agent.turn.LlmGateway;
+import dev.friendai.debug.DebugService;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
+import dev.friendai.foundation.diagnostics.DebugLog;
+import dev.friendai.foundation.diagnostics.LogKind;
 import dev.friendai.infrastructure.config.ServerConfig;
 import dev.friendai.infrastructure.llm.HttpStreamingTransport;
 import dev.friendai.llm.LlmClient;
@@ -15,6 +18,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
@@ -51,9 +55,9 @@ public class LiveCompanionTests {
     private static final long SECOND = 1_000_000_000L;
     private static final int MAX_TICKS = 900_000;
 
-    private record Verdict(boolean ok, String detail) {}
+    record Verdict(boolean ok, String detail) {}
 
-    private enum Mode {
+    enum Mode {
         /** Passes as soon as the world shows the result. */
         EARLY,
         /** Judged once the companion has answered and been quiet for the settle time. */
@@ -689,7 +693,7 @@ public class LiveCompanionTests {
 
     // ---- runner ------------------------------------------------------------------------------------------------
 
-    private static void scenario(
+    static void scenario(
             GameTestHelper h,
             String name,
             int budgetSeconds,
@@ -724,6 +728,7 @@ public class LiveCompanionTests {
         long deadline = started + budgetSeconds * SECOND;
         long[] firstReply = {0};
         long[] satisfied = {0};
+        Verdict[] reached = {null};
         int[] tick = {0};
         boolean[] done = {false};
         h.onEachTick(() -> {
@@ -751,8 +756,16 @@ public class LiveCompanionTests {
                     && (heard.thinkingLog.isEmpty() || !heard.thinkingLog.get(heard.thinkingLog.size() - 1));
             Verdict result = null;
             if (mode == Mode.EARLY) {
-                if (verdict.ok() && satisfied[0] == 0) satisfied[0] = now;
-                if (satisfied[0] != 0 && (idle || now - satisfied[0] > 15 * SECOND)) result = verdict;
+                if (verdict.ok() && satisfied[0] == 0) {
+                    satisfied[0] = now;
+                    reached[0] = verdict;
+                }
+                // The world showed the result once; a companion that then walks back to its owner, as it should, does
+                // not undo it.
+                if (satisfied[0] != 0 && (idle || now - satisfied[0] > 15 * SECOND))
+                    result = verdict.ok()
+                            ? verdict
+                            : new Verdict(true, reached[0].detail() + "; later " + verdict.detail());
                 else if (now > deadline) result = new Verdict(false, verdict.detail());
             } else if ((idle && now - firstReply[0] >= settleSeconds * SECOND) || now > deadline) {
                 result = verdict;
@@ -762,11 +775,28 @@ public class LiveCompanionTests {
             System.out.println("[RESULT] " + (result.ok() ? "PASS" : "FAIL") + " | " + name + " | "
                     + round((now - started) / (double) SECOND) + " s | " + result.detail() + " | owner="
                     + owner.getUUID() + " | said: " + live.spoken().replace('\n', ' '));
+            if (!result.ok()) trace(sessions.debug().logOf(owner.getUUID()));
             // One companion at a time, as in a singleplayer game: a companion left behind would share the next
             // scenario's sight budget and slow its perception down.
             CompanionManager.get(server).dismiss(owner);
             h.succeed();
         });
+    }
+
+    /**
+     * Prints what the planner answered and which tools ran, so a failed scenario shows the plan body and the tool
+     * results that the durable owner log keeps out of its files.
+     */
+    private static void trace(DebugLog log) {
+        var kinds = EnumSet.of(LogKind.PLANNER, LogKind.TOOL_CALL, LogKind.TOOL_RESULT, LogKind.TASK, LogKind.ERROR);
+        int printed = 0;
+        for (var entry : log.query(new DebugLog.Query(kinds, 0, 0, DebugService.LOG_CAPACITY, false))) {
+            String text = entry.text().replace('\n', ' ');
+            // Periodic task samples would drown the few lines that explain the run.
+            if (entry.kind() == LogKind.TASK && (text.contains(": progress") || text.contains(": waiting"))) continue;
+            if (++printed > 80) break;
+            System.out.println("[TRACE] " + entry.kind() + " " + text);
+        }
     }
 
     private static LlmGateway gateway(String configPath) throws Exception {
@@ -788,7 +818,7 @@ public class LiveCompanionTests {
     }
 
     /** Replaces the floor at y=1 over the square [from, to], on stone so sand or gravel there cannot fall. */
-    private static void floor(GameTestHelper h, Block block, int from, int to) {
+    static void floor(GameTestHelper h, Block block, int from, int to) {
         for (int x = from; x <= to; x++) {
             for (int z = from; z <= to; z++) {
                 h.setBlock(x, 0, z, Blocks.STONE);
@@ -798,7 +828,7 @@ public class LiveCompanionTests {
     }
 
     /** A small oak: a five-log trunk and persistent leaves. */
-    private static void tree(GameTestHelper h, int x, int z) {
+    static void tree(GameTestHelper h, int x, int z) {
         var leaves = Blocks.OAK_LEAVES.defaultBlockState().setValue(LeavesBlock.PERSISTENT, true);
         for (int y = 5; y <= 7; y++) {
             int r = y == 7 ? 1 : 2;
@@ -810,7 +840,7 @@ public class LiveCompanionTests {
     }
 
     /** A 3x3x3 block of stone in plain sight. */
-    private static void outcrop(GameTestHelper h) {
+    static void outcrop(GameTestHelper h) {
         for (int x = 14; x <= 16; x++) {
             for (int y = 2; y <= 4; y++) {
                 for (int z = 10; z <= 12; z++) h.setBlock(x, y, z, Blocks.STONE);
@@ -818,7 +848,7 @@ public class LiveCompanionTests {
         }
     }
 
-    private static String round(double value) {
+    static String round(double value) {
         return String.format(Locale.ROOT, "%.1f", value);
     }
 }
