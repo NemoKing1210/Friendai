@@ -301,8 +301,9 @@ public class ItemTaskTests {
 
     @GameTest(maxTicks = 900)
     public void strictTransferDoesNotSpendItemsWhileTheOwnerIsUnreachable(GameTestHelper h) {
-        GameTestSupport.platform(h, 24);
-        for (int y = 2; y <= 6; y++) {
+        int surfaceY = 120;
+        GameTestSupport.platformAt(h, surfaceY, 24);
+        for (int y = surfaceY + 1; y <= surfaceY + 5; y++) {
             for (int z = 0; z <= 24; z++) {
                 h.setBlock(new BlockPos(12, y, z), Blocks.BEDROCK);
             }
@@ -316,18 +317,18 @@ public class ItemTaskTests {
             }
         }
         for (int x = 0; x <= 24; x++) {
-            for (int z = 0; z <= 24; z++) h.setBlock(new BlockPos(x, 7, z), Blocks.BEDROCK);
+            for (int z = 0; z <= 24; z++) h.setBlock(new BlockPos(x, surfaceY + 6, z), Blocks.BEDROCK);
         }
         h.assertTrue(
-                h.getBlockState(new BlockPos(12, 6, 12)).is(Blocks.BEDROCK),
+                h.getBlockState(new BlockPos(12, surfaceY + 5, 12)).is(Blocks.BEDROCK),
                 "the route barrier reaches above the companion");
         h.assertTrue(
-                h.getBlockState(new BlockPos(12, 7, 4)).is(Blocks.BEDROCK),
+                h.getBlockState(new BlockPos(12, surfaceY + 6, 4)).is(Blocks.BEDROCK),
                 "the enclosure roof prevents a climb-over route");
-        BlockPos gapFeet = new BlockPos(12, 2, 12);
-        BlockPos gapHead = new BlockPos(12, 3, 12);
-        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 18.5, 2, 12.5);
-        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 4, 2, 12);
+        BlockPos gapFeet = new BlockPos(12, surfaceY + 1, 12);
+        BlockPos gapHead = new BlockPos(12, surfaceY + 2, 12);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 18.5, surfaceY + 1, 12.5);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 4, surfaceY + 1, 12);
         c.setOwner(owner.getUUID());
         c.inventory().addItem(new ItemStack(Items.OAK_LOG, 2));
         GiveItemsTask task =
