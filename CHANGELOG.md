@@ -6,6 +6,17 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.211.3] - 2026-11-12
+
+### Fixed
+
+- The companion centers itself before pillaring up, so a neighboring overhang no longer blocks a jump from a clear shaft.
+- Underground searches can try another safe descent after a blocked step. Excavation reports unfinished cells and keeps fallback digging within the depth of the work.
+- A carried crafting station can use a valid adjacent spot beneath a canopy.
+- Greetings and recovery events send fewer tools to the model. A newly failed task updates the reply before the companion reports or acts on stale information.
+- Plan recovery explains why an automatic replacement was skipped and guides the companion through repairing the existing queue. Planning instructions cover each requested delivery and distinguish blocks from their drops.
+- Task logs retain final summaries and link nested work to its execution. The server stream and its file header share a boot ID and use the actual world folder name.
+
 ## [0.211.2] - 2026-11-08
 
 ### Changed

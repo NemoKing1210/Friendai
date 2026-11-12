@@ -170,6 +170,54 @@ class ActiveTaskDiagnosticsTest {
         assertEquals("task.finish", events.getLast().event());
     }
 
+    @Test
+    void terminalLogAndCompletionCaptureTheResultBeforeCleanup() {
+        FakeTask task = new FakeTask() {
+            String result = "delivered four tools";
+
+            @Override
+            public TaskStatus tick(TaskContext c) {
+                return TaskStatus.SUCCESS;
+            }
+
+            @Override
+            public String resultSummary() {
+                return result;
+            }
+
+            @Override
+            public void onTerminal(TaskContext c) {
+                result = "";
+            }
+        };
+        start(task, 1);
+        var completion = controller.tick(context).orElseThrow();
+        assertEquals("delivered four tools", completion.summary());
+        assertEquals("delivered four tools", events.getLast().facts().get("summary"));
+        assertEquals("", task.resultSummary());
+    }
+
+    @Test
+    void tickCarriesTheSameExecutionIdentityAsStart() {
+        List<dev.friendai.foundation.diagnostics.LogContext> observed = new ArrayList<>();
+        FakeTask task = new FakeTask() {
+            @Override
+            public void start(TaskContext c) {
+                observed.add(c.logContext());
+            }
+
+            @Override
+            public TaskStatus tick(TaskContext c) {
+                observed.add(c.logContext());
+                return TaskStatus.RUNNING;
+            }
+        };
+        start(task, 1);
+        ticks(1);
+        assertTrue(observed.getFirst().execution() > 0);
+        assertEquals(observed.getFirst(), observed.getLast());
+    }
+
     private static class FakeTask implements Task {
         long stamp = 1;
         int wait = -1;

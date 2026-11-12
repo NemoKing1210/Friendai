@@ -605,7 +605,8 @@ public final class CompanionBrain {
                 goalView.goalId(),
                 goalView.unmet(),
                 0L);
-        decision = router.route(turnSignals, agentSettings.get().plannerMode());
+        decision = withEventToolContext(
+                router.route(turnSignals, agentSettings.get().plannerMode()), batch);
         observe(o -> o.onRouteDecision(decision));
         // Only an explicit owner trade action may mint a spend scope. Topics, fallback routing and queued
         // work cannot turn a read-only question into authority behind the chat tool filter.
@@ -679,6 +680,69 @@ public final class CompanionBrain {
         }
     }
 
+    /** A known task outcome carries its own tool context; unrecognized events keep the router's full fallback. */
+    private RouteDecision withEventToolContext(RouteDecision routed, List<BrainEvent> batch) {
+        if (turnKind != TurnKind.EVENT) return routed;
+        Set<ToolGroup> groups = ToolCatalog.recoveryGroups();
+        boolean knownTask = false;
+        for (BrainEvent event : batch) {
+            String tool = event instanceof BrainEvent.TaskFinished task
+                    ? task.toolName()
+                    : event instanceof BrainEvent.PlanBlocked blocked ? blocked.toolName() : "";
+            if (tool.isEmpty()) {
+                // A goal, new shift or explicit replan can require work beyond a task's local context.
+                if (!reportsNothingToActOn(event) && !(event instanceof BrainEvent.GoalTick)) return routed;
+                continue;
+            }
+            var meta = catalog.meta(tool);
+            if (meta.isEmpty()) return routed;
+            groups.add(meta.get().group());
+            knownTask = true;
+        }
+        return knownTask ? new RouteDecision(routed.mode(), groups, routed.planning(), routed.reason()) : routed;
+    }
+
+    /** A newly failed task supersedes the world facts on which an in-flight response was based. */
+    private boolean hasPendingFailure() {
+        return turnCaller != null
+                && queue.stream()
+                        .anyMatch(event -> principalOf(event).equals(turnCaller.uuid()) && isExecutionFailure(event));
+    }
+
+    private static boolean isExecutionFailure(BrainEvent event) {
+        // Plan events stay in the queue so the next turn can consult the planner for their own subject.
+        return event instanceof BrainEvent.TaskFinished task && !task.success();
+    }
+
+    /** Read outcomes once before replacing a response that could otherwise announce or start stale work. */
+    private boolean refreshAfterFailure(int gen) {
+        if (!hasPendingFailure()) return false;
+        if (step >= settings.get().maxToolSteps()) {
+            endTurn();
+            return true;
+        }
+        List<BrainEvent.TaskFinished> outcomes = new ArrayList<>();
+        queue.removeIf(event -> {
+            if (!(event instanceof BrainEvent.TaskFinished task)
+                    || task.success()
+                    || !principalOf(event).equals(turnCaller.uuid())) return false;
+            outcomes.add(task);
+            return true;
+        });
+        if (streamedTurn && earlySequence > 0) closeStreamQuietly();
+        for (BrainEvent event : outcomes) observe(o -> o.onEvent(event));
+        memory.add(Message.user(outcomes.stream().map(BrainEvent::toPromptLine).collect(Collectors.joining("\n"))));
+        visibleGroups.addAll(ToolCatalog.recoveryGroups());
+        for (BrainEvent.TaskFinished task : outcomes) {
+            catalog.meta(task.toolName()).ifPresent(meta -> visibleGroups.add(meta.group()));
+        }
+        if (requestIdGeneration == gen && requestIdForGeneration > 0L) {
+            observe(o -> o.onRequestDiscarded(requestIdForGeneration, "new_execution_outcome"));
+        }
+        requestStep(gen);
+        return true;
+    }
+
     /**
      * One planner consultation per turn for one subject. The reply is applied on the scheduler thread and shown to
      * the model once, in the Mission block of the next request. A stop, dismissal or logout meanwhile bumps the
@@ -687,6 +751,14 @@ public final class CompanionBrain {
     private void plan(int gen, PlanSubject subject, String failure) {
         Optional<PlannerInput> input;
         try {
+            Optional<PlannerPort.Refusal> refusal = plannerPort.preflight(subject, turnCaller);
+            if (refusal.isPresent()) {
+                PlannerPort.Refusal rejected = refusal.get();
+                observe(o -> o.onPlannerAttempt(new PlannerAttempt(subject, 1, "fallback", rejected.code(), 0L, 0L)));
+                plannerNote = rejected.guidance();
+                requestStep(gen);
+                return;
+            }
             input = plannerPort.inputFor(subject, turnCaller, failure);
         } catch (RuntimeException e) {
             LOGGER.warn("Planner input failed", e);
@@ -715,6 +787,14 @@ public final class CompanionBrain {
                 return;
             }
             long durationMs = (System.nanoTime() - started) / 1_000_000L;
+            if (hasPendingFailure()) {
+                observe(o -> o.onPlannerAttempt(
+                        new PlannerAttempt(subject, 1, "fallback", "new-execution-outcome", durationMs, 0L)));
+                plannerNote =
+                        "The previous proposal predates the new task failure. Check the current work before acting.";
+                refreshAfterFailure(gen);
+                return;
+            }
             if (error != null || proposal == null) {
                 Throwable cause = error == null ? null : PlanFailure.unwrap(error);
                 PlanFailure.Code code = cause instanceof PlannerException planner
@@ -836,6 +916,7 @@ public final class CompanionBrain {
                 || !streamInFlight
                 || !thinking
                 || !turnSpeechAllowed
+                || hasPendingFailure()
                 || speechPolicy == null
                 || !streamedTurn
                 || turnCaller == null) {
@@ -961,6 +1042,7 @@ public final class CompanionBrain {
         if (response != null) {
             observe(o -> o.onResponse(response));
         }
+        if (refreshAfterFailure(gen)) return;
         if (error != null) {
             LOGGER.debug("LLM request failed: {}", error.toString());
             observe(o -> o.onError(error));

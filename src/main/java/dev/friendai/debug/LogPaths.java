@@ -46,7 +46,7 @@ public final class LogPaths {
     /** The world directory name, used as the {@code world} field of a file header; empty when unknown. */
     public static String worldName(Path worldPath) {
         if (worldPath == null) return "";
-        Path name = worldPath.getFileName();
+        Path name = worldPath.toAbsolutePath().normalize().getFileName();
         return name == null ? "" : name.toString();
     }
 }

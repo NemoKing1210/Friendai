@@ -2,6 +2,7 @@ package dev.friendai.agent.tools;
 
 import dev.friendai.agent.llm.model.ToolSpec;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -92,6 +93,21 @@ public final class ToolCatalog {
 
     public static ToolGroup[] allGroups() {
         return ToolGroup.values();
+    }
+
+    /** Shared prerequisites for a repair: travel, inspect, clear space and obtain missing materials or equipment. */
+    public static Set<ToolGroup> recoveryGroups() {
+        return EnumSet.of(
+                ToolGroup.MOVEMENT,
+                ToolGroup.PLACE,
+                ToolGroup.INFO,
+                ToolGroup.INVENTORY,
+                ToolGroup.GATHERING,
+                ToolGroup.BUILDING,
+                ToolGroup.STORAGE,
+                ToolGroup.CRAFTING,
+                ToolGroup.OBTAIN,
+                ToolGroup.RESOURCE);
     }
 
     public static ToolCatalog defaults() {

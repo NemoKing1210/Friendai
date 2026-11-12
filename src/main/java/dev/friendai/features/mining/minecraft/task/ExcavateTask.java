@@ -70,6 +70,8 @@ public final class ExcavateTask implements Task {
     private String summary = "";
     private TemporaryBlockCleanup cleanup;
     private TaskStatus pendingStatus;
+    private boolean completing;
+    private int completionIndex;
 
     public ExcavateTask(ExcavationSpec spec) {
         this(spec, 0, new ExcavationProgress(), 0);
@@ -142,6 +144,9 @@ public final class ExcavateTask implements Task {
 
     private TaskStatus tickInner(TaskContext c) {
         progress.markTick();
+        if (completing) {
+            return complete(c);
+        }
         if (spec.reserveDurability() > 0 && toolBelowReserve(c)) {
             if (session != null) {
                 session.stop(c);
@@ -173,7 +178,7 @@ public final class ExcavateTask implements Task {
                                     "took " + progress.taken().getOrDefault(spec.untilItem(), 0) + " of "
                                             + spec.untilCount() + " " + spec.untilItem()));
                 }
-                return finish(TaskStatus.SUCCESS, ExcavationReport.success(ExcavationText.label(spec), progress));
+                return complete(c);
             }
             return TaskStatus.RUNNING;
         }
@@ -244,7 +249,9 @@ public final class ExcavateTask implements Task {
             return null;
         }
         boolean withinCap = fallbackDescents < MAX_FALLBACK_DESCENTS;
+        // A stalled search must not turn a horizontal or upward job into an unrelated shaft beneath its region.
         boolean descended = withinCap
+                && canDescendTowardTargets(c)
                 && session.forceDescent(
                         c, new MiningSession.DescentRules(spec.containers(), spec.allowLiquids(), spec.requireTool()));
         if (descended) {
@@ -260,6 +267,18 @@ public final class ExcavateTask implements Task {
                 ? failureText(fallbackCap()) + " (fallback descents capped at " + MAX_FALLBACK_DESCENTS + ")"
                 : failureText(fallbackRefusal());
         return finish(TaskStatus.FAILED, ExcavationReport.partial(ExcavationText.label(spec), progress, reason));
+    }
+
+    private boolean canDescendTowardTargets(TaskContext c) {
+        BlockPos support = c.companion().blockPosition().below();
+        for (BlockPos target : session.targets()) {
+            if (target.getY() <= support.getY()
+                    && c.level().hasChunkAt(target)
+                    && !c.level().getBlockState(target).isAir()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private TaskStatus feed(TaskContext c) {
@@ -295,13 +314,17 @@ public final class ExcavateTask implements Task {
                 continue;
             }
             if (PlaceGuard.protects(c, pos)) {
-                progress.markSkipped("protected");
+                progress.markRefused("protected");
+                continue;
+            }
+            if (state.getDestroySpeed(c.level(), pos) < 0) {
+                progress.markRefused("unbreakable");
                 continue;
             }
             if (spec.requireTool()
                     && state.requiresCorrectToolForDrops()
                     && MiningToolView.currentToolFor(c.companion(), state).isEmpty()) {
-                progress.markSkipped("no tool");
+                progress.markRefused("no tool");
                 continue;
             }
             batch.add(pos);
@@ -345,7 +368,7 @@ public final class ExcavateTask implements Task {
             return TaskStatus.RUNNING;
         }
         if (last && !spec.collect()) {
-            return finish(TaskStatus.SUCCESS, ExcavationReport.success(ExcavationText.label(spec), progress));
+            return complete(c);
         }
         BlockPos from = lastBroken != null
                 ? lastBroken
@@ -356,6 +379,52 @@ public final class ExcavateTask implements Task {
         sweep = new DropCollector(Vec3.atCenterOf(from), 8, last ? null : untilMatcher);
         finalSweep = last;
         return TaskStatus.RUNNING;
+    }
+
+    /** Exhausting a batch is not proof its cells were cleared; check the final world in bounded slices. */
+    private TaskStatus complete(TaskContext c) {
+        completing = true;
+        if (progress.broken() < spec.count()) {
+            int end = Math.min(order.size(), completionIndex + BATCH);
+            while (completionIndex < end) {
+                Pos cell = order.get(completionIndex++);
+                BlockPos pos = new BlockPos(cell.x(), cell.y(), cell.z());
+                if (!c.level().hasChunkAt(pos)) {
+                    return finish(
+                            TaskStatus.FAILED,
+                            ExcavationReport.partial(
+                                    ExcavationText.label(spec), progress, "the next cells are not loaded"));
+                }
+                BlockState state = c.level().getBlockState(pos);
+                if (state.isAir()
+                        || (!spec.allowLiquids() && !state.getFluidState().isEmpty())
+                        || (!spec.containers() && c.level().getBlockEntity(pos) instanceof Container)) {
+                    continue;
+                }
+                String reason = PlaceGuard.protects(c, pos)
+                        ? "a cell is inside a protected place"
+                        : !c.companion().hands().canInteract(pos)
+                                ? "a cell is protected by the server"
+                                : state.getDestroySpeed(c.level(), pos) < 0
+                                        ? "a cell cannot be broken"
+                                        : spec.requireTool()
+                                                        && state.requiresCorrectToolForDrops()
+                                                        && MiningToolView.currentToolFor(c.companion(), state)
+                                                                .isEmpty()
+                                                ? "no suitable tool for the next block"
+                                                : "a cell cannot be reached safely";
+                return finish(
+                        TaskStatus.FAILED,
+                        ExcavationReport.partial(
+                                ExcavationText.label(spec),
+                                progress,
+                                reason + " at " + pos.getX() + " " + pos.getY() + " " + pos.getZ()));
+            }
+            if (completionIndex < order.size()) {
+                return TaskStatus.RUNNING;
+            }
+        }
+        return finish(TaskStatus.SUCCESS, ExcavationReport.success(ExcavationText.label(spec), progress));
     }
 
     private boolean toolBelowReserve(TaskContext c) {
@@ -571,7 +640,7 @@ public final class ExcavateTask implements Task {
 
     @Override
     public long progressStamp() {
-        return progress.broken();
+        return (long) progress.broken() * (order.size() + 1) + completionIndex;
     }
 
     /**

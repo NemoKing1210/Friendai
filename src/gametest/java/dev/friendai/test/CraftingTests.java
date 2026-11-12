@@ -35,6 +35,7 @@ import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.LeavesBlock;
 
 public class CraftingTests {
     private static final class Result implements TaskEventSink {
@@ -63,7 +64,7 @@ public class CraftingTests {
         return runner;
     }
 
-    // One height per station test, 24 blocks apart: more than the 16-block vertical reach of the station scan.
+    // One height per station test, at least 24 blocks apart, outside the vertical reach of the station scan.
     private static final int WOODEN_DECK = 24;
     private static final int BASE_DECK = 48;
     private static final int TAKE_BASE_DECK = 72;
@@ -76,9 +77,10 @@ public class CraftingTests {
     private static final int REUSE_DECK = 240;
     private static final int COLLECT_DECK = 264;
     private static final int PIT_DECK = 288;
+    private static final int CANOPY_DECK = -24;
 
     /**
-     * Station scenes live on separate stone decks well above the shared test grid, each at its own height, so no
+     * Station scenes live on separate stone decks away from the shared test grid, each at its own height, so no
      * test's ±16 station scan can see another test's ground-level or deck-level station blocks.
      */
     private static void deck(GameTestHelper h, int size, int y) {
@@ -527,6 +529,43 @@ public class CraftingTests {
             // Nothing else is crafted, so the lease runs out and the companion fetches the table back.
             h.assertValueEqual(c.inventory().countItem(Items.CRAFTING_TABLE), 1, "crafting tables fetched back");
             h.assertFalse(hasBlock(h, Blocks.CRAFTING_TABLE, 16, WOODEN_DECK), "the placed table should be gone");
+        });
+    }
+
+    @GameTest(maxTicks = 800)
+    public void placesATableBesideItUnderTheCanopy(GameTestHelper h) {
+        deck(h, 16, CANOPY_DECK);
+        // Only an adjacent cell is available. Grass is replaceable; leaves above a table do not block a craft.
+        var canopy = Blocks.OAK_LEAVES.defaultBlockState().setValue(LeavesBlock.PERSISTENT, true);
+        for (int x = 3; x <= 11; x++) {
+            for (int z = 3; z <= 11; z++) {
+                h.setBlock(x, CANOPY_DECK + 1, z, Blocks.STONE);
+                h.setBlock(x, CANOPY_DECK + 2, z, canopy);
+            }
+        }
+        h.setBlock(7, CANOPY_DECK + 1, 7, Blocks.AIR);
+        h.setBlock(7, CANOPY_DECK + 2, 7, Blocks.AIR);
+        h.setBlock(8, CANOPY_DECK, 7, Blocks.GRASS_BLOCK);
+        h.setBlock(8, CANOPY_DECK + 1, 7, Blocks.SHORT_GRASS);
+        BlockPos aboveSlot = new BlockPos(8, CANOPY_DECK + 2, 7);
+        h.assertTrue(h.getBlockState(aboveSlot).is(Blocks.OAK_LEAVES), "missing canopy in the fixture");
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 7.33f, CANOPY_DECK + 1, 7.5f);
+        c.inventory().addItem(new ItemStack(Items.CRAFTING_TABLE));
+        c.inventory().addItem(new ItemStack(Items.OAK_PLANKS, 3));
+        c.inventory().addItem(new ItemStack(Items.STICK, 2));
+        Result result = new Result();
+        ExecutionCoordinator runner = craft(c, result, "minecraft:wooden_pickaxe", 1, StationPolicy.KEEP);
+
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "canopy craft failed: " + result.summary);
+            h.assertValueEqual(1, c.inventory().countItem(Items.WOODEN_PICKAXE), "pickaxes");
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(8, CANOPY_DECK + 1, 7)).is(Blocks.CRAFTING_TABLE),
+                    "the adjacent free spot should hold the table");
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(9, CANOPY_DECK + 2, 7)).is(Blocks.OAK_LEAVES),
+                    "placing the station should not require clearing the surrounding canopy");
         });
     }
 

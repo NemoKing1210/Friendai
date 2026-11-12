@@ -159,6 +159,7 @@ public final class ActiveTaskController {
     public Optional<Completion> tick(TaskContext activeContext) {
         ActiveTask active = current;
         if (active == null) return Optional.empty();
+        if (activeContext.logContext() != active.logContext()) activeContext = context(activeContext, active);
         activeTicks++;
         TaskStatus status;
         String summary = null;
@@ -211,6 +212,7 @@ public final class ActiveTaskController {
             summary = "timed out";
         }
         if (status == TaskStatus.RUNNING) return Optional.empty();
+        if (summary == null) summary = active.task().resultSummary();
         ExecutionTiming.Snapshot measured = active.timing().snapshot();
         diagnostics.accept(TaskLogEvents.finishEvent(
                 active.logContext(),

@@ -122,6 +122,20 @@ public class LoggingTests {
                                 server.getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT))
                         + "\""),
                 recorded);
+        h.assertTrue(fileLog.flushStatus().join().durable(), "server logs did not flush");
+        boolean foundStart = false;
+        for (Path path : files(fileLog.root().resolve("server"))) {
+            if (!path.getFileName().toString().equals("boot-" + fileLog.boot() + ".jsonl")) continue;
+            LogScanResult scan = LogScan.scan(path, ScanLimits.DEFAULT, LogFilter.all(), 50, false);
+            for (LogRecord entry : scan.records()) {
+                if (LogEvents.STREAM_START.equals(entry.event())) {
+                    h.assertTrue(
+                            fileLog.boot().equals(entry.data().get("boot")), "stream boot differs from writer boot");
+                    foundStart = true;
+                }
+            }
+        }
+        h.assertTrue(foundStart, "server stream start was not written");
         h.succeed();
     }
 

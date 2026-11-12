@@ -364,6 +364,102 @@ public class ExcavationTests {
         });
     }
 
+    @GameTest(maxTicks = 200)
+    public void missingToolDoesNotCompleteASolidRegion(GameTestHelper h) {
+        CompanionEntity c = companion(h);
+        c.inventory().clearContent();
+        BlockPos target = new BlockPos(4, 2, 2);
+        h.setBlock(target, Blocks.IRON_ORE);
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(new ExcavateTask(spec(box(h, target, target), 1)), "excavate");
+
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.FAILED, "a solid region was accepted: " + result.summary);
+            h.assertTrue(h.getBlockState(target).is(Blocks.IRON_ORE), "the ore should remain without its tool");
+            h.assertTrue(result.summary.contains("no suitable tool"), "missing refusal: " + result.summary);
+        });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void unbreakableFinalBatchDoesNotCompleteTheRegion(GameTestHelper h) {
+        CompanionEntity c = companion(h);
+        BlockPos target = new BlockPos(4, 2, 2);
+        h.setBlock(target, Blocks.BEDROCK);
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(new ExcavateTask(spec(box(h, target, target), 1)), "excavate");
+
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.FAILED, "the unbroken batch was accepted: " + result.summary);
+            h.assertTrue(result.summary.contains("cannot be broken"), "missing bedrock refusal: " + result.summary);
+            h.assertTrue(h.getBlockState(target).is(Blocks.BEDROCK), "the refused target changed");
+        });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void protectedFinalBatchDoesNotCompleteTheRegion(GameTestHelper h) {
+        CompanionEntity c = companion(h);
+        BlockPos target = new BlockPos(4, 2, 2);
+        h.setBlock(target, Blocks.STONE);
+        BlockPos absolute = h.absolutePos(target);
+        c.hands().overrideProtection(pos -> pos.equals(absolute));
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(new ExcavateTask(spec(box(h, target, target), 1)), "excavate");
+
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.FAILED, "the protected batch was accepted: " + result.summary);
+            h.assertTrue(h.getBlockState(target).is(Blocks.STONE), "the protected target changed");
+        });
+    }
+
+    @GameTest(maxTicks = 200)
+    public void alreadyEmptyShaftCompletesWithoutInventingMining(GameTestHelper h) {
+        CompanionEntity c = companion(h);
+        BlockPos low = new BlockPos(4, 2, 2);
+        BlockPos high = new BlockPos(4, 5, 2);
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(new ExcavateTask(spec(box(h, low, high), 4)), "excavate");
+
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "empty region did not complete: " + result.summary);
+            h.assertTrue(result.summary.contains("mined 0"), "invented mining: " + result.summary);
+            h.assertTrue(result.summary.contains("4 already empty"), "missing empty-space evidence: " + result.summary);
+        });
+    }
+
+    @GameTest(maxTicks = 600)
+    public void undergroundSearchTriesAnotherHeadingAfterALiveDescentRefusal(GameTestHelper h) {
+        CompanionEntity c = companion(h);
+        for (int x = 0; x < 12; x++) {
+            for (int z = 0; z < 12; z++) {
+                h.setBlock(x, 0, z, Blocks.STONE);
+            }
+        }
+        BlockPos start = h.absolutePos(new BlockPos(5, 2, 5));
+        // The north floor is inside the live footprint, although the nominal grid stance has its own support.
+        c.setPos(start.getX() + 0.5, start.getY(), start.getZ() + 0.1);
+        MiningSession session =
+                new MiningSession(c, new MiningBounds(new Node(start.getX(), start.getY(), start.getZ()), 8), 8, 500);
+        session.explore(start.getY() - 1, 0);
+        TaskContext context = new TaskContext(c, h.getLevel());
+
+        h.succeedWhen(() -> {
+            MiningSession.State state = session.tick(context);
+            h.assertTrue(
+                    state != MiningSession.State.FAILED,
+                    "the same unsafe descent was retried: " + session.debugReason());
+            h.assertTrue(session.brokenBlocks() > 0, "no alternate descent yet: " + session.debugReason());
+            session.stop(context);
+        });
+    }
+
     @GameTest(maxTicks = 1600)
     public void shaftRefusesTheCellAboveLava(GameTestHelper h) {
         CompanionEntity c = companion(h);
@@ -472,7 +568,11 @@ public class ExcavationTests {
     }
 
     private static ExcavateTask stalledExcavate(GameTestHelper h, boolean collect) {
-        BlockPos[] cells = {new BlockPos(4, 2, 2), new BlockPos(5, 2, 2), new BlockPos(4, 2, 3), new BlockPos(5, 2, 3)};
+        return stalledExcavate(h, collect, -2);
+    }
+
+    private static ExcavateTask stalledExcavate(GameTestHelper h, boolean collect, int y) {
+        BlockPos[] cells = {new BlockPos(4, y, 2), new BlockPos(5, y, 2), new BlockPos(4, y, 3), new BlockPos(5, y, 3)};
         for (BlockPos cell : cells) {
             h.setBlock(cell, Blocks.STONE);
         }
@@ -492,6 +592,25 @@ public class ExcavationTests {
                         0)
                 .orElseThrow();
         return new ExcavateTask(spec);
+    }
+
+    @GameTest(maxTicks = 400)
+    public void aStalledHorizontalRegionDoesNotDigAnUnrelatedShaft(GameTestHelper h) {
+        CompanionEntity c = companion(h);
+        h.setBlock(new BlockPos(2, 0, 2), Blocks.STONE);
+        Result result = new Result();
+        ExecutionCoordinator runner = stalledRunner(c, result);
+        ExcavateTask task = stalledExcavate(h, false, 2);
+        BlockPos support = h.absolutePos(new BlockPos(2, 1, 2));
+        runner.start(task, "excavate");
+
+        TaskTrace.of(h, runner, c).succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.FAILED, "the stalled job has not refused: " + task.debugStatus());
+            h.assertTrue(
+                    h.getLevel().getBlockState(support).is(Blocks.STONE),
+                    "a horizontal job dug an unrelated shaft: " + task.debugStatus());
+        });
     }
 
     @GameTest(maxTicks = 400)

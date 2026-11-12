@@ -58,6 +58,16 @@ class ExplorationPlannerTest {
     }
 
     @Test
+    void aRefusedFirstStepUsesAnotherSafeHeading() {
+        Node refused = new Node(START.x(), START.y(), START.z() - 1);
+        ExplorationPlanner planner = new ExplorationPlanner(
+                openWorld(), START, START.y(), 0, new MiningBounds(START, 4), Set.of(), Set.of(refused), COSTS, 20_000);
+
+        assertEquals(ExplorationPlanner.Status.READY, planner.step(Long.MAX_VALUE, System::nanoTime));
+        assertTrue(!planner.nextStep().orElseThrow().to().equals(refused));
+    }
+
+    @Test
     void cannotEscapeOriginalRadius() {
         ExplorationPlanner planner = planner(openWorld(), START, START.y(), 0, 0, 20_000);
 

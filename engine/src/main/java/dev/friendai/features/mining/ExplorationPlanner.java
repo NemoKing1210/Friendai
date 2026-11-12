@@ -37,6 +37,7 @@ public final class ExplorationPlanner {
     private final int heading;
     private final MiningBounds bounds;
     private final Set<Pos> supports;
+    private final Set<Node> refusedDestinations;
     private final CostModel costs;
     private final int maxNodes;
     private final ArrayDeque<Branch> pending = new ArrayDeque<>();
@@ -55,6 +56,20 @@ public final class ExplorationPlanner {
             Set<Pos> supports,
             CostModel costs,
             int maxNodes) {
+        this(view, start, targetY, heading, bounds, supports, Set.of(), costs, maxNodes);
+    }
+
+    /** Refused first steps stay out of this retry; later stances may still use those cells safely. */
+    public ExplorationPlanner(
+            CellView view,
+            Node start,
+            int targetY,
+            int heading,
+            MiningBounds bounds,
+            Set<Pos> supports,
+            Set<Node> refusedDestinations,
+            CostModel costs,
+            int maxNodes) {
         if (heading < 0 || heading > 3 || maxNodes < 1) {
             throw new IllegalArgumentException("heading must be 0..3 and maxNodes must be positive");
         }
@@ -64,6 +79,7 @@ public final class ExplorationPlanner {
         this.heading = heading;
         this.bounds = bounds;
         this.supports = Set.copyOf(supports);
+        this.refusedDestinations = Set.copyOf(refusedDestinations);
         this.costs = costs;
         this.maxNodes = maxNodes;
     }
@@ -128,6 +144,9 @@ public final class ExplorationPlanner {
         List<PathStep> edges = new ArrayList<>();
         moves.neighbours(branch.node(), 0, 0, 0, edges::add);
         for (PathStep edge : edges) {
+            if (branch.first() == null && refusedDestinations.contains(edge.to())) {
+                continue;
+            }
             int dy = edge.to().y() - branch.node().y();
             if (dy > 0 || (start.y() <= targetY && dy != 0)) {
                 continue;

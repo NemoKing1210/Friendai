@@ -15,6 +15,14 @@ import java.util.function.BooleanSupplier;
  * thread.
  */
 public interface PlannerPort {
+    /** A deterministic refusal, with a stable diagnostic code and the supported recovery path for the model. */
+    record Refusal(String code, String guidance) {}
+
+    /** Checks whether a proposal can be applied before input creation spends a replan attempt. */
+    default Optional<Refusal> preflight(PlanSubject subject, Caller caller) {
+        return Optional.empty();
+    }
+
     PlannerPort NONE = new PlannerPort() {
         @Override
         public Optional<PlannerInput> inputFor(PlanSubject subject, Caller caller, String failure) {
