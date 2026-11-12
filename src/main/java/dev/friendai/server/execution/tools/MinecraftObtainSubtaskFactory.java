@@ -127,6 +127,16 @@ public final class MinecraftObtainSubtaskFactory
             }
 
             @Override
+            public java.util.List<dev.friendai.foundation.spatial.Pos> returnRoute() {
+                return task.returnRoute();
+            }
+
+            @Override
+            public java.util.Map<String, Integer> travelMaterialNeeds(TaskContext context) {
+                return task.travelMaterialNeeds(context);
+            }
+
+            @Override
             public String type() {
                 return task.type();
             }

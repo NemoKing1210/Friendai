@@ -169,6 +169,16 @@ public final class BatchObtainTask implements Task {
     }
 
     @Override
+    public Map<String, Integer> travelMaterialNeeds(TaskContext context) {
+        return current == null ? Map.of() : current.travelMaterialNeeds(context);
+    }
+
+    @Override
+    public Task cleanupAfterCancel(TaskContext context) {
+        return current == null ? null : current.cleanupAfterCancel(context);
+    }
+
+    @Override
     public boolean hasTimeout() {
         return false;
     }

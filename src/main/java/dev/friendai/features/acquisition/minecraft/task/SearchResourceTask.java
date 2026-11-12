@@ -287,6 +287,16 @@ public final class SearchResourceTask implements Task {
         return driver == null ? java.util.List.of() : driver.debugWorkSets();
     }
 
+    @Override
+    public java.util.Map<String, Integer> travelMaterialNeeds(TaskContext context) {
+        return driver == null ? java.util.Map.of() : driver.travelMaterialNeeds(context);
+    }
+
+    @Override
+    public dev.friendai.task.Task cleanupAfterCancel(TaskContext context) {
+        return driver == null ? null : driver.cleanupAfterCancel(context);
+    }
+
     /** A structure seen by its markers becomes one landmark place, so a later search can travel to it. */
     private void remember(TargetKind.Structure structure, TaskContext context) {
         if (caller == null || context.companion().ownerUuid() == null) return;

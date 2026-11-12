@@ -4,19 +4,30 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * The items the planned work still needs, so no pillar, bridge, catch platform or drop guard spends them.
+ * The items planned work needs plus any separate support share for a verified return trip.
  *
- * <p>Composed, never accumulated: the plan's remaining steps and the running task both name what they are short of,
- * and the larger of the two wins, because a mining task's remaining target is part of the step that started it.
- * Immutable and read-only at use time, so a path search or a placement can ask it every tick without allocating.
+ * <p>Plan and task work needs compose by maximum, because a mining task's remaining target is part of the step that
+ * started it. Return supports are added separately; only a return navigator may spend that share. Immutable and
+ * read-only at use time, so a path search or placement can ask it every tick without allocating.
  */
 public final class MaterialReserve {
-    public static final MaterialReserve EMPTY = new MaterialReserve(Map.of());
+    public static final MaterialReserve EMPTY = new MaterialReserve(Map.of(), Map.of());
 
+    private final Map<String, Integer> work;
+    private final Map<String, Integer> travel;
     private final Map<String, Integer> reserved;
 
-    private MaterialReserve(Map<String, Integer> reserved) {
-        this.reserved = reserved;
+    private MaterialReserve(Map<String, Integer> work, Map<String, Integer> travel) {
+        this.work = work;
+        this.travel = travel;
+        if (travel.isEmpty()) {
+            this.reserved = work;
+        } else {
+            Map<String, Integer> total = new LinkedHashMap<>(work);
+            travel.forEach((id, count) -> total.merge(id, count, (workCount, travelCount) ->
+                    (int) Math.min(Integer.MAX_VALUE, (long) workCount + travelCount)));
+            this.reserved = Map.copyOf(total);
+        }
     }
 
     /** A reserve of the item counts given; entries that reserve nothing are dropped. */
@@ -33,28 +44,42 @@ public final class MaterialReserve {
                 kept.put(entry.getKey().strip(), entry.getValue());
             }
         }
-        return kept.isEmpty() ? EMPTY : new MaterialReserve(Map.copyOf(kept));
+        return kept.isEmpty() ? EMPTY : new MaterialReserve(Map.copyOf(kept), Map.of());
     }
 
     /** The larger need of the two sources, per item: the plan's remaining steps and the running task's own need. */
     public static MaterialReserve compose(Map<String, Integer> planNeeds, Map<String, Integer> taskNeeds) {
-        if (planNeeds == null || planNeeds.isEmpty()) {
-            return of(taskNeeds);
-        }
-        if (taskNeeds == null || taskNeeds.isEmpty()) {
-            return of(planNeeds);
-        }
-        Map<String, Integer> merged = new LinkedHashMap<>(planNeeds);
-        for (Map.Entry<String, Integer> entry : taskNeeds.entrySet()) {
-            merged.merge(entry.getKey(), entry.getValue(), Math::max);
-        }
-        return of(merged);
+        return compose(planNeeds, taskNeeds, Map.of());
     }
 
-    /** How many of this item are still owed to the planned work. */
+    /** Work needs compose by maximum; the independent return-trip share is added on top. */
+    public static MaterialReserve compose(
+            Map<String, Integer> planNeeds, Map<String, Integer> taskNeeds, Map<String, Integer> travelNeeds) {
+        Map<String, Integer> workNeeds = maximum(planNeeds, taskNeeds);
+        MaterialReserve workReserve = of(workNeeds);
+        MaterialReserve travelReserve = of(travelNeeds);
+        if (travelReserve.isEmpty()) return workReserve;
+        return new MaterialReserve(workReserve.work, travelReserve.work);
+    }
+
+    /** The work share alone, for the return trip that is allowed to spend its separate travel allocation. */
+    public MaterialReserve forReturnLeg() {
+        return travel.isEmpty() ? this : of(work);
+    }
+
+    /** How many items of this kind belong to planned or active work, excluding the return-trip share. */
+    public int workReserved(String itemId) {
+        return count(work, itemId);
+    }
+
+    /** How many items of this kind are set aside only for a verified return route. */
+    public int travelReserved(String itemId) {
+        return count(travel, itemId);
+    }
+
+    /** Total reserved count, including the separate return-trip share. */
     public int reserved(String itemId) {
-        Integer count = reserved.get(itemId == null ? "" : itemId.strip());
-        return count == null ? 0 : count;
+        return count(reserved, itemId);
     }
 
     /** How many carried items of this kind are free to be placed: the carried count minus the reserve, never negative. */
@@ -70,35 +95,62 @@ public final class MaterialReserve {
     /** The reserve after one item of this kind was spent; a fully covered item stops being reserved. */
     public MaterialReserve spend(String itemId) {
         String id = itemId == null ? "" : itemId.strip();
-        int left = reserved(id);
-        if (left <= 0) {
+        int travelLeft = travelReserved(id);
+        int workLeft = workReserved(id);
+        if (travelLeft <= 0 && workLeft <= 0) {
             return this;
         }
-        Map<String, Integer> next = new LinkedHashMap<>(reserved);
-        if (left == 1) {
-            next.remove(id);
+        Map<String, Integer> nextTravel = new LinkedHashMap<>(travel);
+        Map<String, Integer> nextWork = new LinkedHashMap<>(work);
+        if (travelLeft > 0) {
+            if (travelLeft == 1) nextTravel.remove(id);
+            else nextTravel.put(id, travelLeft - 1);
         } else {
-            next.put(id, left - 1);
+            if (workLeft == 1) nextWork.remove(id);
+            else nextWork.put(id, workLeft - 1);
         }
-        return of(next);
+        return new MaterialReserve(Map.copyOf(nextWork), Map.copyOf(nextTravel));
     }
 
     public Map<String, Integer> asMap() {
         return reserved;
     }
 
+    public Map<String, Integer> workAsMap() {
+        return work;
+    }
+
+    public Map<String, Integer> travelAsMap() {
+        return travel;
+    }
+
     public boolean isEmpty() {
         return reserved.isEmpty();
     }
 
+    private static int count(Map<String, Integer> values, String itemId) {
+        Integer count = values.get(itemId == null ? "" : itemId.strip());
+        return count == null ? 0 : count;
+    }
+
+    private static Map<String, Integer> maximum(Map<String, Integer> first, Map<String, Integer> second) {
+        MaterialReserve normalizedFirst = of(first);
+        MaterialReserve normalizedSecond = of(second);
+        if (normalizedFirst.isEmpty()) return normalizedSecond.work;
+        if (normalizedSecond.isEmpty()) return normalizedFirst.work;
+        Map<String, Integer> merged = new LinkedHashMap<>(normalizedFirst.work);
+        normalizedSecond.work.forEach((id, count) -> merged.merge(id, count, Math::max));
+        return Map.copyOf(merged);
+    }
+
     @Override
     public boolean equals(Object other) {
-        return other instanceof MaterialReserve that && reserved.equals(that.reserved);
+        return other instanceof MaterialReserve that && work.equals(that.work) && travel.equals(that.travel);
     }
 
     @Override
     public int hashCode() {
-        return reserved.hashCode();
+        return 31 * work.hashCode() + travel.hashCode();
     }
 
     @Override

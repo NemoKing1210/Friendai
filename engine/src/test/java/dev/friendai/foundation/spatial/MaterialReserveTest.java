@@ -46,6 +46,40 @@ class MaterialReserveTest {
     }
 
     @Test
+    void returnSupportIsAddedBesideWorkAndReleasedOnlyForTheReturnLeg() {
+        MaterialReserve composed =
+                MaterialReserve.compose(Map.of(COBBLE, 2), Map.of(COBBLE, 3), Map.of(COBBLE, 2, DIRT, 1));
+
+        assertEquals(5, composed.reserved(COBBLE));
+        assertEquals(3, composed.workReserved(COBBLE));
+        assertEquals(2, composed.travelReserved(COBBLE));
+        assertEquals(1, composed.reserved(DIRT));
+        assertEquals(Map.of(COBBLE, 3), composed.workAsMap());
+        assertEquals(Map.of(COBBLE, 2, DIRT, 1), composed.travelAsMap());
+        assertEquals(3, composed.forReturnLeg().reserved(COBBLE));
+        assertEquals(0, composed.forReturnLeg().travelReserved(COBBLE));
+        assertEquals(0, composed.forReturnLeg().reserved(DIRT));
+    }
+
+    @Test
+    void returnOnlyShareRemainsSpendableOnTheReturnLeg() {
+        MaterialReserve composed = MaterialReserve.compose(Map.of(), Map.of(), Map.of(DIRT, 1));
+
+        assertEquals(1, composed.travelReserved(DIRT));
+        assertEquals(0, composed.forReturnLeg().reserved(DIRT));
+        assertTrue(composed.forReturnLeg().spendable(DIRT, 1));
+    }
+
+    @Test
+    void spareSupportCountSubtractsTheExistingWorkReserve() {
+        MaterialReserve reserve = MaterialReserve.compose(Map.of(COBBLE, 2), Map.of(COBBLE, 3), Map.of());
+
+        int spare = reserve.free(COBBLE, 4);
+
+        assertEquals(1, spare);
+    }
+
+    @Test
     void entriesThatReserveNothingAreDropped() {
         assertTrue(MaterialReserve.of(Map.of(COBBLE, 0, DIRT, -2, "", 5)).isEmpty());
         assertTrue(MaterialReserve.EMPTY.isEmpty());

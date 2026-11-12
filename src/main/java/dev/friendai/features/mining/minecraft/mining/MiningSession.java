@@ -6,12 +6,17 @@ import dev.friendai.features.mining.ExplorationPlanner;
 import dev.friendai.features.mining.MiningBounds;
 import dev.friendai.features.mining.MiningGoal;
 import dev.friendai.features.mining.MiningPathPolicy;
+import dev.friendai.features.mining.ReturnAssessment;
 import dev.friendai.foundation.diagnostics.LogEvents;
 import dev.friendai.foundation.mining.DropRisk;
+import dev.friendai.foundation.spatial.Cell;
+import dev.friendai.foundation.spatial.CellView;
 import dev.friendai.foundation.spatial.CostModel;
 import dev.friendai.foundation.spatial.Move;
+import dev.friendai.foundation.spatial.MoveGenerator;
 import dev.friendai.foundation.spatial.Node;
 import dev.friendai.foundation.spatial.Path;
+import dev.friendai.foundation.spatial.PathGoal;
 import dev.friendai.foundation.spatial.PathPolicy;
 import dev.friendai.foundation.spatial.PathSearch;
 import dev.friendai.foundation.spatial.PathStep;
@@ -36,6 +41,7 @@ import java.util.Set;
 import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.Container;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.state.BlockState;
 
 /** Shared bounded search and guarded execution for resource extraction and underground exploration. */
@@ -77,6 +83,11 @@ public final class MiningSession {
     private final Set<Pos> excludedTargets = new HashSet<>();
     private final Set<Node> excludedStances = new HashSet<>();
     private final Set<Node> refusedExplorationSteps = new HashSet<>();
+    /** Verified path from the last safe anchor to the companion's current exploration stance. */
+    private final List<Node> verifiedReturnRoute = new ArrayList<>();
+
+    private int requiredReturnSupports;
+    private String explorationDimension;
     private Node explorationRetryFrom;
     private List<BlockPos> targets = List.of();
     private Predicate<BlockState> matches = state -> false;
@@ -201,6 +212,9 @@ public final class MiningSession {
         this.remainingSteps = List.of();
         this.refusedExplorationSteps.clear();
         this.explorationRetryFrom = null;
+        this.verifiedReturnRoute.clear();
+        this.requiredReturnSupports = 0;
+        this.explorationDimension = null;
         rememberCurrentSupport();
     }
 
@@ -363,6 +377,26 @@ public final class MiningSession {
         return completedExplorationSteps;
     }
 
+    /** The verified route from its safe anchor to the current stance, retained after the session stops. */
+    public List<Pos> returnRoute() {
+        return verifiedReturnRoute.stream().map(Node::pos).toList();
+    }
+
+    /** Support blocks kept aside for the return route, after the active order's work reserve. */
+    public Map<String, Integer> travelMaterialNeeds(TaskContext context) {
+        if (requiredReturnSupports <= 0) return Map.of();
+        var reserve = context.materialReserve().forReturnLeg();
+        int dirt = reserve.free("minecraft:dirt", companion.inventory().countItem(Items.DIRT));
+        int cobblestone =
+                reserve.free("minecraft:cobblestone", companion.inventory().countItem(Items.COBBLESTONE));
+        int dirtNeed = Math.min(requiredReturnSupports, dirt);
+        int cobblestoneNeed = Math.min(requiredReturnSupports - dirtNeed, cobblestone);
+        if (dirtNeed + cobblestoneNeed < requiredReturnSupports) return Map.of();
+        if (dirtNeed == 0) return Map.of("minecraft:cobblestone", cobblestoneNeed);
+        if (cobblestoneNeed == 0) return Map.of("minecraft:dirt", dirtNeed);
+        return Map.of("minecraft:dirt", dirtNeed, "minecraft:cobblestone", cobblestoneNeed);
+    }
+
     /**
      * Every cell the planned passage still has to break, the running chain first, for the debug overlay: the owner
      * sees the corridor of the whole plan instead of only the step under execution.
@@ -485,6 +519,9 @@ public final class MiningSession {
     }
 
     private State tickExplore(TaskContext context) {
+        String currentDimension = context.level().dimension().identifier().toString();
+        if (explorationDimension == null) explorationDimension = currentDimension;
+        if (verifiedReturnRoute.isEmpty()) verifiedReturnRoute.add(node());
         if (exploration == null) {
             Node current = node();
             if (!current.equals(explorationRetryFrom)) {
@@ -514,6 +551,12 @@ public final class MiningSession {
             return retryPlan(context, "friendai.mining.unreachable");
         }
         PathStep next = exploration.nextStep().orElseThrow();
+        if (next.to().y() < next.from().y() && !assessReturnBeforeDescent(context, next)) {
+            explorationRetryFrom = next.from();
+            refusedExplorationSteps.add(next.to());
+            exploration = null;
+            return retryPlan(context, UserMessage.of("friendai.mining.unreachable"));
+        }
         setPhase(phaseFor(next.move()));
         exploration = null;
         return executeEdge(context, next);
@@ -527,6 +570,7 @@ public final class MiningSession {
         if (state == PathExecutor.State.FAILED) {
             brokenBlocks += executor.brokenBlocks();
             rememberWalked(executor.stepIndex());
+            rememberReturnRoute(executor.stepIndex());
             if (mode == Mode.EXPLORE && executor.stepIndex() < activeSteps.size()) {
                 PathStep refused = activeSteps.get(executor.stepIndex());
                 if (node().equals(refused.from())) {
@@ -547,6 +591,7 @@ public final class MiningSession {
         executor.stop(context);
         executor = null;
         rememberWalked(activeSteps.size());
+        rememberReturnRoute(activeSteps.size());
         for (PathStep completed : activeSteps) {
             if (mode == Mode.EXPLORE
                     && completed.to().y() <= targetY
@@ -569,6 +614,132 @@ public final class MiningSession {
         search = null;
         exploration = null;
         return State.WORKING;
+    }
+
+    /** Checks every inverse edge in the current excavation route against the live, loaded terrain. */
+    private boolean assessReturnBeforeDescent(TaskContext context, PathStep next) {
+        Node current = node();
+        if (verifiedReturnRoute.isEmpty()
+                || !verifiedReturnRoute.get(verifiedReturnRoute.size() - 1).equals(current)
+                || verifiedReturnRoute.size() >= 64
+                || !explorationDimension.equals(
+                        context.level().dimension().identifier().toString())) {
+            diagnostic = "return-route-stale";
+            requiredReturnSupports = 0;
+            return false;
+        }
+        List<Node> forward = new ArrayList<>(verifiedReturnRoute);
+        if (!forward.get(forward.size() - 1).equals(next.from())) {
+            diagnostic = "return-route-stale";
+            requiredReturnSupports = 0;
+            return false;
+        }
+        forward.add(next.to());
+
+        CellView live = guard(context).planningView(context, context.pathingConfig());
+        Set<Pos> newlyBroken = Set.copyOf(next.breaks());
+        CellView afterDescent = (x, y, z) -> {
+            Pos pos = new Pos(x, y, z);
+            return newlyBroken.contains(pos) ? Cell.AIR : live.at(x, y, z);
+        };
+        int spare = availableReturnSupports(context);
+        List<ReturnAssessment.Leg> returnLegs = new ArrayList<>();
+        for (int i = forward.size() - 1; i > 0; i--) {
+            Node from = forward.get(i);
+            Node to = forward.get(i - 1);
+            returnLegs.add(probeInverse(afterDescent, from, to));
+        }
+        Node anchor = forward.getFirst();
+        boolean anchorLoaded = context.level().hasChunkAt(blockPos(anchor.pos()));
+        var evidence = new ReturnAssessment.RouteEvidence(
+                explorationDimension,
+                context.level().dimension().identifier().toString(),
+                anchor,
+                next.to(),
+                returnLegs,
+                anchorLoaded,
+                true);
+        ReturnAssessment.Result result = ReturnAssessment.assess(evidence, spare);
+        if (result.status() != ReturnAssessment.Status.SAFE) {
+            requiredReturnSupports = 0;
+            diagnostic = result.status() == ReturnAssessment.Status.NEEDS_SUPPORTS
+                    ? "return-needs-supports-" + result.requiredSupports() + "-spare-" + spare
+                    : "return-route-blocked-or-unknown";
+            return false;
+        }
+        requiredReturnSupports = result.requiredSupports();
+        return true;
+    }
+
+    private ReturnAssessment.Leg probeInverse(CellView view, Node from, Node to) {
+        int[][] relevant = {
+            {from.x(), from.y(), from.z()},
+            {from.x(), from.y() + 1, from.z()},
+            {from.x(), from.y() - 1, from.z()},
+            {to.x(), to.y(), to.z()},
+            {to.x(), to.y() + 1, to.z()},
+            {to.x(), to.y() - 1, to.z()}
+        };
+        for (int[] cell : relevant) {
+            if (view.at(cell[0], cell[1], cell[2]).kind() == Cell.Kind.UNLOADED) {
+                return new ReturnAssessment.Leg(from, to, 0, false, false);
+            }
+        }
+        PathGoal goal = new PathGoal() {
+            @Override
+            public boolean isGoal(Node ignored, CellView ignoredView) {
+                return false;
+            }
+
+            @Override
+            public double heuristic(Node ignored, CostModel ignoredCosts) {
+                return 0;
+            }
+
+            @Override
+            public boolean protects(Pos pos) {
+                return supports.contains(pos);
+            }
+        };
+        List<PathStep> options = new ArrayList<>();
+        new MoveGenerator(view, CostModel.DEFAULTS, goal, 1.0, companion.canSprint())
+                .neighbours(from, 0, 32, 0, options::add);
+        PathStep best = null;
+        for (PathStep option : options) {
+            if (!option.to().equals(to) || !option.breaks().isEmpty()) continue;
+            if (best == null
+                    || option.places().size() < best.places().size()
+                    || (option.places().size() == best.places().size() && option.cost() < best.cost())) {
+                best = option;
+            }
+        }
+        if (best == null) return new ReturnAssessment.Leg(from, to, 0, true, false);
+        for (Pos placed : best.places()) {
+            if (view.at(placed.x(), placed.y(), placed.z()).kind() == Cell.Kind.UNLOADED) {
+                return new ReturnAssessment.Leg(from, to, 0, false, false);
+            }
+        }
+        return new ReturnAssessment.Leg(from, to, best.places().size(), true, true);
+    }
+
+    private int availableReturnSupports(TaskContext context) {
+        if (!context.pathingConfig().allowPlace()) return 0;
+        var reserve = context.materialReserve().forReturnLeg();
+        return reserve.free("minecraft:dirt", companion.inventory().countItem(Items.DIRT))
+                + reserve.free("minecraft:cobblestone", companion.inventory().countItem(Items.COBBLESTONE));
+    }
+
+    private void rememberReturnRoute(int count) {
+        if (mode != Mode.EXPLORE || count <= 0 || verifiedReturnRoute.isEmpty()) return;
+        for (int i = 0; i < Math.min(count, activeSteps.size()); i++) {
+            PathStep step = activeSteps.get(i);
+            if (!verifiedReturnRoute.getLast().equals(step.from())) {
+                verifiedReturnRoute.clear();
+                requiredReturnSupports = 0;
+                return;
+            }
+            verifiedReturnRoute.add(step.to());
+        }
     }
 
     private State tickExtraction(TaskContext context) {

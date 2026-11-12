@@ -681,24 +681,34 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
                         ? dev.friendai.world.movement.PlanMaterialSource.forLevel(level)
                         : null);
         java.util.Map<String, Integer> taskNeeds = java.util.Map.of();
+        java.util.Map<String, Integer> travelNeeds = java.util.Map.of();
         ActiveTask active = activeTask();
         if (active != null) {
             taskNeeds = active.task().materialNeeds(context());
+            travelNeeds = active.task().travelMaterialNeeds(context());
         }
         dev.friendai.foundation.spatial.MaterialReserve composed =
-                dev.friendai.foundation.spatial.MaterialReserve.compose(planNeeds, taskNeeds);
+                dev.friendai.foundation.spatial.MaterialReserve.compose(planNeeds, taskNeeds, travelNeeds);
         if (!(companion.level() instanceof ServerLevel level) || composed.isEmpty()) {
             return composed;
         }
         // A task names the block it is sent for; what that block yields is what the tool needs.
         var source = dev.friendai.world.movement.PlanMaterialSource.forLevel(level);
-        java.util.Map<String, Integer> withDrops = new java.util.LinkedHashMap<>(composed.asMap());
-        for (java.util.Map.Entry<String, Integer> entry : composed.asMap().entrySet()) {
+        java.util.Map<String, Integer> workWithDrops = withDrops(source, composed.workAsMap());
+        java.util.Map<String, Integer> travelWithDrops = withDrops(source, composed.travelAsMap());
+        return dev.friendai.foundation.spatial.MaterialReserve.compose(
+                workWithDrops, java.util.Map.of(), travelWithDrops);
+    }
+
+    private static java.util.Map<String, Integer> withDrops(
+            dev.friendai.world.movement.PlanMaterialSource source, java.util.Map<String, Integer> needs) {
+        java.util.Map<String, Integer> expanded = new java.util.LinkedHashMap<>(needs);
+        for (java.util.Map.Entry<String, Integer> entry : needs.entrySet()) {
             for (String item : source.itemsFor(entry.getKey())) {
-                withDrops.merge(item, entry.getValue(), Math::max);
+                expanded.merge(item, entry.getValue(), Math::max);
             }
         }
-        return dev.friendai.foundation.spatial.MaterialReserve.of(withDrops);
+        return expanded;
     }
 
     /** One clock.gap per observed gap over a second; the reason stays unknown, it is never inferred as a pause. */

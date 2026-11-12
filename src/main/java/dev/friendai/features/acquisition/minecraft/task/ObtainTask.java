@@ -216,6 +216,16 @@ public final class ObtainTask implements Task {
     }
 
     @Override
+    public java.util.Map<String, Integer> travelMaterialNeeds(TaskContext context) {
+        return current == null ? java.util.Map.of() : current.travelMaterialNeeds(context);
+    }
+
+    @Override
+    public Task cleanupAfterCancel(TaskContext context) {
+        return current == null ? null : current.cleanupAfterCancel(context);
+    }
+
+    @Override
     public boolean hasTimeout() {
         return false;
     }
