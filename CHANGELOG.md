@@ -23,6 +23,8 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 - The lighting skill now says plainly that it placed no torch on ground that is already lit and points to placing the torch directly, so "put a couple of torches here" in daylight is not answered with a promise and nothing placed.
 - The obtain skill tells the model that plain "stone" means cobblestone and iron ore means raw iron, so these orders no longer fail looking for the smelted block or for ore only Silk Touch can keep.
 - "Chop some wood" right after the companion was summoned looks around for up to fifteen seconds before saying there is no tree, instead of giving up after five beside an oak in plain view.
+- An order is no longer swallowed by a plan whose conditions skip every step ("if you have a pickaxe, mine stone" for a companion without one): such a plan is refused when it is queued, so the companion plans the work again instead of reporting success with nothing done.
+- "Get some stone" no longer fails with "exploring is off" right after a summon: the obtain skill tells the model to keep exploring on unless the player forbids leaving the spot.
 
 ### Added
 

@@ -41,6 +41,14 @@ import net.minecraft.world.item.ItemStack;
 
 /** Getting an item by any means, and explaining the plan before committing to it. */
 public final class ObtainTools implements FeatureToolContributor {
+    /**
+     * A fresh companion has looked at little, so with exploring off a block in plain view still counts as missing; a
+     * live "get some stone" failed that way when a plan turned it off without being asked to.
+     */
+    private static final String EXPLORE = "Default true: look around, search further away and dig down when a resource"
+            + " is not known yet. Set false only when the player forbids leaving this spot; with false, anything the"
+            + " companion has not seen yet counts as missing.";
+
     private final ObtainSubtaskFactory subtaskFactory;
 
     public ObtainTools(ObtainSubtaskFactory subtaskFactory) {
@@ -55,7 +63,7 @@ public final class ObtainTools implements FeatureToolContributor {
                         "Item id like minecraft:iron_pickaxe; tags are not accepted. For a crafting goal, request the finished item so the acquisition planner computes its ingredients.")
                 .integer("count", "How many to get", 1, 64)
                 .bool("use_containers", "Allow taking items from nearby chests and barrels")
-                .bool("explore", "Allow searching further away and digging down when a resource is not nearby")
+                .bool("explore", EXPLORE)
                 .enumeration("scope", "Search budget", "local", "expedition")
                 .required("item", "count")
                 .build();
@@ -85,7 +93,7 @@ public final class ObtainTools implements FeatureToolContributor {
         JsonObject batchSchema = SchemaBuilder.object()
                 .array("items", "Finished items to get together", itemsSchema, 1, CraftPlanner.MAX_TARGETS)
                 .bool("use_containers", "Allow taking items from nearby chests and barrels")
-                .bool("explore", "Allow searching further away and digging down when a resource is not nearby")
+                .bool("explore", EXPLORE)
                 .enumeration("scope", "Search budget", "local", "expedition")
                 .required("items")
                 .build();
@@ -124,9 +132,7 @@ public final class ObtainTools implements FeatureToolContributor {
                                         "Item id like minecraft:iron_pickaxe; tags are not accepted. For a crafting goal, request the finished item so the acquisition planner computes its ingredients.")
                                 .integer("count", "How many to get", 1, 64)
                                 .bool("use_containers", "Allow taking items from nearby chests and barrels")
-                                .bool(
-                                        "explore",
-                                        "Allow searching further away and digging down when a resource is not nearby")
+                                .bool("explore", EXPLORE)
                                 .enumeration("scope", "Search budget", "local", "expedition")
                                 .required("item")
                                 .build();

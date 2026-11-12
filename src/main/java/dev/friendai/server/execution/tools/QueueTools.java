@@ -318,6 +318,14 @@ public final class QueueTools implements FeatureToolContributor {
             return ToolResult.error(
                     "Creative mode is active; only its online operator owner can request world-changing tasks.");
         }
+        // A tree whose conditions skip every step right now would finish at once and report success with nothing
+        // done, while the model (or the planner's caller) believes the work is under way.
+        if (!allActions(bound.nodes()) && finishesIdle(c, bound)) {
+            return ToolResult.error("Invalid plan: with the companion's current state every condition skips its"
+                    + " steps, so the plan would finish at once without doing anything. If the request is already"
+                    + " done, say so; otherwise add the branch that runs now (an else) or queue the steps without a"
+                    + " condition.");
+        }
         boolean optimize = args.has("optimize") && args.get("optimize").getAsBoolean();
         boolean autoRepair = !args.has("auto_repair")
                 || args.get("auto_repair").isJsonNull()
@@ -366,6 +374,13 @@ public final class QueueTools implements FeatureToolContributor {
         if (linkGoal) access.linkPlan(c, id);
         return ToolResult.ok("plan #" + id + (goal.isBlank() ? "" : " \"" + goal + "\"") + " added: "
                 + bound.worstCaseActions() + " worst-case actions");
+    }
+
+    /** Dry-runs the plan's first step against the companion as it is now, as if the plan started this tick. */
+    private static boolean finishesIdle(CompanionEntity companion, PlanDefinition plan) {
+        CompanionGuardFacts facts = new CompanionGuardFacts(companion);
+        facts.refresh(companion.level().getGameTime(), 0);
+        return dev.friendai.execution.queue.PlanInterpreter.finishesIdle(plan, facts);
     }
 
     private static ToolResult patch(
