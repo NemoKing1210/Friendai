@@ -15,6 +15,7 @@ import dev.friendai.agent.llm.model.LlmResponse;
 import dev.friendai.agent.llm.model.Message;
 import dev.friendai.agent.llm.model.Role;
 import dev.friendai.agent.llm.model.ToolSpec;
+import dev.friendai.execution.TaskWorkResult;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.testutil.FakeGateway;
@@ -24,6 +25,7 @@ import dev.friendai.testutil.RecordingSpeaker;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -487,6 +489,28 @@ class CompanionBrainTest {
         assertEquals(2, gateway.requests.size());
         assertTrue(lastUser(gateway.requests.get(1)).text().contains("go_to failed: no safe route"));
         assertFalse(brain.hasPendingWork(), "the failure was consumed once in the refreshed request");
+    }
+
+    @Test
+    void firstRequestAfterPartialFailureIncludesMeasuredWorkAndBlocker() {
+        CompletableFuture<LlmResponse> pending = gateway.enqueuePending();
+        gateway.enqueue(text("I will try another reachable tree."));
+        TaskWorkResult result = new TaskWorkResult(
+                List.of(new TaskWorkResult.Line("minecraft:oak_log", 12, 9, TaskWorkResult.Evidence.CARRIED)),
+                "partial",
+                "2 logs remain on the crown",
+                "try the next reachable tree");
+        brain.post(said("get 12 oak logs"));
+        brain.post(new BrainEvent.TaskFinished(
+                7, 0, 0, "obtain_logs", false, "cut 9 of 12 oak logs", "", Optional.of(result)));
+        pending.complete(calls("The first attempt is still running.", call("stale", "give_items")));
+
+        assertEquals(2, gateway.requests.size());
+        String nextRequest = lastUser(gateway.requests.get(1)).text();
+        assertTrue(nextRequest.contains("minecraft:oak_log carried=9/12 remaining=3"), nextRequest);
+        assertTrue(nextRequest.contains("blocker=2 logs remain on the crown"), nextRequest);
+        assertTrue(nextRequest.contains("next=try the next reachable tree"), nextRequest);
+        assertTrue(tools.executed.isEmpty(), "the stale call must not run before the measured failure is sent");
     }
 
     @Test

@@ -3,6 +3,7 @@ package dev.friendai.server.execution;
 import com.google.gson.JsonObject;
 import dev.friendai.agent.verify.LoopMetrics;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.execution.TaskWorkResult;
 import dev.friendai.execution.log.TaskLogEvent;
 import dev.friendai.execution.log.TaskLogEvents;
 import dev.friendai.execution.queue.GuardFacts;
@@ -781,7 +782,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         Optional<ActiveTaskController.Completion> completion = activeTasks.tick(context(active));
         if (completion.isPresent()) {
             ActiveTaskController.Completion result = completion.get();
-            completeActive(result.active(), result.status(), result.summary());
+            completeActive(result.active(), result.status(), result.summary(), result.workResult());
         } else if (activeTask() == active) maybeNoticeBlocked();
     }
 
@@ -802,7 +803,8 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         companion.getNavigation().stop();
     }
 
-    private void completeActive(ActiveTask active, TaskStatus status, String summary) {
+    private void completeActive(
+            ActiveTask active, TaskStatus status, String summary, Optional<TaskWorkResult> workResult) {
         String result = summary == null ? active.task().resultSummary() : summary;
         // The face answers what the work cost: a finished job pulses pleased, a failed one displeased. Danger and
         // combat
@@ -815,7 +817,8 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         }
         if (active.interrupt()) {
             if (active.emit())
-                emit(sink -> sink.onFinished(active.id(), active.planId(), active.toolName(), status, result));
+                emit(sink ->
+                        sink.onFinished(active.id(), active.planId(), active.toolName(), status, result, workResult));
             resumeFrozen();
             return;
         }
@@ -828,7 +831,8 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
             if (active.planId() == 0) {
                 if (!retried) {
                     if (active.task().emitsEvents())
-                        emit(sink -> sink.onFinished(active.id(), active.planId(), active.toolName(), status, result));
+                        emit(sink -> sink.onFinished(
+                                active.id(), active.planId(), active.toolName(), status, result, workResult));
                     queueDriver.remove(active.jobId());
                     queueDriver.clearFactory(active.jobId());
                 }
@@ -848,7 +852,8 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
                         active.planId(),
                         QueueText.planSummary(queueDriver.queue(), active.planId()),
                         queueDriver.queue().planStatus(active.planId()) == PlanStatus.DONE);
-        } else if (active.emit()) emit(sink -> sink.onFinished(active.id(), active.toolName(), status, result));
+        } else if (active.emit())
+            emit(sink -> sink.onFinished(active.id(), active.planId(), active.toolName(), status, result, workResult));
         if (frozenTask() != null) {
             resumeFrozen();
             return;

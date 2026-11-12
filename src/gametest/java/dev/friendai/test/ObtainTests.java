@@ -4,6 +4,7 @@ import com.google.gson.JsonParser;
 import dev.friendai.agent.llm.model.ToolCall;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.execution.TaskWorkResult;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolExecutor;
 import dev.friendai.execution.tool.ToolResult;
@@ -1014,6 +1015,7 @@ public class ObtainTests {
         ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 9600, () -> false);
         runner.setEventSink(result);
         runner.start(new CheckContainerTask(h.absolutePos(chestPos)), "check_container");
+        BatchObtainTask[] batch = {null};
         // 0: opening the chest, 1: running the batch, 2: done. Every phase that is not the last one fails its check
         // on purpose, because succeedWhen stops the test the first time its body returns without an exception.
         int[] phase = {0};
@@ -1025,23 +1027,22 @@ public class ObtainTests {
                         "the chest was not checked: " + result.status + " " + result.summary);
                 result.status = null;
                 result.summary = null;
-                runner.start(
-                        new BatchObtainTask(
-                                List.of(
-                                        new CraftPlanner.Target("minecraft:stone_pickaxe", 2),
-                                        new CraftPlanner.Target("minecraft:stone_axe", 2)),
-                                true,
-                                true,
-                                64,
-                                9000,
-                                64,
-                                128,
-                                6000,
-                                "local",
-                                caller,
-                                null,
-                                new MinecraftObtainSubtaskFactory()),
-                        "obtain_items");
+                batch[0] = new BatchObtainTask(
+                        List.of(
+                                new CraftPlanner.Target("minecraft:stone_pickaxe", 2),
+                                new CraftPlanner.Target("minecraft:stone_axe", 2)),
+                        true,
+                        true,
+                        64,
+                        9000,
+                        64,
+                        128,
+                        6000,
+                        "local",
+                        caller,
+                        null,
+                        new MinecraftObtainSubtaskFactory());
+                runner.start(batch[0], "obtain_items");
                 phase[0] = 1;
             } else {
                 GameTestSupport.observeVisible(h, c, h.absolutePos(table));
@@ -1069,6 +1070,13 @@ public class ObtainTests {
                 h.assertTrue(
                         result.summary.startsWith("got 2 minecraft:stone_pickaxe, 2 minecraft:stone_axe in "),
                         result.summary);
+                h.assertValueEqual(
+                        batch[0].workResult().orElseThrow().lines(),
+                        List.of(
+                                new TaskWorkResult.Line(
+                                        "minecraft:stone_pickaxe", 2, 2, TaskWorkResult.Evidence.CARRIED),
+                                new TaskWorkResult.Line("minecraft:stone_axe", 2, 2, TaskWorkResult.Evidence.CARRIED)),
+                        "verified batch work");
                 phase[0] = 2;
             }
             h.assertTrue(phase[0] == 2, "still working");

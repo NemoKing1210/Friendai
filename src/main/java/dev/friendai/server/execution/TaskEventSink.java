@@ -1,8 +1,10 @@
 package dev.friendai.server.execution;
 
+import dev.friendai.execution.TaskWorkResult;
 import dev.friendai.execution.log.TaskLogEvent;
 import dev.friendai.features.places.PlaceCandidate;
 import dev.friendai.task.TaskStatus;
+import java.util.Optional;
 
 /** Server-thread destination for task history, brain and world-book events. */
 public interface TaskEventSink {
@@ -14,6 +16,17 @@ public interface TaskEventSink {
      */
     default void onFinished(int id, long planId, String toolName, TaskStatus status, String summary) {
         onFinished(id, toolName, status, summary);
+    }
+
+    /** A task outcome with measured work; legacy sinks keep receiving the existing summary callback. */
+    default void onFinished(
+            int id,
+            long planId,
+            String toolName,
+            TaskStatus status,
+            String summary,
+            Optional<TaskWorkResult> workResult) {
+        onFinished(id, planId, toolName, status, summary);
     }
 
     void onCancelled(int id, String toolName, String reason);

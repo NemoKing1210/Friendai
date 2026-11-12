@@ -2,6 +2,7 @@ package dev.friendai.features.acquisition.minecraft.task;
 
 import dev.friendai.debug.DebugTarget;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.execution.TaskWorkResult;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.features.acquisition.ObtainPlan;
 import dev.friendai.features.acquisition.ObtainPlanner;
@@ -22,6 +23,7 @@ import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.inventory.ItemMatcher;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -68,6 +70,8 @@ public final class BatchObtainTask implements Task {
     private final Caller caller;
     private final TradingContext tradingContext;
     private final ObtainSubtaskFactory subtaskFactory;
+    private final ItemMatcher[] workMatchers;
+    private final int[] workVerified;
     private final Set<String> failedKeys = new LinkedHashSet<>();
 
     private Task current;
@@ -79,6 +83,11 @@ public final class BatchObtainTask implements Task {
     private String summary = "";
     private int children;
     private int ticks;
+    private boolean workStarted;
+    private String workReasonCode = "blocked";
+    private String workBlocker = "work stopped before the target was met";
+    private String workNextAction = "retry the remaining items after addressing the blocker";
+    private TaskWorkResult workResult;
 
     public BatchObtainTask(
             List<CraftPlanner.Target> targets,
@@ -118,6 +127,12 @@ public final class BatchObtainTask implements Task {
             throw new IllegalArgumentException("a batch needs at least one target");
         }
         this.targets = List.copyOf(targets);
+        int workTargetCount = Math.min(this.targets.size(), CraftPlanner.MAX_TARGETS);
+        this.workMatchers = new ItemMatcher[workTargetCount];
+        this.workVerified = new int[workTargetCount];
+        for (int i = 0; i < workTargetCount; i++) {
+            workMatchers[i] = ItemMatcher.parse(this.targets.get(i).item()).orElse(null);
+        }
         this.useContainers = useContainers;
         this.explore = explore;
         this.maxChildren = Math.max(1, maxChildren);
@@ -170,10 +185,31 @@ public final class BatchObtainTask implements Task {
         failedKeys.clear();
         children = 0;
         ticks = 0;
+        workStarted = true;
+        workReasonCode = "blocked";
+        workBlocker = "work stopped before the target was met";
+        workNextAction = "retry the remaining items after addressing the blocker";
+        workResult = null;
+        Arrays.fill(workVerified, 0);
+        captureWorkCounts(c.companion());
     }
 
     @Override
     public TaskStatus tick(TaskContext c) {
+        TaskStatus status = tickWork(c);
+        captureWorkCounts(c.companion());
+        if (status != TaskStatus.RUNNING) {
+            workReasonCode = status == TaskStatus.SUCCESS ? "complete" : hasVerifiedWork() ? "partial" : "blocked";
+            workBlocker = status == TaskStatus.SUCCESS ? "" : summary;
+            workNextAction = status == TaskStatus.SUCCESS
+                    ? "continue with the next order step"
+                    : "retry or choose another source for the remaining items";
+            workResult = createWorkResult();
+        }
+        return status;
+    }
+
+    private TaskStatus tickWork(TaskContext c) {
         if (++ticks > maxTicks) {
             return fail("ran out of time; " + progress(c.companion()));
         }
@@ -446,5 +482,59 @@ public final class BatchObtainTask implements Task {
     @Override
     public String resultSummary() {
         return summary;
+    }
+
+    @Override
+    public java.util.Optional<TaskWorkResult> workResult() {
+        if (!workStarted || workMatchers.length == 0) return java.util.Optional.empty();
+        if (workResult == null) workResult = createWorkResult();
+        return java.util.Optional.of(workResult);
+    }
+
+    private void captureWorkCounts(CompanionEntity companion) {
+        Arrays.fill(workVerified, 0);
+        for (int slot = 0; slot < companion.inventory().getContainerSize(); slot++) {
+            var stack = companion.inventory().getItem(slot);
+            if (stack.isEmpty()) continue;
+            for (int i = 0; i < workMatchers.length; i++) {
+                ItemMatcher matcher = workMatchers[i];
+                if (matcher != null && matcher.test(stack)) workVerified[i] += stack.getCount();
+            }
+        }
+        var held = companion.getMainHandItem();
+        if (held.isEmpty()) return;
+        for (int i = 0; i < workMatchers.length; i++) {
+            ItemMatcher matcher = workMatchers[i];
+            if (matcher != null && matcher.test(held)) workVerified[i] += held.getCount();
+        }
+    }
+
+    private boolean hasVerifiedWork() {
+        for (int verified : workVerified) if (verified > 0) return true;
+        return false;
+    }
+
+    private TaskWorkResult createWorkResult() {
+        List<TaskWorkResult.Line> lines = new ArrayList<>(workMatchers.length);
+        for (int i = 0; i < workMatchers.length; i++) {
+            CraftPlanner.Target target = targets.get(i);
+            boolean alreadyReported = false;
+            for (int previous = 0; previous < i; previous++) {
+                if (targets.get(previous).item().equals(target.item())) {
+                    alreadyReported = true;
+                    break;
+                }
+            }
+            if (alreadyReported) continue;
+            int requested = 0;
+            for (int later = i; later < workMatchers.length; later++) {
+                if (targets.get(later).item().equals(target.item()))
+                    requested += targets.get(later).count();
+            }
+            lines.add(new TaskWorkResult.Line(
+                    target.item(), requested, workVerified[i], TaskWorkResult.Evidence.CARRIED));
+        }
+        String blocker = workBlocker == null ? "" : workBlocker;
+        return new TaskWorkResult(lines, workReasonCode, blocker, workNextAction);
     }
 }
