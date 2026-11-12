@@ -87,36 +87,60 @@ public final class FocusedLook {
         return seen;
     }
 
+    /**
+     * Matching cells within reach that have an open face, nearest chunk first: a buried block cannot be seen, and in a
+     * desert the near pile must not lose its place to sand under the dunes before the collection cap is reached.
+     */
     private static List<BlockPos> candidates(
             ServerLevel level, BlockPos center, int reach, Predicate<BlockState> wanted) {
         List<BlockPos> found = new ArrayList<>();
         double limit = (double) reach * reach;
+        int centerChunkX = center.getX() >> 4;
+        int centerChunkZ = center.getZ() >> 4;
+        List<int[]> chunks = new ArrayList<>();
         for (int chunkX = (center.getX() - reach) >> 4; chunkX <= (center.getX() + reach) >> 4; chunkX++) {
             for (int chunkZ = (center.getZ() - reach) >> 4; chunkZ <= (center.getZ() + reach) >> 4; chunkZ++) {
-                BlockPos sample = new BlockPos(chunkX << 4, center.getY(), chunkZ << 4);
-                if (!level.hasChunkAt(sample)) continue;
-                LevelChunk chunk = level.getChunkAt(sample);
-                LevelChunkSection[] sections = chunk.getSections();
-                for (int index = 0; index < sections.length; index++) {
-                    LevelChunkSection section = sections[index];
-                    if (section == null || section.hasOnlyAir() || !section.maybeHas(wanted)) continue;
-                    int baseY = SectionPos.sectionToBlockCoord(chunk.getSectionYFromSectionIndex(index));
-                    if (baseY + 15 < center.getY() - reach || baseY > center.getY() + reach) continue;
-                    for (int y = 0; y < 16; y++) {
-                        for (int z = 0; z < 16; z++) {
-                            for (int x = 0; x < 16; x++) {
-                                if (!wanted.test(section.getBlockState(x, y, z))) continue;
-                                BlockPos pos = new BlockPos((chunkX << 4) + x, baseY + y, (chunkZ << 4) + z);
-                                if (center.distSqr(pos) > limit) continue;
-                                found.add(pos);
-                                if (found.size() >= MAX_COLLECTED) return found;
-                            }
+                chunks.add(new int[] {chunkX, chunkZ});
+            }
+        }
+        chunks.sort(Comparator.comparingInt(
+                chunk -> Math.max(Math.abs(chunk[0] - centerChunkX), Math.abs(chunk[1] - centerChunkZ))));
+        BlockPos.MutableBlockPos neighbour = new BlockPos.MutableBlockPos();
+        for (int[] at : chunks) {
+            int chunkX = at[0];
+            int chunkZ = at[1];
+            BlockPos sample = new BlockPos(chunkX << 4, center.getY(), chunkZ << 4);
+            if (!level.hasChunkAt(sample)) continue;
+            LevelChunk chunk = level.getChunkAt(sample);
+            LevelChunkSection[] sections = chunk.getSections();
+            for (int index = 0; index < sections.length; index++) {
+                LevelChunkSection section = sections[index];
+                if (section == null || section.hasOnlyAir() || !section.maybeHas(wanted)) continue;
+                int baseY = SectionPos.sectionToBlockCoord(chunk.getSectionYFromSectionIndex(index));
+                if (baseY + 15 < center.getY() - reach || baseY > center.getY() + reach) continue;
+                for (int y = 0; y < 16; y++) {
+                    for (int z = 0; z < 16; z++) {
+                        for (int x = 0; x < 16; x++) {
+                            if (!wanted.test(section.getBlockState(x, y, z))) continue;
+                            BlockPos pos = new BlockPos((chunkX << 4) + x, baseY + y, (chunkZ << 4) + z);
+                            if (center.distSqr(pos) > limit || !exposed(level, pos, neighbour)) continue;
+                            found.add(pos);
+                            if (found.size() >= MAX_COLLECTED) return found;
                         }
                     }
                 }
             }
         }
         return found;
+    }
+
+    /** Whether at least one face of the block opens onto something a sight ray can pass through. */
+    private static boolean exposed(ServerLevel level, BlockPos pos, BlockPos.MutableBlockPos neighbour) {
+        for (net.minecraft.core.Direction direction : net.minecraft.core.Direction.values()) {
+            neighbour.setWithOffset(pos, direction);
+            if (!level.getBlockState(neighbour).canOcclude()) return true;
+        }
+        return false;
     }
 
     /** Whether a sight ray from the eye reaches the block before anything else stops it. */

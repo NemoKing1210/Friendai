@@ -71,8 +71,10 @@ public final class FarmingTools implements FeatureToolContributor {
                         .build(),
                 (c, a) -> {
                     Optional<Place> place = place(places, c, a);
-                    return new FarmTask(
+                    FarmTask task = new FarmTask(
                             center(c, a, place), radius(a, place, 8), crop(a), till(a), flag(a, "bonemeal"));
+                    // Only a pass "around the companion" moves to nearby work; a named place or point stays put.
+                    return place.isEmpty() && optionalPos(a).isEmpty() ? task.movingToNearestWork() : task;
                 },
                 true,
                 TaskToolDefinition.QueueTraits.DEFAULT,

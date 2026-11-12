@@ -381,6 +381,38 @@ public class FarmingTests {
         h.succeed();
     }
 
+    /**
+     * "Plant wheat" farmed a radius of three around the companion, found nothing and asked the owner whether to walk to
+     * the pond six blocks off. A pass around the companion itself now moves there once and plants.
+     */
+    @GameTest(maxTicks = 1200)
+    public void aPassAroundTheCompanionMovesToTheNearestSoil(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        for (int x = 4; x <= 6; x++) {
+            for (int z = 4; z <= 6; z++) {
+                h.setBlock(x, 1, z, x == 5 && z == 5 ? Blocks.WATER : Blocks.GRASS_BLOCK);
+            }
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 12, 2, 12);
+        c.inventory().addItem(new ItemStack(Items.WOODEN_HOE));
+        c.inventory().addItem(new ItemStack(Items.WHEAT_SEEDS, 8));
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(
+                new FarmTask(h.absolutePos(new BlockPos(12, 2, 12)), 3, Items.WHEAT_SEEDS, true).movingToNearestWork(),
+                "farm");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            boolean planted = false;
+            for (int x = 4; x <= 6; x++) {
+                for (int z = 4; z <= 6; z++)
+                    planted |= h.getBlockState(new BlockPos(x, 2, z)).is(Blocks.WHEAT);
+            }
+            h.assertTrue(planted, "wheat planted by the pond: " + result.summary);
+        });
+    }
+
     @GameTest(maxTicks = 600)
     public void tillWithoutHoe(GameTestHelper h) {
         GameTestSupport.platform(h, 16);

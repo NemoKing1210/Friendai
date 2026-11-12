@@ -222,6 +222,49 @@ public class MineBlocksTests {
         });
     }
 
+    /**
+     * "Break the cactus near us" right after a summon: nothing had been seen yet, so the job went searching and broke a
+     * wild cactus far away instead of the one beside the owner. One deliberate look now finds the visible one first.
+     */
+    @GameTest(maxTicks = 900)
+    public void aFreshCompanionMinesTheVisibleBlockBeforeSearching(GameTestHelper h) {
+        redSandFloor(h);
+        BlockPos base = new BlockPos(9, 3, 7);
+        h.setBlock(base, Blocks.CACTUS);
+        h.setBlock(base.above(), Blocks.CACTUS);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 3, 2);
+        c.setOwner(java.util.UUID.randomUUID());
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(mine("minecraft:cactus", 1), "mine_blocks");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertFalse(h.getBlockState(base).is(Blocks.CACTUS), "the cactus in view still stands");
+        });
+    }
+
+    /**
+     * "Clear this sand away": the model asked for radius 4 and the pile lay five blocks off, so the job found nothing
+     * and failed. Around the companion the deliberate look reaches past a guessed radius to the block in view.
+     */
+    @GameTest(maxTicks = 900)
+    public void aGuessedRadiusDoesNotHideTheBlockJustPastIt(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        BlockPos sand = new BlockPos(8, 2, 3);
+        h.setBlock(sand, Blocks.SAND);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(java.util.UUID.randomUUID());
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(new MineBlocksTask(BlockMatcher.parse("minecraft:sand").orElseThrow(), 1, 4), "mine_blocks");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertFalse(h.getBlockState(sand).is(Blocks.SAND), "the sand in view still lies there");
+        });
+    }
+
     @GameTest(maxTicks = 900)
     public void minesRedSandOutOfTheFloor(GameTestHelper h) {
         redSandFloor(h);

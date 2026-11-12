@@ -21,11 +21,14 @@ import org.jetbrains.annotations.Nullable;
 
 /** One pass of harvesting, replanting, sowing and (optionally) tilling around a point. */
 public final class FarmTask implements Task {
-    private final BlockPos center;
+    private BlockPos center;
     private final int radius;
     private final @Nullable Item crop;
     private final boolean till;
     private final boolean boneMeal;
+    /** Whether an empty pass around a defaulted centre may move once to the nearest farm work. */
+    private boolean movesToNearestWork;
+
     private FarmPass pass;
     private String summary = "";
     /** The dimension the pass ran in; a place is remembered where the work happened. */
@@ -41,6 +44,16 @@ public final class FarmTask implements Task {
         this.radius = radius;
         this.crop = crop;
         this.till = till;
+    }
+
+    /**
+     * A pass whose centre was only "around the companion", not a place the player named: when nothing in its radius
+     * needs work it moves once to the nearest work within {@value FarmWorkHint#RADIUS} blocks and farms there. "Plant
+     * wheat" beside a pond a few blocks off used to end with "nothing to do" and a question to the owner.
+     */
+    public FarmTask movingToNearestWork() {
+        this.movesToNearestWork = true;
+        return this;
     }
 
     @Override
@@ -65,6 +78,15 @@ public final class FarmTask implements Task {
                 && report.replanted() == 0
                 && report.planted() == 0
                 && report.tilled() == 0;
+        if (nothing && movesToNearestWork) {
+            movesToNearestWork = false;
+            var work = FarmWorkHint.find(c, center, till);
+            if (work.isPresent()) {
+                center = work.get().at();
+                pass = new FarmPass(center, radius, crop, till, boneMeal);
+                return TaskStatus.RUNNING;
+            }
+        }
         if (nothing) summary += FarmWorkHint.nearest(c, center, radius, till);
         return nothing ? TaskStatus.FAILED : TaskStatus.SUCCESS;
     }

@@ -35,6 +35,9 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 - The companion no longer stops remembering the chests it opens once it has looked at a lot of the world: the oldest memories make room instead.
 - A farm pass that finds nothing in its radius, and its preview, now say where the nearest ripe crop, empty farmland or soil beside water is, so a too-small guess around the companion is corrected instead of ending the order.
 - Right after it arrives, the companion no longer says it sees no diamond ore (or any other block) standing in plain view: asked about a block it has not seen yet, it takes a deliberate look, and only what its eyes actually reach counts — ore sealed in stone stays unseen.
+- "Break the cactus near us" right after a summon breaks the cactus in view instead of searching and breaking a wild one far off, and "clear this sand away" with a too-small radius still finds the pile a few blocks past it: a mining order takes the same deliberate look first.
+- "Plant wheat" with nothing to plant right around the companion now walks to the nearest grass by the water within sixteen blocks and plants there, instead of asking whether it should.
+- "Find something to eat", "I'm hungry" and their Russian forms now show the food tools, so the companion hunts the cows beside it instead of asking for cooked meat it cannot make and giving up.
 
 ## [0.211.3] - 2026-11-11
 

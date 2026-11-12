@@ -32,6 +32,7 @@
     "storage": ["PLACE"], "landmark": ["PLACE"], "waypoint": ["PLACE"],
     "fire": ["FIRE"], "fires": ["FIRE"], "burning": ["FIRE"], "burn": ["FIRE"], "flames": ["FIRE"],
     "crops": ["FARMING"], "wheat": ["FARMING"],
+    "food": ["SURVIVAL"], "hungry": ["SURVIVAL"], "starving": ["SURVIVAL"],
     "iron": ["OBTAIN"], "diamond": ["OBTAIN"], "gold": ["OBTAIN"],
     "chest": ["STORAGE"], "torch": ["BUILDING"], "anvil": ["ENCHANT"], "grindstone": ["ENCHANT"],
     "own": ["AUTONOMY"], "whatever": ["AUTONOMY"], "free": ["AUTONOMY"], "yourself": ["AUTONOMY"],

@@ -23,6 +23,7 @@ import dev.friendai.features.places.PlaceAutoRegistration;
 import dev.friendai.features.places.PlaceCandidate;
 import dev.friendai.foundation.spatial.Node;
 import dev.friendai.foundation.spatial.Pos;
+import dev.friendai.perception.resource.FocusedLook;
 import dev.friendai.task.BlockSearchTaskFactory;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
@@ -135,6 +136,15 @@ public final class MineBlocksTask implements Task {
      * was seen, beyond this job's own radius, so the one re-scan and the walk that follows use this reach instead.
      */
     private int discoveryRadius;
+
+    /** Whether this job already took its one deliberate look for a target it had not seen yet. */
+    private boolean lookedAround;
+
+    /** How far the deliberate look reaches around the companion, whatever smaller radius the job was given. */
+    private static final int NEAR_LOOK = 16;
+
+    /** The radius the deliberate look found targets in, or zero; it widens this job's own radius from then on. */
+    private int lookReach;
 
     public MineBlocksTask(BlockMatcher matcher, int count, int radius) {
         this(matcher, count, radius, null, true, false);
@@ -647,11 +657,27 @@ public final class MineBlocksTask implements Task {
                 }
                 var evidence = c.resources();
                 int evidenceRadius = around == null
-                        ? reach
+                        ? Math.max(reach, lookReach)
                         : Math.min(128, c.companion().blockPosition().distManhattan(around) + reach);
                 candidates = new ArrayList<>(evidence.knownOrVisible(
                         c.companion(), matcher, evidenceRadius, evidenceLimit(around == null ? CANDIDATES * 4 : 64)));
                 candidates.removeIf(this::excluded);
+                // Nothing seen yet is not nothing there: right after arriving, a cactus beside the owner was passed
+                // over for a search that broke a wild one far off. One deliberate look comes first, and around the
+                // companion it looks a little past a guessed radius ("this sand here" with radius 4, the pile five
+                // blocks off); a point the player named keeps its own radius.
+                int lookRadius = around == null ? Math.max(evidenceRadius, NEAR_LOOK) : evidenceRadius;
+                if (candidates.isEmpty()
+                        && !lookedAround
+                        && !afterSearch
+                        && FocusedLook.lookFor(c.level(), c.companion(), evidence, matcher::test, lookRadius) > 0) {
+                    candidates = new ArrayList<>(evidence.knownOrVisible(
+                            c.companion(), matcher, lookRadius, evidenceLimit(around == null ? CANDIDATES * 4 : 64)));
+                    candidates.removeIf(this::excluded);
+                    // What the look found is this job's ground now: later rounds and the mining bounds include it.
+                    if (!candidates.isEmpty() && around == null) lookReach = lookRadius;
+                }
+                lookedAround = true;
                 if (around != null) {
                     double radiusSquared = (double) reach * reach;
                     double originX = around.getX() + 0.5, originY = around.getY() + 0.5, originZ = around.getZ() + 0.5;
@@ -803,7 +829,8 @@ public final class MineBlocksTask implements Task {
                 BlockPos start = around != null ? around : c.companion().blockPosition();
                 miningSession = new MiningSession(
                         c.companion(),
-                        new MiningBounds(new Node(start.getX(), start.getY(), start.getZ()), reach),
+                        new MiningBounds(
+                                new Node(start.getX(), start.getY(), start.getZ()), Math.max(reach, lookReach)),
                         128,
                         6_000,
                         placements);

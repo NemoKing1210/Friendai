@@ -119,6 +119,16 @@ class TurnRouterTest {
     }
 
     @Test
+    void askingForFoodShowsTheFoodTools() {
+        // "Find yourself something to eat", "I'm hungry", "get some food" in Russian: get_food stayed hidden, so the
+        // model asked for cooked beef the pen could not make and gave up beside two cows.
+        for (String text :
+                List.of("Найди себе что-нибудь поесть.", "Я голоден", "Добудь еды", "find some food", "I'm hungry")) {
+            assertTrue(player(text, false).groups().contains(ToolGroup.SURVIVAL), text);
+        }
+    }
+
+    @Test
     void eatingAndSleepingShowTheSurvivalTools() {
         // The last two are "eat something" and "have a sleep" in Russian.
         for (String text : List.of("eat something", "sleep in the bed", "съешь что-нибудь", "поспи")) {
