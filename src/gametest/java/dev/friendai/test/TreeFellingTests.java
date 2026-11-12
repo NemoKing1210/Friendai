@@ -19,6 +19,7 @@ import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.world.block.BlockMatcher;
 import java.util.List;
+import java.util.Set;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -52,6 +53,14 @@ public class TreeFellingTests {
     /** Persistent leaves, so they do not decay while the test waits. */
     private static void leaf(GameTestHelper h, int x, int y, int z) {
         h.setBlock(new BlockPos(x, y, z), Blocks.OAK_LEAVES.defaultBlockState().setValue(LeavesBlock.PERSISTENT, true));
+    }
+
+    private static void observeFromBeside(GameTestHelper h, CompanionEntity companion, BlockPos target) {
+        BlockPos absolute = h.absolutePos(target);
+        companion.teleportTo(absolute.getX() + 1.5, absolute.getY(), absolute.getZ() + 0.5);
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, companion, absolute),
+                "block should be visible from beside " + absolute + " from " + companion.blockPosition());
     }
 
     private static List<TreeFinder.TreeInfo> ofType(List<TreeFinder.TreeInfo> found, String... types) {
@@ -970,6 +979,149 @@ public class TreeFellingTests {
                             c.inventory().countItem(Items.SPRUCE_LOG),
                             TaskWorkResult.Evidence.CARRIED)),
                     "verified felling work");
+        });
+    }
+
+    @GameTest(maxTicks = 1800)
+    public void prefersAReachableLowTreeForLumber(GameTestHelper h) {
+        int surfaceY = 60;
+        GameTestSupport.platformAt(h, surfaceY, 20);
+        List<BlockPos> costly = new java.util.ArrayList<>();
+        for (int y = surfaceY + 1; y <= surfaceY + 14; y++) {
+            BlockPos log = new BlockPos(5, y, 5);
+            h.setBlock(log, Blocks.SPRUCE_LOG);
+            costly.add(log);
+        }
+        leaf(h, 5, surfaceY + 15, 5);
+        List<BlockPos> reachable = new java.util.ArrayList<>();
+        for (int y = surfaceY + 1; y <= surfaceY + 5; y++) {
+            BlockPos log = new BlockPos(13, y, 5);
+            h.setBlock(log, Blocks.SPRUCE_LOG);
+            reachable.add(log);
+        }
+        leaf(h, 13, surfaceY + 6, 5);
+        List<BlockPos> otherSpecies = new java.util.ArrayList<>();
+        for (int y = surfaceY + 1; y <= surfaceY + 4; y++) {
+            BlockPos log = new BlockPos(9, y, 12);
+            h.setBlock(log, Blocks.OAK_LOG);
+            otherSpecies.add(log);
+        }
+        leaf(h, 9, surfaceY + 5, 12);
+
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, surfaceY + 1, 2);
+        c.inventory().addItem(new ItemStack(Items.IRON_AXE));
+        for (BlockPos log : costly) {
+            observeFromBeside(h, c, log);
+        }
+        for (BlockPos log : reachable) {
+            observeFromBeside(h, c, log);
+        }
+        for (BlockPos log : otherSpecies) {
+            observeFromBeside(h, c, log);
+        }
+        observeFromBeside(h, c, new BlockPos(5, surfaceY + 15, 5));
+        observeFromBeside(h, c, new BlockPos(13, surfaceY + 6, 5));
+        observeFromBeside(h, c, new BlockPos(9, surfaceY + 5, 12));
+        var start = h.absoluteVec(new net.minecraft.world.phys.Vec3(2.5, surfaceY + 1, 2.5));
+        c.teleportTo(start.x, start.y, start.z);
+
+        Result result = new Result();
+        ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 300, () -> false);
+        runner.setEventSink(result);
+        runner.start(
+                new FellLogsTask(BlockMatcher.parse("minecraft:spruce_log").orElseThrow(), 5, 32, true), "obtain_logs");
+        TaskTrace.of(h, runner, c).succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
+            h.assertTrue(
+                    result.summary.contains("from 1 tree"),
+                    "the estimated climb cost should select the ground-reachable tree: " + result.summary);
+            h.assertValueEqual(
+                    c.inventory().countItem(Items.SPRUCE_LOG), 5, "only the requested reachable logs were collected");
+            for (BlockPos log : costly) {
+                h.assertTrue(h.getBlockState(log).is(Blocks.SPRUCE_LOG), "the costly near tree was cut at " + log);
+            }
+            for (BlockPos log : reachable) {
+                h.assertTrue(h.getBlockState(log).isAir(), "the selected low tree remains at " + log);
+            }
+            for (BlockPos log : otherSpecies) {
+                h.assertTrue(h.getBlockState(log).is(Blocks.OAK_LOG), "the explicit spruce target spared " + log);
+            }
+        });
+    }
+
+    @GameTest(maxTicks = 3600)
+    public void gathersPartialTreeThenUsesAnotherTree(GameTestHelper h) {
+        int surfaceY = 60;
+        GameTestSupport.platformAt(h, surfaceY, 20);
+        List<BlockPos> first = new java.util.ArrayList<>();
+        for (int y = surfaceY + 1; y <= surfaceY + 6; y++) {
+            BlockPos log = new BlockPos(5, y, 5);
+            h.setBlock(log, Blocks.SPRUCE_LOG);
+            first.add(log);
+        }
+        leaf(h, 5, surfaceY + 7, 5);
+        List<BlockPos> second = new java.util.ArrayList<>();
+        for (int y = surfaceY + 1; y <= surfaceY + 3; y++) {
+            BlockPos log = new BlockPos(12, y, 5);
+            h.setBlock(log, Blocks.SPRUCE_LOG);
+            second.add(log);
+        }
+        leaf(h, 12, surfaceY + 4, 5);
+        List<BlockPos> structure = new java.util.ArrayList<>();
+        for (int x = 8; x <= 12; x++) {
+            BlockPos log = new BlockPos(x, surfaceY + 1, 12);
+            h.setBlock(log, Blocks.SPRUCE_LOG);
+            structure.add(log);
+        }
+
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, surfaceY + 1, 2);
+        c.inventory().addItem(new ItemStack(Items.IRON_AXE));
+        c.inventory().addItem(new ItemStack(Items.DIRT, 8));
+        Set<BlockPos> protectedLogs = first.subList(0, 3).stream()
+                .map(h::absolutePos)
+                .collect(java.util.stream.Collectors.toUnmodifiableSet());
+        c.hands().overrideProtection(protectedLogs::contains);
+        for (BlockPos log : first) observeFromBeside(h, c, log);
+        for (BlockPos log : second) observeFromBeside(h, c, log);
+        for (BlockPos log : structure) observeFromBeside(h, c, log);
+        observeFromBeside(h, c, new BlockPos(5, surfaceY + 7, 5));
+        observeFromBeside(h, c, new BlockPos(12, surfaceY + 4, 5));
+        var start = h.absoluteVec(new net.minecraft.world.phys.Vec3(2.5, surfaceY + 1, 2.5));
+        c.teleportTo(start.x, start.y, start.z);
+
+        Result result = new Result();
+        ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 300, () -> false);
+        runner.setEventSink(result);
+        runner.start(
+                new FellLogsTask(BlockMatcher.parse("minecraft:spruce_log").orElseThrow(), 6, 32, true), "obtain_logs");
+        boolean[] firstBeforeSecond = {false};
+        boolean[] secondAfterFirst = {false};
+        TaskTrace.of(h, runner, c).succeedWhen(() -> {
+            runner.tick();
+            boolean firstCut = first.subList(3, first.size()).stream()
+                    .allMatch(pos -> h.getBlockState(pos).isAir());
+            boolean protectedStillPresent = first.subList(0, 3).stream()
+                    .allMatch(pos -> h.getBlockState(pos).is(Blocks.SPRUCE_LOG));
+            boolean secondPresent =
+                    second.stream().allMatch(pos -> h.getBlockState(pos).is(Blocks.SPRUCE_LOG));
+            if (firstCut && protectedStillPresent && secondPresent) firstBeforeSecond[0] = true;
+            if (firstBeforeSecond[0]
+                    && second.stream().anyMatch(pos -> h.getBlockState(pos).isAir())) {
+                secondAfterFirst[0] = true;
+            }
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
+            h.assertTrue(firstBeforeSecond[0] && secondAfterFirst[0], "trees were processed in order");
+            h.assertValueEqual(c.inventory().countItem(Items.SPRUCE_LOG), 6, "only carried logs count");
+            for (BlockPos log : first.subList(0, 3)) {
+                h.assertTrue(h.getBlockState(log).is(Blocks.SPRUCE_LOG), "protected log was left standing at " + log);
+            }
+            for (BlockPos log : second) {
+                h.assertTrue(h.getBlockState(log).isAir(), "alternate tree log left at " + log);
+            }
+            for (BlockPos log : structure) {
+                h.assertTrue(h.getBlockState(log).is(Blocks.SPRUCE_LOG), "structural wood was cut at " + log);
+            }
         });
     }
 
