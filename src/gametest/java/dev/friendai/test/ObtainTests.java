@@ -1,10 +1,18 @@
 package dev.friendai.test;
 
+import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.friendai.agent.llm.model.ToolCall;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.execution.TaskWorkResult;
+import dev.friendai.execution.queue.FailurePolicy;
+import dev.friendai.execution.queue.Guard;
+import dev.friendai.execution.queue.GuardAction;
+import dev.friendai.execution.queue.PlanDefinition;
+import dev.friendai.execution.queue.PlanNode;
+import dev.friendai.execution.queue.PlanOptions;
+import dev.friendai.execution.queue.QueuedStep;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolExecutor;
 import dev.friendai.execution.tool.ToolResult;
@@ -28,10 +36,12 @@ import dev.friendai.task.TaskStatus;
 import dev.friendai.task.inventory.ItemMatcher;
 import dev.friendai.world.block.BlockMatcher;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.util.ProblemReporter;
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.item.ItemEntity;
@@ -41,6 +51,8 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.LeavesBlock;
 import net.minecraft.world.level.block.NetherWartBlock;
+import net.minecraft.world.level.storage.TagValueInput;
+import net.minecraft.world.level.storage.TagValueOutput;
 import net.minecraft.world.phys.AABB;
 
 public class ObtainTests {
@@ -96,6 +108,214 @@ public class ObtainTests {
         h.setBlock(fixture.obstruction(), Blocks.AIR);
         h.assertTrue(h.getBlockState(fixture.obstruction()).isAir(), "the return obstruction should be removable");
         h.succeed();
+    }
+
+    @GameTest(maxTicks = 1600)
+    public void kitDeliveryResumesWithoutRecrafting(GameTestHelper h) {
+        int surfaceY = 80;
+        ResourceWorkFixture.BirchKit fixture = ResourceWorkFixture.birchKit(h, surfaceY);
+        ResourceWorkFixture.removeDeliveryObstruction(h, fixture);
+        CompanionEntity companion = fixture.companion();
+        var owner = fixture.owner();
+        var nearbyOwner = h.absoluteVec(new net.minecraft.world.phys.Vec3(4.5, surfaceY + 1, 2.5));
+        owner.teleportTo(nearbyOwner.x, nearbyOwner.y, nearbyOwner.z);
+        BlockPos deliveryGate = h.absolutePos(new BlockPos(8, surfaceY + 1, 30));
+        h.assertTrue(
+                h.getLevel().getBlockState(deliveryGate).isAir(),
+                "the second delivery starts behind a closed queue guard");
+        companion.inventory().addItem(new ItemStack(Items.STONE_AXE));
+        companion.inventory().addItem(new ItemStack(Items.STONE_AXE));
+        companion.inventory().addItem(new ItemStack(Items.STONE_SHOVEL));
+        companion.inventory().addItem(new ItemStack(Items.STONE_SHOVEL));
+
+        PlanDefinition plan = new PlanDefinition(List.of(
+                deliveryAction("minecraft:stone_axe", owner.getUUID()),
+                deliveryAction(
+                        "minecraft:stone_shovel",
+                        owner.getUUID(),
+                        List.of(new Guard.BlockAt(
+                                "minecraft:gold_block",
+                                deliveryGate.getX(),
+                                deliveryGate.getY(),
+                                deliveryGate.getZ())))));
+        ExecutionCoordinator runner = companion.executionCoordinator();
+        long planId =
+                runner.enqueuePlan("deliver kit", plan, PlanOptions.DEFAULT, Map.of("give_items", (context, step) -> {
+                    JsonObject args = step.args();
+                    return new GiveItemsTask(
+                            ItemMatcher.parse(args.get("item").getAsString()).orElseThrow(),
+                            args.get("count").getAsInt(),
+                            args.get("retain").getAsInt(),
+                            args.get("strict").getAsBoolean());
+                }));
+
+        int[] phase = {0};
+        int[] ticksAfterRestore = {0};
+        boolean[] complete = {false};
+        TaskTrace.of(h, runner, companion).succeedWhen(() -> {
+            runner.tick();
+            if (phase[0] == 0
+                    && runner.queue().jobsOfPlan(planId).stream()
+                            .anyMatch(
+                                    job -> job.args().get("item").getAsString().equals("minecraft:stone_axe")
+                                            && job.state() == dev.friendai.execution.queue.JobState.DONE)) {
+                ItemEntity axeDrop = h
+                        .getLevel()
+                        .getEntitiesOfClass(ItemEntity.class, new AABB(owner.blockPosition()).inflate(8))
+                        .stream()
+                        .filter(drop -> drop.getItem().is(Items.STONE_AXE))
+                        .findFirst()
+                        .orElseThrow(() -> new AssertionError("the completed first step left no axe handover"));
+                axeDrop.setPickUpDelay(0);
+                axeDrop.playerTouch(owner);
+                h.assertValueEqual(owner.getInventory().countItem(Items.STONE_AXE), 1, "owner picked up the first axe");
+                h.assertValueEqual(companion.inventory().countItem(Items.STONE_AXE), 1, "one axe remains reserved");
+
+                var farOwner = h.absoluteVec(new net.minecraft.world.phys.Vec3(27.5, surfaceY + 1, 4.5));
+                owner.teleportTo(farOwner.x, farOwner.y, farOwner.z);
+                for (int y = surfaceY + 1; y <= surfaceY + 5; y++) {
+                    for (int z = 0; z <= 32; z++) h.setBlock(new BlockPos(16, y, z), Blocks.BEDROCK);
+                    for (int x = 0; x <= 32; x++) {
+                        h.setBlock(new BlockPos(x, y, 0), Blocks.BEDROCK);
+                        h.setBlock(new BlockPos(x, y, 32), Blocks.BEDROCK);
+                    }
+                    for (int z = 0; z <= 32; z++) {
+                        h.setBlock(new BlockPos(0, y, z), Blocks.BEDROCK);
+                        h.setBlock(new BlockPos(32, y, z), Blocks.BEDROCK);
+                    }
+                }
+                for (int x = 0; x <= 32; x++) {
+                    for (int z = 0; z <= 32; z++) h.setBlock(new BlockPos(x, surfaceY + 6, z), Blocks.BEDROCK);
+                }
+                h.assertTrue(
+                        h.getBlockState(new BlockPos(16, surfaceY + 5, 12)).is(Blocks.BEDROCK),
+                        "the delivery barrier reaches above the companion");
+                h.assertTrue(
+                        h.getBlockState(new BlockPos(4, surfaceY + 6, 4)).is(Blocks.BEDROCK),
+                        "the delivery enclosure roof prevents a climb-over route");
+                h.assertTrue(
+                        companion.blockPosition().getX()
+                                < h.absolutePos(new BlockPos(16, surfaceY + 1, 4))
+                                        .getX(),
+                        "the companion is on the blocked side before the second delivery");
+                h.getLevel().setBlock(deliveryGate, Blocks.GOLD_BLOCK.defaultBlockState(), 3);
+                phase[0] = 1;
+            } else if (phase[0] == 1
+                    && runner.current().orElse(null) instanceof GiveItemsTask task
+                    && task.waitingTicks() >= 20) {
+                var cursor = runner.queue().plan(planId).orElseThrow().cursor();
+                h.assertTrue(cursor != null, "the structured plan cursor was lost");
+                h.assertTrue(
+                        cursor.pendingAction() != null
+                                && cursor.pendingAction()
+                                        .args()
+                                        .get("item")
+                                        .getAsString()
+                                        .equals("minecraft:stone_shovel"),
+                        "restore must resume at the second delivery step");
+                h.assertValueEqual(
+                        runner.queue().jobsOfPlan(planId).stream()
+                                .filter(job ->
+                                        job.args().get("item").getAsString().equals("minecraft:stone_axe"))
+                                .findFirst()
+                                .orElseThrow()
+                                .state(),
+                        dev.friendai.execution.queue.JobState.DONE,
+                        "the completed axe step stays done before save");
+
+                TagValueOutput saved = TagValueOutput.createWithContext(
+                        ProblemReporter.DISCARDING, h.getLevel().registryAccess());
+                companion.saveWithoutId(saved);
+                companion.load(TagValueInput.create(
+                        ProblemReporter.DISCARDING, h.getLevel().registryAccess(), saved.buildResult()));
+                h.assertTrue(
+                        runner.current()
+                                .map(active -> active.type().equals("give_items"))
+                                .orElse(false),
+                        "the pending shovel transfer did not restore");
+                phase[0] = 2;
+            } else if (phase[0] == 2) {
+                ticksAfterRestore[0]++;
+                h.assertValueEqual(owner.getInventory().countItem(Items.STONE_AXE), 1, "reload did not replay the axe");
+                h.assertValueEqual(
+                        owner.getInventory().countItem(Items.STONE_SHOVEL), 0, "the blocked shovel was not picked up");
+                h.assertValueEqual(
+                        companion.inventory().countItem(Items.STONE_SHOVEL), 2, "blocked work kept both shovels");
+                h.assertValueEqual(
+                        h
+                                .getLevel()
+                                .getEntitiesOfClass(ItemEntity.class, new AABB(owner.blockPosition()).inflate(8))
+                                .stream()
+                                .filter(drop -> drop.getItem().is(Items.STONE_SHOVEL))
+                                .mapToInt(drop -> drop.getItem().getCount())
+                                .sum(),
+                        0,
+                        "blocked work spawned no shovel handover");
+                if (ticksAfterRestore[0] >= 40) {
+                    h.setBlock(new BlockPos(16, surfaceY + 1, 4), Blocks.AIR);
+                    h.setBlock(new BlockPos(16, surfaceY + 2, 4), Blocks.AIR);
+                    phase[0] = 3;
+                }
+            } else if (phase[0] == 3) {
+                var archive = runner.queue().archives().stream()
+                        .filter(entry -> entry.id() == planId)
+                        .findFirst();
+                if (archive.isPresent()) {
+                    h.assertTrue(
+                            archive.get().success(),
+                            "the restored kit plan failed: " + archive.get().summary());
+                    ItemEntity shovelDrop = h
+                            .getLevel()
+                            .getEntitiesOfClass(ItemEntity.class, new AABB(owner.blockPosition()).inflate(8))
+                            .stream()
+                            .filter(drop -> drop.getItem().is(Items.STONE_SHOVEL))
+                            .findFirst()
+                            .orElseThrow(() -> new AssertionError("the resumed step left no shovel handover"));
+                    shovelDrop.setPickUpDelay(0);
+                    shovelDrop.playerTouch(owner);
+                    h.assertValueEqual(
+                            owner.getInventory().countItem(Items.STONE_AXE), 1, "the axe was handed over once");
+                    h.assertValueEqual(
+                            owner.getInventory().countItem(Items.STONE_SHOVEL), 1, "owner picked up the shovel");
+                    h.assertValueEqual(companion.inventory().countItem(Items.STONE_AXE), 1, "the axe reserve remains");
+                    h.assertValueEqual(
+                            companion.inventory().countItem(Items.STONE_SHOVEL), 1, "the shovel reserve remains");
+                    complete[0] = true;
+                }
+            }
+            h.assertTrue(
+                    complete[0],
+                    "the restored kit plan has not completed without repeating its first transfer"
+                            + " (phase=" + phase[0]
+                            + ", ticksAfterRestore=" + ticksAfterRestore[0]
+                            + ", current="
+                            + runner.current().map(task -> task.describe()).orElse("none")
+                            + ", companion=" + companion.blockPosition()
+                            + ", owner=" + owner.blockPosition()
+                            + ", ownerItems=" + owner.getInventory().countItem(Items.STONE_AXE) + "/"
+                            + owner.getInventory().countItem(Items.STONE_SHOVEL)
+                            + ", carriedItems=" + companion.inventory().countItem(Items.STONE_AXE) + "/"
+                            + companion.inventory().countItem(Items.STONE_SHOVEL)
+                            + ", jobs="
+                            + runner.queue().jobsOfPlan(planId).stream()
+                                    .map(job -> job.args().get("item").getAsString() + ":" + job.state())
+                                    .toList()
+                            + ", gate=" + h.getLevel().getBlockState(deliveryGate) + ")");
+        });
+    }
+
+    private static PlanNode.Action deliveryAction(String item, java.util.UUID owner) {
+        return deliveryAction(item, owner, List.of());
+    }
+
+    private static PlanNode.Action deliveryAction(String item, java.util.UUID owner, List<Guard> guards) {
+        JsonObject args = new JsonObject();
+        args.addProperty("item", item);
+        args.addProperty("count", 1);
+        args.addProperty("retain", 1);
+        args.addProperty("strict", true);
+        return new PlanNode.Action(new QueuedStep(
+                "give_items", args, null, guards, GuardAction.WAIT, FailurePolicy.ASK, 1, List.of(), owner, false));
     }
 
     /**

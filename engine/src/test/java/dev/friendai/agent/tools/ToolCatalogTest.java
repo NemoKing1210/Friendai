@@ -163,4 +163,16 @@ class ToolCatalogTest {
                                 && line.contains("without claiming a denied or failed command succeeded")),
                 hints.toString());
     }
+
+    @Test
+    void resourceOrderHintsDescribeOneBatchAndStrictOwnerTransfers() {
+        String obtain = catalog.meta("obtain_items").orElseThrow().whenToUse();
+        String give = catalog.meta("give_items").orElseThrow().whenToUse();
+
+        assertTrue(obtain.contains("one obtain_items"), obtain);
+        assertTrue(obtain.contains("owner share plus retained share"), obtain);
+        assertTrue(give.contains("authenticated owner"), give);
+        assertTrue(give.contains("strict=true"), give);
+        assertTrue(give.contains("retain"), give);
+    }
 }

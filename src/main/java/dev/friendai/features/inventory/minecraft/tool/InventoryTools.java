@@ -43,14 +43,19 @@ public final class InventoryTools implements FeatureToolContributor {
     public void register(FeatureToolRegistry registry) {
         registry.registerTask(task(
                 "give_items",
-                "Walk to the owner and give them items from the companion's inventory. Example: {\"item\":\"minecraft:bread\",\"count\":8}.",
+                "Walk to the authenticated owner and hand over items from the companion's inventory. retain keeps that many matching items with the companion; strict requires the full count in addition to retain. Calls without strict preserve legacy partial delivery. Example: {\"item\":\"minecraft:bread\",\"count\":8}.",
                 SchemaBuilder.object()
                         .string("item", "Item id like minecraft:oak_log, or a tag like #minecraft:planks")
                         .integer("count", "How many items to give", 1, 64)
+                        .integer("retain", "How many matching items to keep with the companion", 0, 64)
+                        .bool("strict", "Require the full requested count in addition to the retained share")
                         .required("item", "count")
                         .build(),
                 (c, a) -> new GiveItemsTask(
-                        matcher(a.get("item").getAsString()), a.get("count").getAsInt())));
+                        matcher(a.get("item").getAsString()),
+                        a.get("count").getAsInt(),
+                        a.has("retain") ? a.get("retain").getAsInt() : 0,
+                        a.has("strict") && a.get("strict").getAsBoolean())));
         registry.registerTask(task(
                 "drop_items",
                 "Drop items from the companion's inventory on the ground at its feet.",
@@ -164,8 +169,8 @@ public final class InventoryTools implements FeatureToolContributor {
                         name,
                         ToolGroup.INVENTORY,
                         false,
-                        "- Use it to finish a job that was for the owner: their request is the permission to hand the items"
-                                + " over, so give them yourself instead of asking.",
+                        "- Give items only to the authenticated owner. For an order set, use one exact item per step"
+                                + " with count=<owner share>, retain=<companion share>, and strict=true.",
                         List.of(),
                         Cost.LOW);
             case "drop_items", "equip_item" -> new ToolMeta(name, ToolGroup.INVENTORY, false, "", List.of(), Cost.LOW);

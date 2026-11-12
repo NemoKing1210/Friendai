@@ -198,8 +198,8 @@ public final class ToolCatalog {
         hint(
                 metas,
                 "give_items",
-                "- Use it to finish a job that was for the owner: their request is the permission to hand the items"
-                        + " over, so give them yourself instead of asking.");
+                "- Give requested items only to the authenticated owner. For an order set, use one exact item per step"
+                        + " with count=<owner share>, retain=<companion share>, and strict=true.");
         group(metas, ToolGroup.BUILDING, Cost.MEDIUM, "place_block", "use_block", "light_area", "clear_area");
         group(metas, ToolGroup.STORAGE, Cost.MEDIUM, "store_items", "take_items", "check_container", "deposit_items");
         metas.add(new ToolMeta("move_items", ToolGroup.STORAGE, false, "", List.of(), Cost.MEDIUM));
@@ -396,7 +396,8 @@ public final class ToolCatalog {
         hint(
                 metas,
                 "obtain_items",
-                "- For a set of items that share materials (a tool set, a set of builds), prefer obtain_items: it gathers every raw material once, then crafts them all.");
+                "- For a set of items that share materials, use one obtain_items batch with the owner share plus"
+                        + " retained share in each count; then add one strict give_items step per owner item.");
         hint(
                 metas,
                 "create_item",

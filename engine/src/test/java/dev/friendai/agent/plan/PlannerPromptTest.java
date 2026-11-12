@@ -96,6 +96,18 @@ class PlannerPromptTest {
     }
 
     @Test
+    void systemPromptBatchesAcquisitionAndSpecifiesStrictOwnerShares() {
+        String system = PlannerPrompt.system();
+
+        assertTrue(system.contains("one obtain_items action"), system);
+        assertTrue(system.contains("owner share plus the number the companion must retain"), system);
+        assertTrue(system.contains("one give_items action per exact item"), system);
+        assertTrue(system.contains("count, retain and strict=true"), system);
+        assertTrue(system.contains("authenticated owner"), system);
+        assertTrue(system.contains("each requested item, quantity, recipient and retained count"), system);
+    }
+
+    @Test
     void theAdvertisedNotConditionMatchesTheQueueParserContract() {
         String guarded = "[{\"when\":{\"type\":\"not\",\"condition\":"
                 + "{\"type\":\"has_item\",\"item\":\"minecraft:oak_log\",\"count\":16}},"

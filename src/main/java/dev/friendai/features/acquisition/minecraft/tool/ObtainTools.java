@@ -91,7 +91,7 @@ public final class ObtainTools implements FeatureToolContributor {
                 .build();
         TaskToolDefinition batch = new TaskToolDefinition(
                         "obtain_items",
-                        "Get several finished items together. Computes every raw material the set needs, obtains all of it once, then crafts the items; a material shared by several items is gathered once. Use it for a tool set, a set of builds or any multi-item order. Example: {\"items\":[{\"item\":\"minecraft:stone_pickaxe\",\"count\":1},{\"item\":\"minecraft:stone_axe\",\"count\":1}]}; the single-item form {\"item\":\"minecraft:cobblestone\",\"count\":36} is accepted too.",
+                        "Get several finished items together. Computes every raw material the set needs, obtains all of it once, then crafts the items; a material shared by several items is gathered once. For an owner order, include both the owner's share and what the companion must keep in each count, then queue one strict give_items step per owner item. Example: {\"items\":[{\"item\":\"minecraft:stone_pickaxe\",\"count\":2},{\"item\":\"minecraft:stone_axe\",\"count\":2}]}; the single-item form {\"item\":\"minecraft:cobblestone\",\"count\":36} is accepted too.",
                         batchSchema,
                         (c, a) -> new BatchObtainTask(
                                 targets(a), flag(a, "use_containers", true), flag(a, "explore", true), subtaskFactory),
@@ -337,7 +337,7 @@ public final class ObtainTools implements FeatureToolContributor {
                         + "- In creative mode, obtain_item can supply a registered item directly for an authorized owner.\n"
                         + "- For several items that share materials, use obtain_items so the raw materials are gathered once.";
             case "obtain_items" ->
-                "- For a set of items that share materials (a tool set, a set of builds), prefer obtain_items: it gathers every raw material once, then crafts them all.";
+                "- For items that share materials, use one obtain_items batch with each count including the owner's share plus the companion's retained share. Then queue one strict give_items step per exact owner item.";
             default -> "";
         };
         return new ToolMeta(name, ToolGroup.OBTAIN, false, hint, List.of(), Cost.HIGH);

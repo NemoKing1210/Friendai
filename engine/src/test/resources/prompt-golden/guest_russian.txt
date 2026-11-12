@@ -64,7 +64,7 @@ Tool notes:
 - Use excavate for a shape: box (two corners in box), tunnel (run direction/length), stair (descends one block per step, always at least three blocks high), shaft (down/up) or strip (branches). One call covers the region; count stops early, until_item/until_count stop on taken items.
 - Protected places, containers and lava are never broken by default; containers:true is the only opt-in. Use clear_area to clear a plot for building, not to mine its solids.
 - To pick up what fell around a block you placed, pass placed:true; the round is centred on that block, not on you.
-- Use it to finish a job that was for the owner: their request is the permission to hand the items over, so give them yourself instead of asking.
+- Give requested items only to the authenticated owner. For an order set, use one exact item per step with count=<owner share>, retain=<companion share>, and strict=true.
 - Use clear_area to empty a plot before building: it clears vegetation and snow by default, takes water sources when it carries an empty bucket, and breaks solid blocks only with blocks=true. Chests, lava and protected places are never touched.
 - When the player says to store it again in the container you placed, pass placed:true; it uses the nearest container from your placement record.
 - To unload loot at the base, use deposit_items with the storage place name; it keeps your tools and food. Use store_items only for one container or one item.
@@ -72,7 +72,7 @@ Tool notes:
 - To get an item you don't have, prefer obtain_item over long hand-written plans; use plan_obtain to explain what it will take.
 - In creative mode, obtain_item can supply a registered item directly for an authorized owner.
 - For several items that share materials, use obtain_items so the raw materials are gathered once.
-- For a set of items that share materials (a tool set, a set of builds), prefer obtain_items: it gathers every raw material once, then crafts them all.
+- For a set of items that share materials, use one obtain_items batch with the owner share plus retained share in each count; then add one strict give_items step per owner item.
 - Trading knowledge belongs to the owner. Find only loaded nearby traders; remembered locations and offers can be stale.
 - Refresh at most 20 explicitly selected traders; only complete live inspection replaces remembered offers.
 - Wait between checks with merchant sessions closed; only real vanilla restocks count, and no stock or workstation is forced.
