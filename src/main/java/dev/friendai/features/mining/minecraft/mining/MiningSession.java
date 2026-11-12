@@ -669,6 +669,7 @@ public final class MiningSession {
             case MiningRefusal.Unbreakable p -> UserMessage.of("friendai.mining.not_breakable", coords(p.pos()));
             case MiningRefusal.OutOfReach p -> UserMessage.of("friendai.mining.unreachable");
             case MiningRefusal.DropUnprotected p -> UserMessage.of("friendai.mining.drop_unprotected", coords(p.pos()));
+            case MiningRefusal.WrongTool p -> UserMessage.of("friendai.mining.no_tool");
         };
     }
 

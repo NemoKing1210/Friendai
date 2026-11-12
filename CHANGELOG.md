@@ -41,6 +41,7 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 - Right after finishing a job the companion reports on it and can carry the order on, instead of opening small talk in the same breath and asking whether to continue; its own subjects now wait ten seconds after a job's report.
 - "Plant wheat" also walks to the nearest soil when the companion was told to farm at the spot it stands on.
 - "Harvest the wheat" takes the whole field when the plot lies on the edge of the pass's circle: a farm pass follows the field for up to three more passes instead of taking two ears and saying nothing ripe is left.
+- The companion no longer destroys an ore it cannot harvest: told to mine a diamond (or any valuable block) while carrying only a wooden pickaxe, it now refuses, leaves the ore whole and says it needs a better pickaxe first, where it used to break the ore and lose the diamond.
 - "Dig a 3x3 pit, 2 deep" digs two layers of earth: a shaft down started from where someone stands begins with the ground under their feet, where it used to spend its first layer on air.
 - A second resource search in the same order no longer fails on its first step: resuming a search that had already started skipped straight to "nothing left to search", so getting a stone tool set from buried stone sometimes stopped halfway.
 - "Find something to eat", "I'm hungry" and their Russian forms now show the food tools, so the companion hunts the cows beside it instead of asking for cooked meat it cannot make and giving up.

@@ -270,6 +270,45 @@ public class MiningTests {
         });
     }
 
+    /**
+     * "Mine that diamond" with only a wooden pickaxe: mine_block_at broke the ore and the diamond was gone. A valuable
+     * block no carried tool can harvest is now refused and left whole; with the right pickaxe it is mined as before.
+     */
+    @GameTest(maxTicks = 600)
+    public void aPointedOreWithoutAHarvestToolIsLeftWhole(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        BlockPos ore = new BlockPos(5, 2, 3);
+        h.setBlock(ore, Blocks.DIAMOND_ORE);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 3);
+        companion.setOwner(java.util.UUID.randomUUID());
+        companion.setItemSlot(
+                net.minecraft.world.entity.EquipmentSlot.MAINHAND, Items.WOODEN_PICKAXE.getDefaultInstance());
+        Outcome refused = new Outcome();
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 300, () -> false);
+        runner.setEventSink(refused);
+        runner.start(new MineBlockAtTask(h.absolutePos(ore), false, 1, true), "mine_block_at");
+        boolean[] second = {false};
+        Outcome mined = new Outcome();
+        h.succeedWhen(() -> {
+            runner.tick();
+            if (!second[0]) {
+                h.assertTrue(refused.status == TaskStatus.FAILED, "the wooden pickaxe job is still running");
+                h.assertTrue(
+                        h.getLevel().getBlockState(h.absolutePos(ore)).is(Blocks.DIAMOND_ORE),
+                        "the ore was destroyed: " + refused.summary);
+                h.assertTrue(refused.summary.contains("needs a better tool"), "summary was " + refused.summary);
+                // With a pickaxe that harvests it, the same order mines the diamond.
+                companion.inventory().addItem(new ItemStack(Items.IRON_PICKAXE));
+                runner.setEventSink(mined);
+                runner.start(new MineBlockAtTask(h.absolutePos(ore), false, 1, true), "mine_block_at");
+                second[0] = true;
+                h.fail("the second job has just started");
+            }
+            h.assertTrue(mined.status == TaskStatus.SUCCESS, "not mined: " + mined.status + " " + mined.summary);
+            h.assertTrue(companion.inventory().countItem(Items.DIAMOND) >= 1, "no diamond carried");
+        });
+    }
+
     @GameTest(maxTicks = 100)
     public void inventoryFullStopsBeforeOreExtraction(GameTestHelper h) {
         GameTestSupport.platform(h, 8);
