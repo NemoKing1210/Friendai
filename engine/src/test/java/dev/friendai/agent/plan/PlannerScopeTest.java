@@ -1,6 +1,8 @@
 package dev.friendai.agent.plan;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.friendai.agent.tools.ToolGroup;
 import java.util.List;
@@ -20,8 +22,23 @@ class PlannerScopeTest {
     @Test
     void a_troubled_plan_keeps_only_the_groups_its_steps_use() {
         assertEquals(
-                Set.of("mine_blocks", "mine_block_at"),
+                Set.of("mine_blocks", "mine_block_at", "go_to_place"),
                 PlannerScope.toolNames(new PlanSubject.TroubledPlan(7, "boom"), TOOLS, Set.of("mine_blocks")));
+    }
+
+    @Test
+    void aRepairCanFixMissingMaterialsTerrainAndTravelWithoutUnlockingUnrelatedWork() {
+        Map<String, ToolGroup> tools = Map.of(
+                "obtain_item", ToolGroup.OBTAIN,
+                "mine_blocks", ToolGroup.GATHERING,
+                "clear_area", ToolGroup.BUILDING,
+                "go_to", ToolGroup.MOVEMENT,
+                "craft_item", ToolGroup.CRAFTING,
+                "breed_animals", ToolGroup.ANIMALS);
+        Set<String> names =
+                PlannerScope.toolNames(new PlanSubject.TroubledPlan(7, "no space"), tools, Set.of("obtain_item"));
+        assertTrue(names.containsAll(Set.of("obtain_item", "mine_blocks", "clear_area", "go_to", "craft_item")));
+        assertFalse(names.contains("breed_animals"));
     }
 
     @Test

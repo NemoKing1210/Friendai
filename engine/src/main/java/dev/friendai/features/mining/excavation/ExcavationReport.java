@@ -7,10 +7,11 @@ public final class ExcavationReport {
     private ExcavationReport() {}
 
     public static String success(String label, ExcavationProgress progress) {
+        int empty = progress.reasons().getOrDefault("already empty", 0);
+        int skipped = Math.max(0, progress.skipped() - empty) + progress.refused();
         return "mined " + progress.broken() + " " + label + takenText(progress)
-                + (progress.skipped() + progress.refused() == 0
-                        ? ""
-                        : "; skipped " + (progress.skipped() + progress.refused()) + " that could not be taken");
+                + (empty == 0 ? "" : "; " + empty + " already empty")
+                + (skipped == 0 ? "" : "; skipped " + skipped + " that could not be taken");
     }
 
     public static String partial(String label, ExcavationProgress progress, String reason) {

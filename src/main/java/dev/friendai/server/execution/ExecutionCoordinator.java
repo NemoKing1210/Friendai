@@ -1307,7 +1307,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     }
 
     TaskContext context(ActiveTask active) {
-        return context(active.settings(), active.creativeActionContext());
+        return context(active.settings(), active.creativeActionContext(), active.logContext());
     }
 
     private TaskContext baseContext() {
@@ -1340,13 +1340,17 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     }
 
     private TaskContext context(ServerSettings settings, CreativeActionContext actionContext) {
+        return context(settings, actionContext, LogContext.NONE);
+    }
+
+    private TaskContext context(ServerSettings settings, CreativeActionContext actionContext, LogContext logContext) {
         return new TaskContext(
                 companion,
                 (ServerLevel) companion.level(),
                 this,
                 actionContext,
                 settings,
-                LogContext.NONE,
+                logContext,
                 structureBuilder);
     }
 

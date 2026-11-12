@@ -76,6 +76,8 @@ public final class MiningSession {
     private final Set<Pos> supports = new HashSet<>();
     private final Set<Pos> excludedTargets = new HashSet<>();
     private final Set<Node> excludedStances = new HashSet<>();
+    private final Set<Node> refusedExplorationSteps = new HashSet<>();
+    private Node explorationRetryFrom;
     private List<BlockPos> targets = List.of();
     private Predicate<BlockState> matches = state -> false;
     /** The target batch is a carved passage, so a forward-down cell is an intended step (see {@link #setTargets}). */
@@ -167,6 +169,8 @@ public final class MiningSession {
         this.exploration = null;
         this.excludedTargets.clear();
         this.excludedStances.clear();
+        this.refusedExplorationSteps.clear();
+        this.explorationRetryFrom = null;
         this.mustRelocateFromSupport =
                 this.targets.stream().anyMatch(pos -> pos.equals(blockPos(initialNode.support())));
         this.closeApproach = false;
@@ -195,6 +199,8 @@ public final class MiningSession {
         this.goal = null;
         this.exploration = null;
         this.remainingSteps = List.of();
+        this.refusedExplorationSteps.clear();
+        this.explorationRetryFrom = null;
         rememberCurrentSupport();
     }
 
@@ -480,14 +486,20 @@ public final class MiningSession {
 
     private State tickExplore(TaskContext context) {
         if (exploration == null) {
+            Node current = node();
+            if (!current.equals(explorationRetryFrom)) {
+                refusedExplorationSteps.clear();
+                explorationRetryFrom = current;
+            }
             var view = guard(context).planningView(context, context.pathingConfig());
             exploration = new ExplorationPlanner(
                     view,
-                    node(),
+                    current,
                     targetY,
                     heading,
                     bounds,
                     supports,
+                    refusedExplorationSteps,
                     CostModel.DEFAULTS,
                     context.pathingConfig().maxNodes());
         }
@@ -515,6 +527,13 @@ public final class MiningSession {
         if (state == PathExecutor.State.FAILED) {
             brokenBlocks += executor.brokenBlocks();
             rememberWalked(executor.stepIndex());
+            if (mode == Mode.EXPLORE && executor.stepIndex() < activeSteps.size()) {
+                PathStep refused = activeSteps.get(executor.stepIndex());
+                if (node().equals(refused.from())) {
+                    explorationRetryFrom = refused.from();
+                    refusedExplorationSteps.add(refused.to());
+                }
+            }
             executor.stop(context);
             executor = null;
             activeSteps = List.of();
@@ -541,6 +560,8 @@ public final class MiningSession {
         noProgressPlans = 0;
         diagnostic = "";
         excludedStances.clear();
+        refusedExplorationSteps.clear();
+        explorationRetryFrom = null;
         activeSteps = List.of();
         if (mustRelocateFromSupport && !node().equals(initialNode)) {
             mustRelocateFromSupport = false;

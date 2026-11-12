@@ -88,6 +88,21 @@ class TurnRouterTest {
     }
 
     @Test
+    void greetingsAndThanksUseConversationToolsWithoutHidingAnAttachedOrder() {
+        for (String text : List.of("Hello!", "good morning", "Привет.", "Спасибо!")) {
+            RouteDecision d = player(text, false);
+            assertEquals(TurnMode.CHAT, d.mode(), text);
+            assertFalse(d.groups().contains(ToolGroup.GATHERING), text);
+            assertFalse(d.wantPlanner(), text);
+        }
+        assertEquals(TurnMode.ACTION, player("Hello, mine some stone", false).mode());
+        assertTrue(player("Привет, добудь железо", false).groups().contains(ToolGroup.GATHERING));
+        assertEquals(
+                ToolGroup.values().length,
+                player("unrecognized request", false).groups().size());
+    }
+
+    @Test
     void aQuestionThatContainsAnActionStaysAnAction() {
         assertEquals(TurnMode.ACTION, player("can you mine some iron?", false).mode());
     }

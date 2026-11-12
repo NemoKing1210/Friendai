@@ -20,6 +20,7 @@ import dev.friendai.foundation.spatial.Node;
 import dev.friendai.foundation.spatial.Path;
 import dev.friendai.foundation.spatial.PathStep;
 import dev.friendai.foundation.spatial.PathingConfig;
+import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.server.agent.CompanionSessions;
 import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskContext;
@@ -78,9 +79,14 @@ public class PathingTests {
         /** Whether the task logged that it went to gather bridge material; progress is logged, never announced. */
         boolean gathered;
 
+        int searches;
+
         @Override
         public void onDebug(String text) {
             gathered |= text.startsWith("gathering ");
+            if (text.startsWith("path ")) {
+                searches++;
+            }
             debug.add(text);
             if (debug.size() > 10) {
                 debug.remove(0);
@@ -1187,6 +1193,77 @@ public class PathingTests {
                 "an occupied destination must fail before movement starts");
         h.assertFalse(c.pathing(), "a failed step must clear pathing");
         h.succeed();
+    }
+
+    @GameTest(maxTicks = 100)
+    public void pillarCentersBeforeJumpingPastANeighboringOverhang(GameTestHelper h) {
+        int base = 180;
+        GameTestSupport.platformAt(h, base, 12);
+        // The source cell is clear, but an off-centre body overlaps the adjacent ceiling. A jump from the
+        // initial position hits that ceiling before rising a block and used to replay the same route forever.
+        h.setBlock(new BlockPos(8, base + 3, 7), Blocks.BEDROCK);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 8.5f, base + 1, 8.16f);
+        c.inventory().addItem(new ItemStack(Items.DIRT, 2));
+        BlockPos from = h.absolutePos(new BlockPos(8, base + 1, 8));
+        PathStep step = new PathStep(
+                new Node(from.getX(), from.getY(), from.getZ()),
+                new Node(from.getX(), from.getY() + 1, from.getZ()),
+                Move.PILLAR,
+                List.of(),
+                List.of(new Pos(from.getX(), from.getY(), from.getZ())),
+                20.0,
+                0);
+        PathExecutor executor = new PathExecutor(
+                new Path(List.of(step), step.cost(), 0, 1, false),
+                new MaterialPicker(PathingConfig.DEFAULTS),
+                PathingConfig.DEFAULTS);
+        TaskContext context = new TaskContext(c, h.getLevel());
+        PathExecutor.State[] state = {PathExecutor.State.RUNNING};
+        h.onEachTick(() -> {
+            if (state[0] == PathExecutor.State.RUNNING) {
+                state[0] = executor.tick(context);
+            }
+        });
+        h.succeedWhen(() -> {
+            h.assertTrue(
+                    state[0] == PathExecutor.State.DONE, "pillar did not rise: " + state[0] + " at " + c.position());
+            h.assertTrue(c.getY() >= from.getY() + 0.99, "did not land on its support: " + c.position());
+            h.assertTrue(c.inventory().countItem(Items.DIRT) == 1, "one pillar must spend exactly one block");
+            assertBlock(h, 8, base + 1, 8, Blocks.DIRT, "pillar support");
+        });
+    }
+
+    @GameTest(maxTicks = 400)
+    public void followClimbsOutOfAnOverhungPitWithoutReplayingTheRoute(GameTestHelper h) {
+        int base = 175;
+        GameTestSupport.platformAt(h, base, 16);
+        for (int x = 6; x <= 14; x++) {
+            for (int z = 6; z <= 10; z++) {
+                for (int y = base + 1; y <= base + 3; y++) {
+                    h.setBlock(x, y, z, Blocks.BEDROCK);
+                }
+            }
+        }
+        for (int y = base + 1; y <= base + 3; y++) {
+            h.setBlock(8, y, 8, Blocks.AIR);
+        }
+        h.setBlock(8, base + 1, 7, Blocks.AIR);
+        h.setBlock(8, base + 2, 7, Blocks.AIR);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 13.5, base + 4, 8.5);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 8.5f, base + 1, 8.16f);
+        c.setOwner(owner.getUUID());
+        c.inventory().addItem(new ItemStack(Items.DIRT, 4));
+        Outcome out = new Outcome();
+        c.executionCoordinator().setEventSink(out);
+        c.executionCoordinator().start(new FollowTask(true), "follow");
+        int[] settled = {0};
+        TaskTrace.of(h, c.executionCoordinator(), c).succeedWhen(() -> {
+            double distance = c.position().distanceTo(owner.position());
+            settled[0] = distance <= c.body().followDistance() + 0.5 ? settled[0] + 1 : 0;
+            h.assertTrue(settled[0] >= 20, "did not stay near its owner: distance " + distance + "; " + out.why());
+            h.assertTrue(c.inventory().countItem(Items.DIRT) < 4, "the pit needs a pillar to climb out");
+            h.assertTrue(out.searches <= 2, "replayed the same failed escape " + out.searches + " times: " + out.why());
+        });
     }
 
     @GameTest(maxTicks = 200)

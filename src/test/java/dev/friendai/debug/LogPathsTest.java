@@ -43,6 +43,11 @@ class LogPathsTest {
     }
 
     @Test
+    void namesTheWorldWhenTheServerPathEndsWithDot() {
+        assertEquals("New World", LogPaths.worldName(WORLD.resolve(".")));
+    }
+
+    @Test
     void namesNothingWhenTheWorldIsUnknown() {
         assertEquals("", LogPaths.worldName(null));
     }

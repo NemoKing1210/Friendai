@@ -195,8 +195,7 @@ final class PlannerFacade {
         }
 
         @Override
-        public Optional<PlannerInput> inputFor(
-                dev.friendai.agent.plan.PlanSubject subject, Caller caller, String failure) {
+        public Optional<PlannerPort.Refusal> preflight(dev.friendai.agent.plan.PlanSubject subject, Caller caller) {
             if (subject instanceof dev.friendai.agent.plan.PlanSubject.TroubledPlan trouble) {
                 // Preflight the targeted frame with the same rule the patch itself enforces: a proposal that could not
                 // be applied must not cost a provider call or a replan attempt. The failure is still reported to the
@@ -205,18 +204,37 @@ final class PlannerFacade {
                         companion.executionCoordinator().queue(), trouble.planId());
                 if (refusal.isPresent()) {
                     debugLog(owner, "planner skipped: " + refusal.get());
-                    return Optional.empty();
+                    return Optional.of(new PlannerPort.Refusal(
+                            "plan-not-patchable",
+                            "Automatic replacement was skipped: " + refusal.get()
+                                    + ". Keep the existing plan and its completed work. Read queue_show; fix the cause "
+                                    + "with ordinary tools, then use queue_edit action=retry or action=update on its blocked job. "
+                                    + "Do not queue another copy of the plan or create another primary goal."));
                 }
                 // A plan that follows a goal spends the goal's own replan budget; a planless one spends a
                 // runtime-only counter, so a plan cannot replan forever without a goal record to stop it.
                 if (!hasLinkedGoal(trouble.planId())) {
                     if (session.planReplans().exhausted(trouble.planId(), config.get().agent.maxReplans)) {
-                        return Optional.empty();
+                        return Optional.of(
+                                new PlannerPort.Refusal(
+                                        "replan-budget-spent",
+                                        "The plan's replan budget is spent. Report the blocker; do not restart the same work."));
                     }
-                    session.planReplans().attempt(trouble.planId());
                 }
             }
-            return factory.build(subject, consultCaller(subject, caller), failure);
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<PlannerInput> inputFor(
+                dev.friendai.agent.plan.PlanSubject subject, Caller caller, String failure) {
+            Optional<PlannerInput> input = factory.build(subject, consultCaller(subject, caller), failure);
+            if (input.isPresent()
+                    && subject instanceof dev.friendai.agent.plan.PlanSubject.TroubledPlan trouble
+                    && !hasLinkedGoal(trouble.planId())) {
+                session.planReplans().attempt(trouble.planId());
+            }
+            return input;
         }
 
         /**

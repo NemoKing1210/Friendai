@@ -79,7 +79,7 @@ public final class PlaceSpot {
 
     /** An automatic spot near the companion, for blocks like a crafting table. */
     public static Optional<Spot> near(ServerLevel level, CompanionEntity companion, int radius) {
-        return scan(level, companion, radius, -1, 1);
+        return scan(level, companion, radius, -1, 1, false);
     }
 
     /**
@@ -89,11 +89,13 @@ public final class PlaceSpot {
      */
     public static Optional<Spot> nearForStation(ServerLevel level, CompanionEntity companion, int radius) {
         Optional<Spot> atFeet = near(level, companion, radius);
-        return atFeet.isPresent() ? atFeet : scan(level, companion, radius, 2, radius);
+        if (atFeet.isPresent()) return atFeet;
+        Optional<Spot> compact = scan(level, companion, radius, -1, 1, true);
+        return compact.isPresent() ? compact : scan(level, companion, radius, 2, radius, true);
     }
 
     private static Optional<Spot> scan(
-            ServerLevel level, CompanionEntity companion, int radius, int lowest, int highest) {
+            ServerLevel level, CompanionEntity companion, int radius, int lowest, int highest, boolean station) {
         BlockPos origin = companion.blockPosition();
         BlockPos ownerCell = companion
                 .owner()
@@ -105,7 +107,7 @@ public final class PlaceSpot {
         for (int dx = -radius; dx <= radius; dx++) {
             for (int dz = -radius; dz <= radius; dz++) {
                 double horizontal = Math.sqrt(dx * dx + dz * dz);
-                if (horizontal < 2.0 || horizontal > radius) {
+                if (horizontal < (station ? 1.0 : 2.0) || horizontal > radius) {
                     continue;
                 }
                 for (int dy = lowest; dy <= highest; dy++) {
@@ -113,11 +115,15 @@ public final class PlaceSpot {
                     if (pos.equals(origin) || pos.equals(ownerCell) || pos.equals(ownerAbove)) {
                         continue;
                     }
-                    if (!level.hasChunkAt(pos)
-                            || !level.getBlockState(pos).isAir()
-                            || !level.getBlockState(pos.above()).isAir()) {
+                    if (!level.hasChunkAt(pos)) {
                         continue;
                     }
+                    BlockState state = level.getBlockState(pos);
+                    // A one-block station can replace vegetation and does not need standing space above it.
+                    if (station
+                            ? !state.getFluidState().isEmpty()
+                            : !state.isAir()
+                                    || !level.getBlockState(pos.above()).isAir()) continue;
                     if (!level.getBlockState(pos.below()).isFaceSturdy(level, pos.below(), Direction.UP)) {
                         continue;
                     }

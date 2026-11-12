@@ -59,6 +59,8 @@ public final class PathExecutor {
     private static final double STUCK_PROGRESS = 0.15;
     private static final double FEET_TOLERANCE = 0.4;
     private static final double LOOSE_TOLERANCE = 0.7;
+    /** A pillar's jump stays inside its clear cell, even when the previous walk ended near an overhang. */
+    private static final double PILLAR_CENTER = 0.1;
 
     /**
      * How far into the source cell a gap jump waits before it leaves the ground, in blocks from the cell centre. The
@@ -357,6 +359,9 @@ public final class PathExecutor {
             return fail(c);
         }
         if (step.move() == Move.PILLAR && !jumped) {
+            if (!centerForPillar(companion, step)) {
+                return State.RUNNING;
+            }
             // The companion must be above the cell it fills: jump first, place once it has risen a block.
             if (jumpTicks++ > JUMP_TIMEOUT) {
                 return fail(c);
@@ -402,6 +407,26 @@ public final class PathExecutor {
         return State.RUNNING;
     }
 
+    /** Walk into the source cell before rising: a neighbouring ceiling may overlap an off-centre body. */
+    private static boolean centerForPillar(CompanionEntity companion, PathStep step) {
+        double x = step.from().x() + 0.5;
+        double z = step.from().z() + 0.5;
+        if (Math.abs(companion.getX() - x) > PILLAR_CENTER || Math.abs(companion.getZ() - z) > PILLAR_CENTER) {
+            companion.getMoveControl().setWantedPosition(x, companion.getY(), z, MOVE_SPEED * 0.5);
+            return false;
+        }
+        holdPillar(companion);
+        return true;
+    }
+
+    /** A pillar has no horizontal leg; old movement input and momentum must not carry it under the next ceiling. */
+    private static void holdPillar(CompanionEntity companion) {
+        companion.getMoveControl().setWait();
+        companion.setZza(0.0f);
+        companion.setXxa(0.0f);
+        companion.setDeltaMovement(0.0, companion.getDeltaMovement().y, 0.0);
+    }
+
     /**
      * Whether the step enters a shut wooden door or gate at its feet or head. The search offers every step kind into
      * such a cell — a walk, a diagonal, a leap or a dug rise — so the door is opened for any of them, not only for a
@@ -420,6 +445,13 @@ public final class PathExecutor {
         }
         if (!MoveGenerator.standable(liveView, step.to())) {
             return fail(c);
+        }
+        if (step.move() == Move.PILLAR) {
+            holdPillar(companion);
+            if (arrived(c, step, feetTarget(c, step)) && companion.onGround()) {
+                return advance(c);
+            }
+            return State.RUNNING;
         }
         if (step.move() == Move.JUMP_GAP && !companion.canSprint() && needsSprint(step)) {
             // A wide crossing is cleared by a running jump, and a companion without the food to sprint cannot take
@@ -517,14 +549,19 @@ public final class PathExecutor {
             companion.getJumpControl().jump();
         }
         if (arrived(c, step, target) && (companion.onGround() || companion.isInWater() || companion.onClimbable())) {
-            int next = index + 1;
-            if (next >= path.steps().size()) {
-                index = next;
-                companion.getNavigation().stop();
-                return State.DONE;
-            }
-            begin(c, next);
+            return advance(c);
         }
+        return State.RUNNING;
+    }
+
+    private State advance(TaskContext c) {
+        int next = index + 1;
+        if (next >= path.steps().size()) {
+            index = next;
+            c.companion().getNavigation().stop();
+            return State.DONE;
+        }
+        begin(c, next);
         return State.RUNNING;
     }
 
