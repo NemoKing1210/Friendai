@@ -218,4 +218,10 @@ public final class GiveItemsTask implements Task {
     public String resultSummary() {
         return summary;
     }
+
+    /** The walk toward the owner, so a hand-over that cannot reach them shows why in the task trace. */
+    @Override
+    public String debugStatus() {
+        return mover.debugStatus();
+    }
 }

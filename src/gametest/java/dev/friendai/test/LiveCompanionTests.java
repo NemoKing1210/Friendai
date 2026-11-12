@@ -505,7 +505,11 @@ public class LiveCompanionTests {
                 live -> {
                     String said = live.spoken().toLowerCase(Locale.ROOT);
                     boolean bread = said.contains("хлеб");
-                    boolean stone = said.contains("булыжн") || said.contains("камн") || said.contains("камен");
+                    boolean stone = said.contains("булыжн")
+                            || said.contains("камн")
+                            || said.contains("камен")
+                            || said.contains("коббл")
+                            || said.contains("cobble");
                     boolean torches = said.contains("факел");
                     return new Verdict(
                             bread && stone && torches, "bread " + bread + ", stone " + stone + ", torches " + torches);

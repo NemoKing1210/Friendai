@@ -26,8 +26,17 @@ public final class FarmTask implements Task {
     private final @Nullable Item crop;
     private final boolean till;
     private final boolean boneMeal;
-    /** Whether an empty pass around a defaulted centre may move once to the nearest farm work. */
+    /** Whether the pass follows the field: moves to the nearest work when empty, and covers work left past its edge. */
     private boolean movesToNearestWork;
+
+    /** Further passes this task may still run over the rest of the same field. */
+    private int passesLeft = EXTRA_PASSES;
+
+    /** What the earlier passes of this task did, or null before the first one ended. */
+    private @Nullable FarmReport done;
+
+    /** How many further passes one order may take to follow its field. */
+    private static final int EXTRA_PASSES = 3;
 
     private FarmPass pass;
     private String summary = "";
@@ -72,16 +81,17 @@ public final class FarmTask implements Task {
         if (pass == null || !pass.tick(c)) {
             return TaskStatus.RUNNING;
         }
-        FarmReport report = pass.report();
+        FarmReport report = done == null ? pass.report() : done.plus(pass.report());
+        done = report;
         summary = report.text(radius);
-        boolean nothing = report.harvested().isEmpty()
-                && report.replanted() == 0
-                && report.planted() == 0
-                && report.tilled() == 0;
-        if (nothing && movesToNearestWork) {
-            movesToNearestWork = false;
+        boolean nothing = !report.didWork();
+        if (movesToNearestWork && passesLeft > 0) {
+            // Follow the field: an empty pass moves to the nearest work, and a pass that did some work covers what is
+            // left just past its edge. "Harvest the wheat" with the plot on the rim of the circle took two ears of
+            // eight and said nothing ripe was left.
             var work = FarmWorkHint.find(c, center, till);
-            if (work.isPresent()) {
+            if (work.isPresent() && (nothing || beyondThisPass(work.get().at()))) {
+                passesLeft--;
                 center = work.get().at();
                 pass = new FarmPass(center, radius, crop, till, boneMeal);
                 return TaskStatus.RUNNING;
@@ -89,6 +99,13 @@ public final class FarmTask implements Task {
         }
         if (nothing) summary += FarmWorkHint.nearest(c, center, radius, till);
         return nothing ? TaskStatus.FAILED : TaskStatus.SUCCESS;
+    }
+
+    /** Whether a cell lies outside the disc the pass just covered, so another pass would reach new work there. */
+    private boolean beyondThisPass(BlockPos cell) {
+        long dx = cell.getX() - center.getX();
+        long dz = cell.getZ() - center.getZ();
+        return dx * dx + dz * dz > (long) radius * radius;
     }
 
     @Override

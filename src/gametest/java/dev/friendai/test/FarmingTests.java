@@ -413,6 +413,31 @@ public class FarmingTests {
         });
     }
 
+    /**
+     * "Harvest the wheat" with the plot on the rim of the pass's circle took two ears of eight and said nothing ripe
+     * was left. A pass around the companion now follows the field and takes the rest past its edge.
+     */
+    @GameTest(maxTicks = 2400)
+    public void aPassAroundTheCompanionTakesTheWholeFieldPastItsEdge(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        wheatPlot(h, 4, 4, 7, 7, 7);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(new FarmTask(h.absolutePos(new BlockPos(2, 2, 2)), 3, null, false).movingToNearestWork(), "farm");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            int ripe = 0;
+            for (int x = 4; x <= 7; x++) {
+                for (int z = 4; z <= 7; z++) {
+                    if (age(h, x, 2, z) == 7) ripe++;
+                }
+            }
+            h.assertValueEqual(ripe, 0, "ripe wheat left on the field: " + result.summary);
+        });
+    }
+
     @GameTest(maxTicks = 600)
     public void tillWithoutHoe(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
