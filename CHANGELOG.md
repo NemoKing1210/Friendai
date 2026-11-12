@@ -46,6 +46,7 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 - "Dig a 3x3 pit, 2 deep" digs two layers of earth: a shaft down started from where someone stands begins with the ground under their feet, where it used to spend its first layer on air.
 - A second resource search in the same order no longer fails on its first step: resuming a search that had already started skipped straight to "nothing left to search", so getting a stone tool set from buried stone sometimes stopped halfway.
 - "Find something to eat", "I'm hungry" and their Russian forms now show the food tools, so the companion hunts the cows beside it instead of asking for cooked meat it cannot make and giving up.
+- "Stop, that's enough" in the middle of a long job now sticks: an unfinished goal no longer wakes the companion a minute later to start the same work again. The goal waits until you give new work, and `/friendai stop` does the same.
 
 ## [0.211.3] - 2026-11-11
 

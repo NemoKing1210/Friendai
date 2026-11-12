@@ -102,6 +102,8 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     private boolean suspended;
     /** The owner asked for a hold; a later join must not undo it. */
     private boolean manualPause;
+
+    private boolean stoppedByOrder;
     /** A restored task held back because its owner was away; resume() starts it before the queue. */
     private Task pendingRestoredTask;
 
@@ -205,6 +207,20 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
 
     public boolean paused() {
         return paused || held();
+    }
+
+    /**
+     * Whether the last thing that happened to the work was an explicit stop order ("stop, that's enough") and no new
+     * work has been given since. An unfinished goal does not restart the work on its own while this holds: after
+     * "stop" the goal nudge woke the planner a minute later and the companion went back to chopping.
+     */
+    public boolean stoppedByOrder() {
+        return stoppedByOrder;
+    }
+
+    /** Called by the stop order itself, never by internal cancellations. */
+    public void markStoppedByOrder() {
+        stoppedByOrder = true;
     }
 
     public void suspend() {
@@ -473,6 +489,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
 
     private long enqueueActive(QueuedStep step, StepFactory factory) {
         syncSettings();
+        stoppedByOrder = false;
         requireCreativeAuthorization(step.principal(), step.creativeSensitive());
         Job job = queueDriver.enqueue(step);
         if (invocationContext != LogContext.NONE) {
@@ -504,6 +521,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
             PlanOptions options,
             java.util.function.LongConsumer prepare) {
         syncSettings();
+        stoppedByOrder = false;
         if (steps.size() != stepFactories.size())
             throw new IllegalArgumentException("steps and queueDriver.factories differ");
         for (QueuedStep step : steps) requireCreativeAuthorization(step.principal(), step.creativeSensitive());
@@ -527,6 +545,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     private long enqueuePlanActive(
             String goal, PlanDefinition definition, PlanOptions options, Map<String, PlanStepFactory> stepFactories) {
         syncSettings();
+        stoppedByOrder = false;
         for (PlanNode node : definition.nodes()) validateStructuredAuthorization(node);
         facts();
         long startTick = companion.level().getGameTime();
@@ -571,6 +590,8 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     }
 
     private int startActive(Task task, String toolName, Caller caller, boolean creativeSensitive) {
+        // New work given after a stop order releases the hold on goal nudges.
+        stoppedByOrder = false;
         CreativeActionContext actionContext = actionContext(caller, creativeSensitive);
         requireCreativeAuthorization(actionContext == null ? null : actionContext.principal(), creativeSensitive);
         ActiveTask current = activeTask();
