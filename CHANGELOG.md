@@ -25,6 +25,9 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 - "Chop some wood" right after the companion was summoned looks around for up to fifteen seconds before saying there is no tree, instead of giving up after five beside an oak in plain view.
 - An order is no longer swallowed by a plan whose conditions skip every step ("if you have a pickaxe, mine stone" for a companion without one): such a plan is refused when it is queued, so the companion plans the work again instead of reporting success with nothing done.
 - "Get some stone" no longer fails with "exploring is off" right after a summon: the obtain skill tells the model to keep exploring on unless the player forbids leaving the spot.
+- One-step orders such as "get some stone" or "get iron ore" are no longer sent to the planner as if they were several jobs: a single word now counts as one kind of work, even when two vocabulary entries match it.
+- "Make some planks" or "plant carrots" are no longer taken for a request to draw up a plan; "plan", "then" and the other ordering words count only as whole words.
+- "Bring me eight planks" now ends with the planks handed over: the companion sees its giving tools for "bring" and "fetch" orders, and the obtain skill tells it to queue the hand-over after getting the item.
 
 ### Added
 

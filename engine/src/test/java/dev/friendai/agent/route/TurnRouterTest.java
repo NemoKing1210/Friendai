@@ -231,5 +231,45 @@ class TurnRouterTest {
         RouteDecision d = player("make a plan to mine iron", false);
         assertEquals(TurnMode.GOAL, d.mode());
         assertTrue(d.wantPlanner());
+        // "Make a plan for the house" and "plan it step by step" in Russian.
+        assertEquals(TurnMode.GOAL, player("Составь план постройки дома", false).mode());
+        assertEquals(
+                TurnMode.GOAL, player("Распланируй, как построить дом", false).mode());
+    }
+
+    @Test
+    void oneWordIsOneKindOfWorkEvenWhenTwoStemsMatchIt() {
+        // "Get three cobblestones", "Get some stone", "Get iron ore": "добудь" matches both the gathering stem and the
+        // obtain verb, and used to count as two kinds of work, sending a one-step order to the planner.
+        for (String text : List.of("Добудь три булыжника.", "Добудь немного камня.", "Добудь железную руду.")) {
+            RouteDecision d = player(text, false);
+            assertEquals(TurnMode.ACTION, d.mode(), text);
+            assertFalse(d.wantPlanner(), text);
+            assertTrue(d.groups().contains(ToolGroup.GATHERING) && d.groups().contains(ToolGroup.OBTAIN), text);
+        }
+        // Two different words still make two kinds: "get stone and build a house".
+        assertEquals(TurnMode.GOAL, player("Добудь камня и построй дом", false).mode());
+    }
+
+    @Test
+    void bringingShowsTheHandOverTools() {
+        // "Bring me eight planks" in Russian: the planks were made and never handed over, because the giving tools
+        // were not visible in the turn.
+        for (String text : List.of("Принеси мне восемь досок.", "bring me some bread", "fetch me a pickaxe")) {
+            RouteDecision d = player(text, false);
+            assertEquals(TurnMode.ACTION, d.mode(), text);
+            assertTrue(d.groups().contains(ToolGroup.OBTAIN) && d.groups().contains(ToolGroup.INVENTORY), text);
+        }
+    }
+
+    @Test
+    void aPlanOrThenMarkerCountsOnlyAsAWholeWord() {
+        for (String text :
+                List.of("make some planks", "get me 10 oak planks", "plant some carrots", "strengthen the wall")) {
+            RouteDecision d = player(text, false);
+            assertEquals(TurnMode.ACTION, d.mode(), text);
+            assertFalse(d.wantPlanner(), text);
+        }
+        assertEquals(TurnMode.GOAL, player("plan the farm for me", false).mode());
     }
 }

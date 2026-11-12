@@ -11,7 +11,7 @@
     "eat": ["SURVIVAL"],
     "farm": ["FARMING"], "plant": ["FARMING"], "harvest": ["FARMING"], "sow": ["FARMING"],
     "breed": ["ANIMALS"], "shear": ["ANIMALS"], "milk": ["ANIMALS"], "tame": ["ANIMALS"], "fish": ["ANIMALS"],
-    "bring": ["OBTAIN"], "obtain": ["OBTAIN"], "fetch": ["OBTAIN"], "get": ["OBTAIN"],
+    "bring": ["OBTAIN", "INVENTORY"], "obtain": ["OBTAIN"], "fetch": ["OBTAIN", "INVENTORY"], "get": ["OBTAIN"],
     "store": ["STORAGE"],
     "enchant": ["ENCHANT"],
     "follow": ["MOVEMENT"], "come": ["MOVEMENT"], "walk": ["MOVEMENT"], "run": ["MOVEMENT"], "stay": ["MOVEMENT"], "wait": ["MOVEMENT"],
@@ -38,5 +38,5 @@
     "villager": ["TRADING"], "trader": ["TRADING"], "merchant": ["TRADING"], "emerald": ["TRADING"],
     "price": ["TRADING"], "offer": ["TRADING"], "restock": ["TRADING"], "barter": ["TRADING"]  },
   "complex_markers": ["and then", "after that", "afterwards", "first", "then", "once you", "when you are done", "before you"],
-  "plan_request_markers": ["plan", "step by step", "make a plan", "organize", "organise", "figure out how"]
+  "plan_request_markers": ["plan", "plans", "planned", "planning", "step by step", "make a plan", "organize", "organise", "figure out how"]
 }

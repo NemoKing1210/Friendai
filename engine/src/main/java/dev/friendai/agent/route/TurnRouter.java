@@ -54,7 +54,7 @@ public final class TurnRouter {
         String lower = text.toLowerCase(Locale.ROOT).strip();
         List<String> tokens = tokens(lower);
         Map<String, Set<ToolGroup>> verbs = vocabulary.verbsIn(tokens);
-        int kinds = kinds(verbs.values());
+        int kinds = kinds(vocabulary.verbGroupsPerWord(tokens));
         boolean complex = vocabulary.hasComplexMarker(lower);
         boolean planRequest = vocabulary.hasPlanRequest(lower);
         if (s.planBlockedOrFailed()) {
