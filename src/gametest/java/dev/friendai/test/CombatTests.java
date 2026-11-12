@@ -141,6 +141,37 @@ public class CombatTests {
         h.succeed();
     }
 
+    /**
+     * A fair fight: the live battery's "kill that zombie" ended with the companion slain by a husk while holding an iron
+     * sword at full health. With the owner beside it and a husk walking in to fight back, the companion must win.
+     */
+    @GameTest(maxTicks = 1200, skyAccess = true, environment = "friendai-gametest:combat_duel")
+    public void winsAFairFightAgainstAHuskWithAnIronSword(GameTestHelper h) {
+        GameTestSupport.platform(h, 20);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 5, 2, 4);
+        c.setOwner(owner.getUUID());
+        c.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_SWORD));
+        Notices notices = listen(c);
+        Husk husk = h.spawn(EntityTypes.HUSK, 16, 2, 16);
+        // Health at the kill, read once: regeneration afterwards must not hide a fight that was nearly lost.
+        float[] healthAtKill = {-1.0F};
+        h.succeedWhen(() -> {
+            h.assertTrue(c.isAlive() && !c.isDeadOrDying(), "the companion died: " + notices.texts);
+            h.assertTrue(
+                    husk.isDeadOrDying() || husk.isRemoved(),
+                    "husk still alive: " + husk.getHealth() + ", companion health " + c.getHealth() + ", state "
+                            + c.combatController().state() + ", notices " + notices.texts);
+            if (healthAtKill[0] < 0.0F) {
+                healthAtKill[0] = c.getHealth();
+            }
+            // A sword recharges faster than a husk strikes, so the companion trades better than one hit for one.
+            h.assertTrue(
+                    healthAtKill[0] >= c.getMaxHealth() / 2.0F,
+                    "won the duel at only " + healthAtKill[0] + " health: " + notices.texts);
+        });
+    }
+
     @GameTest(maxTicks = 800)
     public void fightsBackZombie(GameTestHelper h) {
         GameTestSupport.platform(h, 15);

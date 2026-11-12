@@ -932,6 +932,12 @@ public final class CombatController implements EatingController {
             return;
         }
 
+        // The swing recharges on every tick of the fight, as a player's attack strength does. A cooldown that ran only
+        // in reach stalled whenever a hit knocked the two apart, so a mob on its own steady timer out-hit the sword.
+        if (attackCooldown > 0) {
+            attackCooldown--;
+        }
+
         // A nearer attacker that lands a hit becomes the target without waiting for the next scan.
         int hurtTick = companion.getLastHurtByMobTimestamp();
         if (!taskDriven && hurtTick != lastHurtTick) {
@@ -1021,7 +1027,7 @@ public final class CombatController implements EatingController {
             companion.getNavigation().stop();
             unreachableTicks = 0;
             lastDistance = distance;
-            if (--attackCooldown <= 0) {
+            if (attackCooldown <= 0) {
                 // Permission is rechecked at the action, not only when the target was selected.
                 if (!validAttacker(enemy) && !(ownerConsent && isOwner(enemy))) {
                     endFight(level, enemy);
