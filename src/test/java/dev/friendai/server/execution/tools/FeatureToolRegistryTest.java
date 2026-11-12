@@ -149,6 +149,7 @@ class FeatureToolRegistryTest {
                 "store_items",
                 "take_items",
                 "check_container",
+                "check_containers",
                 "deposit_items",
                 "find_stored_item",
                 "move_items");
@@ -161,6 +162,7 @@ class FeatureToolRegistryTest {
                 "store_items",
                 "take_items",
                 "check_container",
+                "check_containers",
                 "deposit_items",
                 "move_items");
         Set<String> runtimeNames =

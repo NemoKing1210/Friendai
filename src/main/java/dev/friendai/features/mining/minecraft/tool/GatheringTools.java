@@ -165,6 +165,9 @@ public final class GatheringTools implements FeatureToolContributor {
                         + "and may walk away from the start to find it; pass explore:false to skip it. A call that "
                         + "names a place, me or coordinates never searches away from that origin. "
                         + "One call mines up to 64 blocks; give count for the whole batch. "
+                        + "When the player gave no number (a plural: \"pick the flowers\", \"clear this sand away\", "
+                        + "\"take the bushes\"), they mean all of them here: pass all_nearby:true with count 64, "
+                        + "never count 1. "
                         + "For a standing tree use fell_tree: it climbs once and cuts the whole tree, while this tool "
                         + "would mine one log at a time. "
                         + "Stone and ores need a pickaxe of sufficient tier; without one the task refuses "
@@ -173,7 +176,13 @@ public final class GatheringTools implements FeatureToolContributor {
                         + "that block and continues into its connected vein.",
                 SchemaBuilder.object()
                         .string("block", "Block id like minecraft:oak_log, or a tag like #minecraft:logs")
-                        .integer("count", "How many blocks to mine", 1, 64)
+                        .integer(
+                                "count", "How many blocks to mine; with all_nearby it is only a cap, so pass 64", 1, 64)
+                        .bool(
+                                "all_nearby",
+                                "Mine every matching block in view within the radius, then stop and succeed; it "
+                                        + "never goes searching once it has mined one. Use it when the player "
+                                        + "named no number")
                         .integer("radius", "How far around the search origin to look, in blocks", 4, 64)
                         .array("exclude", "Block ids or #tags to skip even when they match", excludeItem, 0, 8)
                         .string(
@@ -261,7 +270,8 @@ public final class GatheringTools implements FeatureToolContributor {
                 "until_item",
                 "until_count",
                 "require_tool",
-                "explore");
+                "explore",
+                "all_nearby");
         boolean collect = boolArg(a, "collect", mineCollectDrops.getAsBoolean());
         String untilItem = stringOrNull(a, "until_item");
         boolean hasUntilCount = a.has("until_count") && !a.get("until_count").isJsonNull();
@@ -291,7 +301,7 @@ public final class GatheringTools implements FeatureToolContributor {
         // A placed-only job must never go looking for an unplaced block, so it never explores.
         boolean explore = boolArg(a, "explore", true) && !placed;
         BlockPos searchFrom = searchOrigin(origin, c.blockPosition());
-        return new MineBlocksTask(
+        MineBlocksTask task = new MineBlocksTask(
                 matcher,
                 a.get("count").getAsInt(),
                 radius,
@@ -306,6 +316,7 @@ public final class GatheringTools implements FeatureToolContributor {
                 caller,
                 // Only a named origin can produce the explicit-origin miss sentence, so only then does the kind matter.
                 originIsPlace(origin, searchFrom));
+        return boolArg(a, "all_nearby", false) ? task.allNearby() : task;
     }
 
     /**
@@ -477,6 +488,7 @@ public final class GatheringTools implements FeatureToolContributor {
                         + "- Chopping, mining and a tree search start around you: near is not needed when nobody is named. near \"me\" is only the player's own position. When the player points at a tree or a block, pass the coordinates they mean, not a moved search origin.";
             case "mine_blocks" ->
                 "- Use mine_blocks for a kind of block (ore, stone, a named log type); use fell_tree when the player asks for a tree.\n"
+                        + "- When the player names no number (\"pick the flowers\", \"clear this sand away\", \"take the bushes\"), they mean all of them here: call mine_blocks with all_nearby:true and count 64, never count 1.\n"
                         + "- After placing blocks, mine_blocks with placed:true takes back only those blocks; it never touches an unplaced neighbour.\n"
                         + "- radius widens or narrows this call. exclude skips ids or tags. until_item/until_count stop once that many items were actually taken, e.g. until_item \"minecraft:raw_iron\" with until_count 16. require_tool:true refuses a block that needs a tool the companion does not carry.";
             case "mine_block_at" ->

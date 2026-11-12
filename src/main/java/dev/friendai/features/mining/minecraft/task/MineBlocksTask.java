@@ -146,6 +146,9 @@ public final class MineBlocksTask implements Task {
     /** The radius the deliberate look found targets in, or zero; it widens this job's own radius from then on. */
     private int lookReach;
 
+    /** Whether the job takes every matching block in view and treats running out of them as done. */
+    private boolean allNearby;
+
     public MineBlocksTask(BlockMatcher matcher, int count, int radius) {
         this(matcher, count, radius, null, true, false);
     }
@@ -288,6 +291,35 @@ public final class MineBlocksTask implements Task {
      */
     static boolean maySearch(boolean explore, boolean placedOnly, BlockPos origin) {
         return explore && !placedOnly && origin == null;
+    }
+
+    /**
+     * "All of them here": the job mines every matching block it can see within its radius and succeeds when none is
+     * left, with {@code count} only a cap, and it never goes searching once it has mined one. A plural with no number
+     * ("pick the flowers", "clear this sand away") means this, and a count of one used to end the order after a
+     * single block.
+     */
+    public MineBlocksTask allNearby() {
+        this.allNearby = true;
+        return this;
+    }
+
+    /**
+     * How many matching blocks are still in view when the asked count is done, as a clause for the result. The model
+     * that asked for one block of "this sand" then knows the pile is not gone; empty when nothing is left.
+     */
+    private String moreInView(TaskContext c) {
+        if (placedOnly || untilMatcher != null) return "";
+        int reach = Math.max(radius, lookReach);
+        int more = 0;
+        try {
+            for (BlockPos pos : c.resources().knownOrVisible(c.companion(), matcher, reach, CANDIDATES * 4)) {
+                if (!excluded(pos) && matcher.test(c.level().getBlockState(pos))) more++;
+            }
+        } catch (RuntimeException unavailable) {
+            return "";
+        }
+        return more == 0 ? "" : "; " + more + " more in view within " + reach + " blocks";
     }
 
     /** The principal this job's delegated search runs with; package-private so a test can pin it to the call. */
@@ -635,7 +667,7 @@ public final class MineBlocksTask implements Task {
                         + untilMatcher.label();
                 return TaskStatus.FAILED;
             }
-            summary = "mined " + mined + " " + matcher.label();
+            summary = "mined " + mined + " " + matcher.label() + moreInView(c);
             return TaskStatus.SUCCESS;
         }
         // A successful search leaves the companion where the target was seen, which can be farther than this job's
@@ -745,8 +777,14 @@ public final class MineBlocksTask implements Task {
                 return TaskStatus.RUNNING;
             }
             pendingObservation = null;
+            if (allNearby && mined > 0 && blacklist.isEmpty() && lastRefusal == null && !toolSkipped) {
+                // Everything in view is taken: that is the whole order, not a shortfall, and no search follows.
+                summary = "mined " + mined + " " + matcher.label() + ": all that was in view within "
+                        + Math.max(radius, lookReach) + " blocks";
+                return TaskStatus.SUCCESS;
+            }
             String searchReason = "";
-            if (!toolSkipped) {
+            if (!toolSkipped && !(allNearby && mined > 0)) {
                 // The budget is the live configured local search budget, not a number of its own: the server owner
                 // already tunes one bounded local search, and this job delegates to it. The origin is implicitly the
                 // companion: {@link #maySearch} never lets an explicit origin get here.

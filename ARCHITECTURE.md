@@ -283,7 +283,7 @@ it, in the same dimension, not in a fight, not hurt and not holding an open cont
 `BrainEvent.SocialOpening` for the newest entry nobody has spoken about yet. An entry is marked spoken only when that
 line is actually posted, so a quiet window, a fight or a hold cannot swallow it. A line nobody could hear is held for
 6,000 ticks and then dropped once. During an active owner job, advancement and low-priority facts are held and ordinary
-topics wait; urgent facts remain eligible, and passive following does not count as an owner job. Two lines never come closer than 1,200 ticks; a death already spoken about is never
+topics wait; urgent facts remain eligible, and passive following does not count as an owner job. An ordinary topic also waits 200 ticks after a job ran or its result was posted (`ConversationCadence.mayOpenTopic`, fed by `SocialDirector.workReported` from the session's task-event sink) and while the brain has pending work, so a work report gets a turn of its own with its tools instead of being batched with an opener. Two lines never come closer than 1,200 ticks; a death already spoken about is never
 repeated. When there is no fact to tell it may open a subject of its own: `SocialDirector` first offers facts the
 owner stated about themselves — a `PROFILE`, `PREFERENCE` or `PROMISE` whose subject and author are the owner — and
 `SocialTopics` renders each one with its source named ("You told me earlier: …"), so a recorded claim is never

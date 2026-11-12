@@ -1243,7 +1243,13 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
     }
 
     private void postFromSession(CompanionSession session, CompanionEntity companion, UUID owner, BrainEvent event) {
-        if (isCurrent(session, companion)) post(owner, event);
+        if (!isCurrent(session, companion)) return;
+        // A work report gets a turn of its own: the social director holds its openings back for a moment, so the
+        // report is not batched with small talk and the companion can still act on it.
+        dev.friendai.server.runtime.ServerRuntimeRegistry.find(server)
+                .ifPresent(runtime -> runtime.socialDirector()
+                        .workReported(owner, runtime.server().overworld().getGameTime()));
+        post(owner, event);
     }
 
     private void emitTask(dev.friendai.foundation.diagnostics.LogRecord record) {

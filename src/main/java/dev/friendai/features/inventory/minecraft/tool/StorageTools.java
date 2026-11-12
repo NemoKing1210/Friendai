@@ -216,6 +216,16 @@ public final class StorageTools implements FeatureToolContributor {
         if (name.equals("find_stored_item")) {
             return new ToolMeta(name, ToolGroup.STORAGE, false, "", List.of(), Cost.LOW);
         }
+        if (name.equals("check_containers")) {
+            return new ToolMeta(
+                    name,
+                    ToolGroup.STORAGE,
+                    false,
+                    "- When an item may be in the chests here but you have not looked in them for a while, use"
+                            + " check_containers before deciding to craft, mine or hunt it.",
+                    List.of(),
+                    Cost.MEDIUM);
+        }
         String hint = name.equals("store_items")
                 ? "- When the player says to store it again in the container you placed, pass placed:true; it uses the nearest container from your placement record."
                 : name.equals("deposit_items")

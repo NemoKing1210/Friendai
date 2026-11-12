@@ -514,6 +514,27 @@ public class FarmingTests {
         h.assertTrue(
                 result.summary.contains("the nearest soil next to water to till is at "),
                 "the failure names where to farm: " + result.summary);
+        // The model often passes the companion's own position as the point: the tool still moves to the soil.
+        var tools = GameTestToolRegistry.create(c, () -> 32).bind(c);
+        BlockPos here = h.absolutePos(new BlockPos(12, 2, 12));
+        String farmHere = "{\"x\":" + here.getX() + ",\"y\":" + here.getY() + ",\"z\":" + here.getZ()
+                + ",\"radius\":3,\"crop\":\"minecraft:wheat_seeds\"}";
+        var started = tools.execute(new dev.friendai.agent.llm.model.ToolCall(
+                "farm-test",
+                "farm",
+                com.google.gson.JsonParser.parseString(farmHere).getAsJsonObject(),
+                farmHere,
+                null));
+        h.assertTrue(!started.error(), "farm at the companion's own point starts: " + started.content());
+        Task farming = c.executionCoordinator().current().orElse(null);
+        h.assertTrue(farming instanceof FarmTask, "the farm task runs: " + farming);
+        for (int i = 0; i < 4 && c.executionCoordinator().current().orElse(null) == farming; i++) {
+            c.executionCoordinator().tick();
+        }
+        h.assertTrue(
+                c.executionCoordinator().current().orElse(null) == farming,
+                "an empty pass at a given point moves to the nearest soil instead of ending");
+        c.executionCoordinator().stop("test");
         // The preview the model tries first must not read as "there is no soil here" either.
         BlockPos at = h.absolutePos(new BlockPos(12, 2, 12));
         String json = "{\"x\":" + at.getX() + ",\"y\":" + at.getY() + ",\"z\":" + at.getZ()

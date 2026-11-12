@@ -252,16 +252,66 @@ public class MineBlocksTests {
     public void aGuessedRadiusDoesNotHideTheBlockJustPastIt(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         BlockPos sand = new BlockPos(8, 2, 3);
-        h.setBlock(sand, Blocks.SAND);
+        h.setBlock(sand, Blocks.MOSS_BLOCK);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         c.setOwner(java.util.UUID.randomUUID());
         Result result = new Result();
         ExecutionCoordinator runner = runner(c, result);
-        runner.start(new MineBlocksTask(BlockMatcher.parse("minecraft:sand").orElseThrow(), 1, 4), "mine_blocks");
+        runner.start(
+                new MineBlocksTask(BlockMatcher.parse("minecraft:moss_block").orElseThrow(), 1, 4), "mine_blocks");
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
-            h.assertFalse(h.getBlockState(sand).is(Blocks.SAND), "the sand in view still lies there");
+            h.assertFalse(h.getBlockState(sand).is(Blocks.MOSS_BLOCK), "the block in view still lies there");
+        });
+    }
+
+    /**
+     * "Clear this sand away" and "pick the flowers" name no number: the job takes every matching block in view and
+     * succeeds when none is left, instead of stopping after the one block a cautious count asked for.
+     */
+    @GameTest(maxTicks = 1500)
+    public void allNearbyTakesEveryBlockInViewAndSucceeds(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        BlockPos[] pile = {new BlockPos(6, 2, 3), new BlockPos(8, 2, 5), new BlockPos(5, 2, 7)};
+        for (BlockPos sand : pile) h.setBlock(sand, Blocks.HAY_BLOCK);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(java.util.UUID.randomUUID());
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(
+                new MineBlocksTask(BlockMatcher.parse("minecraft:hay_block").orElseThrow(), 64, 8).allNearby(),
+                "mine_blocks");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertValueEqual(countBlocks(h, Blocks.HAY_BLOCK, pile), 0, "blocks left");
+            h.assertTrue(
+                    result.summary.startsWith("mined 3 minecraft:hay_block: all that was in view"),
+                    "summary was " + result.summary);
+        });
+    }
+
+    /** A job that asked for one block of a pile says how many are still in view, so the pile is not taken for gone. */
+    @GameTest(maxTicks = 900)
+    public void aFinishedCountSaysHowManyMoreAreInView(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        BlockPos[] pile = {new BlockPos(6, 2, 3), new BlockPos(8, 2, 5), new BlockPos(5, 2, 7)};
+        for (BlockPos sand : pile) h.setBlock(sand, Blocks.DRIED_KELP_BLOCK);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(java.util.UUID.randomUUID());
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(
+                new MineBlocksTask(
+                        BlockMatcher.parse("minecraft:dried_kelp_block").orElseThrow(), 1, 8),
+                "mine_blocks");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(
+                    result.summary.startsWith("mined 1 minecraft:dried_kelp_block; 2 more in view"),
+                    "summary was " + result.summary);
         });
     }
 

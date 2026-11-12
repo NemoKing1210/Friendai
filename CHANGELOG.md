@@ -37,6 +37,9 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 - Right after it arrives, the companion no longer says it sees no diamond ore (or any other block) standing in plain view: asked about a block it has not seen yet, it takes a deliberate look, and only what its eyes actually reach counts — ore sealed in stone stays unseen.
 - "Break the cactus near us" right after a summon breaks the cactus in view instead of searching and breaking a wild one far off, and "clear this sand away" with a too-small radius still finds the pile a few blocks past it: a mining order takes the same deliberate look first.
 - "Plant wheat" with nothing to plant right around the companion now walks to the nearest grass by the water within sixteen blocks and plants there, instead of asking whether it should.
+- "Pick the flowers" or "clear this sand away" no longer stop after one block: an order with no number takes every matching block in view (the new `all_nearby` mode of mining), and a job that was asked for fewer says how many are still in view.
+- Right after finishing a job the companion reports on it and can carry the order on, instead of opening small talk in the same breath and asking whether to continue; its own subjects now wait ten seconds after a job's report.
+- "Plant wheat" also walks to the nearest soil when the companion was told to farm at the spot it stands on.
 - "Find something to eat", "I'm hungry" and their Russian forms now show the food tools, so the companion hunts the cows beside it instead of asking for cooked meat it cannot make and giving up.
 
 ## [0.211.3] - 2026-11-11
