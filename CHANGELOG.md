@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.212.0] - 2026-11-13
+
+### Changed
+
+- The companion can gather a complete tool set in one shared batch, prefer useful reachable resource sites, return safely from below ground, and deliver the owner's share while keeping its own.
+
 ## [0.211.3] - 2026-11-12
 
 ### Fixed

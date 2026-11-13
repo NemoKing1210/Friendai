@@ -5,8 +5,10 @@ import dev.friendai.features.knowledge.KnowledgeLimits;
 import dev.friendai.features.knowledge.ResourceObservation;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.BiConsumer;
 import java.util.function.IntSupplier;
@@ -16,6 +18,7 @@ import net.minecraft.server.MinecraftServer;
 public final class ObservationScheduler {
     private final Map<UUID, CompanionEntity> companions = new HashMap<>();
     private final Map<UUID, ResourceObserver> observers = new HashMap<>();
+    private final Set<UUID> loadedIds = new HashSet<>();
     private final BiConsumer<CompanionEntity, ResourceObservation> observationSink;
     private final BiConsumer<CompanionEntity, CaveEntranceObservation> caveEntranceSink;
     private final IntSupplier observationRadius;
@@ -84,14 +87,10 @@ public final class ObservationScheduler {
                 .filter(companion -> !companion.isRemoved() && companion.level().getServer() == server)
                 .sorted(Comparator.comparing(companion -> companion.getUUID().toString()))
                 .toList();
-        companions
-                .keySet()
-                .removeIf(id -> loaded.stream()
-                        .noneMatch(companion -> companion.getUUID().equals(id)));
-        observers
-                .keySet()
-                .removeIf(id -> loaded.stream()
-                        .noneMatch(companion -> companion.getUUID().equals(id)));
+        loadedIds.clear();
+        for (CompanionEntity companion : loaded) loadedIds.add(companion.getUUID());
+        companions.keySet().removeIf(id -> !loadedIds.contains(id));
+        observers.keySet().removeIf(id -> !loadedIds.contains(id));
         if (loaded.isEmpty()) {
             lastMetrics = new TickMetrics(tick, 0, 0, 0, 0, Math.max(0, System.nanoTime() - startedNanos), 0, Map.of());
             return;

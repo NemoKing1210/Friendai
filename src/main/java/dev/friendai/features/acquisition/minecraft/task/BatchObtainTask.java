@@ -151,7 +151,7 @@ public final class BatchObtainTask implements Task {
         return "obtain_items";
     }
 
-    /** Every target the batch still lacks is material a pillar or bridge must not spend. */
+    /** Protects outstanding targets and every recipe ingredient the batch still needs from disposable support. */
     @Override
     public Map<String, Integer> materialNeeds(TaskContext context) {
         Map<String, Integer> needs = new LinkedHashMap<>();
@@ -165,7 +165,96 @@ public final class BatchObtainTask implements Task {
                 needs.merge(id, missing, Integer::sum);
             }
         }
+        if (!context.canUseCreativeAction(CreativeAction.CREATE_ITEM) && context.level() instanceof ServerLevel level) {
+            CompanionEntity companion = context.companion();
+            List<CraftPlanner.Target> remaining = remaining(companion);
+            Map<String, Integer> inventory = AcquiredItems.inventoryMap(companion);
+            Map<String, Integer> availableInventory = new LinkedHashMap<>(inventory);
+            RecipeIndex book = RecipeIndex.of(level);
+            Set<Station> stations = Stations.available(level, companion);
+            Search search = null;
+            for (int start = 0; start < remaining.size(); start += CraftPlanner.MAX_TARGETS) {
+                int end = Math.min(remaining.size(), start + CraftPlanner.MAX_TARGETS);
+                List<CraftPlanner.Target> window = remaining.subList(start, end);
+                List<CraftPlanner.RawNeed> liveDemand = CraftPlanner.materialsFor(window, inventory, book, stations);
+                List<CraftPlanner.RawNeed> fullDemand = CraftPlanner.materialsFor(window, Map.of(), book, stations);
+                for (CraftPlanner.RawNeed liveNeed : liveDemand) {
+                    CraftPlanner.RawNeed fullNeed = fullDemand.stream()
+                            .filter(need -> need.label().equals(liveNeed.label())
+                                    && need.candidates().stream().anyMatch(liveNeed.candidates()::contains))
+                            .findFirst()
+                            .orElse(null);
+                    int remainingCount = fullNeed == null ? liveNeed.count() : fullNeed.count();
+                    if (fullNeed == null) {
+                        // This need belongs to a recipe branch the empty-inventory plan cannot describe. Its count
+                        // is already a shortage, so protect carried items without subtracting them from that count.
+                        for (String candidate : liveNeed.candidates()) {
+                            int carried = availableInventory.getOrDefault(candidate, 0);
+                            if (carried > 0) {
+                                needs.merge(candidate, carried, Integer::sum);
+                                availableInventory.put(candidate, 0);
+                            }
+                        }
+                    } else {
+                        for (String candidate : liveNeed.candidates()) {
+                            int carried = availableInventory.getOrDefault(candidate, 0);
+                            int protectedCount = Math.min(carried, remainingCount);
+                            if (protectedCount > 0) {
+                                needs.merge(candidate, protectedCount, Integer::sum);
+                                availableInventory.put(candidate, carried - protectedCount);
+                                remainingCount -= protectedCount;
+                            }
+                            if (remainingCount == 0) {
+                                break;
+                            }
+                        }
+                    }
+                    if (remainingCount > 0) {
+                        // A running gather has already chosen its item; keep protecting that target until its child
+                        // finishes. Otherwise follow the same candidate order and source check as the live batch
+                        // plan. Full demand is used only when it describes this same live recipe branch.
+                        String candidate = start == 0 ? inFlightGatherCandidate(liveNeed.label()) : null;
+                        if (candidate == null) {
+                            if (search == null) {
+                                search = new Search(
+                                        WorldScan.scan(
+                                                level, companion, WorldScan.BLOCK_RADIUS, useContainers, explore),
+                                        book,
+                                        DropIndex.of(level));
+                            }
+                            candidate = choose(inventory, search, liveNeed, true);
+                        }
+                        if (candidate != null) {
+                            needs.merge(candidate, remainingCount, Integer::sum);
+                        }
+                    }
+                }
+                if (start == 0 && current != null && childKind == ChildKind.GATHER) {
+                    String activeLabel = inFlightGatherLabel();
+                    if (activeLabel != null
+                            && liveDemand.stream()
+                                    .noneMatch(need -> need.label().equals(activeLabel))) {
+                        current.materialNeeds(context).forEach((item, count) -> needs.merge(item, count, Math::max));
+                    }
+                }
+            }
+        }
         return needs.isEmpty() ? Map.of() : Map.copyOf(needs);
+    }
+
+    private String inFlightGatherCandidate(String label) {
+        String prefix = label + "|";
+        return childKind == ChildKind.GATHER && childKey.startsWith(prefix)
+                ? childKey.substring(prefix.length())
+                : null;
+    }
+
+    private String inFlightGatherLabel() {
+        if (childKind != ChildKind.GATHER) {
+            return null;
+        }
+        int separator = childKey.lastIndexOf('|');
+        return separator < 0 ? null : childKey.substring(0, separator);
     }
 
     @Override

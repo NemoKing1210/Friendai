@@ -1,9 +1,18 @@
 package dev.friendai.test;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import dev.friendai.agent.llm.model.LlmResponse;
+import dev.friendai.agent.llm.model.Message;
+import dev.friendai.agent.llm.model.StopReason;
 import dev.friendai.agent.llm.model.ToolCall;
+import dev.friendai.agent.llm.model.ToolSpec;
+import dev.friendai.agent.llm.model.Usage;
+import dev.friendai.agent.turn.BrainEvent;
+import dev.friendai.agent.turn.LlmGateway;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.execution.TaskWorkResult;
 import dev.friendai.execution.queue.FailurePolicy;
@@ -16,6 +25,7 @@ import dev.friendai.execution.queue.QueuedStep;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolExecutor;
 import dev.friendai.execution.tool.ToolResult;
+import dev.friendai.features.acquisition.ObtainPlanner;
 import dev.friendai.features.acquisition.Source;
 import dev.friendai.features.acquisition.ToolKind;
 import dev.friendai.features.acquisition.ToolNeed;
@@ -25,6 +35,8 @@ import dev.friendai.features.acquisition.minecraft.search.WorldScan;
 import dev.friendai.features.acquisition.minecraft.task.BatchObtainTask;
 import dev.friendai.features.acquisition.minecraft.task.ObtainTask;
 import dev.friendai.features.crafting.CraftPlanner;
+import dev.friendai.features.crafting.minecraft.RecipeIndex;
+import dev.friendai.features.crafting.minecraft.Stations;
 import dev.friendai.features.exploration.minecraft.task.ExploreTask;
 import dev.friendai.features.inventory.minecraft.task.CheckContainerTask;
 import dev.friendai.features.inventory.minecraft.task.GiveItemsTask;
@@ -38,6 +50,7 @@ import dev.friendai.world.block.BlockMatcher;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -56,6 +69,355 @@ import net.minecraft.world.level.storage.TagValueOutput;
 import net.minecraft.world.phys.AABB;
 
 public class ObtainTests {
+    private static final List<String> STONE_TOOL_IDS = List.of(
+            "minecraft:stone_pickaxe", "minecraft:stone_axe", "minecraft:stone_shovel", "minecraft:stone_sword");
+    private static final List<Item> STONE_TOOLS =
+            List.of(Items.STONE_PICKAXE, Items.STONE_AXE, Items.STONE_SHOVEL, Items.STONE_SWORD);
+
+    private static final class KitOrderGateway implements LlmGateway {
+        private final JsonObject plan;
+        private int requests;
+        private final List<String> requestLastUserLines = new java.util.ArrayList<>();
+        private final List<Integer> requestToolResultCounts = new java.util.ArrayList<>();
+
+        KitOrderGateway(JsonObject plan) {
+            this.plan = plan.deepCopy();
+        }
+
+        @Override
+        public synchronized CompletableFuture<LlmResponse> complete(
+                String system, List<Message> messages, List<ToolSpec> tools) {
+            requests++;
+            requestLastUserLines.add(messages.stream()
+                    .filter(message -> message.role() == dev.friendai.agent.llm.model.Role.USER)
+                    .reduce((first, second) -> second)
+                    .map(Message::text)
+                    .orElse("<no user line>")
+                    .replace('\n', ' '));
+            requestToolResultCounts.add((int) messages.stream()
+                    .filter(message -> message.role() == dev.friendai.agent.llm.model.Role.TOOL)
+                    .count());
+            if (requests == 1) {
+                String json = plan.toString();
+                return CompletableFuture.completedFuture(new LlmResponse(
+                        "",
+                        List.of(new ToolCall("resource-kit-plan", "queue_add", plan.deepCopy(), json, null)),
+                        StopReason.TOOL_USE,
+                        new Usage(0, 0)));
+            }
+            return CompletableFuture.completedFuture(
+                    new LlmResponse("The tools are ready.", List.of(), StopReason.END, new Usage(0, 0)));
+        }
+
+        synchronized int requests() {
+            return requests;
+        }
+
+        synchronized List<String> requestLastUserLines() {
+            return List.copyOf(requestLastUserLines);
+        }
+
+        synchronized List<Integer> requestToolResultCounts() {
+            return List.copyOf(requestToolResultCounts);
+        }
+    }
+
+    private static JsonObject scriptedKitPlan() {
+        JsonArray items = new JsonArray();
+        for (String item : STONE_TOOL_IDS) {
+            JsonObject target = new JsonObject();
+            target.addProperty("item", item);
+            target.addProperty("count", 2);
+            items.add(target);
+        }
+        JsonObject batchArgs = new JsonObject();
+        batchArgs.add("items", items);
+        batchArgs.addProperty("use_containers", false);
+        batchArgs.addProperty("explore", false);
+        batchArgs.addProperty("scope", "local");
+        JsonArray steps = new JsonArray();
+        steps.add(planStep("obtain_items", batchArgs));
+        for (String item : STONE_TOOL_IDS) {
+            JsonObject transferArgs = new JsonObject();
+            transferArgs.addProperty("item", item);
+            transferArgs.addProperty("count", 1);
+            transferArgs.addProperty("retain", 1);
+            transferArgs.addProperty("strict", true);
+            steps.add(planStep("give_items", transferArgs));
+        }
+        JsonObject plan = new JsonObject();
+        plan.addProperty("goal", "make one stone tool set for each of us");
+        plan.add("steps", steps);
+        return plan;
+    }
+
+    private static JsonObject planStep(String tool, JsonObject args) {
+        JsonObject step = new JsonObject();
+        step.addProperty("tool", tool);
+        step.addProperty("args", args.toString());
+        return step;
+    }
+
+    @GameTest(maxTicks = 16000)
+    public void scriptedForestKitUsesOneBatchAndFourStrictTransfers(GameTestHelper h) {
+        ResourceWorkFixture.BirchKit fixture = ResourceWorkFixture.birchKit(h, 80, 2);
+        ResourceWorkFixture.removeDeliveryObstruction(h, fixture);
+        CompanionEntity companion = fixture.companion();
+        var owner = fixture.owner();
+        h.setBlock(fixture.stationSpot(), Blocks.CRAFTING_TABLE);
+        companion.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.WOODEN_PICKAXE));
+        companion.setItemSlot(EquipmentSlot.OFFHAND, new ItemStack(Items.WOODEN_AXE));
+        h.assertTrue(companion.inventory().isEmpty(), "the resource order starts with an empty bag");
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, companion, h.absolutePos(fixture.stationSpot())),
+                "the crafting station should be visible before the batch starts");
+        List<BlockPos> unobservedLogs = fixture.allTreeLogs().stream()
+                .filter(log -> !GameTestSupport.observeVisible(h, companion, h.absolutePos(log)))
+                .toList();
+        fixture.allTreeLeaves().forEach(leaf -> GameTestSupport.observeVisible(h, companion, h.absolutePos(leaf)));
+        int knownLogs = WorldScan.scan(h.getLevel(), companion, WorldScan.BLOCK_RADIUS, false, false)
+                .blocksNearby()
+                .getOrDefault("minecraft:birch_log", 0);
+        int knownLeaves = WorldScan.scan(h.getLevel(), companion, WorldScan.BLOCK_RADIUS, false, false)
+                .blocksNearby()
+                .getOrDefault("minecraft:birch_leaves", 0);
+        h.assertTrue(
+                knownLogs >= 2,
+                "the batch needs two observed birch logs for 14 sticks; known=" + knownLogs + ", unobserved="
+                        + unobservedLogs);
+        h.assertTrue(knownLeaves > 0, "the forest search needs observed birch leaves to classify the trees");
+        BlockPos spawn = companion.blockPosition();
+        BlockPos stoneView = h.absolutePos(
+                new BlockPos(9, fixture.trees().getFirst().getFirst().getY(), 8));
+        companion.setPos(stoneView.getX() + 0.5, stoneView.getY(), stoneView.getZ() + 0.5);
+        List<BlockPos> unobservedStone = fixture.stoneSource().stream()
+                .filter(stone -> !GameTestSupport.observeVisible(h, companion, h.absolutePos(stone)))
+                .toList();
+        int knownStoneBlocks = WorldScan.scan(h.getLevel(), companion, WorldScan.BLOCK_RADIUS, false, false)
+                .blocksNearby()
+                .getOrDefault("minecraft:stone", 0);
+        companion.setPos(spawn.getX() + 0.5, spawn.getY(), spawn.getZ() + 0.5);
+        h.assertTrue(
+                knownStoneBlocks >= 18,
+                "the forest work area needs 18 visible stone blocks; known=" + knownStoneBlocks + ", unobserved="
+                        + unobservedStone);
+
+        List<CraftPlanner.Target> targets = STONE_TOOL_IDS.stream()
+                .map(item -> new CraftPlanner.Target(item, 2))
+                .toList();
+        List<CraftPlanner.RawNeed> demand = CraftPlanner.materialsFor(
+                targets, Map.of(), RecipeIndex.of(h.getLevel()), Stations.available(h.getLevel(), companion));
+        CraftPlanner.RawNeed stoneNeed = demand.stream()
+                .filter(need -> need.candidates().contains("minecraft:cobblestone"))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("stone-tool demand has no cobblestone candidate: " + demand));
+        CraftPlanner.RawNeed stickNeed = demand.stream()
+                .filter(need -> need.candidates().contains("minecraft:stick"))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("stone-tool demand has no stick candidate: " + demand));
+        h.assertValueEqual(
+                stoneNeed.count(), 18, "stone-tool demand can be satisfied with 18 cobblestone, excluding bootstrap");
+        h.assertValueEqual(stickNeed.count(), 14, "stone-tool demand is 14 sticks, excluding bootstrap");
+        h.assertTrue(
+                demand.stream().noneMatch(CraftPlanner.RawNeed::stationNeed),
+                "the visible table needs no extra material");
+        WorldFacts observedFacts = WorldScan.scan(h.getLevel(), companion, WorldScan.BLOCK_RADIUS, false, false);
+        var stickSourcePlan = ObtainPlanner.plan(
+                "minecraft:stick",
+                14,
+                Map.of(),
+                RecipeIndex.of(h.getLevel()),
+                DropIndex.of(h.getLevel()),
+                observedFacts);
+        h.assertTrue(
+                stickSourcePlan.actionable(),
+                "the visible forest should make 14 sticks obtainable: " + stickSourcePlan);
+
+        var runtime = GameTestSupport.runtime(h.getLevel().getServer());
+        CompanionManager.get(h.getLevel().getServer()).register(companion);
+        KitOrderGateway gateway = new KitOrderGateway(scriptedKitPlan());
+        runtime.sessions().setGatewayOverride(owner.getUUID(), gateway);
+        long startedAt = h.getLevel().getGameTime();
+        long[] lastObservationRefresh = {startedAt};
+        int[] birchLogsPickedUp = {0};
+        int[] lastBirchLogCount = {companion.inventory().countItem(Items.BIRCH_LOG)};
+        runtime.sessions()
+                .post(
+                        owner.getUUID(),
+                        new BrainEvent.PlayerSaid(
+                                owner.getUUID(),
+                                owner.getName().getString(),
+                                "Make one stone tool set for you and me",
+                                BrainEvent.Source.CHAT));
+
+        int[] firstPickupTick = {-1};
+        int[] archivedAtTick = {-1};
+        TaskTrace trace = TaskTrace.of(h, companion.executionCoordinator(), companion);
+        trace.succeedWhen(() -> {
+            long now = h.getLevel().getGameTime();
+            int currentBirchLogCount = companion.inventory().countItem(Items.BIRCH_LOG);
+            birchLogsPickedUp[0] += Math.max(0, currentBirchLogCount - lastBirchLogCount[0]);
+            lastBirchLogCount[0] = currentBirchLogCount;
+            if (now - lastObservationRefresh[0] >= 100) {
+                lastObservationRefresh[0] = now;
+                GameTestSupport.observeVisible(h, companion, h.absolutePos(fixture.stationSpot()));
+                fixture.allTreeLogs().forEach(log -> GameTestSupport.observeVisible(h, companion, h.absolutePos(log)));
+                fixture.allTreeLeaves()
+                        .forEach(leaf -> GameTestSupport.observeVisible(h, companion, h.absolutePos(leaf)));
+                fixture.stoneSource()
+                        .forEach(stone -> GameTestSupport.observeVisible(h, companion, h.absolutePos(stone)));
+            }
+            for (ItemEntity drop :
+                    h.getLevel().getEntitiesOfClass(ItemEntity.class, new AABB(owner.blockPosition()).inflate(32))) {
+                if (STONE_TOOLS.stream().anyMatch(drop.getItem()::is)) {
+                    drop.setPickUpDelay(0);
+                    drop.playerTouch(owner);
+                }
+            }
+
+            boolean receivedAll = true;
+            for (Item tool : STONE_TOOLS) {
+                int received = owner.getInventory().countItem(tool);
+                h.assertTrue(received <= 1, "owner received a duplicate " + tool + ": " + received);
+                if (received == 1 && firstPickupTick[0] < 0) {
+                    firstPickupTick[0] = (int) (h.getLevel().getGameTime() - startedAt);
+                }
+                receivedAll &= received == 1;
+            }
+
+            var archive = companion.executionCoordinator().queue().archives().stream()
+                    .filter(entry -> entry.goal().equals("make one stone tool set for each of us"))
+                    .findFirst();
+            if (archive.isPresent() && archivedAtTick[0] < 0) {
+                archivedAtTick[0] = (int) h.getLevel().getGameTime();
+            }
+            if (archive.filter(entry -> !entry.success()).isPresent()) {
+                throw new IllegalStateException(
+                        "the queued kit failed: " + archive.get().summary());
+            }
+            int carriedTools = STONE_TOOLS.stream()
+                    .mapToInt(companion.inventory()::countItem)
+                    .sum();
+            if (companion.executionCoordinator().current().isPresent()
+                    && companion.inventory().countItem(Items.COBBLESTONE) > 0
+                    && carriedTools == 0) {
+                h.assertTrue(
+                        companion.materialReserve().workReserved("minecraft:cobblestone") >= stoneNeed.count(),
+                        "the batch must reserve recipe cobblestone while gathering wood; reserve="
+                                + companion.materialReserve());
+            }
+            boolean stoppedWithoutArchive = gateway.requests() >= 2
+                    && h.getLevel().getGameTime() - startedAt > 40
+                    && companion.executionCoordinator().current().isEmpty()
+                    && archive.isEmpty();
+            if (stoppedWithoutArchive) {
+                long remainingStoneBlocks = fixture.stoneSource().stream()
+                        .filter(pos -> h.getBlockState(pos).is(Blocks.STONE))
+                        .count();
+                throw new IllegalStateException("the kit task stopped without an archive: requests="
+                        + gateway.requests()
+                        + ", plans="
+                        + companion.executionCoordinator().queue().plans().stream()
+                                .map(plan -> plan.id() + ":" + plan.cursor())
+                                .toList()
+                        + ", jobs="
+                        + companion.executionCoordinator().queue().jobs().stream()
+                                .map(job -> job.id() + ":" + job.tool() + "=" + job.state() + ":" + job.result())
+                                .toList()
+                        + ", bag={cobblestone=" + companion.inventory().countItem(Items.COBBLESTONE)
+                        + ", sticks=" + companion.inventory().countItem(Items.STICK)
+                        + ", stonePickaxes=" + companion.inventory().countItem(Items.STONE_PICKAXE)
+                        + ", stoneAxes=" + companion.inventory().countItem(Items.STONE_AXE)
+                        + ", stoneShovels=" + companion.inventory().countItem(Items.STONE_SHOVEL)
+                        + ", stoneSwords=" + companion.inventory().countItem(Items.STONE_SWORD) + "}"
+                        + ", hands={main=" + companion.getMainHandItem() + ", off=" + companion.getOffhandItem()
+                        + "}"
+                        + ", remainingStoneBlocks=" + remainingStoneBlocks
+                        + ", owner=" + owner.blockPosition()
+                        + ", companion=" + companion.blockPosition()
+                        + ", trace=" + trace.digest(30));
+            }
+            if (receivedAll && archive.isPresent()) {
+                h.assertTrue(
+                        archive.get().success(),
+                        "the queued kit failed: " + archive.get().summary());
+                h.assertValueEqual(archive.get().stepCount(), 5, "one batch and four transfers");
+                for (Item tool : STONE_TOOLS) {
+                    h.assertValueEqual(companion.inventory().countItem(tool), 1, "one retained " + tool);
+                    h.assertValueEqual(owner.getInventory().countItem(tool), 1, "one owner pickup of " + tool);
+                }
+                List<String> requestLines = gateway.requestLastUserLines();
+                List<Integer> toolResultCounts = gateway.requestToolResultCounts();
+                if (gateway.requests() != 3
+                        || toolResultCounts.size() < 2
+                        || toolResultCounts.get(1) != 1
+                        || !requestLines.getLast().startsWith("[event] plan #")) {
+                    throw new IllegalStateException("expected one plan call, one tool-result reply and one final "
+                            + "plan event; got requests=" + gateway.requests() + ", toolResults=" + toolResultCounts
+                            + ", last user lines=" + requestLines);
+                }
+                h.assertValueEqual(firstPickupTick[0] >= 0, true, "a delivered tool was actually picked up");
+                h.assertTrue(
+                        birchLogsPickedUp[0] >= 2,
+                        "the forest supplied birch logs for sticks: picked=" + birchLogsPickedUp[0]);
+                var stats =
+                        runtime.knowledge().book(owner.getUUID()).searchLedger().stats();
+                int failedSiteAttempts = stats.kinds().stream()
+                        .mapToInt(kind -> stats.counters(kind).misses())
+                        .sum();
+                h.assertValueEqual(failedSiteAttempts, 0, "the fixture's selected sites required no failed attempts");
+                dev.friendai.FriendaiMod.LOGGER.info(
+                        "[resource-order] modelRequests={}, failedSiteAttempts={}, birchLogsPickedUp={}, firstVerifiedPickupTicks={}, gatheredTools={}, delivered={}, retained={}, duplicateHandovers={}",
+                        gateway.requests(),
+                        failedSiteAttempts,
+                        birchLogsPickedUp[0],
+                        firstPickupTick[0],
+                        8,
+                        4,
+                        4,
+                        0);
+                h.succeed();
+                return;
+            }
+            if (archivedAtTick[0] >= 0 && h.getLevel().getGameTime() - archivedAtTick[0] > 80) {
+                List<String> drops = h
+                        .getLevel()
+                        .getEntitiesOfClass(ItemEntity.class, new AABB(owner.blockPosition()).inflate(32))
+                        .stream()
+                        .filter(drop -> STONE_TOOLS.stream().anyMatch(drop.getItem()::is))
+                        .map(drop -> drop.getItem() + "x" + drop.getItem().getCount() + "@" + drop.blockPosition())
+                        .toList();
+                h.fail("the order archived before verified owner pickup: owner=" + owner.blockPosition()
+                        + ", companion=" + companion.blockPosition() + ", inventory="
+                        + STONE_TOOLS.stream()
+                                .map(tool -> tool + "=" + owner.getInventory().countItem(tool))
+                                .toList()
+                        + ", drops=" + drops);
+                return;
+            }
+            h.assertTrue(
+                    receivedAll && archive.isPresent(),
+                    "waiting for archive and all owner pickups; received="
+                            + STONE_TOOLS.stream()
+                                    .map(tool ->
+                                            tool + "=" + owner.getInventory().countItem(tool))
+                                    .toList()
+                            + ", archive="
+                            + archive.map(entry -> entry.summary()).orElse("pending"));
+            h.assertTrue(
+                    gateway.requests() <= 3,
+                    "the scripted order made an unexpected number of model requests: " + gateway.requests()
+                            + ", last user lines=" + gateway.requestLastUserLines());
+            h.assertTrue(
+                    h.getLevel().getGameTime() - startedAt < 15900,
+                    "the forest order exceeded its bounded fixture time; requests=" + gateway.requests()
+                            + ", companion=" + companion.blockPosition()
+                            + ", owner=" + owner.blockPosition()
+                            + ", queue="
+                            + companion.executionCoordinator().queue().plans());
+        });
+    }
+
     @GameTest(maxTicks = 100)
     public void birchKitFixtureStartsEmptyWithSafeSources(GameTestHelper h) {
         ResourceWorkFixture.BirchKit fixture = ResourceWorkFixture.birchKit(h);
@@ -1300,6 +1662,53 @@ public class ObtainTests {
                 phase[0] = 2;
             }
             h.assertTrue(phase[0] == 2, "still working");
+        });
+    }
+
+    @GameTest(maxTicks = 800)
+    public void fullBagReportsTheUncollectedBatchRemainder(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        BlockPos stone = new BlockPos(4, 2, 2);
+        h.setBlock(stone, Blocks.STONE);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        var owner = GameTestSupport.mockPlayerAt(h, 6, 2, 2);
+        companion.setOwner(owner.getUUID());
+        CompanionManager.get(h.getLevel().getServer()).register(companion);
+        companion.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.WOODEN_PICKAXE));
+        for (int slot = 0; slot < companion.inventory().getContainerSize(); slot++) {
+            companion.inventory().setItem(slot, new ItemStack(Items.DIRT, 64));
+        }
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, companion, h.absolutePos(stone)),
+                "the stone source should be visible even with a full bag");
+        Result result = new Result();
+        BatchObtainTask task = new BatchObtainTask(
+                List.of(new CraftPlanner.Target("minecraft:cobblestone", 1)),
+                false,
+                true,
+                new MinecraftObtainSubtaskFactory());
+        ExecutionCoordinator runner = batch(companion, result, task);
+
+        h.succeedWhen(() -> {
+            if (h.getBlockState(stone).is(Blocks.STONE)) {
+                GameTestSupport.observeVisible(h, companion, h.absolutePos(stone));
+            }
+            runner.tick();
+            h.assertTrue(result.status != null, "the full-bag batch should stop");
+            h.assertTrue(result.status == TaskStatus.FAILED, "status " + result.status + ": " + result.summary);
+            h.assertTrue(
+                    result.summary.contains("my inventory is full"),
+                    "the refusal names the full bag: " + result.summary);
+            TaskWorkResult work = task.workResult().orElseThrow();
+            TaskWorkResult.Line remainder = work.lines().stream()
+                    .filter(line -> line.itemId().equals("minecraft:cobblestone"))
+                    .findFirst()
+                    .orElseThrow(() -> new AssertionError("the requested item is missing from the result: " + work));
+            h.assertValueEqual(remainder.requested(), 1, "one cobblestone was requested");
+            h.assertValueEqual(remainder.verified(), 0, "the full bag acquired no cobblestone");
+            h.assertValueEqual(remainder.remaining(), 1, "the uncollected remainder is explicit");
+            h.assertTrue(
+                    work.blocker().contains("my inventory is full"), "the result keeps the precise blocker: " + work);
         });
     }
 

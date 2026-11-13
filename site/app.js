@@ -72,7 +72,7 @@ const CATS = [
   { id: "inventory", domain: "hands", name: "Inventory & Storage", icon: "🎒", color: COLORS.amethyst,
     desc: "A 27-slot inventory plus six gear slots, shared container logic, and a bounded memory of containers the companion has opened.",
     items: [
-      "get_inventory|List what it carries.", "show_inventory|Open the inventory view.", "equip_item|Equip gear.", "give_items|Hand items to a player, and finish work the owner asked for without asking again.",
+      "get_inventory|List what it carries.", "show_inventory|Open the inventory view.", "equip_item|Equip gear.", "give_items|Hand items to a player; strict orders can reserve the companion's share and wait for a safe handover.",
       "drop_items|Drop items.", "throw_item|Throw an item.", "store_items|Store up to two stacks in one call.", "take_items|Take items out of a container.",
       "check_container|Look inside a container.", "deposit_items|Deposit into the nearest storage.",
       "find_stored_item|Report where you last saw an item in a recorded container.", "move_items|Move a known quantity between two containers in one call.",
@@ -80,9 +80,9 @@ const CATS = [
   { id: "acquire", domain: "hands", name: "Resource Acquisition", icon: "🧭", color: COLORS.diamond,
     desc: "Ask for an item and it works out how: inventory, chests, craft, smelt, mine, hunt, harvest, shear, milk or explore.",
     items: [
-      "obtain_item|Get an item by any means; wood is felled as whole trees.", "obtain_items|Gather every material for a set of items once, then craft them all; accepts the item/count aliases; mines a mineable item instead of crafting it from a rarer one; wood is felled as whole trees.", "plan_obtain|Show the plan without doing it.", "search_resource|Explore to find a resource.",
-      "known_resources|What it already knows about.", "search_hint|Give it a hint where to look.", "find_target|Resolve a search target.", "find_structure|Find a village, fortress or stronghold by markers.", "search_structure|Travel to a verified structure instance.",
-      "~Obtain planner|Depth up to 8, nine step kinds.", "~Frontier search|Biome edges, water, hazards and trails.", "~Search budget|Gives up sensibly." ] },
+      "obtain_item|Get an item by any means; wood is felled as whole trees.", "obtain_items|Gather shared materials once for a set of items, then craft them all; accepts item/count aliases; mines a mineable item instead of crafting it from a rarer one; wood is felled as whole trees.", "plan_obtain|Show the plan without doing it.", "search_resource|Explore to find a resource.",
+      "known_resources|Show up to three remembered resource sites with their age and uncertainty.", "search_hint|Give it a hint where to look.", "find_target|Resolve a search target.", "find_structure|Find a village, fortress or stronghold by markers.", "search_structure|Travel to a verified structure instance.",
+      "~Obtain planner|Depth up to 8, nine step kinds.", "~Resource ranking|Prioritizes verified approaches, usable tools and lower estimated trip cost.", "~Safe return|Checks a route and support reserve before automatic descent.", "~Measured results|Reports carried, delivered and remaining item counts separately.", "~Frontier search|Biome edges, water, hazards and trails.", "~Search budget|Gives up sensibly." ] },
   { id: "trading", domain: "hands", name: "Trading", icon: "💎", color: COLORS.lapis,
     desc: "Villager and piglin trading with a pure policy and an authority check on spending.",
     items: [
