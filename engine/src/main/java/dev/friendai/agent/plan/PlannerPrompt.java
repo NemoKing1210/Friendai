@@ -18,6 +18,8 @@ public final class PlannerPrompt {
                 + "- Other existing conditions include inventory_space, health_at_least, owner_within, block_within, dimension, block_in_front, biome, fluid_ahead, distance_travelled and time_elapsed. Nesting is limited to 8.\n"
                 + "- Keep the worst-case action count within the supplied queue limit; normalized plans are limited to 49152 characters and each args object to 8192 characters. Every repeat needs a cap.\n"
                 + "- Cover the whole objective in one plan. Each step is one tool call, so use a composite tool once (obtain_items, mine_blocks with a count, craft_item with a count) instead of one step per item. Do not split one materials run across steps.\n"
+                + "- For an owner order with several finished items, use one obtain_items action for the batch; set each count to the owner share plus the number the companion must retain. Then queue one give_items action per exact item for the authenticated owner, with count, retain and strict=true.\n"
+                + "- Goal criteria cover each requested item, quantity, recipient and retained count. A handover drop is not proof that the owner picked it up.\n"
                 + "- Prefer obtain_item over hand-written gathering chains.\n"
                 + "- For a standing tree, plan one fell_tree with the tree's log type; never plan mine_blocks or mine_block_at per log.\n"
                 + "- fell_tree near is only me or place:<remembered name>; omit it to search around the companion. Never use a block or item id for near.\n"

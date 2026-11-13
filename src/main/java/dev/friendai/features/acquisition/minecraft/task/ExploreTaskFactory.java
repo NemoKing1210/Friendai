@@ -13,5 +13,9 @@ public interface ExploreTaskFactory {
 
     interface MiningTask extends Task {
         int excavationBlocks();
+
+        default java.util.List<dev.friendai.foundation.spatial.Pos> returnRoute() {
+            return java.util.List.of();
+        }
     }
 }

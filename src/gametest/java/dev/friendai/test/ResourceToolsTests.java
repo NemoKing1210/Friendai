@@ -140,6 +140,47 @@ public final class ResourceToolsTests {
         h.succeed();
     }
 
+    @GameTest(maxTicks = 40)
+    public void modelResourceQueryCapsResultsAtThree(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        var owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.setOwner(owner.getUUID());
+        var level = h.getLevel();
+        var book = GameTestSupport.runtime(level.getServer()).knowledge().book(owner.getUUID());
+        BlockPos viewpoint = companion.blockPosition();
+        long tick = level.getServer().overworld().getGameTime();
+        for (int x : new int[] {0, 3, 6, 9}) {
+            BlockPos pos = viewpoint.offset(x, 0, 2);
+            book.observe(
+                    new ResourceObservation(
+                            "minecraft:coal_ore",
+                            new ResourceObservation.Location(
+                                    level.dimension().identifier().toString(),
+                                    new Pos(pos.getX(), pos.getY(), pos.getZ())),
+                            new Pos(viewpoint.getX(), viewpoint.getY(), viewpoint.getZ()),
+                            tick),
+                    "minecraft:coal_ore");
+        }
+        JsonObject args = new JsonObject();
+        args.addProperty("resource", "minecraft:coal_ore");
+        args.addProperty("limit", 20);
+        args.addProperty("max_distance", 128);
+        var result = GameTestToolRegistry.create(companion, () -> 16, MemoryAccess.DISABLED)
+                .bind(companion)
+                .execute(
+                        new ToolCall("test", "known_resources", args, args.toString(), null),
+                        new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.TRUSTED));
+
+        h.assertTrue(!result.error(), result.content());
+        h.assertValueEqual(
+                result.content().split("\\\"site_id\\\"").length - 1,
+                3,
+                "model-facing result should expose at most three candidate identities");
+        h.assertTrue(result.content().contains("historical, not guaranteed"), result.content());
+        h.succeed();
+    }
+
     @GameTest(maxTicks = 60)
     public void searchResourceAcceptsWoodTag(GameTestHelper h) {
         GameTestSupport.platform(h, 12);

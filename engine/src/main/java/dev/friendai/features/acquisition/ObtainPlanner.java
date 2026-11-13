@@ -260,7 +260,17 @@ public final class ObtainPlanner {
         Candidate take(Search search, Sim sim, int want, int depth, Set<String> path, boolean emitCraft);
     }
 
-    private record Candidate(Provider provider, Attempt attempt, Sim sim, int supplied) {
+    private record Candidate(
+            Provider provider,
+            Attempt attempt,
+            Sim sim,
+            int supplied,
+            ResourceCandidate resource,
+            int estimatedSupply) {
+        Candidate(Provider provider, Attempt attempt, Sim sim, int supplied) {
+            this(provider, attempt, sim, supplied, null, supplied);
+        }
+
         int cost() {
             return attempt.cost;
         }
@@ -344,6 +354,18 @@ public final class ObtainPlanner {
             if (candidate.attempt().conditional) {
                 ObtainStep.VisitResource a = firstVisit(candidate.attempt());
                 ObtainStep.VisitResource b = firstVisit(best.attempt());
+                if (candidate.resource() != null && best.resource() != null) {
+                    int evidence = ResourceCandidateRanker.compareApproachEvidence(
+                            candidate.resource().approachEvidence(),
+                            best.resource().approachEvidence());
+                    if (evidence != 0) return evidence < 0;
+                    if (candidate.estimatedSupply() != best.estimatedSupply())
+                        return candidate.estimatedSupply() > best.estimatedSupply();
+                    int tool = ResourceCandidateRanker.compareToolReadiness(
+                            candidate.resource().toolReadiness(),
+                            best.resource().toolReadiness());
+                    if (tool != 0) return tool < 0;
+                }
                 if (candidate.cost() != best.cost()) return candidate.cost() < best.cost();
                 if (a != null && b != null) {
                     int site = Long.compare(a.siteId(), b.siteId());
@@ -462,8 +484,7 @@ public final class ObtainPlanner {
                             .filter(candidate -> !candidate.visibleNow()
                                     && candidate.blockId().equals(mine.block()))
                             .filter(candidate -> !world.excludedSiteIds().contains(candidate.siteId()))
-                            .sorted(java.util.Comparator.comparingLong(ResourceCandidate::siteId)
-                                    .thenComparing(ResourceCandidate::blockId))
+                            .sorted(ResourceCandidateRanker.comparator())
                             .forEach(candidate -> providers.add(new VisitProvider(item, mine, candidate)));
                 }
                 if (allowExplore && world.exploreAllowed() && explorable(item, mine)) {
@@ -1016,8 +1037,9 @@ public final class ObtainPlanner {
                 Attempt attempt = new Attempt();
                 attempt.add(new ObtainStep.VisitResource(resource.siteId(), resource.dimension(), source.block()));
                 attempt.conditional = true;
-                attempt.cost += (int) Math.ceil(resource.estimatedCost());
-                return new Candidate(this, attempt, sim, 0);
+                attempt.cost += (int) Math.ceil(resource.estimatedTripCost());
+                int estimatedSupply = (int) Math.floor(blocks * source.perBlock());
+                return new Candidate(this, attempt, sim, 0, resource, estimatedSupply);
             }
         }
 

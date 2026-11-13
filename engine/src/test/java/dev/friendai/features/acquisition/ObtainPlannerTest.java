@@ -293,6 +293,62 @@ class ObtainPlannerTest {
     }
 
     @Test
+    void reachableSiteWithEnoughStoneAndUsablePickaxeWinsOverNearUnverifiedSite() {
+        ResourceCandidate reachableStone = new ResourceCandidate(
+                42,
+                "test:stone_ore",
+                "minecraft:overworld",
+                new Pos(40, 64, 0),
+                new Pos(39, 64, 0),
+                6,
+                10,
+                false,
+                false,
+                120.0,
+                ResourceCandidate.ToolReadiness.READY,
+                ResourceCandidate.ApproachEvidence.VERIFIED,
+                115.0);
+        ResourceCandidate nearerUnverifiedExposure = new ResourceCandidate(
+                41,
+                "test:deep_ore",
+                "minecraft:overworld",
+                new Pos(4, 64, 0),
+                new Pos(3, 64, 0),
+                6,
+                10,
+                false,
+                false,
+                1.0,
+                ResourceCandidate.ToolReadiness.MISSING,
+                ResourceCandidate.ApproachEvidence.UNKNOWN,
+                1.0);
+        FakeSourceBook sources = new FakeSourceBook()
+                .add(
+                        "test:ore",
+                        new Source.Mine("test:stone_ore", new ToolNeed(ToolKind.PICKAXE, Tier.WOOD), 1, true, 0))
+                .add(
+                        "test:ore",
+                        new Source.Mine("test:deep_ore", new ToolNeed(ToolKind.PICKAXE, Tier.STONE), 1, true, 0));
+        WorldFacts facts = new WorldFacts(
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Set.of(Station.CRAFTING_TABLE.noun()),
+                true,
+                true,
+                List.of(nearerUnverifiedExposure, reachableStone));
+
+        ObtainPlan plan = ObtainPlanner.plan(
+                "test:ore", 6, Map.of(WOODEN_PICKAXE, 1), FakeRecipeBook.vanillaLike(), sources, facts);
+
+        assertTrue(plan.conditional(), plan.steps().toString());
+        assertEquals(
+                new ObtainStep.VisitResource(42, "minecraft:overworld", "test:stone_ore"),
+                plan.steps().getFirst());
+    }
+
+    @Test
     void rememberedResourceIsIgnoredWhenExplorationIsDisabled() {
         ResourceCandidate candidate = new ResourceCandidate(
                 41,

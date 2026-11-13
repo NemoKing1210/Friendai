@@ -7,6 +7,8 @@ import dev.friendai.debug.WorkSet;
 import dev.friendai.debug.WorkStatus;
 import dev.friendai.features.acquisition.minecraft.search.SearchFrontierFacts;
 import dev.friendai.features.acquisition.minecraft.search.SearchTargets;
+import dev.friendai.features.knowledge.ResourceKnowledgeText;
+import dev.friendai.features.knowledge.ResourceQuery;
 import dev.friendai.features.knowledge.search.ResourceSearchProfile;
 import dev.friendai.features.knowledge.search.SearchCoverage;
 import dev.friendai.features.knowledge.search.SearchFailureText;
@@ -58,10 +60,15 @@ public final class ResourceSearchDriver implements Task {
     private boolean hintLogged;
     private boolean statsRecorded;
     private String summary = "search has not started";
+    private String historicalEvidence = "";
     private int inspected;
     private ExploreTaskFactory.MiningTask miningSearch;
     private final ExploreTaskFactory exploreTaskFactory;
     private int accountedExcavation;
+    private String originDimension;
+    private List<Pos> safeReturnRoute = List.of();
+    private java.util.Map<String, Integer> travelNeeds = java.util.Map.of();
+    private int returnSupports;
     private String startupFailure;
     private SearchPlanner.Frontier activeFrontier;
     private boolean caveScanning;
@@ -160,8 +167,15 @@ public final class ResourceSearchDriver implements Task {
     }
 
     @Override
+    public java.util.Map<String, Integer> travelMaterialNeeds(TaskContext context) {
+        return travelNeeds;
+    }
+
+    @Override
     public void start(TaskContext context) {
         origin = current(context);
+        originDimension = context.level().dimension().identifier().toString();
+        historicalEvidence = historicalEvidence(context);
         lastPosition = origin;
         // The priming step only moves a fresh session out of PREPARE. A session resumed for a new request is already
         // choosing a frontier, and a step with no frontier there means "nothing left to search": away from its first
@@ -256,8 +270,7 @@ public final class ResourceSearchDriver implements Task {
             journey = null;
         }
         if (miningSearch != null) {
-            miningSearch.stop(context);
-            miningSearch = null;
+            stopMiningSearch(context);
         }
         context.companion().getNavigation().stop();
         activeFrontier = null;
@@ -362,19 +375,12 @@ public final class ResourceSearchDriver implements Task {
                 journey = null;
             }
             if (miningSearch != null) {
-                miningSearch.stop(context);
-                miningSearch = null;
+                stopMiningSearch(context);
             }
             if (!expedition) return finishOnSight(context);
             returning = true;
             if (distance(position, origin) <= 2) return finishReturn(context);
-            journey = new ResourceJourney(
-                    context,
-                    context.level().dimension().identifier().toString(),
-                    origin,
-                    session,
-                    context.ownerKnowledge().trails(),
-                    expedition);
+            journey = returnJourney(context);
             return TaskStatus.RUNNING;
         }
         if (!returning && budgetReturn && journey != null) {
@@ -382,28 +388,15 @@ public final class ResourceSearchDriver implements Task {
             journey = null;
             returning = true;
             if (distance(position, origin) <= 2) return finishReturn(context);
-            journey = new ResourceJourney(
-                    context,
-                    context.level().dimension().identifier().toString(),
-                    origin,
-                    session,
-                    context.ownerKnowledge().trails(),
-                    expedition);
+            journey = returnJourney(context);
             return TaskStatus.RUNNING;
         }
         if (!returning && budgetReturn && miningSearch != null) {
-            miningSearch.stop(context);
-            miningSearch = null;
+            stopMiningSearch(context);
             returning = true;
             summary = diagnostic("mining reserve reached; stopping excavation and returning");
             if (distance(position, origin) <= 2) return finishReturn(context);
-            journey = new ResourceJourney(
-                    context,
-                    context.level().dimension().identifier().toString(),
-                    origin,
-                    session,
-                    context.ownerKnowledge().trails(),
-                    expedition);
+            journey = returnJourney(context);
             return TaskStatus.RUNNING;
         }
         if (journey != null) {
@@ -413,7 +406,10 @@ public final class ResourceSearchDriver implements Task {
                 journey = null;
                 if (returning) {
                     session.interrupt();
-                    return fail(context, "return route blocked; expedition stopped and its chunk lease was released");
+                    return fail(
+                            context,
+                            "return route to " + origin.x() + " " + origin.y() + " " + origin.z()
+                                    + " is blocked; cargo is kept and the chunk lease was released");
                 }
                 context.ownerKnowledge()
                         .recordCoverage(
@@ -461,29 +457,22 @@ public final class ResourceSearchDriver implements Task {
         }
         if (miningSearch != null) {
             TaskStatus miningStatus = miningSearch.tick(context);
+            travelNeeds = miningSearch.travelMaterialNeeds(context);
             int excavation = miningSearch.excavationBlocks();
             int newlyExcavated = Math.max(0, excavation - accountedExcavation);
             accountedExcavation = excavation;
             boolean exhausted = session.accountWork(logicalTick(context), current(context), 0, newlyExcavated);
             if (exhausted) {
-                miningSearch.stop(context);
-                miningSearch = null;
+                stopMiningSearch(context);
                 returning = true;
                 summary = diagnostic("mining budget reached; stopping excavation and returning");
                 if (distance(current(context), origin) <= 2) return finishReturn(context);
-                journey = new ResourceJourney(
-                        context,
-                        context.level().dimension().identifier().toString(),
-                        origin,
-                        session,
-                        context.ownerKnowledge().trails(),
-                        expedition);
+                journey = returnJourney(context);
                 return TaskStatus.RUNNING;
             }
             if (miningStatus == TaskStatus.RUNNING) return TaskStatus.RUNNING;
             String legSummary = miningSearch.resultSummary();
-            miningSearch.stop(context);
-            miningSearch = null;
+            stopMiningSearch(context);
             found = miningStatus == TaskStatus.SUCCESS && targetFound(context);
             session.advance(input(context, null, SearchSession.LegOutcome.ARRIVED, found, 0));
             if (!found) {
@@ -493,37 +482,19 @@ public final class ResourceSearchDriver implements Task {
                 session.advance(input(context, null, SearchSession.LegOutcome.NONE, false, 0));
                 if (distance(position, origin) <= 2) return fail(context, summary);
                 returning = true;
-                journey = new ResourceJourney(
-                        context,
-                        context.level().dimension().identifier().toString(),
-                        origin,
-                        session,
-                        context.ownerKnowledge().trails(),
-                        expedition);
+                journey = returnJourney(context);
                 return TaskStatus.RUNNING;
             }
             if (!expedition) return finishOnSight(context);
             returning = true;
             if (distance(position, origin) <= 2) return finishReturn(context);
-            journey = new ResourceJourney(
-                    context,
-                    context.level().dimension().identifier().toString(),
-                    origin,
-                    session,
-                    context.ownerKnowledge().trails(),
-                    expedition);
+            journey = returnJourney(context);
             return TaskStatus.RUNNING;
         }
         if (!returning && (budgetReturn || found || session.snapshot().phase() == SearchSession.Phase.RETURN)) {
             returning = true;
             if (distance(current(context), origin) <= 2) return finishReturn(context);
-            journey = new ResourceJourney(
-                    context,
-                    context.level().dimension().identifier().toString(),
-                    origin,
-                    session,
-                    context.ownerKnowledge().trails(),
-                    expedition);
+            journey = returnJourney(context);
             return TaskStatus.RUNNING;
         }
         if (returning) return TaskStatus.RUNNING;
@@ -538,13 +509,7 @@ public final class ResourceSearchDriver implements Task {
             returning = true;
             summary = diagnostic("cave inspection budget ended; returning to origin");
             if (distance(position, origin) <= 2) return finishReturn(context);
-            journey = new ResourceJourney(
-                    context,
-                    context.level().dimension().identifier().toString(),
-                    origin,
-                    session,
-                    context.ownerKnowledge().trails(),
-                    expedition);
+            journey = returnJourney(context);
             return TaskStatus.RUNNING;
         }
         if (session.snapshot().phase() == SearchSession.Phase.INSPECT) {
@@ -572,13 +537,7 @@ public final class ResourceSearchDriver implements Task {
                 session.advance(input(context, null, SearchSession.LegOutcome.NONE, false, 0));
                 if (distance(current(context), origin) <= 2) return fail(context, summary);
                 returning = true;
-                journey = new ResourceJourney(
-                        context,
-                        context.level().dimension().identifier().toString(),
-                        origin,
-                        session,
-                        context.ownerKnowledge().trails(),
-                        expedition);
+                journey = returnJourney(context);
                 return TaskStatus.RUNNING;
             }
             SearchPlanner.Frontier frontier = ranked.get(0).frontier();
@@ -662,6 +621,9 @@ public final class ResourceSearchDriver implements Task {
      */
     private TaskStatus finishOnSight(TaskContext context) {
         journey = null;
+        travelNeeds = java.util.Map.of();
+        safeReturnRoute = List.of();
+        returnSupports = 0;
         found = true;
         session.interrupt();
         recordStats(context, true);
@@ -671,6 +633,9 @@ public final class ResourceSearchDriver implements Task {
 
     private TaskStatus finishReturn(TaskContext context) {
         journey = null;
+        travelNeeds = java.util.Map.of();
+        safeReturnRoute = List.of();
+        returnSupports = 0;
         if (found) {
             session.advance(input(context, null, SearchSession.LegOutcome.NONE, false, 0));
             recordStats(context, true);
@@ -685,6 +650,9 @@ public final class ResourceSearchDriver implements Task {
     }
 
     private TaskStatus fail(TaskContext context, String reason) {
+        travelNeeds = java.util.Map.of();
+        safeReturnRoute = List.of();
+        returnSupports = 0;
         recordStats(context, false);
         summary = reason.startsWith("phase=") ? reason : diagnostic(reason);
         return TaskStatus.FAILED;
@@ -804,7 +772,41 @@ public final class ResourceSearchDriver implements Task {
     @Override
     public void stop(TaskContext context) {
         if (journey != null) journey.stop(context);
-        if (miningSearch != null) miningSearch.stop(context);
+        if (miningSearch != null) stopMiningSearch(context);
+        travelNeeds = java.util.Map.of();
+        safeReturnRoute = List.of();
+        returnSupports = 0;
+    }
+
+    @Override
+    public dev.friendai.task.Task cleanupAfterCancel(TaskContext context) {
+        return journey == null ? null : journey.cleanupAfterCancel();
+    }
+
+    private void stopMiningSearch(TaskContext context) {
+        if (miningSearch == null) return;
+        safeReturnRoute = miningSearch.returnRoute();
+        travelNeeds = miningSearch.travelMaterialNeeds(context);
+        returnSupports =
+                travelNeeds.values().stream().mapToInt(Integer::intValue).sum();
+        miningSearch.stop(context);
+        miningSearch = null;
+    }
+
+    private ResourceJourney returnJourney(TaskContext context) {
+        boolean routeEndsAtCurrent = !safeReturnRoute.isEmpty()
+                && distance(current(context), safeReturnRoute.get(safeReturnRoute.size() - 1)) <= 1.5;
+        List<Pos> route = routeEndsAtCurrent ? safeReturnRoute : List.of();
+        int supports = route.isEmpty() ? 0 : returnSupports;
+        return new ResourceJourney(
+                context,
+                originDimension,
+                origin,
+                session,
+                context.ownerKnowledge().trails(),
+                expedition,
+                route,
+                supports);
     }
 
     @Override
@@ -814,7 +816,20 @@ public final class ResourceSearchDriver implements Task {
 
     @Override
     public String resultSummary() {
-        return summary;
+        if (historicalEvidence.isBlank()) return summary;
+        String suffix = "; " + historicalEvidence;
+        if (summary.length() + suffix.length() <= 600) return summary + suffix;
+        int keep = Math.max(0, 600 - suffix.length());
+        return summary.substring(0, Math.min(summary.length(), keep)) + suffix;
+    }
+
+    private String historicalEvidence(TaskContext context) {
+        if (!(target instanceof TargetKind.BlockFamily family)
+                || context.companion().ownerUuid() == null) return "";
+        ResourceQuery.Request request =
+                new ResourceQuery.Request(family.blockIds(), originDimension, origin, radius, 3, true);
+        return ResourceKnowledgeText.summary(
+                ResourceQuery.find(context.ownerKnowledge(), request, logicalTick(context)), 240);
     }
 
     private static Pos current(TaskContext context) {

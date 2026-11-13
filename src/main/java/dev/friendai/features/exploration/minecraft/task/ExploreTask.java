@@ -136,6 +136,15 @@ public final class ExploreTask implements Task {
         return blocksDug;
     }
 
+    public List<Pos> returnRoute() {
+        return miningSession == null ? List.of() : miningSession.returnRoute();
+    }
+
+    @Override
+    public java.util.Map<String, Integer> travelMaterialNeeds(TaskContext context) {
+        return miningSession == null ? java.util.Map.of() : miningSession.travelMaterialNeeds(context);
+    }
+
     @Override
     public List<WorkSet> debugWorkSets() {
         if (origin == null) return List.of();

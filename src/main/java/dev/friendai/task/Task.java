@@ -33,6 +33,11 @@ public interface Task {
         return Map.of();
     }
 
+    /** Materials held for a verified return trip; separate from work needs so only that trip may spend them. */
+    default Map<String, Integer> travelMaterialNeeds(TaskContext context) {
+        return Map.of();
+    }
+
     String describe();
 
     String resultSummary();

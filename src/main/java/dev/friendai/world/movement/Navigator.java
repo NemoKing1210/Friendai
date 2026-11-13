@@ -4,6 +4,7 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.foundation.spatial.BlockList;
 import dev.friendai.foundation.spatial.CostModel;
 import dev.friendai.foundation.spatial.GoalPoint;
+import dev.friendai.foundation.spatial.MaterialReserve;
 import dev.friendai.foundation.spatial.Node;
 import dev.friendai.foundation.spatial.Path;
 import dev.friendai.foundation.spatial.PathGoal;
@@ -58,6 +59,10 @@ public final class Navigator {
     private final @Nullable PathingConfig override;
     /** Where blocks this route places are remembered for cleanup, or null when they are meant to stay. */
     private final @Nullable PlacementLedger ledger;
+    /** Return routes may spend their separate travel share, while the active order's work reserve remains protected. */
+    private final boolean returnLeg;
+
+    private final int maxPlaceable;
 
     private PathGoal goal;
     private PathSearch search;
@@ -108,6 +113,17 @@ public final class Navigator {
      */
     public Navigator(
             TaskContext context, boolean mayPlace, @Nullable PathingConfig override, @Nullable PlacementLedger ledger) {
+        this(context, mayPlace, override, ledger, false, Integer.MAX_VALUE);
+    }
+
+    /** A bounded return route; {@code maxPlaceable} cannot exceed its separately reserved support share. */
+    public Navigator(
+            TaskContext context,
+            boolean mayPlace,
+            @Nullable PathingConfig override,
+            @Nullable PlacementLedger ledger,
+            boolean returnLeg,
+            int maxPlaceable) {
         this.companion = context.companion();
         this.settings = context.pathingConfig();
         boolean usesServerLists = override == null
@@ -125,6 +141,8 @@ public final class Navigator {
         this.mayPlace = mayPlace;
         this.override = override;
         this.ledger = ledger;
+        this.returnLeg = returnLeg;
+        this.maxPlaceable = Math.max(0, maxPlaceable);
     }
 
     /** The settings this route captured when it was created, optionally adjusted for route-local actions. */
@@ -133,7 +151,8 @@ public final class Navigator {
     }
 
     private MaterialPicker materials(PathingConfig config) {
-        return new MaterialPicker(config, breakList, placeList, companion.materialReserve());
+        MaterialReserve reserve = companion.materialReserve();
+        return new MaterialPicker(config, breakList, placeList, returnLeg ? reserve.forReturnLeg() : reserve);
     }
 
     public State state() {
@@ -411,7 +430,7 @@ public final class Navigator {
         if (result.status() == SearchResult.Status.NO_PATH
                 || path == null
                 || path.steps().isEmpty()) {
-            if (!mayPlace || !config().allowPlace() || gatherRounds >= GATHER_ROUNDS) {
+            if (!mayPlace || !config().allowPlace() || returnLeg || gatherRounds >= GATHER_ROUNDS) {
                 abandonExecutor(c);
                 state = State.UNREACHABLE;
                 return;
@@ -425,7 +444,7 @@ public final class Navigator {
             // The search stopped at the first rise of a stair or bridge it cannot finish with what the companion
             // carries: walking it would spend the block and strand the companion. Learn the price of the whole
             // passage (or the rest of it) and gather that instead.
-            if (!mayPlace || !config().allowPlace() || gatherRounds >= GATHER_ROUNDS) {
+            if (!mayPlace || !config().allowPlace() || returnLeg || gatherRounds >= GATHER_ROUNDS) {
                 abandonExecutor(c);
                 state = State.UNREACHABLE;
                 return;
@@ -521,7 +540,7 @@ public final class Navigator {
     private void startSearch() {
         PathingConfig settings = config();
         MaterialPicker materials = materials(settings);
-        int placeable = mayPlace ? materials.count(companion.inventory()) : 0;
+        int placeable = mayPlace ? Math.min(maxPlaceable, materials.count(companion.inventory())) : 0;
         double price = mayPlace ? materials.cheapestPrice(companion.inventory()) : 0.0;
         LevelCellView view = new LevelCellView(companion, settings, CostModel.DEFAULTS, breakList);
         SearchOptions options = new SearchOptions(
