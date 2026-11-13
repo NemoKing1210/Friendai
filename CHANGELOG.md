@@ -13,7 +13,7 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 - Asked for an item it does not carry, the companion first looks through the chests and barrels within sixteen blocks that it has not opened in the last five minutes, and takes the item from the one that holds it, before deciding it must craft, mine or hunt it. The new `check_containers` order does the same on request.
 - For five minutes after the companion opens a container it still sees what you put in or take out; after that it remembers the contents as possibly out of date and says so, until it looks again.
 - A generated house takes `"windows": "none"` for solid walls and `"door": "none"` for an open doorway, so "build a small plank house" no longer stops for a missing door and glass panes.
-- **Voice output** in Settings → Voice → Synthesis (`voice.tts.playback`): with the optional Simple Voice Chat mod installed and connected, the companion's spoken replies can play through it from the companion's position, so Sound Physics Remastered adds reverb and muffles the voice behind walls. The default stays the built-in output, which also takes over whenever Simple Voice Chat cannot be used.
+- **Simple Voice Chat** in Settings → Voice → Synthesis (`voice.tts.playback`, Auto by default): with the optional Simple Voice Chat mod installed and connected, the companion's spoken replies play through it from the companion's position, so Sound Physics Remastered adds reverb and muffles the voice behind walls, and the wake word listens to what you say in voice chat instead of opening the microphone a second time. Remove the mod, or disconnect, mute or switch off voice chat, and the built-in output and microphone take over on their own; Off never uses the mod.
 
 ### Fixed
 

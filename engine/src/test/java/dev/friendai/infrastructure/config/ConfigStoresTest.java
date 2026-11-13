@@ -412,7 +412,7 @@ class ConfigStoresTest {
     }
 
     @Test
-    void clientV10GetsTheBuiltInPlaybackAndKeepsItsSpeechSettingsAndUnknownFields() throws IOException {
+    void clientV10GetsTheAutoPlaybackAndKeepsItsSpeechSettingsAndUnknownFields() throws IOException {
         Path path = dir.resolve("client-v10.json");
         Files.writeString(path, """
                 {"version":10,"voice":{"streamReplies":false,"tts":{"enabled":true,"provider":"elevenlabs",
@@ -421,7 +421,8 @@ class ConfigStoresTest {
         var store = ConfigStores.client(path);
         ClientConfig config = store.load();
         assertEquals(ClientConfig.CURRENT_VERSION, config.version);
-        assertEquals("builtin", config.voice.tts.playback, "an upgrade never routes speech through another mod");
+        // Auto uses voice chat only while it is installed and connected; without it nothing changes for the player.
+        assertEquals("auto", config.voice.tts.playback);
         assertTrue(config.voice.tts.enabled);
         assertEquals("elevenlabs", config.voice.tts.provider);
         assertEquals(0.4, config.voice.tts.volume);
@@ -430,26 +431,30 @@ class ConfigStoresTest {
         assertFalse(config.voice.streamReplies);
         store.save(config);
         JsonObject tts = json(path).getAsJsonObject("voice").getAsJsonObject("tts");
-        assertEquals("builtin", tts.get("playback").getAsString());
+        assertEquals("auto", tts.get("playback").getAsString());
         assertEquals(7, tts.get("extension").getAsInt());
     }
 
     @Test
-    void anExplicitVoiceChatPlaybackSurvivesAReloadAndAnUnknownOneBecomesBuiltIn() throws IOException {
+    void anExplicitBuiltInPlaybackSurvivesAReloadAndOtherValuesBecomeAuto() throws IOException {
         Path path = dir.resolve("client-playback.json");
         Files.writeString(path, """
-                {"version":11,"voice":{"tts":{"playback":"voicechat"}}}
+                {"version":11,"voice":{"tts":{"playback":"builtin"}}}
                 """);
         var store = ConfigStores.client(path);
         ClientConfig config = store.load();
-        assertEquals("voicechat", config.voice.tts.playback);
+        assertEquals("builtin", config.voice.tts.playback);
         store.save(config);
-        assertEquals("voicechat", store.load().voice.tts.playback);
+        assertEquals("builtin", store.load().voice.tts.playback);
 
+        Files.writeString(path, """
+                {"version":11,"voice":{"tts":{"playback":"voicechat"}}}
+                """);
+        assertEquals("auto", ConfigStores.client(path).load().voice.tts.playback, "the earlier spelling of auto");
         Files.writeString(path, """
                 {"version":11,"voice":{"tts":{"playback":"plasmo"}}}
                 """);
-        assertEquals("builtin", ConfigStores.client(path).load().voice.tts.playback);
+        assertEquals("auto", ConfigStores.client(path).load().voice.tts.playback);
     }
 
     @Test

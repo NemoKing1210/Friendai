@@ -281,6 +281,29 @@ class WakeWordHandlerTest {
     }
 
     @Test
+    void aSourceThatFallsSilentOnItsOwnEndsTheUtteranceOnTheNextTick() {
+        // Voice chat sends nothing once the player stops talking; its microphone marks the gap with quiet audio on a
+        // tick, and that must end the utterance instead of leaving it open until its 30-second cap.
+        handler.tick();
+        detector.hitNext = true;
+        capture.send(loud());
+        detector.hitNext = false;
+        capture.send(loud());
+        boolean[] marked = {false};
+        capture.onTick = () -> {
+            if (!marked[0]) {
+                marked[0] = true;
+                capture.send(silent());
+            }
+        };
+
+        handler.tick();
+
+        assertTrue(capture.ticks > 0, "the source is ticked while it monitors");
+        assertEquals(List.of(TRANSCRIPT), transcripts);
+    }
+
+    @Test
     void closingTheHandlerStopsListening() {
         handler.tick();
         handler.close();
@@ -331,6 +354,17 @@ class WakeWordHandlerTest {
         public void stop() {
             open = false;
             sink = null;
+        }
+
+        /** What the source does on a client tick; voice chat marks the end of a transmission here. */
+        private Runnable onTick = () -> {};
+
+        private int ticks;
+
+        @Override
+        public void tick() {
+            ticks++;
+            onTick.run();
         }
 
         void send(byte[] pcm) {

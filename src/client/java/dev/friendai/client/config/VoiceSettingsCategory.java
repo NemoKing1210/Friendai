@@ -227,7 +227,10 @@ final class VoiceSettingsCategory {
         Option<String> playback = Option.<String>createBuilder()
                 .name(tr("friendai.config.voice.tts.playback"))
                 .description(OptionDescription.of(tr("friendai.config.voice.tts.playback.tooltip")))
-                .binding(PlaybackBackends.BUILTIN, () -> tts.playback, value -> tts.playback = value)
+                .binding(
+                        PlaybackBackends.AUTO,
+                        () -> PlaybackBackends.normalize(tts.playback),
+                        value -> tts.playback = value)
                 .controller(o -> CyclingListControllerBuilder.<String>create(o)
                         .values(PlaybackBackends.ids())
                         .valueFormatter(VoiceSettingsCategory::playbackLabel))
@@ -778,9 +781,9 @@ final class VoiceSettingsCategory {
     }
 
     private static Component playbackLabel(String id) {
-        return PlaybackBackends.VOICECHAT.equals(id)
-                ? tr("friendai.config.voice.tts.playback.voicechat")
-                : tr("friendai.config.voice.tts.playback.builtin");
+        return PlaybackBackends.BUILTIN.equals(id)
+                ? tr("friendai.config.voice.tts.playback.builtin")
+                : tr("friendai.config.voice.tts.playback.auto");
     }
 
     private static Component ttsProviderLabel(String id) {

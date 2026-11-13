@@ -92,10 +92,11 @@ public class ClientConfig {
         /** Replies come from the companion's position; off plays them centred at full volume. */
         public boolean spatial = true;
         /**
-         * Which path plays a reply: the built-in audio line, or the optional Simple Voice Chat mod for replies that
-         * come from the companion. A choice that cannot be used falls back to the built-in line.
+         * Whether the companion's voice uses the optional Simple Voice Chat mod: {@code auto} (default) speaks and
+         * listens through it whenever it is installed and connected, {@code builtin} never does. Whatever voice chat
+         * cannot carry falls back to the built-in line and microphone.
          */
-        public String playback = PlaybackBackends.BUILTIN;
+        public String playback = PlaybackBackends.AUTO;
 
         public String outputDevice = null;
         public LocalTts local = new LocalTts();
@@ -213,11 +214,10 @@ public class ClientConfig {
         if (tts.language == null || tts.language.isBlank()) {
             tts.language = "auto";
         }
-        String playback = PlaybackBackends.normalize(tts.playback);
-        if (tts.playback != null && !playback.equals(tts.playback)) {
-            LOGGER.warn("Unknown speech playback '{}'; using the built-in output", tts.playback);
+        if (tts.playback != null && !PlaybackBackends.known(tts.playback)) {
+            LOGGER.warn("Unknown speech playback '{}'; using auto", tts.playback);
         }
-        tts.playback = playback;
+        tts.playback = PlaybackBackends.normalize(tts.playback);
         if (tts.local == null) {
             tts.local = new LocalTts();
         }
