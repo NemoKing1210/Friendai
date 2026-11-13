@@ -15,6 +15,7 @@ import dev.friendai.agent.llm.model.LlmResponse;
 import dev.friendai.agent.llm.model.Message;
 import dev.friendai.agent.llm.model.Role;
 import dev.friendai.agent.llm.model.ToolSpec;
+import dev.friendai.execution.TaskWorkResult;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.testutil.FakeGateway;
@@ -24,6 +25,7 @@ import dev.friendai.testutil.RecordingSpeaker;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -533,6 +535,75 @@ class CompanionBrainTest {
         assertEquals(
                 "[Steve (owner)]: two\n[event] task #1 mine_blocks finished: done",
                 lastUser(gateway.requests.get(1)).text());
+    }
+
+    @Test
+    void failureDuringARequestRefreshesTheContextBeforeSpeakingOrRunningStaleCalls() {
+        CompletableFuture<LlmResponse> pending = gateway.enqueuePending();
+        gateway.enqueue(text("The path is blocked; I cannot reach you."));
+        brain.post(said("come here"));
+        brain.post(new BrainEvent.TaskFinished(7, "go_to", false, "no safe route"));
+        pending.complete(calls("I am walking to you.", call("stale", "give_items")));
+
+        assertEquals(List.of("The path is blocked; I cannot reach you."), speaker.said);
+        assertTrue(tools.executed.isEmpty(), "the old response must not run work against superseded facts");
+        assertEquals(2, gateway.requests.size());
+        assertTrue(lastUser(gateway.requests.get(1)).text().contains("go_to failed: no safe route"));
+        assertFalse(brain.hasPendingWork(), "the failure was consumed once in the refreshed request");
+    }
+
+    @Test
+    void firstRequestAfterPartialFailureIncludesMeasuredWorkAndBlocker() {
+        CompletableFuture<LlmResponse> pending = gateway.enqueuePending();
+        gateway.enqueue(text("I will try another reachable tree."));
+        TaskWorkResult result = new TaskWorkResult(
+                List.of(new TaskWorkResult.Line("minecraft:oak_log", 12, 9, TaskWorkResult.Evidence.CARRIED)),
+                "partial",
+                "2 logs remain on the crown",
+                "try the next reachable tree");
+        brain.post(said("get 12 oak logs"));
+        brain.post(new BrainEvent.TaskFinished(
+                7, 0, 0, "obtain_logs", false, "cut 9 of 12 oak logs", "", Optional.of(result)));
+        pending.complete(calls("The first attempt is still running.", call("stale", "give_items")));
+
+        assertEquals(2, gateway.requests.size());
+        String nextRequest = lastUser(gateway.requests.get(1)).text();
+        assertTrue(nextRequest.contains("minecraft:oak_log carried=9/12 remaining=3"), nextRequest);
+        assertTrue(nextRequest.contains("blocker=2 logs remain on the crown"), nextRequest);
+        assertTrue(nextRequest.contains("next=try the next reachable tree"), nextRequest);
+        assertTrue(tools.executed.isEmpty(), "the stale call must not run before the measured failure is sent");
+    }
+
+    @Test
+    void ownerFailureDoesNotInvalidateAGuestResponseOrLeakItsFacts() {
+        CompletableFuture<LlmResponse> pending = gateway.enqueuePending();
+        gateway.enqueue(text("I cannot reach the owner."));
+        brain.post(guest("hello"));
+        brain.post(new BrainEvent.TaskFinished(7, "go_to", false, "private route failure"));
+        pending.complete(text("Hello Bob."));
+
+        assertEquals(List.of("Hello Bob.", "I cannot reach the owner."), speaker.said);
+        assertFalse(gateway.requests.get(0).messages().toString().contains("private route failure"));
+        assertTrue(lastUser(gateway.requests.get(1)).text().contains("private route failure"));
+    }
+
+    @Test
+    void blockedWorkUsesItsToolContextAndKeepsRecoveryAndDiscoveryAvailable() {
+        for (String name : List.of(
+                "obtain_item", "clear_area", "go_to", "queue_edit", "request_tools", "barter", "breed_animals")) {
+            tools.available.add(new ToolSpec(name, name, new JsonObject()));
+        }
+        gateway.enqueue(text("I need to clear space for the crafting table."));
+        brain.post(new BrainEvent.PlanBlocked(3, "tools", 4, "obtain_item", "no free spot for crafting table", 2));
+
+        Set<String> sent = gateway.requests.getFirst().tools().stream()
+                .map(ToolSpec::name)
+                .collect(java.util.stream.Collectors.toSet());
+        assertTrue(
+                sent.containsAll(Set.of("obtain_item", "clear_area", "go_to", "queue_edit", "request_tools")),
+                sent.toString());
+        assertFalse(sent.contains("barter"), sent.toString());
+        assertFalse(sent.contains("breed_animals"), sent.toString());
     }
 
     @Test

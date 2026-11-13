@@ -4,6 +4,7 @@ import com.google.gson.JsonParser;
 import dev.friendai.agent.llm.model.ToolCall;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.execution.TaskWorkResult;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolExecutor;
 import dev.friendai.execution.tool.ToolResult;
@@ -43,6 +44,60 @@ import net.minecraft.world.level.block.NetherWartBlock;
 import net.minecraft.world.phys.AABB;
 
 public class ObtainTests {
+    @GameTest(maxTicks = 100)
+    public void birchKitFixtureStartsEmptyWithSafeSources(GameTestHelper h) {
+        ResourceWorkFixture.BirchKit fixture = ResourceWorkFixture.birchKit(h);
+        CompanionEntity companion = fixture.companion();
+        h.assertTrue(companion.inventory().isEmpty(), "the companion should start with an empty bag");
+        h.assertTrue(
+                h.getLevel()
+                                .getServer()
+                                .getPlayerList()
+                                .getPlayer(fixture.owner().getUUID())
+                        == fixture.owner(),
+                "the owner should be online for pickup tests");
+        h.assertValueEqual(fixture.trees().size(), 2, "birch sources");
+        for (List<BlockPos> tree : fixture.trees()) {
+            h.assertValueEqual(tree.size(), 5, "logs in a birch tree");
+            for (BlockPos log : tree) h.assertTrue(h.getBlockState(log).is(Blocks.BIRCH_LOG), "birch log at " + log);
+        }
+        h.assertValueEqual(fixture.stoneSource().size(), 18, "safe exposed stone blocks");
+        h.assertTrue(
+                GameTestSupport.observeVisible(
+                        h, companion, h.absolutePos(fixture.stoneSource().getFirst())),
+                "the safe stone source should be visible");
+        h.assertTrue(h.getBlockState(fixture.stationSpot()).isAir(), "there should be room for a station");
+        for (BlockPos obstruction : fixture.deliveryObstruction()) {
+            h.assertTrue(h.getBlockState(obstruction).is(Blocks.COBBLESTONE), "delivery obstruction at " + obstruction);
+        }
+        ResourceWorkFixture.removeDeliveryObstruction(h, fixture);
+        for (BlockPos obstruction : fixture.deliveryObstruction()) {
+            h.assertTrue(
+                    h.getBlockState(obstruction).isAir(), "delivery obstruction should be removable at " + obstruction);
+        }
+        h.assertValueEqual(
+                fixture.owner().blockPosition(), h.absolutePos(fixture.ownerPickup()), "the owner pickup point");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 100)
+    public void undergroundReturnFixtureHasAReversibleRouteAndRemovableObstruction(GameTestHelper h) {
+        ResourceWorkFixture.UndergroundReturn fixture = ResourceWorkFixture.undergroundReturn(h);
+        h.assertValueEqual(fixture.anchor().getY(), fixture.surfaceY() + 1, "the surface return anchor");
+        for (BlockPos cell : fixture.routeCells()) {
+            h.assertTrue(h.getBlockState(cell).isAir(), "return route cell should be clear at " + cell);
+        }
+        for (BlockPos support : fixture.routeSupports()) {
+            h.assertTrue(h.getBlockState(support).is(Blocks.STONE), "return route support at " + support);
+        }
+        h.assertTrue(h.getBlockState(fixture.stoneTarget()).is(Blocks.IRON_ORE), "the underground target");
+        h.setBlock(fixture.obstruction(), Blocks.STONE);
+        h.assertTrue(h.getBlockState(fixture.obstruction()).is(Blocks.STONE), "the return obstruction should be live");
+        h.setBlock(fixture.obstruction(), Blocks.AIR);
+        h.assertTrue(h.getBlockState(fixture.obstruction()).isAir(), "the return obstruction should be removable");
+        h.succeed();
+    }
+
     /**
      * The whole chain from a bare pit: dig down until the stone is exposed, see it, and craft a pickaxe from it. Every
      * candidate comes from the observation store, so this test fails unless the face a dig just opened survives the
@@ -960,6 +1015,7 @@ public class ObtainTests {
         ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 9600, () -> false);
         runner.setEventSink(result);
         runner.start(new CheckContainerTask(h.absolutePos(chestPos)), "check_container");
+        BatchObtainTask[] batch = {null};
         // 0: opening the chest, 1: running the batch, 2: done. Every phase that is not the last one fails its check
         // on purpose, because succeedWhen stops the test the first time its body returns without an exception.
         int[] phase = {0};
@@ -971,23 +1027,22 @@ public class ObtainTests {
                         "the chest was not checked: " + result.status + " " + result.summary);
                 result.status = null;
                 result.summary = null;
-                runner.start(
-                        new BatchObtainTask(
-                                List.of(
-                                        new CraftPlanner.Target("minecraft:stone_pickaxe", 2),
-                                        new CraftPlanner.Target("minecraft:stone_axe", 2)),
-                                true,
-                                true,
-                                64,
-                                9000,
-                                64,
-                                128,
-                                6000,
-                                "local",
-                                caller,
-                                null,
-                                new MinecraftObtainSubtaskFactory()),
-                        "obtain_items");
+                batch[0] = new BatchObtainTask(
+                        List.of(
+                                new CraftPlanner.Target("minecraft:stone_pickaxe", 2),
+                                new CraftPlanner.Target("minecraft:stone_axe", 2)),
+                        true,
+                        true,
+                        64,
+                        9000,
+                        64,
+                        128,
+                        6000,
+                        "local",
+                        caller,
+                        null,
+                        new MinecraftObtainSubtaskFactory());
+                runner.start(batch[0], "obtain_items");
                 phase[0] = 1;
             } else {
                 GameTestSupport.observeVisible(h, c, h.absolutePos(table));
@@ -1015,6 +1070,13 @@ public class ObtainTests {
                 h.assertTrue(
                         result.summary.startsWith("got 2 minecraft:stone_pickaxe, 2 minecraft:stone_axe in "),
                         result.summary);
+                h.assertValueEqual(
+                        batch[0].workResult().orElseThrow().lines(),
+                        List.of(
+                                new TaskWorkResult.Line(
+                                        "minecraft:stone_pickaxe", 2, 2, TaskWorkResult.Evidence.CARRIED),
+                                new TaskWorkResult.Line("minecraft:stone_axe", 2, 2, TaskWorkResult.Evidence.CARRIED)),
+                        "verified batch work");
                 phase[0] = 2;
             }
             h.assertTrue(phase[0] == 2, "still working");

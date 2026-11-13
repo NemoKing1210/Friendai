@@ -1,5 +1,6 @@
 package dev.friendai.server.execution;
 
+import dev.friendai.execution.TaskWorkResult;
 import dev.friendai.execution.log.ExecutionTiming;
 import dev.friendai.execution.log.TaskDiagnosticEpisode;
 import dev.friendai.execution.log.TaskLogEvent;
@@ -59,7 +60,16 @@ public final class ActiveTaskController {
         int truncated;
     }
 
-    public record Completion(ActiveTask active, TaskStatus status, String summary) {}
+    public record Completion(
+            ActiveTask active, TaskStatus status, String summary, Optional<TaskWorkResult> workResult) {
+        public Completion {
+            workResult = workResult == null ? Optional.empty() : workResult;
+        }
+
+        public Completion(ActiveTask active, TaskStatus status, String summary) {
+            this(active, status, summary, Optional.empty());
+        }
+    }
 
     /** A crash summary names the exception, not its arguments; its message part stays inside this bound. */
     static final int MAX_CRASH_MESSAGE_CHARS = 160;
@@ -159,6 +169,7 @@ public final class ActiveTaskController {
     public Optional<Completion> tick(TaskContext activeContext) {
         ActiveTask active = current;
         if (active == null) return Optional.empty();
+        if (activeContext.logContext() != active.logContext()) activeContext = context(activeContext, active);
         activeTicks++;
         TaskStatus status;
         String summary = null;
@@ -211,16 +222,18 @@ public final class ActiveTaskController {
             summary = "timed out";
         }
         if (status == TaskStatus.RUNNING) return Optional.empty();
+        if (summary == null) summary = active.task().resultSummary();
+        Optional<TaskWorkResult> workResult = captureWorkResult(active.task());
         ExecutionTiming.Snapshot measured = active.timing().snapshot();
         diagnostics.accept(TaskLogEvents.finishEvent(
                 active.logContext(),
                 active.toolName(),
                 status.name().toLowerCase(Locale.ROOT),
                 measured.wallMs(),
-                terminalFacts(active, measured, summary)));
+                terminalFacts(active, measured, summary, workResult)));
         current = null;
         release(active.task(), activeContext, "terminal");
-        return Optional.of(new Completion(active, status, summary));
+        return Optional.of(new Completion(active, status, summary, workResult));
     }
 
     /** Stops the current task and returns its metadata for queue settlement and event publication. */
@@ -420,16 +433,30 @@ public final class ActiveTaskController {
     }
 
     private static Map<String, String> terminalFacts(
-            ActiveTask active, ExecutionTiming.Snapshot measured, String summary) {
+            ActiveTask active, ExecutionTiming.Snapshot measured, String summary, Optional<TaskWorkResult> workResult) {
         Map<String, String> facts = new java.util.LinkedHashMap<>();
         facts.put("activeTicks", Long.toString(measured.activeTicks()));
         facts.put("heldTicks", Long.toString(measured.heldTicks()));
         facts.put("tickNanos", Long.toString(measured.tickNanos()));
         facts.put("summary", summary == null ? "" : summary);
+        workResult.ifPresent(result -> facts.put("workResult", result.compact()));
         if (active.spans().truncated > 0) {
             facts.put("truncatedSpans", Integer.toString(active.spans().truncated));
         }
         return facts;
+    }
+
+    private static Optional<TaskWorkResult> captureWorkResult(Task task) {
+        try {
+            Optional<TaskWorkResult> result = task.workResult();
+            return result == null ? Optional.empty() : result;
+        } catch (RuntimeException failure) {
+            LOGGER.warn(
+                    "Task {} failed to provide its work result ({})",
+                    task.type(),
+                    failure.getClass().getSimpleName());
+            return Optional.empty();
+        }
     }
 
     /** Everything a pre-stop snapshot needs, collected before a stop/cleanup can clear the task. */

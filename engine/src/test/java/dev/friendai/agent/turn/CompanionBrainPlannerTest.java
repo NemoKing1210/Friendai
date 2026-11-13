@@ -57,6 +57,7 @@ class CompanionBrainPlannerTest {
         final List<java.util.function.BooleanSupplier> cancellation = new ArrayList<>();
         boolean hasGoal = true;
         boolean owned = true;
+        Optional<PlannerPort.Refusal> refusal = Optional.empty();
         /** Plans that are still queued; empty means every plan the fake is asked about is owned. */
         final Set<Long> ownedPlans = new HashSet<>();
 
@@ -67,6 +68,11 @@ class CompanionBrainPlannerTest {
 
         CompletableFuture<PlanProposal> answer = CompletableFuture.completedFuture(proposal());
         ToolResult applyResult = ToolResult.ok("plan #5 added: 1 jobs");
+
+        @Override
+        public Optional<PlannerPort.Refusal> preflight(PlanSubject subject, Caller caller) {
+            return refusal;
+        }
 
         @Override
         public Optional<PlannerInput> inputFor(PlanSubject subject, Caller caller, String failure) {
@@ -127,6 +133,28 @@ class CompanionBrainPlannerTest {
                 new ManualScheduler(),
                 AccessResolver.of(OWNER, new HashSet<UUID>()::contains));
         brain.setPlannerPort(port);
+    }
+
+    @Test
+    void anUnpatchableFrameHasAnExplicitFallbackWithoutBuildingInputOrCallingThePlanner() {
+        port.refusal = Optional.of(new PlannerPort.Refusal(
+                "structured-plan-not-patchable",
+                "Keep plan #3; fix the cause, then use queue_edit action=retry on job #4."));
+        List<PlannerAttempt> attempts = new ArrayList<>();
+        brain.setObserver(new BrainObserver() {
+            @Override
+            public void onPlannerAttempt(PlannerAttempt attempt) {
+                attempts.add(attempt);
+            }
+        });
+        gateway.enqueue(text("The path is blocked."));
+        brain.post(new BrainEvent.PlanBlocked(3, "deliver tools", 4, "give_items", "no route", 2));
+
+        assertTrue(port.subjects.isEmpty(), "input creation must not spend the replan budget");
+        assertTrue(port.proposed.isEmpty(), "an impossible patch must not cost a provider request");
+        assertEquals("structured-plan-not-patchable", attempts.getFirst().failureCode());
+        assertTrue(gateway.requests.getFirst().system().contains("Keep plan #3; fix the cause"));
+        assertTrue(gateway.requests.getFirst().system().contains("queue_edit action=retry on job #4"));
     }
 
     @Test
@@ -293,6 +321,21 @@ class CompanionBrainPlannerTest {
         assertEquals(0, gateway.requests.size(), "no model request after a stop");
         assertTrue(speaker.said.isEmpty());
         assertFalse(brain.isThinking());
+    }
+
+    @Test
+    void failureWhilePlanningReachesTheModelBeforeApplyingTheProposal() {
+        port.answer = new CompletableFuture<>();
+        gateway.enqueue(text("The route is blocked."));
+        brain.post(said(BUILD_AND_BRING));
+        brain.post(new BrainEvent.TaskFinished(7, "go_to", false, "no safe route"));
+        port.answer.complete(proposal());
+
+        assertTrue(port.appliedFor.isEmpty());
+        assertEquals(1, gateway.requests.size());
+        assertTrue(gateway.requests.getFirst().messages().stream()
+                .anyMatch(message -> message.text().contains("go_to failed: no safe route")));
+        assertEquals(List.of("The route is blocked."), speaker.said);
     }
 
     @Test

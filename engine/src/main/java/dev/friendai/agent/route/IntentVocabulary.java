@@ -28,6 +28,7 @@ public final class IntentVocabulary {
     private final Map<String, Set<ToolGroup>> topicWords;
     private final List<String> complexMarkers;
     private final List<String> planMarkers;
+    private final List<String> conversationMarkers;
 
     IntentVocabulary(
             List<String> questionMarkers,
@@ -35,13 +36,15 @@ public final class IntentVocabulary {
             Map<String, Set<ToolGroup>> actionVerbs,
             Map<String, Set<ToolGroup>> topicWords,
             List<String> complexMarkers,
-            List<String> planMarkers) {
+            List<String> planMarkers,
+            List<String> conversationMarkers) {
         this.questionMarkers = questionMarkers;
         this.adviceQuestionMarkers = adviceQuestionMarkers;
         this.actionVerbs = actionVerbs;
         this.topicWords = topicWords;
         this.complexMarkers = complexMarkers;
         this.planMarkers = planMarkers;
+        this.conversationMarkers = List.copyOf(conversationMarkers);
     }
 
     /** Both languages merged. */
@@ -52,6 +55,7 @@ public final class IntentVocabulary {
         Map<String, Set<ToolGroup>> topics = new LinkedHashMap<>();
         List<String> complex = new ArrayList<>();
         List<String> plans = new ArrayList<>();
+        List<String> conversation = new ArrayList<>();
         for (String file : List.of("/agent/intents_en.json", "/agent/intents_ru.json")) {
             JsonObject json = read(file);
             strings(json, "question_markers", questions);
@@ -60,8 +64,14 @@ public final class IntentVocabulary {
             groups(json, "topic_words", topics);
             strings(json, "complex_markers", complex);
             strings(json, "plan_request_markers", plans);
+            strings(json, "conversation_markers", conversation);
         }
-        return new IntentVocabulary(questions, adviceQuestions, verbs, topics, complex, plans);
+        return new IntentVocabulary(questions, adviceQuestions, verbs, topics, complex, plans, conversation);
+    }
+
+    /** Exact whole-utterance matches only: a greeting beside an order must never hide that order's tools. */
+    public boolean isConversation(List<String> tokens) {
+        return conversationMarkers.contains(String.join(" ", tokens));
     }
 
     public boolean startsWithQuestionMarker(String lowerText, List<String> tokens) {

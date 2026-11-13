@@ -1,6 +1,8 @@
 package dev.friendai.agent.turn;
 
+import dev.friendai.execution.TaskWorkResult;
 import dev.friendai.execution.tool.AccessLevel;
+import java.util.Optional;
 import java.util.UUID;
 
 /** Something the companion's brain should react to. Prompt lines are English, LLM-facing. */
@@ -71,14 +73,30 @@ public sealed interface BrainEvent {
 
     /** @param extra verified facts and diagnosis appended to the line, or empty */
     record TaskFinished(
-            int taskId, long planId, long goalId, String toolName, boolean success, String summary, String extra)
+            int taskId,
+            long planId,
+            long goalId,
+            String toolName,
+            boolean success,
+            String summary,
+            String extra,
+            Optional<TaskWorkResult> workResult)
             implements BrainEvent {
+        public TaskFinished {
+            workResult = workResult == null ? Optional.empty() : workResult;
+        }
+
+        public TaskFinished(
+                int taskId, long planId, long goalId, String toolName, boolean success, String summary, String extra) {
+            this(taskId, planId, goalId, toolName, success, summary, extra, Optional.empty());
+        }
+
         public TaskFinished(int taskId, String toolName, boolean success, String summary, String extra) {
-            this(taskId, 0, 0, toolName, success, summary, extra);
+            this(taskId, 0, 0, toolName, success, summary, extra, Optional.empty());
         }
 
         public TaskFinished(int taskId, String toolName, boolean success, String summary) {
-            this(taskId, 0, 0, toolName, success, summary, "");
+            this(taskId, 0, 0, toolName, success, summary, "", Optional.empty());
         }
 
         @Override
@@ -87,7 +105,8 @@ public sealed interface BrainEvent {
             String about =
                     (planId > 0 ? " (plan #" + planId + ")" : "") + (goalId > 0 ? " (goal #" + goalId + ")" : "");
             return "[event] task #" + taskId + " " + toolName + (success ? " finished: " : " failed: ") + summary
-                    + about + withExtra(extra);
+                    + about + withExtra(extra)
+                    + workResult.map(result -> " " + result.compact()).orElse("");
         }
     }
 

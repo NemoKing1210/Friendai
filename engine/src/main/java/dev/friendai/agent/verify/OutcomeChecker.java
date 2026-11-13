@@ -1,12 +1,14 @@
 package dev.friendai.agent.verify;
 
 import dev.friendai.agent.goal.Criterion;
+import dev.friendai.execution.TaskWorkResult;
 import dev.friendai.execution.queue.GuardFacts;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /** Compares the world before and after a task so the model reads facts, not just the task's own summary. */
@@ -22,6 +24,16 @@ public final class OutcomeChecker {
             boolean taskSucceeded,
             List<Criterion> criteria,
             GuardFacts afterFacts) {
+        return check(before, after, taskSucceeded, criteria, afterFacts, Optional.empty());
+    }
+
+    public static Outcome check(
+            WorldSnapshot before,
+            WorldSnapshot after,
+            boolean taskSucceeded,
+            List<Criterion> criteria,
+            GuardFacts afterFacts,
+            Optional<TaskWorkResult> workResult) {
         List<String> unmet = new ArrayList<>();
         boolean checkableHolds = true;
         for (Criterion criterion : criteria) {
@@ -32,11 +44,22 @@ public final class OutcomeChecker {
                 checkableHolds = false;
             }
         }
-        return new Outcome(taskSucceeded && checkableHolds, facts(before, after), unmet);
+        return new Outcome(taskSucceeded && checkableHolds, facts(before, after, workResult), unmet);
     }
 
-    private static List<Fact> facts(WorldSnapshot before, WorldSnapshot after) {
+    private static List<Fact> facts(WorldSnapshot before, WorldSnapshot after, Optional<TaskWorkResult> workResult) {
         List<Fact> facts = new ArrayList<>();
+        if (workResult != null) {
+            workResult.ifPresent(result -> {
+                for (TaskWorkResult.Line line : result.lines()) {
+                    if (line.verified() > 0) {
+                        facts.add(new Fact(line.evidence().label() + " " + line.verified() + "/" + line.requested()
+                                + " " + line.itemId()));
+                    }
+                }
+            });
+        }
+        if (facts.size() >= MAX_FACTS) return facts.subList(0, MAX_FACTS);
         Set<String> ids = new HashSet<>(before.items().keySet());
         ids.addAll(after.items().keySet());
         List<Map.Entry<String, Integer>> deltas = new ArrayList<>();

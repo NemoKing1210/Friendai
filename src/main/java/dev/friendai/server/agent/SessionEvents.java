@@ -10,6 +10,7 @@ import dev.friendai.agent.verify.OutcomeChecker;
 import dev.friendai.agent.verify.WorldSnapshot;
 import dev.friendai.debug.DebugService;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.execution.TaskWorkResult;
 import dev.friendai.foundation.diagnostics.LogCategory;
 import dev.friendai.foundation.diagnostics.LogEvents;
 import dev.friendai.foundation.diagnostics.LogLevel;
@@ -18,6 +19,7 @@ import dev.friendai.task.queue.CompanionGuardFacts;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -72,6 +74,11 @@ final class SessionEvents {
 
     /** The text to append to an event line; empty when there is nothing verified to add. */
     String extra(boolean success, long planId, String tool, String text) {
+        return extra(success, planId, tool, text, Optional.empty());
+    }
+
+    /** The text to append to an event line, with optional measured facts from the completed task. */
+    String extra(boolean success, long planId, String tool, String text, Optional<TaskWorkResult> workResult) {
         try {
             WorldSnapshot after = OutcomeFacts.snapshot(companion);
             var board = goals.board(owner);
@@ -83,7 +90,8 @@ final class SessionEvents {
                             .findFirst()
                             .map(dev.friendai.agent.goal.Goal::criteria)
                             .orElse(List.of());
-            var outcome = OutcomeChecker.check(last, after, success, criteria, new CompanionGuardFacts(companion));
+            var outcome = OutcomeChecker.check(
+                    last, after, success, criteria, new CompanionGuardFacts(companion), workResult);
             emitOutcomeCheck(outcome, success, criteria.isEmpty(), planId, tool);
             last = after;
             session.noteVerified(outcome.facts().stream().map(Fact::text).toList());

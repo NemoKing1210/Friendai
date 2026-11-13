@@ -72,6 +72,13 @@ public final class TurnRouter {
                     plan(mode, turnMode, s, text, 0, false, false),
                     s.turn() == TurnKind.EVENT ? "no player message" : "empty player message");
         }
+        if (vocabulary.isConversation(tokens)) {
+            return new RouteDecision(
+                    TurnMode.CHAT,
+                    EnumSet.of(ToolGroup.INFO, ToolGroup.MEMORY, ToolGroup.BODY),
+                    PlanningDecision.none("conversation"),
+                    "a greeting or acknowledgement");
+        }
         Set<ToolGroup> groups = EnumSet.noneOf(ToolGroup.class);
         verbs.values().forEach(groups::addAll);
         groups.addAll(vocabulary.topicGroupsIn(tokens));

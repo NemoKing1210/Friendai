@@ -1,5 +1,6 @@
 package dev.friendai.features.mining.minecraft.task;
 
+import dev.friendai.execution.TaskWorkResult;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
@@ -33,9 +34,13 @@ public final class FellLogsTask implements Task {
     private int gained;
     private int felled;
     private int before;
+    private int startCount;
+    private int workVerified;
     private int ticks;
     private boolean fallbackUsed;
+    private boolean workStarted;
     private String summary = "";
+    private TaskWorkResult workResult;
 
     public FellLogsTask(BlockMatcher matcher, int count, int radius, boolean collect) {
         this.matcher = matcher;
@@ -62,14 +67,25 @@ public final class FellLogsTask implements Task {
         trees = 0;
         gained = 0;
         felled = 0;
-        before = counted(c);
+        startCount = counted(c);
+        before = startCount;
+        workVerified = 0;
         ticks = 0;
         fallbackUsed = false;
         summary = "";
+        workStarted = true;
+        workResult = null;
     }
 
     @Override
     public TaskStatus tick(TaskContext c) {
+        TaskStatus status = tickWork(c);
+        workVerified = Math.max(0, counted(c) - startCount);
+        if (status != TaskStatus.RUNNING) workResult = createWorkResult(status);
+        return status;
+    }
+
+    private TaskStatus tickWork(TaskContext c) {
         if (++ticks > DEFAULT_MAX_TICKS) {
             return fail("ran out of time; cut " + gained + " of " + count + " " + matcher.label());
         }
@@ -184,5 +200,26 @@ public final class FellLogsTask implements Task {
     @Override
     public String resultSummary() {
         return summary;
+    }
+
+    @Override
+    public Optional<TaskWorkResult> workResult() {
+        if (!workStarted || itemMatcher.isEmpty()) return Optional.empty();
+        if (workResult == null) workResult = createWorkResult(TaskStatus.FAILED);
+        return Optional.of(workResult);
+    }
+
+    private TaskWorkResult createWorkResult(TaskStatus status) {
+        String reasonCode = workVerified >= count ? "complete" : workVerified > 0 ? "partial" : "blocked";
+        String blocker = status == TaskStatus.SUCCESS ? "" : summary;
+        String nextAction = status == TaskStatus.SUCCESS
+                ? "continue with the next order step"
+                : "try another valid source for the remaining logs";
+        return new TaskWorkResult(
+                java.util.List.of(new TaskWorkResult.Line(
+                        itemMatcher.orElseThrow().label(), count, workVerified, TaskWorkResult.Evidence.CARRIED)),
+                reasonCode,
+                blocker,
+                nextAction);
     }
 }

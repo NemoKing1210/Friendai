@@ -47,15 +47,21 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 - A second resource search in the same order no longer fails on its first step: resuming a search that had already started skipped straight to "nothing left to search", so getting a stone tool set from buried stone sometimes stopped halfway.
 - "Find something to eat", "I'm hungry" and their Russian forms now show the food tools, so the companion hunts the cows beside it instead of asking for cooked meat it cannot make and giving up.
 - "Stop, that's enough" in the middle of a long job now sticks: an unfinished goal no longer wakes the companion a minute later to start the same work again. The goal waits until you give new work, and `/friendai stop` does the same.
-
-## [0.211.3] - 2026-11-11
-
-### Fixed
-
 - The companion now mines a block that stands on or beside sand, red sand or gravel — a dead bush in the desert, an ore next to gravel — and sand or gravel itself. Such a block used to be reported as unreachable after a long wait. Only a falling block directly over the companion's own head is still left alone.
 - A number or an on/off value the model wrote in quotes (`"count": "2"`) is accepted in a tool call, a plan step and a queue edit instead of failing the order.
 - When the model calls a tool that was hidden for the current message, the companion loads that tool's group for the rest of the turn, so a refused call can be repeated correctly instead of failing again and again.
 - Russian orders with "take", "pick up", "chop", "mine" and "collect" verb forms, and English "take", "grab", "cut" and "break", now keep the gathering tools available; "eat" and "sleep" orders show the eating and sleeping tools.
+
+## [0.211.3] - 2026-11-12
+
+### Fixed
+
+- The companion centers itself before pillaring up, so a neighboring overhang no longer blocks a jump from a clear shaft.
+- Underground searches can try another safe descent after a blocked step. Excavation reports unfinished cells and keeps fallback digging within the depth of the work.
+- A carried crafting station can use a valid adjacent spot beneath a canopy.
+- Greetings and recovery events send fewer tools to the model. A newly failed task updates the reply before the companion reports or acts on stale information.
+- Plan recovery explains why an automatic replacement was skipped and guides the companion through repairing the existing queue. Planning instructions cover each requested delivery and distinguish blocks from their drops.
+- Task logs retain final summaries and link nested work to its execution. The server stream and its file header share a boot ID and use the actual world folder name.
 
 ## [0.211.2] - 2026-11-08
 

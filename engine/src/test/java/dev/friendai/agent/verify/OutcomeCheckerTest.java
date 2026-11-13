@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.friendai.agent.goal.Criterion;
+import dev.friendai.execution.TaskWorkResult;
 import dev.friendai.execution.queue.Guard;
 import dev.friendai.execution.queue.GuardFacts;
 import java.util.HashMap;
@@ -62,6 +63,28 @@ class OutcomeCheckerTest {
                 o.facts().stream().map(Fact::text).toList());
         assertTrue(o.success());
         assertEquals("facts: +12 minecraft:oak_log, -3 minecraft:cobblestone, empty slots 8 (was 10)", o.factsLine());
+    }
+
+    @Test
+    void taskFactsIncludeOnlyVerifiedEvidenceAndKeepHandoverSeparateFromPickup() {
+        WorldSnapshot snapshot = snap(Map.of(), 10, 3);
+        TaskWorkResult work = new TaskWorkResult(
+                List.of(
+                        new TaskWorkResult.Line("minecraft:oak_log", 12, 9, TaskWorkResult.Evidence.CARRIED),
+                        new TaskWorkResult.Line("minecraft:stone_pickaxe", 1, 1, TaskWorkResult.Evidence.HANDED_OVER),
+                        new TaskWorkResult.Line("minecraft:stone_pickaxe", 1, 0, TaskWorkResult.Evidence.PICKED_UP)),
+                "partial",
+                "the owner has not collected the drop",
+                "wait for pickup");
+
+        Outcome outcome =
+                OutcomeChecker.check(snapshot, snapshot, false, List.of(), facts(snapshot), Optional.of(work));
+        List<String> text = outcome.facts().stream().map(Fact::text).toList();
+
+        assertTrue(text.contains("carried 9/12 minecraft:oak_log"), text.toString());
+        assertTrue(text.contains("handed_over 1/1 minecraft:stone_pickaxe"), text.toString());
+        assertFalse(text.contains("picked_up 0/1 minecraft:stone_pickaxe"), text.toString());
+        assertFalse(outcome.success());
     }
 
     @Test

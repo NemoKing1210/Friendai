@@ -4,6 +4,7 @@ import com.google.gson.JsonParser;
 import dev.friendai.agent.llm.model.ToolCall;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.execution.TaskWorkResult;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolExecutor;
@@ -983,8 +984,9 @@ public class TreeFellingTests {
         Result result = new Result();
         ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 300, () -> false);
         runner.setEventSink(result);
-        runner.start(
-                new FellLogsTask(BlockMatcher.parse("minecraft:spruce_log").orElseThrow(), 3, 32, true), "obtain_logs");
+        FellLogsTask task =
+                new FellLogsTask(BlockMatcher.parse("minecraft:spruce_log").orElseThrow(), 3, 32, true);
+        runner.start(task, "obtain_logs");
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
@@ -995,6 +997,14 @@ public class TreeFellingTests {
                 h.assertTrue(h.getBlockState(p).isAir(), "second tree log left at " + p);
             }
             h.assertTrue(c.inventory().countItem(Items.SPRUCE_LOG) >= 3, "gained logs");
+            h.assertValueEqual(
+                    task.workResult().orElseThrow().lines(),
+                    List.of(new TaskWorkResult.Line(
+                            "minecraft:spruce_log",
+                            3,
+                            c.inventory().countItem(Items.SPRUCE_LOG),
+                            TaskWorkResult.Evidence.CARRIED)),
+                    "verified felling work");
         });
     }
 

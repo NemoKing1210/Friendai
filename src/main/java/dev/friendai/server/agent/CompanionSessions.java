@@ -23,6 +23,7 @@ import dev.friendai.agent.turn.Speaker;
 import dev.friendai.debug.DebugService;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
+import dev.friendai.execution.TaskWorkResult;
 import dev.friendai.execution.history.TaskRecord;
 import dev.friendai.execution.queue.PlanNode;
 import dev.friendai.execution.queue.PlanRecord;
@@ -344,7 +345,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                 sessions::snapshot,
                 this::post);
         reload(initial);
-        emitStreamStart();
+        emitStreamStart(fileLog instanceof dev.friendai.debug.LogWriterService writer ? writer.boot() : "");
     }
     /** Free time: the companion working on its own. */
     public FreeTimeDriver freeTime() {
@@ -751,9 +752,9 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
     }
 
     /** Announces the server stream once: boot, scope and the versions an investigator correlates files with. */
-    private void emitStreamStart() {
+    private void emitStreamStart(String boot) {
         java.util.Map<String, String> data = new java.util.LinkedHashMap<>();
-        data.put("boot", dev.friendai.foundation.diagnostics.LogNames.bootId());
+        if (!boot.isBlank()) data.put("boot", boot);
         data.put("scope", "server");
         data.put("mod", modVersion());
         debug.pipeline()
@@ -1081,6 +1082,17 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
 
             @Override
             public void onFinished(int id, long planId, String toolName, TaskStatus status, String summary) {
+                onFinished(id, planId, toolName, status, summary, Optional.empty());
+            }
+
+            @Override
+            public void onFinished(
+                    int id,
+                    long planId,
+                    String toolName,
+                    TaskStatus status,
+                    String summary,
+                    Optional<TaskWorkResult> workResult) {
                 if (!isCurrent(session, companion)) return;
                 // The structured lifecycle producer owns task.finish; this callback keeps history and speech only.
                 debug.historyOf(owner)
@@ -1104,7 +1116,14 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                         companion,
                         owner,
                         new BrainEvent.TaskFinished(
-                                id, planId, goalId, toolName, ok, summary, agent.extra(ok, planId, toolName, summary)));
+                                id,
+                                planId,
+                                goalId,
+                                toolName,
+                                ok,
+                                summary,
+                                agent.extra(ok, planId, toolName, summary, workResult),
+                                workResult));
             }
 
             @Override

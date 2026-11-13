@@ -1,4 +1,5 @@
 {
+  "conversation_markers": ["hi", "hello", "hey", "good morning", "good afternoon", "good evening", "thanks", "thank you"],
   "question_markers": ["what", "where", "how", "why", "who", "when", "which", "whose", "tell me", "do you know", "are you", "is there", "can you tell"],
   "advice_question_markers": ["should i", "should we", "is it worth", "worth buying", "worth selling", "do you recommend", "would you recommend", "would you buy", "would you purchase", "do you think i should", "do you think we should"],
   "action_verbs": {

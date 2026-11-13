@@ -2,9 +2,11 @@ package dev.friendai.task;
 
 import dev.friendai.debug.DebugTarget;
 import dev.friendai.debug.WorkSet;
+import dev.friendai.execution.TaskWorkResult;
 import dev.friendai.features.places.PlaceCandidate;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /** A long-running activity of the companion. {@code describe()} and {@code resultSummary()} are English, LLM-facing. */
 public interface Task {
@@ -34,6 +36,11 @@ public interface Task {
     String describe();
 
     String resultSummary();
+
+    /** A compact account of requested work and the evidence actually verified at the task's last transition. */
+    default Optional<TaskWorkResult> workResult() {
+        return Optional.empty();
+    }
 
     /** Concrete block targets for the debug overlay while this task is running; empty when it has none. */
     default List<DebugTarget> debugTargets() {

@@ -27,4 +27,13 @@ class ExcavationReportTest {
                 "mined 2 stone; stopped: the inventory is full",
                 ExcavationReport.partial("stone", progress, "the inventory is full"));
     }
+
+    @Test
+    void alreadyEmptyCellsAreReportedAsCompletedSpace() {
+        ExcavationProgress progress = new ExcavationProgress();
+        progress.markSkipped("already empty");
+        progress.markSkipped("already empty");
+
+        assertEquals("mined 0 shaft; 2 already empty", ExcavationReport.success("shaft", progress));
+    }
 }

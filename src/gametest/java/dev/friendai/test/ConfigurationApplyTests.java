@@ -97,6 +97,8 @@ public class ConfigurationApplyTests {
         args.addProperty("block", "minecraft:acacia_log");
         args.addProperty("count", 1);
         args.addProperty("collect", false);
+        // Exercise the configured radius without the fallback expedition after a local miss.
+        args.addProperty("explore", false);
         return args;
     }
 }
