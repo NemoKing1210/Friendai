@@ -8,9 +8,14 @@ import dev.friendai.features.acquisition.minecraft.search.WorldScan;
 import dev.friendai.features.acquisition.minecraft.task.ObtainTask;
 import dev.friendai.features.acquisition.minecraft.task.VisitResourceTask;
 import dev.friendai.features.knowledge.ResourceObservation;
+import dev.friendai.features.knowledge.travel.TrailGraph;
+import dev.friendai.features.navigation.minecraft.nav.ResourceJourney;
+import dev.friendai.foundation.spatial.MaterialReserve;
 import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.execution.TaskEventSink;
+import dev.friendai.task.Task;
+import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
@@ -20,6 +25,152 @@ import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Blocks;
 
 public final class ResourceJourneyTests {
+    private record ReturnFixture(
+            CompanionEntity companion, ResourceJourney journey, Pos anchor, BlockPos obstruction) {}
+
+    private static ReturnFixture returnFixture(GameTestHelper h, boolean obstructed) {
+        for (int x = 0; x < 9; x++) {
+            for (int z = 0; z < 9; z++) {
+                h.setBlock(new BlockPos(x, 0, z), Blocks.STONE);
+            }
+        }
+        h.setBlock(new BlockPos(5, 1, 4), Blocks.STONE);
+        if (obstructed) h.setBlock(new BlockPos(5, 3, 4), Blocks.BEDROCK);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 4, 1, 4);
+        BlockPos absoluteAnchor = h.absolutePos(new BlockPos(5, 2, 4));
+        BlockPos absoluteLow = h.absolutePos(new BlockPos(4, 1, 4));
+        Pos anchor = new Pos(absoluteAnchor.getX(), absoluteAnchor.getY(), absoluteAnchor.getZ());
+        Pos low = new Pos(absoluteLow.getX(), absoluteLow.getY(), absoluteLow.getZ());
+        ResourceJourney journey = new ResourceJourney(
+                new TaskContext(companion, h.getLevel()),
+                h.getLevel().dimension().identifier().toString(),
+                anchor,
+                null,
+                new TrailGraph(),
+                false,
+                java.util.List.of(anchor, low),
+                0);
+        return new ReturnFixture(companion, journey, anchor, h.absolutePos(new BlockPos(5, 3, 4)));
+    }
+
+    @GameTest(maxTicks = 400)
+    public void followsTheVerifiedRouteBackFromTheLowerStance(GameTestHelper h) {
+        ReturnFixture fixture = returnFixture(h, false);
+        TaskContext context = new TaskContext(fixture.companion(), h.getLevel());
+
+        h.succeedWhen(() -> {
+            ResourceJourney.State state = fixture.journey().tick(context);
+            h.assertTrue(state == ResourceJourney.State.ARRIVED, "the verified return route did not reach its anchor");
+            h.assertTrue(
+                    Math.abs(fixture.companion().getY() - fixture.anchor().y()) <= 0.75,
+                    "the return reported arrival from the lower stance");
+            fixture.journey().stop(context);
+        });
+    }
+
+    @GameTest(maxTicks = 600)
+    public void obstructedVerifiedExitTriesOneAlternateWithoutBreakingBlocks(GameTestHelper h) {
+        ReturnFixture fixture = returnFixture(h, true);
+        TaskContext context = new TaskContext(fixture.companion(), h.getLevel());
+
+        h.succeedWhen(() -> {
+            ResourceJourney.State state = fixture.journey().tick(context);
+            h.assertTrue(state == ResourceJourney.State.BLOCKED, "waiting for the blocked exit result");
+            h.assertTrue(
+                    h.getLevel().getBlockState(fixture.obstruction()).is(Blocks.BEDROCK),
+                    "return recovery edited the obstruction");
+            fixture.journey().stop(context);
+        });
+    }
+
+    @GameTest(maxTicks = 1200)
+    public void returnJourneyCannotSpendTheKitBlockReservedForWork(GameTestHelper h) {
+        for (int x = 0; x < 9; x++) {
+            for (int z = 0; z < 9; z++) {
+                h.setBlock(new BlockPos(x, 0, z), Blocks.STONE);
+            }
+        }
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 4, 1, 4);
+        companion.inventory().addItem(new net.minecraft.world.item.ItemStack(Items.DIRT));
+        companion.setMaterialReserve(MaterialReserve.compose(
+                java.util.Map.of("minecraft:dirt", 1), java.util.Map.of(), java.util.Map.of("minecraft:dirt", 1)));
+        String dimension = h.getLevel().dimension().identifier().toString();
+        BlockPos absoluteAnchor = h.absolutePos(new BlockPos(4, 5, 4));
+        BlockPos absoluteLow = h.absolutePos(new BlockPos(4, 1, 4));
+        Pos anchor = new Pos(absoluteAnchor.getX(), absoluteAnchor.getY(), absoluteAnchor.getZ());
+        Pos low = new Pos(absoluteLow.getX(), absoluteLow.getY(), absoluteLow.getZ());
+        ResourceJourney journey = new ResourceJourney(
+                new TaskContext(companion, h.getLevel()),
+                dimension,
+                anchor,
+                null,
+                new TrailGraph(),
+                false,
+                java.util.List.of(anchor, low),
+                1);
+        h.succeedWhen(() -> {
+            ResourceJourney.State state = journey.tick(new TaskContext(companion, h.getLevel()));
+            h.assertTrue(state == ResourceJourney.State.BLOCKED, "waiting for the return route to report blocked");
+            h.assertTrue(
+                    companion.inventory().countItem(Items.DIRT) == 1,
+                    "the return route spent the dirt reserved for the kit");
+            journey.stop(new TaskContext(companion, h.getLevel()));
+        });
+    }
+
+    @GameTest(maxTicks = 40)
+    public void executionReserveKeepsWorkAndReturnSharesSeparate(GameTestHelper h) {
+        GameTestSupport.platform(h, 24);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        Task task = new Task() {
+            @Override
+            public String type() {
+                return "return_reserve_test";
+            }
+
+            @Override
+            public void start(TaskContext context) {}
+
+            @Override
+            public TaskStatus tick(TaskContext context) {
+                return TaskStatus.RUNNING;
+            }
+
+            @Override
+            public void stop(TaskContext context) {}
+
+            @Override
+            public java.util.Map<String, Integer> materialNeeds(TaskContext context) {
+                return java.util.Map.of("minecraft:dirt", 1);
+            }
+
+            @Override
+            public java.util.Map<String, Integer> travelMaterialNeeds(TaskContext context) {
+                return java.util.Map.of("minecraft:dirt", 1);
+            }
+
+            @Override
+            public String describe() {
+                return "testing the return reserve";
+            }
+
+            @Override
+            public String resultSummary() {
+                return "";
+            }
+        };
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 100, () -> false);
+        runner.start(task, "return_reserve_test");
+        runner.tick();
+
+        h.assertTrue(companion.materialReserve().workReserved("minecraft:dirt") == 1, "work reserve was lost");
+        h.assertTrue(companion.materialReserve().travelReserved("minecraft:dirt") == 1, "travel reserve was lost");
+        h.assertTrue(
+                companion.materialReserve().forReturnLeg().reserved("minecraft:dirt") == 1,
+                "return navigation did not retain the work reserve");
+        h.succeed();
+    }
+
     @GameTest(maxTicks = 600)
     public void aVisitThatFindsNothingForgetsTheSite(GameTestHelper h) {
         GameTestSupport.platformAt(h, 500, 32);

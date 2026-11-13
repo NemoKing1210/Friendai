@@ -14,7 +14,50 @@ public record ResourceCandidate(
         long ageTicks,
         boolean visibleNow,
         boolean approximate,
-        double estimatedCost) {
+        double estimatedCost,
+        ToolReadiness toolReadiness,
+        ApproachEvidence approachEvidence,
+        double estimatedReturnCost) {
+    public enum ToolReadiness {
+        READY,
+        UNKNOWN,
+        MISSING
+    }
+
+    public enum ApproachEvidence {
+        VERIFIED,
+        ESTIMATED,
+        UNKNOWN
+    }
+
+    /** Compatibility constructor for candidates created before runtime evidence was available. */
+    public ResourceCandidate(
+            long siteId,
+            String blockId,
+            String dimension,
+            Pos position,
+            Pos approach,
+            int lastObservedBlocks,
+            long ageTicks,
+            boolean visibleNow,
+            boolean approximate,
+            double estimatedCost) {
+        this(
+                siteId,
+                blockId,
+                dimension,
+                position,
+                approach,
+                lastObservedBlocks,
+                ageTicks,
+                visibleNow,
+                approximate,
+                estimatedCost,
+                ToolReadiness.UNKNOWN,
+                ApproachEvidence.UNKNOWN,
+                0);
+    }
+
     public ResourceCandidate {
         if (siteId < 1
                 || blockId == null
@@ -24,10 +67,18 @@ public record ResourceCandidate(
                 || lastObservedBlocks < 1
                 || ageTicks < 0
                 || !Double.isFinite(estimatedCost)
-                || estimatedCost < 0) {
+                || estimatedCost < 0
+                || !Double.isFinite(estimatedReturnCost)
+                || estimatedReturnCost < 0) {
             throw new IllegalArgumentException("invalid resource candidate");
         }
         Objects.requireNonNull(position, "position");
         Objects.requireNonNull(approach, "approach");
+        Objects.requireNonNull(toolReadiness, "toolReadiness");
+        Objects.requireNonNull(approachEvidence, "approachEvidence");
+    }
+
+    public double estimatedTripCost() {
+        return estimatedCost + estimatedReturnCost;
     }
 }

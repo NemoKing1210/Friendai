@@ -6,12 +6,14 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
+import dev.friendai.features.acquisition.minecraft.task.ObtainTask;
 import dev.friendai.features.knowledge.ResourceObservation;
 import dev.friendai.features.knowledge.search.SearchSession;
 import dev.friendai.features.memory.minecraft.tool.MemoryAccess;
 import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.perception.resource.CaveEntranceObservation;
 import dev.friendai.server.execution.TaskEventSink;
+import dev.friendai.server.execution.tools.MinecraftObtainSubtaskFactory;
 import dev.friendai.task.TaskStatus;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
@@ -494,6 +496,113 @@ public final class ResourceSearchTests {
             h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
             h.assertTrue(result.summary.contains("found"), result.summary);
             h.assertTrue(companion.blockPosition().distManhattan(start) < 4, "search travelled for a visible log");
+        });
+    }
+
+    @GameTest(maxTicks = 2_400)
+    public void failedRememberedRouteKeepsEvidenceAndObtainUsesSecondSite(GameTestHelper h) {
+        GameTestSupport.platform(h, 32);
+        var owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.setOwner(owner.getUUID());
+        companion.inventory().setItem(0, Items.WOODEN_PICKAXE.getDefaultInstance());
+        for (int x = 4; x <= 8; x++) {
+            for (int z = 4; z <= 8; z++) {
+                h.setBlock(x, 1, z, Blocks.BEDROCK);
+                h.setBlock(x, 5, z, Blocks.BEDROCK);
+            }
+        }
+        for (int y = 2; y <= 4; y++) {
+            for (int edge = 4; edge <= 8; edge++) {
+                h.setBlock(4, y, edge, Blocks.BEDROCK);
+                h.setBlock(8, y, edge, Blocks.BEDROCK);
+                h.setBlock(edge, y, 4, Blocks.BEDROCK);
+                h.setBlock(edge, y, 8, Blocks.BEDROCK);
+            }
+        }
+        for (int x = 5; x <= 7; x++) {
+            for (int y = 2; y <= 3; y++) h.setBlock(x, y, 6, Blocks.STONE);
+            for (int y = 2; y <= 3; y++) h.setBlock(x + 20, y, 2, Blocks.STONE);
+        }
+        var runtime = GameTestSupport.runtime(h.getLevel().getServer());
+        var book = runtime.knowledge().book(owner.getUUID());
+        String dimension = h.getLevel().dimension().identifier().toString();
+        BlockPos approachA = h.absolutePos(new BlockPos(6, 2, 5));
+        BlockPos approachB = h.absolutePos(new BlockPos(23, 2, 2));
+        long observedTick = h.getLevel().getServer().overworld().getGameTime();
+        long firstSite = -1;
+        long secondSite = -1;
+        for (int x = 5; x <= 7; x++) {
+            for (int y = 2; y <= 3; y++) {
+                BlockPos memberA = h.absolutePos(new BlockPos(x, y, 6));
+                ResourceObservation first = new ResourceObservation(
+                        "minecraft:stone",
+                        new ResourceObservation.Location(
+                                dimension, new Pos(memberA.getX(), memberA.getY(), memberA.getZ())),
+                        new Pos(approachA.getX(), approachA.getY(), approachA.getZ()),
+                        observedTick);
+                long id = book.observe(first, first.blockId());
+                runtime.resourceCandidates().observe(companion, first);
+                firstSite = firstSite < 0 ? id : firstSite;
+
+                BlockPos memberB = h.absolutePos(new BlockPos(x + 20, y, 2));
+                ResourceObservation second = new ResourceObservation(
+                        "minecraft:stone",
+                        new ResourceObservation.Location(
+                                dimension, new Pos(memberB.getX(), memberB.getY(), memberB.getZ())),
+                        new Pos(approachB.getX(), approachB.getY(), approachB.getZ()),
+                        observedTick);
+                id = book.observe(second, second.blockId());
+                runtime.resourceCandidates().observe(companion, second);
+                secondSite = secondSite < 0 ? id : secondSite;
+            }
+        }
+        long failedSite = firstSite;
+        long alternateSite = secondSite;
+        Result result = new Result();
+        var runner = companion.executionCoordinator();
+        runner.setEventSink(result);
+        long startTick = h.getLevel().getServer().overworld().getGameTime();
+        boolean[] started = {false};
+
+        h.succeedWhen(() -> {
+            if (!started[0]) {
+                if (h.getLevel().getServer().overworld().getGameTime() - startTick < 2) return;
+                runner.start(
+                        new ObtainTask(
+                                "minecraft:cobblestone",
+                                6,
+                                false,
+                                true,
+                                20,
+                                2_200,
+                                32,
+                                64,
+                                600,
+                                "local",
+                                null,
+                                null,
+                                new MinecraftObtainSubtaskFactory()),
+                        "obtain_item");
+                started[0] = true;
+            }
+            if (result.status == null) runner.tick();
+            h.assertTrue(result.status != null, "obtain still running at " + companion.blockPosition());
+            h.assertTrue(result.status == TaskStatus.SUCCESS, result.summary);
+            h.assertTrue(result.summary.contains("visited site " + alternateSite), result.summary);
+            h.assertTrue(result.summary.contains("mined 6 minecraft:stone"), result.summary);
+            h.assertTrue(
+                    book.site(failedSite, h.getLevel().getServer().overworld().getGameTime())
+                            .isPresent(),
+                    "a failed approach must keep the first site's evidence");
+            h.assertTrue(
+                    java.util.stream.IntStream.rangeClosed(25, 27)
+                            .allMatch(x -> java.util.stream.IntStream.rangeClosed(2, 3)
+                                    .allMatch(y -> h.getLevel()
+                                            .getBlockState(h.absolutePos(new BlockPos(x, y, 2)))
+                                            .isAir())),
+                    "the selected second site should be mined after its visit");
+            h.assertValueEqual(companion.inventory().countItem(Items.COBBLESTONE), 6, "verified stone output");
         });
     }
 

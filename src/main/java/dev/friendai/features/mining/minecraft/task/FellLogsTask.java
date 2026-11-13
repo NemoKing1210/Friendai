@@ -7,8 +7,10 @@ import dev.friendai.task.TaskStatus;
 import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.inventory.ItemMatcher;
 import dev.friendai.world.block.BlockMatcher;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import net.minecraft.core.BlockPos;
 
 /**
@@ -26,6 +28,7 @@ public final class FellLogsTask implements Task {
     private final int count;
     private final int radius;
     private final boolean collect;
+    private final Set<BlockPos> failedBases = new LinkedHashSet<>();
 
     private BlockPos origin;
     private Optional<ItemMatcher> itemMatcher = Optional.empty();
@@ -65,6 +68,7 @@ public final class FellLogsTask implements Task {
         itemMatcher = ItemMatcher.parse(matcher.label());
         current = null;
         trees = 0;
+        failedBases.clear();
         gained = 0;
         felled = 0;
         startCount = counted(c);
@@ -96,6 +100,12 @@ public final class FellLogsTask implements Task {
             }
             gained += Math.max(0, counted(c) - before);
             summary = current.resultSummary();
+            boolean selectedTree = false;
+            if (current instanceof FellTreeSearchTask search && search.selectedBase() != null) {
+                selectedTree = true;
+                trees++;
+                if (failedBases.size() < DEFAULT_MAX_TREES) failedBases.add(search.selectedBase());
+            }
             safeStop(current, c);
             current = null;
             if (gained >= count) {
@@ -104,7 +114,7 @@ public final class FellLogsTask implements Task {
             if (fallbackUsed) {
                 return fail("cut " + gained + " of " + count + " " + matcher.label() + ": " + summary);
             }
-            if (status == TaskStatus.FAILED) {
+            if (!selectedTree) {
                 return startFallback(c);
             }
         }
@@ -112,9 +122,9 @@ public final class FellLogsTask implements Task {
             return startFallback(c);
         }
         before = counted(c);
-        current = new FellTreeSearchTask(matcher, origin, radius, 0, collect, true);
+        current = new FellTreeSearchTask(
+                matcher, origin, radius, 0, collect, true, Math.max(1, count - gained), failedBases);
         current.start(c);
-        trees++;
         return TaskStatus.RUNNING;
     }
 

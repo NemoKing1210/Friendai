@@ -2,6 +2,7 @@ package dev.friendai.test;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.execution.TaskWorkResult;
 import dev.friendai.features.inventory.minecraft.task.DropItemsTask;
 import dev.friendai.features.inventory.minecraft.task.GiveItemsTask;
 import dev.friendai.features.inventory.minecraft.task.PickupItemsTask;
@@ -18,6 +19,7 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
@@ -224,6 +226,186 @@ public class ItemTaskTests {
         });
     }
 
+    @GameTest(maxTicks = 600)
+    public void strictTransferKeepsTheReservedShare(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 4.5, 2, 2.5);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(owner.getUUID());
+        c.inventory().addItem(new ItemStack(Items.STONE_AXE));
+        c.setItemSlot(EquipmentSlot.OFFHAND, new ItemStack(Items.STONE_AXE));
+        GiveItemsTask task =
+                new GiveItemsTask(ItemMatcher.parse("minecraft:stone_axe").orElseThrow(), 1, 1, true);
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(task, "give_items");
+
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertValueEqual(c.inventory().countItem(Items.STONE_AXE), 0, "one axe came from the bag");
+            h.assertValueEqual(c.getOffhandItem().getCount(), 1, "the reserved axe stays in the offhand");
+            List<ItemEntity> drops = h
+                    .getLevel()
+                    .getEntitiesOfClass(ItemEntity.class, new AABB(owner.blockPosition()).inflate(8))
+                    .stream()
+                    .filter(entity -> entity.getItem().is(Items.STONE_AXE))
+                    .toList();
+            h.assertValueEqual(
+                    drops.stream()
+                            .mapToInt(entity -> entity.getItem().getCount())
+                            .sum(),
+                    1,
+                    "one owner share");
+            TaskWorkResult work = task.workResult().orElseThrow();
+            h.assertValueEqual(
+                    work.lines(),
+                    List.of(
+                            new TaskWorkResult.Line("minecraft:stone_axe", 1, 1, TaskWorkResult.Evidence.HANDED_OVER),
+                            new TaskWorkResult.Line("minecraft:stone_axe", 1, 1, TaskWorkResult.Evidence.CARRIED)),
+                    "actual transfer and retained share stay distinct");
+            h.assertValueEqual(owner.getInventory().countItem(Items.STONE_AXE), 0, "a drop is not pickup proof");
+            drops.forEach(drop -> {
+                drop.setPickUpDelay(0);
+                drop.playerTouch(owner);
+            });
+            h.assertValueEqual(owner.getInventory().countItem(Items.STONE_AXE), 1, "owner picked up the axe");
+            h.assertValueEqual(c.getOffhandItem().getCount(), 1, "pickup does not spend the retained axe");
+        });
+    }
+
+    @GameTest
+    public void strictTransferRefusesWhenReservedStockIsMissing(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 4.5, 2, 2.5);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(owner.getUUID());
+        c.inventory().addItem(new ItemStack(Items.STONE_AXE));
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(
+                new GiveItemsTask(ItemMatcher.parse("minecraft:stone_axe").orElseThrow(), 1, 1, true), "give_items");
+        runner.tick();
+
+        h.assertTrue(result.status == TaskStatus.FAILED, "strict transfer needs the requested item plus its reserve");
+        h.assertValueEqual(c.inventory().countItem(Items.STONE_AXE), 1, "the available axe remains carried");
+        h.assertValueEqual(
+                h.getLevel().getEntitiesOfClass(ItemEntity.class, new AABB(owner.blockPosition()).inflate(8)).stream()
+                        .filter(entity -> entity.getItem().is(Items.STONE_AXE))
+                        .mapToInt(entity -> entity.getItem().getCount())
+                        .sum(),
+                0,
+                "short stock never creates a partial strict handover");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 900)
+    public void strictTransferDoesNotSpendItemsWhileTheOwnerIsUnreachable(GameTestHelper h) {
+        int surfaceY = 120;
+        GameTestSupport.platformAt(h, surfaceY, 24);
+        for (int y = surfaceY + 1; y <= surfaceY + 5; y++) {
+            for (int z = 0; z <= 24; z++) {
+                h.setBlock(new BlockPos(12, y, z), Blocks.BEDROCK);
+            }
+            for (int x = 0; x <= 24; x++) {
+                h.setBlock(new BlockPos(x, y, 0), Blocks.BEDROCK);
+                h.setBlock(new BlockPos(x, y, 24), Blocks.BEDROCK);
+            }
+            for (int z = 0; z <= 24; z++) {
+                h.setBlock(new BlockPos(0, y, z), Blocks.BEDROCK);
+                h.setBlock(new BlockPos(24, y, z), Blocks.BEDROCK);
+            }
+        }
+        for (int x = 0; x <= 24; x++) {
+            for (int z = 0; z <= 24; z++) h.setBlock(new BlockPos(x, surfaceY + 6, z), Blocks.BEDROCK);
+        }
+        h.assertTrue(
+                h.getBlockState(new BlockPos(12, surfaceY + 5, 12)).is(Blocks.BEDROCK),
+                "the route barrier reaches above the companion");
+        h.assertTrue(
+                h.getBlockState(new BlockPos(12, surfaceY + 6, 4)).is(Blocks.BEDROCK),
+                "the enclosure roof prevents a climb-over route");
+        BlockPos gapFeet = new BlockPos(12, surfaceY + 1, 12);
+        BlockPos gapHead = new BlockPos(12, surfaceY + 2, 12);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 18.5, surfaceY + 1, 12.5);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 4, surfaceY + 1, 12);
+        c.setOwner(owner.getUUID());
+        c.inventory().addItem(new ItemStack(Items.OAK_LOG, 2));
+        GiveItemsTask task =
+                new GiveItemsTask(ItemMatcher.parse("minecraft:oak_log").orElseThrow(), 1, 1, true);
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(task, "give_items");
+        boolean[] opened = {false};
+
+        TaskTrace.of(h, runner, c).succeedWhen(() -> {
+            runner.tick();
+            if (!opened[0] && task.waitingTicks() >= 20) {
+                h.setBlock(gapFeet, Blocks.AIR);
+                h.setBlock(gapHead, Blocks.AIR);
+                opened[0] = true;
+            }
+            if (result.status == null) {
+                h.assertValueEqual(c.inventory().countItem(Items.OAK_LOG), 2, "the bag is unchanged while blocked");
+                h.assertValueEqual(droppedLogs(h, owner), 0, "no handover exists before a valid approach");
+            }
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "strict transfer did not resume: " + result.summary);
+            h.assertTrue(opened[0], "the route was not held blocked before opening");
+            h.assertValueEqual(c.inventory().countItem(Items.OAK_LOG), 1, "one log remains reserved");
+            h.assertValueEqual(droppedLogs(h, owner), 1, "exactly one log reaches the owner");
+            ItemEntity drop = h
+                    .getLevel()
+                    .getEntitiesOfClass(ItemEntity.class, new AABB(owner.blockPosition()).inflate(8))
+                    .stream()
+                    .filter(entity -> entity.getItem().is(Items.OAK_LOG))
+                    .findFirst()
+                    .orElseThrow();
+            drop.setPickUpDelay(0);
+            drop.playerTouch(owner);
+            h.assertValueEqual(
+                    owner.getInventory().countItem(Items.OAK_LOG), 1, "the owner picked up the delivered log");
+            h.assertValueEqual(c.inventory().countItem(Items.OAK_LOG), 1, "owner pickup leaves the reserve intact");
+        });
+    }
+
+    @GameTest(maxTicks = 600)
+    public void legacyGiveStillTransfersAnOffhandItem(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 4.5, 2, 2.5);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(owner.getUUID());
+        c.setItemSlot(EquipmentSlot.OFFHAND, new ItemStack(Items.STONE_AXE));
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(new GiveItemsTask(ItemMatcher.parse("minecraft:stone_axe").orElseThrow(), 1), "give_items");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(c.getOffhandItem().isEmpty(), "legacy delivery still takes the offhand stack");
+            h.assertValueEqual(droppedItemCount(h, owner, Items.STONE_AXE), 1, "one axe was dropped");
+        });
+    }
+
+    @GameTest
+    public void legacyGiveStillTransfersAnAvailablePartialShare(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 4.5, 2, 2.5);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(owner.getUUID());
+        c.inventory().addItem(new ItemStack(Items.OAK_LOG, 2));
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(new GiveItemsTask(ItemMatcher.parse("minecraft:oak_log").orElseThrow(), 3), "give_items");
+
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "legacy partial transfer failed: " + result.summary);
+            h.assertTrue(result.summary.equals("gave 2 minecraft:oak_log"), result.summary);
+            h.assertValueEqual(c.inventory().countItem(Items.OAK_LOG), 0, "legacy transfer gave its available share");
+            h.assertValueEqual(droppedLogs(h, owner), 2, "legacy transfer still hands over what it has");
+        });
+    }
+
     @GameTest(maxTicks = 200)
     public void giveReportsAMissingStackInPlainWords(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
@@ -342,6 +524,13 @@ public class ItemTaskTests {
         return h.getLevel().getEntitiesOfClass(ItemEntity.class, new AABB(owner.blockPosition()).inflate(4)).stream()
                 .filter(e -> e.getItem().is(Items.OAK_LOG))
                 .mapToInt(e -> e.getItem().getCount())
+                .sum();
+    }
+
+    private static int droppedItemCount(GameTestHelper h, ServerPlayer owner, Item item) {
+        return h.getLevel().getEntitiesOfClass(ItemEntity.class, new AABB(owner.blockPosition()).inflate(8)).stream()
+                .filter(entity -> entity.getItem().is(item))
+                .mapToInt(entity -> entity.getItem().getCount())
                 .sum();
     }
 

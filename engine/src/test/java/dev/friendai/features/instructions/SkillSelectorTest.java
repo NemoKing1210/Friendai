@@ -97,6 +97,22 @@ class SkillSelectorTest {
     }
 
     @Test
+    void smartPlanningTeachesBatchedMaterialsAndStrictOwnerDeliveryInsideTheSkillSlice() {
+        var builtins = BuiltinSkills.load(getClass().getClassLoader());
+        var selected = SkillSelector.select(
+                builtins, context(AccessLevel.OWNER, "Сделай мне каменный набор инструментов"), Set.of(), 24000, 4096);
+        var planning = selected.skills().stream()
+                .filter(s -> s.id().equals("builtin:smart-planning"))
+                .findFirst()
+                .orElseThrow();
+
+        assertTrue(planning.body().contains("one obtain_items batch"), planning.body());
+        assertTrue(planning.body().contains("strict=true"), planning.body());
+        assertTrue(planning.body().contains("the authenticated owner"), planning.body());
+        assertTrue(selected.renderedChars() <= 4096, "skill slice is " + selected.renderedChars());
+    }
+
+    @Test
     void rankingAndSmallBudgetAreDeterministic() {
         var a = skill("owner:a", true, false, "A".repeat(500));
         var z = skill("owner:z", true, true, "Small instruction.");

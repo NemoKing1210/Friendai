@@ -10,6 +10,7 @@ import dev.friendai.features.mining.minecraft.mining.TreeFinder;
 import dev.friendai.features.mining.tree.CanopyRescue;
 import dev.friendai.features.mining.tree.FellPlan;
 import dev.friendai.features.mining.tree.FellPlanner;
+import dev.friendai.features.mining.tree.TreeCandidateRanker;
 import dev.friendai.features.mining.tree.TreeCell;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
@@ -203,6 +204,93 @@ public final class FellTreeTask implements Task {
 
     TreeFinder.TreeInfo tree() {
         return tree;
+    }
+
+    /** Cheap, conservative facts for lumber search; the selected tree is expanded and checked again before felling. */
+    static TreeCandidateRanker.Candidate rankFacts(
+            TaskContext c, TreeFinder.TreeInfo tree, BlockMatcher matcher, boolean collect) {
+        FellTreeTask estimate = new FellTreeTask(tree, matcher, 0, collect);
+        List<TreeCell> usable = new ArrayList<>(tree.logs().size());
+        for (BlockPos pos : tree.logs()) {
+            if (!matcher.test(c.level().getBlockState(pos))
+                    || !estimate.protection(c, pos).isEmpty()) continue;
+            usable.add(cell(pos));
+        }
+
+        int safeLogs = 0;
+        double climbCost = 0.0;
+        double approachCost =
+                Vec3.atCenterOf(tree.base()).distanceTo(c.companion().position());
+        boolean protectedRoute = usable.isEmpty();
+        if (!usable.isEmpty()) {
+            TreeCell feet = cell(c.companion().blockPosition());
+            List<TreeCell> planningLogs = sample(usable, 64);
+            estimate.plan = FellPlanner.plan(planningLogs, feet, 0);
+            estimate.scaffold = new Scaffold(c.companion());
+            int available = estimate.scaffold.available(c);
+            FellPlan.Climb viable = estimate.plan.climbs().stream()
+                    .filter(candidate -> candidate.scaffoldNeeded() <= MAX_CLIMB)
+                    .filter(candidate -> candidate.scaffoldNeeded() <= available)
+                    .filter(candidate -> estimate.columnProblem(c, candidate).isEmpty())
+                    .findFirst()
+                    .orElse(null);
+            if (viable != null) {
+                safeLogs = viable.logs().size();
+                approachCost = Vec3.atCenterOf(new BlockPos(
+                                viable.column().x(),
+                                viable.column().y(),
+                                viable.column().z()))
+                        .distanceTo(c.companion().position());
+                climbCost = viable.scaffoldNeeded() * 3.0;
+            } else {
+                Vec3 eyes = c.companion().getEyePosition();
+                safeLogs = (int) usable.stream()
+                        .map(FellTreeTask::pos)
+                        .filter(pos -> eyes.distanceTo(Vec3.atCenterOf(pos)) <= FellPlanner.REACH)
+                        .count();
+            }
+        }
+
+        boolean collectionKnown = collect
+                && !protectedRoute
+                && tree.logs().size() <= 64
+                && safeLogs > 0
+                && landsSafely((ServerLevel) c.level(), tree.base())
+                && tree.logs().stream()
+                        .allMatch(pos -> Math.abs(pos.getX() - tree.base().getX()) <= SWEEP_RADIUS
+                                && Math.abs(pos.getZ() - tree.base().getZ()) <= SWEEP_RADIUS);
+        int safelyCollectible = collectionKnown ? Math.min(tree.logs().size(), safeLogs) : 0;
+        double collectionCost = tree.logs().size() * 0.25 + tree.distance() * 0.05;
+        TreeCandidateRanker.Kind kind = switch (tree.kind()) {
+            case STANDING_TREE -> TreeCandidateRanker.Kind.STANDING_TREE;
+            case FLOATING -> TreeCandidateRanker.Kind.FLOATING;
+            case STUMP -> TreeCandidateRanker.Kind.STUMP;
+            case LOG_STRUCTURE -> TreeCandidateRanker.Kind.LOG_STRUCTURE;
+        };
+        return new TreeCandidateRanker.Candidate(
+                cell(tree.base()),
+                tree.type(),
+                kind,
+                tree.logs().size(),
+                safelyCollectible,
+                approachCost,
+                climbCost,
+                collectionCost,
+                true,
+                collectionKnown,
+                protectedRoute);
+    }
+
+    /** Samples an oversized visible cluster across its full height while keeping planner work bounded. */
+    private static List<TreeCell> sample(List<TreeCell> cells, int limit) {
+        if (cells.size() <= limit) return cells;
+        List<TreeCell> sorted = cells.stream().distinct().sorted().toList();
+        List<TreeCell> sample = new ArrayList<>(limit);
+        for (int index = 0; index < limit; index++) {
+            int selected = (int) ((long) index * (sorted.size() - 1) / (limit - 1));
+            sample.add(sorted.get(selected));
+        }
+        return List.copyOf(sample);
     }
 
     int limit() {

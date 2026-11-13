@@ -49,28 +49,34 @@ final class ResourceWorkFixture {
     }
 
     static BirchKit birchKit(GameTestHelper h) {
-        GameTestSupport.platform(h, KIT_SIZE);
-        ServerPlayer owner = GameTestSupport.onlinePlayer(h, "resource-owner", 27.5, 2, 4.5, true)
+        return birchKit(h, 1);
+    }
+
+    static BirchKit birchKit(GameTestHelper h, int surfaceY) {
+        GameTestSupport.platformAt(h, surfaceY, KIT_SIZE);
+        int feetY = surfaceY + 1;
+        ServerPlayer owner = GameTestSupport.onlinePlayer(h, "resource-owner", 27.5, feetY, 4.5, true)
                 .player();
-        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 3, 2, 3);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 3, feetY, 3);
         companion.setOwner(owner.getUUID());
 
-        List<List<BlockPos>> trees = List.of(birchTree(h, 10, 10), birchTree(h, 16, 10));
+        List<List<BlockPos>> trees = List.of(birchTree(h, 10, feetY, 10), birchTree(h, 16, feetY, 10));
         List<BlockPos> stone = new ArrayList<>();
         for (int x = 22; x <= 24; x++) {
             for (int z = 12; z <= 17; z++) {
-                BlockPos pos = new BlockPos(x, 2, z);
+                BlockPos pos = new BlockPos(x, feetY, z);
                 h.setBlock(pos, Blocks.STONE);
                 stone.add(pos);
             }
         }
 
-        BlockPos stationSpot = new BlockPos(8, 2, 14);
+        BlockPos stationSpot = new BlockPos(8, feetY, 14);
         h.setBlock(stationSpot, Blocks.AIR);
-        List<BlockPos> deliveryObstruction = List.of(new BlockPos(21, 2, 4), new BlockPos(21, 3, 4));
+        List<BlockPos> deliveryObstruction = List.of(new BlockPos(21, feetY, 4), new BlockPos(21, feetY + 1, 4));
         deliveryObstruction.forEach(pos -> h.setBlock(pos, Blocks.COBBLESTONE));
 
-        return new BirchKit(companion, owner, trees, stone, stationSpot, new BlockPos(27, 2, 4), deliveryObstruction);
+        return new BirchKit(
+                companion, owner, trees, stone, stationSpot, new BlockPos(27, feetY, 4), deliveryObstruction);
     }
 
     static UndergroundReturn undergroundReturn(GameTestHelper h) {
@@ -111,9 +117,9 @@ final class ResourceWorkFixture {
         fixture.deliveryObstruction().forEach(pos -> h.setBlock(pos, Blocks.AIR));
     }
 
-    private static List<BlockPos> birchTree(GameTestHelper h, int x, int z) {
+    private static List<BlockPos> birchTree(GameTestHelper h, int x, int baseY, int z) {
         List<BlockPos> logs = new ArrayList<>();
-        for (int y = 2; y <= 6; y++) {
+        for (int y = baseY; y <= baseY + 4; y++) {
             BlockPos pos = new BlockPos(x, y, z);
             h.setBlock(pos, Blocks.BIRCH_LOG);
             logs.add(pos);
@@ -121,7 +127,7 @@ final class ResourceWorkFixture {
         for (int leafX = x - 2; leafX <= x + 2; leafX++) {
             for (int leafZ = z - 2; leafZ <= z + 2; leafZ++) {
                 if (Math.abs(leafX - x) == 2 && Math.abs(leafZ - z) == 2) continue;
-                BlockPos pos = new BlockPos(leafX, 7, leafZ);
+                BlockPos pos = new BlockPos(leafX, baseY + 5, leafZ);
                 if (h.getBlockState(pos).isAir()) {
                     h.setBlock(pos, Blocks.BIRCH_LEAVES.defaultBlockState().setValue(LeavesBlock.PERSISTENT, true));
                 }
