@@ -80,7 +80,7 @@ public sealed interface MiningRefusal {
         // only a wooden pickaxe broke the ore and the diamond was gone. Stone, dirt and logs are never valuable here.
         if (!creative
                 && state.requiresCorrectToolForDrops()
-                && c.mining().valuable().matches(blockId, LevelCellView.tagsOf(state))
+                && c.valuableBlocks().matches(blockId, LevelCellView.tagsOf(state))
                 && MiningToolView.currentToolFor(companion, state).isEmpty()) {
             return new WrongTool(pos, blockId);
         }
