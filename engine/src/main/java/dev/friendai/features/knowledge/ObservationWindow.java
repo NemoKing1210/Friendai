@@ -5,8 +5,8 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * A bounded, age-aware set of direct observations. Re-observing the same location replaces the old entry and moves it
- * to the newest end; an entry older than {@code maxAgeTicks} is no longer returned. The window stores observations as
+ * A bounded, age-aware set of resource evidence. Re-observing the same location replaces the old entry and moves it to
+ * the newest end; an entry older than {@code maxAgeTicks} is no longer returned. The window stores observations as
  * they were taken and never changes their contents.
  */
 public final class ObservationWindow {

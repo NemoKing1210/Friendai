@@ -113,6 +113,63 @@ public class ResourceObservationTests {
         h.succeed();
     }
 
+    @GameTest(maxTicks = 20)
+    public void ownBreakPublishesOnlyLoadedFaceNeighborsWithoutSightQueue(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        var owner = GameTestSupport.mockPlayerAt(h, 2, 2, 3);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 5);
+        companion.setOwner(owner.getUUID());
+        var state = GameTestSupport.runtime(h.getLevel().getServer());
+        BlockPos cover = h.absolutePos(new BlockPos(5, 3, 5));
+        BlockPos exposed = cover.east();
+        BlockPos behindSolid = exposed.east();
+        h.getLevel().setBlock(cover, Blocks.DIRT.defaultBlockState(), 3);
+        h.getLevel().setBlock(exposed, Blocks.COAL_ORE.defaultBlockState(), 3);
+        state.resourceCandidates()
+                .observe(
+                        companion,
+                        new ResourceObservation(
+                                "minecraft:coal_ore",
+                                new ResourceObservation.Location(
+                                        h.getLevel().dimension().identifier().toString(), pos(exposed)),
+                                pos(companion.blockPosition()),
+                                h.getLevel().getServer().overworld().getGameTime()));
+        h.getLevel().setBlock(exposed, Blocks.STONE.defaultBlockState(), 3);
+        h.getLevel().setBlock(behindSolid, Blocks.COAL_ORE.defaultBlockState(), 3);
+
+        ResourceObserver observer = state.observations().observer(companion);
+        BlockPos foot = companion.blockPosition();
+        for (int x = -8; x <= 8; x++) {
+            for (int z = -8; z <= 8; z++) {
+                for (int dy = -1; dy <= 2; dy++) {
+                    BlockPos cell = foot.offset(x, dy, z);
+                    if (!cell.equals(cover) && !cell.equals(exposed) && !cell.equals(behindSolid))
+                        observer.inspect(cell);
+                }
+            }
+        }
+        h.assertValueEqual(512, observer.queuedJobs(), "the observer queue must be full before the break");
+        h.assertFalse(observer.queued(behindSolid), "the block behind stone must not be in the observer backlog");
+
+        h.getLevel().setBlock(cover, Blocks.AIR.defaultBlockState(), 3);
+        state.resourceCandidates().ownBreak(companion, cover);
+
+        var evidence = state.resourceCandidates().confirmedRecent(companion, 16);
+        h.assertTrue(
+                evidence.stream()
+                        .anyMatch(observation -> observation.blockId().equals("minecraft:stone")
+                                && observation.location().pos().equals(pos(exposed))),
+                "the newly face-adjacent stone should be available immediately despite a full ray queue: " + evidence);
+        h.assertFalse(
+                evidence.stream()
+                        .anyMatch(observation -> observation.location().pos().equals(pos(behindSolid))),
+                "a block behind the adjacent stone must not be discovered by the break");
+        h.assertFalse(
+                state.resourceCandidates().visibleBlockIds(companion, 16).containsKey(exposed),
+                "adjacent-break evidence must not be reported as direct sight");
+        h.succeed();
+    }
+
     /**
      * On a busy server a sweep drains slower than the second the interval allows, so every interval used to queue
      * another full batch behind the one still waiting. The queue then held minutes-old rays from an old viewpoint and

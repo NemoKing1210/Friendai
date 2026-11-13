@@ -680,17 +680,8 @@ public class ObtainTests {
                 "give_items", args, null, guards, GuardAction.WAIT, FailurePolicy.ASK, 1, List.of(), owner, false));
     }
 
-    /**
-     * The whole chain from a bare pit: dig down until the stone is exposed, see it, and craft a pickaxe from it. Every
-     * candidate comes from the observation store, so this test fails unless the face a dig just opened survives the
-     * sight queue — and the other twenty-six companions of this class keep that queue full.
-     *
-     * <p>Quarantined: the sight-queue fix shipped and the search now gets past the buried stone, but the run is
-     * intermittent — on some boots it returns to its origin after excavating a few of the planned cells, with no
-     * directly visible stone, and never crafts. The remaining cause is tracked in issue #12 (deadline 2026-11-14); the
-     * test still runs and reports, it just does not fail the required gate.
-     */
-    @GameTest(maxTicks = 2400, required = false)
+    /** The complete caller-aware obtain chain must find face-adjacent stone while the sight queue is full. */
+    @GameTest(maxTicks = 2400, environment = "friendai-gametest:buried_stone_queue_pressure")
     public void callerObtainsStonePickaxeFromBuriedStone(GameTestHelper h) {
         GameTestSupport.platformAt(h, 200, 24);
         for (int x = 0; x < 24; x++) {
@@ -707,6 +698,14 @@ public class ObtainTests {
         companion.inventory().setItem(0, new ItemStack(Items.WOODEN_PICKAXE));
         companion.inventory().setItem(1, new ItemStack(Items.OAK_PLANKS, 4));
         companion.inventory().setItem(2, new ItemStack(Items.STICK, 2));
+        var runtime = GameTestSupport.runtime(h.getLevel().getServer());
+        var resources = runtime.resourceCandidates();
+        h.assertTrue(
+                resources.confirmedRecent(companion, 16).stream()
+                        .noneMatch(observation -> observation.blockId().equals("minecraft:stone")),
+                "the starting view must contain no stone evidence");
+        h.assertValueEqual(0, companion.inventory().countItem(Items.COBBLESTONE), "no cobblestone may be preloaded");
+        h.assertValueEqual(0, companion.inventory().countItem(Items.STONE_PICKAXE), "no pickaxe may be preloaded");
         var caller = new dev.friendai.execution.tool.Caller(
                 owner.getUUID(), owner.getName().getString(), dev.friendai.execution.tool.AccessLevel.OWNER);
         Result result = new Result();
@@ -714,8 +713,33 @@ public class ObtainTests {
                 companion,
                 result,
                 obtainTask("minecraft:stone_pickaxe", 1, false, true, 40, 2200, 64, 128, 800, "local", caller));
+        var observer = runtime.observations().observer(companion);
+        List<BlockPos> pressureOffsets = new java.util.ArrayList<>();
+        for (int x = -8; x <= 8; x++) {
+            for (int z = -8; z <= 8; z++) {
+                for (int dy = -1; dy <= 2; dy++) pressureOffsets.add(new BlockPos(x, dy, z));
+            }
+        }
+        int[] pressureCellIndex = {0};
+        boolean[] queueWasFullWhenStoneEvidenceWasPublished = {false};
+        boolean[] faceAdjacentStoneWasPublished = {false};
         TaskTrace.of(h, runner, companion).succeedWhen(() -> {
+            if (!faceAdjacentStoneWasPublished[0]) {
+                int attempts = 0;
+                while (observer.queuedJobs() < 512 && attempts < pressureOffsets.size()) {
+                    BlockPos offset = pressureOffsets.get(pressureCellIndex[0]);
+                    pressureCellIndex[0] = (pressureCellIndex[0] + 1) % pressureOffsets.size();
+                    observer.inspect(companion.blockPosition().offset(offset));
+                    attempts++;
+                }
+            }
+            int queuedBeforeTaskTick = observer.queuedJobs();
             runner.tick();
+            if (hasAdjacentStoneEvidence(resources, companion)) {
+                if (!faceAdjacentStoneWasPublished[0])
+                    queueWasFullWhenStoneEvidenceWasPublished[0] = queuedBeforeTaskTick == 512;
+                faceAdjacentStoneWasPublished[0] = true;
+            }
             h.assertTrue(result.status != null, "caller-aware obtain should finish");
             h.assertTrue(result.status == TaskStatus.SUCCESS, result.summary + " at " + companion.blockPosition());
             h.assertTrue(
@@ -725,7 +749,19 @@ public class ObtainTests {
                                             .orElseThrow())
                             > 0,
                     "the companion must actually craft a stone pickaxe from the buried stone");
+            h.assertTrue(
+                    queueWasFullWhenStoneEvidenceWasPublished[0],
+                    "the observer queue must be full immediately before adjacent stone evidence is published");
+            h.assertTrue(faceAdjacentStoneWasPublished[0], "stone must be processed from the own-break evidence path");
         });
+    }
+
+    private static boolean hasAdjacentStoneEvidence(
+            dev.friendai.perception.resource.ResourceCandidates resources, CompanionEntity companion) {
+        return resources.confirmedRecent(companion, 16).stream()
+                .anyMatch(observation -> observation.blockId().equals("minecraft:stone")
+                        && observation.source()
+                                == dev.friendai.features.knowledge.ResourceObservation.EvidenceSource.ADJACENT_BREAK);
     }
 
     @GameTest(maxTicks = 18000)

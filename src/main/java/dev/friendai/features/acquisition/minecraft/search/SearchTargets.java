@@ -124,7 +124,8 @@ public final class SearchTargets {
     }
     /**
      * The per-tick find check. It builds only the facts the kind decides on — a remembered block is not a find
-     * until it is seen again — and then lets the pure {@link TargetKind#matches} answer.
+     * until it is directly seen or newly exposed by the companion's own break — and then lets the pure {@link
+     * TargetKind#matches} answer.
      */
     public static boolean found(TaskContext context, TargetKind kind, int radius) {
         CompanionEntity companion = context.companion();
@@ -134,7 +135,7 @@ public final class SearchTargets {
         String dimension = level.dimension().identifier().toString();
         if (kind instanceof TargetKind.Structure) {
             java.util.Map<Pos, String> locations = new java.util.LinkedHashMap<>();
-            for (var observation : resources.confirmedRecent(companion, radius)) {
+            for (var observation : resources.confirmedDirectSight(companion, radius)) {
                 locations.put(observation.location().pos(), observation.blockId());
             }
             return kind.matches(new TargetKind.CandidateFacts(

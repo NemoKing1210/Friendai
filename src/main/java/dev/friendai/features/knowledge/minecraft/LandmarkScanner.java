@@ -77,7 +77,7 @@ public final class LandmarkScanner {
     public static List<Landmark> scan(CompanionEntity companion, ResourceCandidates candidates) {
         BlockPos center = companion.blockPosition();
         Map<String, ResourceObservation> nearest = new LinkedHashMap<>();
-        for (ResourceObservation observation : candidates.confirmedRecent(companion, RADIUS)) {
+        for (ResourceObservation observation : candidates.confirmedDirectSight(companion, RADIUS)) {
             Identifier id = Identifier.tryParse(observation.blockId());
             if (id == null || !BuiltInRegistries.BLOCK.containsKey(id)) continue;
             String kind = kind(BuiltInRegistries.BLOCK.getValue(id).defaultBlockState());

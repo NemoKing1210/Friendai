@@ -6,15 +6,23 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
+import dev.friendai.features.acquisition.minecraft.task.ExploreTaskFactory;
 import dev.friendai.features.acquisition.minecraft.task.ObtainTask;
+import dev.friendai.features.acquisition.minecraft.task.ResourceSearchDriver;
 import dev.friendai.features.knowledge.ResourceObservation;
+import dev.friendai.features.knowledge.search.ResourceSearchProfile;
 import dev.friendai.features.knowledge.search.SearchSession;
+import dev.friendai.features.knowledge.search.TargetKind;
 import dev.friendai.features.memory.minecraft.tool.MemoryAccess;
 import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.perception.resource.CaveEntranceObservation;
 import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.server.execution.tools.MinecraftObtainSubtaskFactory;
+import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
+import java.util.OptionalInt;
+import java.util.Set;
+import java.util.UUID;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -22,6 +30,91 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 
 public final class ResourceSearchTests {
+    @GameTest(maxTicks = 40)
+    public void miningFailureRecognizesSameTickAdjacentEvidence(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        var owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.setOwner(owner.getUUID());
+        BlockPos cover = h.absolutePos(new BlockPos(5, 3, 5));
+        BlockPos exposed = cover.east();
+        h.getLevel().setBlock(cover, Blocks.DIRT.defaultBlockState(), 3);
+        h.getLevel().setBlock(exposed, Blocks.STONE.defaultBlockState(), 3);
+        String dimension = h.getLevel().dimension().identifier().toString();
+        long now = h.getLevel().getServer().overworld().getGameTime();
+        BlockPos originBlock = companion.blockPosition();
+        Pos origin = new Pos(originBlock.getX(), originBlock.getY(), originBlock.getZ());
+        var profile = new ResourceSearchProfile(
+                "minecraft:stone", Set.of(dimension), OptionalInt.empty(), Set.of(ResourceSearchProfile.Strategy.MINE));
+        var target = new TargetKind.BlockFamily("minecraft:stone", Set.of("minecraft:stone"), profile);
+        var session = new SearchSession(
+                UUID.randomUUID(),
+                dimension,
+                "minecraft:stone",
+                origin,
+                new SearchSession.Limits(32, 128, 2400, 24),
+                now);
+        ExploreTaskFactory factory =
+                (block, down, depthY, radius, maxBlocks, maxTicks) -> new ExploreTaskFactory.MiningTask() {
+                    private boolean broken;
+
+                    @Override
+                    public int excavationBlocks() {
+                        return broken ? 1 : 0;
+                    }
+
+                    @Override
+                    public String type() {
+                        return "test_mining_failure_after_break";
+                    }
+
+                    @Override
+                    public void start(TaskContext context) {}
+
+                    @Override
+                    public TaskStatus tick(TaskContext context) {
+                        context.level().setBlock(cover, Blocks.AIR.defaultBlockState(), 3);
+                        context.resources().ownBreak(companion, cover);
+                        broken = true;
+                        return TaskStatus.FAILED;
+                    }
+
+                    @Override
+                    public void stop(TaskContext context) {}
+
+                    @Override
+                    public String describe() {
+                        return "breaks cover and fails in one tick";
+                    }
+
+                    @Override
+                    public String resultSummary() {
+                        return "the fake mining task failed after breaking the cover";
+                    }
+                };
+        var driver = new ResourceSearchDriver(
+                session,
+                target,
+                profile,
+                32,
+                false,
+                ResourceSearchProfile.Strategy.MINE,
+                null,
+                null,
+                null,
+                false,
+                factory);
+        TaskContext context = new TaskContext(companion, h.getLevel());
+        driver.start(context);
+
+        TaskStatus status = driver.tick(context);
+        h.assertTrue(
+                status == TaskStatus.SUCCESS,
+                "fresh face-adjacent evidence must win over a same-tick mining failure: " + driver.resultSummary());
+        h.assertTrue(driver.resultSummary().contains("found minecraft:stone"), driver.resultSummary());
+        h.succeed();
+    }
+
     @GameTest(maxTicks = 800)
     public void woodenPickaxeFindsStoneUnderDirtWithoutTorches(GameTestHelper h) {
         GameTestSupport.platformAt(h, 200, 24);

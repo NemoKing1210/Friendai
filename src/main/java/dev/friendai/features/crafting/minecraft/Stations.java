@@ -126,7 +126,8 @@ public final class Stations {
     /** Evaluates base features only from direct observations, for production station selection. */
     public static boolean looksLikeBase(CompanionEntity companion, BlockPos pos) {
         if (!(companion.level() instanceof ServerLevel level)) return false;
-        var observations = new TaskContext(companion, level).resources().confirmedRecent(companion, BASE_RADIUS * 2);
+        var observations =
+                new TaskContext(companion, level).resources().confirmedDirectSight(companion, BASE_RADIUS * 2);
         int kinds = 0;
         for (var observation : observations) {
             var p = observation.location().pos();

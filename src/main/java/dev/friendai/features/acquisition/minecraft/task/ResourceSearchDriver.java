@@ -30,8 +30,8 @@ import java.util.Set;
 
 /**
  * Purposeful search over a deterministic set of local viewpoints. The target kind decides what counts as found;
- * terrain, trail, return cost and an optional model hint decide where to go next. Resource identity still comes
- * from sight only.
+ * terrain, trail, return cost and an optional model hint decide where to go next. Resource identity comes from direct
+ * sight or from a face exposed by the companion's own successful break.
  */
 public final class ResourceSearchDriver implements Task {
     private static final int LOCAL_INSPECT_TICKS = 40;
@@ -60,6 +60,7 @@ public final class ResourceSearchDriver implements Task {
     private boolean hintLogged;
     private boolean statsRecorded;
     private String summary = "search has not started";
+    private String returnFailureReason = "";
     private String historicalEvidence = "";
     private int inspected;
     private ExploreTaskFactory.MiningTask miningSearch;
@@ -372,7 +373,7 @@ public final class ResourceSearchDriver implements Task {
             if (miningSearch != null) {
                 stopMiningSearch(context);
             }
-            if (!expedition) return finishOnSight(context);
+            if (!expedition) return finishOnEvidence(context);
             returning = true;
             if (distance(position, origin) <= 2) return finishReturn(context);
             journey = returnJourney(context);
@@ -457,10 +458,23 @@ public final class ResourceSearchDriver implements Task {
             int newlyExcavated = Math.max(0, excavation - accountedExcavation);
             accountedExcavation = excavation;
             boolean exhausted = session.accountWork(logicalTick(context), current(context), 0, newlyExcavated);
+            if ((exhausted || miningStatus != TaskStatus.RUNNING) && targetFoundNow(context)) {
+                found = true;
+                stopMiningSearch(context);
+                if (miningStatus != TaskStatus.RUNNING) {
+                    session.advance(input(context, null, SearchSession.LegOutcome.ARRIVED, true, 0));
+                }
+                if (!expedition) return finishOnEvidence(context);
+                returning = true;
+                if (distance(current(context), origin) <= 2) return finishReturn(context);
+                journey = returnJourney(context);
+                return TaskStatus.RUNNING;
+            }
             if (exhausted) {
                 stopMiningSearch(context);
                 returning = true;
-                summary = diagnostic("mining budget reached; stopping excavation and returning");
+                returnFailureReason = "mining budget reached; stopping excavation";
+                summary = diagnostic(returnFailureReason + "; returning");
                 if (distance(current(context), origin) <= 2) return finishReturn(context);
                 journey = returnJourney(context);
                 return TaskStatus.RUNNING;
@@ -468,10 +482,10 @@ public final class ResourceSearchDriver implements Task {
             if (miningStatus == TaskStatus.RUNNING) return TaskStatus.RUNNING;
             String legSummary = miningSearch.resultSummary();
             stopMiningSearch(context);
-            found = miningStatus == TaskStatus.SUCCESS && targetFound(context);
-            session.advance(input(context, null, SearchSession.LegOutcome.ARRIVED, found, 0));
+            session.advance(input(context, null, SearchSession.LegOutcome.ARRIVED, false, 0));
+            returnFailureReason = SearchFailureText.miningLeg(target.label(), legSummary, "");
             if (!found) {
-                summary = diagnostic(SearchFailureText.miningLeg(target.label(), legSummary, ""));
+                summary = diagnostic(returnFailureReason);
                 session.advance(input(context, null, SearchSession.LegOutcome.NONE, false, 0));
                 session.advance(input(context, null, SearchSession.LegOutcome.NONE, false, 0));
                 session.advance(input(context, null, SearchSession.LegOutcome.NONE, false, 0));
@@ -480,7 +494,7 @@ public final class ResourceSearchDriver implements Task {
                 journey = returnJourney(context);
                 return TaskStatus.RUNNING;
             }
-            if (!expedition) return finishOnSight(context);
+            if (!expedition) return finishOnEvidence(context);
             returning = true;
             if (distance(position, origin) <= 2) return finishReturn(context);
             journey = returnJourney(context);
@@ -614,7 +628,7 @@ public final class ResourceSearchDriver implements Task {
      * A local search ends where the target was seen: the caller walks to it from here, and a trip back to the
      * start would only make it cross the same ground twice. Expeditions still return, to release their chunks.
      */
-    private TaskStatus finishOnSight(TaskContext context) {
+    private TaskStatus finishOnEvidence(TaskContext context) {
         journey = null;
         travelNeeds = java.util.Map.of();
         safeReturnRoute = List.of();
@@ -622,7 +636,7 @@ public final class ResourceSearchDriver implements Task {
         found = true;
         session.interrupt();
         recordStats(context, true);
-        summary = diagnostic("found " + target.label() + " by direct sight after " + inspected + " viewpoints");
+        summary = diagnostic("found " + target.label() + " by confirmed evidence after " + inspected + " viewpoints");
         return TaskStatus.SUCCESS;
     }
 
@@ -634,13 +648,15 @@ public final class ResourceSearchDriver implements Task {
         if (found) {
             session.advance(input(context, null, SearchSession.LegOutcome.NONE, false, 0));
             recordStats(context, true);
-            summary = diagnostic("found " + target.label() + " by direct sight after " + inspected
+            summary = diagnostic("found " + target.label() + " by confirmed evidence after " + inspected
                     + " viewpoints; returned to origin");
             return TaskStatus.SUCCESS;
         }
         recordStats(context, false);
-        summary = diagnostic(
-                "no directly visible " + target.label() + " after " + inspected + " viewpoints; returned to origin");
+        String reason = returnFailureReason.isBlank()
+                ? "no confirmed evidence for " + target.label() + " after " + inspected + " viewpoints"
+                : returnFailureReason;
+        summary = diagnostic(reason + "; returned to origin");
         return TaskStatus.FAILED;
     }
 
@@ -676,6 +692,13 @@ public final class ResourceSearchDriver implements Task {
         long tick = logicalTick(context);
         if (tick == foundCheckedTick) return foundCached;
         foundCheckedTick = tick;
+        foundCached = SearchTargets.found(context, target, effectiveRadius());
+        return foundCached;
+    }
+
+    /** Rechecks after the mining child publishes evidence, even when the ordinary per-tick query already ran. */
+    private boolean targetFoundNow(TaskContext context) {
+        foundCheckedTick = logicalTick(context);
         foundCached = SearchTargets.found(context, target, effectiveRadius());
         return foundCached;
     }

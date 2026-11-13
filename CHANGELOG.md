@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.212.1] - 2026-11-13
+
+### Fixed
+
+- Underground acquisition immediately recognizes loaded blocks face-adjacent to the companion's successful excavation, even when the geometric sight queue is full.
+
 ## [0.212.0] - 2026-11-13
 
 ### Changed
