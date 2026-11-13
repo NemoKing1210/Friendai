@@ -32,6 +32,7 @@ class ClientConfigTest {
         assertEquals(1.0, c.voice.tts.volume);
         assertEquals(300, c.voice.tts.maxChars);
         assertTrue(c.voice.tts.spatial);
+        assertEquals("builtin", c.voice.tts.playback);
         assertFalse(c.voice.tts.speakGuests);
         assertNull(c.voice.tts.outputDevice);
         assertNull(c.voice.tts.local.voice);

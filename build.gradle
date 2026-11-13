@@ -13,6 +13,7 @@ base {
 repositories {
 	maven { url = 'https://maven.isxander.dev/releases' }
 	maven { url = 'https://maven.terraformersmc.com/releases' }
+	maven { url = 'https://maven.maxhenkel.de/repository/public' }
 	maven { url = 'https://jitpack.io' }
 	mavenCentral()
 }
@@ -123,6 +124,9 @@ dependencies {
 	localRuntime "dev.isxander:yet-another-config-lib:${project.yacl_version}"
 	compileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
 	localRuntime "com.terraformersmc:modmenu:${project.modmenu_version}"
+	// Simple Voice Chat: the API only. The mod itself is never on the development classpath; drop its jar into
+	// run/mods to try the voice-chat playback backend.
+	compileOnly "de.maxhenkel.voicechat:voicechat-api:${project.voicechat_api_version}"
 
 	// Local speech-to-text.
 	implementation "io.github.givimad:whisper-jni:${project.whisper_jni_version}"

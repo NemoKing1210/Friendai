@@ -376,6 +376,8 @@ public final class SettingsModel {
         entries.add(basic("friendai.config.voice.tts.local.voice", "voice", "voice", "speaker", "tts"));
         entries.add(basic("friendai.config.voice.tts.volume", "voice", "volume", "loudness"));
         entries.add(basic("friendai.config.voice.tts.spatial", "voice", "spatial", "position", "3d"));
+        entries.add(basic(
+                "friendai.config.voice.tts.playback", "voice", "playback", "output", "voicechat", "reverb", "physics"));
         entries.add(basic("friendai.config.voice.tts.speak_guests", "voice", "guests", "speak", "tts"));
         entries.add(basic("friendai.config.voice.tts.output_device", "voice", "device", "output", "speaker"));
         entries.add(basic("friendai.config.voice.field.model", "voice", "model", "cloud"));

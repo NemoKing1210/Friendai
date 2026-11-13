@@ -193,6 +193,11 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] After a cloud request and a wrong-key request, `logs/latest.log` contains no API key.
 - [ ] Spatial speech on: a reply is louder and clearer on the side the companion stands; walking away fades it to silence at the hearing radius.
 - [ ] Turning the head during a reply moves the balance smoothly and at once: no steps, clicks or audible delay.
+- [ ] Voice output set to **Simple Voice Chat** without that mod installed: replies sound exactly as with **Built-in**, and `logs/latest.log` has no error.
+- [ ] With Simple Voice Chat installed, its first-run setup finished and its voice chat connected, Voice output set to **Simple Voice Chat** and spatial speech on: a reply comes from the companion's position, fades to silence at the hearing radius, and the log shows `Creating audio channel` with the companion's UUID. **Test voice** still plays through the built-in output.
+- [ ] The same with Sound Physics Remastered added: the voice reverberates in a cave and is muffled when a wall stands between you and the companion; in the open it sounds dry.
+- [ ] During a long reply through Simple Voice Chat, the **Stop speaking** key and push-to-talk cut it off within a fraction of a second; several sentences in a row play without gaps, overlaps or a `Full playback buffer` warning.
+- [ ] Disabling voice chat sound in Simple Voice Chat, disconnecting its voice server mid-session, or a fresh profile where its first-run setup was never finished, moves the next reply to the built-in output instead of silencing the companion.
 - [ ] Chat and voice at 40 blocks from the companion get no reply and the "too far" notice.
 - [ ] Two replies from different companions in a row each sound from their own position.
 - [ ] A mono output device still fades with distance (no crash, no panning).

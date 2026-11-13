@@ -50,6 +50,7 @@ An open-source Fabric mod that adds an AI companion to Minecraft. Talk to it in 
 - [Fabric Loader](https://fabricmc.net/) and [Fabric API](https://modrinth.com/mod/fabric-api)
 - Java **25**
 - Optional: [Mod Menu](https://modrinth.com/mod/modmenu) and [YACL](https://modrinth.com/mod/yacl) for the in-game settings screen. Without them the mod works and settings are edited in the config files.
+- Optional: [Simple Voice Chat](https://modrinth.com/plugin/simple-voice-chat) to play the companion's voice as positional voice-chat audio, and [Sound Physics Remastered](https://modrinth.com/mod/sound-physics-remastered) on top of it for reverb and muffling behind walls. Without them the companion speaks through the built-in output.
 
 The mod must be installed on both the client and the server (the integrated server in singleplayer counts).
 
@@ -200,6 +201,8 @@ Only the reply text leaves your machine, and only for cloud synthesis; local voi
 Replies from a provider that supports streaming (today the OpenAI-compatible chat API; every other protocol buffers) are delivered as ordered sentences: the client keeps them in order, drops duplicates and a sentence from an older session, and reports one toast if the stream is cut off before its last sentence. **Stream replies** (Settings → Voice → Synthesis, on by default) can be turned off to buffer the whole reply on the client before speaking.
 
 Volume, the output device, the maximum length of a spoken phrase and speaking replies addressed to other players are on the same screen. **Voice comes from the companion** is on by default: every reply plays from the companion's position, pans left or right as you turn, and fades with distance until it is silent at the hearing radius. Turn it off to hear replies centred at full volume. **Test voice** speaks a sample sentence. Pressing push-to-talk or the **Stop speaking** key (unbound by default; set it in Controls) cuts a reply off.
+
+**Voice output** chooses what plays a reply that comes from the companion. **Built-in** (the default) is the mod's own output on the device chosen above. **Simple Voice Chat** hands the voice to the optional [Simple Voice Chat](https://modrinth.com/plugin/simple-voice-chat) mod, which plays it from the companion like another player's voice; with [Sound Physics Remastered](https://modrinth.com/mod/sound-physics-remastered) also installed, the voice then echoes in a cave and is muffled behind a wall. It needs that mod installed, its first-run setup finished and its voice chat connected (in singleplayer it connects on its own unless you turned its local server off), and **Voice comes from the companion** on; the volume slider still applies, while the output device and the voice-chat volume follow Simple Voice Chat's own settings. Whenever it cannot be used — the mod is missing, disconnected or its sound is switched off, or the reply is the settings preview — the built-in output speaks instead. Only your own client hears this voice: nothing is sent through the voice-chat server. In `friendai-client.json` the choice is `voice.tts.playback`: `builtin` or `voicechat`.
 
 ## Resource knowledge and search
 
