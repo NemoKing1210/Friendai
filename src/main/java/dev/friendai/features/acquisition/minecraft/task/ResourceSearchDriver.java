@@ -7,6 +7,8 @@ import dev.friendai.debug.WorkSet;
 import dev.friendai.debug.WorkStatus;
 import dev.friendai.features.acquisition.minecraft.search.SearchFrontierFacts;
 import dev.friendai.features.acquisition.minecraft.search.SearchTargets;
+import dev.friendai.features.knowledge.ResourceKnowledgeText;
+import dev.friendai.features.knowledge.ResourceQuery;
 import dev.friendai.features.knowledge.search.ResourceSearchProfile;
 import dev.friendai.features.knowledge.search.SearchCoverage;
 import dev.friendai.features.knowledge.search.SearchFailureText;
@@ -58,6 +60,7 @@ public final class ResourceSearchDriver implements Task {
     private boolean hintLogged;
     private boolean statsRecorded;
     private String summary = "search has not started";
+    private String historicalEvidence = "";
     private int inspected;
     private ExploreTaskFactory.MiningTask miningSearch;
     private final ExploreTaskFactory exploreTaskFactory;
@@ -172,6 +175,7 @@ public final class ResourceSearchDriver implements Task {
     public void start(TaskContext context) {
         origin = current(context);
         originDimension = context.level().dimension().identifier().toString();
+        historicalEvidence = historicalEvidence(context);
         lastPosition = origin;
         session.advance(input(context, null, SearchSession.LegOutcome.NONE, false, 0));
         if (selectedStrategy == ResourceSearchProfile.Strategy.SURFACE) {
@@ -807,7 +811,20 @@ public final class ResourceSearchDriver implements Task {
 
     @Override
     public String resultSummary() {
-        return summary;
+        if (historicalEvidence.isBlank()) return summary;
+        String suffix = "; " + historicalEvidence;
+        if (summary.length() + suffix.length() <= 600) return summary + suffix;
+        int keep = Math.max(0, 600 - suffix.length());
+        return summary.substring(0, Math.min(summary.length(), keep)) + suffix;
+    }
+
+    private String historicalEvidence(TaskContext context) {
+        if (!(target instanceof TargetKind.BlockFamily family)
+                || context.companion().ownerUuid() == null) return "";
+        ResourceQuery.Request request =
+                new ResourceQuery.Request(family.blockIds(), originDimension, origin, radius, 3, true);
+        return ResourceKnowledgeText.summary(
+                ResourceQuery.find(context.ownerKnowledge(), request, logicalTick(context)), 240);
     }
 
     private static Pos current(TaskContext context) {

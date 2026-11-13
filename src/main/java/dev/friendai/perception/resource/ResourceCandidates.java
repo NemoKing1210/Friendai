@@ -2,6 +2,9 @@ package dev.friendai.perception.resource;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.acquisition.ResourceCandidate;
+import dev.friendai.features.acquisition.ResourceCandidate.ApproachEvidence;
+import dev.friendai.features.acquisition.ResourceCandidate.ToolReadiness;
+import dev.friendai.features.acquisition.ResourceCandidateRanker;
 import dev.friendai.features.knowledge.ObservationWindow;
 import dev.friendai.features.knowledge.ResourceKnowledge;
 import dev.friendai.features.knowledge.ResourceObservation;
@@ -21,6 +24,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
@@ -334,6 +338,7 @@ public final class ResourceCandidates {
                 double cost = 4.6 * Math.hypot(dx, dz) + 10 * dy + (fresh ? 0 : 200);
                 boolean visible = site.members().stream()
                         .anyMatch(pos -> currentlyVisible(companion, new BlockPos(pos.x(), pos.y(), pos.z())));
+                ApproachEvidence approachEvidence = approachEvidence(companion, book, dimension, approach, visible);
                 ResourceCandidate candidate = new ResourceCandidate(
                         site.id(),
                         blockId,
@@ -344,13 +349,41 @@ public final class ResourceCandidates {
                         found.ageTicks(),
                         visible,
                         site.approximate(),
+                        cost,
+                        toolReadiness(companion, blockId),
+                        approachEvidence,
                         cost);
                 result.putIfAbsent(site.id() + ":" + blockId, candidate);
             }
         }
         return result.values().stream()
-                .sorted(Comparator.comparingLong(ResourceCandidate::siteId).thenComparing(ResourceCandidate::blockId))
+                .sorted(ResourceCandidateRanker.comparator())
                 .toList();
+    }
+
+    private static ToolReadiness toolReadiness(CompanionEntity companion, String blockId) {
+        Identifier id = Identifier.tryParse(blockId);
+        if (id == null || !BuiltInRegistries.BLOCK.containsKey(id)) return ToolReadiness.UNKNOWN;
+        BlockState state = BuiltInRegistries.BLOCK.getValue(id).defaultBlockState();
+        if (!state.requiresCorrectToolForDrops()) return ToolReadiness.READY;
+        if (correctTool(companion.getMainHandItem(), state)) return ToolReadiness.READY;
+        for (int slot = 0; slot < companion.inventory().getContainerSize(); slot++) {
+            if (correctTool(companion.inventory().getItem(slot), state)) return ToolReadiness.READY;
+        }
+        return ToolReadiness.MISSING;
+    }
+
+    private static boolean correctTool(ItemStack stack, BlockState state) {
+        return stack != null && !stack.isEmpty() && stack.isCorrectToolForDrops(state);
+    }
+
+    private static ApproachEvidence approachEvidence(
+            CompanionEntity companion, ResourceKnowledge book, String dimension, Pos approach, boolean visible) {
+        if (visible) return ApproachEvidence.VERIFIED;
+        BlockPos currentBlock = companion.blockPosition();
+        Pos current = new Pos(currentBlock.getX(), currentBlock.getY(), currentBlock.getZ());
+        if (!book.trails().route(dimension, current, approach).isEmpty()) return ApproachEvidence.ESTIMATED;
+        return ApproachEvidence.UNKNOWN;
     }
 
     /** Queues fresh bounded sight checks for remembered exact members of the requested site. */

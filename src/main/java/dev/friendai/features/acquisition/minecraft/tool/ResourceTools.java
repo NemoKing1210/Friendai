@@ -37,7 +37,7 @@ import net.minecraft.server.level.ServerLevel;
 /** Bounded queries over the owner's remembered resource evidence. */
 public final class ResourceTools implements FeatureToolContributor {
     private static final Gson GSON = new Gson();
-    private static final int DEFAULT_LIMIT = 5;
+    private static final int DEFAULT_LIMIT = 3;
     private static final int MAX_DISTANCE = 30_000_000;
     private final ResourceSearchTaskFactory taskFactory;
 
@@ -151,7 +151,7 @@ public final class ResourceTools implements FeatureToolContributor {
                 SchemaBuilder.object()
                         .string("resource", "Block id, block tag such as #minecraft:ores, or item id")
                         .integer("max_distance", "Maximum straight-line distance in blocks", 1, MAX_DISTANCE)
-                        .integer("limit", "Maximum number of sites to return", 1, 20)
+                        .integer("limit", "Requested maximum sites; model results are capped at three", 1, 20)
                         .bool("include_stale", "Include stale and depleted historical sites (default true)")
                         .required("resource")
                         .build(),
@@ -383,7 +383,7 @@ public final class ResourceTools implements FeatureToolContributor {
         if (!resolution.executable() && resolution.reason().startsWith("unknown"))
             return ToolResult.error(resolution.reason());
         int limit =
-                args.has("limit") ? Math.max(1, Math.min(20, args.get("limit").getAsInt())) : DEFAULT_LIMIT;
+                args.has("limit") ? Math.max(1, Math.min(3, args.get("limit").getAsInt())) : DEFAULT_LIMIT;
         int maxDistance = args.has("max_distance")
                 ? Math.max(1, Math.min(MAX_DISTANCE, args.get("max_distance").getAsInt()))
                 : MAX_DISTANCE;
