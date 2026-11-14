@@ -68,10 +68,13 @@ public final class WakeWordHandler {
 
     /** The microphone, in the two modes the wake word needs. */
     public interface Capture extends AutoCloseable {
-        /** Opens the line and delivers chunks without accumulating a clip; throws when the device is unavailable. */
-        void startMonitoring(int preRollSeconds, ChunkSink chunks) throws Exception;
+        /**
+         * Opens the line and delivers chunks without accumulating a clip. The future completes when the device is
+         * open, or exceptionally when it could not be opened; nothing blocks the caller.
+         */
+        CompletableFuture<Void> startMonitoring(int preRollSeconds, ChunkSink chunks);
 
-        /** Closes the line. Safe to call when nothing is open. */
+        /** Closes this listener's own line, never another capture's. Safe to call when nothing is open. */
         void stop();
 
         @Override
@@ -158,17 +161,31 @@ public final class WakeWordHandler {
         this.policyTemplate = policy;
     }
 
-    /** Registers the production microphone behind the wake-word seam. */
+    /**
+     * Registers the production microphone behind the wake-word seam. The adapter remembers the capture it opened and
+     * stops only that one, so a tick that stands hands-free listening down cannot cut a push-to-talk recording short.
+     */
     public static Capture microphone(MicCapture mic, Supplier<String> deviceName) {
         return new Capture() {
+            private MicCapture.Capture current;
+
             @Override
-            public void startMonitoring(int preRollSeconds, ChunkSink chunks) throws Exception {
-                mic.startMonitoring(deviceName.get(), preRollSeconds, chunks::onChunk);
+            public synchronized CompletableFuture<Void> startMonitoring(int preRollSeconds, ChunkSink chunks) {
+                MicCapture.Capture opened = mic.startMonitoring(deviceName.get(), preRollSeconds, chunks::onChunk);
+                if (opened == null) {
+                    return CompletableFuture.failedFuture(new IllegalStateException("the microphone is recording"));
+                }
+                current = opened;
+                return opened.opened();
             }
 
             @Override
-            public void stop() {
-                mic.stop();
+            public synchronized void stop() {
+                MicCapture.Capture capture = current;
+                current = null;
+                if (capture != null) {
+                    mic.stop(capture);
+                }
             }
         };
     }
@@ -305,12 +322,11 @@ public final class WakeWordHandler {
             reportOnce(problem);
             return false;
         }
+        CompletableFuture<Void> starting;
         try {
-            capture.startMonitoring(voice.wake.preRollSec, this::onChunk);
-        } catch (Exception unavailable) {
-            FriendaiMod.LOGGER.warn("Could not open the microphone for the wake word", unavailable);
-            micRetryAt = now + MIC_RETRY_MILLIS;
-            reportOnce(UserMessage.of("friendai.voice.error.no_mic"));
+            starting = capture.startMonitoring(voice.wake.preRollSec, this::onChunk);
+        } catch (RuntimeException unavailable) {
+            microphoneUnavailable(now);
             return false;
         }
         synchronized (this) {
@@ -322,7 +338,25 @@ public final class WakeWordHandler {
             reportedProblem = false;
         }
         VoiceState.set(VoiceState.Kind.LISTENING, null);
+        // The device opens off this tick; a refusal stands listening down once, without blocking the game.
+        starting.whenComplete((opened, error) -> {
+            if (error != null) {
+                host.execute(() -> microphoneUnavailable(System.currentTimeMillis()));
+            }
+        });
         return true;
+    }
+
+    /** The device refused to open: report it once, stand listening down, and leave it alone for a while. */
+    private void microphoneUnavailable(long now) {
+        if (closed || pushToTalk) {
+            // Push-to-talk owns the microphone now; its own open reports its own failure.
+            return;
+        }
+        FriendaiMod.LOGGER.warn("Could not open the microphone for the wake word");
+        micRetryAt = now + MIC_RETRY_MILLIS;
+        suspend();
+        reportOnce(UserMessage.of("friendai.voice.error.no_mic"));
     }
 
     /** One captured chunk, on the capture thread: pre-roll until a hit, the utterance afterwards. */

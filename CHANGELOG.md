@@ -6,6 +6,19 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.213.1] - 2026-11-14
+
+### Changed
+
+- Stopping the companion's speech now takes effect at once: the reply that was being synthesized is cancelled instead of being left to finish and delay the next one.
+- A voice service answer is read in bounded pieces and refused as soon as it grows past the limit, so an oversized answer can no longer stall the game while it is buffered.
+
+### Fixed
+
+- Holding push-to-talk no longer has its recording cut short while the wake word is armed.
+- Starting, stopping and closing the microphone no longer runs on the game thread, so a slow audio device cannot freeze a frame, and a read that was already under way cannot leak into the next recording.
+- A microphone that cannot be opened is reported once and retried later instead of failing again on every tick.
+
 ## [0.213.0] - 2026-11-14
 
 ### Added

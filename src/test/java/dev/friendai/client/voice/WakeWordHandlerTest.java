@@ -316,15 +316,17 @@ class WakeWordHandlerTest {
         private Exception failure;
 
         @Override
-        public void startMonitoring(int preRollSeconds, WakeWordHandler.ChunkSink chunks) throws Exception {
+        public java.util.concurrent.CompletableFuture<Void> startMonitoring(
+                int preRollSeconds, WakeWordHandler.ChunkSink chunks) {
             attempts++;
             if (failure != null) {
-                throw failure;
+                return java.util.concurrent.CompletableFuture.failedFuture(failure);
             }
             this.preRollSeconds = preRollSeconds;
             this.sink = chunks;
             this.open = true;
             this.starts++;
+            return java.util.concurrent.CompletableFuture.completedFuture(null);
         }
 
         @Override

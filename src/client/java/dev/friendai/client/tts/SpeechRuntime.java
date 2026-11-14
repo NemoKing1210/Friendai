@@ -34,6 +34,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -82,6 +83,9 @@ public final class SpeechRuntime {
     private static long lastToastAt;
     private static String lastToastKey;
     private static volatile Plan playingPlan;
+    /** The synthesis a stop would otherwise have to wait for; cancelling it releases the speech worker at once. */
+    private static volatile CompletableFuture<TtsClip> pendingClip;
+
     private static volatile SpatialAudio.Mix mix = SpatialAudio.CENTER;
     private static ClientSessionId sessionId;
     private static boolean closed;
@@ -194,7 +198,19 @@ public final class SpeechRuntime {
         deferredSpeech.clear();
         playingPlan = null;
         mix = SpatialAudio.CENTER;
+        cancelPendingSynthesis();
         PLAYBACK.stop();
+    }
+
+    /**
+     * Releases the speech worker from a provider that has not answered yet. The worker's {@code join} then throws, the
+     * stale chunk is dropped by the generation check, and the queue is drained for the next reply.
+     */
+    private static void cancelPendingSynthesis() {
+        CompletableFuture<TtsClip> pending = pendingClip;
+        if (pending != null) {
+            pending.cancel(true);
+        }
     }
 
     /** Called when the settings change: releases the engine so the next reply uses the new one. */
@@ -219,6 +235,7 @@ public final class SpeechRuntime {
             generation++;
             QUEUE.clear();
         }
+        cancelPendingSynthesis();
         PLAYBACK.stop();
     }
 
@@ -459,15 +476,32 @@ public final class SpeechRuntime {
         }
         SpeechEngine engine = engine(settings);
         TtsClip clip;
+        CompletableFuture<TtsClip> synthesis = engine.synthesize(text);
+        // A stop cancels this future; the join below then returns at once instead of waiting out the provider.
+        pendingClip = synthesis;
+        synchronized (LOCK) {
+            // A stop between the request and the assignment above would otherwise be missed, leaving the worker to
+            // wait for an answer nobody will hear.
+            if (!isCurrentLocked(gen, expectedSession)) {
+                synthesis.cancel(true);
+            }
+        }
         try {
-            clip = engine.synthesize(text).join();
-        } catch (CompletionException | CancellationException e) {
+            clip = synthesis.join();
+        } catch (CancellationException stopped) {
+            // The reply was stopped before the provider answered; there is nothing to report and nothing to play.
+            throw stopped;
+        } catch (CompletionException e) {
             Throwable cause = e.getCause();
             if (cause instanceof UserFacingException uf) {
                 throw uf;
             }
             LOGGER.warn("Speech synthesis failed: {}", cause == null ? e.toString() : cause.toString());
             throw new UserFacingException(UserMessage.of("friendai.voice.tts.error.failed"));
+        } finally {
+            if (pendingClip == synthesis) {
+                pendingClip = null;
+            }
         }
         synchronized (LOCK) {
             if (!isCurrentLocked(gen, expectedSession)) {

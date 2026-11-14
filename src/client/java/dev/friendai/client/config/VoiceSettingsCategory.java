@@ -55,6 +55,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
@@ -723,7 +724,8 @@ final class VoiceSettingsCategory {
             try {
                 capture = mic.start(stt.inputDevice, 5);
                 Thread.sleep(3_000);
-                byte[] pcm = capture == null ? null : mic.stop(capture);
+                // This already runs on a worker, so it may wait for the device to close and hand over the clip.
+                byte[] pcm = capture == null ? null : mic.stop(capture).get(5, TimeUnit.SECONDS);
                 if (pcm == null || !VoiceRuntime.isCurrentOperation(sessionId, generation)) return;
                 recognizer
                         .transcribe(PcmConverter.toFloat(pcm), stt.language)

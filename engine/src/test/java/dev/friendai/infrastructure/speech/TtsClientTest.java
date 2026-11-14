@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import dev.friendai.features.speech.PcmAudio;
 import dev.friendai.features.speech.PreparedRequest;
@@ -15,7 +17,10 @@ import dev.friendai.testutil.MockHttpServer;
 import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -101,6 +106,37 @@ class TtsClientTest {
                 "friendai.voice.tts.error.failed",
                 ((UserFacingException) e.getCause()).userMessage().key());
         assertEquals(0, server.requests().size());
+    }
+
+    @Test
+    void cancellingASynthesisAbandonsTheRequest() {
+        // The answer is held open after its first chunk: only a cancellation that reaches the exchange can end it.
+        server.enqueueStreamDelayed(200, List.of("first", "second"), 800);
+        CompletableFuture<PcmAudio> audio = client.synthesize(openAi(""), "Hi");
+        awaitRequest(1);
+
+        assertTrue(audio.cancel(true), "a cancelled reply stops paying for an answer nobody will hear");
+        assertTrue(audio.isCancelled());
+        try {
+            audio.get(3, TimeUnit.SECONDS);
+            fail("a cancelled synthesis must never hand audio to the player");
+        } catch (java.util.concurrent.CancellationException expected) {
+            // the promised outcome
+        } catch (Exception unexpected) {
+            fail("a cancelled synthesis must stay cancelled: " + unexpected);
+        }
+    }
+
+    private void awaitRequest(int expected) {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+        while (server.requests().size() < expected && System.nanoTime() < deadline) {
+            try {
+                Thread.sleep(5);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
     }
 
     private ResolvedTts openAi(String key) {

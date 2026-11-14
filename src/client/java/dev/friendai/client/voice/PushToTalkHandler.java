@@ -39,6 +39,8 @@ public final class PushToTalkHandler {
     private ClientSessionId recordingSession;
     private SpeechToText recordingRecognizer;
     private StreamingSpeechToText.StreamingSession recordingStream;
+    /** The microphone capture this press owns; a release or a failed open may only touch this one. */
+    private MicCapture.Capture recordingCapture;
 
     public PushToTalkHandler(
             Supplier<SpeechToText> stt,
@@ -117,15 +119,30 @@ public final class PushToTalkHandler {
                             }
                         }));
             }
-            startCapture(voice, stream);
+            MicCapture.Capture capture = startCapture(voice, stream);
+            if (capture == null) {
+                // Another capture owns the device; a press must not pretend it recorded.
+                if (stream != null) {
+                    stream.cancel();
+                }
+                VoiceState.set(VoiceState.Kind.ERROR, UserMessage.of("friendai.voice.error.no_mic"));
+                return;
+            }
             // Only a real recording supersedes an in-flight transcript; a failed press keeps it.
             recording = VoiceRuntime.nextCaptureGeneration();
             generation.set(recording);
             recordingSession = sessionId;
             recordingRecognizer = recognizer;
             recordingStream = stream;
+            recordingCapture = capture;
             pressIgnored = false;
             VoiceState.set(VoiceState.Kind.RECORDING, null);
+            StreamingSpeechToText.StreamingSession pressed = stream;
+            capture.opened().whenComplete((opened, error) -> {
+                if (error != null) {
+                    mc.execute(() -> onOpenFailed(mc, capture, pressed));
+                }
+            });
         } catch (Exception e) {
             FriendaiMod.LOGGER.warn("Could not open the microphone", e);
             if (stream != null) {
@@ -135,13 +152,30 @@ public final class PushToTalkHandler {
         }
     }
 
-    private void startCapture(ClientConfig.SttSection voice, StreamingSpeechToText.StreamingSession stream)
-            throws Exception {
+    private MicCapture.Capture startCapture(
+            ClientConfig.SttSection voice, StreamingSpeechToText.StreamingSession stream) {
         if (stream == null) {
-            mic.start(voice.inputDevice, voice.maxRecordSec);
+            return mic.start(voice.inputDevice, voice.maxRecordSec);
+        }
+        return mic.start(voice.inputDevice, voice.maxRecordSec, stream::feed);
+    }
+
+    /** The device refused to open after the press: the press is spent and the HUD says why. */
+    private void onOpenFailed(Minecraft mc, MicCapture.Capture capture, StreamingSpeechToText.StreamingSession stream) {
+        if (recordingCapture != capture || pressIgnored) {
             return;
         }
-        mic.start(voice.inputDevice, voice.maxRecordSec, stream::feed);
+        FriendaiMod.LOGGER.warn("Could not open the microphone");
+        pressIgnored = true;
+        recordingCapture = null;
+        recordingSession = null;
+        recordingRecognizer = null;
+        recordingStream = null;
+        if (stream != null) {
+            stream.cancel();
+        }
+        mic.stop(capture);
+        VoiceState.set(VoiceState.Kind.ERROR, UserMessage.of("friendai.voice.error.no_mic"));
     }
 
     private void onReleased(Minecraft mc) {
@@ -149,13 +183,49 @@ public final class PushToTalkHandler {
         ClientSessionId sessionId = recordingSession;
         SpeechToText recognizer = recordingRecognizer;
         StreamingSpeechToText.StreamingSession stream = recordingStream;
+        MicCapture.Capture capture = recordingCapture;
         recordingSession = null;
         recordingRecognizer = null;
         recordingStream = null;
-        RuntimeException captureFailure = mic.listenerFailure();
-        boolean pending = mic.hasPendingRecording();
-        byte[] pcm = mic.stop();
-        if (pressIgnored || sessionId == null || !VoiceRuntime.isCurrentSession(sessionId) || !pending) {
+        recordingCapture = null;
+        if (pressIgnored || sessionId == null || !VoiceRuntime.isCurrentSession(sessionId) || capture == null) {
+            if (stream != null) {
+                stream.cancel();
+            }
+            mic.stop(capture);
+            return;
+        }
+        // The device closes off this thread; the clip arrives once its reader has exited.
+        java.util.concurrent.CompletableFuture<byte[]> stopping = mic.stop(capture);
+        if (stopping == null) {
+            // A disconnect already ended this capture; nothing is owed to the HUD.
+            if (stream != null) {
+                stream.cancel();
+            }
+            return;
+        }
+        stopping.whenComplete((pcm, stopError) -> mc.execute(() -> {
+            if (stopError != null || pcm == null) {
+                if (stream != null) {
+                    stream.cancel();
+                }
+                if (VoiceRuntime.isCurrentSession(sessionId)) {
+                    VoiceState.set(VoiceState.Kind.ERROR, UserMessage.of("friendai.voice.error.no_mic"));
+                }
+                return;
+            }
+            finishRelease(mc, pcm, capture.failure(), sessionId, recognizer, stream);
+        }));
+    }
+
+    private void finishRelease(
+            Minecraft mc,
+            byte[] pcm,
+            RuntimeException captureFailure,
+            ClientSessionId sessionId,
+            SpeechToText recognizer,
+            StreamingSpeechToText.StreamingSession stream) {
+        if (!VoiceRuntime.isCurrentSession(sessionId)) {
             if (stream != null) {
                 stream.cancel();
             }
@@ -176,8 +246,8 @@ public final class PushToTalkHandler {
             VoiceState.set(VoiceState.Kind.IDLE, null);
             return;
         }
-        VoiceState.set(VoiceState.Kind.TRANSCRIBING, null);
         final int generation = recording;
+        VoiceState.set(VoiceState.Kind.TRANSCRIBING, null);
         String language = FriendaiClient.clientConfig().voice.stt.language;
         java.util.concurrent.CompletableFuture<String> transcript =
                 stream != null ? stream.finish() : recognizer.transcribe(PcmConverter.toFloat(pcm), language);
@@ -212,10 +282,16 @@ public final class PushToTalkHandler {
             recordingRecognizer = null;
             StreamingSpeechToText.StreamingSession stream = recordingStream;
             recordingStream = null;
+            MicCapture.Capture capture = recordingCapture;
+            recordingCapture = null;
             if (stream != null) {
                 stream.cancel();
             }
-            mic.stop();
+            if (capture != null) {
+                mic.stop(capture);
+            } else {
+                mic.stop();
+            }
             VoiceState.set(VoiceState.Kind.IDLE, null);
         }
     }

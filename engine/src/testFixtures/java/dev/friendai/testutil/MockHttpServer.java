@@ -14,6 +14,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /** A tiny scripted HTTP server for tests. Responses are served from a FIFO queue. */
 public final class MockHttpServer implements AutoCloseable {
@@ -27,6 +29,7 @@ public final class MockHttpServer implements AutoCloseable {
     private record Canned(int status, byte[] body, long delayMillis, List<byte[]> chunks) {}
 
     private final HttpServer server;
+    private final ExecutorService handlers;
     private final Queue<Canned> queue = new ArrayDeque<>();
     private final List<RecordedRequest> requests = Collections.synchronizedList(new ArrayList<>());
 
@@ -36,6 +39,14 @@ public final class MockHttpServer implements AutoCloseable {
         } catch (IOException e) {
             throw new IllegalStateException(e);
         }
+        // One handler per request, like a real service: a held-open answer must not block the next request, which is
+        // exactly what a cancelled exchange has to prove.
+        handlers = Executors.newCachedThreadPool(runnable -> {
+            Thread thread = new Thread(runnable, "mock-http");
+            thread.setDaemon(true);
+            return thread;
+        });
+        server.setExecutor(handlers);
         server.createContext("/", exchange -> {
             String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
             Map<String, String> headers = new HashMap<>();
@@ -136,5 +147,6 @@ public final class MockHttpServer implements AutoCloseable {
     @Override
     public void close() {
         server.stop(0);
+        handlers.shutdownNow();
     }
 }

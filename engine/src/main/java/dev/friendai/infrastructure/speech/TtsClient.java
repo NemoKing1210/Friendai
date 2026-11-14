@@ -8,6 +8,7 @@ import dev.friendai.features.speech.tts.GoogleTtsProtocol;
 import dev.friendai.features.speech.tts.OpenAiTtsProtocol;
 import dev.friendai.features.speech.tts.TtsProtocol;
 import dev.friendai.features.speech.tts.YandexTtsProtocol;
+import dev.friendai.foundation.concurrent.CancelLink;
 import dev.friendai.foundation.text.UserFacingException;
 import dev.friendai.foundation.text.UserMessage;
 import java.util.Map;
@@ -49,6 +50,9 @@ public final class TtsClient {
                             ? userFacing
                             : new UserFacingException(UserMessage.of("friendai.voice.tts.error.failed")));
         }
-        return http.postBytes(request).thenApply(body -> protocol.parse(body, settings));
+        CompletableFuture<byte[]> wire = http.postBytes(request);
+        CompletableFuture<PcmAudio> audio = wire.thenApply(body -> protocol.parse(body, settings));
+        CancelLink.link(audio, wire);
+        return audio;
     }
 }

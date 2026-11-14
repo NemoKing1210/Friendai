@@ -1,9 +1,11 @@
 package dev.friendai.infrastructure.speech;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.JsonObject;
 import dev.friendai.features.speech.PreparedRequest;
@@ -11,9 +13,13 @@ import dev.friendai.foundation.text.UserFacingException;
 import dev.friendai.testutil.MockHttpServer;
 import java.net.URI;
 import java.net.http.HttpClient;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -120,6 +126,47 @@ class VoiceHttpTest {
         assertEquals(
                 "friendai.voice.error.failed",
                 ((UserFacingException) e.getCause()).userMessage().key());
+    }
+
+    @Test
+    void readsAChunkedBodyWithoutAContentLength() throws Exception {
+        server.enqueueStream(200, List.of("ab", "cd", "ef"));
+
+        byte[] body = client.postBytes(request()).get(2, TimeUnit.SECONDS);
+
+        assertEquals("abcdef", new String(body, StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void aCancelledRequestDoesNotHoldTheNextOne() throws Exception {
+        // This answer is held open after its first chunk, so an exchange that outlived its cancellation would keep
+        // the client busy for the whole delay.
+        server.enqueueStreamDelayed(200, List.of("first", "second"), 800);
+        CompletableFuture<byte[]> held = client.postBytes(request());
+        awaitRequestCount(1);
+
+        assertTrue(held.cancel(true), "the caller must be able to abandon the reply at once");
+        assertTrue(held.isCancelled());
+
+        server.enqueue(200, "ok");
+        long started = System.nanoTime();
+        byte[] next = client.postBytes(request()).get(3, TimeUnit.SECONDS);
+        long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started);
+
+        assertArrayEquals("ok".getBytes(StandardCharsets.UTF_8), next);
+        assertTrue(elapsedMillis < 1_500, "the cancelled exchange held the client for " + elapsedMillis + " ms");
+    }
+
+    private void awaitRequestCount(int expected) {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+        while (server.requests().size() < expected && System.nanoTime() < deadline) {
+            try {
+                Thread.sleep(5);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
     }
 
     private PreparedRequest request() {

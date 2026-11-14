@@ -7,6 +7,9 @@ import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.DataLine;
@@ -14,33 +17,119 @@ import javax.sound.sampled.LineUnavailableException;
 import javax.sound.sampled.Mixer;
 import javax.sound.sampled.TargetDataLine;
 
-/** Records 16 kHz, 16-bit, mono, little-endian PCM from a microphone. */
+/**
+ * Records 16 kHz, 16-bit, mono, little-endian PCM from a microphone.
+ *
+ * <p>Every capture is its own object: it has the token that identifies it, its own level, pre-roll, clip buffer and
+ * listener, and its own completion. A reader that is still returning from a blocking read after a stop writes only
+ * into the capture it was started for, so it cannot publish a level, a pre-roll chunk or a clip into the next one.
+ *
+ * <p>The device is opened, closed and its reader joined on one capture thread, never on the caller's. {@link #start}
+ * and {@link #stop} return at once; {@link Capture#opened()} reports a device that refused to open, and the future
+ * from {@link #stop} carries the clip once the reader has exited. One capture owns the device at a time: a start
+ * while one is open returns {@code null}, and a token can only stop the capture it was handed out for.
+ */
 public final class MicCapture implements AutoCloseable {
+    /** How long the capture thread waits for a reader after closing the line, only to keep the tail chunk. */
+    private static final long READER_JOIN_MILLIS = 200;
+
     /** One capture; only the token that is current may stop the line. */
     public static final class Capture {
+        private final Session session;
         private final long token;
 
-        private Capture(long token) {
+        private Capture(Session session, long token) {
+            this.session = session;
             this.token = token;
         }
+
+        /** Completes when the device is open, or exceptionally when it could not be opened. */
+        public CompletableFuture<Void> opened() {
+            return session.opened;
+        }
+
+        /** The failure a chunk listener raised during this capture, or null. Read after {@link #stop}. */
+        public RuntimeException failure() {
+            return session.listenerFailure;
+        }
+    }
+
+    /** The device operations a capture needs; the seam a test uses to supply a scripted line. */
+    interface MicLine {
+        int read(byte[] buffer, int offset, int length);
+
+        void start();
+
+        void stop();
+
+        void close();
+    }
+
+    /** Opens a line for the device; production wraps a {@link TargetDataLine}. */
+    interface LineFactory {
+        MicLine open(String deviceName) throws LineUnavailableException;
     }
 
     private static final AudioFormat FORMAT = new AudioFormat(16000f, 16, 1, true, false);
     private static final int BYTES_PER_SECOND = 32000;
     private static final int DEFAULT_PRE_ROLL_SECONDS = 2;
 
-    private volatile boolean recording;
-    private volatile boolean monitoring;
-    private volatile float level;
-    /** The failure a listener raised on the capture thread; read by the caller after {@link #stop()}. */
-    private volatile RuntimeException listenerFailure;
-    /** Two seconds of 16 kHz mono 16-bit audio, never uploaded, overwritten oldest-first. */
-    private volatile PcmRingBuffer preRoll = new PcmRingBuffer(DEFAULT_PRE_ROLL_SECONDS * BYTES_PER_SECOND);
+    /** Everything one capture owns. The reader thread touches only this object. */
+    private static final class Session {
+        final long token;
+        final boolean monitoring;
+        final ByteArrayOutputStream buffer;
+        final ChunkListener chunks;
+        final PcmListener pcm;
+        final int limit;
+        final CompletableFuture<Void> opened = new CompletableFuture<>();
+        final CompletableFuture<byte[]> finished = new CompletableFuture<>();
+        volatile PcmRingBuffer preRoll;
+        volatile MicLine line;
+        volatile Thread reader;
+        volatile boolean stopped;
+        volatile float level;
+        volatile RuntimeException listenerFailure;
 
-    private TargetDataLine line;
-    private Thread reader;
-    private ByteArrayOutputStream buffer;
-    private final CaptureOwnership ownership = new CaptureOwnership();
+        Session(
+                long token,
+                boolean monitoring,
+                ByteArrayOutputStream buffer,
+                ChunkListener chunks,
+                PcmListener pcm,
+                int limit,
+                PcmRingBuffer preRoll) {
+            this.token = token;
+            this.monitoring = monitoring;
+            this.buffer = buffer;
+            this.chunks = chunks;
+            this.pcm = pcm;
+            this.limit = limit;
+            this.preRoll = preRoll;
+        }
+    }
+
+    private final Object lock = new Object();
+    private final LineFactory lines;
+    private final ExecutorService device;
+    private Session current;
+    private long nextToken;
+    private boolean closed;
+    private volatile RuntimeException lastFailure;
+
+    public MicCapture() {
+        this(MicCapture::openRealLine);
+    }
+
+    /** A capture whose device operations run on one daemon thread; {@code lines} may be a test seam. */
+    MicCapture(LineFactory lines) {
+        this.lines = lines;
+        this.device = Executors.newSingleThreadExecutor(runnable -> {
+            Thread thread = new Thread(runnable, "friendai-mic-device");
+            thread.setDaemon(true);
+            return thread;
+        });
+    }
 
     /** Names of the audio inputs that can record in our format. */
     public static List<String> devices() {
@@ -55,7 +144,7 @@ public final class MicCapture implements AutoCloseable {
     }
 
     /** @param deviceName null means the system default */
-    public synchronized Capture start(String deviceName, int maxSeconds) throws LineUnavailableException {
+    public Capture start(String deviceName, int maxSeconds) {
         return start(deviceName, maxSeconds, null);
     }
 
@@ -64,26 +153,16 @@ public final class MicCapture implements AutoCloseable {
      *
      * @param deviceName null means the system default
      * @param listener receives every chunk as it arrives; a thrown failure stops the recording and is reported by
-     *     {@link #listenerFailure()}
+     *     {@link Capture#failure()}
+     * @return the capture, or null while another one owns the device
      */
-    public synchronized Capture start(String deviceName, int maxSeconds, ChunkListener listener)
-            throws LineUnavailableException {
-        if (recording) {
+    public Capture start(String deviceName, int maxSeconds, ChunkListener listener) {
+        Session session = begin(false, new ByteArrayOutputStream(), maxSeconds, listener, null, null);
+        if (session == null) {
             return null;
         }
-        TargetDataLine opened = openLine(deviceName);
-        ByteArrayOutputStream sink = new ByteArrayOutputStream();
-        line = opened;
-        buffer = sink;
-        listenerFailure = null;
-        monitoring = false;
-        recording = true;
-        level = 0f;
-        long token = ownership.begin();
-        reader = new Thread(() -> read(opened, sink, maxSeconds * BYTES_PER_SECOND, listener, null), "friendai-mic");
-        reader.setDaemon(true);
-        reader.start();
-        return new Capture(token);
+        device.execute(() -> open(session, deviceName, maxSeconds));
+        return new Capture(session, session.token);
     }
 
     /**
@@ -92,110 +171,287 @@ public final class MicCapture implements AutoCloseable {
      * — when its detector reports a hit; a clip accumulated here is never uploaded and never persisted.
      *
      * @param preRollSeconds seconds of audio the pre-roll keeps, clamped to 1..5
+     * @return the capture, or null while another one owns the device
      */
-    public synchronized void startMonitoring(String deviceName, int preRollSeconds, PcmListener listener)
-            throws LineUnavailableException {
-        if (recording) {
-            return;
-        }
+    public Capture startMonitoring(String deviceName, int preRollSeconds, PcmListener listener) {
         int seconds = Math.max(1, Math.min(5, preRollSeconds));
-        if (preRoll.capacity() != seconds * BYTES_PER_SECOND) {
-            preRoll = new PcmRingBuffer(seconds * BYTES_PER_SECOND);
-        }
-        TargetDataLine opened = openLine(deviceName);
-        line = opened;
-        buffer = null;
-        listenerFailure = null;
-        monitoring = true;
-        recording = true;
-        level = 0f;
-        reader = new Thread(() -> read(opened, null, 0, null, listener), "friendai-mic-monitor");
-        reader.setDaemon(true);
-        reader.start();
-    }
-
-    /** Stops recording and returns what was captured (empty while monitoring, or if nothing was recording). */
-    /** Stops the capture this token owns; byte[] is empty when it was already superseded. */
-    public synchronized byte[] stop(Capture owner) {
-        if (owner == null || !ownership.owns(owner.token)) {
+        Session session = begin(true, null, 0, null, listener, new PcmRingBuffer(seconds * BYTES_PER_SECOND));
+        if (session == null) {
             return null;
         }
-        return stop();
+        device.execute(() -> open(session, deviceName, 0));
+        return new Capture(session, session.token);
     }
 
-    public synchronized byte[] stop() {
-        recording = false;
-        TargetDataLine closingLine = line;
-        Thread closingReader = reader;
-        ByteArrayOutputStream closingBuffer = buffer;
-        line = null;
-        reader = null;
-        buffer = null;
-        monitoring = false;
-        level = 0f;
-        ownership.end(ownership.current());
-        if (closingLine == null) {
-            return new byte[0];
+    private Session begin(
+            boolean monitoring,
+            ByteArrayOutputStream buffer,
+            int maxSeconds,
+            ChunkListener chunks,
+            PcmListener pcm,
+            PcmRingBuffer preRoll) {
+        synchronized (lock) {
+            if (closed || current != null) {
+                return null;
+            }
+            long token = ++nextToken;
+            Session session = new Session(
+                    token,
+                    monitoring,
+                    buffer,
+                    chunks,
+                    pcm,
+                    maxSeconds * BYTES_PER_SECOND,
+                    preRoll == null ? new PcmRingBuffer(DEFAULT_PRE_ROLL_SECONDS * BYTES_PER_SECOND) : preRoll);
+            current = session;
+            return session;
         }
-        try {
-            closingLine.stop();
-        } catch (RuntimeException ignored) {
-            // The audio provider may have stopped the line while disconnecting.
+    }
+
+    /** Stops the capture this token owns; the future is null when it was already superseded. */
+    public CompletableFuture<byte[]> stop(Capture owner) {
+        if (owner == null) {
+            return null;
         }
-        try {
-            closingLine.close();
-        } catch (RuntimeException ignored) {
-            // Continue joining the reader even when the device reports an already-closed line.
+        synchronized (lock) {
+            if (current != owner.session) {
+                return null;
+            }
+            current = null;
         }
-        try {
-            if (closingReader != null) closingReader.join(500);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+        return end(owner.session);
+    }
+
+    /**
+     * Ends the current capture. The device is closed on the capture thread; the returned future completes with the
+     * clip once the reader has exited, so a caller on the client thread never waits for a device.
+     */
+    public CompletableFuture<byte[]> stop() {
+        Session session;
+        synchronized (lock) {
+            session = current;
+            current = null;
         }
-        if (closingBuffer == null) {
-            return new byte[0];
+        if (session == null) {
+            return CompletableFuture.completedFuture(new byte[0]);
         }
-        synchronized (closingBuffer) {
-            return closingBuffer.toByteArray();
-        }
+        return end(session);
+    }
+
+    private CompletableFuture<byte[]> end(Session session) {
+        session.stopped = true;
+        session.level = 0f;
+        device.execute(() -> close(session));
+        return session.finished;
     }
 
     @Override
     public void close() {
         stop();
+        synchronized (lock) {
+            if (closed) {
+                return;
+            }
+            closed = true;
+        }
+        device.shutdown();
     }
 
-    /** A copy of the volatile pre-roll; empty before any recording and never persisted. */
+    /** A copy of the current capture's pre-roll; empty before any recording and never persisted. */
     public byte[] preRoll() {
-        return preRoll.snapshot();
+        Session session;
+        synchronized (lock) {
+            session = current;
+        }
+        return session == null ? new byte[0] : session.preRoll.snapshot();
     }
 
     /** True while a clip is being recorded for recognition; a monitoring session does not count. */
     public boolean isRecording() {
-        return recording && !monitoring;
+        Session session;
+        synchronized (lock) {
+            session = current;
+        }
+        return session != null && !session.monitoring;
     }
 
     /** True while the microphone is open only to listen for the wake word. */
     public boolean isMonitoring() {
-        return recording && monitoring;
+        Session session;
+        synchronized (lock) {
+            session = current;
+        }
+        return session != null && session.monitoring;
     }
 
-    /** The loudness of the last chunk, 0..1; what the HUD's bars follow. */
+    /** The loudness of the current capture's last chunk, 0..1; what the HUD's bars follow. */
     public float level() {
-        return level;
+        Session session;
+        synchronized (lock) {
+            session = current;
+        }
+        return session == null ? 0f : session.level;
     }
 
-    /** True once the recording thread has ended on its own (limit reached) and {@link #stop()} is still due. */
-    public synchronized boolean hasPendingRecording() {
-        return line != null;
+    /** True while a clip capture is open, whether or not its device has finished opening. */
+    public boolean hasPendingRecording() {
+        Session session;
+        synchronized (lock) {
+            session = current;
+        }
+        return session != null && !session.monitoring;
     }
 
-    /** The failure a chunk listener raised during the last recording, or null. */
+    /** The failure a chunk listener raised during the last capture, or null. */
     public RuntimeException listenerFailure() {
-        return listenerFailure;
+        Session session;
+        synchronized (lock) {
+            session = current;
+        }
+        RuntimeException failure = session == null ? null : session.listenerFailure;
+        return failure != null ? failure : lastFailure;
     }
 
-    private TargetDataLine openLine(String deviceName) throws LineUnavailableException {
+    private void open(Session session, String deviceName, int maxSeconds) {
+        MicLine opened;
+        try {
+            opened = lines.open(deviceName);
+        } catch (RuntimeException | LineUnavailableException failure) {
+            forget(session);
+            session.opened.completeExceptionally(failure);
+            session.finished.complete(new byte[0]);
+            return;
+        }
+        session.line = opened;
+        if (session.stopped) {
+            // Released while the device was opening: there is nothing to record and nothing to report.
+            closeLine(opened);
+            session.opened.complete(null);
+            session.finished.complete(clip(session));
+            return;
+        }
+        Thread reader = new Thread(() -> read(session), session.monitoring ? "friendai-mic-monitor" : "friendai-mic");
+        reader.setDaemon(true);
+        session.reader = reader;
+        reader.start();
+        session.opened.complete(null);
+    }
+
+    /** Runs on the capture thread: closes the line, keeps the tail chunk, and settles the clip. */
+    private void close(Session session) {
+        MicLine line = session.line;
+        if (line != null) {
+            closeLine(line);
+            Thread reader = session.reader;
+            if (reader != null && reader != Thread.currentThread()) {
+                try {
+                    reader.join(READER_JOIN_MILLIS);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        }
+        session.finished.complete(clip(session));
+    }
+
+    private void forget(Session session) {
+        synchronized (lock) {
+            if (current == session) {
+                current = null;
+            }
+        }
+    }
+
+    /**
+     * The one capture loop. It reads and publishes only its own session; a stop marks the session and closes the line
+     * so the blocking read returns, and everything captured after that belongs to nobody.
+     */
+    private void read(Session session) {
+        byte[] chunk = new byte[1024];
+        int total = 0;
+        try {
+            while (!session.stopped) {
+                MicLine line = session.line;
+                if (line == null) {
+                    break;
+                }
+                int n = line.read(chunk, 0, chunk.length);
+                if (n <= 0 || session.stopped) {
+                    break;
+                }
+                if (isCurrent(session)) {
+                    session.level = AudioLevel.of(chunk, n);
+                    session.preRoll.write(chunk, n);
+                }
+                if (session.buffer != null) {
+                    synchronized (session.buffer) {
+                        if (total >= session.limit) {
+                            break;
+                        }
+                        int count = Math.min(n, session.limit - total);
+                        session.buffer.write(chunk, 0, count);
+                        total += count;
+                    }
+                }
+                if (session.chunks != null) {
+                    try {
+                        session.chunks.onChunk(PcmConverter.toFloat(Arrays.copyOf(chunk, n)));
+                    } catch (RuntimeException failure) {
+                        // The recognizer refused the chunk (overflow or a closed session): stop capture and let the
+                        // caller report the typed failure after release.
+                        session.listenerFailure = failure;
+                        lastFailure = failure;
+                        session.stopped = true;
+                        break;
+                    }
+                }
+                if (session.pcm != null) {
+                    try {
+                        session.pcm.onPcm(chunk, n);
+                    } catch (RuntimeException failure) {
+                        session.listenerFailure = failure;
+                        lastFailure = failure;
+                        session.stopped = true;
+                        break;
+                    }
+                }
+            }
+        } catch (RuntimeException ignored) {
+            // Closing a line during disconnect can interrupt a blocking read.
+        } finally {
+            session.finished.complete(clip(session));
+        }
+    }
+
+    private boolean isCurrent(Session session) {
+        synchronized (lock) {
+            return current == session;
+        }
+    }
+
+    private static byte[] clip(Session session) {
+        if (session.monitoring || session.buffer == null) {
+            return new byte[0];
+        }
+        synchronized (session.buffer) {
+            return session.buffer.toByteArray();
+        }
+    }
+
+    private static void closeLine(MicLine line) {
+        try {
+            line.stop();
+        } catch (RuntimeException ignored) {
+            // The audio provider may have stopped the line while disconnecting.
+        }
+        try {
+            line.close();
+        } catch (RuntimeException ignored) {
+            // An already-closed line needs no second close.
+        }
+    }
+
+    private static MicLine openRealLine(String deviceName) throws LineUnavailableException {
         DataLine.Info info = new DataLine.Info(TargetDataLine.class, FORMAT);
         TargetDataLine opened = null;
         if (deviceName != null && !deviceName.isBlank()) {
@@ -212,58 +468,28 @@ public final class MicCapture implements AutoCloseable {
         }
         opened.open(FORMAT);
         opened.start();
-        return opened;
-    }
-
-    /**
-     * The one capture loop. A clip recording passes a buffer and a {@link ChunkListener}; a monitoring session passes
-     * a {@link PcmListener} and no buffer, so it keeps only the pre-roll.
-     */
-    private void read(
-            TargetDataLine source, ByteArrayOutputStream sink, int limit, ChunkListener floats, PcmListener pcm) {
-        byte[] chunk = new byte[1024];
-        try {
-            while (recording) {
-                int n = source.read(chunk, 0, chunk.length);
-                if (n <= 0) {
-                    break;
-                }
-                level = AudioLevel.of(chunk, n);
-                preRoll.write(chunk, n);
-                if (sink != null) {
-                    synchronized (sink) {
-                        if (sink.size() >= limit) {
-                            break;
-                        }
-                        sink.write(chunk, 0, n);
-                    }
-                }
-                if (floats != null) {
-                    try {
-                        floats.onChunk(PcmConverter.toFloat(Arrays.copyOf(chunk, n)));
-                    } catch (RuntimeException failure) {
-                        // The recognizer refused the chunk (overflow or a closed session): stop capture and let the
-                        // caller report the typed failure after release.
-                        listenerFailure = failure;
-                        recording = false;
-                        break;
-                    }
-                }
-                if (pcm != null) {
-                    try {
-                        pcm.onPcm(chunk, n);
-                    } catch (RuntimeException failure) {
-                        listenerFailure = failure;
-                        recording = false;
-                        break;
-                    }
-                }
+        TargetDataLine line = opened;
+        return new MicLine() {
+            @Override
+            public int read(byte[] buffer, int offset, int length) {
+                return line.read(buffer, offset, length);
             }
-        } catch (RuntimeException ignored) {
-            // Closing a line during disconnect can interrupt a blocking read.
-        } finally {
-            recording = false;
-        }
+
+            @Override
+            public void start() {
+                line.start();
+            }
+
+            @Override
+            public void stop() {
+                line.stop();
+            }
+
+            @Override
+            public void close() {
+                line.close();
+            }
+        };
     }
 
     /** Receives ordered 16 kHz mono samples on the capture thread. */

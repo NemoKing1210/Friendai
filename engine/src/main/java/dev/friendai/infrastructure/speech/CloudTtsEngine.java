@@ -1,9 +1,11 @@
 package dev.friendai.infrastructure.speech;
 
+import dev.friendai.features.speech.PcmAudio;
 import dev.friendai.features.speech.ResolvedTts;
 import dev.friendai.features.speech.VoiceErrors;
 import dev.friendai.features.speech.tts.SpeechEngine;
 import dev.friendai.features.speech.tts.TtsClip;
+import dev.friendai.foundation.concurrent.CancelLink;
 import dev.friendai.foundation.text.UserFacingException;
 import dev.friendai.foundation.text.UserMessage;
 import java.util.concurrent.CompletableFuture;
@@ -30,12 +32,15 @@ public final class CloudTtsEngine implements SpeechEngine {
             return CompletableFuture.failedFuture(
                     new UserFacingException(UserMessage.of("friendai.voice.tts.error.failed")));
         }
-        return client.synthesize(settings, text).handle((audio, error) -> {
+        CompletableFuture<PcmAudio> wire = client.synthesize(settings, text);
+        CompletableFuture<TtsClip> clip = wire.handle((audio, error) -> {
             if (error != null) {
                 throw synthesisFailure(error);
             }
             return new TtsClip(audio.data(), audio.sampleRateHz());
         });
+        CancelLink.link(clip, wire);
+        return clip;
     }
 
     /**
