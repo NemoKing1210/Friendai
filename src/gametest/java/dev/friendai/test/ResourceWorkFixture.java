@@ -33,6 +33,21 @@ final class ResourceWorkFixture {
         List<BlockPos> allTreeLogs() {
             return trees.stream().flatMap(List::stream).toList();
         }
+
+        List<BlockPos> allTreeLeaves() {
+            List<BlockPos> leaves = new ArrayList<>();
+            for (List<BlockPos> tree : trees) {
+                BlockPos base = tree.getFirst();
+                int canopyY = tree.getLast().getY() + 1;
+                for (int x = base.getX() - 2; x <= base.getX() + 2; x++) {
+                    for (int z = base.getZ() - 2; z <= base.getZ() + 2; z++) {
+                        if (Math.abs(x - base.getX()) == 2 && Math.abs(z - base.getZ()) == 2) continue;
+                        leaves.add(new BlockPos(x, canopyY, z));
+                    }
+                }
+            }
+            return List.copyOf(leaves);
+        }
     }
 
     record UndergroundReturn(
@@ -53,24 +68,38 @@ final class ResourceWorkFixture {
     }
 
     static BirchKit birchKit(GameTestHelper h, int surfaceY) {
+        return birchKit(h, surfaceY, 5);
+    }
+
+    static BirchKit birchKit(GameTestHelper h, int surfaceY, int treeHeight) {
         GameTestSupport.platformAt(h, surfaceY, KIT_SIZE);
+        for (int x = 0; x < KIT_SIZE; x++) {
+            for (int z = 0; z < KIT_SIZE; z++) {
+                h.setBlock(x, surfaceY, z, Blocks.STONE_BRICKS);
+            }
+        }
         int feetY = surfaceY + 1;
         ServerPlayer owner = GameTestSupport.onlinePlayer(h, "resource-owner", 27.5, feetY, 4.5, true)
                 .player();
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 3, feetY, 3);
         companion.setOwner(owner.getUUID());
 
-        List<List<BlockPos>> trees = List.of(birchTree(h, 10, feetY, 10), birchTree(h, 16, feetY, 10));
+        List<List<BlockPos>> trees =
+                List.of(birchTree(h, 10, feetY, 10, treeHeight), birchTree(h, 16, feetY, 10, treeHeight));
         List<BlockPos> stone = new ArrayList<>();
-        for (int x = 22; x <= 24; x++) {
-            for (int z = 12; z <= 17; z++) {
+        for (int x : new int[] {4, 7, 13, 16}) {
+            for (int z : new int[] {2, 5, 8, 11, 14}) {
+                if (((x == 13 || x == 16) && z == 11) || (x == 13 && z == 14)) continue;
                 BlockPos pos = new BlockPos(x, feetY, z);
                 h.setBlock(pos, Blocks.STONE);
                 stone.add(pos);
             }
         }
+        BlockPos openStone = new BlockPos(4, feetY, 17);
+        h.setBlock(openStone, Blocks.STONE);
+        stone.add(openStone);
 
-        BlockPos stationSpot = new BlockPos(8, feetY, 14);
+        BlockPos stationSpot = new BlockPos(2, feetY, 14);
         h.setBlock(stationSpot, Blocks.AIR);
         List<BlockPos> deliveryObstruction = List.of(new BlockPos(21, feetY, 4), new BlockPos(21, feetY + 1, 4));
         deliveryObstruction.forEach(pos -> h.setBlock(pos, Blocks.COBBLESTONE));
@@ -117,9 +146,9 @@ final class ResourceWorkFixture {
         fixture.deliveryObstruction().forEach(pos -> h.setBlock(pos, Blocks.AIR));
     }
 
-    private static List<BlockPos> birchTree(GameTestHelper h, int x, int baseY, int z) {
+    private static List<BlockPos> birchTree(GameTestHelper h, int x, int baseY, int z, int height) {
         List<BlockPos> logs = new ArrayList<>();
-        for (int y = baseY; y <= baseY + 4; y++) {
+        for (int y = baseY; y < baseY + height; y++) {
             BlockPos pos = new BlockPos(x, y, z);
             h.setBlock(pos, Blocks.BIRCH_LOG);
             logs.add(pos);
@@ -127,7 +156,7 @@ final class ResourceWorkFixture {
         for (int leafX = x - 2; leafX <= x + 2; leafX++) {
             for (int leafZ = z - 2; leafZ <= z + 2; leafZ++) {
                 if (Math.abs(leafX - x) == 2 && Math.abs(leafZ - z) == 2) continue;
-                BlockPos pos = new BlockPos(leafX, baseY + 5, leafZ);
+                BlockPos pos = new BlockPos(leafX, baseY + height, leafZ);
                 if (h.getBlockState(pos).isAir()) {
                     h.setBlock(pos, Blocks.BIRCH_LEAVES.defaultBlockState().setValue(LeavesBlock.PERSISTENT, true));
                 }

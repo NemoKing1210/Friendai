@@ -60,7 +60,7 @@ class ActiveTaskDiagnosticsTest {
         assertEquals(1, task.reads);
         ticks(1);
         assertEquals(2, samples().size());
-        assertEquals("no_progress", samples().get(1).facts().get("reason"));
+        assertEquals("sample", samples().get(1).facts().get("reason"));
         assertEquals("changed 198", samples().get(1).facts().get("detail"));
         ticks(200);
         assertEquals(3, samples().size());
@@ -252,6 +252,54 @@ class ActiveTaskDiagnosticsTest {
         ticks(1);
         assertTrue(observed.getFirst().execution() > 0);
         assertEquals(observed.getFirst(), observed.getLast());
+    }
+
+    @Test
+    void aDeclaredWaitKeepsItsWaitingLabelWhileItsStampNeverMoves() {
+        FakeTask task = new FakeTask();
+        task.wait = 5;
+        start(task, 1);
+        ticks(200);
+        var samples = samples();
+        assertEquals("waiting", samples.getFirst().facts().get("reason"));
+        assertEquals("waiting", samples.getLast().facts().get("reason"));
+        assertEquals("waiting", samples.getLast().facts().get("phase"));
+    }
+
+    @Test
+    void terminalFactsCarryTheFirstProgressAndTheLongestGap() {
+        FakeTask task = new FakeTask() {
+            int ticked;
+
+            @Override
+            public TaskStatus tick(TaskContext c) {
+                ticked++;
+                if (ticked == 2) stamp = 2;
+                if (ticked == 102) stamp = 3;
+                return ticked >= 152 ? TaskStatus.SUCCESS : TaskStatus.RUNNING;
+            }
+        };
+        start(task, 1);
+        for (int i = 0; i < 151; i++) controller.tick(context);
+        controller.tick(context).orElseThrow();
+        var finish = events.getLast();
+        assertEquals("task.finish", finish.event());
+        assertEquals("2", finish.facts().get("firstProgressTicks"));
+        assertEquals("100", finish.facts().get("longestNoProgressTicks"));
+    }
+
+    @Test
+    void cancellationCarriesTheActivationTimeSpent() {
+        FakeTask task = new FakeTask();
+        start(task, 1);
+        ticks(3);
+        controller.stop(new StopRequest("owner stop"), context);
+        var cancel = events.stream()
+                .filter(e -> e.event().equals("task.cancel"))
+                .findFirst()
+                .orElseThrow();
+        assertTrue(cancel.durationMs() >= 0, "a cancellation must carry the elapsed activation time");
+        assertEquals("owner stop", cancel.facts().get("reason"));
     }
 
     private static class FakeTask implements Task {

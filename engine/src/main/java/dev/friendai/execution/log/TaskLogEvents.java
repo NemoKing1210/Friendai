@@ -198,6 +198,11 @@ public final class TaskLogEvents {
     }
 
     public static TaskLogEvent cancelEvent(LogContext context, String tool, String reason) {
+        return cancelEvent(context, tool, reason, -1L);
+    }
+
+    /** A cancellation carrying the activation time already spent, so stop receipt → cancellation is measurable. */
+    public static TaskLogEvent cancelEvent(LogContext context, String tool, String reason, long durationMs) {
         requireTool(tool);
         return new TaskLogEvent(
                 context,
@@ -205,7 +210,7 @@ public final class TaskLogEvents {
                 LogEvents.TASK_CANCEL,
                 tool,
                 "cancelled",
-                -1L,
+                durationMs,
                 Map.of("reason", reason == null ? "" : reason));
     }
 

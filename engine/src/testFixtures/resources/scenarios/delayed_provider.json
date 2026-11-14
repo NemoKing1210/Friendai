@@ -1,0 +1,10 @@
+{
+  "name": "delayed_provider",
+  "access": "owner",
+  "playerSays": "Tell me what you are doing.",
+  "replies": [
+    {"text": "Standing by and watching the area.", "tools": [], "delayMs": 500}
+  ],
+  "simulatedTicks": 20,
+  "expect": {"maxRequests": 1, "spokenContains": ["Standing by"], "maxClarifications": 0}
+}

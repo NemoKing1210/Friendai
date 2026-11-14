@@ -33,3 +33,6 @@ recovery_without_goal.json
 planner_transport_failure_falls_back.json
 invalid_queue_add_args.json
 stone_tools_from_forest.json
+casual_chat_en.json
+casual_chat_ru.json
+delayed_provider.json

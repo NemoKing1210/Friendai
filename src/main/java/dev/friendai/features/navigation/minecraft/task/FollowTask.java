@@ -18,6 +18,8 @@ public final class FollowTask implements Task {
     private static final double START_MARGIN = 2.0;
 
     private static final int RETRY_TICKS = 40;
+    /** Bound on the idle counter reported as a declared wait; it is a label, not a deadline. */
+    private static final int MAX_IDLE_TICKS = 1_000_000;
     /** How long the terrain view under an airborne owner is reused. */
     private static final int TERRAIN_TICKS = 5;
     /**
@@ -41,6 +43,8 @@ public final class FollowTask implements Task {
     private Pos journeyTarget;
     /** The last measured gap to the owner, for the debug view and a failing trace. */
     private double lastDistance = Double.NaN;
+    /** Consecutive ticks spent stationary: a following companion inside its radius is waiting, not stalled. */
+    private int idleTicks;
 
     /** @param quiet true when started as the default activity, so the brain hears nothing about it */
     public FollowTask(boolean quiet) {
@@ -72,24 +76,24 @@ public final class FollowTask implements Task {
                 mover.stop(c);
             }
             moving = false;
-            return TaskStatus.RUNNING;
+            return waiting();
         }
         if (retryCooldown > 0) {
             retryCooldown--;
-            return TaskStatus.RUNNING;
+            return waiting();
         }
         Vec3 target = followTarget(c, owner);
         if (target == null) {
             mover.stop(c);
             moving = false;
-            return TaskStatus.RUNNING;
+            return waiting();
         }
         double distance = c.companion().position().distanceTo(target);
         lastDistance = distance;
         if (moving && distance <= stopDistance) {
             moving = false;
             mover.stopAtDestination(c);
-            return TaskStatus.RUNNING;
+            return waiting();
         }
         if (!moving && distance > stopDistance + START_MARGIN) {
             moving = true;
@@ -98,7 +102,7 @@ public final class FollowTask implements Task {
             if (journey != null) journey.stop(c);
             journey = null;
             journeyTarget = null;
-            return TaskStatus.RUNNING;
+            return waiting();
         }
         if (distance > JOURNEY_DISTANCE) {
             if (journey == null || journeyTarget == null || journeyTargetDistance(target) > JOURNEY_TARGET_MARGIN) {
@@ -121,18 +125,21 @@ public final class FollowTask implements Task {
                     journey = null;
                     journeyTarget = null;
                     moving = false;
+                    return waiting();
                 }
                 case BLOCKED, CANCELLED -> {
                     journey.stop(c);
                     journey = null;
                     journeyTarget = null;
                     retryCooldown = RETRY_TICKS;
+                    return waiting();
                 }
                 case WAITING_FOR_CHUNK, WORKING -> {
                     // The journey owns movement and the lease for this leg.
+                    return walking();
                 }
             }
-            return TaskStatus.RUNNING;
+            return walking();
         }
         if (journey != null) {
             journey.stop(c);
@@ -144,14 +151,31 @@ public final class FollowTask implements Task {
             case ARRIVED -> {
                 mover.stopAtDestination(c);
                 moving = false;
+                return waiting();
             }
             case STUCK -> {
                 mover.stop(c);
                 moving = false;
                 retryCooldown = RETRY_TICKS;
+                return waiting();
             }
-            default -> {}
+            default -> {
+                return walking();
+            }
         }
+    }
+
+    /** Stationary ticks are an intentional wait: the follower is inside its radius or has nothing to walk to. */
+    private TaskStatus waiting() {
+        if (idleTicks < MAX_IDLE_TICKS) {
+            idleTicks++;
+        }
+        return TaskStatus.RUNNING;
+    }
+
+    /** The task is walking, so the runner must not read the previous idle ticks as a declared wait. */
+    private TaskStatus walking() {
+        idleTicks = 0;
         return TaskStatus.RUNNING;
     }
 
@@ -233,6 +257,15 @@ public final class FollowTask implements Task {
     @Override
     public boolean hasTimeout() {
         return false;
+    }
+
+    /**
+     * A stationary follower is inside its radius or has nothing worth walking to: that is a declared wait with no
+     * deadline of its own ({@link #waitingLimitTicks()} stays at its default), ended by the owner moving away.
+     */
+    @Override
+    public int waitingTicks() {
+        return idleTicks > 0 ? idleTicks : -1;
     }
 
     @Override

@@ -6,7 +6,7 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
-## [0.212.0] - 2026-11-12
+## [0.213.0] - 2026-11-14
 
 ### Added
 
@@ -51,6 +51,28 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 - A number or an on/off value the model wrote in quotes (`"count": "2"`) is accepted in a tool call, a plan step and a queue edit instead of failing the order.
 - When the model calls a tool that was hidden for the current message, the companion loads that tool's group for the rest of the turn, so a refused call can be repeated correctly instead of failing again and again.
 - Russian orders with "take", "pick up", "chop", "mine" and "collect" verb forms, and English "take", "grab", "cut" and "break", now keep the gathering tools available; "eat" and "sleep" orders show the eating and sleeping tools.
+
+## [0.212.2] - 2026-11-14
+
+### Changed
+
+- The activity log distinguishes an ordinary progress sample from an intentional wait or a stalled task, and records how long a turn took, how long the provider took to answer, how long work ran before progress, and how long work ran before it was cancelled.
+
+### Fixed
+
+- A companion waiting quietly within its follow distance is no longer reported as making no progress.
+
+## [0.212.1] - 2026-11-13
+
+### Fixed
+
+- Underground acquisition immediately recognizes loaded blocks face-adjacent to the companion's successful excavation, even when the geometric sight queue is full.
+
+## [0.212.0] - 2026-11-13
+
+### Changed
+
+- The companion can gather a complete tool set in one shared batch, prefer useful reachable resource sites, return safely from below ground, and deliver the owner's share while keeping its own.
 
 ## [0.211.3] - 2026-11-12
 

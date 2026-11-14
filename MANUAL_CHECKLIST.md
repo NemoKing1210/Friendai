@@ -16,7 +16,8 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 
 ## End to end with a real provider
 
-- [ ] In a birch forest, ask by voice for a stone tool set for yourself and one for the companion. Check the transcript, all delivery criteria, the handover after the companion climbs out of its dig, and the tool counts in the request log. If a path is blocked, the reply reports the blocker before claiming that delivery is under way.
+- [ ] In a fresh birch forest, ask by voice for a stone tool set for yourself and one for the companion. Check that one batch gathers the shared demand of 18 cobblestone and 14 sticks, the companion ends with one of each tool, and exactly one of each is handed to you after it climbs out. Check the transcript and verified per-item results; no individual material-plan or inspection call is needed when the supplied facts are sufficient.
+- [ ] In that order, temporarily block the owner's approach during a strict handover: the companion keeps its inventory and reports the blocker, then completes the handover without duplicating an already delivered tool when the route opens. With a no-safe-return setup, confirm it refuses the descent, keeps its cargo and reports the route failure before claiming delivery is under way.
 - [ ] "/friendai summon", then "сделай мне каменные инструменты" in a real session with a provider: the companion makes them, walks over, drops them at your feet and says the job is done without asking whether to hand them over; the goal's delivery criterion is confirmed by the drop and is not repeated as unconfirmed in the next replies.
 - [ ] Ask it to mine 20 stone for tools and watch it leave the pit: it does not pillar up on the stone it just mined — it digs out or says the cobblestone is reserved, and the stone is still in its bag afterwards.
 - [ ] `/friendai summon`, then "Friendai, mine 3 logs" next to trees: reply in chat, logs chopped, drops collected, result reported.
