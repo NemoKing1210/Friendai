@@ -210,7 +210,7 @@ public class ActiveTaskLifecycleTests {
             h.assertValueEqual(events.states().size(), 3, "initial, +200 and +400 active ticks");
             h.assertValueEqual(
                     events.states().stream().map(e -> e.facts().get("reason")).toList(),
-                    List.of("running", "no_progress", "no_progress"),
+                    List.of("running", "sample", "sample"),
                     "heartbeat reasons");
             h.assertTrue(events.named(LogEvents.TASK_SNAPSHOT).isEmpty(), "periodic work must not emit snapshots");
         } finally {

@@ -2,26 +2,41 @@ package dev.friendai.test;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
+import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.features.acquisition.ObtainStep;
 import dev.friendai.features.acquisition.minecraft.ObtainSubtaskFactory;
+import dev.friendai.features.acquisition.minecraft.task.BatchObtainTask;
 import dev.friendai.features.acquisition.minecraft.task.ObtainTask;
 import dev.friendai.features.construction.minecraft.task.BuildTask;
 import dev.friendai.features.construction.minecraft.task.PlaceBlockTask;
+import dev.friendai.features.crafting.CraftPlanner;
+import dev.friendai.features.crafting.minecraft.RecipeIndex;
+import dev.friendai.features.crafting.minecraft.Stations;
+import dev.friendai.features.creative.CreativeAction;
 import dev.friendai.server.creative.CreativeModeService;
 import dev.friendai.server.execution.tools.MinecraftObtainSubtaskFactory;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.permissions.LevelBasedPermissionSet;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.phys.AABB;
@@ -45,6 +60,30 @@ public final class CreativeMaterialTests {
         return new Caller(player.getUUID(), player.getName().getString(), AccessLevel.OWNER);
     }
 
+    private static List<String> firstPlankAlternatives(GameTestHelper h, CompanionEntity companion) {
+        CraftPlanner.RawNeed need = CraftPlanner.materialsFor(
+                        List.of(new CraftPlanner.Target("minecraft:crafting_table", 1)),
+                        Map.of(),
+                        RecipeIndex.of(h.getLevel()),
+                        Stations.available(h.getLevel(), companion))
+                .stream()
+                .filter(candidate -> candidate.candidates().size() >= 3)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("crafting table demand has fewer than three alternatives"));
+        return need.candidates().stream().limit(3).toList();
+    }
+
+    private static Block logForPlanks(String plankId) {
+        String logId = switch (plankId) {
+            case "minecraft:bamboo_planks" -> "minecraft:bamboo_block";
+            case "minecraft:crimson_planks" -> "minecraft:crimson_stem";
+            case "minecraft:warped_planks" -> "minecraft:warped_stem";
+            default -> plankId.replace("_planks", "_log");
+        };
+        Identifier identifier = Identifier.tryParse(logId);
+        return identifier == null ? Blocks.AIR : BuiltInRegistries.BLOCK.getValue(identifier);
+    }
+
     /** Creative wood is taken by the count miner: a felling would raise a scaffold it does not need. */
     @GameTest(maxTicks = 100)
     public void creativeWoodStepUsesTheCountMinerNotTheFeller(GameTestHelper h) {
@@ -61,6 +100,235 @@ public final class CreativeMaterialTests {
         Task survival = factory.create(context, new ObtainStep.Mine("minecraft:oak_log", 4, null), options)
                 .task();
         h.assertTrue(survival.type().equals("obtain_logs"), "survival wood used " + survival.type());
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 100)
+    public void creativeBatchDoesNotReserveRecipeIngredients(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 5, 2, 3);
+        CompanionEntity companion = creativeCompanion(h, owner);
+        BatchObtainTask task = new BatchObtainTask(
+                List.of(new CraftPlanner.Target("minecraft:stone_pickaxe", 1)),
+                false,
+                false,
+                new MinecraftObtainSubtaskFactory());
+        companion.executionCoordinator().start(task, "obtain_items", caller(owner), true);
+
+        TaskContext context = companion.executionCoordinator().activeTaskContext();
+        h.assertTrue(
+                context.canUseCreativeAction(CreativeAction.CREATE_ITEM),
+                "the batch should hold its live creative authorization");
+        Map<String, Integer> needs = task.materialNeeds(context);
+        h.assertFalse(
+                needs.containsKey("minecraft:cobblestone"), "creative crafting does not need reserved cobblestone");
+        h.assertFalse(needs.containsKey("minecraft:stick"), "creative crafting does not need reserved sticks");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 100)
+    public void survivalBatchReservesOnlyOneCandidateForAlternativeIngredients(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        BatchObtainTask task = new BatchObtainTask(
+                List.of(new CraftPlanner.Target("minecraft:crafting_table", 1)),
+                false,
+                false,
+                new MinecraftObtainSubtaskFactory());
+        TaskContext context = new TaskContext(companion, h.getLevel());
+        List<CraftPlanner.RawNeed> demand = CraftPlanner.materialsFor(
+                List.of(new CraftPlanner.Target("minecraft:crafting_table", 1)),
+                Map.of(),
+                RecipeIndex.of(h.getLevel()),
+                Stations.available(h.getLevel(), companion));
+        CraftPlanner.RawNeed alternatives = demand.stream()
+                .filter(need -> need.candidates().size() > 1)
+                .findFirst()
+                .orElseThrow(
+                        () -> new AssertionError("crafting table demand has no alternative ingredient: " + demand));
+
+        Map<String, Integer> needs = task.materialNeeds(context);
+        long reservedCandidates =
+                alternatives.candidates().stream().filter(needs::containsKey).count();
+        h.assertValueEqual(
+                reservedCandidates,
+                1L,
+                "one interchangeable raw ingredient is reserved instead of every candidate: " + needs);
+        String reserved = alternatives.candidates().stream()
+                .filter(needs::containsKey)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("no alternative ingredient was reserved: " + needs));
+        h.assertValueEqual(
+                needs.get(reserved), alternatives.count(), "the selected candidate reserves the full recipe need");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 100)
+    public void survivalBatchReservesHeldAndSelectedAlternativeIngredients(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        List<String> alternatives = firstPlankAlternatives(h, companion);
+        String selected = alternatives.getFirst();
+        String held = alternatives.get(2);
+        ItemStack heldStack = new ItemStack(BuiltInRegistries.ITEM.getValue(Identifier.tryParse(held)));
+        companion.inventory().addItem(heldStack);
+        companion.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.WOODEN_AXE));
+        BlockPos source = new BlockPos(5, 2, 2);
+        Block sourceLog = logForPlanks(selected);
+        h.assertFalse(sourceLog == Blocks.AIR, "no log source was mapped for " + selected);
+        h.setBlock(source.getX(), source.getY(), source.getZ(), sourceLog);
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, companion, h.absolutePos(source)),
+                "the dark oak log should be observed as a plank source");
+        BatchObtainTask task = new BatchObtainTask(
+                List.of(new CraftPlanner.Target("minecraft:crafting_table", 1)),
+                false,
+                false,
+                new MinecraftObtainSubtaskFactory());
+
+        Map<String, Integer> needs = task.materialNeeds(new TaskContext(companion, h.getLevel()));
+        h.assertValueEqual(
+                needs.getOrDefault(held, -1), 1, "the carried alternative stays reserved for the recipe: " + needs);
+        h.assertValueEqual(
+                needs.getOrDefault(selected, -1),
+                3,
+                "the gatherable alternative covers the remaining recipe demand: " + needs);
+        h.assertValueEqual(needs.size(), 3, "only the held alternative, selected alternative, and target are reserved");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 100)
+    public void inFlightBatchGatherKeepsItsAlternativeReserved(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        List<String> alternatives = firstPlankAlternatives(h, companion);
+        String selected = alternatives.get(1);
+        String newlyAvailable = alternatives.getFirst();
+        String held = alternatives.get(2);
+        companion.inventory().addItem(new ItemStack(BuiltInRegistries.ITEM.getValue(Identifier.tryParse(held))));
+        companion.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.WOODEN_AXE));
+        BlockPos darkOak = new BlockPos(5, 2, 2);
+        Block initialLog = logForPlanks(selected);
+        h.assertFalse(initialLog == Blocks.AIR, "no log source was mapped for " + selected);
+        h.setBlock(darkOak.getX(), darkOak.getY(), darkOak.getZ(), initialLog);
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, companion, h.absolutePos(darkOak)),
+                "the dark oak log should be observed before the batch starts");
+        BatchObtainTask task = new BatchObtainTask(
+                List.of(new CraftPlanner.Target("minecraft:crafting_table", 1)),
+                false,
+                false,
+                new MinecraftObtainSubtaskFactory());
+        TaskContext context = new TaskContext(companion, h.getLevel());
+        task.start(context);
+        h.assertTrue(task.tick(context) == TaskStatus.RUNNING, "the batch should start a gather child");
+        Map<String, Integer> beforeSourceChange = task.materialNeeds(context);
+        h.assertValueEqual(
+                beforeSourceChange.getOrDefault(selected, -1),
+                3,
+                "the in-flight gather candidate is reserved: " + beforeSourceChange);
+
+        BlockPos spruce = new BlockPos(4, 2, 3);
+        Block newLog = logForPlanks(newlyAvailable);
+        h.assertFalse(newLog == Blocks.AIR, "no log source was mapped for " + newlyAvailable);
+        h.setBlock(spruce.getX(), spruce.getY(), spruce.getZ(), newLog);
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, companion, h.absolutePos(spruce)),
+                "the newly available spruce log should be observed");
+        Map<String, Integer> afterSourceChange = task.materialNeeds(context);
+        h.assertValueEqual(
+                afterSourceChange.getOrDefault(selected, -1),
+                3,
+                "a changed world does not retarget the active gather reservation: " + afterSourceChange);
+        h.assertValueEqual(
+                afterSourceChange.getOrDefault(held, -1),
+                1,
+                "the carried alternative remains reserved independently: " + afterSourceChange);
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 100)
+    public void survivalBatchDoesNotReserveUnusedRecipeBranchMaterials(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        RecipeIndex book = RecipeIndex.of(h.getLevel());
+        List<CraftPlanner.Target> targets = List.of(new CraftPlanner.Target("minecraft:suspicious_stew", 1));
+        Set<dev.friendai.features.crafting.Station> stations = Stations.available(h.getLevel(), companion);
+        List<CraftPlanner.RawNeed> emptyDemand = CraftPlanner.materialsFor(targets, Map.of(), book, stations);
+        Set<String> recipeItems = new LinkedHashSet<>();
+        book.producing("minecraft:suspicious_stew")
+                .forEach(recipe -> recipe.ingredients().forEach(ingredient -> recipeItems.addAll(ingredient.items())));
+
+        String heldAlternative = null;
+        List<CraftPlanner.RawNeed> unusedNeeds = List.of();
+        for (String item : recipeItems) {
+            if (emptyDemand.stream().anyMatch(need -> need.candidates().contains(item))) {
+                continue;
+            }
+            List<CraftPlanner.RawNeed> liveDemand = CraftPlanner.materialsFor(targets, Map.of(item, 1), book, stations);
+            List<CraftPlanner.RawNeed> changedBranchNeeds = emptyDemand.stream()
+                    .filter(fullNeed -> liveDemand.stream()
+                            .noneMatch(liveNeed -> liveNeed.label().equals(fullNeed.label())
+                                    && liveNeed.candidates().stream().anyMatch(fullNeed.candidates()::contains)))
+                    .filter(fullNeed -> fullNeed.candidates().stream()
+                            .noneMatch(candidate -> liveDemand.stream()
+                                    .anyMatch(liveNeed -> liveNeed.candidates().contains(candidate))))
+                    .toList();
+            if (!changedBranchNeeds.isEmpty()) {
+                heldAlternative = item;
+                unusedNeeds = changedBranchNeeds;
+                break;
+            }
+        }
+        h.assertTrue(
+                heldAlternative != null,
+                "suspicious stew should provide an alternative recipe branch: empty=" + emptyDemand);
+        companion
+                .inventory()
+                .addItem(new ItemStack(BuiltInRegistries.ITEM.getValue(Identifier.tryParse(heldAlternative))));
+        BatchObtainTask task = new BatchObtainTask(targets, false, false, new MinecraftObtainSubtaskFactory());
+
+        Map<String, Integer> needs = task.materialNeeds(new TaskContext(companion, h.getLevel()));
+        for (CraftPlanner.RawNeed unusedNeed : unusedNeeds) {
+            for (String candidate : unusedNeed.candidates()) {
+                h.assertFalse(
+                        needs.containsKey(candidate),
+                        "an unused recipe branch must not reserve " + candidate + ": " + needs);
+            }
+        }
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 100)
+    public void survivalBatchProtectsShortageAfterPartialLiveOnlyIngredient(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        RecipeIndex book = RecipeIndex.of(h.getLevel());
+        Set<dev.friendai.features.crafting.Station> stations = Stations.available(h.getLevel(), companion);
+        List<CraftPlanner.Target> targets = List.of(new CraftPlanner.Target("minecraft:white_dye", 2));
+        List<CraftPlanner.RawNeed> emptyDemand = CraftPlanner.materialsFor(targets, Map.of(), book, stations);
+        String carried = "minecraft:lily_of_the_valley";
+        List<CraftPlanner.RawNeed> liveDemand = CraftPlanner.materialsFor(targets, Map.of(carried, 1), book, stations);
+        CraftPlanner.RawNeed liveOnly = liveDemand.stream()
+                .filter(liveNeed -> emptyDemand.stream()
+                        .noneMatch(fullNeed -> fullNeed.label().equals(liveNeed.label())
+                                && liveNeed.candidates().stream().anyMatch(fullNeed.candidates()::contains)))
+                .filter(need -> need.candidates().contains(carried))
+                .findFirst()
+                .orElseThrow(
+                        () -> new AssertionError("partial lily stock should select a live-only white dye recipe: empty="
+                                + emptyDemand + ", live=" + liveDemand));
+        companion.inventory().addItem(new ItemStack(BuiltInRegistries.ITEM.getValue(Identifier.tryParse(carried))));
+        BatchObtainTask task = new BatchObtainTask(targets, false, false, new MinecraftObtainSubtaskFactory());
+
+        Map<String, Integer> needs = task.materialNeeds(new TaskContext(companion, h.getLevel()));
+        int reserved = liveOnly.candidates().stream()
+                .mapToInt(item -> needs.getOrDefault(item, 0))
+                .sum();
+        h.assertValueEqual(
+                reserved,
+                liveOnly.count() + 1,
+                "one carried flower is protected in addition to the live branch shortage: " + needs);
         h.succeed();
     }
 

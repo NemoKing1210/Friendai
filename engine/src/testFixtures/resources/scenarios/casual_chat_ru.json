@@ -1,0 +1,15 @@
+{
+  "name": "casual_chat_ru",
+  "access": "owner",
+  "language": "ru",
+  "playerSays": "Привет, как дела?",
+  "replies": [
+    {"text": "Всё хорошо, спасибо. Чем займёмся?", "tools": []}
+  ],
+  "expect": {
+    "maxRequests": 1,
+    "spokenContains": ["хорошо"],
+    "maxClarifications": 1,
+    "toolsNotCalled": ["mine_blocks", "follow_player", "queue_add"]
+  }
+}

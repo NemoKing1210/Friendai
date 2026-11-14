@@ -55,7 +55,7 @@ public final class WorldScan {
         CompanionEntity companion = context.companion();
         ResourceCandidates evidence = context.resources();
         Map<String, Integer> blocks = new LinkedHashMap<>();
-        for (var observation : evidence.confirmedRecent(companion, radius))
+        for (var observation : evidence.confirmedDirectSight(companion, radius))
             blocks.merge(observation.blockId(), 1, Integer::sum);
         Map<String, Integer> mobs = countVisibleMobs(level, companion, MOB_RADIUS);
         Map<String, Integer> crops = countVisibleCrops(level, companion, evidence);
@@ -132,7 +132,7 @@ public final class WorldScan {
     private static Map<String, Integer> countVisibleCrops(
             ServerLevel level, CompanionEntity companion, ResourceCandidates evidence) {
         Map<String, Integer> counts = new LinkedHashMap<>();
-        for (var observation : evidence.confirmedRecent(companion, CROP_RADIUS)) {
+        for (var observation : evidence.confirmedDirectSight(companion, CROP_RADIUS)) {
             var p = observation.location().pos();
             BlockPos pos = new BlockPos(p.x(), p.y(), p.z());
             if (Crops.harvestable(level, pos).isPresent()) counts.merge(observation.blockId(), 1, Integer::sum);

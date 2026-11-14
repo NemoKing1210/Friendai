@@ -6,8 +6,12 @@ import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.features.acquisition.minecraft.search.DropIndex;
 import dev.friendai.features.acquisition.minecraft.search.WorldScan;
 import dev.friendai.features.acquisition.minecraft.task.ObtainTask;
+import dev.friendai.features.acquisition.minecraft.task.ResourceSearchDriver;
 import dev.friendai.features.acquisition.minecraft.task.VisitResourceTask;
 import dev.friendai.features.knowledge.ResourceObservation;
+import dev.friendai.features.knowledge.search.ResourceSearchProfile;
+import dev.friendai.features.knowledge.search.SearchSession;
+import dev.friendai.features.knowledge.search.TargetKind;
 import dev.friendai.features.knowledge.travel.TrailGraph;
 import dev.friendai.features.navigation.minecraft.nav.ResourceJourney;
 import dev.friendai.foundation.spatial.MaterialReserve;
@@ -17,6 +21,9 @@ import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
+import java.util.OptionalInt;
+import java.util.Set;
+import java.util.UUID;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -71,6 +78,7 @@ public final class ResourceJourneyTests {
     @GameTest(maxTicks = 600)
     public void obstructedVerifiedExitTriesOneAlternateWithoutBreakingBlocks(GameTestHelper h) {
         ReturnFixture fixture = returnFixture(h, true);
+        fixture.companion().inventory().addItem(new net.minecraft.world.item.ItemStack(Items.IRON_INGOT, 3));
         TaskContext context = new TaskContext(fixture.companion(), h.getLevel());
 
         h.succeedWhen(() -> {
@@ -79,7 +87,69 @@ public final class ResourceJourneyTests {
             h.assertTrue(
                     h.getLevel().getBlockState(fixture.obstruction()).is(Blocks.BEDROCK),
                     "return recovery edited the obstruction");
+            h.assertValueEqual(
+                    fixture.companion().inventory().countItem(Items.IRON_INGOT),
+                    3,
+                    "a route refusal retains the acquired cargo");
             fixture.journey().stop(context);
+        });
+    }
+
+    @GameTest(maxTicks = 900)
+    public void blockedAcquisitionReturnReportsFailureAndKeepsCargo(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        var owner = GameTestSupport.mockPlayerAt(h, 3, 2, 3);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 3, 2, 3);
+        companion.setOwner(owner.getUUID());
+        companion.inventory().addItem(new net.minecraft.world.item.ItemStack(Items.IRON_INGOT, 3));
+        String dimension = h.getLevel().dimension().identifier().toString();
+        BlockPos originBlock = h.absolutePos(new BlockPos(3, 2, 3));
+        Pos origin = new Pos(originBlock.getX(), originBlock.getY(), originBlock.getZ());
+        long now = h.getLevel().getServer().overworld().getGameTime();
+        SearchSession session = new SearchSession(
+                UUID.randomUUID(),
+                dimension,
+                "biome:minecraft:the_void",
+                origin,
+                new SearchSession.Limits(32, 128, 2_000, 0),
+                now);
+        TargetKind target = new TargetKind.Biome("minecraft:the_void", 32);
+        ResourceSearchProfile profile = new ResourceSearchProfile(
+                "biome:minecraft:the_void",
+                Set.of(dimension),
+                OptionalInt.empty(),
+                Set.of(ResourceSearchProfile.Strategy.SURFACE));
+        ResourceSearchDriver driver = new ResourceSearchDriver(
+                session, target, profile, 32, false, ResourceSearchProfile.Strategy.SURFACE, null, null, null, true);
+        TaskContext context = new TaskContext(companion, h.getLevel());
+        driver.start(context);
+
+        for (int x = 5; x <= 9; x++) {
+            for (int z = 5; z <= 9; z++) {
+                for (int y = 2; y <= 3; y++) {
+                    if (x > 5 && x < 9 && z > 5 && z < 9) continue;
+                    h.setBlock(x, y, z, Blocks.BEDROCK);
+                }
+                h.setBlock(x, 4, z, Blocks.BEDROCK);
+            }
+        }
+        var blockedPosition = h.absoluteVec(new net.minecraft.world.phys.Vec3(7.5, 2, 7.5));
+        companion.teleportTo(blockedPosition.x, blockedPosition.y, blockedPosition.z);
+        String expected = "return route to " + origin.x() + " " + origin.y() + " " + origin.z()
+                + " is blocked; cargo is kept and the chunk lease was released";
+
+        h.succeedWhen(() -> {
+            TaskStatus status = driver.tick(context);
+            if (status == TaskStatus.RUNNING) return;
+            h.assertTrue(
+                    status == TaskStatus.FAILED, "blocked return should fail acquisition: " + driver.resultSummary());
+            h.assertTrue(
+                    driver.resultSummary().contains(expected),
+                    "acquisition result should report the exact route failure: " + driver.resultSummary());
+            h.assertValueEqual(
+                    companion.inventory().countItem(Items.IRON_INGOT),
+                    3,
+                    "failed acquisition return must preserve the cargo");
         });
     }
 

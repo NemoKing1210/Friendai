@@ -16,11 +16,13 @@ import dev.friendai.world.block.BlockMatcher;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
@@ -28,7 +30,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
-/** Shared access to direct visible evidence and remembered resource sites. */
+/** Shared access to direct and face-exposed resource evidence and remembered resource sites. */
 public final class ResourceCandidates {
     private static final long CAVE_ENTRANCE_TTL = 6_000;
     private static final int MAX_CAVE_ENTRANCES = 32;
@@ -121,10 +123,10 @@ public final class ResourceCandidates {
 
     private record ScopedCaveEntrance(UUID owner, CaveEntranceObservation entrance) {}
 
-    /** Recent evidence matching a block id or tag, nearest first, still present in the world. */
+    /** Recent direct-sight evidence matching a block id or tag, nearest first, still present in the world. */
     public List<BlockPos> visible(CompanionEntity companion, BlockMatcher matcher, int radius, int limit) {
         if (matcher == null || limit < 1) return List.of();
-        return confirmedRecent(companion, radius).stream()
+        return confirmedDirectSight(companion, radius).stream()
                 .filter(observation -> matches(matcher, observation.blockId()))
                 .map(observation -> new BlockPos(
                         observation.location().pos().x(),
@@ -136,7 +138,7 @@ public final class ResourceCandidates {
 
     public Map<BlockPos, String> visibleBlockIds(CompanionEntity companion, int radius) {
         Map<BlockPos, String> result = new HashMap<>();
-        confirmedRecent(companion, radius).forEach(observation -> {
+        confirmedDirectSight(companion, radius).forEach(observation -> {
             var pos = observation.location().pos();
             result.put(new BlockPos(pos.x(), pos.y(), pos.z()), observation.blockId());
         });
@@ -150,21 +152,35 @@ public final class ResourceCandidates {
     public List<ResourceObservation> currentVisible(CompanionEntity companion, int radius) {
         long now = companion.level() instanceof ServerLevel level ? logicalTick(level) : Long.MIN_VALUE;
         return recentObservations(companion, radius).stream()
+                .filter(ResourceCandidates::isDirectSight)
                 .filter(observation -> observation.observedTick() == now)
                 .toList();
     }
 
     /** Direct observations from the recent window, bounded to the companion's visible radius, nearest first. */
     public List<ResourceObservation> recentVisible(CompanionEntity companion, int radius) {
-        return recentObservations(companion, radius);
+        return recentObservations(companion, radius).stream()
+                .filter(ResourceCandidates::isDirectSight)
+                .toList();
     }
 
-    /** Recent observations whose block at the recorded position is still the recorded block. */
+    /** Recent resource evidence whose block at the recorded position is still the recorded block. */
     public List<ResourceObservation> confirmedRecent(CompanionEntity companion, int radius) {
         if (!(companion.level() instanceof ServerLevel level)) return List.of();
         return recentObservations(companion, radius).stream()
                 .filter(observation -> stillPresent(level, observation))
                 .toList();
+    }
+
+    /** Confirmed recent observations produced by geometric sight, excluding blocks exposed by excavation. */
+    public List<ResourceObservation> confirmedDirectSight(CompanionEntity companion, int radius) {
+        return confirmedRecent(companion, radius).stream()
+                .filter(ResourceCandidates::isDirectSight)
+                .toList();
+    }
+
+    private static boolean isDirectSight(ResourceObservation observation) {
+        return observation.source() == ResourceObservation.EvidenceSource.DIRECT_SIGHT;
     }
 
     private List<ResourceObservation> recentObservations(CompanionEntity companion, int radius) {
@@ -274,6 +290,7 @@ public final class ResourceCandidates {
         long tick = logicalTick(level);
         return window.recent(tick).stream()
                 .anyMatch(observation -> observation.observedTick() == tick
+                        && isDirectSight(observation)
                         && observation.location().dimension().equals(dimension)
                         && observation.location().pos().x() == pos.getX()
                         && observation.location().pos().y() == pos.getY()
@@ -437,20 +454,55 @@ public final class ResourceCandidates {
         long tick = logicalTick(level);
         return window.recent(tick).stream()
                 .anyMatch(observation -> observation.observedTick() == tick
+                        && isDirectSight(observation)
                         && observation.location().dimension().equals(dimension)
                         && site.members().contains(observation.location().pos())
                         && site.family().equals(observation.blockId()));
     }
 
-    /** Applies evidence of this companion's confirmed successful break and schedules nearby face checks. */
+    /** Records loaded face neighbors of this companion's confirmed successful break and schedules sight checks. */
     public void ownBreak(CompanionEntity companion, BlockPos pos) {
         if (companion.ownerUuid() == null || !(companion.level() instanceof ServerLevel level)) return;
+        BlockPos broken = pos.immutable();
         ResourceObservation.Location location = new ResourceObservation.Location(
-                level.dimension().identifier().toString(), new Pos(pos.getX(), pos.getY(), pos.getZ()));
-        knowledge.book(companion.ownerUuid()).extracted(location, logicalTick(level));
+                level.dimension().identifier().toString(), new Pos(broken.getX(), broken.getY(), broken.getZ()));
+        long now = logicalTick(level);
+        knowledge.book(companion.ownerUuid()).extracted(location, now);
         ObservationWindow window = recent.get(companion.getUUID());
         if (window != null) window.forget(location);
-        observations.observer(companion).changed(pos);
+        Map<ResourceObservation.Location, Set<String>> recentDirectSight = new HashMap<>();
+        if (window != null) {
+            for (ResourceObservation observation : window.recent(now)) {
+                if (isDirectSight(observation)) {
+                    recentDirectSight
+                            .computeIfAbsent(observation.location(), ignored -> new HashSet<>())
+                            .add(observation.blockId());
+                }
+            }
+        }
+        for (Direction direction : Direction.values()) {
+            BlockPos exposed = broken.relative(direction);
+            if (!level.hasChunkAt(exposed)) continue;
+            BlockState state = level.getBlockState(exposed);
+            if (state.isAir()) continue;
+            ResourceObservation.Location exposedLocation = new ResourceObservation.Location(
+                    level.dimension().identifier().toString(), new Pos(exposed.getX(), exposed.getY(), exposed.getZ()));
+            String blockId = BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString();
+            if (!recentDirectSight.getOrDefault(exposedLocation, Set.of()).contains(blockId)) {
+                observe(
+                        companion,
+                        new ResourceObservation(
+                                blockId,
+                                exposedLocation,
+                                new Pos(
+                                        companion.blockPosition().getX(),
+                                        companion.blockPosition().getY(),
+                                        companion.blockPosition().getZ()),
+                                now,
+                                ResourceObservation.EvidenceSource.ADJACENT_BREAK));
+            }
+        }
+        observations.observer(companion).changed(broken);
     }
 
     private static long logicalTick(ServerLevel level) {

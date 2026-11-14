@@ -6,6 +6,7 @@ import dev.friendai.execution.log.TaskDiagnosticEpisode;
 import dev.friendai.execution.log.TaskLogEvent;
 import dev.friendai.execution.log.TaskLogEvents;
 import dev.friendai.execution.log.TaskLogSpan;
+import dev.friendai.execution.log.TaskSampleReason;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.features.creative.CreativeActionContext;
 import dev.friendai.foundation.diagnostics.DiagnosticClock;
@@ -201,7 +202,7 @@ public final class ActiveTaskController {
                 diagnostics.accept(TaskLogEvents.snapshotEvent(
                         active.logContext(),
                         active.toolName(),
-                        "stalled",
+                        TaskSampleReason.STALLED.wire(),
                         snapshotFacts(active, stallTicks, stamp, detail)));
                 safeStop(active.task(), activeContext, "no progress");
                 if (current != active) return Optional.empty();
@@ -240,7 +241,11 @@ public final class ActiveTaskController {
     public Optional<ActiveTask> stop(StopRequest request, TaskContext taskContext) {
         ActiveTask active = current;
         if (active == null) return Optional.empty();
-        diagnostics.accept(TaskLogEvents.cancelEvent(active.logContext(), active.toolName(), request.reason()));
+        diagnostics.accept(TaskLogEvents.cancelEvent(
+                active.logContext(),
+                active.toolName(),
+                request.reason(),
+                active.timing().elapsedMs()));
         current = null;
         safeStop(active.task(), context(taskContext, active), request.reason());
         return Optional.of(active);
@@ -249,7 +254,11 @@ public final class ActiveTaskController {
     public Optional<ActiveTask> stopFrozen(StopRequest request, TaskContext taskContext) {
         ActiveTask active = frozen;
         if (active == null) return Optional.empty();
-        diagnostics.accept(TaskLogEvents.cancelEvent(active.logContext(), active.toolName(), request.reason()));
+        diagnostics.accept(TaskLogEvents.cancelEvent(
+                active.logContext(),
+                active.toolName(),
+                request.reason(),
+                active.timing().elapsedMs()));
         frozen = null;
         frozenElapsed = 0;
         safeStop(active.task(), context(taskContext, active), request.reason());
@@ -397,7 +406,7 @@ public final class ActiveTaskController {
         int localTick = activeTicks - active.startActiveTick();
         boolean waiting = waitingTicks >= 0;
         TaskPhase phase = waiting ? TaskPhase.WAITING : TaskPhase.PROGRESS;
-        String label = waiting ? "waiting" : "running";
+        String label = waiting ? TaskSampleReason.WAITING.wire() : TaskSampleReason.RUNNING.wire();
         boolean phaseDue = active.progressThrottle().due(active.id(), phase, stamp, localTick);
         boolean sampleDue = active.episode().sample(localTick, stamp, waiting, label);
         if (!phaseDue && !sampleDue) return;
@@ -416,7 +425,7 @@ public final class ActiveTaskController {
                 active.toolName(),
                 phase,
                 -1,
-                phaseDue ? label : waiting ? "waiting" : "no_progress",
+                phaseDue ? label : waiting ? TaskSampleReason.WAITING.wire() : TaskSampleReason.SAMPLE.wire(),
                 detail,
                 facts);
         if (!phaseDue && waiting) {
@@ -439,6 +448,12 @@ public final class ActiveTaskController {
         facts.put("heldTicks", Long.toString(measured.heldTicks()));
         facts.put("tickNanos", Long.toString(measured.tickNanos()));
         facts.put("summary", summary == null ? "" : summary);
+        int firstProgress = active.episode().firstProgressTick();
+        if (firstProgress >= 0) {
+            facts.put("firstProgressTicks", Integer.toString(firstProgress));
+        }
+        int endTick = (int) measured.activeTicks();
+        facts.put("longestNoProgressTicks", Integer.toString(active.episode().longestNoProgressTicks(endTick)));
         workResult.ifPresent(result -> facts.put("workResult", result.compact()));
         if (active.spans().truncated > 0) {
             facts.put("truncatedSpans", Integer.toString(active.spans().truncated));

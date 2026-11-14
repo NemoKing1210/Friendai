@@ -203,7 +203,7 @@ public final class PerceptionBuilder {
     private static Map<String, Integer> countBlocks(
             ResourceCandidates resources, CompanionEntity companion, int radius) {
         Map<String, Integer> counts = new LinkedHashMap<>();
-        for (var observation : resources.confirmedRecent(companion, radius)) {
+        for (var observation : resources.confirmedDirectSight(companion, radius)) {
             Identifier id = Identifier.tryParse(observation.blockId());
             if (id == null) continue;
             String name = shortName(id);

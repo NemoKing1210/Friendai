@@ -59,6 +59,18 @@ public final class ScenarioRunner {
             List.of("done", "finished", "built", "collected", "crafted", "delivered", "completed");
 
     /**
+     * The virtual-clock stages of one run, in milliseconds from the posted event. A field is {@code null} when that
+     * stage never happened. {@code providerMs} is the scripted provider delay only: the fakes do their work in the same
+     * virtual instant, so in-process work is zero here and the real duration lives in the brain's durable records.
+     */
+    public record Timeline(
+            Integer eventToFirstRequestMs,
+            Integer providerMs,
+            Integer eventToFirstToolMs,
+            Integer eventToFirstSpeechMs,
+            Integer stopToCancelMs) {}
+
+    /**
      * What happened during the run, in observable counters only.
      *
      * <p>Payload fields ({@code systemChars}, {@code historyMessages}, {@code historyChars}, {@code toolSpecs},
@@ -95,7 +107,8 @@ public final class ScenarioRunner {
             Autonomy autonomy,
             int promptBudget,
             int plannerConsultations,
-            int plansApplied) {
+            int plansApplied,
+            Timeline timeline) {
         public Result {
             toolsCalled = List.copyOf(toolsCalled);
             spoken = List.copyOf(spoken);
@@ -152,12 +165,19 @@ public final class ScenarioRunner {
                     });
                 };
         AtomicInteger ids = new AtomicInteger();
+        ManualScheduler scheduler = new ManualScheduler();
         CompletableFuture<LlmResponse> interrupted = null;
         if (s.stopAfterFirstRequest()) {
             interrupted = gateway.enqueuePending();
         } else {
             for (Scenario.Reply reply : s.replies() == null ? List.<Scenario.Reply>of() : s.replies()) {
-                gateway.enqueue(responseFor(reply, ids));
+                CompletableFuture<LlmResponse> pending = gateway.enqueuePending();
+                LlmResponse response = responseFor(reply, ids);
+                if (reply.delayMs() <= 0L) {
+                    pending.complete(response);
+                } else {
+                    scheduler.schedule(() -> pending.complete(response), reply.delayMs());
+                }
             }
         }
         FakeToolExecutor tools = new FakeToolExecutor();
@@ -170,7 +190,6 @@ public final class ScenarioRunner {
                     .add(scripted.error() ? ToolResult.error(scripted.content()) : ToolResult.ok(scripted.content()));
         }
         RecordingSpeaker speaker = new RecordingSpeaker();
-        ManualScheduler scheduler = new ManualScheduler();
         Set<UUID> trusted = new HashSet<>();
         String access = s.access() == null ? "owner" : s.access();
         UUID speakerId = access.equals("owner") ? OWNER : OTHER;
@@ -186,7 +205,7 @@ public final class ScenarioRunner {
                 speaker,
                 scheduler,
                 AccessResolver.of(OWNER, trusted::contains));
-        Meter meter = new Meter();
+        Meter meter = new Meter(scheduler);
         brain.setObserver(meter);
         brain.setAgentSettings(() -> agentSettings(s));
         ScriptedPlannerPort planner = new ScriptedPlannerPort(s);
@@ -200,8 +219,11 @@ public final class ScenarioRunner {
         if (s.followUpEvent() != null && !s.followUpEvent().isBlank()) {
             brain.post(new BrainEvent.WorldNotice(s.followUpEvent()));
         }
+        long stopToCancel = -1L;
         if (interrupted != null) {
+            long beforeCancel = scheduler.nowMillis();
             brain.cancel();
+            stopToCancel = Math.max(0L, scheduler.nowMillis() - beforeCancel);
             Scenario.Reply first = s.replies().isEmpty()
                     ? new Scenario.Reply("", List.of())
                     : s.replies().getFirst();
@@ -265,7 +287,8 @@ public final class ScenarioRunner {
                 s.autonomyLevel(),
                 s.effectivePromptBudget(),
                 planner.consultations(),
-                planner.applied());
+                planner.applied(),
+                meter.timeline(stopToCancel));
     }
 
     /** The harness's fixed brain budget: eight tool steps and thirty history messages, no cooldowns. */
@@ -314,15 +337,46 @@ public final class ScenarioRunner {
         return found;
     }
 
-    /** Aggregates the exact requests the brain sent and the turn outcomes it reported. */
+    /** Aggregates the exact requests the brain sent, the turn outcomes it reported and the virtual-clock stages. */
     private static final class Meter implements BrainObserver {
+        private final ManualScheduler scheduler;
+        private final long startMs;
         FakeGateway.Payload payload = FakeGateway.Payload.ZERO;
         final List<String> outcomes = new ArrayList<>();
         int errors;
+        private Long firstRequestMs;
+        private Long firstToolMs;
+        private Long firstSpeechMs;
+        private long providerMs;
+        private long requestAt = -1L;
+
+        Meter(ManualScheduler scheduler) {
+            this.scheduler = scheduler;
+            this.startMs = scheduler.nowMillis();
+        }
 
         @Override
         public void onRequest(String system, List<Message> messages, List<ToolSpec> tools) {
             payload = payload.plus(FakeGateway.measure(system, messages, tools));
+            if (firstRequestMs == null) firstRequestMs = elapsed();
+            requestAt = scheduler.nowMillis();
+        }
+
+        @Override
+        public void onResponse(LlmResponse response) {
+            if (requestAt < 0L) return;
+            providerMs += Math.max(0L, scheduler.nowMillis() - requestAt);
+            requestAt = -1L;
+        }
+
+        @Override
+        public void onToolCall(ToolCall call) {
+            if (firstToolMs == null) firstToolMs = elapsed();
+        }
+
+        @Override
+        public void onReply(dev.friendai.execution.tool.Caller caller, String text) {
+            if (firstSpeechMs == null) firstSpeechMs = elapsed();
         }
 
         @Override
@@ -338,6 +392,23 @@ public final class ScenarioRunner {
         @Override
         public void onError(Throwable error) {
             errors++;
+        }
+
+        Timeline timeline(long stopToCancelMs) {
+            return new Timeline(
+                    milliseconds(firstRequestMs),
+                    (int) Math.min(Integer.MAX_VALUE, providerMs),
+                    milliseconds(firstToolMs),
+                    milliseconds(firstSpeechMs),
+                    stopToCancelMs < 0L ? null : (int) stopToCancelMs);
+        }
+
+        private long elapsed() {
+            return Math.max(0L, scheduler.nowMillis() - startMs);
+        }
+
+        private static Integer milliseconds(Long value) {
+            return value == null ? null : (int) Math.min(Integer.MAX_VALUE, value);
         }
     }
 

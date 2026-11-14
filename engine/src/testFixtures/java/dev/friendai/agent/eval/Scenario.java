@@ -14,6 +14,10 @@ import java.util.List;
  * nudge. {@code stopAfterFirstRequest} exercises interruption: the brain is cancelled before its pending response is
  * completed, so any effect it produces is a failure rather than something the fixture asserted.
  *
+ * <p>{@code delayMs} on a reply completes that scripted provider answer only after the given virtual milliseconds, so a
+ * fixture can separate provider delay from the fakes' zero-cost work. A delayed reply needs {@code simulatedTicks} to
+ * fire; without it the request stays pending exactly as a real provider that never answered.
+ *
  * <p>{@code autonomy} (the same case-insensitive words the server config uses: {@code passive}, {@code assistive},
  * {@code autonomous}) and {@code promptBudget} are the settings the real server supplies through {@link
  * AgentSettings}. They default to {@code assistive} and {@code AgentSettings.DEFAULTS.promptBudget()} so a fixture
@@ -81,9 +85,17 @@ public record Scenario(
     }
 
     /** One scripted model response: optional text plus tool calls by name. */
-    public record Reply(String text, List<String> tools) {
+    public record Reply(String text, List<String> tools, long delayMs) {
         public Reply {
             tools = tools == null ? List.of() : List.copyOf(tools);
+            if (delayMs < 0L) {
+                throw new IllegalArgumentException("delayMs must not be negative");
+            }
+        }
+
+        /** An immediate reply, the shape every fixture written before provider delay used. */
+        public Reply(String text, List<String> tools) {
+            this(text, tools, 0L);
         }
     }
 

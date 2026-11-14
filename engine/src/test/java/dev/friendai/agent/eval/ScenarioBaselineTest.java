@@ -1,6 +1,7 @@
 package dev.friendai.agent.eval;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -44,7 +45,10 @@ class ScenarioBaselineTest {
             "planning_first_order",
             "recovery_without_goal",
             "planner_transport_failure_falls_back",
-            "stone_tools_from_forest");
+            "stone_tools_from_forest",
+            "casual_chat_en",
+            "casual_chat_ru",
+            "delayed_provider");
 
     private static final Duration RUN_BOUND = Duration.ofSeconds(30);
 
@@ -97,13 +101,19 @@ class ScenarioBaselineTest {
                 + " answers.\n");
         report.append("- `planner/plans`: times the brain asked the scripted planner for its input, and proposals it"
                 + " applied to the queue; a fixture with no scripted planner asks and applies none.\n");
+        report.append("- `timeline`: virtual milliseconds from the posted event to the first provider request, the"
+                + " summed scripted provider delay, the first tool call, the first spoken line, and (interruption"
+                + " fixtures only) stop to cancellation. `-` means the stage never happened. Provider delay is the"
+                + " only non-zero stage a fake can produce: in-process work and world work take the same virtual"
+                + " instant, and a real client's numbers come from `turn.start`/`turn.end`, `llm.response` and"
+                + " `task.cancel` durations in the durable log.\n");
         report.append("- `unknown`: the metric was not observed, for example payload fields in a run that made no"
                 + " request.\n\n");
         report.append(
                 "| fixture | scenario | autonomy | budget | requests | system chars | history msgs | history chars |"
-                        + " tools | tool bytes | ticks | planner/plans | usage | retries/errors/cancelled | outcome |"
-                        + " provenance |\n");
-        report.append("|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|---|---|---|\n");
+                        + " tools | tool bytes | ticks | planner/plans | usage | retries/errors/cancelled | timeline |"
+                        + " outcome | provenance |\n");
+        report.append("|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|---|---|---|---|\n");
         for (Scenario scenario : scenarios) {
             ScenarioRunner.Result first = runBounded(scenario);
             ScenarioRunner.Result second = runBounded(scenario);
@@ -113,6 +123,14 @@ class ScenarioBaselineTest {
                     row(scenario, second),
                     scenario.name() + " printed different metrics on its two runs");
             assertTrue(first.passed(), scenario.name() + ": " + first.failures());
+            if ("delayed_provider".equals(scenario.name())) {
+                assertTrue(first.timeline().providerMs() >= 500, "the scripted provider delay must be visible");
+                assertTrue(first.timeline().eventToFirstSpeechMs() >= 500, "speech cannot precede the provider answer");
+            }
+            if (scenario.stopAfterFirstRequest()) {
+                assertNotNull(
+                        first.timeline().stopToCancelMs(), "an interruption fixture must record stop to cancellation");
+            }
             report.append(row(scenario, first)).append('\n');
         }
         report.append("\n## External checks (not scripted)\n\n");
@@ -128,6 +146,23 @@ class ScenarioBaselineTest {
         report.append(
                 "| a real quantity or build changed in the world | the filtered GameTest for that tool, for example"
                         + " `build_tests_*` |\n");
+
+        report.append("\n## What the matrix separates\n\n");
+        report.append("| stage | scripted run | real session evidence |\n|---|---|---|\n");
+        report.append("| provider delay | `timeline`'s provider column, scripted by `delayMs` | `llm.response`"
+                + " `durationMs`, and `llm.attempt` per-attempt timings |\n");
+        report.append("| server work | zero by construction: the fakes answer in the same virtual instant |"
+                + " `turn.end` `durationMs` minus the summed `llm.response` durations; `clock.gap` for a >1 s"
+                + " server stall |\n");
+        report.append("| intentional wait | a fixture can script a declared wait only through the real task runner"
+                + " | `task.progress`/`task.phase` with `reason=waiting`, from `Task.waitingTicks()` |\n");
+        report.append("| actual stall | not reachable headlessly | `task.snapshot` with `reason=stalled`, then"
+                + " `task.finish` `failed` and `longestNoProgressTicks` |\n");
+        report.append("| stop to cancellation | `interruption`'s stop→cancel column | `task.cancel` `durationMs`"
+                + " plus the last mutation before it |\n");
+        report.append("\nMovement through obstructed terrain, real inventory mutations and naturalness cannot be"
+                + " judged here: the harness has fake tools and a fixed position. Those stay with the filtered"
+                + " GameTests named below and the opt-in live runs.\n");
 
         Path out = Path.of("build", "eval-baseline.md");
         Files.createDirectories(out.getParent());
@@ -149,8 +184,18 @@ class ScenarioBaselineTest {
                 + value(result.toolSpecs()) + " | " + value(result.toolSpecBytes()) + " | "
                 + value(result.simulatedTicks()) + " | " + result.plannerConsultations() + "/"
                 + result.plansApplied() + " | " + usage(result) + " | " + value(result.retries()) + "/"
-                + value(result.errors()) + "/" + value(result.cancelledRequests()) + " | " + outcome(result) + " | "
-                + result.provenance() + " |";
+                + value(result.errors()) + "/" + value(result.cancelledRequests()) + " | "
+                + timeline(result.timeline()) + " | " + outcome(result) + " | " + result.provenance() + " |";
+    }
+
+    /** `event→request / provider / event→tool / event→speech / stop→cancel`, each `-` when it never happened. */
+    private static String timeline(ScenarioRunner.Timeline timeline) {
+        if (timeline == null) {
+            return "-";
+        }
+        return value(timeline.eventToFirstRequestMs()) + "/" + value(timeline.providerMs()) + "/"
+                + value(timeline.eventToFirstToolMs()) + "/" + value(timeline.eventToFirstSpeechMs()) + "/"
+                + value(timeline.stopToCancelMs());
     }
 
     /** A short, single-line statement of what the fixture feeds the brain. */
