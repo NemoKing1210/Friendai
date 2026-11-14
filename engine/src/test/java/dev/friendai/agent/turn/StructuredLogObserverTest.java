@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.friendai.agent.llm.RequestAttempt;
 import dev.friendai.agent.llm.model.LlmResponse;
+import dev.friendai.agent.llm.model.StopReason;
 import dev.friendai.agent.llm.model.ToolCall;
 import dev.friendai.agent.llm.model.Usage;
 import dev.friendai.agent.plan.PlanSubject;
@@ -79,6 +80,32 @@ class StructuredLogObserverTest {
         assertEquals(sink.records.get(2).seq(), secondContext.cause());
         assertEquals("trace-1", sink.records.get(1).data().get("trace"));
         assertEquals("trace-1", sink.records.get(0).data().get("trace"));
+    }
+
+    @Test
+    void turnAndProviderDurationsComeFromTheMonotonicClock() {
+        Recall sink = new Recall();
+        long[] nanos = {1_000_000_000L};
+        DebugLogObserver observer =
+                new DebugLogObserver(OWNER, COMPANION, "s1", pipeline(sink, LogLevel.DEBUG), "trace-1", () -> nanos[0]);
+        observer.onTurnStart(1);
+        nanos[0] += 250_000_000L;
+        observer.onRequest("system", List.of(), List.of());
+        nanos[0] += 500_000_000L;
+        observer.onResponse(new LlmResponse("ok", List.of(), StopReason.END, new Usage(1, 1)));
+        nanos[0] += 250_000_000L;
+        observer.onTurnEnd(1, "delivered");
+
+        LogRecord response = sink.records.stream()
+                .filter(r -> r.event().equals(LogEvents.LLM_RESPONSE))
+                .findFirst()
+                .orElseThrow();
+        LogRecord end = sink.records.stream()
+                .filter(r -> r.event().equals(LogEvents.TURN_END))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(500L, response.durationMs(), "request → response is provider time");
+        assertEquals(1000L, end.durationMs(), "turn start → turn end is the whole turn");
     }
 
     @Test

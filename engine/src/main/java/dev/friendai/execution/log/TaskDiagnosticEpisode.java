@@ -15,6 +15,9 @@ public final class TaskDiagnosticEpisode {
     private long stamp = ProgressWatch.UNKNOWN;
     private String blocker = "";
     private int lastSampleTick = Integer.MIN_VALUE;
+    private int firstProgressTick = -1;
+    private int lastProgressTick = Integer.MIN_VALUE;
+    private int longestGap;
 
     /**
      * @param activeTick the runner's monotonic active-tick counter
@@ -34,6 +37,14 @@ public final class TaskDiagnosticEpisode {
         }
         boolean materialProgress = progressStamp != ProgressWatch.UNKNOWN && progressStamp != stamp;
         boolean blockerChanged = !currentBlocker.equals(this.blocker);
+        if (materialProgress) {
+            if (firstProgressTick < 0) {
+                firstProgressTick = activeTick;
+            } else {
+                longestGap = Math.max(longestGap, activeTick - lastProgressTick);
+            }
+            lastProgressTick = activeTick;
+        }
         if (materialProgress || blockerChanged) {
             stamp = progressStamp;
             this.blocker = currentBlocker;
@@ -43,5 +54,23 @@ public final class TaskDiagnosticEpisode {
         if (activeTick - lastSampleTick < SAMPLE_INTERVAL_TICKS) return false;
         lastSampleTick = activeTick;
         return true;
+    }
+
+    /**
+     * The active tick of the first material progress, or {@code -1} when the task never moved its stamp. Measured from
+     * the runner's activation tick by the caller, so {@code task start → first verified work} is one subtraction.
+     */
+    public int firstProgressTick() {
+        return firstProgressTick;
+    }
+
+    /**
+     * The longest interval without material progress up to {@code activeTick}, including the tail after the last
+     * change and the whole activation when nothing ever moved. A declared wait still counts as time without progress:
+     * the typed sample reason, not this measurement, says whether the wait was intentional.
+     */
+    public int longestNoProgressTicks(int activeTick) {
+        int tail = lastProgressTick == Integer.MIN_VALUE ? activeTick : activeTick - lastProgressTick;
+        return Math.max(longestGap, Math.max(0, tail));
     }
 }

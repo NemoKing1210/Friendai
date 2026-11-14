@@ -1,0 +1,14 @@
+{
+  "name": "casual_chat_en",
+  "access": "owner",
+  "playerSays": "Hey, how are you doing today?",
+  "replies": [
+    {"text": "Doing well, thanks. What are we up to?", "tools": []}
+  ],
+  "expect": {
+    "maxRequests": 1,
+    "spokenContains": ["Doing well"],
+    "maxClarifications": 1,
+    "toolsNotCalled": ["mine_blocks", "follow_player", "queue_add"]
+  }
+}

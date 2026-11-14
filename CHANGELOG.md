@@ -6,6 +6,16 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.212.2] - 2026-11-14
+
+### Changed
+
+- The activity log distinguishes an ordinary progress sample from an intentional wait or a stalled task, and records how long a turn took, how long the provider took to answer, how long work ran before progress, and how long work ran before it was cancelled.
+
+### Fixed
+
+- A companion waiting quietly within its follow distance is no longer reported as making no progress.
+
 ## [0.212.1] - 2026-11-13
 
 ### Fixed

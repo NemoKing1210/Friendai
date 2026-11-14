@@ -29,11 +29,14 @@ public final class DebugLogObserver implements BrainObserver {
     private final String session;
     private final LogPipeline pipeline;
     private final String trace;
+    private final java.util.function.LongSupplier nanoClock;
     private volatile ToolCallSnapshot lastToolCall;
     private long turn;
     private long turnStartSeq;
     private long lastRequestSeq;
     private long lastToolCallSeq;
+    private long turnStartNanos = Long.MIN_VALUE;
+    private long requestStartNanos = Long.MIN_VALUE;
 
     /** The historical form: plain text into one ring buffer. */
     public DebugLogObserver(DebugLog log) {
@@ -43,6 +46,7 @@ public final class DebugLogObserver implements BrainObserver {
         this.session = "";
         this.pipeline = null;
         this.trace = opaqueTrace();
+        this.nanoClock = System::nanoTime;
     }
 
     public DebugLogObserver(UUID owner, UUID companion, String session, LogPipeline pipeline) {
@@ -51,12 +55,24 @@ public final class DebugLogObserver implements BrainObserver {
 
     /** {@code trace} is the opaque session token every record and invocation of this brain carries. */
     public DebugLogObserver(UUID owner, UUID companion, String session, LogPipeline pipeline, String trace) {
+        this(owner, companion, session, pipeline, trace, System::nanoTime);
+    }
+
+    /** Test seam: a monotonic clock whose value only orders events, never a wall date. */
+    DebugLogObserver(
+            UUID owner,
+            UUID companion,
+            String session,
+            LogPipeline pipeline,
+            String trace,
+            java.util.function.LongSupplier nanoClock) {
         this.legacy = null;
         this.owner = owner;
         this.companion = companion;
         this.session = session == null ? "" : session;
         this.pipeline = pipeline;
         this.trace = trace == null || trace.isBlank() ? opaqueTrace() : trace;
+        this.nanoClock = nanoClock == null ? System::nanoTime : nanoClock;
     }
 
     /** The captured context of the tool call just observed, so the executor can run under it. */
@@ -167,6 +183,7 @@ public final class DebugLogObserver implements BrainObserver {
     @Override
     public void onTurnStart(long turn) {
         this.turn = turn;
+        this.turnStartNanos = nanoClock.getAsLong();
         turnStartSeq = emit(
                 LogLevel.INFO,
                 LogCategory.BRAIN,
@@ -192,7 +209,9 @@ public final class DebugLogObserver implements BrainObserver {
                 "",
                 "turn " + turn + ": " + result,
                 Map.of("outcome", result),
-                null);
+                null,
+                elapsedMs(turnStartNanos));
+        turnStartNanos = Long.MIN_VALUE;
         if (legacy != null) legacy.add(LogKind.TASK, "[event] turn " + turn + " " + result);
     }
 
@@ -406,6 +425,7 @@ public final class DebugLogObserver implements BrainObserver {
             legacy.add(LogKind.REQUEST, text.toString());
             return;
         }
+        requestStartNanos = nanoClock.getAsLong();
         lastRequestSeq = emit(
                 LogLevel.DEBUG,
                 LogCategory.BRAIN,
@@ -448,7 +468,9 @@ public final class DebugLogObserver implements BrainObserver {
                 "",
                 message,
                 Map.of("tools", Integer.toString(response.toolCalls().size())),
-                null);
+                null,
+                elapsedMs(requestStartNanos));
+        requestStartNanos = Long.MIN_VALUE;
     }
 
     @Override
@@ -524,14 +546,51 @@ public final class DebugLogObserver implements BrainObserver {
             String message,
             Map<String, String> data,
             LogError error) {
+        return emit(level, category, kind, event, cause, toolCall, message, data, error, -1L);
+    }
+
+    private long emit(
+            LogLevel level,
+            LogCategory category,
+            LogKind kind,
+            String event,
+            long cause,
+            String toolCall,
+            String message,
+            Map<String, String> data,
+            LogError error,
+            long durationMs) {
         if (pipeline == null) return 0L;
         Map<String, String> facts = data;
         if (!trace.isEmpty()) {
             facts = LogEventData.build(new LogContext(trace, turn, 0L, 0L, 0L, 0L, 0L, 0L, "", cause), data);
         }
         return pipeline.emit(new LogRecord(
-                0L, 0L, level, category, kind, event, owner, companion, session, turn, 0L, 0L, 0L, toolCall, cause, -1L,
-                message, facts, error));
+                0L,
+                0L,
+                level,
+                category,
+                kind,
+                event,
+                owner,
+                companion,
+                session,
+                turn,
+                0L,
+                0L,
+                0L,
+                toolCall,
+                cause,
+                durationMs,
+                message,
+                facts,
+                error));
+    }
+
+    /** A monotonic duration between two readings of the injected clock, or -1 when the start is unknown. */
+    private long elapsedMs(long startNanos) {
+        if (startNanos == Long.MIN_VALUE) return -1L;
+        return Math.max(0L, (nanoClock.getAsLong() - startNanos) / 1_000_000L);
     }
 
     private static String preview(String text) {

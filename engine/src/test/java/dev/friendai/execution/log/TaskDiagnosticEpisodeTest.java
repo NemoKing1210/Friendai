@@ -1,5 +1,6 @@
 package dev.friendai.execution.log;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -53,5 +54,29 @@ class TaskDiagnosticEpisodeTest {
         episode.sample(0, ProgressWatch.UNKNOWN, false, "");
 
         assertTrue(episode.sample(200, ProgressWatch.UNKNOWN, false, ""));
+    }
+
+    @Test
+    void theFirstProgressAndTheLongestGapAreMeasured() {
+        TaskDiagnosticEpisode episode = new TaskDiagnosticEpisode();
+        episode.sample(0, 1L, false, "mining");
+        assertEquals(-1, episode.firstProgressTick());
+
+        episode.sample(30, 2L, false, "mining");
+        assertEquals(30, episode.firstProgressTick());
+        episode.sample(80, 3L, false, "mining");
+        assertEquals(50, episode.longestNoProgressTicks(80));
+        assertEquals(50, episode.longestNoProgressTicks(120));
+        assertEquals(90, episode.longestNoProgressTicks(170), "the tail after the last change counts");
+    }
+
+    @Test
+    void aTaskThatNeverMovesHasOneWholeActivationInterval() {
+        TaskDiagnosticEpisode episode = new TaskDiagnosticEpisode();
+        episode.sample(0, 1L, false, "");
+        episode.sample(500, 1L, false, "");
+
+        assertEquals(-1, episode.firstProgressTick());
+        assertEquals(500, episode.longestNoProgressTicks(500));
     }
 }
