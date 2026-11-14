@@ -223,6 +223,7 @@ const RU = {
   "Store up to two stacks in one call.": "Положить до двух стаков за один вызов.",
   "Take items out of a container.": "Достать предметы из контейнера.",
   "Look inside a container.": "Заглянуть в контейнер.",
+  "Look through the nearby chests not opened in the last five minutes.": "Обойти ближайшие сундуки, которые не открывал последние пять минут.",
   "Deposit into the nearest storage.": "Сложить в ближайшее хранилище.",
   "Report where you last saw an item in a recorded container.": "Сообщить, где предмет последний раз видели в запомненном контейнере.",
   "Move a known quantity between two containers in one call.": "Перенести известное количество между двумя контейнерами за один вызов.",

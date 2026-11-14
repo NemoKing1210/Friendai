@@ -75,6 +75,18 @@ public final class PlanInterpreter {
         return new Remaining(actions, false);
     }
 
+    /**
+     * True when the plan, started now, would finish without running a single action: every condition skips its steps
+     * and every repeat's {@code until} already holds. Such a plan does nothing while reporting success, so a caller
+     * queuing work for an order refuses it instead. Without facts nothing can be settled and the answer is false.
+     */
+    public static boolean finishesIdle(PlanDefinition plan, GuardFacts facts) {
+        if (plan == null || facts == null) return false;
+        return advance(plan, PlanCursor.start(0, 0), facts, new ActionResult.None())
+                        .event()
+                instanceof Event.Complete;
+    }
+
     private static Remaining withoutFacts(PlanDefinition plan, PlanCursor cursor) {
         int actions = cursor.pendingActionPath().isEmpty() ? 0 : 1;
         if (cursor.stack().isEmpty()) return new Remaining(actions, false);

@@ -108,6 +108,50 @@ class TurnRouterTest {
     }
 
     @Test
+    void gatheringOrdersFromAVoiceSessionKeepTheGatheringTools() {
+        // In order: "Take a couple of bushes and a couple of clay we are standing on", "Yes, take it and follow me
+        // afterwards", "Chop some firewood and follow me", "Then don't mine the red sand, only the bushes, they are
+        // quick to collect with one click, aren't they?".
+        for (String text : List.of(
+                "Забери пару кустов и пару глины на которой мы стоим.",
+                "Да, бери и следуй за мной после.",
+                "Наруби дров и иди за мной",
+                "Тогда красный песок не добывай, только кусты, их же быстро собрать одним кликом или нет?",
+                "take the bushes and follow me",
+                "grab some sand")) {
+            RouteDecision d = player(text, false);
+            assertFalse(d.mode() == TurnMode.CHAT, text);
+            assertTrue(d.groups().contains(ToolGroup.GATHERING), text);
+        }
+    }
+
+    @Test
+    void takingIsATopicNotASecondKindOfWork() {
+        // "Yes, take it and follow me afterwards": one movement order that refers to the previous reply.
+        RouteDecision d = player("Да, бери и следуй за мной после.", false);
+        assertEquals(TurnMode.ACTION, d.mode());
+        assertFalse(d.wantPlanner(), "a follow-up that says 'take it' is not an objective to plan");
+    }
+
+    @Test
+    void askingForFoodShowsTheFoodTools() {
+        // "Find yourself something to eat", "I'm hungry", "get some food" in Russian: get_food stayed hidden, so the
+        // model asked for cooked beef the pen could not make and gave up beside two cows.
+        for (String text :
+                List.of("Найди себе что-нибудь поесть.", "Я голоден", "Добудь еды", "find some food", "I'm hungry")) {
+            assertTrue(player(text, false).groups().contains(ToolGroup.SURVIVAL), text);
+        }
+    }
+
+    @Test
+    void eatingAndSleepingShowTheSurvivalTools() {
+        // The last two are "eat something" and "have a sleep" in Russian.
+        for (String text : List.of("eat something", "sleep in the bed", "съешь что-нибудь", "поспи")) {
+            assertTrue(player(text, false).groups().contains(ToolGroup.SURVIVAL), text);
+        }
+    }
+
+    @Test
     void tradingQuestionsStayChatAndMayUseReadOnlyTradeContext() {
         RouteDecision en = player("What trades does the villager have?", false);
         assertEquals(TurnMode.CHAT, en.mode());
@@ -212,5 +256,45 @@ class TurnRouterTest {
         RouteDecision d = player("make a plan to mine iron", false);
         assertEquals(TurnMode.GOAL, d.mode());
         assertTrue(d.wantPlanner());
+        // "Make a plan for the house" and "plan it step by step" in Russian.
+        assertEquals(TurnMode.GOAL, player("Составь план постройки дома", false).mode());
+        assertEquals(
+                TurnMode.GOAL, player("Распланируй, как построить дом", false).mode());
+    }
+
+    @Test
+    void oneWordIsOneKindOfWorkEvenWhenTwoStemsMatchIt() {
+        // "Get three cobblestones", "Get some stone", "Get iron ore": "добудь" matches both the gathering stem and the
+        // obtain verb, and used to count as two kinds of work, sending a one-step order to the planner.
+        for (String text : List.of("Добудь три булыжника.", "Добудь немного камня.", "Добудь железную руду.")) {
+            RouteDecision d = player(text, false);
+            assertEquals(TurnMode.ACTION, d.mode(), text);
+            assertFalse(d.wantPlanner(), text);
+            assertTrue(d.groups().contains(ToolGroup.GATHERING) && d.groups().contains(ToolGroup.OBTAIN), text);
+        }
+        // Two different words still make two kinds: "get stone and build a house".
+        assertEquals(TurnMode.GOAL, player("Добудь камня и построй дом", false).mode());
+    }
+
+    @Test
+    void bringingShowsTheHandOverTools() {
+        // "Bring me eight planks" in Russian: the planks were made and never handed over, because the giving tools
+        // were not visible in the turn.
+        for (String text : List.of("Принеси мне восемь досок.", "bring me some bread", "fetch me a pickaxe")) {
+            RouteDecision d = player(text, false);
+            assertEquals(TurnMode.ACTION, d.mode(), text);
+            assertTrue(d.groups().contains(ToolGroup.OBTAIN) && d.groups().contains(ToolGroup.INVENTORY), text);
+        }
+    }
+
+    @Test
+    void aPlanOrThenMarkerCountsOnlyAsAWholeWord() {
+        for (String text :
+                List.of("make some planks", "get me 10 oak planks", "plant some carrots", "strengthen the wall")) {
+            RouteDecision d = player(text, false);
+            assertEquals(TurnMode.ACTION, d.mode(), text);
+            assertFalse(d.wantPlanner(), text);
+        }
+        assertEquals(TurnMode.GOAL, player("plan the farm for me", false).mode());
     }
 }

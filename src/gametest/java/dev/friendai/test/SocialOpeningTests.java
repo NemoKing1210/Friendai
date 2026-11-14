@@ -360,6 +360,33 @@ public class SocialOpeningTests {
         });
     }
 
+    /**
+     * "Clear this sand away" ended after one block with a question: the director's own opener arrived in the same
+     * batch as the task's report, and a batch that carries an opening has no tools. The report now gets a turn of its
+     * own, because no opening is posted for ten seconds after work was reported.
+     */
+    @GameTest(maxTicks = 300)
+    public void noOpeningLandsBesideAFreshWorkReport(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        ServerRuntime runtime = GameTestSupport.runtime(h.getLevel().getServer());
+        setOwnerLanguage(runtime, owner.getUUID(), "English");
+        Script script = new Script();
+        runtime.sessions().setGatewayOverride(owner.getUUID(), script);
+        CompanionEntity companion =
+                CompanionManager.get(h.getLevel().getServer()).summon(owner);
+        companion.executionCoordinator().start(new WaitTask(20), "wait");
+        h.runAfterDelay(140, () -> {
+            h.assertTrue(
+                    !"wait".equals(companion.executionCoordinator().currentToolName()),
+                    "precondition: the wait task must have finished");
+            h.assertTrue(
+                    socialOpenings(script).isEmpty(),
+                    "no opening within ten seconds of a work report: " + socialOpenings(script));
+            h.succeed();
+        });
+    }
+
     @GameTest(maxTicks = 1100)
     public void advancementFactWaitsUntilAnOwnerJobFinishes(GameTestHelper h) {
         GameTestSupport.platform(h, 12);

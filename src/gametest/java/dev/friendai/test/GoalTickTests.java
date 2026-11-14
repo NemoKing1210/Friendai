@@ -52,7 +52,45 @@ public class GoalTickTests {
         ServerConfig config = ServerConfig.defaults();
         config.agent.goalTickSec = 10;
         config.agent.autonomy = autonomy;
+        // The post-turn cooldown runs on the wall clock while the goal interval runs on server ticks; a lone test
+        // batch ticks far faster than real time, so a 500 ms cooldown would outlast the whole wait.
+        config.brain.cooldownMs = 0;
         return config;
+    }
+
+    /**
+     * "Chop twenty logs", then "stop, that's enough": the model had set a goal, the stop cancelled the work, and a
+     * minute later the goal's nudge woke the planner and the companion went back to chopping. A stop order now holds
+     * the nudges until new work is given. Its own environment keeps the server-wide autonomy setting to itself.
+     */
+    @GameTest(maxTicks = 2_400, environment = "friendai-gametest:goal_tick_stop")
+    public void a_stop_order_holds_goal_nudges_until_new_work(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
+        var server = h.getLevel().getServer();
+        ServerRuntime state = GameTestSupport.runtime(server);
+        ServerConfig original = state.config();
+        state.applyConfig(fastTicks("assistive"));
+        CompanionSessions brains = state.sessions();
+        Recorder recorder = new Recorder();
+        brains.setGatewayOverride(player.getUUID(), recorder);
+        CompanionEntity c = CompanionManager.get(server).summon(player);
+        brains.post(player.getUUID(), new BrainEvent.WorldNotice("ready"));
+        h.assertFalse(setGoal(c, player).error(), "set_goal failed");
+        ToolCall stop = new ToolCall("2", "stop", JsonParser.parseString("{}").getAsJsonObject(), "{}", null);
+        var stopped = GameTestToolRegistry.create(c, () -> 32)
+                .bind(c)
+                .execute(stop, new Caller(player.getUUID(), "Steve", AccessLevel.OWNER));
+        h.assertFalse(stopped.error(), "stop failed: " + stopped.content());
+        h.runAfterDelay(600, () -> {
+            h.assertFalse(recorder.sawNudge(), "a stop order must hold the goal's nudges; saw " + recorder.userLines);
+            // New work released the hold: once it ends, the unfinished goal is nudged again.
+            c.executionCoordinator().start(new dev.friendai.features.interaction.minecraft.task.WaitTask(5), "wait");
+            h.succeedWhen(() -> {
+                h.assertTrue(recorder.sawNudge(), "new work must release the hold; saw " + recorder.userLines);
+                state.applyConfig(original);
+            });
+        });
     }
 
     /**

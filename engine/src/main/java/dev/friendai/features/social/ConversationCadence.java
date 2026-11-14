@@ -17,10 +17,19 @@ public final class ConversationCadence {
     private static final int[] BASE_GAP = {3_600, 2_400, 4_800, 200, 6_000};
     private static final int[] JITTER = {600, 400, 800, 80, 1_000};
     private static final int QUIET_AFTER_OWNER = 100;
+
+    /**
+     * Ten seconds after work was reported: the companion first answers for the job it just did, in a turn of its own.
+     * An opening that lands beside the report strips that turn of its tools, and "clear this sand" then ended with one
+     * block removed and a question instead of the rest of the pile.
+     */
+    private static final int QUIET_AFTER_WORK = 200;
+
     private static final int MAX_BACKOFF = 3;
 
     private int nextAllowedAt;
     private int lastOwnerAt = Integer.MIN_VALUE / 2;
+    private int lastWorkAt = Integer.MIN_VALUE / 2;
     private int backoff;
     private boolean awaitingAnswer;
 
@@ -29,6 +38,19 @@ public final class ConversationCadence {
             return false;
         }
         return !(scene == Scene.COMBAT && backoff > 0);
+    }
+
+    /**
+     * Whether a subject of the companion's own may be opened now. News (a death, an advancement) is not held back by
+     * work; small talk is, until the report of the job has had its turn.
+     */
+    public boolean mayOpenTopic(int tick) {
+        return tick >= lastWorkAt + QUIET_AFTER_WORK;
+    }
+
+    /** A job is running or its result was just reported. */
+    public void workReported(int tick) {
+        lastWorkAt = tick;
     }
 
     public boolean mayAskQuestion() {

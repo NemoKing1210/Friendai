@@ -1,10 +1,13 @@
 package dev.friendai.perception.resource;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
@@ -35,7 +38,16 @@ public final class ResourceSight {
         List<BlockPos> openAirCells();
 
         boolean unobstructedOpenCorridor();
+
+        /**
+         * Thin blocks whose cells the ray crossed before it stopped: a dead bush, a flower, a sapling, a crop. They
+         * hide nothing, so they never end the ray, but they stood in direct line of sight and are evidence like a hit.
+         */
+        List<BlockPos> glimpsed();
     }
+
+    /** At most this many distinct kinds of thin block are reported per ray, so a meadow cannot flood the evidence. */
+    static final int MAX_GLIMPSES_PER_RAY = 3;
 
     public static Job rayTo(ServerLevel level, Vec3 from, Vec3 to, BlockPos target) {
         return new RayJob(level, from, to, target == null ? null : target.immutable());
@@ -51,6 +63,8 @@ public final class ResourceSight {
         private BlockPos hit;
         private int visited;
         private final List<BlockPos> openAirCells = new ArrayList<>();
+        private final List<BlockPos> glimpsed = new ArrayList<>();
+        private final Set<Block> glimpsedKinds = new HashSet<>();
         private boolean unobstructedOpenCorridor = true;
 
         private RayJob(ServerLevel level, Vec3 from, Vec3 to, BlockPos target) {
@@ -91,7 +105,10 @@ public final class ResourceSight {
                     return outcome;
                 }
                 if (state.isAir()) openAirCells.add(pos.immutable());
-                else unobstructedOpenCorridor = false;
+                else {
+                    unobstructedOpenCorridor = false;
+                    glimpse(state, pos);
+                }
                 double next = nextBoundary(from, delta, cursor, pos);
                 if (!(next > cursor + EPSILON)) next = cursor + 1.0e-5;
                 cursor = next;
@@ -128,6 +145,31 @@ public final class ResourceSight {
                 if (intersectsSegment(from, delta, world)) return true;
             }
             return false;
+        }
+
+        /**
+         * Records a thin block whose cell the ray passes through: it does not occlude, so the ray goes on, but the
+         * cell was in plain view and a flower or a bush fills much of it. A ray is a line where an eye sees a cone, so
+         * demanding that the line hit a poppy's narrow stem would leave a meadow unseen for minutes. The aimed target
+         * is the ray's own business, a fluid or an outline-less block is nothing one sees, and one cell per kind is
+         * enough evidence for one ray.
+         */
+        private void glimpse(BlockState state, BlockPos pos) {
+            if (glimpsed.size() >= MAX_GLIMPSES_PER_RAY
+                    || pos.equals(target)
+                    || !state.getFluidState().isEmpty()
+                    || !state.getOcclusionShape().isEmpty()
+                    || glimpsedKinds.contains(state.getBlock())
+                    || state.getShape(level, pos).isEmpty()) {
+                return;
+            }
+            glimpsedKinds.add(state.getBlock());
+            glimpsed.add(pos.immutable());
+        }
+
+        @Override
+        public List<BlockPos> glimpsed() {
+            return List.copyOf(glimpsed);
         }
 
         @Override

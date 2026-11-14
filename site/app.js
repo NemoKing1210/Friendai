@@ -74,7 +74,7 @@ const CATS = [
     items: [
       "get_inventory|List what it carries.", "show_inventory|Open the inventory view.", "equip_item|Equip gear.", "give_items|Hand items to a player; strict orders can reserve the companion's share and wait for a safe handover.",
       "drop_items|Drop items.", "throw_item|Throw an item.", "store_items|Store up to two stacks in one call.", "take_items|Take items out of a container.",
-      "check_container|Look inside a container.", "deposit_items|Deposit into the nearest storage.",
+      "check_container|Look inside a container.", "check_containers|Look through the nearby chests not opened in the last five minutes.", "deposit_items|Deposit into the nearest storage.",
       "find_stored_item|Report where you last saw an item in a recorded container.", "move_items|Move a known quantity between two containers in one call.",
       "~Equipment picker|Armor and weapon loadout.", "~Owner-only window|Within 8 blocks, same dimension." ] },
   { id: "acquire", domain: "hands", name: "Resource Acquisition", icon: "🧭", color: COLORS.diamond,
@@ -248,6 +248,7 @@ const CODE = {
   "store_items": ["src/main/java/dev/friendai/features/inventory/minecraft/tool/StorageTools.java", "src/main/java/dev/friendai/features/inventory/minecraft/task/StoreItemsTask.java"],
   "take_items": ["src/main/java/dev/friendai/features/inventory/minecraft/tool/StorageTools.java", "src/main/java/dev/friendai/features/inventory/minecraft/task/TakeItemsTask.java"],
   "check_container": ["src/main/java/dev/friendai/features/inventory/minecraft/tool/StorageTools.java", "src/main/java/dev/friendai/features/inventory/minecraft/task/CheckContainerTask.java"],
+  "check_containers": ["src/main/java/dev/friendai/features/inventory/minecraft/tool/StorageTools.java", "src/main/java/dev/friendai/task/interact/ContainerTour.java"],
   "find_stored_item": ["src/main/java/dev/friendai/features/inventory/minecraft/tool/StorageTools.java", "src/main/java/dev/friendai/features/inventory/minecraft/storage/StorageIndexService.java"],
   "move_items": ["src/main/java/dev/friendai/features/inventory/minecraft/task/MoveItemsTask.java"],
   "deposit_items": ["src/main/java/dev/friendai/features/inventory/minecraft/tool/StorageTools.java", "src/main/java/dev/friendai/features/inventory/minecraft/task/DepositTask.java"],

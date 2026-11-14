@@ -167,6 +167,199 @@ public class MineBlocksTests {
         });
     }
 
+    /** A badlands floor: red sand over the stone platform, so every target here stands on or beside a falling block. */
+    private static void redSandFloor(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        for (int x = 0; x < 16; x++) {
+            for (int z = 0; z < 16; z++) h.setBlock(x, 2, z, Blocks.RED_SAND);
+        }
+    }
+
+    @GameTest(maxTicks = 600)
+    public void minesDeadBushesStandingOnRedSand(GameTestHelper h) {
+        redSandFloor(h);
+        BlockPos[] bushes = {new BlockPos(6, 3, 3), new BlockPos(9, 3, 6), new BlockPos(4, 3, 9)};
+        for (BlockPos bush : bushes) h.setBlock(bush, Blocks.DEAD_BUSH);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 3, 2);
+        c.setOwner(java.util.UUID.randomUUID());
+        for (BlockPos bush : bushes) {
+            h.assertTrue(
+                    GameTestSupport.observeVisible(h, c, h.absolutePos(bush)), "bush should be visible at " + bush);
+        }
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(mine("minecraft:dead_bush", 2), "mine_blocks");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(
+                    countBlocks(h, Blocks.DEAD_BUSH, bushes) == 1,
+                    "bushes left: " + countBlocks(h, Blocks.DEAD_BUSH, bushes));
+        });
+    }
+
+    /**
+     * A live session: "break that cactus near us" sat in the approach phase for minutes with no path. A cactus hurts
+     * whoever stands against it, so the cells beside it are no stance, but it is broken from reach like any block.
+     */
+    @GameTest(maxTicks = 900)
+    public void minesATwoBlockCactusStandingOnSand(GameTestHelper h) {
+        redSandFloor(h);
+        BlockPos base = new BlockPos(8, 3, 7);
+        h.setBlock(base, Blocks.CACTUS);
+        h.setBlock(base.above(), Blocks.CACTUS);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 3, 2);
+        c.setOwner(java.util.UUID.randomUUID());
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(base)), "cactus should be visible");
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(mine("minecraft:cactus", 1), "mine_blocks");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertFalse(h.getBlockState(base).is(Blocks.CACTUS), "the cactus still stands");
+            h.assertTrue(c.isAlive() && c.getHealth() > 10, "health " + c.getHealth());
+        });
+    }
+
+    /**
+     * "Break the cactus near us" right after a summon: nothing had been seen yet, so the job went searching and broke a
+     * wild cactus far away instead of the one beside the owner. One deliberate look now finds the visible one first.
+     */
+    @GameTest(maxTicks = 900)
+    public void aFreshCompanionMinesTheVisibleBlockBeforeSearching(GameTestHelper h) {
+        redSandFloor(h);
+        BlockPos base = new BlockPos(9, 3, 7);
+        h.setBlock(base, Blocks.CACTUS);
+        h.setBlock(base.above(), Blocks.CACTUS);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 3, 2);
+        c.setOwner(java.util.UUID.randomUUID());
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(mine("minecraft:cactus", 1), "mine_blocks");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertFalse(h.getBlockState(base).is(Blocks.CACTUS), "the cactus in view still stands");
+        });
+    }
+
+    /**
+     * "Clear this sand away": the model asked for radius 4 and the pile lay five blocks off, so the job found nothing
+     * and failed. Around the companion the deliberate look reaches past a guessed radius to the block in view.
+     */
+    @GameTest(maxTicks = 900)
+    public void aGuessedRadiusDoesNotHideTheBlockJustPastIt(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        BlockPos sand = new BlockPos(8, 2, 3);
+        h.setBlock(sand, Blocks.MOSS_BLOCK);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(java.util.UUID.randomUUID());
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(
+                new MineBlocksTask(BlockMatcher.parse("minecraft:moss_block").orElseThrow(), 1, 4), "mine_blocks");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertFalse(h.getBlockState(sand).is(Blocks.MOSS_BLOCK), "the block in view still lies there");
+        });
+    }
+
+    /**
+     * "Clear this sand away" and "pick the flowers" name no number: the job takes every matching block in view and
+     * succeeds when none is left, instead of stopping after the one block a cautious count asked for.
+     */
+    @GameTest(maxTicks = 1500)
+    public void allNearbyTakesEveryBlockInViewAndSucceeds(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        BlockPos[] pile = {new BlockPos(6, 2, 3), new BlockPos(8, 2, 5), new BlockPos(5, 2, 7)};
+        for (BlockPos sand : pile) h.setBlock(sand, Blocks.HAY_BLOCK);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(java.util.UUID.randomUUID());
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(
+                new MineBlocksTask(BlockMatcher.parse("minecraft:hay_block").orElseThrow(), 64, 8).allNearby(),
+                "mine_blocks");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertValueEqual(countBlocks(h, Blocks.HAY_BLOCK, pile), 0, "blocks left");
+            h.assertTrue(
+                    result.summary.startsWith("mined 3 minecraft:hay_block: all that was in view"),
+                    "summary was " + result.summary);
+        });
+    }
+
+    /** A job that asked for one block of a pile says how many are still in view, so the pile is not taken for gone. */
+    @GameTest(maxTicks = 900)
+    public void aFinishedCountSaysHowManyMoreAreInView(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        BlockPos[] pile = {new BlockPos(6, 2, 3), new BlockPos(8, 2, 5), new BlockPos(5, 2, 7)};
+        for (BlockPos sand : pile) h.setBlock(sand, Blocks.DRIED_KELP_BLOCK);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(java.util.UUID.randomUUID());
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(
+                new MineBlocksTask(
+                        BlockMatcher.parse("minecraft:dried_kelp_block").orElseThrow(), 1, 8),
+                "mine_blocks");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(
+                    result.summary.startsWith("mined 1 minecraft:dried_kelp_block; 2 more in view"),
+                    "summary was " + result.summary);
+        });
+    }
+
+    @GameTest(maxTicks = 900)
+    public void minesRedSandOutOfTheFloor(GameTestHelper h) {
+        redSandFloor(h);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 3, 2);
+        c.setOwner(java.util.UUID.randomUUID());
+        for (BlockPos sand : new BlockPos[] {new BlockPos(5, 2, 2), new BlockPos(6, 2, 3), new BlockPos(5, 2, 5)}) {
+            h.assertTrue(
+                    GameTestSupport.observeVisible(h, c, h.absolutePos(sand)), "sand should be visible at " + sand);
+        }
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(mine("minecraft:red_sand", 2), "mine_blocks");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(
+                    c.inventory().countItem(Items.RED_SAND) >= 2,
+                    "sand collected: " + c.inventory().countItem(Items.RED_SAND));
+        });
+    }
+
+    @GameTest(maxTicks = 600)
+    public void minesAnOreWithGravelBesideAndAboveIt(GameTestHelper h) {
+        redSandFloor(h);
+        BlockPos ore = new BlockPos(6, 3, 3);
+        h.setBlock(ore, Blocks.NETHER_QUARTZ_ORE);
+        h.setBlock(ore.east(), Blocks.GRAVEL);
+        h.setBlock(ore.above(), Blocks.GRAVEL);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 3, 2);
+        c.setOwner(java.util.UUID.randomUUID());
+        c.inventory().addItem(Items.WOODEN_PICKAXE.getDefaultInstance());
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(ore)), "ore should be visible");
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(mine("minecraft:nether_quartz_ore", 1), "mine_blocks");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(
+                    !h.getLevel().getBlockState(h.absolutePos(ore)).is(Blocks.NETHER_QUARTZ_ORE),
+                    "the ore must be gone; the gravel above may have dropped into its cell");
+            h.assertTrue(c.isAlive() && !c.isInWall(), "the companion must not be buried by the gravel");
+        });
+    }
+
     @GameTest(maxTicks = 1200)
     public void partialWhenNotEnough(GameTestHelper h) {
         GameTestSupport.platform(h, 16);

@@ -403,6 +403,7 @@ public final class FriendaiCommands {
         // Free time first: its plan is then released instead of ending as a failed shift.
         ServerRuntimeRegistry.getOrCreate(server).sessions().freeTime().stop(player.getUUID(), "stopped by command");
         companion.get().executionCoordinator().stop("stopped by command");
+        companion.get().executionCoordinator().markStoppedByOrder();
         ServerRuntimeRegistry.getOrCreate(server).sessions().cancel(player.getUUID());
         ctx.getSource().sendSuccess(() -> Component.translatable("friendai.command.stopped"), false);
         return 1;

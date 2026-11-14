@@ -119,8 +119,10 @@ public final class StorageIndexService implements StorageAccess {
         if (owner == null) {
             return index;
         }
-        for (ResourceKnowledge.ContainerObservation observation :
-                books.apply(owner).containerObservations()) {
+        ResourceKnowledge book = books.apply(owner);
+        // A container opened a few minutes ago is still in view: answer with what it holds now.
+        if (companion.level() instanceof ServerLevel level) ContainerAccess.refreshLive(level, book);
+        for (ResourceKnowledge.ContainerObservation observation : book.containerObservations()) {
             index.observe(toRecord(observation));
         }
         return index;

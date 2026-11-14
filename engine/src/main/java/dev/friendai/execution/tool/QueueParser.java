@@ -236,6 +236,7 @@ public final class QueueParser {
             }
             args = normalized;
         }
+        args = ArgCoercion.coerce(schema, args);
         int argSize = args.toString().length();
         counter.argumentChars += argSize;
         if (argSize > maxArgs) errors.add(path(path, "arguments exceed " + maxArgs + " characters"));

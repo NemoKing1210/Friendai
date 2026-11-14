@@ -119,6 +119,8 @@ final class AgentIdleTick {
                     companion.owner().isPresent(),
                     companion.executionCoordinator().paused()
                             || companion.executionCoordinator().suspended()
+                            // After a stop order the goal waits for new work instead of restarting it itself.
+                            || companion.executionCoordinator().stoppedByOrder()
                             || companion.isSleeping()
                             || companion.getTarget() != null,
                     session.isThinking(),

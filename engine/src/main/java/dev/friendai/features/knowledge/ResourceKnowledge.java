@@ -74,25 +74,73 @@ public final class ResourceKnowledge {
         }
     }
 
-    /** Stores a bounded snapshot taken after an authorized container interaction. */
+    /**
+     * Stores a bounded snapshot taken after an authorized container interaction. Room is made rather than the record
+     * dropped: past {@value #MAX_CONTAINERS} containers the one seen longest ago is forgotten, and when container
+     * contents and block sightings together would pass the knowledge file's bound the oldest sighting site is compacted
+     * first, because what the owner keeps in storage matters more than a distant block seen once. Returns false only
+     * when nothing can make room, which leaves any earlier record of the same container in place.
+     */
     public boolean recordContainer(ContainerObservation observation) {
         Objects.requireNonNull(observation, "observation");
         advance(observation.observedTick());
-        boolean replacing = containers.containsKey(observation.location());
-        int entries = containers.values().stream()
-                .mapToInt(value -> value.items().size())
-                .sum();
-        if (!replacing && containers.size() >= 256) return false;
-        if (entries
-                        - (replacing
-                                ? containers.get(observation.location()).items().size()
-                                : 0)
-                        + observation.items().size()
-                        + members.size()
-                > 16_384) return false;
+        ContainerObservation previous = containers.remove(observation.location());
+        while (containers.size() >= MAX_CONTAINERS) forgetOldestContainer();
+        while (containerEntries() + observation.items().size() + members.size() > MAX_EXACT_RECORDS) {
+            if (compactOne(Set.of())) continue;
+            if (containers.isEmpty()) {
+                if (previous != null) containers.put(previous.location(), previous);
+                return false;
+            }
+            forgetOldestContainer();
+        }
         containers.put(observation.location(), observation);
         revision++;
         return true;
+    }
+
+    /**
+     * Replaces what one recorded container holds while keeping when it was opened, so the live view follows the
+     * owner's changes without renewing its own window. False when there is no record to refresh.
+     */
+    public boolean refreshContainer(ResourceObservation.Location location, Map<String, Integer> items, int slotsUsed) {
+        ContainerObservation recorded = containers.get(location);
+        if (recorded == null) return false;
+        if (recorded.items().equals(items) && recorded.slotsUsed() == slotsUsed) return true;
+        int total = recorded.slotsTotal();
+        return recordContainer(new ContainerObservation(
+                location,
+                items,
+                recorded.observedTick(),
+                recorded.kind(),
+                total > 0 ? Math.min(slotsUsed, total) : slotsUsed,
+                total));
+    }
+
+    /** The cap the knowledge file accepts for container records. */
+    static final int MAX_CONTAINERS = 256;
+
+    /** The knowledge file's bound on block sightings plus container item entries together. */
+    static final int MAX_EXACT_RECORDS = 16_384;
+
+    private int containerEntries() {
+        int entries = 0;
+        for (ContainerObservation value : containers.values())
+            entries += value.items().size();
+        return entries;
+    }
+
+    private void forgetOldestContainer() {
+        ResourceObservation.Location oldest = null;
+        long oldestTick = Long.MAX_VALUE;
+        for (ContainerObservation value : containers.values()) {
+            if (value.observedTick() < oldestTick) {
+                oldestTick = value.observedTick();
+                oldest = value.location();
+            }
+        }
+        if (oldest != null) containers.remove(oldest);
+        revision++;
     }
 
     public void invalidateContainer(ResourceObservation.Location location) {

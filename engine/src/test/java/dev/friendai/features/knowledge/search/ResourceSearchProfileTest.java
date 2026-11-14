@@ -35,6 +35,32 @@ class ResourceSearchProfileTest {
     }
 
     @Test
+    void flowersBushesAndCactiAreSearchedOnTheSurface() {
+        // A live session: "pick the flowers" ended with "no search strategy for #minecraft:flowers".
+        for (String family : new String[] {
+            "#minecraft:flowers",
+            "#minecraft:small_flowers",
+            "minecraft:poppy",
+            "minecraft:red_tulip",
+            "minecraft:dead_bush",
+            "minecraft:cactus",
+            "minecraft:sugar_cane",
+            "minecraft:red_mushroom"
+        }) {
+            var profile = ResourceSearchProfile.builtin(family, "minecraft:overworld");
+            assertTrue(profile.allows("minecraft:overworld", ResourceSearchProfile.Strategy.SURFACE), family);
+            assertFalse(profile.allows("minecraft:overworld", ResourceSearchProfile.Strategy.MINE), family);
+        }
+    }
+
+    @Test
+    void anUnknownTagIsNotTakenForVegetation() {
+        assertTrue(ResourceSearchProfile.builtin("#minecraft:base_stone_overworld", "minecraft:overworld")
+                .strategies()
+                .isEmpty());
+    }
+
+    @Test
     void woodFamilyIsSurface() {
         for (String family : new String[] {
             "#minecraft:logs", "#minecraft:leaves", "#minecraft:crops", "minecraft:oak_wood", "minecraft:oak_planks"

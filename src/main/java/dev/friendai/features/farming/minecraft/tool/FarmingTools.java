@@ -14,6 +14,7 @@ import dev.friendai.features.farming.FarmPlanner;
 import dev.friendai.features.farming.minecraft.CropIndex;
 import dev.friendai.features.farming.minecraft.Crops;
 import dev.friendai.features.farming.minecraft.FarmSnapshotBuilder;
+import dev.friendai.features.farming.minecraft.FarmWorkHint;
 import dev.friendai.features.farming.minecraft.task.BonemealTask;
 import dev.friendai.features.farming.minecraft.task.FarmCheckpoints;
 import dev.friendai.features.farming.minecraft.task.FarmTask;
@@ -53,8 +54,9 @@ public final class FarmingTools implements FeatureToolContributor {
                 "farm",
                 "Harvest ripe crops around the companion, a point or a remembered place, replant them and sow "
                         + "empty farmland. One pass covers the whole radius (up to 16 blocks, so a 9x9 field is one "
-                        + "call); give the centre and radius instead of harvesting block by block. With till=true also "
-                        + "tills soil next to water.",
+                        + "call); give the centre and radius instead of harvesting block by block. Seeds grow only on "
+                        + "farmland: with till (on by default when a crop is named) it also hoes grass or dirt next to "
+                        + "water first. Leave the centre out to farm around the companion.",
                 SchemaBuilder.object()
                         .integer("radius", "Farm radius in blocks", 1, 16)
                         .integer("x", "Farm X coordinate")
@@ -62,15 +64,19 @@ public final class FarmingTools implements FeatureToolContributor {
                         .integer("z", "Farm Z coordinate")
                         .string("place", "Remembered place to farm around; used only when x, y and z are absent")
                         .string("crop", "Seed item id to sow on empty farmland, like minecraft:carrot")
-                        .bool("till", "Also till soil next to water")
+                        .bool("till", "Also till soil next to water; defaults to true when a crop is named")
                         .bool(
                                 "bonemeal",
                                 "Use bone meal from the inventory on growing crops after the pass's other work")
                         .build(),
                 (c, a) -> {
                     Optional<Place> place = place(places, c, a);
-                    return new FarmTask(
+                    FarmTask task = new FarmTask(
                             center(c, a, place), radius(a, place, 8), crop(a), till(a), flag(a, "bonemeal"));
+                    // A remembered place keeps its own ground. Anywhere else an empty pass moves once to the nearest
+                    // work: the model often passes the companion's own position as the point, and "plant wheat" then
+                    // ended beside a pond six blocks away with a question to the owner.
+                    return place.isEmpty() ? task.movingToNearestWork() : task;
                 },
                 true,
                 TaskToolDefinition.QueueTraits.DEFAULT,
@@ -95,7 +101,9 @@ public final class FarmingTools implements FeatureToolContributor {
                                 .integer("y", "Farm Y coordinate")
                                 .integer("z", "Farm Z coordinate")
                                 .string("crop", "Seed item id to sow on empty farmland, like minecraft:carrot")
-                                .bool("till", "Also plan tilling soil next to water")
+                                .bool(
+                                        "till",
+                                        "Also plan tilling soil next to water; defaults to true when a crop is named")
                                 .bool("bonemeal", "Also plan bone meal on growing crops")
                                 .build();
                     }
@@ -182,8 +190,14 @@ public final class FarmingTools implements FeatureToolContributor {
                 : fallback;
     }
 
+    /**
+     * Whether a pass tills soil next to water. Seeds only grow on farmland, so a pass that names a crop tills unless
+     * told not to: "plant wheat" with a hoe on grass beside water used to answer "nothing to do".
+     */
     private static boolean till(JsonObject args) {
-        return flag(args, "till");
+        if (args.has("till") && !args.get("till").isJsonNull())
+            return args.get("till").getAsBoolean();
+        return args.has("crop") && !args.get("crop").isJsonNull();
     }
 
     private static boolean flag(JsonObject args, String name) {
@@ -195,8 +209,9 @@ public final class FarmingTools implements FeatureToolContributor {
         Item crop = crop(args);
         int radius = Math.max(1, Math.min(16, radius(args, 8)));
         TaskContext context = new TaskContext(c, (ServerLevel) c.level());
+        BlockPos centre = center(c, args);
         FarmPlan plan = FarmPlanner.plan(
-                FarmSnapshotBuilder.build(context, center(c, args), radius, Set.of()),
+                FarmSnapshotBuilder.build(context, centre, radius, Set.of()),
                 new FarmGoal(
                         crop == null
                                 ? null
@@ -206,7 +221,11 @@ public final class FarmingTools implements FeatureToolContributor {
                         0,
                         FarmGoal.DEFAULT_MAX_STEPS),
                 CropIndex.of(context.level()));
-        return ToolResult.ok(plan.describe());
+        String described = plan.describe();
+        // A preview that finds nothing names the nearest work, as the pass itself does, so "nothing to do" around a
+        // guessed radius does not read as "there is no soil here".
+        if (described.equals("nothing to do")) described += FarmWorkHint.nearest(context, centre, radius, till(args));
+        return ToolResult.ok(described);
     }
 
     private static @Nullable Item crop(JsonObject args) {

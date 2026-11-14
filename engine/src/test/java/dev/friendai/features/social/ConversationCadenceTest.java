@@ -34,6 +34,16 @@ class ConversationCadenceTest {
     }
 
     @Test
+    void smallTalkWaitsUntilAWorkReportHasHadItsTurn() {
+        ConversationCadence cadence = new ConversationCadence();
+        cadence.workReported(1_000);
+        assertFalse(cadence.mayOpenTopic(1_000), "not beside the report itself");
+        assertFalse(cadence.mayOpenTopic(1_150));
+        assertTrue(cadence.mayOpenTopic(1_200));
+        assertTrue(cadence.maySpeak(ConversationCadence.Scene.FREE, 1_000), "news is not held back by work");
+    }
+
+    @Test
     void aSceneGapAndTheOwnersQuietWindowSilenceTheCompanion() {
         ConversationCadence cadence = new ConversationCadence();
         cadence.ownerSpoke(100);

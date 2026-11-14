@@ -25,6 +25,8 @@ public final class TraderRefreshService {
     private final TradeStore trading;
     private final Supplier<TradingRuntimeSettings> settings;
     private final Map<UUID, Long> nextTradingRefresh = new HashMap<>();
+    /** Per owner: when the idle refresh last went to each trader, so one trader is not revisited every interval. */
+    private final Map<UUID, IdleRefreshLedger> visits = new HashMap<>();
 
     public TraderRefreshService(
             MinecraftServer server,
@@ -51,8 +53,11 @@ public final class TraderRefreshService {
             if (runner.hasWork() || runner.paused()) continue;
             List<TraderRecord> nearby = traderObserver.observe(companion);
             var ownerBook = trading.book(owner);
+            IdleRefreshLedger ledger = visits.computeIfAbsent(owner, ignored -> new IdleRefreshLedger());
+            ledger.prune(now);
             TraderRecord candidate = nearby.stream()
                     .filter(record -> !"minecraft:piglin".equals(record.entityType()))
+                    .filter(record -> ledger.due(record.id(), now))
                     .map(record -> ownerBook.trader(record.id()).orElse(record))
                     .sorted(Comparator.comparing(
                                     (TraderRecord record) -> record.status() == TraderRecord.Status.VERIFIED)
@@ -62,13 +67,19 @@ public final class TraderRefreshService {
                     .orElse(null);
             nextTradingRefresh.put(owner, now + policy.idleRefreshIntervalTicks());
             if (candidate != null) {
+                ledger.attempted(candidate.id(), now);
+                // Quiet: the server chose this visit, so neither its success nor a trader it cannot reach is a turn
+                // for the model, and a success is not shared work with the owner.
                 runner.start(
-                        new RefreshTradesTask(List.of(candidate.id()), now + policy.maxWaitTicks()), "refresh_trades");
+                        new RefreshTradesTask(List.of(candidate.id()), now + policy.maxWaitTicks(), true),
+                        "refresh_trades");
                 break;
             }
         }
         nextTradingRefresh
                 .keySet()
+                .removeIf(owner -> companions.stream().noneMatch(companion -> owner.equals(companion.ownerUuid())));
+        visits.keySet()
                 .removeIf(owner -> companions.stream().noneMatch(companion -> owner.equals(companion.ownerUuid())));
     }
 }

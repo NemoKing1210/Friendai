@@ -151,6 +151,11 @@ public final class ExcavationGuard implements PathExecutionGuard {
         };
     }
 
+    /**
+     * Whether opening {@code pos} lets something into it: water or lava from any side, or a falling block resting on
+     * top of it. Sand and gravel only move straight down, so one beside or under the cell stays where it is; a planned
+     * dig breaks the falling column above first, top-down, so by the time this cell is checked that column is gone.
+     */
     private static boolean unsafeExposure(ServerLevel level, BlockPos pos) {
         for (int[] d : NEIGHBORS) {
             BlockPos neighbor = pos.offset(d[0], d[1], d[2]);
@@ -159,12 +164,11 @@ public final class ExcavationGuard implements PathExecutionGuard {
             }
             BlockState state = level.getBlockState(neighbor);
             if (state.getFluidState().is(FluidTags.WATER)
-                    || state.getFluidState().is(FluidTags.LAVA)
-                    || state.getBlock() instanceof FallingBlock) {
+                    || state.getFluidState().is(FluidTags.LAVA)) {
                 return true;
             }
         }
-        return false;
+        return level.getBlockState(pos.above()).getBlock() instanceof FallingBlock;
     }
 
     private static boolean supportsFootprint(CompanionEntity companion, BlockPos pos) {

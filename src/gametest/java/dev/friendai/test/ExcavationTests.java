@@ -236,6 +236,44 @@ public class ExcavationTests {
         });
     }
 
+    /**
+     * "Dig a 3x3 pit, 2 deep": the model asked for a shaft down from where the companion stands, and the first layer of
+     * the shaft was the air at its feet, so only one layer of earth came out. A shaft started by "near" now begins with
+     * the ground under the feet.
+     */
+    @GameTest(maxTicks = 2400)
+    public void aPitDugFromWhereTheCompanionStandsGoesTheFullDepth(GameTestHelper h) {
+        CompanionEntity c = companion(h);
+        for (int x = 0; x <= 7; x++) {
+            for (int z = 0; z <= 7; z++) {
+                h.setBlock(x, 1, z, Blocks.COARSE_DIRT);
+                h.setBlock(x, 0, z, Blocks.COARSE_DIRT);
+            }
+        }
+        var tools = GameTestToolRegistry.create(c, () -> 32).bind(c);
+        String json = "{\"shape\":\"shaft\",\"run\":{\"direction\":\"down\",\"length\":2,\"width\":3,\"height\":3},"
+                + "\"start\":{\"near\":\"self\"}}";
+        var started = tools.execute(new dev.friendai.agent.llm.model.ToolCall(
+                "excavation-test",
+                "excavate",
+                com.google.gson.JsonParser.parseString(json).getAsJsonObject(),
+                json,
+                null));
+        h.assertTrue(!started.error(), "excavate starts: " + started.content());
+        h.succeedWhen(() -> {
+            c.executionCoordinator().tick();
+            int left = 0;
+            for (int x = 2; x <= 4; x++) {
+                for (int z = 2; z <= 4; z++) {
+                    for (int y = 0; y <= 1; y++) {
+                        if (h.getBlockState(new BlockPos(x, y, z)).is(Blocks.COARSE_DIRT)) left++;
+                    }
+                }
+            }
+            h.assertValueEqual(left, 0, "earth left in the pit's two layers");
+        });
+    }
+
     @GameTest(maxTicks = 1600)
     public void tunnelLeavesAWalkableCorridor(GameTestHelper h) {
         CompanionEntity c = companion(h);

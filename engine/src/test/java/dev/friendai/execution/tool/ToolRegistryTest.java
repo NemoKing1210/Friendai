@@ -153,6 +153,16 @@ class ToolRegistryTest {
     }
 
     @Test
+    void aQuotedCountRunsAsTheNumberItNames() {
+        ToolExecutor ex = new ToolRegistry<String>().register(tool("a", false)).bind("ctx");
+
+        ToolResult res = ex.execute(call("a", "{\"count\":\"3\"}"));
+
+        assertFalse(res.error(), res.content());
+        assertEquals(List.of("ctx:3"), executed);
+    }
+
+    @Test
     void unknownToolIsErrorResult() {
         ToolResult res = new ToolRegistry<String>().bind("c").execute(call("fly", "{}"));
         assertEquals("Unknown tool: fly", res.content());

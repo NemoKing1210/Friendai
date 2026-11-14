@@ -64,8 +64,11 @@ final class BuildTools {
             Generators (pass the JSON as the "generator" argument):
             - house: width 5..15, depth 5..15, floors 1..3, walls, floor, frame (optional log id), roof (stairs, slab,
               planks or a full block with a stairs variant; optional, derived from walls),
-              roof_style gable|pyramid|flat, windows (glass pane id), door_side north|east|south|west, door (door id),
-              torches true|false.
+              roof_style gable|pyramid|flat, windows (glass pane id, default glass pane, or "none" for solid walls),
+              door_side north|east|south|west, door (door id, default from the walls, or "none" for an open doorway;
+              without a door or glass carried, pass "none" so the house needs only its wall, floor and roof blocks),
+              torches true|false (default false; set it only when torches are carried or the owner asked for light,
+              because a missing torch makes the build stop or, with gather, go mining for coal first).
             - tower: size 3..9, height 4..24, walls, ladder true|false; crenellations on top.
             - wall: length 1..32, height 1..8, block, axis x|z.
             - fence: width 3..32, depth 3..32, block (fence id), gate (gate id), gate_side.

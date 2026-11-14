@@ -19,7 +19,9 @@
 				"PaceTests",
 				"SessionLifecycleTests",
 				"TaskFaceTests",
-				"LoggingTests"
+				"LoggingTests",
+				"LiveCompanionTests",
+				"LiveUnderstandingTests"
 			]
 		},
 		{
