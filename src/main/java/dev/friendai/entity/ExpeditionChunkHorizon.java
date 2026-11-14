@@ -64,6 +64,14 @@ public final class ExpeditionChunkHorizon {
         return owners.size();
     }
 
+    /**
+     * Whether this owner holds a lease right now. A global count cannot answer that: the next leg of another owner
+     * keeps a lease of its own at the same time.
+     */
+    public synchronized boolean holdsLease(UUID owner) {
+        return owners.containsKey(owner);
+    }
+
     public synchronized int ticketKeys() {
         return references.size();
     }

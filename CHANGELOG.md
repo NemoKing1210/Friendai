@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.212.3] - 2026-11-14
+
+### Fixed
+
+- A companion that stops following its owner, because the owner logged out, changed dimension, or can no longer be found, releases the chunk its long-distance route was keeping loaded instead of holding it until the lease expires.
+
 ## [0.212.2] - 2026-11-14
 
 ### Changed

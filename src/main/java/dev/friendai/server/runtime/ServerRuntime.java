@@ -150,6 +150,9 @@ public final class ServerRuntime implements AutoCloseable {
         memoryViewStream.onDisconnect(this, player);
         SkillsViewStream.onDisconnect(player);
         placeViewStream.onDisconnect(this, player);
+        // A suspended companion cannot walk the leg it leased, so the owner's absence releases that ticket now
+        // instead of leaving a loaded chunk behind until the lease expires.
+        chunkLoader().expeditionHorizon().release(player.getUUID());
         if (acceptingWork) services.sessions().onOwnerLeft(player.getUUID());
     }
 

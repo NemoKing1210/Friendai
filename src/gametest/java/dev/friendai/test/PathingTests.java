@@ -1,5 +1,6 @@
 package dev.friendai.test;
 
+import com.mojang.authlib.GameProfile;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.FriendaiEntities;
@@ -36,6 +37,7 @@ import dev.friendai.world.movement.PathExecutor;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -45,6 +47,7 @@ import net.minecraft.tags.FluidTags;
 import net.minecraft.world.entity.Pose;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.level.block.state.BlockState;
@@ -985,6 +988,178 @@ public class PathingTests {
         h.succeedWhen(() -> h.assertTrue(
                 c.position().distanceTo(owner.position()) <= 5.0,
                 "still " + c.position().distanceTo(owner.position()) + " blocks away after 300 blocks"));
+    }
+
+    /**
+     * A long-distance follow leg holds a chunk ticket and a lease. A logout suspends the runner, so the runtime must
+     * release the owner's ticket itself instead of leaving a loaded chunk behind until the lease expires; the task
+     * stays current so following resumes on the next login.
+     */
+    @GameTest(maxTicks = 400)
+    public void followReleasesItsLeaseWhenTheOwnerLogsOut(GameTestHelper h) {
+        int floor = 40;
+        GameTestSupport.corridor(h, floor, 76, 10);
+        var owner = GameTestSupport.onlinePlayer(h, "follow-logout", 70.0, floor + 1, 4.5);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, floor + 1, 4);
+        c.setOwner(owner.id());
+        CompanionManager.get(h.getLevel().getServer()).register(c);
+        var horizon = GameTestSupport.runtime(h).chunkLoader().expeditionHorizon();
+        c.executionCoordinator().start(new FollowTask(true), "follow");
+        int[] phase = {0};
+        int[] wait = {0};
+        int[] ticks = {0};
+        h.onEachTick(() -> {
+            ticks[0]++;
+            switch (phase[0]) {
+                case 0 -> {
+                    if (!horizon.holdsLease(owner.id())) {
+                        h.assertTrue(
+                                ticks[0] < 100,
+                                "the follow leg never requested a chunk lease; active="
+                                        + c.executionCoordinator()
+                                                .current()
+                                                .map(t -> t.type())
+                                                .orElse("none")
+                                        + " suspended="
+                                        + c.executionCoordinator().suspended() + " companion=" + c.position()
+                                        + " owner=" + owner.player().position());
+                        return;
+                    }
+                    GameTestSupport.runtime(h).onOwnerLeft(owner.player());
+                    h.getLevel().getServer().getPlayerList().remove(owner.player());
+                    phase[0] = 1;
+                    wait[0] = 2;
+                }
+                case 1 -> {
+                    if (--wait[0] > 0) return;
+                    h.assertTrue(
+                            !horizon.holdsLease(owner.id()),
+                            "a lease survived its owner's logout: " + horizon.activeLeases());
+                    h.assertTrue(c.executionCoordinator().suspended(), "the runner must pause while the owner is away");
+                    var active = c.executionCoordinator().current().orElse(null);
+                    h.assertTrue(
+                            active != null && active.type().equals("follow"),
+                            "follow must stay current so it resumes on the next login");
+                    h.succeed();
+                }
+                default -> {}
+            }
+        });
+    }
+
+    /** The same release on a dimension change, and a fresh leg once the owner is back in the companion's level. */
+    @GameTest(maxTicks = 600)
+    public void followReleasesItsLeaseWhenTheOwnerChangesDimension(GameTestHelper h) {
+        var nether = h.getLevel().getServer().getLevel(Level.NETHER);
+        if (nether == null) {
+            // Some GameTest configurations have only the overworld.
+            h.succeed();
+            return;
+        }
+        int floor = 60;
+        GameTestSupport.corridor(h, floor, 76, 10);
+        nether.getChunk(0, 0);
+        var owner = GameTestSupport.onlinePlayer(h, "follow-dim", 70.0, floor + 1, 4.5);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, floor + 1, 4);
+        c.setOwner(owner.id());
+        var horizon = GameTestSupport.runtime(h).chunkLoader().expeditionHorizon();
+        c.executionCoordinator().start(new FollowTask(true), "follow");
+        int[] phase = {0};
+        int[] wait = {0};
+        int[] ticks = {0};
+        double[] gap = new double[1];
+        h.onEachTick(() -> {
+            ticks[0]++;
+            switch (phase[0]) {
+                case 0 -> {
+                    if (!horizon.holdsLease(owner.id())) {
+                        h.assertTrue(ticks[0] < 100, "the follow leg never requested a chunk lease");
+                        return;
+                    }
+                    gap[0] = c.position().distanceTo(owner.player().position());
+                    owner.player().teleportTo(nether, 8.5, 80.0, 8.5, Set.of(), 0.0f, 0.0f, false);
+                    phase[0] = 1;
+                    wait[0] = 2;
+                }
+                case 1 -> {
+                    if (--wait[0] > 0) return;
+                    h.assertTrue(
+                            !horizon.holdsLease(owner.id()),
+                            "a lease survived its owner's dimension change: " + horizon.activeLeases());
+                    h.assertTrue(c.getNavigation().isDone(), "the follower kept a movement command across dimensions");
+                    Vec3 home = h.absoluteVec(new Vec3(70.0, floor + 1, 4.5));
+                    owner.player().teleportTo(h.getLevel(), home.x, home.y, home.z, Set.of(), 0.0f, 0.0f, false);
+                    phase[0] = 2;
+                }
+                default -> {
+                    double now = c.position().distanceTo(owner.player().position());
+                    if (now < gap[0] - 2.0) {
+                        h.succeed();
+                    } else {
+                        h.assertTrue(ticks[0] < 400, "following did not resume after the owner returned: " + now);
+                    }
+                }
+            }
+        });
+    }
+
+    /**
+     * An owner the companion cannot resolve right now — logged out of the player list while the runner keeps ticking —
+     * must still lose the leased leg at the task level, and following resumes when the same owner is back.
+     */
+    @GameTest(maxTicks = 600)
+    public void followReleasesItsLeaseWhenTheTargetDisappears(GameTestHelper h) {
+        int floor = 80;
+        GameTestSupport.corridor(h, floor, 76, 10);
+        var owner = GameTestSupport.onlinePlayer(h, "follow-target", 70.0, floor + 1, 4.5);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, floor + 1, 4);
+        c.setOwner(owner.id());
+        var horizon = GameTestSupport.runtime(h).chunkLoader().expeditionHorizon();
+        c.executionCoordinator().start(new FollowTask(true), "follow");
+        int[] phase = {0};
+        int[] wait = {0};
+        int[] ticks = {0};
+        double[] gap = new double[1];
+        GameProfile[] profile = new GameProfile[1];
+        GameTestSupport.OnlinePlayer[] again = new GameTestSupport.OnlinePlayer[1];
+        h.onEachTick(() -> {
+            ticks[0]++;
+            switch (phase[0]) {
+                case 0 -> {
+                    if (!horizon.holdsLease(owner.id())) {
+                        h.assertTrue(ticks[0] < 100, "the follow leg never requested a chunk lease");
+                        return;
+                    }
+                    gap[0] = c.position().distanceTo(owner.player().position());
+                    profile[0] = owner.player().getGameProfile();
+                    h.getLevel().getServer().getPlayerList().remove(owner.player());
+                    phase[0] = 1;
+                    wait[0] = 2;
+                }
+                case 1 -> {
+                    if (--wait[0] > 0) return;
+                    h.assertTrue(
+                            !horizon.holdsLease(owner.id()),
+                            "a lease survived the loss of its target: " + horizon.activeLeases() + " companion="
+                                    + c.position() + " task="
+                                    + c.executionCoordinator()
+                                            .current()
+                                            .map(t -> t.type() + " " + t.debugStatus())
+                                            .orElse("none"));
+                    h.assertTrue(c.getNavigation().isDone(), "the follower kept a movement command with no target");
+                    again[0] = GameTestSupport.onlinePlayer(h, profile[0], 70.0, floor + 1, 4.5);
+                    phase[0] = 2;
+                }
+                default -> {
+                    double now = c.position().distanceTo(again[0].player().position());
+                    if (now < gap[0] - 2.0) {
+                        h.succeed();
+                    } else {
+                        h.assertTrue(ticks[0] < 400, "following did not resume after a valid target returned: " + now);
+                    }
+                }
+            }
+        });
     }
 
     @GameTest(maxTicks = 600)

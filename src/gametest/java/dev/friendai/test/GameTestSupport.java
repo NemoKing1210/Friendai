@@ -56,10 +56,17 @@ final class GameTestSupport {
     }
 
     /** An online player with a unique name, because the stock helper names every player "test-mock-player". */
-    @SuppressWarnings("removal")
     static OnlinePlayer onlinePlayer(GameTestHelper h, String name, double x, double y, double z) {
+        return onlinePlayer(h, new GameProfile(UUID.randomUUID(), name), x, y, z);
+    }
+
+    /**
+     * An online player with an explicit profile, so a test can log the same owner out and back in. The UUID is what a
+     * companion follows, so the second login must reuse the first player's profile rather than mint a new one.
+     */
+    @SuppressWarnings("removal")
+    static OnlinePlayer onlinePlayer(GameTestHelper h, GameProfile profile, double x, double y, double z) {
         var server = h.getLevel().getServer();
-        GameProfile profile = new GameProfile(UUID.randomUUID(), name);
         CommonListenerCookie cookie = CommonListenerCookie.createInitial(profile, false);
         ServerPlayer player = new ServerPlayer(server, h.getLevel(), profile, cookie.clientInformation());
         Connection connection = new Connection(PacketFlow.SERVERBOUND);
@@ -203,6 +210,22 @@ final class GameTestSupport {
             }
         }
         return false;
+    }
+
+    /**
+     * A narrow stone walkway along x that force-loads every chunk it crosses. A square platform of the same length
+     * would overwrite the ground of neighbouring tests, which share the world and run side by side.
+     */
+    static void corridor(GameTestHelper h, int y, int length, int width) {
+        keepLoaded(h, -2, -2, length + 2, width + 2);
+        for (int x = 0; x < length; x++) {
+            for (int z = 0; z < width; z++) {
+                h.setBlock(x, y, z, Blocks.STONE);
+                for (int level = y + 1; level <= y + 6; level++) {
+                    h.setBlock(x, level, z, Blocks.AIR);
+                }
+            }
+        }
     }
 
     /** A stone floor at {@code y} with clear air above it, for tests that need a world band of their own. */

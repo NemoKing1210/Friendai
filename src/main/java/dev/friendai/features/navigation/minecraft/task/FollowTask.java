@@ -72,10 +72,9 @@ public final class FollowTask implements Task {
         }
         ServerPlayer owner = c.owner().orElse(null);
         if (owner == null || owner.level() != c.level()) {
-            if (moving) {
-                mover.stop(c);
-            }
+            mover.stop(c);
             moving = false;
+            releaseJourney(c);
             return waiting();
         }
         if (retryCooldown > 0) {
@@ -86,6 +85,7 @@ public final class FollowTask implements Task {
         if (target == null) {
             mover.stop(c);
             moving = false;
+            releaseJourney(c);
             return waiting();
         }
         double distance = c.companion().position().distanceTo(target);
@@ -99,9 +99,7 @@ public final class FollowTask implements Task {
             moving = true;
         }
         if (!moving) {
-            if (journey != null) journey.stop(c);
-            journey = null;
-            journeyTarget = null;
+            releaseJourney(c);
             return waiting();
         }
         if (distance > JOURNEY_DISTANCE) {
@@ -121,16 +119,12 @@ public final class FollowTask implements Task {
             }
             switch (journey.tick(c)) {
                 case ARRIVED -> {
-                    journey.stop(c);
-                    journey = null;
-                    journeyTarget = null;
+                    releaseJourney(c);
                     moving = false;
                     return waiting();
                 }
                 case BLOCKED, CANCELLED -> {
-                    journey.stop(c);
-                    journey = null;
-                    journeyTarget = null;
+                    releaseJourney(c);
                     retryCooldown = RETRY_TICKS;
                     return waiting();
                 }
@@ -141,11 +135,7 @@ public final class FollowTask implements Task {
             }
             return walking();
         }
-        if (journey != null) {
-            journey.stop(c);
-            journey = null;
-            journeyTarget = null;
-        }
+        releaseJourney(c);
         mover.following(distance);
         switch (mover.tick(c, target)) {
             case ARRIVED -> {
@@ -163,6 +153,19 @@ public final class FollowTask implements Task {
                 return walking();
             }
         }
+    }
+
+    /**
+     * Drops the long-distance leg and everything it holds: its navigator, its scaffold cleanup and its chunk ticket.
+     * Every exit that stops following this owner goes through here, so a vanished target cannot leave a lease behind;
+     * the next tick that has somewhere to go builds a fresh leg.
+     */
+    private void releaseJourney(TaskContext c) {
+        if (journey != null) {
+            journey.stop(c);
+        }
+        journey = null;
+        journeyTarget = null;
     }
 
     /** Stationary ticks are an intentional wait: the follower is inside its radius or has nothing to walk to. */
@@ -224,9 +227,7 @@ public final class FollowTask implements Task {
 
     @Override
     public void stop(TaskContext c) {
-        if (journey != null) journey.stop(c);
-        journey = null;
-        journeyTarget = null;
+        releaseJourney(c);
         if (mover != null) {
             mover.stop(c);
         }
