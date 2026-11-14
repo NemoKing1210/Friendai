@@ -28,6 +28,8 @@
 			"dev.friendai.test.SoakTests",
 			"dev.friendai.test.ItemTaskTests",
 			"dev.friendai.test.MineBlocksTests",
+			"dev.friendai.test.LiveCompanionTests",
+			"dev.friendai.test.LiveUnderstandingTests",
 			"dev.friendai.test.ExcavationTests",
 			"dev.friendai.test.ConfigurationApplyTests",
 			"dev.friendai.test.ProtectionTests",

@@ -8,6 +8,16 @@ import org.junit.jupiter.api.Test;
 
 class FarmReportTest {
     @Test
+    void twoPassesOverOneFieldAddUpTheirWork() {
+        FarmReport first = new FarmReport(Map.of("minecraft:wheat", 2), 2, 0, 0, 0, false);
+        FarmReport second = new FarmReport(Map.of("minecraft:wheat", 6), 6, 1, 0, 0, false);
+        FarmReport both = first.plus(second);
+        assertEquals("harvested 8 minecraft:wheat; replanted 8; planted 1 new", both.text(8));
+        assertEquals(true, both.didWork());
+        assertEquals(false, new FarmReport(Map.of(), 0, 0, 0, 0, false).didWork());
+    }
+
+    @Test
     void shortfallEndsTheLine() {
         FarmReport report = new FarmReport(Map.of(), 0, 2, 0, 0, false, Map.of("minecraft:wheat_seeds", 3), 3);
         assertEquals("planted 2 new; need 3 minecraft:wheat_seeds", report.text(8));

@@ -201,7 +201,20 @@ public final class ToolCatalog {
                 "- Give requested items only to the authenticated owner. For an order set, use one exact item per step"
                         + " with count=<owner share>, retain=<companion share>, and strict=true.");
         group(metas, ToolGroup.BUILDING, Cost.MEDIUM, "place_block", "use_block", "light_area", "clear_area");
-        group(metas, ToolGroup.STORAGE, Cost.MEDIUM, "store_items", "take_items", "check_container", "deposit_items");
+        group(
+                metas,
+                ToolGroup.STORAGE,
+                Cost.MEDIUM,
+                "store_items",
+                "take_items",
+                "check_container",
+                "check_containers",
+                "deposit_items");
+        hint(
+                metas,
+                "check_containers",
+                "- When an item may be in the chests here but you have not looked in them for a while, use"
+                        + " check_containers before deciding to craft, mine or hunt it.");
         metas.add(new ToolMeta("move_items", ToolGroup.STORAGE, false, "", List.of(), Cost.MEDIUM));
         metas.add(new ToolMeta("find_stored_item", ToolGroup.STORAGE, false, "", List.of(), Cost.LOW));
         group(metas, ToolGroup.CRAFTING, Cost.MEDIUM, "craft_item", "get_recipe");
@@ -317,6 +330,7 @@ public final class ToolCatalog {
                 metas,
                 "mine_blocks",
                 "- Use mine_blocks for a kind of block (ore, stone, a named log type); use fell_tree when the player asks for a tree.\n"
+                        + "- When the player names no number (\"pick the flowers\", \"clear this sand away\", \"take the bushes\"), they mean all of them here: call mine_blocks with all_nearby:true and count 64, never count 1.\n"
                         + "- After placing blocks, mine_blocks with placed:true takes back only those blocks; it never touches an unplaced neighbour.\n"
                         + "- radius widens or narrows this call. exclude skips ids or tags. until_item/until_count stop once that many items were actually taken, e.g. until_item \"minecraft:raw_iron\" with until_count 16. require_tool:true refuses a block that needs a tool the companion does not carry.");
         hint(

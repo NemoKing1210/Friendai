@@ -197,6 +197,14 @@ public final class ExcavationTools implements FeatureToolContributor {
                         "the box is empty or larger than " + ExcavationGeometry.MAX_VOLUME + " cells"));
     }
 
+    /** Whether the start names a cell by coordinates rather than by who or what stands there. */
+    private static boolean hasCoordinates(JsonObject start) {
+        for (String axis : new String[] {"x", "y", "z"}) {
+            if (start.has(axis) && !start.get(axis).isJsonNull()) return true;
+        }
+        return false;
+    }
+
     private ExcavationGeometry corridor(
             ExcavationShape shape, CompanionEntity c, Caller caller, JsonObject run, JsonObject start) {
         ExcavationDirection direction =
@@ -212,6 +220,11 @@ public final class ExcavationTools implements FeatureToolContributor {
         int width = intArg(run, "width", 1);
         int height = intArg(run, "height", 2);
         BlockPos origin = NearResolver.resolve(places, c, caller, start).pos();
+        if (shape == ExcavationShape.SHAFT && direction == ExcavationDirection.DOWN && !hasCoordinates(start)) {
+            // "Near" names where someone stands, and that cell is air: a pit two deep starts with the ground under the
+            // feet. "Dig a 3x3 pit, 2 deep" used to spend its first layer on air and dig only one layer of earth.
+            origin = origin.below();
+        }
         return switch (shape) {
             case TUNNEL ->
                 ExcavationGeometry.tunnel(direction, origin.getX(), origin.getY(), origin.getZ(), length, width, height)

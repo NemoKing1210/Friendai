@@ -74,6 +74,12 @@ public final class WakeWordHandler {
         /** Closes the line. Safe to call when nothing is open. */
         void stop();
 
+        /**
+         * Called once per client tick while monitoring, on the client thread. A source that delivers audio only while
+         * the player transmits uses it to mark the end of transmission with a quiet chunk, so the utterance can end.
+         */
+        default void tick() {}
+
         @Override
         default void close() {
             stop();
@@ -113,10 +119,12 @@ public final class WakeWordHandler {
     private boolean closed;
     private long micRetryAt;
 
-    /** Production constructor: the one microphone the client has, and the real policy timings. */
+    /**
+     * Production constructor: the microphone source (the client's own line, or voice chat's when it is installed)
+     * and the real policy timings.
+     */
     public WakeWordHandler(
-            MicCapture mic,
-            Supplier<String> deviceName,
+            Capture capture,
             Host host,
             Supplier<ClientConfig> config,
             Supplier<SpeechToText> stt,
@@ -124,7 +132,7 @@ public final class WakeWordHandler {
             BiConsumer<ClientSessionId, String> onTranscript,
             Supplier<Detector> detectors) {
         this(
-                microphone(mic, deviceName),
+                capture,
                 host,
                 config,
                 stt,
@@ -212,6 +220,7 @@ public final class WakeWordHandler {
         if (active == null) {
             return;
         }
+        capture.tick();
         Optional<byte[]> finished;
         synchronized (active) {
             finished = active.tick();

@@ -22,6 +22,29 @@ public record FarmReport(
         this(harvested, replanted, planted, tilled, noSeeds, noHoe, Map.of(), 0);
     }
 
+    /**
+     * This pass followed by a later one over the next part of the same field: work adds up, and what is still missing
+     * (seeds, a hoe, unsown cells) is what the later pass found, because the earlier gaps were its starting point.
+     */
+    public FarmReport plus(FarmReport later) {
+        Map<String, Integer> crops = new java.util.LinkedHashMap<>(harvested);
+        later.harvested().forEach((crop, count) -> crops.merge(crop, count, Integer::sum));
+        return new FarmReport(
+                Map.copyOf(crops),
+                replanted + later.replanted(),
+                planted + later.planted(),
+                tilled + later.tilled(),
+                later.noSeeds(),
+                later.noHoe(),
+                later.seedShortfall(),
+                later.unsown());
+    }
+
+    /** Whether the pass changed anything in the field. */
+    public boolean didWork() {
+        return harvested.values().stream().anyMatch(count -> count > 0) || replanted > 0 || planted > 0 || tilled > 0;
+    }
+
     public String text(int radius) {
         StringBuilder text = new StringBuilder();
         boolean any = false;

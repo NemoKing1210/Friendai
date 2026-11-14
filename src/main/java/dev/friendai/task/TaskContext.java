@@ -131,6 +131,11 @@ public record TaskContext(
         return serverSettings.mining();
     }
 
+    /** The blocks whose drop is worth protecting, as the kernel-facing list: the kernel names no feature type. */
+    public BlockList valuableBlocks() {
+        return serverSettings.mining().valuable();
+    }
+
     public BlockList breakList() {
         return serverSettings.breakList();
     }

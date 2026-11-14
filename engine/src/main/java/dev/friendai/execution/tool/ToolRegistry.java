@@ -86,6 +86,7 @@ public final class ToolRegistry<C> {
         if (normalized == null) {
             return invalidJson(call);
         }
+        normalized = ArgCoercion.coerce(tool.schema(), normalized);
         List<String> problems = ArgValidator.validate(tool.schema(), normalized);
         if (!problems.isEmpty()) {
             return ToolResult.error("Invalid arguments for " + call.name() + ": " + String.join("; ", problems));

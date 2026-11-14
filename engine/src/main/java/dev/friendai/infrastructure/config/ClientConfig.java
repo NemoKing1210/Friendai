@@ -2,6 +2,7 @@ package dev.friendai.infrastructure.config;
 
 import dev.friendai.features.speech.VoicePreset;
 import dev.friendai.features.speech.stt.SttPresets;
+import dev.friendai.features.speech.tts.PlaybackBackends;
 import dev.friendai.features.speech.tts.TtsPresets;
 import dev.friendai.features.speech.tts.VoiceModels;
 import dev.friendai.features.speech.wake.WakeModelCatalog;
@@ -14,7 +15,7 @@ import org.slf4j.LoggerFactory;
 
 /** friendai-client.json. */
 public class ClientConfig {
-    public static final int CURRENT_VERSION = 10;
+    public static final int CURRENT_VERSION = 11;
 
     private static final Logger LOGGER = LoggerFactory.getLogger("friendai/config");
     public int version = CURRENT_VERSION;
@@ -90,6 +91,12 @@ public class ClientConfig {
         public boolean speakGuests = false;
         /** Replies come from the companion's position; off plays them centred at full volume. */
         public boolean spatial = true;
+        /**
+         * Whether the companion's voice uses the optional Simple Voice Chat mod: {@code auto} (default) speaks and
+         * listens through it whenever it is installed and connected, {@code builtin} never does. Whatever voice chat
+         * cannot carry falls back to the built-in line and microphone.
+         */
+        public String playback = PlaybackBackends.AUTO;
 
         public String outputDevice = null;
         public LocalTts local = new LocalTts();
@@ -207,6 +214,10 @@ public class ClientConfig {
         if (tts.language == null || tts.language.isBlank()) {
             tts.language = "auto";
         }
+        if (tts.playback != null && !PlaybackBackends.known(tts.playback)) {
+            LOGGER.warn("Unknown speech playback '{}'; using auto", tts.playback);
+        }
+        tts.playback = PlaybackBackends.normalize(tts.playback);
         if (tts.local == null) {
             tts.local = new LocalTts();
         }

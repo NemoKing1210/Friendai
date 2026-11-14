@@ -95,6 +95,22 @@ public final class IntentVocabulary {
         return match(actionVerbs, tokens);
     }
 
+    /**
+     * The action groups each word names, one entry per word that names any. Counting kinds of work by word, not by
+     * stem, keeps one verb that two stems match ("добудь" is both a gathering stem and an obtain verb) one kind.
+     */
+    public List<Set<ToolGroup>> verbGroupsPerWord(List<String> tokens) {
+        List<Set<ToolGroup>> words = new ArrayList<>();
+        for (String token : tokens) {
+            Set<ToolGroup> groups = EnumSet.noneOf(ToolGroup.class);
+            for (Map.Entry<String, Set<ToolGroup>> entry : actionVerbs.entrySet()) {
+                if (matches(token, entry.getKey())) groups.addAll(entry.getValue());
+            }
+            if (!groups.isEmpty()) words.add(groups);
+        }
+        return words;
+    }
+
     public Set<ToolGroup> topicGroupsIn(List<String> tokens) {
         Set<ToolGroup> groups = EnumSet.noneOf(ToolGroup.class);
         match(topicWords, tokens).values().forEach(groups::addAll);
@@ -102,12 +118,35 @@ public final class IntentVocabulary {
     }
 
     public boolean hasComplexMarker(String lowerText) {
-        return complexMarkers.stream().anyMatch(lowerText::contains);
+        return containsWords(complexMarkers, lowerText);
     }
 
     public boolean hasPlanRequest(String lowerText) {
-        return planMarkers.stream().anyMatch(lowerText::contains);
+        return containsWords(planMarkers, lowerText);
     }
+
+    /**
+     * True when one marker appears as whole words: "plan" is not found in "planks" or "plant", nor "then" in
+     * "strengthen". An inflected form is listed as its own marker.
+     */
+    private static boolean containsWords(List<String> markers, String lowerText) {
+        String words = " " + String.join(" ", words(lowerText)) + " ";
+        for (String marker : markers) {
+            List<String> markerWords = words(marker);
+            if (!markerWords.isEmpty() && words.contains(" " + String.join(" ", markerWords) + " ")) return true;
+        }
+        return false;
+    }
+
+    private static List<String> words(String text) {
+        List<String> words = new ArrayList<>();
+        for (String word : NON_WORD.split(text)) {
+            if (!word.isEmpty()) words.add(word);
+        }
+        return words;
+    }
+
+    private static final java.util.regex.Pattern NON_WORD = java.util.regex.Pattern.compile("[^\\p{L}\\p{N}]+");
 
     private static Map<String, Set<ToolGroup>> match(Map<String, Set<ToolGroup>> table, List<String> tokens) {
         Map<String, Set<ToolGroup>> found = new LinkedHashMap<>();

@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 
 class GeneratorsTest {
     private static final Set<String> BLOCKS = Set.of(
+            "minecraft:air",
             "minecraft:cobblestone",
             "minecraft:oak_planks",
             "minecraft:oak_log",
@@ -103,6 +104,23 @@ class GeneratorsTest {
         assertTrue(stateAt(house, 3, 4, 0).startsWith("minecraft:oak_stairs"), "north slope at y=4");
         assertTrue(stateAt(house, 3, 4, 6).startsWith("minecraft:oak_stairs"), "south slope at y=4");
         assertTrue(stateAt(house, 3, 7, 3).startsWith("minecraft:oak_planks"), "ridge row on top");
+    }
+
+    @Test
+    void aHouseWithoutDoorOrGlassNeedsOnlyItsWallBlocks() {
+        // A live battery: "build a small plank house" stopped for a missing door and three glass panes.
+        Blueprint house = generateOk("""
+                { "type": "house", "width": 7, "depth": 7, "walls": "minecraft:oak_planks",
+                  "floor": "minecraft:cobblestone", "roof": "minecraft:oak_stairs", "windows": "none", "door": "none" }
+                """);
+        assertEquals(0, count(house, "minecraft:glass_pane"), "no windows");
+        assertEquals(
+                0,
+                house.blocks().stream().filter(b -> b.state().contains("door")).count(),
+                "no door");
+        assertEquals("minecraft:air", stateAt(house, 3, 1, 6), "an open doorway");
+        assertEquals("minecraft:air", stateAt(house, 3, 2, 6), "two blocks tall");
+        assertEquals("minecraft:oak_planks", stateAt(house, 0, 2, 3), "a solid wall where a window would be");
     }
 
     @Test

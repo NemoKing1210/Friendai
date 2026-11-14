@@ -20,6 +20,7 @@ import dev.friendai.features.storage.StoredCandidate;
 import dev.friendai.server.execution.tools.FeatureToolContributor;
 import dev.friendai.server.execution.tools.FeatureToolRegistry;
 import dev.friendai.server.execution.tools.TaskToolDefinition;
+import dev.friendai.task.interact.ContainerTour;
 import dev.friendai.task.inventory.ItemMatcher;
 import java.util.List;
 import java.util.Objects;
@@ -89,6 +90,20 @@ public final class StorageTools implements FeatureToolContributor {
                                 .integer("z", "Container Z coordinate")
                                 .build(),
                         (c, a) -> new CheckContainerTask(optionalPos(a)))
+                .asCreativeSafe());
+        registry.registerTask(task(
+                        "check_containers",
+                        "Open every chest, barrel and other storage container nearby that you have not looked into in"
+                                + " the last five minutes and report what they hold. For five minutes after opening a"
+                                + " container you still see changes inside it; after that what you remember may be"
+                                + " out of date, and this looks again.",
+                        SchemaBuilder.object()
+                                .integer("radius", "How far around you to look, in blocks", 4, ContainerTour.RADIUS)
+                                .build(),
+                        (c, a) -> ContainerTour.around(
+                                a.has("radius") && !a.get("radius").isJsonNull()
+                                        ? a.get("radius").getAsInt()
+                                        : ContainerTour.RADIUS))
                 .asCreativeSafe());
         registry.registerTask(task(
                 "deposit_items",
@@ -200,6 +215,16 @@ public final class StorageTools implements FeatureToolContributor {
         }
         if (name.equals("find_stored_item")) {
             return new ToolMeta(name, ToolGroup.STORAGE, false, "", List.of(), Cost.LOW);
+        }
+        if (name.equals("check_containers")) {
+            return new ToolMeta(
+                    name,
+                    ToolGroup.STORAGE,
+                    false,
+                    "- When an item may be in the chests here but you have not looked in them for a while, use"
+                            + " check_containers before deciding to craft, mine or hunt it.",
+                    List.of(),
+                    Cost.MEDIUM);
         }
         String hint = name.equals("store_items")
                 ? "- When the player says to store it again in the container you placed, pass placed:true; it uses the nearest container from your placement record."

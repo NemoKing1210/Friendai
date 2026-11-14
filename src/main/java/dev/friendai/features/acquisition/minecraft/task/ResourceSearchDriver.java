@@ -178,7 +178,12 @@ public final class ResourceSearchDriver implements Task {
         originDimension = context.level().dimension().identifier().toString();
         historicalEvidence = historicalEvidence(context);
         lastPosition = origin;
-        session.advance(input(context, null, SearchSession.LegOutcome.NONE, false, 0));
+        // The priming step only moves a fresh session out of PREPARE. A session resumed for a new request is already
+        // choosing a frontier, and a step with no frontier there means "nothing left to search": away from its first
+        // origin it turned straight into a failed return, and an obtain order died at its second explore step.
+        if (session.snapshot().phase() == SearchSession.Phase.PREPARE) {
+            session.advance(input(context, null, SearchSession.LegOutcome.NONE, false, 0));
+        }
         if (selectedStrategy == ResourceSearchProfile.Strategy.SURFACE) {
             localWaitTicks = 0;
             context.observations().observer(context.companion()).scheduleSweep(logicalTick(context));

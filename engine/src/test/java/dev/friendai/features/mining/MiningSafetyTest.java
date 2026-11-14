@@ -123,16 +123,79 @@ class MiningSafetyTest {
     }
 
     @Test
-    void targetAdjacentToWaterOrFallingBlockIsRejected() {
+    void targetAdjacentToWaterIsRejected() {
         GridCellView water =
-                new GridCellView("#####/#####/#####", "#####/#####/#####", "...../..~../.....", "...../...../.....");
-        GridCellView falling =
-                new GridCellView("#####/#####/#####", "#####/#####/#####", "...../..g../.....", "...../...../.....");
-        MiningGoal waterGoal = new MiningGoal(List.of(new Pos(2, 1, 1)), 4, 1.62, Set.of());
-        MiningGoal fallingGoal = new MiningGoal(List.of(new Pos(2, 1, 1)), 4, 1.62, Set.of());
+                new GridCellView("#####/#####/#####", "#####/#####/#####", "...../.~.../.....", "...../...../.....");
+        MiningGoal goal = new MiningGoal(List.of(new Pos(1, 1, 1)), 4, 1.62, Set.of());
 
-        assertFalse(waterGoal.isGoal(new Node(1, 2, 1), water));
-        assertFalse(fallingGoal.isGoal(new Node(1, 2, 1), falling));
+        assertFalse(goal.isGoal(new Node(3, 2, 1), water), "water rests on the target and would flood the opening");
+        assertTrue(goal.isGoal(new Node(3, 2, 1), miningFloor()), "the same stance reaches the dry target");
+    }
+
+    @Test
+    void aPlantOnSandIsATargetFromBesideIt() {
+        // A dead bush on red sand: the block under the target falls, but breaking the plant moves nothing.
+        GridCellView desert =
+                new GridCellView("#####/#####/#####", "ggggg/ggggg/ggggg", "...../...,./.....", "...../...../.....");
+        MiningGoal goal = new MiningGoal(List.of(new Pos(3, 2, 1)), 4, 1.62, Set.of());
+
+        assertTrue(goal.isGoal(new Node(2, 2, 1), desert));
+    }
+
+    @Test
+    void aCactusIsBrokenFromReach() {
+        // A two-block cactus on sand: it hurts whoever stands against it, but breaking it from reach is ordinary.
+        GridCellView desert =
+                new GridCellView("#####/#####/#####", "ggggg/ggggg/ggggg", "...../...^./.....", "...../...^./.....");
+        MiningGoal goal = new MiningGoal(List.of(new Pos(3, 2, 1)), 4, 1.62, Set.of());
+
+        assertTrue(goal.isGoal(new Node(1, 2, 1), desert), "two cells away the cactus is in reach");
+    }
+
+    @Test
+    void lavaIsStillNoTarget() {
+        GridCellView pool =
+                new GridCellView("#####/#####/#####", "#####/#####/#####", "...../...L./.....", "...../...../.....");
+        MiningGoal goal = new MiningGoal(List.of(new Pos(3, 2, 1)), 4, 1.62, Set.of());
+
+        assertFalse(goal.isGoal(new Node(1, 2, 1), pool));
+    }
+
+    @Test
+    void aSandFloorIsMinedFromTwoCellsAway() {
+        GridCellView desert =
+                new GridCellView("#####/#####/#####", "ggggg/ggggg/ggggg", "...../...../.....", "...../...../.....");
+        MiningGoal goal = new MiningGoal(List.of(new Pos(3, 1, 1)), 4, 1.62, Set.of());
+
+        assertTrue(goal.isGoal(new Node(1, 2, 1), desert), "the sand column falls clear of the stance");
+        assertFalse(goal.isGoal(new Node(2, 2, 1), desert), "a floor block beside the feet keeps the side-stance rule");
+    }
+
+    @Test
+    void aFallingColumnOverTheBodyIsNotATarget() {
+        // A tunnel with a stone ceiling; gravel sits in the ceiling at x=2 and on top of the ceiling at x=3.
+        GridCellView tunnel = new GridCellView(
+                "#####/#####/#####",
+                "...../...../.....",
+                "...../...../.....",
+                "#####/##g##/#####",
+                "#####/###g#/#####",
+                "#####/#####/#####");
+        Pos gravel = new Pos(2, 3, 1);
+        Pos stoneUnderGravel = new Pos(3, 3, 1);
+
+        assertFalse(
+                MiningSafety.canBreak(tunnel, new Node(2, 1, 1), gravel, Set.of()),
+                "gravel overhead would drop onto the body");
+        assertTrue(
+                MiningSafety.canBreak(tunnel, new Node(1, 1, 1), gravel, Set.of()),
+                "from one cell aside the gravel lands beside the body");
+        assertFalse(
+                MiningSafety.canBreak(tunnel, new Node(3, 1, 1), stoneUnderGravel, Set.of()),
+                "the block that holds gravel up over the head stays");
+        assertTrue(
+                MiningSafety.canBreak(tunnel, new Node(2, 1, 1), stoneUnderGravel, Set.of()),
+                "the same block is safe to take from the next column");
     }
 
     @Test

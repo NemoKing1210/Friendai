@@ -23,6 +23,7 @@ import dev.friendai.features.places.PlaceAutoRegistration;
 import dev.friendai.features.places.PlaceCandidate;
 import dev.friendai.foundation.spatial.Node;
 import dev.friendai.foundation.spatial.Pos;
+import dev.friendai.perception.resource.FocusedLook;
 import dev.friendai.task.BlockSearchTaskFactory;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
@@ -135,6 +136,18 @@ public final class MineBlocksTask implements Task {
      * was seen, beyond this job's own radius, so the one re-scan and the walk that follows use this reach instead.
      */
     private int discoveryRadius;
+
+    /** Whether this job already took its one deliberate look for a target it had not seen yet. */
+    private boolean lookedAround;
+
+    /** How far the deliberate look reaches around the companion, whatever smaller radius the job was given. */
+    private static final int NEAR_LOOK = 16;
+
+    /** The radius the deliberate look found targets in, or zero; it widens this job's own radius from then on. */
+    private int lookReach;
+
+    /** Whether the job takes every matching block in view and treats running out of them as done. */
+    private boolean allNearby;
 
     public MineBlocksTask(BlockMatcher matcher, int count, int radius) {
         this(matcher, count, radius, null, true, false);
@@ -278,6 +291,35 @@ public final class MineBlocksTask implements Task {
      */
     static boolean maySearch(boolean explore, boolean placedOnly, BlockPos origin) {
         return explore && !placedOnly && origin == null;
+    }
+
+    /**
+     * "All of them here": the job mines every matching block it can see within its radius and succeeds when none is
+     * left, with {@code count} only a cap, and it never goes searching once it has mined one. A plural with no number
+     * ("pick the flowers", "clear this sand away") means this, and a count of one used to end the order after a
+     * single block.
+     */
+    public MineBlocksTask allNearby() {
+        this.allNearby = true;
+        return this;
+    }
+
+    /**
+     * How many matching blocks are still in view when the asked count is done, as a clause for the result. The model
+     * that asked for one block of "this sand" then knows the pile is not gone; empty when nothing is left.
+     */
+    private String moreInView(TaskContext c) {
+        if (placedOnly || untilMatcher != null) return "";
+        int reach = Math.max(radius, lookReach);
+        int more = 0;
+        try {
+            for (BlockPos pos : c.resources().knownOrVisible(c.companion(), matcher, reach, CANDIDATES * 4)) {
+                if (!excluded(pos) && matcher.test(c.level().getBlockState(pos))) more++;
+            }
+        } catch (RuntimeException unavailable) {
+            return "";
+        }
+        return more == 0 ? "" : "; " + more + " more in view within " + reach + " blocks";
     }
 
     /** The principal this job's delegated search runs with; package-private so a test can pin it to the call. */
@@ -625,7 +667,7 @@ public final class MineBlocksTask implements Task {
                         + untilMatcher.label();
                 return TaskStatus.FAILED;
             }
-            summary = "mined " + mined + " " + matcher.label();
+            summary = "mined " + mined + " " + matcher.label() + moreInView(c);
             return TaskStatus.SUCCESS;
         }
         // A successful search leaves the companion where the target was seen, which can be farther than this job's
@@ -647,11 +689,27 @@ public final class MineBlocksTask implements Task {
                 }
                 var evidence = c.resources();
                 int evidenceRadius = around == null
-                        ? reach
+                        ? Math.max(reach, lookReach)
                         : Math.min(128, c.companion().blockPosition().distManhattan(around) + reach);
                 candidates = new ArrayList<>(evidence.knownOrVisible(
                         c.companion(), matcher, evidenceRadius, evidenceLimit(around == null ? CANDIDATES * 4 : 64)));
                 candidates.removeIf(this::excluded);
+                // Nothing seen yet is not nothing there: right after arriving, a cactus beside the owner was passed
+                // over for a search that broke a wild one far off. One deliberate look comes first, and around the
+                // companion it looks a little past a guessed radius ("this sand here" with radius 4, the pile five
+                // blocks off); a point the player named keeps its own radius.
+                int lookRadius = around == null ? Math.max(evidenceRadius, NEAR_LOOK) : evidenceRadius;
+                if (candidates.isEmpty()
+                        && !lookedAround
+                        && !afterSearch
+                        && FocusedLook.lookFor(c.level(), c.companion(), evidence, matcher::test, lookRadius) > 0) {
+                    candidates = new ArrayList<>(evidence.knownOrVisible(
+                            c.companion(), matcher, lookRadius, evidenceLimit(around == null ? CANDIDATES * 4 : 64)));
+                    candidates.removeIf(this::excluded);
+                    // What the look found is this job's ground now: later rounds and the mining bounds include it.
+                    if (!candidates.isEmpty() && around == null) lookReach = lookRadius;
+                }
+                lookedAround = true;
                 if (around != null) {
                     double radiusSquared = (double) reach * reach;
                     double originX = around.getX() + 0.5, originY = around.getY() + 0.5, originZ = around.getZ() + 0.5;
@@ -719,8 +777,14 @@ public final class MineBlocksTask implements Task {
                 return TaskStatus.RUNNING;
             }
             pendingObservation = null;
+            if (allNearby && mined > 0 && blacklist.isEmpty() && lastRefusal == null && !toolSkipped) {
+                // Everything in view is taken: that is the whole order, not a shortfall, and no search follows.
+                summary = "mined " + mined + " " + matcher.label() + ": all that was in view within "
+                        + Math.max(radius, lookReach) + " blocks";
+                return TaskStatus.SUCCESS;
+            }
             String searchReason = "";
-            if (!toolSkipped) {
+            if (!toolSkipped && !(allNearby && mined > 0)) {
                 // The budget is the live configured local search budget, not a number of its own: the server owner
                 // already tunes one bounded local search, and this job delegates to it. The origin is implicitly the
                 // companion: {@link #maySearch} never lets an explicit origin get here.
@@ -803,7 +867,8 @@ public final class MineBlocksTask implements Task {
                 BlockPos start = around != null ? around : c.companion().blockPosition();
                 miningSession = new MiningSession(
                         c.companion(),
-                        new MiningBounds(new Node(start.getX(), start.getY(), start.getZ()), reach),
+                        new MiningBounds(
+                                new Node(start.getX(), start.getY(), start.getZ()), Math.max(reach, lookReach)),
                         128,
                         6_000,
                         placements);

@@ -22,6 +22,7 @@ import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.interact.ContainerAccess;
 import dev.friendai.task.interact.ContainerSession;
+import dev.friendai.task.interact.ContainerTour;
 import dev.friendai.task.interact.ContainerTransfer;
 import dev.friendai.task.inventory.ItemMatcher;
 import java.util.ArrayList;
@@ -67,6 +68,10 @@ public final class ObtainTask implements Task {
     private final List<String> history = new ArrayList<>();
     private final Set<Long> excludedSiteIds = new LinkedHashSet<>();
     private Task current;
+    /** A look through the storage nearby, run once before the first step that leaves for the world. */
+    private Task tour;
+
+    private boolean touredContainers;
     private TaskContext childContext;
     private TaskLogSpan span;
     private Supplier<ResourceCandidates.Verification> currentVisitVerification;
@@ -276,6 +281,18 @@ public final class ObtainTask implements Task {
             }
             return TaskStatus.RUNNING;
         }
+        if (tour != null) {
+            TaskStatus status = tour.tick(c);
+            if (status == TaskStatus.RUNNING) {
+                return TaskStatus.RUNNING;
+            }
+            String toured = tour.resultSummary();
+            safeStop(tour, c);
+            tour = null;
+            if (!toured.isBlank()) history.add(toured);
+            // What the chests hold is known now: plan again from it.
+            return startNext(c);
+        }
         if (current != null) {
             TaskStatus status = current.tick(childContext == null ? c : childContext);
             if (status == TaskStatus.RUNNING) {
@@ -353,6 +370,17 @@ public final class ObtainTask implements Task {
                 DropIndex.of(level),
                 facts,
                 tradingContext);
+        if (shouldTour(plan)) {
+            touredContainers = true;
+            List<BlockPos> targets =
+                    ContainerTour.unchecked(c, ContainerTour.NEAR_RADIUS, ContainerTour.MAX_CONTAINERS);
+            if (!targets.isEmpty()) {
+                tour = new ContainerTour(targets);
+                tour.start(c);
+                c.debug("obtain " + item + ": checking " + targets.size() + " containers nearby before going out");
+                return TaskStatus.RUNNING;
+            }
+        }
         if (!plan.actionable()) {
             return fail(
                     "can't get " + count + " " + item + " here: " + ObtainText.missingText(plan.missing(), !explore));
@@ -524,6 +552,30 @@ public final class ObtainTask implements Task {
         return ItemMatcher.parse(id).orElseThrow(() -> new IllegalArgumentException("unknown item: " + id));
     }
 
+    /**
+     * Whether to look through the storage nearby first: once per task, when containers may be used and the plan is
+     * about to leave for the world (mine, hunt, explore, trade…) or cannot be made at all. A player checks the chests
+     * of their house before going out for something one of them may already hold.
+     */
+    private boolean shouldTour(ObtainPlan plan) {
+        if (touredContainers || !useContainers) return false;
+        if (!plan.actionable() || plan.steps().isEmpty()) return true;
+        ObtainStep first = plan.steps().get(0);
+        return !(first instanceof ObtainStep.Take
+                || first instanceof ObtainStep.Craft
+                || first instanceof ObtainStep.Smelt);
+    }
+
+    /** Accepts an item id the matcher accepts, so remembered container contents can be searched by matcher. */
+    private static java.util.function.Predicate<String> acceptsId(ItemMatcher matcher) {
+        return id -> {
+            Identifier key = Identifier.tryParse(id);
+            return key != null
+                    && BuiltInRegistries.ITEM.containsKey(key)
+                    && matcher.test(new ItemStack(BuiltInRegistries.ITEM.getValue(key)));
+        };
+    }
+
     private static String stepKey(ObtainStep step) {
         return switch (step) {
             case ObtainStep.Take take -> "take:" + take.item();
@@ -588,9 +640,11 @@ public final class ObtainTask implements Task {
         private TakeFromContainerTask(ItemMatcher matcher, int count) {
             this.matcher = matcher;
             this.count = count;
+            // The chest the item was seen in, live records first; the nearest container only when none is recorded.
             this.session = new ContainerSession(
                     null,
-                    context -> ContainerAccess.nearest(context, CONTAINER_RADIUS),
+                    context -> ContainerAccess.recordedWith(context, acceptsId(matcher), CONTAINER_RADIUS)
+                            .or(() -> ContainerAccess.nearest(context, CONTAINER_RADIUS)),
                     true,
                     () -> "no storage container with " + matcher.label() + " within " + CONTAINER_RADIUS + " blocks",
                     position -> "there is no chest, barrel or other storage at " + position.getX() + " "
@@ -648,6 +702,10 @@ public final class ObtainTask implements Task {
     @Override
     public void stop(TaskContext c) {
         clearCreativeCreation();
+        if (tour != null) {
+            safeStop(tour, c);
+            tour = null;
+        }
         if (span != null) {
             span.finish("cancelled", "stopped", java.util.Map.of());
             span = null;

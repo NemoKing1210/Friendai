@@ -74,7 +74,7 @@ const CATS = [
     items: [
       "get_inventory|List what it carries.", "show_inventory|Open the inventory view.", "equip_item|Equip gear.", "give_items|Hand items to a player; strict orders can reserve the companion's share and wait for a safe handover.",
       "drop_items|Drop items.", "throw_item|Throw an item.", "store_items|Store up to two stacks in one call.", "take_items|Take items out of a container.",
-      "check_container|Look inside a container.", "deposit_items|Deposit into the nearest storage.",
+      "check_container|Look inside a container.", "check_containers|Look through the nearby chests not opened in the last five minutes.", "deposit_items|Deposit into the nearest storage.",
       "find_stored_item|Report where you last saw an item in a recorded container.", "move_items|Move a known quantity between two containers in one call.",
       "~Equipment picker|Armor and weapon loadout.", "~Owner-only window|Within 8 blocks, same dimension." ] },
   { id: "acquire", domain: "hands", name: "Resource Acquisition", icon: "🧭", color: COLORS.diamond,
@@ -146,7 +146,7 @@ const CATS = [
     desc: "Replies can be spoken locally or through a cloud voice, panned and attenuated by where the companion is.",
     items: [
       "~Streamed sentences|Ordered per stream and session, with one cut-off report.", "~Early sentence|The first safe sentence speaks before the provider finishes; the full reply stays authoritative.", "~Local Piper voices|Five catalogued voices via sherpa-onnx.", "~OpenAI TTS|Cloud speech.", "~ElevenLabs|Cloud speech.", "~Yandex SpeechKit|Cloud speech.",
-      "~Spatial audio|Equal-power pan and distance level.", "~Stop speaking key|Cuts playback instantly.", "~Off by default|Opt in from settings." ] },
+      "~Spatial audio|Equal-power pan and distance level.", "~Voice chat output|Optional: plays through Simple Voice Chat from the companion, so Sound Physics Remastered can shape it.", "~Stop speaking key|Cuts playback instantly.", "~Off by default|Opt in from settings." ] },
   { id: "menu", domain: "senses", name: "Companion Menu", icon: "🖥️", color: COLORS.iron,
     desc: "A tabbed control screen that pauses the companion while open. Operator-only tabs are filtered on the server.",
     items: [
@@ -248,6 +248,7 @@ const CODE = {
   "store_items": ["src/main/java/dev/friendai/features/inventory/minecraft/tool/StorageTools.java", "src/main/java/dev/friendai/features/inventory/minecraft/task/StoreItemsTask.java"],
   "take_items": ["src/main/java/dev/friendai/features/inventory/minecraft/tool/StorageTools.java", "src/main/java/dev/friendai/features/inventory/minecraft/task/TakeItemsTask.java"],
   "check_container": ["src/main/java/dev/friendai/features/inventory/minecraft/tool/StorageTools.java", "src/main/java/dev/friendai/features/inventory/minecraft/task/CheckContainerTask.java"],
+  "check_containers": ["src/main/java/dev/friendai/features/inventory/minecraft/tool/StorageTools.java", "src/main/java/dev/friendai/task/interact/ContainerTour.java"],
   "find_stored_item": ["src/main/java/dev/friendai/features/inventory/minecraft/tool/StorageTools.java", "src/main/java/dev/friendai/features/inventory/minecraft/storage/StorageIndexService.java"],
   "move_items": ["src/main/java/dev/friendai/features/inventory/minecraft/task/MoveItemsTask.java"],
   "deposit_items": ["src/main/java/dev/friendai/features/inventory/minecraft/tool/StorageTools.java", "src/main/java/dev/friendai/features/inventory/minecraft/task/DepositTask.java"],
@@ -401,6 +402,7 @@ const CODE = {
   "~ElevenLabs": ["engine/src/main/java/dev/friendai/features/speech/tts/ElevenLabsTtsProtocol.java"],
   "~Yandex SpeechKit": ["engine/src/main/java/dev/friendai/features/speech/tts/YandexTtsProtocol.java"],
   "~Spatial audio": ["engine/src/main/java/dev/friendai/features/speech/SpatialAudio.java"],
+  "~Voice chat output": ["src/client/java/dev/friendai/client/voicechat/VoiceChatPlayback.java", "engine/src/main/java/dev/friendai/features/speech/tts/VoiceFrames.java"],
   "~Stop speaking key": ["src/client/java/dev/friendai/client/tts/SpeechKeybind.java"],
   "~Off by default": ["engine/src/main/java/dev/friendai/infrastructure/config/ClientConfig.java"],
   "~Overview": ["src/client/java/dev/friendai/client/ui/ControlTab.java"],
@@ -504,7 +506,7 @@ const ARCH_CARDS = [
   { title: "Client side", sub: "src/client/java",
     hub: { label: "Client", icon: "🖥️", color: COLORS.water, desc: "Reads only data the server syncs." },
     color: COLORS.water, items: [
-      "~render|Humanoid model, skin, armour.", "~ui|Control screen and tabs.", "~voice|Mic, push-to-talk, STT runtime.", "~tts|Speech playback, spatial mix.",
+      "~render|Humanoid model, skin, armour.", "~ui|Control screen and tabs.", "~voice|Mic, push-to-talk, STT runtime.", "~tts|Speech playback, spatial mix, optional voice-chat output.",
       "~audio|Local models and native binding.", "~config|YACL screen, optional." ] },
   { title: "Rules that keep it working", sub: "Checked by tests and reviews",
     hub: { label: "Rules", icon: "📜", color: COLORS.gold, desc: "Violating any of these breaks the mod in subtle ways." },

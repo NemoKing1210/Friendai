@@ -102,6 +102,11 @@ public final class SocialDirector {
         cadence.computeIfAbsent(owner, ignored -> new ConversationCadence()).companionSpoke((int) gameTime);
     }
 
+    /** A task or plan result was just posted to the brain: no opening until that report has had a turn of its own. */
+    public void workReported(UUID owner, long gameTime) {
+        cadence.computeIfAbsent(owner, ignored -> new ConversationCadence()).workReported((int) gameTime);
+    }
+
     public void tick(ServerRuntime runtime) {
         long ticks = runtime.server().getTickCount();
         if (ticks > 0 && ticks % REPORT_EVERY_TICKS == 0) {
@@ -134,6 +139,10 @@ public final class SocialDirector {
             Fact fact = nextFact(runtime, owner);
             ConversationCadence.Scene scene = scene(companion, player, hearing);
             boolean activeJob = ownerJobActive(companion);
+            if (activeJob) {
+                // The quiet window after work starts when the job was last seen running, report or no report.
+                workReported(owner, now);
+            }
             if (activeJob && fact != null && fact.deferDuringOwnerJob()) {
                 hold(owner, fact, now);
                 continue;
@@ -169,6 +178,16 @@ public final class SocialDirector {
                 continue;
             }
             if (activeJob) {
+                continue;
+            }
+            // Small talk waits for the job's report to have a turn of its own. An opener posted beside the report, or
+            // while a turn runs or events wait, is batched with them, and a batch that carries an opening has no
+            // tools: the companion then talks about the job instead of finishing it. News above is not held back.
+            if (!pace.mayOpenTopic((int) now)
+                    || runtime.sessions()
+                            .brainOf(owner)
+                            .map(dev.friendai.agent.turn.CompanionBrain::hasPendingWork)
+                            .orElse(false)) {
                 continue;
             }
             // Free time has its own director choosing the next useful activity; a neutral "what next?" opening only

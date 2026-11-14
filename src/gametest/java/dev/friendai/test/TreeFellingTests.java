@@ -130,6 +130,41 @@ public class TreeFellingTests {
         return left;
     }
 
+    /**
+     * A live battery: "chop some wood" right after the companion was summoned failed with "no tree within 32 blocks"
+     * beside an oak eleven blocks off. The companion had not looked around yet; it now looks long enough to see it.
+     */
+    @GameTest(maxTicks = 3000, skyAccess = true)
+    public void aFreshCompanionFindsTheTreeInPlainView(GameTestHelper h) {
+        GameTestSupport.platform(h, 20);
+        var leaves = Blocks.OAK_LEAVES
+                .defaultBlockState()
+                .setValue(net.minecraft.world.level.block.LeavesBlock.PERSISTENT, true);
+        for (int y = 5; y <= 7; y++) {
+            int r = y == 7 ? 1 : 2;
+            for (int dx = -r; dx <= r; dx++) {
+                for (int dz = -r; dz <= r; dz++) h.setBlock(11 + dx, y, 11 + dz, leaves);
+            }
+        }
+        for (int y = 2; y <= 6; y++) h.setBlock(11, y, 11, Blocks.OAK_LOG);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 3, 2, 3);
+        c.setOwner(java.util.UUID.randomUUID());
+        Result result = new Result();
+        ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 300, () -> false);
+        runner.setEventSink(result);
+        runner.start(
+                new dev.friendai.features.mining.minecraft.task.FellTreeSearchTask(
+                        null, c.blockPosition(), 32, 6, true),
+                "fell_tree");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status != TaskStatus.FAILED, "gave up: " + result.summary);
+            h.assertTrue(
+                    c.inventory().countItem(net.minecraft.world.item.Items.OAK_LOG) >= 3,
+                    "logs carried " + c.inventory().countItem(net.minecraft.world.item.Items.OAK_LOG));
+        });
+    }
+
     @GameTest(maxTicks = 7000)
     public void tallDarkOakFallsFromTheCrown(GameTestHelper h) {
         GameTestSupport.platform(h, 16);

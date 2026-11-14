@@ -210,7 +210,9 @@ public class LightAreaTests {
         Result result = new Result();
         driveInOpenSky(h, c, result, new LightAreaTask(8), new BlockPos(2, 2, 2), new BlockPos(18, 2, 18), () -> {
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
-            h.assertValueEqual(result.summary, "no dark spots within 8 blocks", "summary");
+            h.assertTrue(
+                    result.summary.startsWith("no dark spots within 8 blocks, so no torch was placed"),
+                    "summary was " + result.summary);
             h.assertValueEqual(c.inventory().countItem(Items.TORCH), 16, "torches spent under open sky");
             for (int x = 0; x < 20; x++) {
                 for (int z = 0; z < 20; z++) {
@@ -349,7 +351,9 @@ public class LightAreaTests {
             runner.tick();
             h.assertTrue(
                     result.status == TaskStatus.SUCCESS, "should succeed: " + result.status + " " + result.summary);
-            h.assertTrue(result.summary.equals("no dark spots within 8 blocks"), "summary was " + result.summary);
+            h.assertTrue(
+                    result.summary.startsWith("no dark spots within 8 blocks, so no torch was placed"),
+                    "summary was " + result.summary);
         });
     }
 

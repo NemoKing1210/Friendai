@@ -136,6 +136,7 @@ compatibility invariant. "Keep" means no evidence justified a change; it is not 
 | `ServerConfig` | `profile.provider/model/apiKey/baseUrl/temperature/maxTokens` | anthropic / claude-sonnet-5-5 / env / null / 0.7 / 8192 | provider-dependent | keep | No offline tokenizer or same-model usage; lowering output or context can truncate tool JSON and multilingual replies. Provider/key changes are not defaults tuning. |
 | `ClientConfig` | `voice.stt.local.model` | `base` | client/UX | keep | Whisper base is the documented balance; the catalog lets the owner choose a larger model without a default migration. |
 | `ClientConfig` | `voice.stt.maxRecordSec` / `voice.tts.maxChars` / `volume` / `spatial` | 30 / 300 / 1.0 / on | presentation | keep | Bounded by existing clamps; no token effect. |
+| `ClientConfig` | `voice.tts.playback` | `builtin` | presentation, opt-in | keep (builtin) | The Simple Voice Chat path needs an optional mod and a voice connection; the built-in line is the only output that always works, and the fallback of the other one. |
 | `ClientConfig` | `voice.streamReplies` | true | presentation | keep | Streaming reduces first-sentence latency; the guard still buffers unsafe prefixes. |
 | `ClientConfig` | `voice.wake.enabled` / phrase / preRollSec | false / bundle default / 2 | privacy | keep | Wake word is opt-in by design and never opens the microphone unasked. |
 | `ClientConfig` | `voice.stt.provider/language/inputDevice`, `voice.tts.*` | local/auto/system/… | client/UX | keep | Environment-dependent; no safe universal default change. |

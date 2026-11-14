@@ -41,6 +41,14 @@ import net.minecraft.world.item.ItemStack;
 
 /** Getting an item by any means, and explaining the plan before committing to it. */
 public final class ObtainTools implements FeatureToolContributor {
+    /**
+     * A fresh companion has looked at little, so with exploring off a block in plain view still counts as missing; a
+     * live "get some stone" failed that way when a plan turned it off without being asked to.
+     */
+    private static final String EXPLORE = "Default true: look around, search further away and dig down when a resource"
+            + " is not known yet. Set false only when the player forbids leaving this spot; with false, anything the"
+            + " companion has not seen yet counts as missing.";
+
     private final ObtainSubtaskFactory subtaskFactory;
 
     public ObtainTools(ObtainSubtaskFactory subtaskFactory) {
@@ -55,13 +63,13 @@ public final class ObtainTools implements FeatureToolContributor {
                         "Item id like minecraft:iron_pickaxe; tags are not accepted. For a crafting goal, request the finished item so the acquisition planner computes its ingredients.")
                 .integer("count", "How many to get", 1, 64)
                 .bool("use_containers", "Allow taking items from nearby chests and barrels")
-                .bool("explore", "Allow searching further away and digging down when a resource is not nearby")
+                .bool("explore", EXPLORE)
                 .enumeration("scope", "Search budget", "local", "expedition")
                 .required("item", "count")
                 .build();
         TaskToolDefinition obtain = new TaskToolDefinition(
                 "obtain_item",
-                "Get an item by any means: take it from nearby chests, mine, hunt, farm, smelt and craft, making the tools needed on the way, and explore if a resource is not nearby. For a crafting goal, request the finished item instead of hand-counting plank, stick or log ingredients; the planner computes the chain and replans from the live inventory after every step. It can use any recipe-compatible nearby log for wood ingredients. Use a specific log id only when the player named that species. For several items that share materials, use obtain_items so the raw materials are gathered once.",
+                "Get an item by any means: take it from nearby chests, mine, hunt, farm, smelt and craft, making the tools needed on the way, and explore if a resource is not nearby. For a crafting goal, request the finished item instead of hand-counting plank, stick or log ingredients; the planner computes the chain and replans from the live inventory after every step. It can use any recipe-compatible nearby log for wood ingredients. Use a specific log id only when the player named that species. For several items that share materials, use obtain_items so the raw materials are gathered once. When the player asks you to bring or fetch an item for them, it is not delivered until you hand it over: queue obtain_item and then give_items to that player in one queue_add. Ask for what the block drops: plain \"stone\" or \"rock\" from a player means minecraft:cobblestone (minecraft:stone is the smelted block), and iron or gold ore means minecraft:raw_iron or minecraft:raw_gold (the ore block itself needs Silk Touch).",
                 schema,
                 (c, a) -> new ObtainTask(
                         itemId(a.get("item").getAsString()),
@@ -85,7 +93,7 @@ public final class ObtainTools implements FeatureToolContributor {
         JsonObject batchSchema = SchemaBuilder.object()
                 .array("items", "Finished items to get together", itemsSchema, 1, CraftPlanner.MAX_TARGETS)
                 .bool("use_containers", "Allow taking items from nearby chests and barrels")
-                .bool("explore", "Allow searching further away and digging down when a resource is not nearby")
+                .bool("explore", EXPLORE)
                 .enumeration("scope", "Search budget", "local", "expedition")
                 .required("items")
                 .build();
@@ -124,9 +132,7 @@ public final class ObtainTools implements FeatureToolContributor {
                                         "Item id like minecraft:iron_pickaxe; tags are not accepted. For a crafting goal, request the finished item so the acquisition planner computes its ingredients.")
                                 .integer("count", "How many to get", 1, 64)
                                 .bool("use_containers", "Allow taking items from nearby chests and barrels")
-                                .bool(
-                                        "explore",
-                                        "Allow searching further away and digging down when a resource is not nearby")
+                                .bool("explore", EXPLORE)
                                 .enumeration("scope", "Search budget", "local", "expedition")
                                 .required("item")
                                 .build();

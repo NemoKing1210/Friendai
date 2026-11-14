@@ -47,6 +47,8 @@ import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.ProblemReporter;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.storage.TagValueInput;
 import net.minecraft.world.level.storage.TagValueOutput;
 import net.minecraft.world.phys.Vec3;
@@ -203,6 +205,31 @@ public final class QueueTests {
                 companion.executionCoordinator().queue().jobCount() == 0
                         && companion.executionCoordinator().queue().planCount() == 0,
                 "invalid input partially changed the queue");
+        h.succeed();
+    }
+
+    /**
+     * "If you have a pickaxe, mine stone" with no else, queued for a companion with no pickaxe: the plan would finish
+     * at once and report success with nothing done. A live player request was swallowed exactly this way.
+     */
+    @GameTest
+    public void queueAddRefusesAPlanWhoseConditionsSkipEveryStep(GameTestHelper h) {
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        UUID owner = UUID.randomUUID();
+        companion.setOwner(owner);
+        Caller caller = new Caller(owner, "queue-test", AccessLevel.OWNER);
+        ToolExecutor tools = GameTestToolRegistry.create(companion, () -> 32).bind(companion);
+        String idle = "{\"goal\":\"get stone\",\"steps\":[{\"when\":{\"type\":\"has_item\",\"item\":"
+                + "\"minecraft:wooden_pickaxe\"},\"then\":[{\"tool\":\"jump\"}]}]}";
+        ToolResult refused = run(tools, "queue_add", idle, caller);
+        h.assertTrue(
+                refused.error() && refused.content().contains("without doing anything"),
+                "a plan that runs no step must be refused: " + refused.content());
+        h.assertValueEqual(companion.executionCoordinator().queue().planCount(), 0, "nothing was queued");
+
+        companion.inventory().addItem(new ItemStack(Items.WOODEN_PICKAXE));
+        ToolResult queued = run(tools, "queue_add", idle, caller);
+        h.assertTrue(!queued.error(), "the same plan runs once its condition holds: " + queued.content());
         h.succeed();
     }
 

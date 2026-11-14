@@ -15,6 +15,9 @@ import java.util.function.Predicate;
 public final class Generators {
     private static final String DEFAULT_WINDOW = "minecraft:glass_pane";
     private static final String DEFAULT_DOOR = "minecraft:oak_door";
+    /** A house's windows or door given as "none": solid walls, or an open doorway. */
+    private static final String NONE = "none";
+
     private static final String DEFAULT_GATE = "minecraft:oak_fence_gate";
     /** A torch on the west wall, pointing east into the room. */
     private static final String TORCH_EAST = "minecraft:wall_torch[facing=east]";
@@ -124,12 +127,23 @@ public final class Generators {
                 doorZ = depth - 1;
             }
         }
-        door(ops, doorX, 1, doorZ, side, door);
+        if (NONE.equals(door)) {
+            // No door to hang: the doorway stays an open gap, the way a first shelter is built from planks alone.
+            box(ops, doorX, 1, doorZ, doorX, 2, doorZ, "minecraft:air");
+            notes.add("door none: the doorway is left open");
+        } else {
+            door(ops, doorX, 1, doorZ, side, door);
+        }
 
         List<Integer> alongX = spread(width);
         List<Integer> alongZ = spread(depth);
         for (int floorIndex = 0; floorIndex < floors; floorIndex++) {
             int y = 2 + 3 * floorIndex;
+            if (NONE.equals(window)) {
+                // Solid walls: no glass is needed, and the wall block already stands where a window would go.
+                alongX = List.of();
+                alongZ = List.of();
+            }
             for (int x : alongX) {
                 if (!(side.equals("north") && x == doorX)) {
                     box(ops, x, y, 0, x, y, 0, window);

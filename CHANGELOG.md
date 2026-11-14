@@ -6,6 +6,58 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.214.0] - 2026-11-14
+
+### Added
+
+- **Simple Voice Chat** in Settings → Voice → Synthesis (`voice.tts.playback`, Auto by default): with the optional Simple Voice Chat mod installed and connected, the companion's spoken replies play through it from the companion's position, so Sound Physics Remastered adds reverb and muffles the voice behind walls, and the wake word listens to what you say in voice chat instead of opening the microphone a second time. Remove the mod, or disconnect, mute or switch off voice chat, and the built-in output and microphone take over on their own; Off never uses the mod.
+
+## [0.213.0] - 2026-11-14
+
+### Added
+
+- Asked for an item it does not carry, the companion first looks through the chests and barrels within sixteen blocks that it has not opened in the last five minutes, and takes the item from the one that holds it, before deciding it must craft, mine or hunt it. The new `check_containers` order does the same on request.
+- For five minutes after the companion opens a container it still sees what you put in or take out; after that it remembers the contents as possibly out of date and says so, until it looks again.
+- A generated house takes `"windows": "none"` for solid walls and `"door": "none"` for an open doorway, so "build a small plank house" no longer stops for a missing door and glass panes.
+
+### Fixed
+
+- The companion now notices dead bushes, flowers, saplings and other thin plants its eyes pass over, so "take the bushes we are standing on" finds them instead of answering that there are none nearby. A plant behind a wall stays unseen.
+- An idle companion near a villager or wandering trader it cannot reach no longer walks to it every ten seconds and no longer interrupts the conversation to report it; it checks each trader's offers at most once every five minutes, quietly.
+- The companion breaks a cactus from a safe distance. It used to look for a place to stand for minutes and give up, because the cells right beside a cactus hurt.
+- A companion respawning at the world spawn no longer suffocates when that spawn lies inside sand or stone, as it often does in a desert; it appears on the nearest free surface instead.
+- Flowers, grass, crops and other thin plants are noticed whenever the companion's line of sight passes over them, and "pick the flowers" or "find a cactus" can now search the surroundings instead of failing with "no search strategy".
+- Asked about a block "near us" that stands a little farther than the model looked, the companion is told where the nearest one is instead of answering that there is none.
+- The lighting skill now says plainly that it placed no torch on ground that is already lit and points to placing the torch directly, so "put a couple of torches here" in daylight is not answered with a promise and nothing placed.
+- The obtain skill tells the model that plain "stone" means cobblestone and iron ore means raw iron, so these orders no longer fail looking for the smelted block or for ore only Silk Touch can keep.
+- "Chop some wood" right after the companion was summoned looks around for up to fifteen seconds before saying there is no tree, instead of giving up after five beside an oak in plain view.
+- An order is no longer swallowed by a plan whose conditions skip every step ("if you have a pickaxe, mine stone" for a companion without one): such a plan is refused when it is queued, so the companion plans the work again instead of reporting success with nothing done.
+- "Get some stone" no longer fails with "exploring is off" right after a summon: the obtain skill tells the model to keep exploring on unless the player forbids leaving the spot.
+- One-step orders such as "get some stone" or "get iron ore" are no longer sent to the planner as if they were several jobs: a single word now counts as one kind of work, even when two vocabulary entries match it.
+- "Make some planks" or "plant carrots" are no longer taken for a request to draw up a plan; "plan", "then" and the other ordering words count only as whole words.
+- "Bring me eight planks" now ends with the planks handed over: the companion sees its giving tools for "bring" and "fetch" orders, and the obtain skill tells it to queue the hand-over after getting the item.
+- "Plant wheat" with a hoe and seeds beside water now hoes the grass and sows it: naming a crop for a farm pass tills soil next to water unless told not to, where it used to answer "nothing to do".
+- Taking an item from storage during an obtain order goes to the chest the item was seen in, not to whichever chest is nearest.
+- The companion no longer stops remembering the chests it opens once it has looked at a lot of the world: the oldest memories make room instead.
+- A farm pass that finds nothing in its radius, and its preview, now say where the nearest ripe crop, empty farmland or soil beside water is, so a too-small guess around the companion is corrected instead of ending the order.
+- Right after it arrives, the companion no longer says it sees no diamond ore (or any other block) standing in plain view: asked about a block it has not seen yet, it takes a deliberate look, and only what its eyes actually reach counts — ore sealed in stone stays unseen.
+- "Break the cactus near us" right after a summon breaks the cactus in view instead of searching and breaking a wild one far off, and "clear this sand away" with a too-small radius still finds the pile a few blocks past it: a mining order takes the same deliberate look first.
+- "Plant wheat" with nothing to plant right around the companion now walks to the nearest grass by the water within sixteen blocks and plants there, instead of asking whether it should.
+- "Pick the flowers" or "clear this sand away" no longer stop after one block: an order with no number takes every matching block in view (the new `all_nearby` mode of mining), and a job that was asked for fewer says how many are still in view.
+- Right after finishing a job the companion reports on it and can carry the order on, instead of opening small talk in the same breath and asking whether to continue; its own subjects now wait ten seconds after a job's report.
+- "Plant wheat" also walks to the nearest soil when the companion was told to farm at the spot it stands on.
+- "Harvest the wheat" takes the whole field when the plot lies on the edge of the pass's circle: a farm pass follows the field for up to three more passes instead of taking two ears and saying nothing ripe is left.
+- The companion wins a fair melee fight: its sword now recharges on every tick of the fight, as a player's does, instead of only while the enemy is in reach, so a husk that kept knocking it back no longer out-hit an iron sword and killed it.
+- The companion no longer destroys an ore it cannot harvest: told to mine a diamond (or any valuable block) while carrying only a wooden pickaxe, it now refuses, leaves the ore whole and says it needs a better pickaxe first, where it used to break the ore and lose the diamond.
+- "Dig a 3x3 pit, 2 deep" digs two layers of earth: a shaft down started from where someone stands begins with the ground under their feet, where it used to spend its first layer on air.
+- A second resource search in the same order no longer fails on its first step: resuming a search that had already started skipped straight to "nothing left to search", so getting a stone tool set from buried stone sometimes stopped halfway.
+- "Find something to eat", "I'm hungry" and their Russian forms now show the food tools, so the companion hunts the cows beside it instead of asking for cooked meat it cannot make and giving up.
+- "Stop, that's enough" in the middle of a long job now sticks: an unfinished goal no longer wakes the companion a minute later to start the same work again. The goal waits until you give new work, and `/friendai stop` does the same.
+- The companion now mines a block that stands on or beside sand, red sand or gravel — a dead bush in the desert, an ore next to gravel — and sand or gravel itself. Such a block used to be reported as unreachable after a long wait. Only a falling block directly over the companion's own head is still left alone.
+- A number or an on/off value the model wrote in quotes (`"count": "2"`) is accepted in a tool call, a plan step and a queue edit instead of failing the order.
+- When the model calls a tool that was hidden for the current message, the companion loads that tool's group for the rest of the turn, so a refused call can be repeated correctly instead of failing again and again.
+- Russian orders with "take", "pick up", "chop", "mine" and "collect" verb forms, and English "take", "grab", "cut" and "break", now keep the gathering tools available; "eat" and "sleep" orders show the eating and sleeping tools.
+
 ## [0.212.2] - 2026-11-14
 
 ### Changed

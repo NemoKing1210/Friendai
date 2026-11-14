@@ -21,7 +21,8 @@
 	"entrypoints": {
 		"main": ["dev.friendai.FriendaiMod"],
 		"client": ["dev.friendai.client.FriendaiClient"],
-		"modmenu": ["dev.friendai.client.config.ModMenuIntegration"]
+		"modmenu": ["dev.friendai.client.config.ModMenuIntegration"],
+		"voicechat": ["dev.friendai.integration.voicechat.FriendaiVoicechatPlugin"]
 	},
 	"mixins": [
 		{
@@ -37,6 +38,7 @@
 	},
 	"suggests": {
 		"modmenu": "*",
-		"yet_another_config_lib_v3": "*"
+		"yet_another_config_lib_v3": "*",
+		"voicechat": "*"
 	}
 }

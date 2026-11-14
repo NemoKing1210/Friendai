@@ -29,6 +29,7 @@ import dev.friendai.features.speech.VoiceReadiness;
 import dev.friendai.features.speech.stt.LocalSttCatalog;
 import dev.friendai.features.speech.stt.LocalSttCatalog.LocalSttModel;
 import dev.friendai.features.speech.stt.SttPresets;
+import dev.friendai.features.speech.tts.PlaybackBackends;
 import dev.friendai.features.speech.tts.TtsPresets;
 import dev.friendai.features.speech.tts.VoiceModel;
 import dev.friendai.features.speech.tts.VoiceModels;
@@ -223,10 +224,22 @@ final class VoiceSettingsCategory {
                 .binding(true, () -> tts.spatial, value -> tts.spatial = value)
                 .controller(BooleanControllerBuilder::create)
                 .build();
+        Option<String> playback = Option.<String>createBuilder()
+                .name(tr("friendai.config.voice.tts.playback"))
+                .description(OptionDescription.of(tr("friendai.config.voice.tts.playback.tooltip")))
+                .binding(
+                        PlaybackBackends.AUTO,
+                        () -> PlaybackBackends.normalize(tts.playback),
+                        value -> tts.playback = value)
+                .controller(o -> CyclingListControllerBuilder.<String>create(o)
+                        .values(PlaybackBackends.ids())
+                        .valueFormatter(VoiceSettingsCategory::playbackLabel))
+                .build();
         synthesis.add(volume);
         synthesis.add(maxChars);
         synthesis.add(outputDeviceOption(tts));
         synthesis.add(spatial);
+        synthesis.add(playback);
         synthesis.add(speakGuests);
         synthesis.add(testVoice);
 
@@ -765,6 +778,12 @@ final class VoiceSettingsCategory {
             case "yandex" -> tr("friendai.config.voice.stt.provider.yandex");
             default -> tr("friendai.config.voice.stt.provider.local");
         };
+    }
+
+    private static Component playbackLabel(String id) {
+        return PlaybackBackends.BUILTIN.equals(id)
+                ? tr("friendai.config.voice.tts.playback.builtin")
+                : tr("friendai.config.voice.tts.playback.auto");
     }
 
     private static Component ttsProviderLabel(String id) {

@@ -1,6 +1,7 @@
 package dev.friendai.execution.queue;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -58,6 +59,23 @@ class PlanInterpreterTest {
                 plan, second.cursor(), facts("minecraft:plains", false), new PlanInterpreter.ActionResult.Succeeded());
         var failure = assertInstanceOf(PlanInterpreter.Event.Failed.class, failed.event());
         assertEquals("step 1 → repeat → until", failure.path());
+    }
+
+    @Test
+    void aPlanWhoseConditionsSkipEveryStepFinishesIdle() {
+        // "If there is water ahead, cross it" with no else: on dry land nothing runs, yet the plan would succeed.
+        PlanDefinition withoutElse =
+                plan(new PlanNode.Conditional(new Guard.FluidAhead(), List.of(action("work")), List.of()));
+        assertTrue(PlanInterpreter.finishesIdle(withoutElse, facts("minecraft:plains", false)));
+        assertFalse(PlanInterpreter.finishesIdle(withoutElse, facts("minecraft:plains", true)));
+
+        PlanDefinition alreadyDone = plan(new PlanNode.Repeat(List.of(action("work")), new Guard.FluidAhead(), 2));
+        assertTrue(PlanInterpreter.finishesIdle(alreadyDone, facts("minecraft:plains", true)));
+
+        PlanDefinition withElse = plan(
+                new PlanNode.Conditional(new Guard.FluidAhead(), List.of(action("work")), List.of(action("other"))));
+        assertFalse(PlanInterpreter.finishesIdle(withElse, facts("minecraft:plains", false)));
+        assertFalse(PlanInterpreter.finishesIdle(withoutElse, null), "without facts nothing is settled");
     }
 
     @Test

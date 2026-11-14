@@ -343,6 +343,7 @@ public class ToolTests {
                 "store_items",
                 "take_items",
                 "check_container",
+                "check_containers",
                 "deposit_items",
                 "find_stored_item",
                 "move_items",
@@ -605,6 +606,51 @@ public class ToolTests {
         int secondAt = r.content().indexOf(second);
         h.assertTrue(nearestAt >= 0 && secondAt > nearestAt, "order was " + r.content());
         h.assertTrue(!r.content().contains(cut), "the far block must be cut by the limit: " + r.content());
+        h.succeed();
+    }
+
+    /**
+     * A live session: "break the cactus near us" was answered "I see no cactus" because the model asked for 8 blocks
+     * and the cactus stood 11 away. An empty answer now names the nearest known block past the radius.
+     */
+    @GameTest
+    public void findBlocksNamesTheNearestBlockJustPastTheRadius(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        BlockPos far = new BlockPos(13, 2, 4);
+        h.setBlock(far, Blocks.IRON_BLOCK);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 4);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(far)), "fixture block should be visible");
+        ToolResult r = run(tools(c), "find_blocks", "{\"block\":\"minecraft:iron_block\",\"radius\":8}");
+        h.assertTrue(!r.error(), "error: " + r.content());
+        h.assertTrue(
+                r.content().startsWith("no minecraft:iron_block within 8 blocks, but the nearest")
+                        && r.content().contains(coords(h.absolutePos(far))),
+                "content was " + r.content());
+        h.succeed();
+    }
+
+    /**
+     * "Mine that diamond" right after a summon: the passive sweeps had not reached the ore in plain view yet and the
+     * companion said it saw none. A deliberate look now finds it, while ore sealed inside stone stays unseen.
+     */
+    @GameTest
+    public void findBlocksLooksForAVisibleBlockItHasNotSeenYet(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        BlockPos inView = new BlockPos(10, 2, 4);
+        h.setBlock(inView, Blocks.DIAMOND_ORE);
+        BlockPos sealed = new BlockPos(10, 3, 11);
+        for (int x = 9; x <= 11; x++) {
+            for (int y = 2; y <= 4; y++) {
+                for (int z = 10; z <= 12; z++) h.setBlock(x, y, z, Blocks.STONE);
+            }
+        }
+        h.setBlock(sealed, Blocks.DIAMOND_ORE);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 4);
+        c.setOwner(java.util.UUID.randomUUID());
+        ToolResult r = run(tools(c), "find_blocks", "{\"block\":\"minecraft:diamond_ore\",\"radius\":16}");
+        h.assertTrue(!r.error() && r.content().contains(coords(h.absolutePos(inView))), "content was " + r.content());
+        h.assertTrue(
+                !r.content().contains(coords(h.absolutePos(sealed))), "sealed ore must stay unseen: " + r.content());
         h.succeed();
     }
 

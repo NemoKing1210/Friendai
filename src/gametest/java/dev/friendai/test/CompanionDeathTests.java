@@ -124,6 +124,31 @@ public class CompanionDeathTests {
         return manager.find(owner).filter(entity -> !entity.getUUID().equals(dead));
     }
 
+    /**
+     * A live session: the world spawn of a desert sat inside sand, the respawned companion was put there and
+     * suffocated at once. The respawn now looks for a free surface cell around a shared spawn that is not one.
+     */
+    @GameTest(skyAccess = true)
+    public void aRespawnPointInsideSandMovesToTheSurface(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        for (int x = 2; x <= 6; x++) {
+            for (int z = 2; z <= 6; z++) {
+                for (int y = 2; y <= 5; y++) h.setBlock(x, y, z, Blocks.SAND);
+            }
+        }
+        BlockPos buried = h.absolutePos(new BlockPos(4, 3, 4));
+        BlockPos spot = CompanionManager.surfaceSpawnSpot(h.getLevel(), buried);
+        var level = h.getLevel();
+        h.assertTrue(
+                level.getBlockState(spot).isAir()
+                        && level.getBlockState(spot.above()).isAir(),
+                "the respawn cell must be free, got " + level.getBlockState(spot) + " at " + h.relativePos(spot));
+        h.assertTrue(
+                level.getBlockState(spot.below()).isFaceSturdy(level, spot.below(), net.minecraft.core.Direction.UP),
+                "the respawn cell must stand on something");
+        h.succeed();
+    }
+
     @GameTest(maxTicks = 200)
     public void deathDropsLootButKeepsBodyState(GameTestHelper h) {
         ServerPlayer owner = ready(h);

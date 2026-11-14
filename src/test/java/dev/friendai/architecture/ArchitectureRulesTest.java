@@ -182,6 +182,13 @@ class ArchitectureRulesTest {
                         "dev.friendai.agent.llm.protocol.OpenAiChatProtocol",
                         "dev.friendai.infrastructure.llm.HttpTransport"),
                 edge("dev.friendai.client.config.SettingsScreen", "dev.isxander.yacl3.api.YetAnotherConfigLib"),
+                edge("dev.friendai.client.tts.SpeechRuntime", "de.maxhenkel.voicechat.api.VoicechatClientApi"),
+                edge(
+                        "dev.friendai.client.voicechat.VoiceChatPlayback",
+                        "de.maxhenkel.voicechat.api.VoicechatClientApi"),
+                edge(
+                        "dev.friendai.integration.voicechat.FriendaiVoicechatPlugin",
+                        "de.maxhenkel.voicechat.api.VoicechatPlugin"),
                 edge(
                         "dev.friendai.presentation.companion.CompanionModel",
                         "dev.friendai.features.companion.view.CompanionView"),
@@ -244,6 +251,10 @@ class ArchitectureRulesTest {
                                 "foundation-direction",
                                 "dev.friendai.foundation.text.LanguageDetector",
                                 "net.fabricmc.api.ModInitializer"),
+                        violation(
+                                "optional-integration-isolation",
+                                "dev.friendai.client.tts.SpeechRuntime",
+                                "de.maxhenkel.voicechat.api.VoicechatClientApi"),
                         violation(
                                 "optional-integration-isolation",
                                 "dev.friendai.server.runtime.ServerRuntime",
@@ -547,6 +558,7 @@ class ArchitectureRulesTest {
                 edge("dev.friendai.foundation.Text", "net.fabricmc.api.ModInitializer"),
                 edge("dev.friendai.foundation.Settings", "dev.isxander.yacl3.api.YetAnotherConfigLib"),
                 edge("dev.friendai.foundation.Settings", "com.terraformersmc.modmenu.api.ConfigScreenFactory"),
+                edge("dev.friendai.features.speech.Tts", "de.maxhenkel.voicechat.api.VoicechatApi"),
                 edge("dev.friendai.features.speech.Stt", "io.github.givimad.whisperjni.WhisperJNI"),
                 edge("dev.friendai.features.speech.Tts", "com.k2fsa.sherpa.onnx.OfflineTts"));
 
@@ -568,6 +580,10 @@ class ArchitectureRulesTest {
                                 "engine-forbidden-dependency",
                                 "dev.friendai.foundation.Settings",
                                 "com.terraformersmc.modmenu.api.ConfigScreenFactory"),
+                        violation(
+                                "engine-forbidden-dependency",
+                                "dev.friendai.features.speech.Tts",
+                                "de.maxhenkel.voicechat.api.VoicechatApi"),
                         violation(
                                 "engine-forbidden-dependency",
                                 "dev.friendai.features.speech.Stt",
@@ -656,7 +672,7 @@ class ArchitectureRulesTest {
                     "Missing GameTest entrypoint: " + className);
         }
         assertEquals(
-                111, gameTestClasses.size(), "Update this inventory count when GameTest scope intentionally changes");
+                113, gameTestClasses.size(), "Update this inventory count when GameTest scope intentionally changes");
 
         try (Stream<Path> files = Files.walk(PROJECT_ROOT.resolve("src/gametest/java"))) {
             for (Path file :

@@ -340,6 +340,104 @@ public class FarmingTests {
         });
     }
 
+    /**
+     * "Plant wheat" with a hoe and seeds on grass beside water: the model named the crop and left till out, and the
+     * pass found "nothing to do". Naming a crop now tills unless till is explicitly false.
+     */
+    @GameTest
+    public void namingACropTillsGrassNextToWater(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        for (int x = 4; x <= 6; x++) {
+            for (int z = 4; z <= 6; z++) {
+                h.setBlock(x, 1, z, x == 5 && z == 5 ? Blocks.WATER : Blocks.GRASS_BLOCK);
+            }
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.WOODEN_HOE));
+        c.inventory().addItem(new ItemStack(Items.WHEAT_SEEDS, 8));
+        var tools = GameTestToolRegistry.create(c, () -> 32).bind(c);
+        BlockPos centre = h.absolutePos(new BlockPos(5, 2, 5));
+        String at = "\"x\":" + centre.getX() + ",\"y\":" + centre.getY() + ",\"z\":" + centre.getZ();
+        String sow = "{" + at + ",\"crop\":\"minecraft:wheat_seeds\"}";
+        String noTill = "{" + at + ",\"crop\":\"minecraft:wheat_seeds\",\"till\":false}";
+        var planned = tools.execute(new dev.friendai.agent.llm.model.ToolCall(
+                "farm-test",
+                "plan_farm",
+                com.google.gson.JsonParser.parseString(sow).getAsJsonObject(),
+                sow,
+                null));
+        h.assertTrue(
+                !planned.error() && planned.content().contains("till"),
+                "naming a crop plans tilling: " + planned.content());
+        var refused = tools.execute(new dev.friendai.agent.llm.model.ToolCall(
+                "farm-test",
+                "plan_farm",
+                com.google.gson.JsonParser.parseString(noTill).getAsJsonObject(),
+                noTill,
+                null));
+        h.assertTrue(
+                refused.content().startsWith("nothing to do"),
+                "an explicit till=false still leaves the grass alone: " + refused.content());
+        h.succeed();
+    }
+
+    /**
+     * "Plant wheat" farmed a radius of three around the companion, found nothing and asked the owner whether to walk to
+     * the pond six blocks off. A pass around the companion itself now moves there once and plants.
+     */
+    @GameTest(maxTicks = 1200)
+    public void aPassAroundTheCompanionMovesToTheNearestSoil(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        for (int x = 4; x <= 6; x++) {
+            for (int z = 4; z <= 6; z++) {
+                h.setBlock(x, 1, z, x == 5 && z == 5 ? Blocks.WATER : Blocks.GRASS_BLOCK);
+            }
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 12, 2, 12);
+        c.inventory().addItem(new ItemStack(Items.WOODEN_HOE));
+        c.inventory().addItem(new ItemStack(Items.WHEAT_SEEDS, 8));
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(
+                new FarmTask(h.absolutePos(new BlockPos(12, 2, 12)), 3, Items.WHEAT_SEEDS, true).movingToNearestWork(),
+                "farm");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            boolean planted = false;
+            for (int x = 4; x <= 6; x++) {
+                for (int z = 4; z <= 6; z++)
+                    planted |= h.getBlockState(new BlockPos(x, 2, z)).is(Blocks.WHEAT);
+            }
+            h.assertTrue(planted, "wheat planted by the pond: " + result.summary);
+        });
+    }
+
+    /**
+     * "Harvest the wheat" with the plot on the rim of the pass's circle took two ears of eight and said nothing ripe
+     * was left. A pass around the companion now follows the field and takes the rest past its edge.
+     */
+    @GameTest(maxTicks = 2400)
+    public void aPassAroundTheCompanionTakesTheWholeFieldPastItsEdge(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        wheatPlot(h, 4, 4, 7, 7, 7);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(new FarmTask(h.absolutePos(new BlockPos(2, 2, 2)), 3, null, false).movingToNearestWork(), "farm");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            int ripe = 0;
+            for (int x = 4; x <= 7; x++) {
+                for (int z = 4; z <= 7; z++) {
+                    if (age(h, x, 2, z) == 7) ripe++;
+                }
+            }
+            h.assertValueEqual(ripe, 0, "ripe wheat left on the field: " + result.summary);
+        });
+    }
+
     @GameTest(maxTicks = 600)
     public void tillWithoutHoe(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
@@ -412,7 +510,71 @@ public class FarmingTests {
         runner.start(new FarmTask(h.absolutePos(new BlockPos(5, 2, 5)), 8, null, false), "farm");
         runner.tick();
         h.assertValueEqual(result.status, TaskStatus.FAILED, "status");
-        h.assertValueEqual(result.summary, "nothing to harvest or plant within 8 blocks", "summary");
+        h.assertTrue(
+                result.summary.startsWith("nothing to harvest or plant within 8 blocks; "),
+                "summary was " + result.summary);
+        h.succeed();
+    }
+
+    /**
+     * "Plant wheat" farmed a radius of three around the companion while the grass by the water lay farther off; the
+     * failure now names the nearest soil to till, so the next call can go there.
+     */
+    @GameTest(maxTicks = 200)
+    public void aPassThatFindsNothingNamesTheNearestSoil(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        for (int x = 4; x <= 6; x++) {
+            for (int z = 4; z <= 6; z++) {
+                h.setBlock(x, 1, z, x == 5 && z == 5 ? Blocks.WATER : Blocks.GRASS_BLOCK);
+            }
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 12, 2, 12);
+        c.inventory().addItem(new ItemStack(Items.WOODEN_HOE));
+        c.inventory().addItem(new ItemStack(Items.WHEAT_SEEDS, 8));
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(new FarmTask(h.absolutePos(new BlockPos(12, 2, 12)), 3, Items.WHEAT_SEEDS, true), "farm");
+        runner.tick();
+        h.assertValueEqual(result.status, TaskStatus.FAILED, "status");
+        h.assertTrue(
+                result.summary.contains("the nearest soil next to water to till is at "),
+                "the failure names where to farm: " + result.summary);
+        // The model often passes the companion's own position as the point: the tool still moves to the soil.
+        var tools = GameTestToolRegistry.create(c, () -> 32).bind(c);
+        BlockPos here = h.absolutePos(new BlockPos(12, 2, 12));
+        String farmHere = "{\"x\":" + here.getX() + ",\"y\":" + here.getY() + ",\"z\":" + here.getZ()
+                + ",\"radius\":3,\"crop\":\"minecraft:wheat_seeds\"}";
+        var started = tools.execute(new dev.friendai.agent.llm.model.ToolCall(
+                "farm-test",
+                "farm",
+                com.google.gson.JsonParser.parseString(farmHere).getAsJsonObject(),
+                farmHere,
+                null));
+        h.assertTrue(!started.error(), "farm at the companion's own point starts: " + started.content());
+        Task farming = c.executionCoordinator().current().orElse(null);
+        h.assertTrue(farming instanceof FarmTask, "the farm task runs: " + farming);
+        for (int i = 0; i < 4 && c.executionCoordinator().current().orElse(null) == farming; i++) {
+            c.executionCoordinator().tick();
+        }
+        h.assertTrue(
+                c.executionCoordinator().current().orElse(null) == farming,
+                "an empty pass at a given point moves to the nearest soil instead of ending");
+        c.executionCoordinator().stop("test");
+        // The preview the model tries first must not read as "there is no soil here" either.
+        BlockPos at = h.absolutePos(new BlockPos(12, 2, 12));
+        String json = "{\"x\":" + at.getX() + ",\"y\":" + at.getY() + ",\"z\":" + at.getZ()
+                + ",\"radius\":3,\"crop\":\"minecraft:wheat_seeds\"}";
+        var preview = GameTestToolRegistry.create(c, () -> 32)
+                .bind(c)
+                .execute(new dev.friendai.agent.llm.model.ToolCall(
+                        "farm-test",
+                        "plan_farm",
+                        com.google.gson.JsonParser.parseString(json).getAsJsonObject(),
+                        json,
+                        null));
+        h.assertTrue(
+                preview.content().startsWith("nothing to do; the nearest soil next to water to till is at "),
+                "the preview names where to farm: " + preview.content());
         h.succeed();
     }
 

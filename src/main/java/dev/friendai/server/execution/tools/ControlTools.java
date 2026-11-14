@@ -123,6 +123,8 @@ public final class ControlTools implements FeatureToolContributor {
     }
 
     private static ToolResult stop(CompanionEntity companion, String what) {
+        // A stop order holds the goal's own nudges until new work is given, so "stop" is not undone a minute later.
+        companion.executionCoordinator().markStoppedByOrder();
         return switch (StopScope.parse(what)) {
             case StopScope.Current ignored -> {
                 companion.executionCoordinator().stop(STOP_REASON);

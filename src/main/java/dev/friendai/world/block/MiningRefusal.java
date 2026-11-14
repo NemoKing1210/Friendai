@@ -42,6 +42,7 @@ public sealed interface MiningRefusal {
             case Unbreakable p -> "unbreakable";
             case OutOfReach p -> "out of reach";
             case DropUnprotected p -> "no landing for the drop";
+            case WrongTool p -> "no tool that harvests it";
         };
     }
 
@@ -74,6 +75,14 @@ public sealed interface MiningRefusal {
         }
         if (!creative && state.getDestroySpeed(level, pos) < 0) {
             return new Unbreakable(pos, blockId);
+        }
+        // Breaking a valuable block without a tool that harvests it destroys what it holds: "mine that diamond" with
+        // only a wooden pickaxe broke the ore and the diamond was gone. Stone, dirt and logs are never valuable here.
+        if (!creative
+                && state.requiresCorrectToolForDrops()
+                && c.valuableBlocks().matches(blockId, LevelCellView.tagsOf(state))
+                && MiningToolView.currentToolFor(companion, state).isEmpty()) {
+            return new WrongTool(pos, blockId);
         }
         Place place = PlaceGuard.protecting(c, pos);
         if (place != null) {
@@ -178,6 +187,20 @@ public sealed interface MiningRefusal {
         @Override
         public String remedy() {
             return "choose another block";
+        }
+    }
+
+    /** A valuable block whose drop no carried tool can harvest: breaking it now would destroy the drop. */
+    record WrongTool(BlockPos pos, String blockId) implements MiningRefusal {
+        @Override
+        public String describe() {
+            return coords(pos) + " (" + blockId + ") needs a better tool than I carry; breaking it now would destroy"
+                    + " what it drops";
+        }
+
+        @Override
+        public String remedy() {
+            return "get a pickaxe of the right tier first (obtain_item plans the chain), then mine it";
         }
     }
 

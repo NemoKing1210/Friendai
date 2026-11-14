@@ -215,16 +215,22 @@ class KnowledgeStoreTest {
             var location = new ResourceObservation.Location("minecraft:overworld", new Pos(i, 20, 0));
             assertTrue(book.recordContainer(new ResourceKnowledge.ContainerObservation(location, Map.of(), 1)));
         }
-        assertFalse(book.recordContainer(new ResourceKnowledge.ContainerObservation(
-                new ResourceObservation.Location("minecraft:overworld", new Pos(300, 20, 0)), Map.of(), 1)));
+        // Both caps hold by making room, never by dropping the container that was just opened; the snapshot must
+        // still pass the file's own bounds, which restore validates.
+        assertTrue(book.recordContainer(new ResourceKnowledge.ContainerObservation(
+                new ResourceObservation.Location("minecraft:overworld", new Pos(300, 20, 0)), Map.of(), 2)));
+        assertEquals(256, book.snapshot().containers().size());
+        ResourceKnowledge.restore(book.snapshot(), KnowledgeLimits.DEFAULTS);
         ResourceKnowledge capped = new ResourceKnowledge(KnowledgeLimits.DEFAULTS);
         for (int i = 0; i < 16_384; i++) {
             capped.observe(observation("minecraft:coal_ore", new Pos(i, 20, 0), i + 1), "coal");
         }
-        assertFalse(capped.recordContainer(new ResourceKnowledge.ContainerObservation(
+        assertTrue(capped.recordContainer(new ResourceKnowledge.ContainerObservation(
                 new ResourceObservation.Location("minecraft:overworld", new Pos(0, 30, 0)),
                 Map.of("minecraft:coal", 1),
                 16_385)));
+        assertEquals(1, capped.snapshot().containers().size());
+        ResourceKnowledge.restore(capped.snapshot(), KnowledgeLimits.DEFAULTS);
     }
 
     @Test
