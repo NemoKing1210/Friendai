@@ -11,6 +11,10 @@ import java.util.Objects;
  * a phase at the start of {@code nextDueDay} (a day index on the day clock, which sleep and {@code /time set} move),
  * and {@code lastPlanId}/{@code lastOutcome} join the routine to one ordinary queue plan. The pure type never reads the
  * world, the queue or the owner file; a server adapter fills those in.
+ *
+ * <p>{@code report} is the owner's explicit opt-in to hearing each success, since a routine that runs often has
+ * nothing new to say every time. {@code lastBlocker} is the {@link #blockerKey key} of the last failure the owner was
+ * told about, so a recurring identical failure is reported once and a success clears it.
  */
 public record Routine(
         String name,
@@ -24,7 +28,9 @@ public record Routine(
         long lastPlanId,
         Outcome lastOutcome,
         String lastSummary,
-        long nextDueDay) {
+        long nextDueDay,
+        boolean report,
+        String lastBlocker) {
 
     public static final int MAX_NAME = 40;
     public static final int MAX_STEPS = 8;
@@ -50,12 +56,56 @@ public record Routine(
         lastOutcome = lastOutcome == null ? Outcome.NONE : lastOutcome;
         lastSummary = cut(lastSummary, MAX_SUMMARY);
         nextDueDay = Math.max(0, nextDueDay);
+        lastBlocker = cut(lastBlocker, MAX_SUMMARY);
     }
 
-    /** A fresh routine whose first occurrence is the next future trigger boundary. */
+    /** The historical shape: a routine that stays quiet on success and has no reported blocker yet. */
+    public Routine(
+            String name,
+            Trigger trigger,
+            List<Step> steps,
+            int maxRuns,
+            int runs,
+            boolean enabled,
+            long nextDueTick,
+            long lastStartedTick,
+            long lastPlanId,
+            Outcome lastOutcome,
+            String lastSummary,
+            long nextDueDay) {
+        this(
+                name,
+                trigger,
+                steps,
+                maxRuns,
+                runs,
+                enabled,
+                nextDueTick,
+                lastStartedTick,
+                lastPlanId,
+                lastOutcome,
+                lastSummary,
+                nextDueDay,
+                false,
+                "");
+    }
+
+    /** A fresh routine whose first occurrence is the next future trigger boundary, silent on success. */
     public static Routine create(
             String name, Trigger trigger, List<Step> steps, int maxRuns, long nowGameTick, long dayTime) {
-        Routine routine = new Routine(name, trigger, steps, maxRuns, 0, true, 0, 0, 0, Outcome.NONE, "", 0);
+        return create(name, trigger, steps, maxRuns, nowGameTick, dayTime, false);
+    }
+
+    /** A fresh routine; {@code report} makes every successful occurrence tell the owner. */
+    public static Routine create(
+            String name,
+            Trigger trigger,
+            List<Step> steps,
+            int maxRuns,
+            long nowGameTick,
+            long dayTime,
+            boolean report) {
+        Routine routine = new Routine(name, trigger, steps, maxRuns, 0, true, 0, 0, 0, Outcome.NONE, "", 0, report, "");
         validate(routine);
         return routine.withNextDue(RoutineSchedule.nextFor(trigger, nowGameTick, dayTime));
     }
@@ -120,7 +170,9 @@ public record Routine(
                 lastPlanId,
                 lastOutcome,
                 lastSummary,
-                day);
+                day,
+                report,
+                lastBlocker);
     }
 
     public Routine withNextDue(RoutineSchedule.Next next) {
@@ -141,7 +193,9 @@ public record Routine(
                 planId,
                 Outcome.RUNNING,
                 "",
-                next.day());
+                next.day(),
+                report,
+                lastBlocker);
     }
 
     public Routine withPlan(long planId) {
@@ -157,7 +211,9 @@ public record Routine(
                 planId,
                 lastOutcome,
                 lastSummary,
-                nextDueDay);
+                nextDueDay,
+                report,
+                lastBlocker);
     }
 
     public Routine finished(Outcome outcome, String summary, RoutineSchedule.Next next) {
@@ -173,7 +229,9 @@ public record Routine(
                 0,
                 outcome,
                 summary,
-                next.day());
+                next.day(),
+                report,
+                lastBlocker);
     }
 
     public Routine skipped(RoutineSchedule.Next next, String summary) {
@@ -189,7 +247,9 @@ public record Routine(
                 0,
                 Outcome.SKIPPED,
                 summary,
-                next.day());
+                next.day(),
+                report,
+                lastBlocker);
     }
 
     public Routine withEnabled(boolean on) {
@@ -205,7 +265,9 @@ public record Routine(
                 lastPlanId,
                 lastOutcome,
                 lastSummary,
-                nextDueDay);
+                nextDueDay,
+                report,
+                lastBlocker);
     }
 
     public Routine withOutcome(Outcome outcome, String summary) {
@@ -221,7 +283,28 @@ public record Routine(
                 lastPlanId,
                 outcome,
                 summary,
-                nextDueDay);
+                nextDueDay,
+                report,
+                lastBlocker);
+    }
+
+    /** The blocker of the last reported failure, or "" when the last occurrence succeeded. */
+    public Routine withBlocker(String blocker) {
+        return new Routine(
+                name,
+                trigger,
+                steps,
+                maxRuns,
+                runs,
+                enabled,
+                nextDueTick,
+                lastStartedTick,
+                lastPlanId,
+                lastOutcome,
+                lastSummary,
+                nextDueDay,
+                report,
+                blocker);
     }
 
     /**
@@ -239,6 +322,15 @@ public record Routine(
     public static String cut(String value, int max) {
         String text = value == null ? "" : value.strip();
         return text.length() <= max ? text : text.substring(0, max);
+    }
+
+    /**
+     * A stable key for one failure cause: the bounded summary with every digit erased, so a job id, a plan id or a
+     * tick cannot split one unresolved blocker into a new one and make the owner hear the same cause again.
+     */
+    public static String blockerKey(String summary) {
+        String text = summary == null ? "" : summary.replaceAll("\\d+", "#").strip();
+        return cut(text, MAX_SUMMARY);
     }
 
     /** What starts an occurrence. */

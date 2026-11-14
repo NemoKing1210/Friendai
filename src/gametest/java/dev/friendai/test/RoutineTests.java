@@ -70,7 +70,8 @@ public final class RoutineTests {
             h.assertValueEqual(now.lastOutcome(), Outcome.SUCCEEDED, "outcome: " + now.lastSummary());
             h.assertValueEqual(c.inventory().countItem(Items.WHEAT), 0, "both cows were fed");
             h.assertTrue(h.getBlockState(new BlockPos(6, 2, 2)).is(Blocks.AIR), "the routine mined its log");
-            h.assertValueEqual(countReports(owner), 1L, "one outcome line, got " + owner.drainSystemMessages());
+            h.assertValueEqual(
+                    countReports(owner), 0L, "a success is quiet by default, got " + owner.drainSystemMessages());
 
             for (int i = 0; i < 5; i++) {
                 driver.tick();
@@ -152,6 +153,169 @@ public final class RoutineTests {
 
         driver.cancel(c, caller, nameArgs("morning"));
         h.succeed();
+    }
+
+    @GameTest(maxTicks = 800)
+    public void dormantOwnerWorkDoesNotDelayTheRoutine(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        MinecraftServer server = h.getLevel().getServer();
+        ServerRuntime runtime = GameTestSupport.runtime(server);
+        var owner = GameTestSupport.onlinePlayer(h, "routine-dormant", 3, 2, 3, true);
+        CompanionEntity c = companion(h, owner.id());
+        var driver = runtime.sessions().routines();
+        Caller caller = caller(owner.id());
+        h.setBlock(8, 2, 8, Blocks.OAK_LOG);
+
+        // An owner order that cannot start: its guard asks for a diamond the companion does not have.
+        JsonObject guarded = JsonParser.parseString(mineAt(h.absolutePos(new BlockPos(8, 2, 8))))
+                .getAsJsonObject();
+        JsonArray when = new JsonArray();
+        when.add(JsonParser.parseString("{\"type\":\"has_item\",\"item\":\"minecraft:diamond\",\"count\":1}"));
+        guarded.add("when", when);
+        JsonArray ownerSteps = new JsonArray();
+        ownerSteps.add(guarded);
+        JsonObject ownerPlan = JsonParser.parseString("{\"goal\":\"owner order\",\"priority\":0}")
+                .getAsJsonObject();
+        ownerPlan.add("steps", ownerSteps);
+        var builtins = FriendaiTools.build(() -> 16, MemoryAccess.DISABLED);
+        ToolResult queued = GameTestToolRegistry.addPlan(c, caller, ownerPlan, builtins.plannable(), false, Set.of());
+        h.assertFalse(queued.error(), queued.content());
+
+        h.setBlock(11, 2, 11, Blocks.OAK_LOG);
+        ToolResult set = driver.set(
+                c, caller, routine("morning", "interval_min", mineAt(h.absolutePos(new BlockPos(11, 2, 11)))));
+        h.assertFalse(set.error(), set.content());
+        Routine routine = driver.state(owner.id()).orElseThrow();
+        setClockTo(server, routine);
+        driver.tick();
+
+        h.assertTrue(
+                c.executionCoordinator().queue().plans().stream()
+                        .anyMatch(plan -> plan.goal().startsWith("routine:")),
+                "a job that cannot start must not hold the routine back");
+        h.assertTrue(
+                c.executionCoordinator().queue().jobs().stream()
+                        .filter(job -> job.planId() > 0)
+                        .anyMatch(job -> job.state() == dev.friendai.execution.queue.JobState.PENDING),
+                "the guarded owner job is still waiting");
+        driver.cancel(c, caller, nameArgs("morning"));
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 400)
+    public void aManualPauseHoldsTheRoutineBack(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        MinecraftServer server = h.getLevel().getServer();
+        ServerRuntime runtime = GameTestSupport.runtime(server);
+        var owner = GameTestSupport.onlinePlayer(h, "routine-paused", 3, 2, 3, true);
+        CompanionEntity c = companion(h, owner.id());
+        var driver = runtime.sessions().routines();
+        Caller caller = caller(owner.id());
+        h.setBlock(8, 2, 8, Blocks.OAK_LOG);
+        ToolResult set =
+                driver.set(c, caller, routine("morning", "interval_min", mineAt(h.absolutePos(new BlockPos(8, 2, 8)))));
+        h.assertFalse(set.error(), set.content());
+        Routine routine = driver.state(owner.id()).orElseThrow();
+        setClockTo(server, routine);
+
+        c.executionCoordinator().setManualPause(true);
+        try {
+            driver.tick();
+            h.assertTrue(
+                    c.executionCoordinator().queue().plans().stream()
+                            .noneMatch(plan -> plan.goal().startsWith("routine:")),
+                    "a paused companion must not accept new work");
+        } finally {
+            c.executionCoordinator().setManualPause(false);
+        }
+        driver.tick();
+        h.assertTrue(
+                c.executionCoordinator().queue().plans().stream()
+                        .anyMatch(plan -> plan.goal().startsWith("routine:")),
+                "resuming dispatches the due routine");
+        driver.cancel(c, caller, nameArgs("morning"));
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 900)
+    public void anExplicitReportTellsTheOwnerOnce(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        MinecraftServer server = h.getLevel().getServer();
+        ServerRuntime runtime = GameTestSupport.runtime(server);
+        var owner = GameTestSupport.onlinePlayer(h, "routine-report", 3, 2, 3, true);
+        CompanionEntity c = companion(h, owner.id());
+        var driver = runtime.sessions().routines();
+        Caller caller = caller(owner.id());
+        h.setBlock(8, 2, 8, Blocks.OAK_LOG);
+        ToolResult set = driver.set(c, caller, reported("morning", mineAt(h.absolutePos(new BlockPos(8, 2, 8)))));
+        h.assertFalse(set.error(), set.content());
+        Routine routine = driver.state(owner.id()).orElseThrow();
+        h.assertTrue(routine.report(), "the choice is saved");
+        setClockTo(server, routine);
+        driver.tick();
+
+        h.succeedWhen(() -> {
+            driver.tick();
+            Routine now = driver.state(owner.id()).orElseThrow();
+            h.assertValueEqual(now.lastOutcome(), Outcome.SUCCEEDED, "still running: " + now.lastOutcome());
+            h.assertValueEqual(countReports(owner), 1L, "an explicitly requested report is delivered once");
+            driver.cancel(c, caller, nameArgs("morning"));
+        });
+    }
+
+    @GameTest(maxTicks = 1_200)
+    public void aRepeatedFailureIsReportedOnce(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        MinecraftServer server = h.getLevel().getServer();
+        ServerRuntime runtime = GameTestSupport.runtime(server);
+        var owner = GameTestSupport.onlinePlayer(h, "routine-failing", 3, 2, 3, true);
+        CompanionEntity c = companion(h, owner.id());
+        var driver = runtime.sessions().routines();
+        Caller caller = caller(owner.id());
+        // Bedrock has no recipe, so this step fails on its first tick every time.
+        ToolResult set = driver.set(
+                c,
+                caller,
+                routine(
+                        "doomed",
+                        "interval_min",
+                        "{\"tool\":\"craft_item\",\"args\":\"{\\\"item\\\":\\\"minecraft:bedrock\\\",\\\"count\\\":1}\"}"));
+        h.assertFalse(set.error(), set.content());
+        Routine routine = driver.state(owner.id()).orElseThrow();
+        setClockTo(server, routine);
+        driver.tick();
+
+        // GameTest succeeds as soon as the body returns without throwing, so the two occurrences are chained
+        // through runAfterDelay instead of a state machine inside one succeedWhen.
+        h.runAfterDelay(400, () -> {
+            driver.tick();
+            Routine firstOccurrence = driver.state(owner.id()).orElseThrow();
+            h.assertValueEqual(
+                    firstOccurrence.lastOutcome(),
+                    Outcome.FAILED,
+                    "the first occurrence fails: " + firstOccurrence.lastSummary());
+            h.assertValueEqual(countKeys(owner, "friendai.routine.failed"), 1L, "the owner hears the failure once");
+            setClockTo(server, firstOccurrence);
+            driver.tick();
+            h.runAfterDelay(400, () -> {
+                driver.tick();
+                Routine secondOccurrence = driver.state(owner.id()).orElseThrow();
+                h.assertValueEqual(
+                        secondOccurrence.lastOutcome(),
+                        Outcome.FAILED,
+                        "the second occurrence fails too: " + secondOccurrence.lastSummary());
+                h.assertValueEqual(
+                        countKeys(owner, "friendai.routine.failed"), 0L, "the same unresolved blocker is not repeated");
+                driver.cancel(c, caller, nameArgs("doomed"));
+                h.succeed();
+            });
+        });
+    }
+
+    private static JsonObject reported(String name, String... steps) {
+        JsonObject args = routine(name, "interval_min", steps);
+        args.addProperty("report", true);
+        return args;
     }
 
     @GameTest(maxTicks = 800)

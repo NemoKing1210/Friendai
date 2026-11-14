@@ -40,6 +40,8 @@ public final class RoutineSave {
         root.addProperty("lastPlan", routine.lastPlanId());
         root.addProperty("outcome", routine.lastOutcome().name());
         root.addProperty("summary", routine.lastSummary());
+        root.addProperty("report", routine.report());
+        root.addProperty("blocker", routine.lastBlocker());
         return root.toString();
     }
 
@@ -81,7 +83,11 @@ public final class RoutineSave {
                     longValue(root, "lastPlan"),
                     outcome(root),
                     string(root, "summary"),
-                    longValue(root, "nextDueDay"));
+                    longValue(root, "nextDueDay"),
+                    root.has("report")
+                            && !root.get("report").isJsonNull()
+                            && root.get("report").getAsBoolean(),
+                    string(root, "blocker"));
             Routine.validate(routine);
             return Optional.of(routine);
         } catch (RuntimeException broken) {

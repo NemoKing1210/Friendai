@@ -18,7 +18,6 @@ import dev.friendai.agent.routine.RoutineText;
 import dev.friendai.agent.turn.AgentSettings;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
-import dev.friendai.execution.queue.JobQueue;
 import dev.friendai.execution.queue.PlanArchive;
 import dev.friendai.execution.queue.PlanRecord;
 import dev.friendai.execution.queue.PlanStatus;
@@ -141,6 +140,10 @@ public final class RoutineDriver {
             return;
         }
         pausedSaid.remove(owner);
+        // The owner paused the companion: nothing new may be admitted, routine or not.
+        if (companion.executionCoordinator().manualPause()) {
+            return;
+        }
         if (!due(routine, now, dayTime)) {
             return;
         }
@@ -164,7 +167,7 @@ public final class RoutineDriver {
                 return;
             }
         }
-        if (ownerWorkQueued(companion)) {
+        if (companion.executionCoordinator().readyWorkAhead()) {
             return;
         }
         dispatch(owner, companion, routine, now);
@@ -249,11 +252,7 @@ public final class RoutineDriver {
             if (adoptOrFinishExisting(owner, companion, routine, gameTime(), true)) {
                 return true;
             }
-            routines.save(
-                    owner,
-                    routine.finished(
-                            Outcome.INTERRUPTED, "the plan was not recorded", next(routine, gameTime(), dayTime())));
-            report(owner, companion, UserMessage.of("friendai.routine.interrupted", routine.name()));
+            interrupt(owner, companion, routine, "the plan was not recorded");
             return true;
         }
         var queue = companion.executionCoordinator().queue();
@@ -269,11 +268,7 @@ public final class RoutineDriver {
                         archive.get().success(),
                         archive.get().summary());
             } else {
-                routines.save(
-                        owner,
-                        routine.finished(
-                                Outcome.INTERRUPTED, "the plan is gone", next(routine, gameTime(), dayTime())));
-                report(owner, companion, UserMessage.of("friendai.routine.interrupted", routine.name()));
+                interrupt(owner, companion, routine, "the plan is gone");
             }
             return true;
         }
@@ -317,11 +312,48 @@ public final class RoutineDriver {
         Routine finished = routine.finished(
                         outcome, Routine.cut(summary, Routine.MAX_SUMMARY), next(routine, gameTime(), dayTime()))
                 .withEnabled(!capped);
-        routines.save(owner, finished);
-        String key = capped && success
-                ? "friendai.routine.exhausted"
-                : success ? "friendai.routine.done" : "friendai.routine.failed";
-        report(owner, companion, UserMessage.of(key, routine.name()));
+        if (success) {
+            // A success resolves whatever the last failure was, so the next failure is news again.
+            routines.save(owner, finished.withBlocker(""));
+            if (capped) {
+                report(owner, companion, UserMessage.of("friendai.routine.exhausted", routine.name()));
+            } else if (routine.report()) {
+                report(owner, companion, UserMessage.of("friendai.routine.done", routine.name()));
+            }
+            return;
+        }
+        boolean news = isNewBlocker(routine, summary);
+        routines.save(owner, news ? finished.withBlocker(Routine.blockerKey(summary)) : finished);
+        if (news) {
+            report(owner, companion, failedMessage(routine, summary));
+        }
+    }
+
+    /** One actionable line for a failure: the reason, or a plain line when nothing usable was reported. */
+    private static UserMessage failedMessage(Routine routine, String summary) {
+        String reason = Routine.cut(summary, Routine.MAX_SUMMARY);
+        return reason.isBlank()
+                ? UserMessage.of("friendai.routine.failed_unknown", routine.name())
+                : UserMessage.of("friendai.routine.failed", routine.name(), reason);
+    }
+
+    /** Whether this failure's cause differs from the one the owner was last told about. */
+    private static boolean isNewBlocker(Routine routine, String summary) {
+        return !Routine.blockerKey(summary).equals(routine.lastBlocker());
+    }
+
+    /**
+     * An occurrence that was recorded but whose plan cannot be found. It is a failure like any other, so the same
+     * lost plan is not announced every time the driver looks.
+     */
+    private void interrupt(UUID owner, CompanionEntity companion, Routine routine, String reason) {
+        Routine finished = routine.finished(
+                Outcome.INTERRUPTED, Routine.cut(reason, Routine.MAX_SUMMARY), next(routine, gameTime(), dayTime()));
+        boolean news = isNewBlocker(routine, reason);
+        routines.save(owner, news ? finished.withBlocker(Routine.blockerKey(reason)) : finished);
+        if (news) {
+            report(owner, companion, UserMessage.of("friendai.routine.interrupted", routine.name()));
+        }
     }
 
     private void dispatch(UUID owner, CompanionEntity companion, Routine routine, long now) {
@@ -339,9 +371,13 @@ public final class RoutineDriver {
                 FreeTimeDriver.DENIED);
         Matcher matcher = PLAN_ID.matcher(result.content());
         if (result.error() || !matcher.find()) {
-            routines.save(
-                    owner, running.finished(Outcome.FAILED, Routine.cut(result.content(), Routine.MAX_SUMMARY), next));
-            report(owner, companion, UserMessage.of("friendai.routine.failed", routine.name()));
+            String reason = Routine.cut(result.content(), Routine.MAX_SUMMARY);
+            Routine failed = running.finished(Outcome.FAILED, reason, next);
+            boolean news = isNewBlocker(running, result.content());
+            routines.save(owner, news ? failed.withBlocker(Routine.blockerKey(result.content())) : failed);
+            if (news) {
+                report(owner, companion, failedMessage(running, result.content()));
+            }
             return;
         }
         routines.save(owner, running.withPlan(Long.parseLong(matcher.group(1))));
@@ -362,11 +398,6 @@ public final class RoutineDriver {
         args.addProperty("on_failure", "stop_plan");
         args.addProperty("time_limit_min", 0);
         return args;
-    }
-
-    /** A queued or running job left by the owner or another plan; the routine never jumps ahead of it. */
-    private static boolean ownerWorkQueued(CompanionEntity companion) {
-        return companion.executionCoordinator().queue().jobs().stream().anyMatch(job -> !JobQueue.terminal(job));
     }
 
     private void report(UUID owner, CompanionEntity companion, UserMessage message) {
@@ -435,9 +466,12 @@ public final class RoutineDriver {
         int maxRuns = args.has("max_runs") && !args.get("max_runs").isJsonNull()
                 ? args.get("max_runs").getAsInt()
                 : 0;
+        boolean report = args.has("report")
+                && !args.get("report").isJsonNull()
+                && args.get("report").getAsBoolean();
         Routine routine;
         try {
-            routine = Routine.create(name, trigger, steps, maxRuns, gameTime(), dayTime());
+            routine = Routine.create(name, trigger, steps, maxRuns, gameTime(), dayTime(), report);
             if (args.has("enabled") && !args.get("enabled").isJsonNull()) {
                 routine = routine.withEnabled(args.get("enabled").getAsBoolean());
             }

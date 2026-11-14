@@ -16,6 +16,7 @@ import dev.friendai.execution.queue.PlanNode;
 import dev.friendai.execution.queue.PlanOptions;
 import dev.friendai.execution.queue.PlanRecord;
 import dev.friendai.execution.queue.PlanStatus;
+import dev.friendai.execution.queue.QueuePolicy;
 import dev.friendai.execution.queue.QueueSave;
 import dev.friendai.execution.queue.QueueText;
 import dev.friendai.execution.queue.QueuedStep;
@@ -337,6 +338,20 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
             if (!JobQueue.terminal(job) && !queueDriver.isAutonomous(job.planId())) return true;
         return false;
     }
+
+    /**
+     * Whether work that can start now is already here: the active task (unless it is only the idle follow), a job
+     * already running, or a pending job whose guards, holds, dependencies and plan status let the queue select it.
+     * A job that is merely waiting on the world, a retry or the owner's decision is dormant and holds nothing back,
+     * so a new order (a due routine) is not suppressed by work that cannot run anyway.
+     */
+    public boolean readyWorkAhead() {
+        if (activeTask() != null && !activeTask().defaultActivity()) return true;
+        JobQueue queue = queueDriver.queue();
+        if (queue.jobs().stream().anyMatch(job -> job.state() == JobState.RUNNING)) return true;
+        return QueuePolicy.next(queue, facts()).isPresent();
+    }
+
     /** The tool that started the running task, empty when nothing runs. */
     public String currentToolName() {
         return activeTask() == null ? "" : activeTask().toolName();

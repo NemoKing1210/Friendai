@@ -6,6 +6,17 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.213.0] - 2026-11-14
+
+### Added
+
+- `set_routine` accepts `report: true` when the owner wants to be told after every successful run; a routine is quiet on success by default.
+
+### Changed
+
+- A scheduled routine now runs when its time comes even if a queued order is only waiting on the world, a retry or your decision, which used to postpone it indefinitely; work that can start right now still goes first, and the companion's pause still stops everything.
+- A routine that fails tells you once with the reason instead of repeating the same line every time it runs, and the next success clears it.
+
 ## [0.212.4] - 2026-11-14
 
 ### Changed

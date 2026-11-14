@@ -35,8 +35,10 @@ public final class RoutineTools implements FeatureToolContributor {
                 callerTool(
                         SET,
                         "Set the owner's one recurring routine: a short list of existing tools that runs at a game-time "
-                                + "phase or every N game minutes. It enters the normal queue, waits for owner orders, and "
-                                + "survives a restart. Replacing a running routine is refused; cancel it first.",
+                                + "phase or every N game minutes. It enters the normal queue, waits for work that can "
+                                + "run now, and survives a restart. A success is silent unless the owner asked to be "
+                                + "told, while a new failure is reported once with its reason. Replacing a running "
+                                + "routine is refused; cancel it first.",
                         SchemaBuilder.object()
                                 .string("name", "Short name, 1 to 40 characters")
                                 .enumeration(
@@ -58,6 +60,7 @@ public final class RoutineTools implements FeatureToolContributor {
                                         0,
                                         dev.friendai.agent.routine.Routine.MAX_RUNS)
                                 .bool("enabled", "Start enabled; default true")
+                                .bool("report", "Tell the owner when a run succeeds; default false")
                                 .required("name", "steps")
                                 .build(),
                         (companion, caller, args) -> {
