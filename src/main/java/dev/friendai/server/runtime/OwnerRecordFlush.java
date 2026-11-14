@@ -15,6 +15,8 @@ public final class OwnerRecordFlush {
 
     private final dev.friendai.debug.StoreHealth health = new dev.friendai.debug.StoreHealth();
     private int ticks;
+    private int rotation;
+    private final java.util.List<Runnable> flushes;
     private final CompanionProfileStore profiles;
     private final GoalStore goals;
     private final FreeTimeStore freeTime;
@@ -52,17 +54,22 @@ public final class OwnerRecordFlush {
         this.terrain = terrain;
         this.routines = routines;
         this.storeStatuses = storeStatuses;
+        java.util.List<Runnable> stores = new java.util.ArrayList<>();
+        stores.add(profiles::flushIfDue);
+        stores.add(goals::flushIfDue);
+        stores.add(freeTime::flushIfDue);
+        stores.add(social::flushIfDue);
+        stores.add(terrain::flushIfDue);
+        if (routines != null) {
+            stores.add(routines::flushIfDue);
+        }
+        this.flushes = java.util.List.copyOf(stores);
     }
 
     public void tick() {
-        profiles.flushIfDue();
-        goals.flushIfDue();
-        freeTime.flushIfDue();
-        social.flushIfDue();
-        terrain.flushIfDue();
-        if (routines != null) {
-            routines.flushIfDue();
-        }
+        // One store per tick: every store keeps its five-second cadence, delayed by at most five ticks, and the six
+        // populations are not serialized on the same server tick.
+        flushes.get(Math.floorMod(rotation++, flushes.size())).run();
         if (++ticks % HEALTH_EVERY_TICKS == 0) {
             reportHealth();
         }

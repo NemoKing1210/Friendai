@@ -40,9 +40,9 @@ public record TerrainMapView(long generation, List<Cell> cells, List<Site> sites
             TerrainGrid grid, String dimension, long seed, long now, long maxAgeTicks, int maxCells) {
         if (grid == null || dimension == null || dimension.isBlank()) return EMPTY;
         int cap = Math.max(1, Math.min(maxCells, MAX_CELLS));
-        TerrainGrid scoped = new TerrainGrid();
+        List<TerrainCell> scoped = new ArrayList<>();
         for (TerrainCell cell : grid.cells()) {
-            if (cell.key().dimension().equals(dimension)) scoped.observe(cell);
+            if (cell.key().dimension().equals(dimension)) scoped.add(cell);
         }
         List<TerrainCell> selected =
                 TerrainSelection.select(scoped, new TerrainSelection.Request(seed, cap, 4, now, maxAgeTicks));

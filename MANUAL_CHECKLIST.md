@@ -201,6 +201,7 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 ## Multiplayer
 
 - [ ] LAN with two clients: each player has their own companion; addressing by name reaches your own companion when it is within 32 blocks, otherwise the nearest other companion within that radius.
+- [ ] Two clients open the companion menu at once while both companions work nearby: each menu still refreshes about every half second, the server tick stays smooth, and closing one menu does not stall the other.
 - [ ] A guest next to another player's companion chats with it; asking it to act is politely declined.
 - [ ] `/friendai trust <guest>`: the guest's request now runs; `/friendai untrust` takes effect on the next message.
 - [ ] `/friendai trusted` and the trust messages read correctly in English and Russian.

@@ -446,7 +446,7 @@ const FLOW = {
 /* ---- memory & data + architecture cards ---- */
 const MEM_CARDS = [
   { title: "Per-owner files", sub: "<world>/friendai/ - one file per owner UUID, atomic writes, .bak recovery", wide: true,
-    hub: { label: "Owner data", icon: "🗂️", color: COLORS.amethyst, desc: "Memory, profile, goals and free-time stores share one bounded runtime writer; it flushes latest-revision snapshots on a 5 s server-tick cadence. Unsupported versions are never overwritten." },
+    hub: { label: "Owner data", icon: "🗂️", color: COLORS.amethyst, desc: "Memory, profile, goals and free-time stores share one bounded runtime writer; it flushes latest-revision snapshots on a 5 s server-tick cadence, one store per tick and at most 64 records per flush. Unsupported versions are never overwritten." },
     color: COLORS.amethyst, items: [
       "~Memory|Facts about players, trust, learned language, food rules.", "~Conversation transcript|Both sides of every chat, redacted, capped by count and age.", "~Companion profile|Name, description, language and address.", "~Goals|One primary and three background goals, lessons, replan budget.",
       "~Free time|Shifts, history, cooldowns, away summaries, and shift.start/end/report records in the durable log.", "~Instruction skills|19 builtins, global and owner records; list_skills and skill_help read, manage_skill writes.", "~Places|Named places with aliases, dimension and visits.",
@@ -758,7 +758,7 @@ const DOC = {
       { title: "Debug stream", sub: "Live views for the menu and the movement overlay", color: COLORS.iron,
         hub: { label: "Stream", icon: "📡", color: COLORS.iron, desc: "A rejected frame closes that viewer's menu with a warning instead of escaping into the tick." },
         items: [
-          "~10-tick cadence|Framed control views while the menu is open.",
+          "~10-tick cadence|One open viewer per server tick in rotation; each keeps its ten-tick cadence.",
           "~Subscribe and close|One typed request, and the same path a disconnect and a ten-tick sweep take.",
           "~Movement overlay|The active task's work snapshot plus independent route obstacle cells.",
           "~Off by default|The overlay switch resets per connection and is never saved.",

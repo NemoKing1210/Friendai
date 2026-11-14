@@ -26,6 +26,11 @@ import org.slf4j.LoggerFactory;
  */
 public final class OwnerFileStore<T> implements AutoCloseable {
     public static final long FLUSH_INTERVAL_MS = 5_000;
+    /** At most this many records are serialized by one flush; the rest stay dirty for the next one. */
+    private static final int MAX_CAPTURES_PER_FLUSH = 64;
+    /** The same bound in payload bytes, so one oversized population cannot fill a server tick. */
+    private static final long MAX_CAPTURE_BYTES_PER_FLUSH = 2L * 1024 * 1024;
+
     private static final Logger LOGGER = LoggerFactory.getLogger("friendai/store");
 
     public enum WriterOwnership {
@@ -75,6 +80,8 @@ public final class OwnerFileStore<T> implements AutoCloseable {
     private final Set<UUID> pending = new HashSet<>();
     private Function<UUID, String> fileNames = id -> id + ".json";
     private long lastFlush;
+    private int lastCaptureCount;
+    private long lastCaptureBytes;
     private boolean closing;
     private boolean closed;
 
@@ -386,6 +393,8 @@ public final class OwnerFileStore<T> implements AutoCloseable {
     }
 
     private void queueDirty() {
+        int captured = 0;
+        long capturedBytes = 0;
         for (Map.Entry<UUID, T> entry : values.entrySet()) {
             UUID owner = entry.getKey();
             long revision = codec.revision(entry.getValue());
@@ -394,6 +403,10 @@ public final class OwnerFileStore<T> implements AutoCloseable {
                     || readOnly.containsKey(owner)
                     || (failedRevision.getOrDefault(owner, Long.MIN_VALUE) == revision
                             && !retryable(failures.get(owner)))) continue;
+            // The budget is checked before the next record is encoded, and never skips the first one, so a flush
+            // always makes progress while a large dirty population cannot serialize itself in one server tick.
+            if (captured > 0 && (captured >= MAX_CAPTURES_PER_FLUSH || capturedBytes >= MAX_CAPTURE_BYTES_PER_FLUSH))
+                break;
             final byte[] snapshot;
             final Path target;
             final long snapshotRevision;
@@ -407,6 +420,8 @@ public final class OwnerFileStore<T> implements AutoCloseable {
                 fail(owner, revision, StoreFailureKind.WRITE_FAILED);
                 continue;
             }
+            captured++;
+            capturedBytes += snapshot.length;
             pending.add(owner);
             boolean accepted;
             try {
@@ -419,6 +434,18 @@ public final class OwnerFileStore<T> implements AutoCloseable {
                 fail(owner, snapshotRevision, StoreFailureKind.QUEUE_FULL);
             }
         }
+        lastCaptureCount = captured;
+        lastCaptureBytes = capturedBytes;
+    }
+
+    /** How many records the last flush serialized, for the benchmark and tests; the real bound is the constants. */
+    synchronized int lastCaptureCount() {
+        return lastCaptureCount;
+    }
+
+    /** The payload bytes the last flush serialized. */
+    synchronized long lastCaptureBytes() {
+        return lastCaptureBytes;
     }
 
     private void save(UUID owner, Path target, long revision, byte[] snapshot) {

@@ -21,6 +21,17 @@ class TerrainSelectionTest {
     }
 
     @Test
+    void theIterableViewSelectsTheSameCellsAsTheGrid() {
+        TerrainGrid grid = new TerrainGrid();
+        for (int i = 0; i < 40; i++) {
+            grid.observe(cell(i, i));
+        }
+        var request = new TerrainSelection.Request(7L, 10, 4, 100, 1000);
+
+        assertEquals(TerrainSelection.select(grid, request), TerrainSelection.select(grid.cells(), request));
+    }
+
+    @Test
     void aDifferentSeedProducesADifferentOrder() {
         TerrainGrid grid = new TerrainGrid();
         for (int i = 0; i < 40; i++) {

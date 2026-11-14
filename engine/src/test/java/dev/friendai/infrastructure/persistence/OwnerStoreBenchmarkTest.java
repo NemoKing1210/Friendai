@@ -66,7 +66,10 @@ class OwnerStoreBenchmarkTest {
         assertEquals(18, scenarios.size(), "three populations x two record sizes x three dirty populations");
         for (OwnerStoreBenchmark.Scenario row : scenarios) {
             assertTrue(row.snapshotP95Nanos() >= row.snapshotP50Nanos(), "snapshot p95: " + row);
+            assertTrue(row.snapshotP99Nanos() >= row.snapshotP95Nanos(), "snapshot p99: " + row);
             assertTrue(row.drainP95Nanos() >= row.drainP50Nanos(), "drain p95: " + row);
+            assertTrue(row.drainP99Nanos() >= row.drainP95Nanos(), "drain p99: " + row);
+            assertTrue(row.encodedBytesP50() >= 0, "encoded bytes are reported: " + row);
             assertTrue(row.drainP95Nanos() >= row.snapshotP50Nanos(), "the drain includes the snapshot: " + row);
             assertTrue(row.statusP50Nanos() > 0, "the status view was timed: " + row);
             assertTrue(row.acceptedWrites() > 0, "the warm pass settled every owner: " + row);
@@ -78,9 +81,12 @@ class OwnerStoreBenchmarkTest {
                         && row.record().equals("small"))
                 .findFirst()
                 .orElseThrow();
+        assertTrue(saturated.capturedP50() > 0, "a bounded flush still makes progress: " + saturated);
+        assertTrue(saturated.capturedP50() <= 64, "one flush serializes at most the capture budget: " + saturated);
         assertTrue(
-                saturated.queueFull() > 0,
-                "a fully dirty population cannot fit the bounded writer in one pass: " + saturated);
+                saturated.capturedP50() < saturated.owners(),
+                "a large dirty population is spread over several flush passes: " + saturated);
+        assertEquals(0, saturated.queueFull(), "the bounded batch never fills the writer queue: " + saturated);
         assertEquals(
                 0,
                 scenarios.stream()

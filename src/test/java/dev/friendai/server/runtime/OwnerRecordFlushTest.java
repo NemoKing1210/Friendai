@@ -51,7 +51,12 @@ class OwnerRecordFlushTest {
                     new TerrainCell.CellKey("minecraft:overworld", 1, 2), "minecraft:plains", 64, false, "", 5));
             terrain.save(OWNER, grid);
 
-            new OwnerRecordFlush(profiles, goals, freeTime, social, terrain, null, () -> java.util.Map.of()).tick();
+            // One store is flushed per tick, in rotation: five ticks cover the five stores.
+            OwnerRecordFlush flush =
+                    new OwnerRecordFlush(profiles, goals, freeTime, social, terrain, null, () -> java.util.Map.of());
+            for (int tick = 0; tick < 6; tick++) {
+                flush.tick();
+            }
 
             awaitFile(records.resolve("profiles").resolve(OWNER + ".json"));
             awaitFile(records.resolve("goals").resolve(OWNER + ".json"));

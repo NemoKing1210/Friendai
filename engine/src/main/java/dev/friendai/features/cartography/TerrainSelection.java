@@ -27,7 +27,17 @@ public final class TerrainSelection {
 
     public static List<TerrainCell> select(TerrainGrid grid, Request request) {
         if (grid == null || request == null) return List.of();
-        List<TerrainCell> candidates = new ArrayList<>(grid.cells());
+        return select(grid.cells(), request);
+    }
+
+    /**
+     * The same selection over an already filtered view, so a caller that wants one dimension does not have to copy
+     * the whole grid first.
+     */
+    public static List<TerrainCell> select(Iterable<TerrainCell> cells, Request request) {
+        if (cells == null || request == null) return List.of();
+        List<TerrainCell> candidates = new ArrayList<>();
+        for (TerrainCell cell : cells) candidates.add(cell);
         candidates.sort(Comparator.comparingInt((TerrainCell cell) -> rank(cell, request))
                 .thenComparingLong(cell -> mix(request.seed(), cell.key())));
         List<TerrainCell> chosen = new ArrayList<>();

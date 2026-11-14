@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.213.2] - 2026-11-14
+
+### Changed
+
+- Several things that used to run in one server tick now share it: a second open companion menu no longer rebuilds every snapshot at once, a large owner-record save is spread over several ticks, and the companion menu and the perception tool reuse one detailed look per tick, so a busy world stays smooth while the menus and saves stay current.
+
 ## [0.213.1] - 2026-11-14
 
 ### Changed

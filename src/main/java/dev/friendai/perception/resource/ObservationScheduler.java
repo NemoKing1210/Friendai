@@ -22,7 +22,7 @@ public final class ObservationScheduler {
     private final BiConsumer<CompanionEntity, ResourceObservation> observationSink;
     private final BiConsumer<CompanionEntity, CaveEntranceObservation> caveEntranceSink;
     private final IntSupplier observationRadius;
-    private TickMetrics lastMetrics = new TickMetrics(0, 0, 0, 0, 0, 0, 0, Map.of());
+    private TickMetrics lastMetrics = new TickMetrics(0, 0, 0, 0, 0, 0, 0, 0, Map.of());
 
     public record TickMetrics(
             long tick,
@@ -31,6 +31,7 @@ public final class ObservationScheduler {
             int completedRays,
             int visitedCells,
             long elapsedNanos,
+            long setupNanos,
             int queuedJobs,
             Map<UUID, Integer> completedByCompanion) {
         public TickMetrics {
@@ -83,6 +84,9 @@ public final class ObservationScheduler {
 
     public void tick(MinecraftServer server, long tick) {
         long startedNanos = System.nanoTime();
+        // Setup is part of the shared budget: filtering, sorting and enqueuing sweeps used to start the clock after
+        // they finished, so a tick with many companions could spend the budget twice.
+        long deadline = startedNanos + 1_000_000L;
         List<CompanionEntity> loaded = companions.values().stream()
                 .filter(companion -> !companion.isRemoved() && companion.level().getServer() == server)
                 .sorted(Comparator.comparing(companion -> companion.getUUID().toString()))
@@ -92,7 +96,8 @@ public final class ObservationScheduler {
         companions.keySet().removeIf(id -> !loadedIds.contains(id));
         observers.keySet().removeIf(id -> !loadedIds.contains(id));
         if (loaded.isEmpty()) {
-            lastMetrics = new TickMetrics(tick, 0, 0, 0, 0, Math.max(0, System.nanoTime() - startedNanos), 0, Map.of());
+            long elapsed = Math.max(0, System.nanoTime() - startedNanos);
+            lastMetrics = new TickMetrics(tick, 0, 0, 0, 0, elapsed, elapsed, 0, Map.of());
             return;
         }
 
@@ -100,9 +105,7 @@ public final class ObservationScheduler {
         int scheduledRays = 0;
         for (CompanionEntity companion : loaded)
             scheduledRays += observer(companion).scheduleSweep(tick);
-        // Enqueuing a deterministic 128-ray sweep is setup work, not sight work. Start the
-        // soft processing deadline only after every companion has had its sweep scheduled.
-        long deadline = System.nanoTime() + 1_000_000L;
+        long setupNanos = Math.max(0, System.nanoTime() - startedNanos);
         KnowledgeLimits.ObservationBudget budget = KnowledgeLimits.observationBudget(deadline, System::nanoTime);
         boolean firstObserver = true;
         int completedRays = 0;
@@ -136,6 +139,7 @@ public final class ObservationScheduler {
                 completedRays,
                 visitedCells,
                 Math.max(0, System.nanoTime() - startedNanos),
+                setupNanos,
                 queuedJobs,
                 completedByCompanion);
     }

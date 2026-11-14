@@ -603,8 +603,8 @@ const RU = {
   "Per-owner files": "Файлы владельца",
   "<world>/friendai/ - one file per owner UUID, atomic writes, .bak recovery": "<world>/friendai/ — по файлу на UUID владельца, атомарная запись, восстановление из .bak",
   "Owner data": "Данные владельца",
-  "Memory, profile, goals and free-time stores share one bounded runtime writer; it flushes latest-revision snapshots on a 5 s server-tick cadence. Unsupported versions are never overwritten.":
-    "Память, профиль, цели и свободное время пишет один ограниченный по работе компонент: он сбрасывает снимки последней ревизии раз в 5 секунд по тикам сервера. Неподдерживаемые версии никогда не перезаписываются.",
+  "Memory, profile, goals and free-time stores share one bounded runtime writer; it flushes latest-revision snapshots on a 5 s server-tick cadence, one store per tick and at most 64 records per flush. Unsupported versions are never overwritten.":
+    "Память, профиль, цели и свободное время пишет один ограниченный по работе компонент: он сбрасывает снимки последней ревизии раз в 5 секунд по тикам сервера, по одному хранилищу за тик и не более 64 записей за сброс. Неподдерживаемые версии никогда не перезаписываются.",
   "Facts about players, trust, learned language, food rules.": "Факты об игроках, доверие, выученный язык, правила питания.",
   "Companion profile": "Профиль компаньона",
   "Name, description, language and address.": "Имя, описание, язык и обращение.",
@@ -1121,7 +1121,8 @@ Object.assign(RU, {
   "A rejected frame closes that viewer's menu with a warning instead of escaping into the tick.":
     "Отклонённый кадр закрывает меню этого зрителя с предупреждением, а не утекает в тик.",
   "10-tick cadence": "Шаг в 10 тиков",
-  "Framed control views while the menu is open.": "Кадры control-видов, пока меню открыто.",
+  "One open viewer per server tick in rotation; each keeps its ten-tick cadence.":
+    "Один открытый экран за серверный тик по кругу; каждый сохраняет шаг в десять тиков.",
   "Subscribe and close": "Подписка и закрытие",
   "One typed request, and the same path a disconnect and a ten-tick sweep take.":
     "Один типизированный запрос и тот же путь, что у отключения и десятитиковой проверки.",

@@ -4,6 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.friendai.foundation.persistence.StoreCodec;
+import dev.friendai.foundation.persistence.StoreWriteStatus;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -97,6 +98,13 @@ final class OwnerStoreBenchmark {
             long started = System.nanoTime();
             store.flushAll();
             flushNanos = System.nanoTime() - started;
+            // One flush serializes only the bounded capture batch, so the population is settled in further passes
+            // before the reload measures every file.
+            for (int pass = 0; pass < 10_000; pass++) {
+                if (store.statuses().values().stream().noneMatch(StoreWriteStatus::dirty)) break;
+                if (store.lastCaptureCount() == 0) break;
+                store.flushAll();
+            }
 
             int samples = Math.min(owners, MAX_LATENCY_SAMPLES);
             for (int sample = 0; sample < samples; sample++) {
@@ -234,8 +242,12 @@ final class OwnerStoreBenchmark {
             int samples,
             long snapshotP50Nanos,
             long snapshotP95Nanos,
+            long snapshotP99Nanos,
             long drainP50Nanos,
             long drainP95Nanos,
+            long drainP99Nanos,
+            long encodedBytesP50,
+            long capturedP50,
             long statusP50Nanos,
             long statusP95Nanos,
             long statusBytes,
@@ -267,6 +279,8 @@ final class OwnerStoreBenchmark {
         List<Long> snapshots = new ArrayList<>();
         List<Long> drains = new ArrayList<>();
         List<Long> statusPasses = new ArrayList<>();
+        List<Long> encoded = new ArrayList<>();
+        List<Long> captures = new ArrayList<>();
         long statusBytes = -1;
         long accepted;
         long queueFull;
@@ -292,6 +306,8 @@ final class OwnerStoreBenchmark {
                 long started = System.nanoTime();
                 store.flushAll();
                 long submitted = System.nanoTime();
+                encoded.add(store.lastCaptureBytes());
+                captures.add((long) store.lastCaptureCount());
                 awaitDrain(writer);
                 long drained = System.nanoTime();
                 long allocationBefore = allocatedBytes();
@@ -320,6 +336,8 @@ final class OwnerStoreBenchmark {
         snapshots.sort(Long::compare);
         drains.sort(Long::compare);
         statusPasses.sort(Long::compare);
+        encoded.sort(Long::compare);
+        captures.sort(Long::compare);
         return new Scenario(
                 record,
                 owners,
@@ -327,8 +345,12 @@ final class OwnerStoreBenchmark {
                 samples,
                 percentile(snapshots, 50),
                 percentile(snapshots, 95),
+                percentile(snapshots, 99),
                 percentile(drains, 50),
                 percentile(drains, 95),
+                percentile(drains, 99),
+                percentile(encoded, 50),
+                percentile(captures, 50),
                 percentile(statusPasses, 50),
                 percentile(statusPasses, 95),
                 statusBytes,
@@ -370,12 +392,11 @@ final class OwnerStoreBenchmark {
     private static void settle(OwnerFileStore<List<String>> store, OwnerStoreWriter writer) {
         for (int pass = 0; pass < 1_000; pass++) {
             store.flushAll();
+            long captured = store.lastCaptureBytes();
             awaitDrain(writer);
             if (store.statuses().values().stream().noneMatch(status -> status.dirty())) return;
-            if (store.statuses().values().stream()
-                    .noneMatch(status ->
-                            status.failure() == dev.friendai.foundation.persistence.StoreFailureKind.QUEUE_FULL))
-                return;
+            // A bounded capture makes progress on every pass; one that captured nothing has nothing left to retry.
+            if (captured == 0) return;
         }
     }
 
@@ -408,8 +429,12 @@ final class OwnerStoreBenchmark {
             object.addProperty("samples", row.samples());
             object.addProperty("snapshotP50Nanos", row.snapshotP50Nanos());
             object.addProperty("snapshotP95Nanos", row.snapshotP95Nanos());
+            object.addProperty("snapshotP99Nanos", row.snapshotP99Nanos());
             object.addProperty("drainP50Nanos", row.drainP50Nanos());
             object.addProperty("drainP95Nanos", row.drainP95Nanos());
+            object.addProperty("drainP99Nanos", row.drainP99Nanos());
+            object.addProperty("encodedBytesP50", row.encodedBytesP50());
+            object.addProperty("capturedP50", row.capturedP50());
             object.addProperty("statusP50Nanos", row.statusP50Nanos());
             object.addProperty("statusP95Nanos", row.statusP95Nanos());
             object.addProperty("statusBytes", row.statusBytes());
@@ -421,21 +446,27 @@ final class OwnerStoreBenchmark {
         }
         Files.writeString(SCENARIO_JSON, rows.toString(), StandardCharsets.UTF_8);
         StringBuilder out = new StringBuilder();
-        out.append("| record | owners | dirty | samples | snapshot p50/p95 (ms) | drain p50/p95 (ms) "
-                + "| status p50/p95 (ms) | status bytes | accepted | queue-full | files | heap (MiB) |\n");
-        out.append("|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n");
+        out.append("| record | owners | dirty | samples | snapshot p50/p95/p99 (ms) | drain p50/p95/p99 (ms) "
+                + "| encoded p50 (kB) | captured p50 | status p50/p95 (ms) | status bytes | accepted | queue-full "
+                + "| files | heap (MiB) |\n");
+        out.append("|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n");
         for (Scenario row : scenarios) {
             out.append(String.format(
                     Locale.ROOT,
-                    "| %s | %d | %s | %d | %.3f / %.3f | %.3f / %.3f | %.3f / %.3f | %d | %d | %d | %d | %.1f |%n",
+                    "| %s | %d | %s | %d | %.3f / %.3f / %.3f | %.3f / %.3f / %.3f | %.1f | %d "
+                            + "| %.3f / %.3f | %d | %d | %d | %d | %.1f |%n",
                     row.record(),
                     row.owners(),
                     row.dirty(),
                     row.samples(),
                     row.snapshotP50Nanos() / 1_000_000.0,
                     row.snapshotP95Nanos() / 1_000_000.0,
+                    row.snapshotP99Nanos() / 1_000_000.0,
                     row.drainP50Nanos() / 1_000_000.0,
                     row.drainP95Nanos() / 1_000_000.0,
+                    row.drainP99Nanos() / 1_000_000.0,
+                    row.encodedBytesP50() / 1024.0,
+                    row.capturedP50(),
                     row.statusP50Nanos() / 1_000_000.0,
                     row.statusP95Nanos() / 1_000_000.0,
                     row.statusBytes(),
@@ -461,8 +492,12 @@ final class OwnerStoreBenchmark {
                         object.get("samples").getAsInt(),
                         object.get("snapshotP50Nanos").getAsLong(),
                         object.get("snapshotP95Nanos").getAsLong(),
+                        object.get("snapshotP99Nanos").getAsLong(),
                         object.get("drainP50Nanos").getAsLong(),
                         object.get("drainP95Nanos").getAsLong(),
+                        object.get("drainP99Nanos").getAsLong(),
+                        object.get("encodedBytesP50").getAsLong(),
+                        object.get("capturedP50").getAsLong(),
                         object.get("statusP50Nanos").getAsLong(),
                         object.get("statusP95Nanos").getAsLong(),
                         object.get("statusBytes").getAsLong(),
@@ -478,12 +513,27 @@ final class OwnerStoreBenchmark {
     }
 
     private static void deleteTree(Path root) throws IOException {
-        if (!Files.exists(root)) {
-            return;
-        }
-        try (var paths = Files.walk(root)) {
-            for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) {
-                Files.deleteIfExists(path);
+        // Windows may keep a directory entry briefly after its file closes (a scanner or the indexer holding a
+        // handle), so an otherwise complete sweep can still report the root as non-empty; re-walk a few times.
+        for (int attempt = 0; attempt < 20; attempt++) {
+            if (!Files.exists(root)) {
+                return;
+            }
+            try (var paths = Files.walk(root)) {
+                for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) {
+                    Files.deleteIfExists(path);
+                }
+            } catch (java.nio.file.DirectoryNotEmptyException busy) {
+                if (attempt == 19) throw busy;
+            }
+            if (!Files.exists(root)) {
+                return;
+            }
+            try {
+                Thread.sleep(20);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return;
             }
         }
     }

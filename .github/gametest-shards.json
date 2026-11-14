@@ -19,7 +19,8 @@
 				"PaceTests",
 				"SessionLifecycleTests",
 				"TaskFaceTests",
-				"LoggingTests"
+				"LoggingTests",
+				"TickBudgetTests"
 			]
 		},
 		{

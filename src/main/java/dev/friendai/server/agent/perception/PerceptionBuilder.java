@@ -48,6 +48,14 @@ public final class PerceptionBuilder {
 
     private PerceptionBuilder() {}
 
+    /**
+     * Detailed snapshots built for the same companion and the same runtime context within one game tick. The menu and
+     * the {@code perceive} tool ask for the same evidence; building it twice would scan the world twice for one tick.
+     */
+    private static final Map<CompanionEntity, DetailedCache> DETAILED = new java.util.WeakHashMap<>();
+
+    private record DetailedCache(PerceptionContext context, long tick, PerceptionSnapshot snapshot) {}
+
     public static PerceptionSnapshot brief(CompanionEntity c, PerceptionContext context) {
         return build(c, BRIEF_RADIUS, null, context);
     }
@@ -57,8 +65,20 @@ public final class PerceptionBuilder {
         return build(c, BRIEF_RADIUS, OwnerFocusBuilder.of(c, principal), context);
     }
 
+    /** The detailed snapshot, shared by every consumer that asks in the same tick with the same context. */
     public static PerceptionSnapshot detailed(CompanionEntity c, PerceptionContext context) {
-        return build(c, DETAILED_RADIUS, null, context);
+        long tick = c.level().getGameTime();
+        synchronized (DETAILED) {
+            DetailedCache cached = DETAILED.get(c);
+            if (cached != null && cached.tick() == tick && cached.context().equals(context)) {
+                return cached.snapshot();
+            }
+        }
+        PerceptionSnapshot snapshot = build(c, DETAILED_RADIUS, null, context);
+        synchronized (DETAILED) {
+            DETAILED.put(c, new DetailedCache(context, tick, snapshot));
+        }
+        return snapshot;
     }
 
     private static PerceptionSnapshot build(
