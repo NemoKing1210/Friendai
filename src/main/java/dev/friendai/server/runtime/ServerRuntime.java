@@ -271,6 +271,11 @@ public final class ServerRuntime implements AutoCloseable {
         return services.chunkLoader();
     }
 
+    /** The shared owner-record writer a task may use for its own coalesced checkpoints. */
+    public dev.friendai.infrastructure.persistence.OwnerStoreWriter storeWriter() {
+        return services.storeWriter();
+    }
+
     public TaskPersistenceCoordinator taskPersistence() {
         return services.taskPersistence();
     }

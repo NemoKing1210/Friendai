@@ -365,6 +365,11 @@ public record TaskContext(
         return runtime().trust();
     }
 
+    /** The shared bounded writer for a checkpoint a task keeps off its own tick. */
+    public dev.friendai.infrastructure.persistence.OwnerStoreWriter storeWriter() {
+        return runtime().storeWriter();
+    }
+
     private ServerRuntime runtime() {
         return ServerRuntimeRegistry.getOrCreate(level.getServer());
     }

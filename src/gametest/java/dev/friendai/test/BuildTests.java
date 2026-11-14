@@ -414,7 +414,10 @@ public class BuildTests {
         ExecutionCoordinator runner = runner(companion, result);
         try {
             runner.start(partial, "build_structure");
-            runner.tick();
+            // The site is read in bounded slices first; the resume record follows the completed read.
+            for (int ticks = 0; ticks < 5 && !Files.exists(store.inProgressFile(id)); ticks++) {
+                runner.tick();
+            }
             check(Files.exists(store.inProgressFile(id)), "the in-progress file must exist after the check");
             BlueprintStore.InProgress loaded = store.loadInProgress(id).orElse(null);
             check(loaded != null, "the in-progress file must load: " + Files.readString(store.inProgressFile(id)));
@@ -434,6 +437,109 @@ public class BuildTests {
             runner.stop("test");
         }
         h.succeed();
+    }
+
+    @GameTest(maxTicks = 200)
+    public void preflightReadsTheSiteInBoundedSlices(GameTestHelper h) {
+        GameTestSupport.platform(h, 24);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        for (int stack = 0; stack < 11; stack++) {
+            companion.inventory().addItem(new ItemStack(Items.COBBLESTONE, 64));
+        }
+        // 9 x 8 x 9 = 648 cells: more than one bounded slice, so no single tick may read all of them.
+        List<BlockSpec> blocks = new java.util.ArrayList<>();
+        for (int x = 0; x < 9; x++) {
+            for (int y = 0; y < 8; y++) {
+                for (int z = 0; z < 9; z++) {
+                    blocks.add(new BlockSpec(x, y, z, "minecraft:cobblestone"));
+                }
+            }
+        }
+        Blueprint solid = new Blueprint("solid", 9, 8, 9, blocks);
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(companion, result);
+        try {
+            runner.start(
+                    new BuildTask(solid, h.absolutePos(new BlockPos(4, 2, 4)), Rotation.NONE, true, false),
+                    "build_structure");
+            String status = "";
+            for (int ticks = 0; ticks < 5 && !status.contains("checking the site"); ticks++) {
+                runner.tick();
+                status = runner.current().map(Task::debugStatus).orElse("none");
+            }
+            h.assertTrue(
+                    status.contains("checking the site 0/648"),
+                    "the preflight must start without having read a cell: " + status);
+            runner.tick();
+            String slice = runner.current().map(Task::debugStatus).orElse("none");
+            h.assertTrue(
+                    slice.contains("checking the site 512/648"),
+                    "one tick must read exactly one slice of the site: " + slice);
+            h.assertTrue(result.status == null, "the preflight finished inside one tick: " + slice);
+        } finally {
+            runner.stop("test");
+        }
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 2000)
+    public void aFailedCheckpointWriteDoesNotAbortTheBuild(GameTestHelper h) throws Exception {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.inventory().addItem(new ItemStack(Items.COBBLESTONE, 9));
+        Blueprint platform =
+                generator("{\"type\":\"platform\",\"width\":3,\"depth\":3,\"block\":\"minecraft:cobblestone\"}");
+        BuildTask task = new BuildTask(platform, h.absolutePos(new BlockPos(5, 2, 5)), Rotation.NONE, true, false);
+        BlueprintStore store = store(h);
+        // A non-empty directory where the checkpoint file belongs makes every write fail: an atomic replacement cannot
+        // take the place of a directory that holds something.
+        Path blocked = store.inProgressFile(buildId(task.saveData()));
+        Files.createDirectories(blocked);
+        Files.writeString(blocked.resolve("occupied"), "keep");
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(companion, result);
+        boolean[] reported = {false};
+        int[] ticks = {0};
+        runner.start(task, "build_structure");
+        // Registration only: the sequence runs the body on every following tick, so the cleanup belongs inside it.
+        h.succeedWhen(() -> {
+            ticks[0]++;
+            runner.tick();
+            String status = runner.current().map(Task::debugStatus).orElse("no-current");
+            if (status.contains("write failed")) {
+                reported[0] = true;
+            }
+            h.assertTrue(result.status != null, "the build is still running after " + ticks[0] + " ticks: " + status);
+            h.assertTrue(
+                    result.status == TaskStatus.SUCCESS,
+                    "a failed checkpoint must not abort the build: " + result.status + " " + result.summary);
+            h.assertTrue(reported[0], "the failed checkpoint was never reported: " + status);
+            for (int x = 5; x <= 7; x++) {
+                for (int z = 5; z <= 7; z++) {
+                    h.assertTrue(
+                            h.getBlockState(new BlockPos(x, 2, z)).is(Blocks.COBBLESTONE),
+                            "missing block at " + x + ",2," + z);
+                }
+            }
+            runner.stop("test");
+            try {
+                deleteTree(blocked);
+            } catch (java.io.IOException failed) {
+                throw new AssertionError("could not clean up " + blocked, failed);
+            }
+        });
+    }
+
+    private static void deleteTree(Path path) throws java.io.IOException {
+        if (!Files.exists(path)) {
+            return;
+        }
+        try (var children = Files.list(path)) {
+            for (Path child : children.toList()) {
+                Files.deleteIfExists(child);
+            }
+        }
+        Files.deleteIfExists(path);
     }
 
     @GameTest(maxTicks = 400)
@@ -850,9 +956,12 @@ public class BuildTests {
         Result result = new Result();
         ExecutionCoordinator runner = runner(companion, result);
         runner.start(task, "build_structure");
-        runner.tick();
-        String saved = task.saveData();
         BlueprintStore store = store(h);
+        String saved = task.saveData();
+        // The site is read in bounded slices first; the resume record follows the completed read.
+        for (int ticks = 0; ticks < 5 && !Files.exists(store.inProgressFile(buildId(saved))); ticks++) {
+            runner.tick();
+        }
         check(Files.exists(store.inProgressFile(buildId(saved))), "the file exists after the check");
         runner.stop("test");
         check(Files.exists(store.inProgressFile(buildId(saved))), "a cancelled build stays resumable");

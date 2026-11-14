@@ -66,62 +66,142 @@ public final class Site {
             CompanionEntity companion,
             boolean clearSite,
             Predicate<BlockPos> owned) {
-        List<BlockPos> toClear = new ArrayList<>();
-        List<PlacementRefusal> refusals = new ArrayList<>();
+        Staged staged = new Staged(level, placed, companion, clearSite, owned);
+        staged.step(Integer.MAX_VALUE);
+        return staged.report();
+    }
 
-        for (Placement.PlacedSpec spec : placed.specs()) {
+    /**
+     * The same check, in slices: every {@link #step} reads at most {@code budget} cells, so a near-limit footprint
+     * cannot stall one server tick. One pass produces the report and the specs still missing, because both ask the
+     * same question of the same cell.
+     *
+     * <p>A cell in a chunk that is not loaded is never read: the preflight must not load chunks, so the cell is
+     * counted as remaining (the conservative answer for material) and the placement path revalidates it before it
+     * mutates anything.
+     */
+    public static final class Staged {
+        private final ServerLevel level;
+        private final Placement.PlacedBlueprint placed;
+        private final CompanionEntity companion;
+        private final boolean clearSite;
+        private final Predicate<BlockPos> owned;
+        private final BlockState fill;
+        private final List<BlockPos> toClear = new ArrayList<>();
+        private final List<Placement.PlacedSpec> foundation = new ArrayList<>();
+        /** Site problems in blueprint order, then the missing supports, so the report keeps its old order. */
+        private final List<PlacementRefusal> obstructions = new ArrayList<>();
+
+        private final List<PlacementRefusal> supports = new ArrayList<>();
+        private final List<Placement.PlacedSpec> remaining = new ArrayList<>();
+        private int cursor;
+
+        public Staged(
+                ServerLevel level,
+                Placement.PlacedBlueprint placed,
+                CompanionEntity companion,
+                boolean clearSite,
+                Predicate<BlockPos> owned) {
+            this.level = level;
+            this.placed = placed;
+            this.companion = companion;
+            this.clearSite = clearSite;
+            this.owned = owned;
+            this.fill = foundationMaterial(companion);
+        }
+
+        public boolean done() {
+            return cursor >= placed.specs().size();
+        }
+
+        /** Cells read so far, for the progress line. */
+        public int scanned() {
+            return Math.min(cursor, placed.specs().size());
+        }
+
+        public int total() {
+            return placed.specs().size();
+        }
+
+        /** Reads the next {@code budget} cells; a budget of zero still makes progress, so a pass can never stall. */
+        public void step(int budget) {
+            int end = Math.min(placed.specs().size(), cursor + Math.max(1, budget));
+            for (; cursor < end; cursor++) {
+                scan(placed.specs().get(cursor));
+            }
+        }
+
+        /** The report of the cells scanned so far; call it after {@link #done()}. */
+        public SiteReport report() {
+            List<PlacementRefusal> refusals = new ArrayList<>(obstructions);
+            refusals.addAll(supports);
+            return new SiteReport(toClear, foundation, capped(refusals));
+        }
+
+        /** The planned specs whose world state still differs from the wanted one. */
+        public List<Placement.PlacedSpec> remaining() {
+            return List.copyOf(remaining);
+        }
+
+        private void scan(Placement.PlacedSpec spec) {
             BlockPos pos = spec.pos();
+            if (!loaded(pos)) {
+                remaining.add(spec);
+                return;
+            }
             BlockState current = level.getBlockState(pos);
-            if (current.equals(spec.wanted())) {
-                continue;
+            boolean correct = current.equals(spec.wanted());
+            if (correct) {
+                return;
+            }
+            remaining.add(spec);
+            // The foundation of a base-layer cell is asked even when the cell itself is refused: an unsupported
+            // structure is reported in both ways, as it always has been.
+            if (!spec.wanted().isAir() && pos.getY() == placed.origin().getY()) {
+                foundation(spec);
             }
             if (owned.test(pos)) {
                 // An own block is handled at placement: reconciled when it is the wanted block in another state,
                 // taken back otherwise. It is not foreign obstruction.
-                continue;
+                return;
             }
             if (!companion.hands().canInteract(pos)) {
-                refusals.add(new PlacementRefusal.Protected(coords(pos), "", "", 0, 0, 0, 0));
-                continue;
+                obstructions.add(new PlacementRefusal.Protected(coords(pos), "", "", 0, 0, 0, 0));
+                return;
             }
             if (isNatural(current)) {
                 if (clearSite) {
                     toClear.add(pos);
                 } else {
-                    refusals.add(new PlacementRefusal.ForeignBlock(coords(pos), blockId(current), 0));
+                    obstructions.add(new PlacementRefusal.ForeignBlock(coords(pos), blockId(current), 0));
                 }
-                continue;
+                return;
             }
             if (current.isAir()
                     || current.canBeReplaced()
                     || !current.getFluidState().isEmpty()) {
-                continue;
+                return;
             }
-            refusals.add(new PlacementRefusal.ForeignBlock(coords(pos), blockId(current), 0));
+            obstructions.add(new PlacementRefusal.ForeignBlock(coords(pos), blockId(current), 0));
         }
 
-        List<Placement.PlacedSpec> foundation = new ArrayList<>();
-        BlockState fill = foundationMaterial(companion);
-        for (Placement.PlacedSpec spec : placed.specs()) {
-            if (spec.wanted().isAir() || spec.pos().getY() != placed.origin().getY()) {
-                continue;
-            }
-            if (level.getBlockState(spec.pos()).equals(spec.wanted())) {
-                continue;
-            }
+        private void foundation(Placement.PlacedSpec spec) {
             BlockPos below = spec.pos().below();
             int depth = 0;
-            while (depth < MAX_FOUNDATION && !isSolid(level.getBlockState(below))) {
+            while (depth < MAX_FOUNDATION && loaded(below) && !isSolid(level.getBlockState(below))) {
                 foundation.add(new Placement.PlacedSpec(below, fill));
                 below = below.below();
                 depth++;
             }
-            if (depth == MAX_FOUNDATION && !isSolid(level.getBlockState(below))) {
-                refusals.add(new PlacementRefusal.NoSupport(coords(spec.pos()), coords(below), false, 0));
+            if (depth == MAX_FOUNDATION && loaded(below) && !isSolid(level.getBlockState(below))) {
+                supports.add(new PlacementRefusal.NoSupport(coords(spec.pos()), coords(below), false, 0));
             }
         }
 
-        return new SiteReport(toClear, foundation, capped(refusals));
+        /** Whether the cell can be read without loading its chunk; a preflight reports, it does not generate world. */
+        private boolean loaded(BlockPos pos) {
+            return level.getChunkSource().getChunkNow(pos.getX() >> 4, pos.getZ() >> 4) != null;
+        }
     }
 
     /** Dirt when the companion carries more of it than cobblestone, otherwise cobblestone. */

@@ -63,6 +63,9 @@ import net.minecraft.world.level.storage.LevelResource;
 final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
     private final MinecraftServer server;
     private final ConfigStore<ServerConfig> store;
+    /** The bounded writer every owner record shares; tasks hand their coalesced checkpoints to it. */
+    private final OwnerStoreWriter writer;
+
     private final ServerConfiguration configuration;
     private final CompanionSessions sessions;
     private final TaskPersistenceCoordinator taskPersistence;
@@ -112,7 +115,7 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
 
     ServerServiceGraph(MinecraftServer server, RuntimeResources resources) {
         this.server = server;
-        OwnerStoreWriter writer = resources.own(new OwnerStoreWriter());
+        this.writer = resources.own(new OwnerStoreWriter());
         // The server cannot run without a world path: the stores below need the same value unguarded, so a guarded
         // fallback here would only be a branch that never executes.
         java.nio.file.Path worldPath = server.getWorldPath(LevelResource.ROOT);
@@ -295,6 +298,11 @@ final class ServerServiceGraph implements TradingToolAccess, TrustAccess {
     /** Keeps loaded companions' chunks ticking and restores them on startup. */
     public CompanionChunkLoader chunkLoader() {
         return chunkLoader;
+    }
+
+    /** The shared owner-record writer, for a task that coalesces its own checkpoints onto it. */
+    public OwnerStoreWriter storeWriter() {
+        return writer;
     }
 
     /** Per-owner auto-respawn preferences and bed checkpoints. */

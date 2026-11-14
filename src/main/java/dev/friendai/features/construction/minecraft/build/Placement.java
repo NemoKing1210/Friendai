@@ -4,7 +4,9 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.construction.blueprint.BlockSpec;
 import dev.friendai.features.construction.blueprint.Blueprint;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import net.minecraft.commands.arguments.blocks.BlockStateParser;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -25,6 +27,23 @@ public final class Placement {
     public record PlacedBlueprint(List<PlacedSpec> specs, BlockPos origin, Rotation rotation) {
         public PlacedBlueprint {
             specs = List.copyOf(specs);
+        }
+    }
+
+    /**
+     * Parses each distinct block state once. A blueprint describes thousands of cells with a handful of states, and a
+     * datapack parse per cell dominated the preflight; one cache per pass keeps the parse count at the state count.
+     * The cache belongs to one preflight (or one preview): a datapack reload must not be answered from an old parse.
+     */
+    public static final class StateCache {
+        private final Map<String, BlockState> parsed = new HashMap<>();
+
+        public BlockState parse(String state) {
+            BlockState cached = parsed.get(state);
+            if (cached != null) return cached;
+            BlockState fresh = Placement.parseState(state);
+            parsed.put(state, fresh);
+            return fresh;
         }
     }
 
@@ -90,12 +109,17 @@ public final class Placement {
     }
     /** The blueprint placed at an explicit origin with an explicit rotation. */
     public static PlacedBlueprint at(Blueprint blueprint, BlockPos origin, Rotation rotation) {
+        return at(blueprint, origin, rotation, new StateCache());
+    }
+
+    /** The same placement, sharing one parse cache with the other passes of the same preflight. */
+    public static PlacedBlueprint at(Blueprint blueprint, BlockPos origin, Rotation rotation, StateCache cache) {
         List<PlacedSpec> specs = new ArrayList<>(blueprint.blocks().size());
         for (BlockSpec spec : blueprint.blocks()) {
             BlockPos local =
                     rotate(new BlockPos(spec.x(), spec.y(), spec.z()), rotation, blueprint.width(), blueprint.depth());
             specs.add(new PlacedSpec(
-                    origin.offset(local), parseState(spec.state()).rotate(rotation)));
+                    origin.offset(local), cache.parse(spec.state()).rotate(rotation)));
         }
         return new PlacedBlueprint(specs, origin, rotation);
     }

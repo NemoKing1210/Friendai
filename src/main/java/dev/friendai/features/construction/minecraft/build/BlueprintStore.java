@@ -7,6 +7,8 @@ import com.google.gson.JsonParser;
 import dev.friendai.features.construction.blueprint.Blueprint;
 import dev.friendai.features.construction.blueprint.BlueprintJson;
 import dev.friendai.features.construction.blueprint.PartKind;
+import dev.friendai.infrastructure.persistence.LatestWriteQueue;
+import dev.friendai.infrastructure.persistence.OwnerStoreWriter;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
@@ -20,6 +22,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.regex.Pattern;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -68,16 +71,40 @@ public final class BlueprintStore {
     private static final String BAD_NAME = "blueprint names use a-z, 0-9, _ and -, at most 32 characters";
     private static final String IN_PROGRESS = ".inprogress";
     private final Path dir;
+    /** Queued checkpoints when the store borrows the runtime writer; null in a store that writes on its caller. */
+    private final LatestWriteQueue<String, InProgress> queued;
 
     public BlueprintStore(Path dir) {
+        this(dir, null);
+    }
+
+    /**
+     * A store whose in-progress snapshots can be coalesced onto the runtime's bounded writer. The newest snapshot of a
+     * build is the one that reaches the disk, so a fast scaffold costs one queued write instead of one per tick.
+     */
+    public BlueprintStore(Path dir, OwnerStoreWriter writer) {
         this.dir = dir;
+        this.queued = writer == null
+                ? null
+                : new LatestWriteQueue<>(
+                        command -> {
+                            if (!writer.trySubmit(command))
+                                throw new RejectedExecutionException("owner writer is full");
+                        },
+                        this::writeInProgress);
     }
     /** The blueprint directory of the world the level belongs to. */
     public static BlueprintStore forLevel(ServerLevel level) {
-        return new BlueprintStore(level.getServer()
-                .getWorldPath(LevelResource.ROOT)
-                .resolve("friendai")
-                .resolve("blueprints"));
+        return forLevel(level, null);
+    }
+    /** The same directory, coalescing in-progress snapshots onto {@code writer} when it is present. */
+    public static BlueprintStore forLevel(ServerLevel level, OwnerStoreWriter writer) {
+        return new BlueprintStore(
+                level.getServer()
+                        .getWorldPath(LevelResource.ROOT)
+                        .resolve("friendai")
+                        .resolve("blueprints"),
+                writer);
     }
 
     public static boolean validName(String name) {
@@ -126,29 +153,86 @@ public final class BlueprintStore {
             List<BlockPos> remaining,
             String owner,
             String dimension) {
-        if (!validBuildId(id)) {
+        saveInProgress(new InProgress(
+                blueprint, origin, rotation, clearSite, gather, scaffold, id, parts, remaining, owner, dimension));
+    }
+
+    /**
+     * Writes a captured snapshot now, on the calling thread, after any queued or in-flight write of the same build.
+     * Used for the first checkpoint and for the terminal one, where the record must exist (or be gone) before the
+     * caller returns.
+     */
+    public void saveInProgress(InProgress state) {
+        if (state == null) throw new IllegalArgumentException("missing build state");
+        if (!validBuildId(state.id())) {
             throw new IllegalArgumentException("bad build id");
         }
+        if (queued == null) {
+            writeInProgress(state);
+        } else {
+            queued.flush(state.id(), state);
+        }
+    }
+
+    /**
+     * Offers a snapshot to the coalescing writer. Only the newest one per build is written, by the runtime's writer
+     * thread; a store without a writer writes it here instead.
+     *
+     * @return false when the writer refused the work; the snapshot stays pending for a later offer
+     */
+    public boolean saveInProgressSoon(InProgress state) {
+        if (state == null || !validBuildId(state.id())) {
+            throw new IllegalArgumentException("bad build id");
+        }
+        if (queued == null) {
+            saveInProgress(state);
+            return true;
+        }
+        return queued.submit(state.id(), state);
+    }
+
+    /** Total failed in-progress writes, for a caller that logs the first failure of an episode. */
+    public long writeFailures() {
+        return queued == null ? 0 : queued.writeFailures();
+    }
+
+    /** Consecutive failed in-progress writes; a success clears the episode. */
+    public long consecutiveWriteFailures() {
+        return queued == null ? 0 : queued.consecutiveFailures();
+    }
+
+    /** The exception type of the last failed in-progress write, or an empty string. Never a path or a value. */
+    public String lastWriteFailure() {
+        return queued == null ? "" : queued.lastFailure();
+    }
+
+    private void writeInProgress(InProgress state) {
+        String id = state.id();
         JsonObject root = new JsonObject();
         root.add(
                 "blueprint",
-                JsonParser.parseString(BlueprintJson.toJson(blueprint)).getAsJsonObject());
-        root.add("origin", numbers(origin.getX(), origin.getY(), origin.getZ()));
-        root.addProperty("rotation", rotation.name());
-        root.addProperty("clearSite", clearSite);
-        root.addProperty("gather", gather);
-        root.add("scaffold", positions(scaffold));
+                JsonParser.parseString(BlueprintJson.toJson(state.blueprint())).getAsJsonObject());
+        root.add(
+                "origin",
+                numbers(
+                        state.origin().getX(),
+                        state.origin().getY(),
+                        state.origin().getZ()));
+        root.addProperty("rotation", state.rotation().name());
+        root.addProperty("clearSite", state.clearSite());
+        root.addProperty("gather", state.gather());
+        root.add("scaffold", positions(state.scaffold()));
         JsonArray partNames = new JsonArray();
-        for (PartKind kind : parts) {
+        for (PartKind kind : state.parts()) {
             partNames.add(kind.id());
         }
         root.add("parts", partNames);
-        root.add("remaining", positions(remaining));
-        if (owner != null && !owner.isBlank()) {
-            root.addProperty("owner", owner);
+        root.add("remaining", positions(state.remaining()));
+        if (!state.owner().isBlank()) {
+            root.addProperty("owner", state.owner());
         }
-        if (dimension != null && !dimension.isBlank()) {
-            root.addProperty("dimension", dimension);
+        if (!state.dimension().isBlank()) {
+            root.addProperty("dimension", state.dimension());
         }
         Path file = inProgressFile(id);
         try {
@@ -303,11 +387,22 @@ public final class BlueprintStore {
                 && wanted.blocks().equals(found.blocks());
     }
 
-    /** Removes the in-progress file of a build that ended or was cancelled. */
+    /**
+     * Removes the in-progress file of a build that ended or was cancelled. A queued checkpoint is dropped and a write
+     * already running is waited for, so a record deleted at the end of a build cannot be recreated afterwards.
+     */
     public void deleteInProgress(String id) {
         if (!validBuildId(id)) {
             return;
         }
+        if (queued == null) {
+            deleteInProgressFile(id);
+        } else {
+            queued.delete(id, () -> deleteInProgressFile(id));
+        }
+    }
+
+    private void deleteInProgressFile(String id) {
         try {
             Files.deleteIfExists(inProgressFile(id));
         } catch (IOException ignored) {

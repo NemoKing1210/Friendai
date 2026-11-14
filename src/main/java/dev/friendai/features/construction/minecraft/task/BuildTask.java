@@ -65,6 +65,8 @@ import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Builds a blueprint block by block: checks the site and materials, takes what storage has, clears the natural
@@ -74,7 +76,15 @@ import net.minecraft.world.phys.Vec3;
  * the task instead.
  */
 public final class BuildTask implements Task {
+    private static final Logger LOGGER = LoggerFactory.getLogger("friendai/build");
     private static final int PROGRESS_STEP = 25;
+    /**
+     * Cells a preflight tick may read. A near-limit footprint is scanned over several ticks instead of one, so a large
+     * build never blocks the server thread for the whole check.
+     */
+    private static final int PREFLIGHT_CELLS_PER_TICK = 512;
+    /** Ticks between two checkpoint offers; the writer coalesces them anyway, so this only bounds the submit rate. */
+    private static final int CHECKPOINT_INTERVAL_TICKS = 20;
     /** How far a block may be horizontally from the companion for a pillar to bring it into reach. */
     private static final double SCAFFOLD_RANGE = 3.8;
     /** How many stance attempts one cell may cost before the build names it as the cause. */
@@ -104,7 +114,10 @@ public final class BuildTask implements Task {
     }
 
     private enum Phase {
+        /** Placement and the ownership set are computed; no world cell has been read yet. */
         CHECK,
+        /** The site is being read in bounded slices; the report and the remaining cells come out of the same pass. */
+        SITE,
         TAKE,
         CLEAR,
         FOUNDATION,
@@ -190,6 +203,20 @@ public final class BuildTask implements Task {
     private boolean inProgressStarted;
 
     private int writtenScaffoldCount;
+    /** The staged site pass; null outside the CHECK and SITE phases. */
+    private Site.Staged stagedSite;
+    /** One parse per distinct state across this build's placement, support and ownership passes. */
+    private Placement.StateCache parseCache;
+    /** The cells still wrong when the site pass finished; the first checkpoint and the failure report reuse it. */
+    private List<Placement.PlacedSpec> remainingSpecs = List.of();
+    /** The store of this build's checkpoints, opened on first use so a failed preflight never creates one. */
+    private BlueprintStore checkpoints;
+    /** The tick of the last checkpoint and the offers accepted, for {@link #debugStatus()}. */
+    private int lastCheckpointTick;
+
+    private int checkpointOffers;
+    /** Whether a checkpoint write failure has already been reported, so one episode logs one line. */
+    private boolean checkpointFailureReported;
 
     private Phase phase = Phase.CHECK;
     private String summary = "";
@@ -432,6 +459,7 @@ public final class BuildTask implements Task {
         } else {
             status = switch (phase) {
                 case CHECK -> check(c);
+                case SITE -> site(c);
                 case TAKE -> take(c);
                 case CLEAR -> clear(c);
                 case FOUNDATION -> buildFoundation(c);
@@ -467,23 +495,40 @@ public final class BuildTask implements Task {
         if (!parts.isEmpty() && buildPlan.blocks().isEmpty()) {
             return reject(c, "the blueprint has no " + partNames(parts) + "; omit parts to build all of it");
         }
-        placed = Placement.at(buildPlan, origin, rotation);
+        parseCache = new Placement.StateCache();
+        placed = Placement.at(buildPlan, origin, rotation, parseCache);
         ownedCells = ownership(c);
-        site = Site.check(level, placed, c.companion(), clearSite, ownedCells::contains);
-        // A resumed build must not ask for the material of blocks that are already in the world, nor reserve it as
-        // scaffold surplus: only what is still to place counts.
-        List<Placement.PlacedSpec> remaining = remaining(level);
+        // Every cell of the blueprint is off-limits to the scaffold, including the parts this run does not build.
+        plannedCells = plannedCells(
+                parts.isEmpty()
+                        ? placed.specs()
+                        : Placement.at(blueprint, origin, rotation, parseCache).specs());
+        stagedSite = new Site.Staged(level, placed, c.companion(), clearSite, ownedCells::contains);
+        phase = Phase.SITE;
+        return TaskStatus.RUNNING;
+    }
+
+    /**
+     * Reads the site in bounded slices, then decides. One pass answers both questions the preflight used to ask with
+     * two scans: which cells obstruct the site, and which planned cells still hold the wrong block. A resumed build
+     * only asks for the material of those cells, so it neither reserves what is already placed nor counts it twice.
+     */
+    private TaskStatus site(TaskContext c) {
+        stagedSite.step(PREFLIGHT_CELLS_PER_TICK);
+        if (!stagedSite.done()) {
+            return TaskStatus.RUNNING;
+        }
+        site = stagedSite.report();
+        remainingSpecs = stagedSite.remaining();
         // The foundation is needed to know how much dirt or cobblestone the blueprint needs, even when the site
         // check found a problem; the problem itself is reported below, after the height check as before.
         String materialError = null;
         try {
-            scaffold.reserve(Materials.needed(remaining, site.foundation()));
+            scaffold.reserve(Materials.needed(remainingSpecs, site.foundation()));
         } catch (IllegalArgumentException e) {
             materialError = e.getMessage();
         }
-        // Every cell of the blueprint is off-limits to the scaffold, including the parts this run does not build.
-        plannedCells = plannedCells(Placement.at(blueprint, origin, rotation).specs());
-        PlacementRefusal unreachable = unreachable(c, remaining);
+        PlacementRefusal unreachable = unreachable(c, remainingSpecs);
         if (unreachable != null) {
             return fail(c, unreachable, true);
         }
@@ -506,7 +551,9 @@ public final class BuildTask implements Task {
         queue = order;
         total = order.size();
         phase = Phase.TAKE;
-        writeInProgress(c);
+        stagedSite = null;
+        // The first checkpoint reuses the scan: another pass over the footprint here would only repeat it.
+        writeInProgressFromScan(c, remainingSpecs);
         return TaskStatus.RUNNING;
     }
 
@@ -531,10 +578,11 @@ public final class BuildTask implements Task {
         for (BlockSpec spec : buildPlan.blocks()) {
             byWorld.put(worldPos(spec), spec);
         }
+        Placement.StateCache states = states();
         Map<BlockSpec, BuildOrder.Support> lookup = new HashMap<>();
         for (BlockSpec spec : buildPlan.blocks()) {
             BlockPos pos = worldPos(spec);
-            BlockState wanted = Placement.parseState(spec.state()).rotate(rotation);
+            BlockState wanted = states.parse(spec.state()).rotate(rotation);
             BlockPos support = SupportNeeds.supportOf(wanted, pos);
             if (support == null) {
                 lookup.put(spec, BuildOrder.Support.NONE);
@@ -543,7 +591,7 @@ public final class BuildTask implements Task {
             BlockSpec cell = byWorld.get(support);
             lookup.put(
                     spec,
-                    cell == null || Placement.parseState(cell.state()).isAir()
+                    cell == null || states.parse(cell.state()).isAir()
                             ? BuildOrder.Support.needed()
                             : BuildOrder.Support.on(cell));
         }
@@ -553,6 +601,14 @@ public final class BuildTask implements Task {
     private BlockPos worldPos(BlockSpec spec) {
         return origin.offset(Placement.rotate(
                 new BlockPos(spec.x(), spec.y(), spec.z()), rotation, blueprint.width(), blueprint.depth()));
+    }
+
+    /** The state parse cache of this build; created on demand so a helper called before CHECK still works. */
+    private Placement.StateCache states() {
+        if (parseCache == null) {
+            parseCache = new Placement.StateCache();
+        }
+        return parseCache;
     }
 
     /** The cells the blueprint fills with a block, which a support block must never occupy. */
@@ -1495,7 +1551,11 @@ public final class BuildTask implements Task {
         }
     }
 
-    /** Writes the in-progress file again when the scaffold has grown since the last write. */
+    /**
+     * Offers a checkpoint while the scaffold grows, at most once per interval. The write happens on the runtime's
+     * writer thread and only the newest offer of this build is written, so a fast scaffold costs one background write
+     * per drain instead of one whole-blueprint write on every tick.
+     */
     private void syncInProgress(TaskContext c) {
         if (!inProgressStarted || scaffold == null) {
             return;
@@ -1503,47 +1563,119 @@ public final class BuildTask implements Task {
         if (scaffold.placed().size() == writtenScaffoldCount) {
             return;
         }
-        writeInProgress(c);
+        if (ticks - lastCheckpointTick < CHECKPOINT_INTERVAL_TICKS) {
+            return;
+        }
+        offerInProgress(c);
     }
 
-    /** Persists the build so a reload can resume it. Best effort: a disk problem must not abort the build. */
+    private void offerInProgress(TaskContext c) {
+        if (scaffold == null || placed == null) {
+            return;
+        }
+        BlueprintStore store = checkpoints(c);
+        boolean accepted;
+        try {
+            // The remaining cells are not rescanned for a periodic checkpoint: a resumed build revalidates the
+            // footprint anyway, and the scan would cost the server tick the whole point of writing off it.
+            accepted = store.saveInProgressSoon(snapshot(c, List.of()));
+        } catch (RuntimeException ignored) {
+            // A full writer or a bad snapshot must not abort the build; the store counts the failure.
+            reportCheckpointFailure(store);
+            return;
+        }
+        reportCheckpointFailure(store);
+        if (!accepted) {
+            return;
+        }
+        inProgressStarted = true;
+        writtenScaffoldCount = scaffold.placed().size();
+        lastCheckpointTick = ticks;
+        checkpointOffers++;
+    }
+
+    /**
+     * Persists the build now, on the server thread, with the cells that are still wrong. Used for the first checkpoint
+     * and the terminal one, where the record must exist before the caller returns.
+     */
     private void writeInProgress(TaskContext c) {
         if (scaffold == null || placed == null) {
             return;
         }
+        writeInProgressFromScan(c, remaining(c.level()));
+    }
+
+    /** The same synchronous write, reusing a scan the caller already has. Best effort, like the periodic one. */
+    private void writeInProgressFromScan(TaskContext c, List<Placement.PlacedSpec> remaining) {
+        List<BlockPos> cells = new ArrayList<>(remaining.size());
+        for (Placement.PlacedSpec spec : remaining) {
+            cells.add(spec.pos());
+        }
+        writeInProgress(c, cells);
+    }
+
+    private void writeInProgress(TaskContext c, List<BlockPos> remaining) {
+        if (scaffold == null || placed == null) {
+            return;
+        }
+        BlueprintStore store = checkpoints(c);
         try {
-            List<BlockPos> remaining = new ArrayList<>();
-            for (Placement.PlacedSpec spec : placed.specs()) {
-                if (!c.level().getBlockState(spec.pos()).equals(spec.wanted())) {
-                    remaining.add(spec.pos());
-                }
-            }
-            String owner = c.companion().ownerUuid() == null
-                    ? ""
-                    : c.companion().ownerUuid().toString();
-            BlueprintStore.forLevel(c.level())
-                    .saveInProgress(
-                            id,
-                            blueprint,
-                            origin,
-                            rotation,
-                            clearSite,
-                            gather,
-                            scaffold.placed(),
-                            parts,
-                            remaining,
-                            owner,
-                            dimension);
+            store.saveInProgress(snapshot(c, remaining));
             inProgressStarted = true;
             writtenScaffoldCount = scaffold.placed().size();
+            lastCheckpointTick = ticks;
+            checkpointOffers++;
         } catch (RuntimeException ignored) {
             // The build continues; only its ability to survive a reload is lost.
+        } finally {
+            reportCheckpointFailure(store);
         }
+    }
+
+    private BlueprintStore.InProgress snapshot(TaskContext c, List<BlockPos> remaining) {
+        String owner = c.companion().ownerUuid() == null
+                ? ""
+                : c.companion().ownerUuid().toString();
+        return new BlueprintStore.InProgress(
+                blueprint,
+                origin,
+                rotation,
+                clearSite,
+                gather,
+                scaffold.placed(),
+                id,
+                parts,
+                remaining,
+                owner,
+                dimension);
+    }
+
+    /** One log line per episode of failed checkpoint writes; the build itself is unaffected. */
+    private void reportCheckpointFailure(BlueprintStore store) {
+        if (store.consecutiveWriteFailures() == 0) {
+            checkpointFailureReported = false;
+            return;
+        }
+        if (checkpointFailureReported) {
+            return;
+        }
+        checkpointFailureReported = true;
+        LOGGER.warn(
+                "Build {} could not save its resume checkpoint ({}); the build continues and retries",
+                id,
+                store.lastWriteFailure());
+    }
+
+    private BlueprintStore checkpoints(TaskContext c) {
+        if (checkpoints == null) {
+            checkpoints = BlueprintStore.forLevel(c.level(), c.storeWriter());
+        }
+        return checkpoints;
     }
 
     private void deleteInProgress(TaskContext c) {
         inProgressStarted = false;
-        BlueprintStore.forLevel(c.level()).deleteInProgress(id);
+        checkpoints(c).deleteInProgress(id);
     }
 
     @Override
@@ -1673,9 +1805,26 @@ public final class BuildTask implements Task {
                 ? refusal.cause()
                 : asideTarget != null ? "stepping aside" : takeBack != null ? "taking my block back" : "building";
         int tries = currentPos == null ? 0 : attempts.getOrDefault(currentPos, 0);
-        return "build " + phase + ": " + why + " at " + cell + ", stance "
+        return "build " + stage() + ": " + why + " at " + cell + ", stance "
                 + (stance == null ? "-" : coords(stance)) + ", attempts " + tries + ", recoveries "
-                + selfRecoveries + ", deferred " + deferred.size() + ", progress " + passProgress;
+                + selfRecoveries + ", deferred " + deferred.size() + ", progress " + passProgress
+                + ", checkpoints " + checkpointOffers + (checkpointFailureReported ? " (write failed)" : "");
+    }
+
+    /** The phase in the words of the work it does, with the site scan's progress while it runs. */
+    private String stage() {
+        return switch (phase) {
+            case CHECK -> "checking the site";
+            case SITE ->
+                stagedSite == null
+                        ? "checking the site"
+                        : "checking the site " + stagedSite.scanned() + "/" + stagedSite.total();
+            case TAKE -> "taking materials";
+            case CLEAR -> "clearing the site";
+            case FOUNDATION -> "building the foundation";
+            case PLACE -> "placing blocks";
+            case CLEANUP -> "cleaning up";
+        };
     }
 
     /** The finished building, named after its blueprint; a "wheat_farm" blueprint becomes a farm, not a house. */

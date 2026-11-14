@@ -6,6 +6,16 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.212.4] - 2026-11-14
+
+### Changed
+
+- A large build no longer freezes the game while the companion checks the site: it reads the footprint a small slice at a time and reports whether it is checking the site, gathering materials or placing blocks.
+
+### Fixed
+
+- The companion saves its build progress in the background, so a big scaffold no longer stalls the game to write the resume file, and a save that fails no longer stops the build.
+
 ## [0.212.3] - 2026-11-14
 
 ### Fixed
