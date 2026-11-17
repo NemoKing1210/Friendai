@@ -104,18 +104,13 @@ final class QueueMutationService {
         ActiveTask active = coordinator.activeTask();
         Task cleanup = active == null ? null : active.task().cleanupAfterCancel(coordinator.context());
         ActiveTask frozen = coordinator.frozenTask();
-        List<Job> pending = uncancelledJobs(coordinator.queueDriver().queue().jobs(), activeAndFrozenIds());
         if (frozen != null) {
             cleanup =
                     coordinator.combineCleanup(cleanup, frozen.task().cleanupAfterCancel(coordinator.context(frozen)));
             coordinator.stopFrozen("creative authority changed");
-            publishStopped(frozen, "creative authority changed");
         }
-        if (active != null) coordinator.cancelCurrent("creative authority changed");
-        publishCancelled(pending, "creative authority changed");
-        for (PlanRecord plan : coordinator.queueDriver().queue().plans()) {
-            coordinator.queueDriver().cancelPlan(plan.id());
-            coordinator.queueDriver().finishPlan(plan.id(), "creative authority changed", TaskDisposition.CANCELLED);
+        if (active != null) {
+            coordinator.activeTasks().stop(new StopRequest("creative authority changed"), coordinator.context(active));
         }
         coordinator.queueDriver().clear();
         coordinator.queueDriver().clearFactories();
