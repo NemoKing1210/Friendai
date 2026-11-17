@@ -7,7 +7,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.JsonObject;
 import dev.friendai.agent.llm.JsonHttpTransport;
+import dev.friendai.agent.llm.RequestAttempt;
+import dev.friendai.agent.llm.RequestTelemetry;
 import dev.friendai.agent.llm.StreamingHttpTransport;
+import dev.friendai.agent.llm.model.LlmErrorKind;
 import dev.friendai.agent.llm.model.LlmException;
 import dev.friendai.agent.llm.model.LlmResponse;
 import dev.friendai.agent.llm.model.Message;
@@ -33,13 +36,19 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /** The production gateway must stream through the real protocol and client, not only through a test fake. */
 class ProviderStreamingTest {
     private static LlmClient client(MockHttpServer server, HttpClient http) {
-        HttpTransport json = new HttpTransport(http, Duration.ofSeconds(5), 0, Duration.ofMillis(10));
+        return client(server, http, Duration.ofSeconds(5));
+    }
+
+    private static LlmClient client(MockHttpServer server, HttpClient http, Duration timeout) {
+        HttpTransport json = new HttpTransport(http, timeout, 0, Duration.ofMillis(10));
         LlmProfile profile = new LlmProfile("openai_compat", "test-model", "key", server.baseUrl(), null, 0.2, 256);
-        return new LlmClient(ProviderRegistry.withBuiltins(json), profile, new HttpStreamingTransport(http));
+        return new LlmClient(ProviderRegistry.withBuiltins(json), profile, new HttpStreamingTransport(http, timeout));
     }
 
     /** A stream a test drives frame by frame: no socket, so the order of events is exact. */
@@ -112,6 +121,135 @@ class ProviderStreamingTest {
             assertEquals(StopReason.END, done.stopReason());
             assertEquals(1, server.requests().size());
             assertTrue(server.requests().get(0).body().contains("\"stream\":true"), "the request must be streamed");
+        }
+    }
+
+    @Test
+    void aStreamReportsOnlyOneFirstUsableDeltaAndTerminalTiming() throws Exception {
+        try (MockHttpServer server = new MockHttpServer()) {
+            server.enqueueStream(
+                    200,
+                    List.of(
+                            ": keepalive\n\n",
+                            "data: {\"choices\":[{\"delta\":{\"content\":\"First\"}}]}\n\n",
+                            "data: {\"choices\":[{\"delta\":{\"content\":\" Second\"}}]}\n\n",
+                            "data: [DONE]\n\n"));
+            LlmClient client = client(server, HttpClient.newHttpClient());
+            List<RequestAttempt> attempts = new CopyOnWriteArrayList<>();
+            RequestTelemetry telemetry = new RequestTelemetry(31, 4, 2, attempts::add);
+
+            assertEquals(
+                    "First Second",
+                    client.completeStreaming("system", List.of(Message.user("hi")), List.of(), delta -> {}, telemetry)
+                            .get(5, TimeUnit.SECONDS)
+                            .text());
+            assertEquals(
+                    List.of("start", "first_delta", "finish"),
+                    attempts.stream().map(RequestAttempt::stage).toList());
+            assertEquals(200, attempts.getLast().status());
+            assertTrue(attempts.get(1).durationMs() >= 0);
+            assertTrue(attempts.getLast().durationMs() >= attempts.get(1).durationMs());
+        }
+    }
+
+    @Test
+    void aTimeoutBeforeContentSendsNoFallbackRequest() {
+        FakeStream stream = new FakeStream();
+        FakeJson json = new FakeJson();
+        LlmClient client = fakeClient(stream, json);
+        var reply = client.completeStreaming("system", List.of(Message.user("hi")), List.of(), delta -> {});
+        stream.body.completeExceptionally(new LlmException(LlmErrorKind.TIMEOUT, "request timed out"));
+
+        ExecutionException error = assertThrows(ExecutionException.class, () -> reply.get(1, TimeUnit.SECONDS));
+        assertEquals(LlmErrorKind.TIMEOUT, ((LlmException) error.getCause()).kind());
+        assertTrue(json.posted.isEmpty());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void aStalledOpenStreamTimesOutWithoutHoldingTheNextRequest(boolean withSpeech) throws Exception {
+        try (MockHttpServer server = new MockHttpServer()) {
+            String textFrame = "data: {\"choices\":[{\"delta\":{\"content\":\"Hello there.\"}}]}\n\n";
+            server.enqueueStreamDelayed(
+                    200, List.of(withSpeech ? textFrame : ": keepalive\n\n", textFrame, "data: [DONE]\n\n"), 3000);
+            server.enqueueStream(200, List.of(textFrame, "data: [DONE]\n\n"));
+            LlmClient client = client(server, HttpClient.newHttpClient(), Duration.ofSeconds(1));
+            List<RequestAttempt> attempts = new CopyOnWriteArrayList<>();
+            RequestTelemetry telemetry = new RequestTelemetry(31, 4, 2, attempts::add);
+            List<StreamDelta> deltas = new CopyOnWriteArrayList<>();
+            List<Message> messages = List.of(Message.user("hi"));
+
+            var reply = client.completeStreaming("system", messages, List.of(), deltas::add, telemetry);
+            ExecutionException error = assertThrows(ExecutionException.class, () -> reply.get(2, TimeUnit.SECONDS));
+            assertEquals(LlmErrorKind.TIMEOUT, ((LlmException) error.getCause()).kind());
+            assertEquals(withSpeech ? List.of(new StreamDelta.Text("Hello there.")) : List.of(), deltas);
+            assertEquals(
+                    withSpeech ? List.of("start", "first_delta", "finish") : List.of("start", "finish"),
+                    attempts.stream().map(RequestAttempt::stage).toList());
+            assertEquals(200, attempts.getLast().status());
+            assertEquals("timeout", attempts.getLast().errorKind());
+            assertEquals(1, server.requests().size());
+
+            assertEquals(
+                    "Hello there.",
+                    client.completeStreaming("system", messages, List.of(), delta -> {})
+                            .get(2, TimeUnit.SECONDS)
+                            .text());
+            assertEquals(2, server.requests().size());
+        }
+    }
+
+    @Test
+    void aTimeoutWaitingForHeadersSendsNoFallbackRequest() throws Exception {
+        try (MockHttpServer server = new MockHttpServer()) {
+            server.enqueueDelayed(200, "{}".getBytes(StandardCharsets.UTF_8), 3000);
+            LlmClient client = client(server, HttpClient.newHttpClient(), Duration.ofSeconds(1));
+            List<RequestAttempt> attempts = new CopyOnWriteArrayList<>();
+            RequestTelemetry telemetry = new RequestTelemetry(31, 4, 2, attempts::add);
+
+            var reply =
+                    client.completeStreaming("system", List.of(Message.user("hi")), List.of(), delta -> {}, telemetry);
+            ExecutionException error = assertThrows(ExecutionException.class, () -> reply.get(2, TimeUnit.SECONDS));
+            assertEquals(LlmErrorKind.TIMEOUT, ((LlmException) error.getCause()).kind());
+            assertEquals(
+                    List.of("start", "finish"),
+                    attempts.stream().map(RequestAttempt::stage).toList());
+            assertEquals(0, attempts.getLast().status());
+            assertEquals("timeout", attempts.getLast().errorKind());
+            assertEquals(1, server.requests().size());
+        }
+    }
+
+    @Test
+    void cancellingAnOpenStreamRecordsOneCancellationAndLeavesTheNextRequestUsable() throws Exception {
+        try (MockHttpServer server = new MockHttpServer()) {
+            String textFrame = "data: {\"choices\":[{\"delta\":{\"content\":\"First.\"}}]}\n\n";
+            server.enqueueStreamDelayed(200, List.of(textFrame, textFrame, "data: [DONE]\n\n"), 3000);
+            server.enqueueStream(200, List.of(textFrame, "data: [DONE]\n\n"));
+            LlmClient client = client(server, HttpClient.newHttpClient());
+            List<RequestAttempt> attempts = new CopyOnWriteArrayList<>();
+            CountDownLatch firstDelta = new CountDownLatch(1);
+            RequestTelemetry telemetry = new RequestTelemetry(31, 4, 2, attempt -> {
+                attempts.add(attempt);
+                if (RequestAttempt.FIRST_DELTA.equals(attempt.stage())) firstDelta.countDown();
+            });
+            List<StreamDelta> deltas = new CopyOnWriteArrayList<>();
+            List<Message> messages = List.of(Message.user("hi"));
+            var reply = client.completeStreaming("system", messages, List.of(), deltas::add, telemetry);
+
+            assertTrue(firstDelta.await(2, TimeUnit.SECONDS));
+            assertTrue(reply.cancel(true));
+            assertEquals(
+                    List.of("start", "first_delta", "finish"),
+                    attempts.stream().map(RequestAttempt::stage).toList());
+            assertEquals("cancelled", attempts.getLast().errorKind());
+            assertEquals(
+                    "First.",
+                    client.completeStreaming("system", messages, List.of(), delta -> {})
+                            .get(2, TimeUnit.SECONDS)
+                            .text());
+            assertEquals(List.of(new StreamDelta.Text("First.")), deltas);
+            assertEquals(2, server.requests().size());
         }
     }
 

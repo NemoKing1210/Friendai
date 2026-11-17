@@ -523,6 +523,40 @@ class CompanionBrainTest {
     }
 
     @Test
+    void aNullProviderReplyFinishesTheFailedTurnAndUnblocksQueuedWork() {
+        CompletableFuture<LlmResponse> pending = gateway.enqueuePending();
+        gateway.enqueue(text("Second request answered"));
+        brain.post(said("first request"));
+        brain.post(said("second request"));
+
+        pending.complete(null);
+
+        assertEquals(List.of(UserMessage.of("friendai.error.llm.parse")), speaker.errors);
+        assertEquals(List.of("Second request answered"), speaker.said);
+        assertEquals(List.of(true, false, true, false), speaker.thinkingLog);
+    }
+
+    @Test
+    void aNullProviderFutureFinishesTheTurn() {
+        gatewaySupplier = () -> (system, messages, specs) -> null;
+        brain.post(said("first request"));
+
+        assertEquals(List.of(UserMessage.of("friendai.error.llm.parse")), speaker.errors);
+        assertEquals(List.of(true, false), speaker.thinkingLog);
+    }
+
+    @Test
+    void aSynchronousProviderFailureFinishesTheTurn() {
+        gatewaySupplier = () -> (system, messages, specs) -> {
+            throw new LlmException(LlmErrorKind.NETWORK, "request failed");
+        };
+        brain.post(said("first request"));
+
+        assertEquals(List.of(UserMessage.of("friendai.error.llm.network")), speaker.errors);
+        assertEquals(List.of(true, false), speaker.thinkingLog);
+    }
+
+    @Test
     void eventsDuringThinkingAreBatched() {
         CompletableFuture<LlmResponse> first = gateway.enqueuePending();
         gateway.enqueue(text("both"));

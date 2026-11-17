@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.221.1] - 2026-11-18
+
+### Fixed
+
+- A stalled model reply ends at the configured request timeout, even if the reply has already started streaming. An invalid provider completion reports an error so the companion can answer the next message.
+
 ## [0.221.0] - 2026-11-16
 
 ### Added

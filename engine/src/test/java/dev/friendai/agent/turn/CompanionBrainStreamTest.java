@@ -406,6 +406,25 @@ class CompanionBrainStreamTest {
     }
 
     @Test
+    void nullStreamCompletionKeepsEarlySpeechIncompleteAndAllowsAnotherTurn() {
+        StreamingGateway gateway = new StreamingGateway();
+        gateway.steps.add(new Step(List.of(new StreamDelta.Text("First. Second.")), null));
+        gateway.steps.add(new Step(List.of(), new LlmResponse("New reply.", List.of(), StopReason.END, null)));
+        RecordingSpeaker speaker = new RecordingSpeaker();
+        CompanionBrain brain = brain(gateway, new FakeToolExecutor(), speaker);
+        brain.post(new BrainEvent.PlayerSaid(OWNER, "Steve", "hi", BrainEvent.Source.CHAT));
+
+        assertEquals(List.of(UserMessage.of("friendai.error.llm.parse")), speaker.errors);
+        assertEquals(1, speaker.streamed.size());
+        assertFalse(speaker.streamed.getFirst().last());
+        assertFalse(brain.isThinking());
+
+        brain.post(new BrainEvent.PlayerSaid(OWNER, "Steve", "again", BrainEvent.Source.CHAT));
+        assertEquals(List.of("New reply."), speaker.said);
+        assertFalse(brain.isThinking());
+    }
+
+    @Test
     void cancelDropsLaterEarlySentences() {
         CompletableFuture<LlmResponse> pending = new CompletableFuture<>();
         List<Consumer<StreamDelta>> late = new ArrayList<>();

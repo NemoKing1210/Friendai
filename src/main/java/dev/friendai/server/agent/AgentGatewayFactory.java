@@ -37,10 +37,10 @@ public final class AgentGatewayFactory {
         ServerConfig.ProfileConfig profile = cfg.profiles.get(cfg.activeProfile);
         activeProvider = profile == null ? "?" : profile.provider;
         activeModel = profile == null ? "?" : profile.model;
-        HttpTransport transport = new HttpTransport(
-                httpClient, Duration.ofSeconds(cfg.brain.requestTimeoutSec), 2, Duration.ofMillis(500));
+        Duration timeout = Duration.ofSeconds(cfg.brain.requestTimeoutSec);
+        HttpTransport transport = new HttpTransport(httpClient, timeout, 2, Duration.ofMillis(500));
         dev.friendai.agent.llm.StreamingHttpTransport streaming =
-                new dev.friendai.infrastructure.llm.HttpStreamingTransport(httpClient);
+                new dev.friendai.infrastructure.llm.HttpStreamingTransport(httpClient, timeout);
         try {
             current = new LlmClient(
                     ProviderRegistry.withBuiltins(transport), cfg.toLlmProfile(System::getenv), streaming);

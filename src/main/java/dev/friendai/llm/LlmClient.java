@@ -1,6 +1,7 @@
 package dev.friendai.llm;
 
 import com.google.gson.JsonObject;
+import dev.friendai.agent.llm.RequestAttempt;
 import dev.friendai.agent.llm.RequestTelemetry;
 import dev.friendai.agent.llm.StreamingHttpTransport;
 import dev.friendai.agent.llm.model.LlmErrorKind;
@@ -23,6 +24,9 @@ import dev.friendai.agent.turn.LlmGateway;
 import dev.friendai.foundation.text.UserMessage;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /** The configured LLM: resolves the route for the profile and sends requests through it. */
 public final class LlmClient implements LlmGateway, StreamingLlmGateway {
@@ -116,8 +120,23 @@ public final class LlmClient implements LlmGateway, StreamingLlmGateway {
                     false,
                     telemetry == null ? RequestTelemetry.NONE : telemetry);
             SseFrames frames = new SseFrames();
-            StreamAssembly assembly = new StreamAssembly(onDelta);
             CompletableFuture<LlmResponse> result = new CompletableFuture<>();
+            AtomicBoolean streamFinished = new AtomicBoolean();
+            StreamAssembly assembly = new StreamAssembly(delta -> {
+                if (!result.isDone() && !streamFinished.get() && onDelta != null) onDelta.accept(delta);
+            });
+            RequestTelemetry observation = request.telemetry();
+            // A deadline can end the transport on a different thread while a provider frame is being decoded.
+            RequestTelemetry streamTelemetry = new RequestTelemetry(
+                    observation.requestId(), observation.turn(), observation.generation(), attempt -> {
+                        synchronized (streamFinished) {
+                            if (RequestAttempt.FINISH.equals(attempt.stage())) streamFinished.set(true);
+                            if (!RequestAttempt.FIRST_DELTA.equals(attempt.stage()) || !streamFinished.get()) {
+                                observation.accept(attempt);
+                            }
+                        }
+                    });
+            long started = System.nanoTime();
             // The ordinary request a refused stream falls back to, so cancelling the caller cancels it too.
             java.util.concurrent.atomic.AtomicReference<CompletableFuture<LlmResponse>> fallback =
                     new java.util.concurrent.atomic.AtomicReference<>();
@@ -127,14 +146,26 @@ public final class LlmClient implements LlmGateway, StreamingLlmGateway {
                     protocol.streamingBody(request),
                     bytes -> {
                         for (SseFrames.Frame frame : frames.feed(bytes)) {
+                            if (result.isDone()) return;
+                            boolean hadContent = assembly.started();
                             protocol.onFrame(frame, assembly);
+                            if (!hadContent && assembly.started()) {
+                                long elapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started);
+                                streamTelemetry.accept(
+                                        new RequestAttempt(1, RequestAttempt.FIRST_DELTA, 0, "", elapsed, 0L, 0L));
+                            }
                         }
                     },
-                    telemetry == null ? RequestTelemetry.NONE : telemetry);
+                    streamTelemetry);
             body.whenComplete((ignored, error) -> {
                 try {
                     // A stop wins over every late frame, including the one that refills the assembled response.
                     if (result.isCancelled()) return;
+                    Throwable failure = error instanceof CompletionException wrapped ? wrapped.getCause() : error;
+                    if (failure instanceof LlmException llm && llm.kind() == LlmErrorKind.TIMEOUT) {
+                        result.completeExceptionally(llm);
+                        return;
+                    }
                     for (SseFrames.Frame frame : frames.finish()) {
                         protocol.onFrame(frame, assembly);
                     }
