@@ -336,7 +336,7 @@ public final class ObtainTask implements Task {
                 return TaskStatus.RUNNING;
             }
             String toured = tour.resultSummary();
-            safeStop(tour, c);
+            safeTerminate(tour, c);
             tour = null;
             if (!toured.isBlank()) history.add(toured);
             // What the chests hold is known now: plan again from it.
@@ -351,7 +351,7 @@ public final class ObtainTask implements Task {
             ResourceCandidates.Verification visitVerification = currentVisitVerification != null
                     ? currentVisitVerification.get()
                     : dev.friendai.perception.resource.ResourceCandidates.Verification.PENDING;
-            safeStop(current, childContext == null ? c : childContext);
+            safeTerminate(current, childContext == null ? c : childContext);
             if (span != null) {
                 span.finish(
                         status.name().toLowerCase(java.util.Locale.ROOT),
@@ -855,6 +855,17 @@ public final class ObtainTask implements Task {
         }
     }
 
+    /** Releases a naturally settled child exactly once; outer cancellation remains stop-only. */
+    static void safeTerminate(Task task, TaskContext c) {
+        if (task == null) return;
+        safeStop(task, c);
+        try {
+            task.onTerminal(c);
+        } catch (RuntimeException ignored) {
+            // A child's terminal hook must not prevent the acquisition planner from continuing.
+        }
+    }
+
     private void clearCreativeCreation() {
         creativeCreationStep = false;
         creativePrototype = null;
@@ -954,6 +965,14 @@ public final class ObtainTask implements Task {
 
     @Override
     public void onTerminal(TaskContext c) {
+        if (current != null) {
+            safeTerminate(current, childContext == null ? c : childContext);
+            current = null;
+        }
+        if (tour != null) {
+            safeTerminate(tour, c);
+            tour = null;
+        }
         if (span != null) {
             span.finish("finished", "terminal", java.util.Map.of());
             span = null;

@@ -23,6 +23,7 @@ public final class ResourceSight {
 
     public enum Outcome {
         VISIBLE,
+        ABSENT,
         OCCLUDED,
         UNLOADED,
         PENDING
@@ -95,6 +96,15 @@ public final class ResourceSight {
                 }
                 visited++;
                 BlockState state = level.getBlockState(pos);
+                if (target != null && target.equals(pos)) {
+                    if (state.isAir()) {
+                        outcome = Outcome.ABSENT;
+                    } else {
+                        hit = pos.immutable();
+                        outcome = Outcome.VISIBLE;
+                    }
+                    return outcome;
+                }
                 if (blocksRay(state, pos, delta)) {
                     if (target == null || target.equals(pos)) {
                         hit = pos.immutable();
@@ -113,7 +123,7 @@ public final class ResourceSight {
                 if (!(next > cursor + EPSILON)) next = cursor + 1.0e-5;
                 cursor = next;
             }
-            if (cursor > 1.0 + EPSILON) outcome = Outcome.OCCLUDED;
+            if (cursor > 1.0 + EPSILON) outcome = target == null ? Outcome.OCCLUDED : Outcome.ABSENT;
             return outcome;
         }
 

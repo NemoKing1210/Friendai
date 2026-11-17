@@ -301,7 +301,7 @@ public final class CompanionBrain {
             case BrainEvent.TaskFinished task -> {
                 if (task.success()) {
                     incidents.succeeded(task.planId());
-                } else if (FailureHandler.isCancellation(task.summary())) {
+                } else if (!task.disposition().failure() || FailureHandler.isCancellation(task.summary())) {
                     incidents.cancelled();
                 } else {
                     incidents.failed(task.planId(), task.toolName(), task.summary(), task.extra());
@@ -320,7 +320,7 @@ public final class CompanionBrain {
     private static boolean isIncidentReport(BrainEvent event) {
         return event instanceof BrainEvent.PlanBlocked
                 || (event instanceof BrainEvent.TaskFinished task
-                        && !task.success()
+                        && task.disposition().failure()
                         && !FailureHandler.isCancellation(task.summary()));
     }
 
@@ -862,7 +862,8 @@ public final class CompanionBrain {
 
     private static boolean isExecutionFailure(BrainEvent event) {
         // Plan events stay in the queue so the next turn can consult the planner for their own subject.
-        return event instanceof BrainEvent.TaskFinished task && !task.success();
+        return event instanceof BrainEvent.TaskFinished task
+                && task.disposition().failure();
     }
 
     /** Read outcomes once before replacing a response that could otherwise announce or start stale work. */
@@ -1389,8 +1390,10 @@ public final class CompanionBrain {
                 && (decision.mode() == TurnMode.RECOVERY
                         || turnEvent instanceof BrainEvent.Replan
                         || turnEvent instanceof BrainEvent.PlanBlocked
-                        || turnEvent instanceof BrainEvent.TaskFinished task && !task.success()
-                        || turnEvent instanceof BrainEvent.PlanFinished plan && !plan.success());
+                        || turnEvent instanceof BrainEvent.TaskFinished task
+                                && task.disposition().failure()
+                        || turnEvent instanceof BrainEvent.PlanFinished plan
+                                && plan.disposition().failure());
     }
 
     /** The plan id the queue reports in a result line; zero when the text does not carry one. */
@@ -1418,7 +1421,7 @@ public final class CompanionBrain {
             return blocked.planId();
         }
         if (event instanceof BrainEvent.PlanFinished finished
-                && !finished.success()
+                && finished.disposition().failure()
                 && !FailureHandler.isCancellation(finished.summary())) {
             return finished.planId();
         }

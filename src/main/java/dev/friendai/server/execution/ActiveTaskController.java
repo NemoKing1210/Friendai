@@ -1,5 +1,6 @@
 package dev.friendai.server.execution;
 
+import dev.friendai.execution.TaskDisposition;
 import dev.friendai.execution.TaskWorkResult;
 import dev.friendai.execution.log.ExecutionTiming;
 import dev.friendai.execution.log.TaskDiagnosticEpisode;
@@ -62,13 +63,20 @@ public final class ActiveTaskController {
     }
 
     public record Completion(
-            ActiveTask active, TaskStatus status, String summary, Optional<TaskWorkResult> workResult) {
+            ActiveTask active,
+            TaskStatus status,
+            TaskDisposition disposition,
+            String summary,
+            Optional<TaskWorkResult> workResult) {
         public Completion {
+            disposition = disposition == null
+                    ? status == TaskStatus.SUCCESS ? TaskDisposition.SUCCESS : TaskDisposition.FAILED
+                    : disposition;
             workResult = workResult == null ? Optional.empty() : workResult;
         }
 
         public Completion(ActiveTask active, TaskStatus status, String summary) {
-            this(active, status, summary, Optional.empty());
+            this(active, status, null, summary, Optional.empty());
         }
     }
 
@@ -173,6 +181,7 @@ public final class ActiveTaskController {
         if (activeContext.logContext() != active.logContext()) activeContext = context(activeContext, active);
         activeTicks++;
         TaskStatus status;
+        TaskDisposition disposition = null;
         String summary = null;
         long processingStart = clock.nanoTime();
         try {
@@ -220,45 +229,82 @@ public final class ActiveTaskController {
             safeStop(active.task(), activeContext, "timed out");
             if (current != active) return Optional.empty();
             status = TaskStatus.FAILED;
+            disposition = TaskDisposition.TIMED_OUT;
             summary = "timed out";
         }
         if (status == TaskStatus.RUNNING) return Optional.empty();
+        if (disposition == null)
+            disposition = status == TaskStatus.SUCCESS ? TaskDisposition.SUCCESS : TaskDisposition.FAILED;
         if (summary == null) summary = active.task().resultSummary();
         Optional<TaskWorkResult> workResult = captureWorkResult(active.task());
         ExecutionTiming.Snapshot measured = active.timing().snapshot();
         diagnostics.accept(TaskLogEvents.finishEvent(
                 active.logContext(),
                 active.toolName(),
-                status.name().toLowerCase(Locale.ROOT),
+                disposition.name().toLowerCase(Locale.ROOT),
                 measured.wallMs(),
                 terminalFacts(active, measured, summary, workResult)));
         current = null;
         release(active.task(), activeContext, "terminal");
-        return Optional.of(new Completion(active, status, summary, workResult));
+        return Optional.of(new Completion(active, status, disposition, summary, workResult));
     }
 
     /** Stops the current task and returns its metadata for queue settlement and event publication. */
     public Optional<ActiveTask> stop(StopRequest request, TaskContext taskContext) {
         ActiveTask active = current;
         if (active == null) return Optional.empty();
+        Optional<TaskWorkResult> workResult = captureWorkResult(active.task());
         diagnostics.accept(TaskLogEvents.cancelEvent(
                 active.logContext(),
                 active.toolName(),
                 request.reason(),
-                active.timing().elapsedMs()));
+                active.timing().elapsedMs(),
+                terminalFacts(active, active.timing().snapshot(), request.reason(), workResult)));
         current = null;
         safeStop(active.task(), context(taskContext, active), request.reason());
         return Optional.of(active);
     }
 
+    /** Settles a plan-deadline timeout as a terminal failure instead of reporting an owner cancellation. */
+    public Optional<Completion> timeout(StopRequest request, TaskContext taskContext) {
+        ActiveTask active = current;
+        if (active == null) return Optional.empty();
+        current = null;
+        return Optional.of(timeOut(active, request, taskContext));
+    }
+
+    Completion timeoutFrozen(StopRequest request, TaskContext taskContext) {
+        ActiveTask active = frozen;
+        clearFrozen();
+        return timeOut(active, request, taskContext);
+    }
+
+    private Completion timeOut(ActiveTask active, StopRequest request, TaskContext taskContext) {
+        TaskContext activeContext = context(taskContext, active);
+        Optional<TaskWorkResult> workResult = captureWorkResult(active.task());
+        safeStop(active.task(), activeContext, request.reason());
+        String summary = request.reason();
+        ExecutionTiming.Snapshot measured = active.timing().snapshot();
+        diagnostics.accept(TaskLogEvents.finishEvent(
+                active.logContext(),
+                active.toolName(),
+                TaskDisposition.TIMED_OUT.name().toLowerCase(Locale.ROOT),
+                measured.wallMs(),
+                terminalFacts(active, measured, summary, workResult)));
+        release(active.task(), activeContext, "timed out");
+        return new Completion(active, TaskStatus.FAILED, TaskDisposition.TIMED_OUT, summary, workResult);
+    }
+
     public Optional<ActiveTask> stopFrozen(StopRequest request, TaskContext taskContext) {
         ActiveTask active = frozen;
         if (active == null) return Optional.empty();
+        Optional<TaskWorkResult> workResult = captureWorkResult(active.task());
         diagnostics.accept(TaskLogEvents.cancelEvent(
                 active.logContext(),
                 active.toolName(),
                 request.reason(),
-                active.timing().elapsedMs()));
+                active.timing().elapsedMs(),
+                terminalFacts(active, active.timing().snapshot(), request.reason(), workResult)));
         frozen = null;
         frozenElapsed = 0;
         safeStop(active.task(), context(taskContext, active), request.reason());

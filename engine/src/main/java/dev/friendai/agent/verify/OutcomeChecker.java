@@ -34,6 +34,21 @@ public final class OutcomeChecker {
             List<Criterion> criteria,
             GuardFacts afterFacts,
             Optional<TaskWorkResult> workResult) {
+        return check(before, after, taskSucceeded, criteria, afterFacts, workResult, true);
+    }
+
+    /**
+     * A session outcome may omit raw inventory deltas because an owner or another task can change carried inventory
+     * during this execution; callers can still include task-scoped receipts through {@code workResult}.
+     */
+    public static Outcome check(
+            WorldSnapshot before,
+            WorldSnapshot after,
+            boolean taskSucceeded,
+            List<Criterion> criteria,
+            GuardFacts afterFacts,
+            Optional<TaskWorkResult> workResult,
+            boolean includeInventoryDeltas) {
         List<String> unmet = new ArrayList<>();
         boolean checkableHolds = true;
         for (Criterion criterion : criteria) {
@@ -44,10 +59,15 @@ public final class OutcomeChecker {
                 checkableHolds = false;
             }
         }
-        return new Outcome(taskSucceeded && checkableHolds, facts(before, after, workResult), unmet);
+        return new Outcome(
+                taskSucceeded && checkableHolds, facts(before, after, workResult, includeInventoryDeltas), unmet);
     }
 
-    private static List<Fact> facts(WorldSnapshot before, WorldSnapshot after, Optional<TaskWorkResult> workResult) {
+    private static List<Fact> facts(
+            WorldSnapshot before,
+            WorldSnapshot after,
+            Optional<TaskWorkResult> workResult,
+            boolean includeInventoryDeltas) {
         List<Fact> facts = new ArrayList<>();
         if (workResult != null) {
             workResult.ifPresent(result -> {
@@ -60,21 +80,23 @@ public final class OutcomeChecker {
             });
         }
         if (facts.size() >= MAX_FACTS) return facts.subList(0, MAX_FACTS);
-        Set<String> ids = new HashSet<>(before.items().keySet());
-        ids.addAll(after.items().keySet());
-        List<Map.Entry<String, Integer>> deltas = new ArrayList<>();
-        for (String id : ids) {
-            int delta = after.items().getOrDefault(id, 0) - before.items().getOrDefault(id, 0);
-            if (delta != 0) {
-                deltas.add(Map.entry(id, delta));
+        if (includeInventoryDeltas) {
+            Set<String> ids = new HashSet<>(before.items().keySet());
+            ids.addAll(after.items().keySet());
+            List<Map.Entry<String, Integer>> deltas = new ArrayList<>();
+            for (String id : ids) {
+                int delta = after.items().getOrDefault(id, 0) - before.items().getOrDefault(id, 0);
+                if (delta != 0) {
+                    deltas.add(Map.entry(id, delta));
+                }
+            }
+            deltas.sort(Comparator.<Map.Entry<String, Integer>>comparingInt(e -> -Math.abs(e.getValue()))
+                    .thenComparing(Map.Entry::getKey));
+            for (Map.Entry<String, Integer> delta : deltas) {
+                facts.add(new Fact((delta.getValue() > 0 ? "+" : "") + delta.getValue() + " " + delta.getKey()));
             }
         }
-        deltas.sort(Comparator.<Map.Entry<String, Integer>>comparingInt(e -> -Math.abs(e.getValue()))
-                .thenComparing(Map.Entry::getKey));
-        for (Map.Entry<String, Integer> delta : deltas) {
-            facts.add(new Fact((delta.getValue() > 0 ? "+" : "") + delta.getValue() + " " + delta.getKey()));
-        }
-        if (before.emptySlots() != after.emptySlots()) {
+        if (includeInventoryDeltas && before.emptySlots() != after.emptySlots()) {
             facts.add(new Fact("empty slots " + after.emptySlots() + " (was " + before.emptySlots() + ")"));
         }
         if (after.healthPercent() != before.healthPercent()) {

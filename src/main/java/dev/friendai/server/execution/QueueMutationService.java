@@ -1,5 +1,6 @@
 package dev.friendai.server.execution;
 
+import dev.friendai.execution.TaskDisposition;
 import dev.friendai.execution.queue.Job;
 import dev.friendai.execution.queue.JobQueue;
 import dev.friendai.execution.queue.PlanRecord;
@@ -7,7 +8,11 @@ import dev.friendai.execution.queue.PlanStatus;
 import dev.friendai.execution.queue.QueueText;
 import dev.friendai.server.execution.ActiveTaskController.ActiveTask;
 import dev.friendai.task.Task;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * The runner's cancel, skip and clear operations. Every one of them runs inside the coordinator's transition, keeps
@@ -45,10 +50,13 @@ final class QueueMutationService {
         ActiveTask active = coordinator.activeTask();
         if (active != null && active.jobId() > 0) {
             Task cleanup = active.task().cleanupAfterCancel(coordinator.context());
+            List<Job> pending =
+                    active.planId() > 0 ? uncancelledJobsOfPlan(active.planId(), Set.of(active.jobId())) : List.of();
             coordinator.cancelCurrent(reason);
+            publishCancelled(pending, reason);
             if (active.planId() > 0) {
                 coordinator.queueDriver().cancelPlan(active.planId());
-                coordinator.queueDriver().finishPlan(active.planId(), "stopped by request", false);
+                coordinator.queueDriver().finishPlan(active.planId(), "stopped by request", TaskDisposition.CANCELLED);
             } else {
                 coordinator.queueDriver().cancelJob(active.jobId());
                 coordinator.queueDriver().remove(active.jobId());
@@ -69,12 +77,18 @@ final class QueueMutationService {
     }
 
     private void stopWithoutCleanupActive(String reason) {
+        List<Job> pending = uncancelledJobs(coordinator.queueDriver().queue().jobs(), activeAndFrozenIds());
         if (coordinator.activeTask() != null) coordinator.cancelCurrent(reason);
+        ActiveTask frozen = coordinator.frozenTask();
+        if (frozen != null) {
+            coordinator.stopFrozen(reason);
+            publishStopped(frozen, reason);
+        }
+        publishCancelled(pending, reason);
         for (PlanRecord plan : coordinator.queueDriver().queue().plans()) {
             coordinator.queueDriver().cancelPlan(plan.id());
-            coordinator.queueDriver().finishPlan(plan.id(), reason, false);
+            coordinator.queueDriver().finishPlan(plan.id(), reason, TaskDisposition.CANCELLED);
         }
-        coordinator.stopFrozen(reason);
         coordinator.queueDriver().clear();
         coordinator.queueDriver().clearFactories();
         coordinator.queueDriver().clearAwaitingDecisions();
@@ -90,13 +104,18 @@ final class QueueMutationService {
         ActiveTask active = coordinator.activeTask();
         Task cleanup = active == null ? null : active.task().cleanupAfterCancel(coordinator.context());
         ActiveTask frozen = coordinator.frozenTask();
+        List<Job> pending = uncancelledJobs(coordinator.queueDriver().queue().jobs(), activeAndFrozenIds());
         if (frozen != null) {
             cleanup =
                     coordinator.combineCleanup(cleanup, frozen.task().cleanupAfterCancel(coordinator.context(frozen)));
             coordinator.stopFrozen("creative authority changed");
+            publishStopped(frozen, "creative authority changed");
         }
-        if (active != null) {
-            coordinator.activeTasks().stop(new StopRequest("creative authority changed"), coordinator.context(active));
+        if (active != null) coordinator.cancelCurrent("creative authority changed");
+        publishCancelled(pending, "creative authority changed");
+        for (PlanRecord plan : coordinator.queueDriver().queue().plans()) {
+            coordinator.queueDriver().cancelPlan(plan.id());
+            coordinator.queueDriver().finishPlan(plan.id(), "creative authority changed", TaskDisposition.CANCELLED);
         }
         coordinator.queueDriver().clear();
         coordinator.queueDriver().clearFactories();
@@ -114,14 +133,19 @@ final class QueueMutationService {
         ActiveTask active = coordinator.activeTask();
         Task cleanup = active == null ? null : active.task().cleanupAfterCancel(coordinator.context());
         ActiveTask frozen = coordinator.frozenTask();
+        List<Job> pending = uncancelledJobs(coordinator.queueDriver().queue().jobs(), activeAndFrozenIds());
         if (frozen != null) {
             cleanup =
                     coordinator.combineCleanup(cleanup, frozen.task().cleanupAfterCancel(coordinator.context(frozen)));
             coordinator.stopFrozen(reason);
+            publishStopped(frozen, reason);
         }
         if (active != null) coordinator.cancelCurrent(reason);
-        for (PlanRecord p : coordinator.queueDriver().queue().plans())
-            coordinator.queueDriver().finishPlan(p.id(), "stopped by request", false);
+        publishCancelled(pending, reason);
+        for (PlanRecord p : coordinator.queueDriver().queue().plans()) {
+            coordinator.queueDriver().cancelPlan(p.id());
+            coordinator.queueDriver().finishPlan(p.id(), "stopped by request", TaskDisposition.CANCELLED);
+        }
         coordinator.queueDriver().clear();
         coordinator.queueDriver().clearFactories();
         coordinator.queueDriver().clearAwaitingDecisions();
@@ -138,16 +162,22 @@ final class QueueMutationService {
         int plans = coordinator.queueDriver().queue().plans().size();
         int jobs = coordinator.queueDriver().queue().jobCount();
         boolean stoppedActive = active != null && active.jobId() > 0;
+        Set<Long> activeAndFrozen = activeAndFrozenIds();
+        List<Job> pending = uncancelledJobs(coordinator.queueDriver().queue().jobs(), activeAndFrozen);
         Task cleanup = stoppedActive ? active.task().cleanupAfterCancel(coordinator.context()) : null;
         ActiveTask frozen = coordinator.frozenTask();
         if (frozen != null) {
             cleanup =
                     coordinator.combineCleanup(cleanup, frozen.task().cleanupAfterCancel(coordinator.context(frozen)));
             coordinator.stopFrozen(reason);
+            publishStopped(frozen, reason);
         }
         if (stoppedActive) coordinator.cancelCurrent(reason);
-        for (PlanRecord plan : coordinator.queueDriver().queue().plans())
-            coordinator.queueDriver().finishPlan(plan.id(), reason, false);
+        publishCancelled(pending, reason);
+        for (PlanRecord plan : coordinator.queueDriver().queue().plans()) {
+            coordinator.queueDriver().cancelPlan(plan.id());
+            coordinator.queueDriver().finishPlan(plan.id(), reason, TaskDisposition.CANCELLED);
+        }
         String result;
         if (plans == 0 && jobs == 0) {
             result = stoppedActive ? "stopped the active task" : QueueText.cleared(0, 0);
@@ -170,17 +200,28 @@ final class QueueMutationService {
     private void cancelJobActive(long id, String reason) {
         Job original = coordinator.queueDriver().queue().job(id).orElse(null);
         ActiveTask active = coordinator.activeTask();
+        ActiveTask frozen = coordinator.frozenTask();
+        boolean activeMatched = active != null && active.jobId() == id;
+        boolean frozenMatched = frozen != null && frozen.jobId() == id;
+        boolean wholePlan =
+                original != null && original.planId() > 0 && coordinator.isStructuredPlan(original.planId());
+        Set<Long> excluded = new HashSet<>();
+        if (activeMatched) excluded.add(id);
+        if (frozenMatched) excluded.add(id);
+        List<Job> planPending = wholePlan ? uncancelledJobsOfPlan(original.planId(), excluded) : List.of();
         Task cleanup = null;
-        if (active != null && active.jobId() == id) {
+        if (activeMatched) {
             cleanup = active.task().cleanupAfterCancel(coordinator.context());
             coordinator.cancelCurrent(reason);
             coordinator.queueDriver().cancelJob(id);
             coordinator.queueDriver().clearFactory(id);
         } else {
-            ActiveTask frozen = coordinator.frozenTask();
-            if (frozen != null && frozen.jobId() == id) {
+            if (frozenMatched) {
                 cleanup = frozen.task().cleanupAfterCancel(coordinator.context(frozen));
                 coordinator.stopFrozen(reason);
+                publishStopped(frozen, reason);
+            } else if (original != null && !JobQueue.terminal(original) && !wholePlan) {
+                coordinator.publishQueuedCancellation(original, reason);
             }
             coordinator.queueDriver().cancelJob(id);
             coordinator.queueDriver().clearFactory(id);
@@ -188,14 +229,13 @@ final class QueueMutationService {
         Job j = coordinator.queueDriver().queue().job(id).orElse(null);
         if (j != null && j.planId() == 0) coordinator.queueDriver().remove(id);
         else if (j != null && coordinator.isStructuredPlan(j.planId())) {
+            publishCancelled(planPending, reason);
             coordinator.queueDriver().cancelPlan(j.planId());
-            coordinator.queueDriver().finishPlan(j.planId(), "action cancelled", false);
+            coordinator.queueDriver().finishPlan(j.planId(), "action cancelled", TaskDisposition.CANCELLED);
         } else if (j != null
                 && j.planId() > 0
                 && coordinator.queueDriver().queue().planStatus(j.planId()) != PlanStatus.ACTIVE)
-            coordinator.queueDriver().finishPlan(j.planId(), "cancelled", false);
-        if (original != null && original.planId() == 0 && (active == null || active.jobId() != id))
-            coordinator.emit(sink -> sink.onCancelled((int) original.id(), original.tool(), reason));
+            coordinator.queueDriver().finishPlan(j.planId(), "cancelled", TaskDisposition.CANCELLED);
         if (cleanup != null) coordinator.begin(cleanup, "scaffold_cleanup", false, false);
         else if (coordinator.activeTask() == null) coordinator.startNextOrDefault();
     }
@@ -219,18 +259,24 @@ final class QueueMutationService {
     private void cancelPlanActive(long id, String reason) {
         ActiveTask active = coordinator.activeTask();
         Task cleanup = null;
+        ActiveTask frozen = coordinator.frozenTask();
+        Set<Long> excluded = new HashSet<>();
+        if (active != null && active.planId() == id) excluded.add(active.jobId());
+        if (frozen != null && frozen.planId() == id) excluded.add(frozen.jobId());
+        List<Job> pending = uncancelledJobsOfPlan(id, excluded);
         if (active != null && active.planId() == id) {
             cleanup = active.task().cleanupAfterCancel(coordinator.context());
             coordinator.cancelCurrent(reason);
         }
-        ActiveTask frozen = coordinator.frozenTask();
         if (frozen != null && frozen.planId() == id) {
             cleanup =
                     coordinator.combineCleanup(cleanup, frozen.task().cleanupAfterCancel(coordinator.context(frozen)));
             coordinator.stopFrozen(reason);
+            publishStopped(frozen, reason);
         }
+        publishCancelled(pending, reason);
         coordinator.queueDriver().cancelPlan(id);
-        coordinator.queueDriver().finishPlan(id, "cancelled", false);
+        coordinator.queueDriver().finishPlan(id, "cancelled", TaskDisposition.CANCELLED);
         if (cleanup != null) coordinator.begin(cleanup, "scaffold_cleanup", false, false);
         else if (coordinator.activeTask() == null) coordinator.startNextOrDefault();
     }
@@ -241,5 +287,42 @@ final class QueueMutationService {
         String description = a.task().describe();
         stop(reason);
         return Optional.of(description);
+    }
+
+    private Set<Long> activeAndFrozenIds() {
+        Set<Long> ids = new HashSet<>();
+        ActiveTask active = coordinator.activeTask();
+        ActiveTask frozen = coordinator.frozenTask();
+        if (active != null && active.jobId() > 0) ids.add(active.jobId());
+        if (frozen != null && frozen.jobId() > 0) ids.add(frozen.jobId());
+        return ids;
+    }
+
+    private List<Job> uncancelledJobs(Collection<Job> jobs, Set<Long> excluded) {
+        return jobs.stream()
+                .filter(job -> !JobQueue.terminal(job) && !excluded.contains(job.id()))
+                .toList();
+    }
+
+    private List<Job> uncancelledJobsOfPlan(long planId, Set<Long> excluded) {
+        return uncancelledJobs(coordinator.queueDriver().queue().jobsOfPlan(planId), excluded);
+    }
+
+    private void publishCancelled(List<Job> jobs, String reason) {
+        for (Job job : jobs) coordinator.publishQueuedCancellation(job, reason);
+    }
+
+    private void publishStopped(ActiveTask active, String reason) {
+        if (active.planId() == 0) {
+            coordinator.emit(sink -> sink.onCancelled(active.id(), active.execution(), active.toolName(), reason));
+        } else {
+            coordinator.emit(sink -> sink.onJobFinished(
+                    active.jobId(),
+                    active.planId(),
+                    active.toolName(),
+                    TaskDisposition.CANCELLED,
+                    reason,
+                    active.execution()));
+        }
     }
 }

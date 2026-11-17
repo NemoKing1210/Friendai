@@ -3,6 +3,7 @@ package dev.friendai.server.execution;
 import com.google.gson.JsonObject;
 import dev.friendai.agent.verify.LoopMetrics;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.execution.TaskDisposition;
 import dev.friendai.execution.TaskWorkResult;
 import dev.friendai.execution.log.TaskLogEvent;
 import dev.friendai.execution.log.TaskLogEvents;
@@ -828,7 +829,8 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         Optional<ActiveTaskController.Completion> completion = activeTasks.tick(context(active));
         if (completion.isPresent()) {
             ActiveTaskController.Completion result = completion.get();
-            completeActive(result.active(), result.status(), result.summary(), result.workResult());
+            completeActive(
+                    result.active(), result.status(), result.disposition(), result.summary(), result.workResult());
         } else if (activeTask() == active) maybeNoticeBlocked();
     }
 
@@ -850,7 +852,11 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     }
 
     private void completeActive(
-            ActiveTask active, TaskStatus status, String summary, Optional<TaskWorkResult> workResult) {
+            ActiveTask active,
+            TaskStatus status,
+            TaskDisposition disposition,
+            String summary,
+            Optional<TaskWorkResult> workResult) {
         String result = summary == null ? active.task().resultSummary() : summary;
         // The face answers what the work cost: a finished job pulses pleased, a failed one displeased. Danger and
         // combat
@@ -863,8 +869,14 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         }
         if (active.interrupt()) {
             if (active.emit())
-                emit(sink ->
-                        sink.onFinished(active.id(), active.planId(), active.toolName(), status, result, workResult));
+                emit(sink -> sink.onFinished(
+                        active.id(),
+                        active.planId(),
+                        active.toolName(),
+                        disposition,
+                        result,
+                        workResult,
+                        active.execution()));
             resumeFrozen();
             return;
         }
@@ -873,12 +885,25 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
             if (status == TaskStatus.SUCCESS) queueDriver.finish(active.jobId(), result);
             else retried = queueDriver.fail(active.jobId(), result).retried();
             if (!retried)
-                emit(sink -> sink.onJobFinished(active.jobId(), active.planId(), active.toolName(), status, result));
+                emit(sink -> sink.onJobFinished(
+                        active.jobId(),
+                        active.planId(),
+                        active.toolName(),
+                        disposition,
+                        result,
+                        active.execution(),
+                        workResult));
             if (active.planId() == 0) {
                 if (!retried) {
                     if (active.task().emitsEvents())
                         emit(sink -> sink.onFinished(
-                                active.id(), active.planId(), active.toolName(), status, result, workResult));
+                                active.id(),
+                                active.planId(),
+                                active.toolName(),
+                                disposition,
+                                result,
+                                workResult,
+                                active.execution()));
                     queueDriver.remove(active.jobId());
                     queueDriver.clearFactory(active.jobId());
                 }
@@ -887,7 +912,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
                     if (status == TaskStatus.SUCCESS)
                         queueDriver.advanceStructuredPlan(
                                 active.planId(), new PlanInterpreter.ActionResult.Succeeded());
-                    else handleStructuredActionFailure(active.planId(), active.jobId(), result);
+                    else handleStructuredActionFailure(active.planId(), active.jobId(), result, disposition);
                 }
             } else if (queueDriver.queue().planStatus(active.planId()) == PlanStatus.NEEDS_DECISION) {
                 queueDriver.markAwaitingDecision(active.planId());
@@ -897,9 +922,18 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
                 queueDriver.finishPlan(
                         active.planId(),
                         QueueText.planSummary(queueDriver.queue(), active.planId()),
-                        queueDriver.queue().planStatus(active.planId()) == PlanStatus.DONE);
+                        queueDriver.queue().planStatus(active.planId()) == PlanStatus.DONE
+                                ? TaskDisposition.SUCCESS
+                                : disposition);
         } else if (active.emit())
-            emit(sink -> sink.onFinished(active.id(), active.planId(), active.toolName(), status, result, workResult));
+            emit(sink -> sink.onFinished(
+                    active.id(),
+                    active.planId(),
+                    active.toolName(),
+                    disposition,
+                    result,
+                    workResult,
+                    active.execution()));
         if (frozenTask() != null) {
             resumeFrozen();
             return;
@@ -933,7 +967,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
                 creativeSensitive,
                 settings,
                 baseContext(),
-                LogContext.NONE,
+                invocationContext,
                 "command");
         try {
             return activeTasks.start(task, start);
@@ -952,9 +986,11 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         activeTasks.stop(new StopRequest(reason), baseContext());
         if (a.jobId() > 0) {
             queueDriver.cancelJob(a.jobId());
-            emit(sink -> sink.onJobFinished(a.jobId(), a.planId(), a.toolName(), TaskStatus.FAILED, reason));
-            if (a.planId() == 0 && a.emit()) emit(sink -> sink.onCancelled(a.id(), a.toolName(), reason));
-        } else if (a.emit()) emit(sink -> sink.onCancelled(a.id(), a.toolName(), reason));
+            emit(sink -> sink.onJobFinished(
+                    a.jobId(), a.planId(), a.toolName(), TaskDisposition.CANCELLED, reason, a.execution()));
+            if (a.planId() == 0 && a.emit())
+                emit(sink -> sink.onCancelled(a.id(), a.execution(), a.toolName(), reason));
+        } else if (a.emit()) emit(sink -> sink.onCancelled(a.id(), a.execution(), a.toolName(), reason));
     }
 
     private void clearCurrentSilently() {
@@ -1088,6 +1124,10 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         queueDriver.handleStructuredActionFailure(planId, jobId, reason);
     }
 
+    private void handleStructuredActionFailure(long planId, long jobId, String reason, TaskDisposition disposition) {
+        queueDriver.handleStructuredActionFailure(planId, jobId, reason, disposition);
+    }
+
     private static QueuedStep step(Job job) {
         return QueueDriver.step(job);
     }
@@ -1104,19 +1144,49 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         emit(sink -> sink.onPlanBlocked(plan, goal, jobId, tool, reason, remaining, remainingExact));
     }
 
-    void publishPlanFinished(long id, String goal, boolean success, String summary) {
-        emit(sink -> sink.onPlanFinished(id, goal, success, summary));
+    void publishPlanFinished(long id, String goal, TaskDisposition disposition, String summary) {
+        emit(sink -> sink.onPlanFinished(id, goal, disposition, summary));
     }
 
     private void expireDeadlines() {
         for (long id : queueDriver.expiredPlans()) {
             ActiveTask a = activeTask();
+            ActiveTask frozen = frozenTask();
+            StopRequest deadline = new StopRequest("ran out of time");
+            if (frozen != null && frozen.planId() == id) {
+                publishPlanTimeout(activeTasks.timeoutFrozen(deadline, context(frozen)));
+            }
             if (a != null && a.planId() == id) {
                 Task cleanup = a.task().cleanupAfterCancel(context());
-                cancelCurrent("ran out of time");
+                activeTasks.timeout(deadline, context(a)).ifPresent(this::publishPlanTimeout);
+                queueDriver.cancelPlanAndFinish(id, "ran out of time", TaskDisposition.TIMED_OUT);
                 if (cleanup != null) begin(cleanup, "scaffold_cleanup", false, false);
+                continue;
             }
-            queueDriver.cancelPlanAndFinish(id, "ran out of time");
+            queueDriver.cancelPlanAndFinish(id, "ran out of time", TaskDisposition.TIMED_OUT);
+        }
+    }
+
+    private void publishPlanTimeout(ActiveTaskController.Completion completion) {
+        ActiveTask expired = completion.active();
+        queueDriver.failPermanently(expired.jobId(), completion.summary());
+        emit(sink -> sink.onJobFinished(
+                expired.jobId(),
+                expired.planId(),
+                expired.toolName(),
+                completion.disposition(),
+                completion.summary(),
+                expired.execution(),
+                completion.workResult()));
+    }
+
+    void publishQueuedCancellation(Job job, String reason) {
+        if (job == null) return;
+        emit(sink -> sink.onDiagnostic(TaskLogEvents.queuedCancelEvent(job.diagnostic(), job.tool(), reason)));
+        if (job.planId() == 0) {
+            emit(sink -> sink.onCancelled((int) job.id(), 0, job.tool(), reason));
+        } else {
+            emit(sink -> sink.onJobFinished(job.id(), job.planId(), job.tool(), TaskDisposition.CANCELLED, reason, 0));
         }
     }
 

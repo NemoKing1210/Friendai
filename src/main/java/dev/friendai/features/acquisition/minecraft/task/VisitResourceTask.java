@@ -15,6 +15,7 @@ public final class VisitResourceTask implements Task {
     private final String dimension;
     private final int maxTicks;
     private ResourceJourney journey;
+    private ResourceCandidates.VerificationTicket verification;
     private ResourceCandidates.Verification result = ResourceCandidates.Verification.PENDING;
     private int ticks;
     private int waiting;
@@ -39,7 +40,9 @@ public final class VisitResourceTask implements Task {
     public void start(TaskContext c) {
         ticks = 0;
         waiting = 0;
+        result = ResourceCandidates.Verification.PENDING;
         observing = false;
+        verification = null;
         String currentDimension = c.level().dimension().identifier().toString();
         if (!dimension.equals(currentDimension)) {
             result = ResourceCandidates.Verification.UNLOADED;
@@ -57,12 +60,17 @@ public final class VisitResourceTask implements Task {
 
     @Override
     public TaskStatus tick(TaskContext c) {
-        if (++ticks > maxTicks) {
+        if (!dimension.equals(c.level().dimension().identifier().toString())) {
             result = ResourceCandidates.Verification.UNLOADED;
             return TaskStatus.FAILED;
         }
-        if (result == ResourceCandidates.Verification.ABSENT || result == ResourceCandidates.Verification.UNLOADED)
+        if (++ticks > maxTicks) {
+            result = ResourceCandidates.Verification.TIMED_OUT;
             return TaskStatus.FAILED;
+        }
+        if (result == ResourceCandidates.Verification.ABSENT
+                || result == ResourceCandidates.Verification.UNLOADED
+                || result == ResourceCandidates.Verification.TIMED_OUT) return TaskStatus.FAILED;
         ResourceCandidates candidates = c.resources();
         if (!observing) {
             ResourceJourney.State state = journey.tick(c);
@@ -71,19 +79,20 @@ public final class VisitResourceTask implements Task {
                 return TaskStatus.FAILED;
             }
             if (state != ResourceJourney.State.ARRIVED) return TaskStatus.RUNNING;
-            candidates.verify(c.companion(), siteId);
+            verification = candidates.beginVerification(c.companion(), siteId);
             observing = true;
         }
-        // The companion can shift while reaching the approach. A pending ray is tied to its
-        // original eye position and is discarded if that position changes, so refresh focused
-        // checks until fresh evidence arrives or the sight budget expires.
-        candidates.verify(c.companion(), siteId);
-        if (candidates.siteVisible(c.companion(), siteId)) {
-            result = ResourceCandidates.Verification.PRESENT;
+        // The ticket keeps one direct result per exact member. A moved companion causes the observer
+        // to re-aim that request; only completed rays from the reached viewpoint can settle the site.
+        result = candidates.verification(c.companion(), verification);
+        if (result == ResourceCandidates.Verification.PRESENT) {
             return TaskStatus.SUCCESS;
         }
+        if (result == ResourceCandidates.Verification.ABSENT
+                || result == ResourceCandidates.Verification.OCCLUDED
+                || result == ResourceCandidates.Verification.UNLOADED) return TaskStatus.FAILED;
         if (++waiting >= SIGHT_BUDGET_TICKS) {
-            result = ResourceCandidates.Verification.OCCLUDED;
+            result = ResourceCandidates.Verification.TIMED_OUT;
             return TaskStatus.FAILED;
         }
         return TaskStatus.RUNNING;
@@ -100,13 +109,13 @@ public final class VisitResourceTask implements Task {
      * blocks, so forgetting the site then would delete real knowledge.
      */
     static boolean provesSiteEmpty(boolean observing, ResourceCandidates.Verification result) {
-        return observing && result == ResourceCandidates.Verification.OCCLUDED;
+        return observing && result == ResourceCandidates.Verification.ABSENT;
     }
 
     @Override
     public void onTerminal(TaskContext c) {
         if (provesSiteEmpty(observing, result)) {
-            c.resources().confirmAbsent(c.companion(), siteId);
+            c.resources().confirmAbsent(c.companion(), verification);
         }
     }
 

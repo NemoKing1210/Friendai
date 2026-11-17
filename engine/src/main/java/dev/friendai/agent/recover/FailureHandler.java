@@ -3,6 +3,7 @@ package dev.friendai.agent.recover;
 import dev.friendai.agent.goal.Goal;
 import dev.friendai.agent.goal.GoalBoard;
 import dev.friendai.agent.verify.LoopMetrics;
+import dev.friendai.execution.TaskDisposition;
 import dev.friendai.execution.queue.GuardFacts;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -85,6 +86,15 @@ public final class FailureHandler {
             }
         }
         return String.join("; ", parts);
+    }
+
+    /** Routes terminal results without inferring owner intent from user-facing summary text. */
+    public String onTerminal(
+            GoalBoard board, long planId, String tool, TaskDisposition disposition, String summary, String factsLine) {
+        TaskDisposition terminal = disposition == null ? TaskDisposition.FAILED : disposition;
+        if (terminal == TaskDisposition.CANCELLED) return factsLine == null ? "" : factsLine;
+        if (!terminal.failure()) return factsLine == null ? "" : factsLine;
+        return onFailure(board, planId, tool, summary, factsLine);
     }
 
     /** True for the summaries of work that was stopped or cancelled on purpose rather than failed. */

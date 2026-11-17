@@ -7,7 +7,9 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.IntSupplier;
@@ -21,6 +23,7 @@ import net.minecraft.world.phys.Vec3;
 public final class ResourceObserver {
     private static final int MAX_QUEUED_RAYS = 512;
     private static final int MAX_CHANGED_JOBS = 256;
+    private static final int MAX_COMPLETED_TARGETS = 512;
     private static final int DEFAULT_RADIUS = 16;
     private static final long SWEEP_INTERVAL = 20;
     private static final int SWEEP_RAYS = 128;
@@ -40,11 +43,13 @@ public final class ResourceObserver {
     private final IntSupplier observationRadius;
     private final ArrayDeque<PendingRay> queue = new ArrayDeque<>();
     private final Set<BlockPos> queuedTargets = new HashSet<>();
+    private final Map<Long, TargetResult> completedTargets = new LinkedHashMap<>();
     private String dimension;
     private UUID owner;
     private long nextSweep = Long.MIN_VALUE;
     private Vec3 lastSweepEye;
     private int changedQueued;
+    private long nextTargetRequest = 1;
 
     public ResourceObserver(CompanionEntity companion) {
         this(companion, () -> DEFAULT_RADIUS);
@@ -164,7 +169,12 @@ public final class ResourceObserver {
 
     /** Focuses a direct observation on a position without reading its block identity. */
     public void inspect(BlockPos pos) {
-        if (!activeLevel()) return;
+        inspectForVerification(pos);
+    }
+
+    /** Queues a focused exact-position sight request and returns its bounded result identity. */
+    public long inspectForVerification(BlockPos pos) {
+        if (!activeLevel()) return 0L;
         BlockPos key = pos.immutable();
         if (queuedTargets.contains(key)) {
             PendingRay pending = queue.stream()
@@ -172,13 +182,27 @@ public final class ResourceObserver {
                     .findFirst()
                     .orElse(null);
             if (pending != null) {
+                if (pending.requestId > 0) {
+                    queue.remove(pending);
+                    queue.addFirst(pending);
+                    return pending.requestId;
+                }
                 queue.remove(pending);
-                queue.addFirst(pending);
+                forgetTarget(pending);
+            } else {
+                return 0L;
             }
-            return;
         }
         // Explicit verification must not be starved behind a full passive sweep queue.
-        if (inspectTarget(key, false)) queue.addFirst(queue.removeLast());
+        long requestId = nextTargetRequest++;
+        if (!inspectTarget(key, false, false, requestId)) return 0L;
+        queue.addFirst(queue.removeLast());
+        return requestId;
+    }
+
+    /** The result for one exact-position request, or null until its current-viewpoint ray completed. */
+    public TargetResult targetResult(long requestId) {
+        return completedTargets.get(requestId);
     }
 
     /**
@@ -191,10 +215,14 @@ public final class ResourceObserver {
     }
 
     private boolean inspectTarget(BlockPos target, boolean changed) {
-        return inspectTarget(target, changed, false);
+        return inspectTarget(target, changed, false, 0L);
     }
 
     private boolean inspectTarget(BlockPos target, boolean changed, boolean sweep) {
+        return inspectTarget(target, changed, sweep, 0L);
+    }
+
+    private boolean inspectTarget(BlockPos target, boolean changed, boolean sweep, long requestId) {
         BlockPos key = target.immutable();
         double radius = radius();
         if (companion.getEyePosition().distanceToSqr(Vec3.atCenterOf(key)) > radius * radius) return false;
@@ -204,7 +232,7 @@ public final class ResourceObserver {
         if (queue.size() >= MAX_QUEUED_RAYS || !queuedTargets.add(key)) return false;
         Vec3 eye = companion.getEyePosition();
         // Aim at the target's center; the visibility job verifies that it is the first opaque hit.
-        PendingRay ray = new PendingRay(eye, Vec3.atCenterOf(key), key, changed, dimension, sweep);
+        PendingRay ray = new PendingRay(eye, Vec3.atCenterOf(key), key, changed, dimension, sweep, requestId);
         if (changed) {
             changedQueued++;
             queue.addFirst(ray);
@@ -216,7 +244,7 @@ public final class ResourceObserver {
         if (queue.size() >= MAX_QUEUED_RAYS) return false;
         if (target != null && !queuedTargets.add(target.immutable())) return false;
         PendingRay ray =
-                new PendingRay(from, to, target == null ? null : target.immutable(), changed, dimension, sweep);
+                new PendingRay(from, to, target == null ? null : target.immutable(), changed, dimension, sweep, 0L);
         if (focused) queue.addFirst(ray);
         else queue.addLast(ray);
         return true;
@@ -268,7 +296,13 @@ public final class ResourceObserver {
                 }
                 queue.removeFirst();
                 queue.addFirst(new PendingRay(
-                        eye, pending.end, pending.target, pending.changed, pending.dimension, pending.sweep));
+                        eye,
+                        pending.end,
+                        pending.target,
+                        pending.changed,
+                        pending.dimension,
+                        pending.sweep,
+                        pending.requestId));
                 continue;
             }
             if (pending.job == null) {
@@ -284,6 +318,20 @@ public final class ResourceObserver {
             rays++;
             forgetTarget(pending);
             boolean fromHere = pending.origin.distanceToSqr(companion.getEyePosition()) <= 4.0;
+            if (pending.requestId > 0 && fromHere) {
+                String blockId = "";
+                if (outcome == ResourceSight.Outcome.VISIBLE && pending.job.hitBlock() != null) {
+                    blockId = BuiltInRegistries.BLOCK
+                            .getKey(((ServerLevel) companion.level())
+                                    .getBlockState(pending.job.hitBlock())
+                                    .getBlock())
+                            .toString();
+                }
+                completedTargets.put(pending.requestId, new TargetResult(outcome, blockId));
+                while (completedTargets.size() > MAX_COMPLETED_TARGETS) {
+                    completedTargets.remove(completedTargets.keySet().iterator().next());
+                }
+            }
             if (fromHere) {
                 // Thin blocks the ray passed on its way are seen whether or not it then met an opaque block.
                 for (BlockPos seen : pending.job.glimpsed()) {
@@ -342,6 +390,7 @@ public final class ResourceObserver {
     private void clearQueue() {
         queue.clear();
         queuedTargets.clear();
+        completedTargets.clear();
         changedQueued = 0;
     }
 
@@ -392,16 +441,26 @@ public final class ResourceObserver {
         /** Passively scheduled by a sweep, so a later sweep supersedes it instead of queueing behind it. */
         final boolean sweep;
 
+        final long requestId;
+
         final String dimension;
         ResourceSight.Job job;
 
-        PendingRay(Vec3 origin, Vec3 end, BlockPos target, boolean changed, String dimension, boolean sweep) {
+        PendingRay(
+                Vec3 origin,
+                Vec3 end,
+                BlockPos target,
+                boolean changed,
+                String dimension,
+                boolean sweep,
+                long requestId) {
             this.origin = origin;
             this.end = end;
             this.target = target;
             this.changed = changed;
             this.dimension = dimension;
             this.sweep = sweep;
+            this.requestId = requestId;
         }
     }
 
@@ -411,4 +470,11 @@ public final class ResourceObserver {
             int raysCompleted,
             int cellsVisited,
             int queuedRemaining) {}
+
+    public record TargetResult(ResourceSight.Outcome outcome, String blockId) {
+        public TargetResult {
+            outcome = outcome == null ? ResourceSight.Outcome.PENDING : outcome;
+            blockId = blockId == null ? "" : blockId;
+        }
+    }
 }

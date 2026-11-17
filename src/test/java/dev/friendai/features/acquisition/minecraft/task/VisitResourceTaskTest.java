@@ -9,9 +9,10 @@ import org.junit.jupiter.api.Test;
 class VisitResourceTaskTest {
     @Test
     void onlyAnInspectedSiteCanProveItselfEmpty() {
-        assertTrue(VisitResourceTask.provesSiteEmpty(true, ResourceCandidates.Verification.OCCLUDED));
+        assertTrue(VisitResourceTask.provesSiteEmpty(true, ResourceCandidates.Verification.ABSENT));
         assertFalse(VisitResourceTask.provesSiteEmpty(true, ResourceCandidates.Verification.PRESENT));
-        assertFalse(VisitResourceTask.provesSiteEmpty(false, ResourceCandidates.Verification.OCCLUDED));
+        assertFalse(VisitResourceTask.provesSiteEmpty(true, ResourceCandidates.Verification.OCCLUDED));
+        assertFalse(VisitResourceTask.provesSiteEmpty(true, ResourceCandidates.Verification.TIMED_OUT));
         assertFalse(VisitResourceTask.provesSiteEmpty(false, ResourceCandidates.Verification.ABSENT));
         assertFalse(VisitResourceTask.provesSiteEmpty(false, ResourceCandidates.Verification.UNLOADED));
     }

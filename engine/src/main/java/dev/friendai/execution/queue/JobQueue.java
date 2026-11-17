@@ -536,6 +536,14 @@ public final class JobQueue {
         return new FailureOutcome(jobs.get(id), false);
     }
 
+    /** Ends a job at its enclosing plan deadline without entering its retry or skip policy. */
+    public FailureOutcome failPermanently(long id, String reason) {
+        Job job = require(id);
+        replace(job, JobState.FAILED, bound(reason), job.attempts(), 0);
+        holds.remove(id);
+        return new FailureOutcome(jobs.get(id), false);
+    }
+
     public Result cancel(long id) {
         return cancel(id, "cancelled");
     }

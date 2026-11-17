@@ -30,6 +30,7 @@ import dev.friendai.agent.route.PlanningPolicy;
 import dev.friendai.agent.turn.AgentSettings.Autonomy;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
+import dev.friendai.execution.TaskDisposition;
 import dev.friendai.execution.queue.JobQueue;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
@@ -499,6 +500,24 @@ public final class FreeTimeDriver {
         }
         outcome.notable()
                 .ifPresent(stage -> tell(owner, companion, UserMessage.of("friendai.freetime.stage_reached", stage)));
+        return true;
+    }
+
+    /** Closes a cancelled free-time shift without diagnosing it as failed or charging the director budget. */
+    public boolean onPlanEnded(
+            UUID owner, CompanionEntity companion, long planId, TaskDisposition disposition, String summary) {
+        if (disposition != TaskDisposition.CANCELLED)
+            return onPlanEnded(owner, companion, planId, disposition == TaskDisposition.SUCCESS, summary);
+        if (released.remove(planId)) return true;
+        if (!ownsPlan(owner, planId)) return false;
+        companion.executionCoordinator().unmarkAutonomousPlan(planId);
+        service()
+                .stop(
+                        owner,
+                        summary == null || summary.isBlank() ? "cancelled" : summary,
+                        now(),
+                        ShiftStopWhen.OWNER_SPOKE);
+        facts.invalidate(owner);
         return true;
     }
 

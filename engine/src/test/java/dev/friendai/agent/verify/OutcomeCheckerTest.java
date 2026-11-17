@@ -88,6 +88,24 @@ class OutcomeCheckerTest {
     }
 
     @Test
+    void executionEvidenceDoesNotAttributeUnreceiptedInventoryChanges() {
+        WorldSnapshot before = snap(Map.of("minecraft:oak_log", 1), 10, 3);
+        WorldSnapshot after = snap(Map.of("minecraft:oak_log", 5), 8, 3);
+        TaskWorkResult work = new TaskWorkResult(
+                List.of(new TaskWorkResult.Line("minecraft:oak_log", 3, 2, TaskWorkResult.Evidence.PICKED_UP)),
+                "partial",
+                "",
+                "continue pickup");
+
+        Outcome outcome = OutcomeChecker.check(before, after, false, List.of(), facts(after), Optional.of(work), false);
+
+        assertEquals(
+                List.of("picked_up 2/3 minecraft:oak_log"),
+                outcome.facts().stream().map(Fact::text).toList());
+        assertFalse(outcome.facts().stream().anyMatch(fact -> fact.text().startsWith("+4 minecraft:oak_log")));
+    }
+
+    @Test
     void capsFactsAtEightLargestFirst() {
         Map<String, Integer> gained = new HashMap<>();
         for (int i = 1; i <= 12; i++) {

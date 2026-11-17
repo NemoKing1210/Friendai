@@ -3,6 +3,8 @@ package dev.friendai.test;
 import com.google.gson.JsonObject;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.execution.TaskDisposition;
+import dev.friendai.execution.TaskWorkResult;
 import dev.friendai.execution.log.TaskLogCorrelation;
 import dev.friendai.execution.log.TaskLogEvent;
 import dev.friendai.execution.queue.FailurePolicy;
@@ -13,15 +15,20 @@ import dev.friendai.execution.queue.JobQueue;
 import dev.friendai.execution.queue.JobState;
 import dev.friendai.execution.queue.PlanOptions;
 import dev.friendai.execution.queue.QueueHold;
+import dev.friendai.execution.queue.QueueLimits;
+import dev.friendai.execution.queue.QueueSave;
 import dev.friendai.execution.queue.QueuedStep;
+import dev.friendai.features.acquisition.minecraft.task.ObtainTask;
 import dev.friendai.features.interaction.minecraft.task.WaitTask;
 import dev.friendai.features.navigation.minecraft.task.StayTask;
 import dev.friendai.foundation.diagnostics.DiagnosticClock;
 import dev.friendai.foundation.diagnostics.LogContext;
 import dev.friendai.foundation.diagnostics.LogEvents;
+import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.server.execution.DiagnosticClockTestAccess;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.execution.TaskEventSink;
+import dev.friendai.server.execution.tools.MinecraftObtainSubtaskFactory;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
@@ -34,6 +41,9 @@ public class ActiveTaskLifecycleTests {
     private static final class Events implements TaskEventSink {
         final List<String> log = new ArrayList<>();
         final List<TaskLogEvent> diagnostics = new ArrayList<>();
+        final List<TaskDisposition> finishedDispositions = new ArrayList<>();
+        final List<TaskDisposition> jobDispositions = new ArrayList<>();
+        final List<String> finishedSummaries = new ArrayList<>();
 
         @Override
         public void onDiagnostic(TaskLogEvent event) {
@@ -58,12 +68,86 @@ public class ActiveTaskLifecycleTests {
         @Override
         public void onFinished(int id, String toolName, TaskStatus status, String summary) {
             log.add("finished:" + toolName + ":" + status);
+            finishedSummaries.add(summary);
+        }
+
+        @Override
+        public void onFinished(
+                int id,
+                long planId,
+                String toolName,
+                TaskDisposition disposition,
+                String summary,
+                java.util.Optional<dev.friendai.execution.TaskWorkResult> workResult,
+                long execution) {
+            finishedDispositions.add(disposition);
+            onFinished(
+                    id,
+                    toolName,
+                    disposition == TaskDisposition.SUCCESS ? TaskStatus.SUCCESS : TaskStatus.FAILED,
+                    summary);
         }
 
         @Override
         public void onCancelled(int id, String toolName, String reason) {
             log.add("cancelled:" + toolName + ":" + reason);
             onCancel.run();
+        }
+
+        @Override
+        public void onJobFinished(
+                long jobId, long planId, String toolName, TaskDisposition disposition, String summary, long execution) {
+            jobDispositions.add(disposition);
+        }
+    }
+
+    private static final class ProgressingTask implements Task {
+        private long stamp;
+
+        @Override
+        public String type() {
+            return "progressing_timeout";
+        }
+
+        @Override
+        public void start(TaskContext context) {}
+
+        @Override
+        public TaskStatus tick(TaskContext context) {
+            stamp++;
+            return TaskStatus.RUNNING;
+        }
+
+        @Override
+        public long progressStamp() {
+            return stamp;
+        }
+
+        @Override
+        public boolean hasTimeout() {
+            return true;
+        }
+
+        @Override
+        public void stop(TaskContext context) {}
+
+        @Override
+        public String describe() {
+            return "making progress until its deadline";
+        }
+
+        @Override
+        public String resultSummary() {
+            return "timeout fixture";
+        }
+
+        @Override
+        public java.util.Optional<TaskWorkResult> workResult() {
+            return java.util.Optional.of(new TaskWorkResult(
+                    List.of(new TaskWorkResult.Line("minecraft:iron_ore", 2, 1, TaskWorkResult.Evidence.PICKED_UP)),
+                    "partial",
+                    "one item remains",
+                    "continue pickup"));
         }
     }
 
@@ -603,6 +687,259 @@ public class ActiveTaskLifecycleTests {
         h.succeed();
     }
 
+    @GameTest(maxTicks = 40)
+    public void taskTimeoutHasItsOwnTerminalDisposition(GameTestHelper h) {
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        Events events = new Events();
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 1, () -> false);
+        runner.setEventSink(events);
+        runner.start(new ProgressingTask(), "timeout_fixture");
+
+        for (int i = 0; i < 22; i++) runner.tick();
+
+        h.assertValueEqual(events.finishedDispositions, List.of(TaskDisposition.TIMED_OUT), "typed timeout result");
+        h.assertTrue(
+                events.named(LogEvents.TASK_FINISH).size() == 1
+                        && events.named(LogEvents.TASK_FINISH)
+                                .getFirst()
+                                .status()
+                                .equals("timed_out"),
+                "timeout must end with task.finish=timed_out: " + events.named(LogEvents.TASK_FINISH));
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 40)
+    public void cancellationRetainsPartialWorkWithoutEmittingFailure(GameTestHelper h) {
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        Events events = new Events();
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 300, () -> false);
+        runner.setEventSink(events);
+        runner.start(new ProgressingTask(), "partial_pickup");
+        runner.tick();
+        runner.stop("owner cleared the queue");
+
+        TaskLogEvent terminal = events.named(LogEvents.TASK_CANCEL).getFirst();
+        h.assertValueEqual(terminal.facts().get("disposition"), "cancelled", "cancel terminal disposition");
+        h.assertTrue(
+                terminal.facts().getOrDefault("workResult", "").contains("picked_up=1/2 remaining=1"),
+                "partial pickup stays attached to its cancelled execution: " + terminal.facts());
+        h.assertTrue(events.finishedDispositions.isEmpty(), "cancellation must not emit a failed completion");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 40)
+    public void holdAndResumeKeepTheSameExecutionIdentity(GameTestHelper h) {
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        Events events = new Events();
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 300, () -> false);
+        runner.setEventSink(events);
+        ProgressingTask task = new ProgressingTask();
+        runner.start(task, "held_execution");
+        runner.tick();
+        TaskLogEvent started = events.named(LogEvents.TASK_START).getFirst();
+
+        runner.setPaused(true);
+        runner.tick();
+        h.assertValueEqual(task.progressStamp(), 1L, "a held tick does not advance the task");
+        runner.setPaused(false);
+        runner.tick();
+        h.assertValueEqual(task.progressStamp(), 2L, "the same task resumes after its hold");
+        runner.stop("test cleanup");
+
+        TaskLogEvent cancelled = events.named(LogEvents.TASK_CANCEL).getFirst();
+        h.assertValueEqual(cancelled.context().execution(), started.context().execution(), "hold keeps execution id");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 40)
+    public void deadlineSettlesAFrozenJobOnce(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        Events events = new Events();
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 300, () -> false);
+        runner.setEventSink(events);
+        runner.enqueuePlan(
+                "short deadline",
+                List.of(new QueuedStep(
+                        "held_job", new JsonObject(), null, List.of(), GuardAction.WAIT, null, 1, List.of())),
+                List.of(context -> new WaitTask(30)),
+                new PlanOptions(0, FailurePolicy.ASK, 4, false));
+        runner.tick();
+        TaskLogEvent start = events.named(LogEvents.TASK_START).getFirst();
+        runner.interrupt(new WaitTask(5), "urgent_job");
+        for (int tick = 0; tick < 8; tick++) runner.tick();
+
+        h.assertValueEqual(events.jobDispositions, List.of(TaskDisposition.TIMED_OUT), "one frozen job settlement");
+        List<TaskLogEvent> terminal = events.diagnostics.stream()
+                .filter(event -> event.terminal()
+                        && event.context().execution() == start.context().execution())
+                .toList();
+        h.assertValueEqual(terminal.size(), 1, "one terminal event for the original execution");
+        h.assertValueEqual(terminal.getFirst().status(), "timed_out", "deadline disposition");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 40)
+    public void planLocalAndGlobalCancellationPublishEachQueuedJobOnce(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        Events planEvents = new Events();
+        ExecutionCoordinator planRunner = new ExecutionCoordinator(companion, () -> 300, () -> false);
+        planRunner.setEventSink(planEvents);
+        long planId = planRunner.enqueuePlan(
+                "cancel plan",
+                List.of(
+                        new QueuedStep("wait", new JsonObject(), null, List.of(), GuardAction.WAIT, null, 1, List.of()),
+                        new QueuedStep(
+                                "stay", new JsonObject(), null, List.of(), GuardAction.WAIT, null, 1, List.of())),
+                List.of(context -> new WaitTask(10), context -> new StayTask()),
+                PlanOptions.DEFAULT,
+                id -> planRunner.queue().setHold(id, QueueHold.pause("test")));
+
+        planRunner.cancelPlan(planId, "owner cancelled plan");
+
+        h.assertValueEqual(
+                planEvents.jobDispositions,
+                List.of(TaskDisposition.CANCELLED, TaskDisposition.CANCELLED),
+                "each plan job gets one cancellation row");
+        h.assertTrue(planEvents.named(LogEvents.TASK_CANCEL).size() == 2, "each queued job gets one terminal log");
+        h.assertTrue(planRunner.queue().plans().isEmpty(), "the cancelled plan should be archived");
+
+        Events clearEvents = new Events();
+        ExecutionCoordinator clearRunner = new ExecutionCoordinator(companion, () -> 300, () -> false);
+        clearRunner.setEventSink(clearEvents);
+        clearRunner
+                .queue()
+                .addDirect(new QueuedStep(
+                        "wait", new JsonObject(), null, List.of(), GuardAction.WAIT, null, 1, List.of()));
+        clearRunner
+                .queue()
+                .addPlan(
+                        "global clear",
+                        List.of(new QueuedStep(
+                                "stay", new JsonObject(), null, List.of(), GuardAction.WAIT, null, 1, List.of())),
+                        PlanOptions.DEFAULT);
+
+        clearRunner.clearQueue("owner cleared all work");
+
+        h.assertValueEqual(
+                clearEvents.log.stream()
+                        .filter(line -> line.startsWith("cancelled:"))
+                        .count(),
+                1L,
+                "the queued direct job receives one cancellation");
+        h.assertValueEqual(clearEvents.jobDispositions, List.of(TaskDisposition.CANCELLED), "one plan job row");
+        h.assertTrue(clearEvents.named(LogEvents.TASK_CANCEL).size() == 2, "global clear logs each queued job once");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 40)
+    public void restoredActivationGetsFreshIdentityAndOneTerminalResult(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        Events events = new Events();
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 300, () -> false);
+        runner.setEventSink(events);
+        runner.start(new WaitTask(100), "before_restore");
+        long priorExecution =
+                events.named(LogEvents.TASK_START).getFirst().context().execution();
+        runner.stop("save boundary");
+
+        var savedQueue = new JobQueue(QueueLimits.DEFAULTS);
+        Job active = savedQueue.addDirect(
+                new QueuedStep("wait", new JsonObject(), null, List.of(), GuardAction.WAIT, null, 1, List.of()));
+        savedQueue.markRunning(active.id());
+        runner.installRestoredState(
+                new QueueSave.Decoded(savedQueue, active.id()),
+                java.util.Map.of(active.id(), context -> new WaitTask(1)),
+                java.util.Map.of(),
+                new WaitTask(1));
+
+        TaskLogEvent restoredStart = events.named(LogEvents.TASK_START).getLast();
+        h.assertTrue(restoredStart.context().execution() > priorExecution, "restore should allocate a fresh execution");
+        h.assertValueEqual(restoredStart.facts().get("origin"), "restore", "restored start origin");
+        runner.tick();
+        h.assertValueEqual(
+                events.finishedDispositions, List.of(TaskDisposition.SUCCESS), "one restored terminal result");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 1200)
+    public void nestedObtainForgetsAConfirmedEmptySiteBeforeItsNextPlan(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 500, 8);
+        var owner = GameTestSupport.mockPlayerAt(h, 2, 501, 2);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 501, 2);
+        companion.setOwner(owner.getUUID());
+        var runtime = GameTestSupport.runtime(h.getLevel().getServer());
+        dev.friendai.entity.CompanionManager.get(h.getLevel().getServer()).register(companion);
+        runtime.observations().register(companion);
+        String dimension = h.getLevel().dimension().identifier().toString();
+        var remembered = h.absolutePos(new net.minecraft.core.BlockPos(5, 501, 2));
+        var viewpoint = h.absolutePos(new net.minecraft.core.BlockPos(2, 501, 2));
+        long siteId = runtime.knowledge()
+                .book(owner.getUUID())
+                .observe(
+                        new dev.friendai.features.knowledge.ResourceObservation(
+                                "minecraft:coal_ore",
+                                new dev.friendai.features.knowledge.ResourceObservation.Location(
+                                        dimension, new Pos(remembered.getX(), remembered.getY(), remembered.getZ())),
+                                new Pos(viewpoint.getX(), viewpoint.getY(), viewpoint.getZ()),
+                                Math.max(0, h.getLevel().getGameTime() - 1)),
+                        "minecraft:coal_ore");
+        Events events = new Events();
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 600, () -> false);
+        runner.setEventSink(events);
+        runner.start(obtainCoal(), "obtain_empty_site");
+        int[] stage = {0};
+        int[] priorVisits = {0};
+        h.succeedWhen(() -> {
+            runner.tick();
+            long visits = events.named(LogEvents.SPAN_START).stream()
+                    .filter(event -> "visitresource".equals(event.facts().get("operation")))
+                    .count();
+            if (stage[0] == 0) {
+                if (events.finishedDispositions.isEmpty()) return;
+                h.assertValueEqual(
+                        events.finishedDispositions.getFirst(),
+                        TaskDisposition.FAILED,
+                        "the nested obtain must replan after the missing source");
+                h.assertTrue(visits == 1, "the first obtain should visit one remembered site, got " + visits);
+                h.assertTrue(
+                        runtime.knowledge()
+                                .book(owner.getUUID())
+                                .site(siteId, h.getLevel().getGameTime() + 1)
+                                .map(site -> site.members().isEmpty())
+                                .orElse(true),
+                        "the nested terminal hook must forget the directly confirmed empty site");
+                priorVisits[0] = (int) visits;
+                stage[0] = 1;
+                events.finishedDispositions.clear();
+                runner.start(obtainCoal(), "obtain_again");
+                return;
+            }
+            if (events.finishedDispositions.isEmpty()) return;
+            h.assertValueEqual(visits, (long) priorVisits[0], "a later acquisition does not revisit the empty site");
+            h.succeed();
+        });
+    }
+
+    private static ObtainTask obtainCoal() {
+        return new ObtainTask(
+                "minecraft:coal",
+                1,
+                false,
+                true,
+                4,
+                1_000,
+                32,
+                32,
+                400,
+                "local",
+                null,
+                null,
+                new MinecraftObtainSubtaskFactory());
+    }
+
     /**
      * A clear is one transition: the running job stops, the plan finishes, the cancellation reaches the owner and the
      * queue is empty afterwards. Removing any of those steps leaves one of the assertions red.
@@ -626,6 +963,17 @@ public class ActiveTaskLifecycleTests {
             public void onJobFinished(long jobId, long planId, String toolName, TaskStatus status, String summary) {
                 reported.add(toolName + ":" + status + ":" + summary);
             }
+
+            @Override
+            public void onJobFinished(
+                    long jobId,
+                    long planId,
+                    String toolName,
+                    TaskDisposition disposition,
+                    String summary,
+                    long execution) {
+                reported.add(toolName + ":" + disposition + ":" + summary);
+            }
         });
         runner.enqueuePlan(
                 "clear test",
@@ -648,8 +996,8 @@ public class ActiveTaskLifecycleTests {
             h.assertTrue(runner.queue().plans().isEmpty(), "the plan survived the clear");
             h.assertTrue(runner.current().isEmpty(), "the active task survived the clear");
             h.assertTrue(
-                    reported.stream().anyMatch(line -> line.startsWith("stay:FAILED")),
-                    "the stopped job never reached the owner: " + reported);
+                    reported.size() == 1 && reported.getFirst().startsWith("stay:CANCELLED"),
+                    "the stopped job should reach the owner once as a cancellation: " + reported);
         });
     }
 

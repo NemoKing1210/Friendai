@@ -1,5 +1,6 @@
 package dev.friendai.agent.turn;
 
+import dev.friendai.execution.TaskDisposition;
 import dev.friendai.execution.TaskWorkResult;
 import dev.friendai.execution.tool.AccessLevel;
 import java.util.Optional;
@@ -77,13 +78,34 @@ public sealed interface BrainEvent {
             long planId,
             long goalId,
             String toolName,
-            boolean success,
+            TaskDisposition disposition,
             String summary,
             String extra,
             Optional<TaskWorkResult> workResult)
             implements BrainEvent {
         public TaskFinished {
+            disposition = disposition == null ? TaskDisposition.FAILED : disposition;
             workResult = workResult == null ? Optional.empty() : workResult;
+        }
+
+        public TaskFinished(
+                int taskId,
+                long planId,
+                long goalId,
+                String toolName,
+                boolean success,
+                String summary,
+                String extra,
+                Optional<TaskWorkResult> workResult) {
+            this(
+                    taskId,
+                    planId,
+                    goalId,
+                    toolName,
+                    success ? TaskDisposition.SUCCESS : TaskDisposition.FAILED,
+                    summary,
+                    extra,
+                    workResult);
         }
 
         public TaskFinished(
@@ -99,12 +121,16 @@ public sealed interface BrainEvent {
             this(taskId, 0, 0, toolName, success, summary, "", Optional.empty());
         }
 
+        public boolean success() {
+            return disposition == TaskDisposition.SUCCESS;
+        }
+
         @Override
         public String toPromptLine() {
             // The correlation is what lets the next turn connect this result to the goal it was meant to prove.
             String about =
                     (planId > 0 ? " (plan #" + planId + ")" : "") + (goalId > 0 ? " (goal #" + goalId + ")" : "");
-            return "[event] task #" + taskId + " " + toolName + (success ? " finished: " : " failed: ") + summary
+            return "[event] task #" + taskId + " " + toolName + " " + disposition.promptVerb() + ": " + summary
                     + about + withExtra(extra)
                     + workResult.map(result -> " " + result.compact()).orElse("");
         }
@@ -117,14 +143,31 @@ public sealed interface BrainEvent {
         }
     }
 
-    record PlanFinished(long planId, String goal, boolean success, String summary, String extra) implements BrainEvent {
+    record PlanFinished(long planId, String goal, TaskDisposition disposition, String summary, String extra)
+            implements BrainEvent {
         public PlanFinished(long planId, String goal, boolean success, String summary) {
-            this(planId, goal, success, summary, "");
+            this(planId, goal, success ? TaskDisposition.SUCCESS : TaskDisposition.FAILED, summary, "");
+        }
+
+        public PlanFinished(long planId, String goal, boolean success, String summary, String extra) {
+            this(planId, goal, success ? TaskDisposition.SUCCESS : TaskDisposition.FAILED, summary, extra);
+        }
+
+        public PlanFinished(long planId, String goal, TaskDisposition disposition, String summary) {
+            this(planId, goal, disposition, summary, "");
+        }
+
+        public PlanFinished {
+            disposition = disposition == null ? TaskDisposition.FAILED : disposition;
+        }
+
+        public boolean success() {
+            return disposition == TaskDisposition.SUCCESS;
         }
 
         @Override
         public String toPromptLine() {
-            return "[event] plan #" + planId + " " + goal + (success ? " finished: " : " failed: ") + summary
+            return "[event] plan #" + planId + " " + goal + " " + disposition.promptVerb() + ": " + summary
                     + withExtra(extra);
         }
     }
