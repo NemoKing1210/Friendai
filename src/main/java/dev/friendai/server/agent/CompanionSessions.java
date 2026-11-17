@@ -514,6 +514,18 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
     public List<String> toolNames() {
         return tools.specs().stream().map(ToolSpec::name).toList();
     }
+
+    public List<String> toolNames(AccessLevel access) {
+        return tools.specs(access).stream().map(ToolSpec::name).toList();
+    }
+
+    public List<ToolRegistry.Registration> toolRegistrations() {
+        return tools.registrations();
+    }
+
+    public List<dev.friendai.agent.tools.ToolMeta> toolMetadata() {
+        return toolCatalog.all();
+    }
     /** The system prompt the owner's next LLM request would carry; empty if they have no companion. */
     public Optional<String> currentPrompt(UUID owner) {
         return entryFor(owner).map(session -> session.brain().currentSystemPrompt());
