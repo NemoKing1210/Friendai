@@ -17,18 +17,39 @@ import javax.sound.sampled.Mixer;
 import javax.sound.sampled.SourceDataLine;
 
 /**
- * Plays 16-bit PCM at the clip's own sample rate, mono or stereo. The volume and, for a spatial reply,
- * the left/right mix and distance are applied here, so no engine has to know about them.
+ * The built-in speech backend: plays 16-bit PCM at the clip's own sample rate, mono or stereo. The volume and,
+ * for a spatial reply, the left/right mix and distance are applied here, so no engine has to know about them.
  */
-public final class SpeechPlayback {
+public final class SpeechPlayback implements SpeechBackend {
     /** Audio per block: 20 ms, so a pan follows a head turn without audible steps. */
     private static final int BLOCKS_PER_SECOND = 50;
     /** Blocks the device buffers: a small buffer is what keeps the pan from being heard late. */
     private static final int BUFFER_BLOCKS = 5;
 
     private final Object lock = new Object();
-    private final PlaybackGate gate = new PlaybackGate();
+    private final PlaybackGate gate;
     private SourceDataLine line;
+
+    public SpeechPlayback() {
+        this(new PlaybackGate());
+    }
+
+    /** Plays under a gate shared with other backends, so one {@link #stop()} reaches all of them. */
+    public SpeechPlayback(PlaybackGate gate) {
+        this.gate = gate;
+    }
+
+    /** The built-in line needs nothing but an audio device, which is only known once it is opened. */
+    @Override
+    public boolean ready() {
+        return true;
+    }
+
+    @Override
+    public boolean play(TtsClip clip, Request request, PlaybackGate.Permit permit) {
+        play(clip, request.volume(), request.device(), request.spatial(), permit);
+        return true;
+    }
 
     /** Names of the audio outputs that can play what we synthesize. */
     public static List<String> devices() {

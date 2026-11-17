@@ -38,12 +38,13 @@ tasks.register('verifyEngineClasspath') {
 	inputs.files(configurations.compileClasspath, configurations.runtimeClasspath)
 
 	doLast { task ->
-		def forbiddenArtifactName = ~/(?i)(?:^|[-_.])(minecraft|fabric|yacl|modmenu|whisper|sherpa)(?:[-_.]|$)/
+		def forbiddenArtifactName = ~/(?i)(?:^|[-_.])(minecraft|fabric|yacl|modmenu|voicechat|whisper|sherpa)(?:[-_.]|$)/
 		def forbiddenClassPrefixes = [
 				'net/minecraft/',
 				'net/fabricmc/',
 				'dev/isxander/yacl3/',
 				'com/terraformersmc/modmenu/',
+				'de/maxhenkel/voicechat/',
 				'io/github/givimad/whisperjni/',
 				'com/k2fsa/sherpa/onnx/'
 		]

@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.221.0] - 2026-11-16
+
+### Added
+
+- **Simple Voice Chat** in Settings → Voice → Synthesis (`voice.tts.playback`, Auto by default): with the optional Simple Voice Chat mod installed and connected, the companion's spoken replies play through it from the companion's position, so Sound Physics Remastered adds reverb and muffles the voice behind walls, and the wake word listens to what you say in voice chat instead of opening the microphone a second time. Remove the mod, or disconnect, mute or switch off voice chat, and the built-in output and microphone take over on their own; Off never uses the mod.
+
 ## [0.220.2] - 2026-11-15
 
 ### Fixed

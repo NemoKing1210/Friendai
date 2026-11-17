@@ -66,7 +66,7 @@ public final class SpeechRuntime {
     private static final HttpClient HTTP =
             HttpClient.newBuilder().followRedirects(HttpClient.Redirect.ALWAYS).build();
     private static final TtsClient TTS = TtsClient.withBuiltins(new VoiceHttp(HTTP, Duration.ofSeconds(20)));
-    private static final SpeechPlayback PLAYBACK = new SpeechPlayback();
+    private static final SpeechOutput OUTPUT = new SpeechOutput();
     private static final VoiceModelManager MODELS = new VoiceModelManager(
             FabricLoader.getInstance()
                     .getGameDir()
@@ -96,9 +96,18 @@ public final class SpeechRuntime {
 
     private SpeechRuntime() {}
 
-    /** One resolved reply's settings, including which companion speaks and how far its voice carries. */
+    /**
+     * One resolved reply's settings, including which playback backend the owner chose, which companion speaks and
+     * how far its voice carries.
+     */
     private record Plan(
-            ResolvedTts settings, double volume, String device, boolean spatial, UUID companionId, int range) {}
+            ResolvedTts settings,
+            double volume,
+            String device,
+            String backend,
+            boolean spatial,
+            UUID companionId,
+            int range) {}
 
     /** One queued utterance; the plan travels with it so a newer reply cannot repoint older chunks. */
     private record Chunk(String text, Plan plan, ClientSessionId sessionId) {}
@@ -141,7 +150,7 @@ public final class SpeechRuntime {
         synchronized (LOCK) {
             gen = generation;
             expectedSession = sessionId;
-            permit = PLAYBACK.permit();
+            permit = OUTPUT.permit();
         }
         WORKER.execute(() -> {
             try {
@@ -199,7 +208,7 @@ public final class SpeechRuntime {
         playingPlan = null;
         mix = SpatialAudio.CENTER;
         cancelPendingSynthesis();
-        PLAYBACK.stop();
+        OUTPUT.stop();
     }
 
     /**
@@ -236,7 +245,7 @@ public final class SpeechRuntime {
             QUEUE.clear();
         }
         cancelPendingSynthesis();
-        PLAYBACK.stop();
+        OUTPUT.stop();
     }
 
     public static void onDisconnect(ClientSessionId disconnectedSession) {
@@ -259,7 +268,7 @@ public final class SpeechRuntime {
             sessionId = null;
         }
         invalidate();
-        PLAYBACK.close();
+        OUTPUT.close();
         WORKER.shutdown();
         try {
             WORKER.awaitTermination(2, TimeUnit.SECONDS);
@@ -422,7 +431,7 @@ public final class SpeechRuntime {
                     if (closed || !chunk.sessionId().equals(sessionId)) continue;
                     gen = generation;
                     // The permit is taken before synthesis; a stop invalidates it before the device opens.
-                    permit = PLAYBACK.permit();
+                    permit = OUTPUT.permit();
                 }
                 try {
                     playOne(chunk.text(), chunk.plan(), gen, chunk.sessionId(), permit);
@@ -510,8 +519,16 @@ public final class SpeechRuntime {
         }
         playingPlan = plan;
         try {
-            PLAYBACK.play(
-                    clip, plan.volume(), plan.device(), plan.spatial() ? SpeechRuntime::currentMix : null, permit);
+            OUTPUT.play(
+                    clip,
+                    plan.backend(),
+                    new SpeechBackend.Request(
+                            plan.volume(),
+                            plan.device(),
+                            plan.spatial() ? SpeechRuntime::currentMix : null,
+                            plan.companionId(),
+                            plan.range()),
+                    permit);
         } finally {
             playingPlan = null;
         }
@@ -621,6 +638,7 @@ public final class SpeechRuntime {
                         cfg, Minecraft.getInstance().getLanguageManager().getSelected(), System::getenv),
                 cfg.volume,
                 cfg.outputDevice,
+                cfg.playback,
                 spatial,
                 companionId,
                 range);

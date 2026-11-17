@@ -118,9 +118,19 @@ public class FriendaiClient implements ClientModInitializer {
         RUNTIME.registerPushToTalk(pushToTalk);
         pushToTalk.register();
 
+        WakeWordHandler.Capture ownMicrophone =
+                WakeWordHandler.microphone(VoiceRuntime.mic(), () -> clientConfig().voice.stt.inputDevice);
+        // With Simple Voice Chat installed the companion listens to what the player says in voice chat; the class
+        // behind it names that mod's API, so it is reached only when the mod is loaded.
+        WakeWordHandler.Capture wakeMicrophone =
+                net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("voicechat")
+                        ? dev.friendai.client.voicechat.VoiceChatMicrophone.around(
+                                ownMicrophone,
+                                () -> dev.friendai.features.speech.tts.PlaybackBackends.voiceChatAllowed(
+                                        clientConfig().voice.tts.playback))
+                        : ownMicrophone;
         WakeWordHandler wake = new WakeWordHandler(
-                VoiceRuntime.mic(),
-                () -> clientConfig().voice.stt.inputDevice,
+                wakeMicrophone,
                 WAKE_HOST,
                 FriendaiClient::clientConfig,
                 VoiceRuntime::stt,
