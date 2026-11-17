@@ -2,10 +2,11 @@ package dev.friendai.agent.turn;
 
 import dev.friendai.agent.goal.GoalView;
 import dev.friendai.agent.llm.RequestTelemetry;
+import dev.friendai.agent.llm.model.LlmErrorKind;
+import dev.friendai.agent.llm.model.LlmException;
 import dev.friendai.agent.llm.model.LlmResponse;
 import dev.friendai.agent.llm.model.Message;
 import dev.friendai.agent.llm.model.Role;
-import dev.friendai.agent.llm.model.StopReason;
 import dev.friendai.agent.llm.model.ToolCall;
 import dev.friendai.agent.llm.model.ToolSpec;
 import dev.friendai.agent.llm.stream.StreamAccumulator;
@@ -1086,11 +1087,13 @@ public final class CompanionBrain {
                         },
                         telemetry);
                 // The raw request, before this turn's own mapping: cancelling the mapped stage would not reach it.
+                if (raw == null) throw missingProviderResponse();
                 requestFuture = raw;
                 future = raw.thenApply(response -> completeFromStream(accumulator, response));
             } else {
                 streamInFlight = false;
                 future = active.complete(prompt, fittedHistory, fittedTools, telemetry);
+                if (future == null) throw missingProviderResponse();
                 requestFuture = future;
             }
         } catch (RuntimeException e) {
@@ -1214,7 +1217,7 @@ public final class CompanionBrain {
 
     private static LlmResponse completeFromStream(StreamAccumulator accumulator, LlmResponse response) {
         if (response == null) {
-            return accumulator.response(StopReason.END);
+            throw missingProviderResponse();
         }
         if (response.text().isBlank()
                 && response.toolCalls().isEmpty()
@@ -1222,6 +1225,10 @@ public final class CompanionBrain {
             return accumulator.response(response.stopReason());
         }
         return response;
+    }
+
+    private static LlmException missingProviderResponse() {
+        return new LlmException(LlmErrorKind.PARSE, "Provider returned no response");
     }
 
     private void onResponse(int gen, LlmResponse response, Throwable error) {
@@ -1240,12 +1247,13 @@ public final class CompanionBrain {
             observe(o -> o.onResponse(response));
         }
         if (refreshAfterFailure(gen)) return;
-        if (error != null) {
-            LOGGER.debug("LLM request failed: {}", error.toString());
-            observe(o -> o.onError(error));
+        if (error != null || response == null) {
+            Throwable failure = error != null ? error : missingProviderResponse();
+            LOGGER.debug("LLM request failed: {}", failure.getClass().getSimpleName());
+            observe(o -> o.onError(failure));
             long failed = turnSeq;
             observe(o -> o.onTurnEnd(failed, "error"));
-            speakSafely("error", () -> speaker.error(ErrorMessages.forUser(error)));
+            speakSafely("error", () -> speaker.error(ErrorMessages.forUser(failure)));
             endTurn();
             return;
         }

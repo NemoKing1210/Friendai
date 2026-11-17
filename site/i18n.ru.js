@@ -522,7 +522,7 @@ const RU = {
   "PromptBuilder": "PromptBuilder",
   "Identity, memory, perception, skills and mission, cut to a character budget.": "Личность, память, восприятие, навыки и миссия, обрезанные по лимиту символов.",
   "LLM gateway": "LLM-шлюз",
-  "OpenAI chat and responses, Anthropic, Gemini, Ollama. Retries only retryable errors; keys stay in headers.": "OpenAI chat и responses, Anthropic, Gemini, Ollama. Повторяет только повторяемые ошибки; ключи остаются в заголовках.",
+  "OpenAI chat and responses, Anthropic, Gemini, Ollama. Retries only retryable errors; the configured timeout covers streamed replies; keys stay in headers.": "OpenAI chat и responses, Anthropic, Gemini, Ollama. Повторяет только ошибки, которые можно повторить; заданный тайм-аут ограничивает ожидание потока; ключи остаются в заголовках.",
   "ToolRegistry": "ToolRegistry",
   "Validates arguments and access. Never throws: bad input becomes an error result.": "Проверяет аргументы и доступ. Не бросает исключений: плохой ввод становится результатом-ошибкой.",
   "Speaker": "Озвучка",
