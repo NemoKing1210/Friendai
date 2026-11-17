@@ -264,7 +264,9 @@ public final class FriendaiCommands {
                         "friendai.command.freetime.status.detail",
                         status.activity().isBlank() ? "-" : status.activity(),
                         status.why().isBlank() ? "-" : status.why(),
-                        status.next().isBlank() ? "-" : status.next(),
+                        dev.friendai.agent.autonomy.FreeTimeText.decisionTranslationKey(status.next())
+                                .<Component>map(Component::translatable)
+                                .orElseGet(() -> Component.literal(status.next().isBlank() ? "-" : status.next())),
                         status.budget().isBlank() ? "-" : status.budget(),
                         status.last().isBlank() ? "-" : status.last(),
                         status.plannerModel().isBlank() ? "-" : status.plannerModel());

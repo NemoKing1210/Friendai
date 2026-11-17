@@ -144,8 +144,7 @@ final class ReflexQueue {
     }
 
     /**
-     * Starts the first agenda entry that has a deterministic template, reflex first. Used when the director is
-     * silent, the planner failed, the budget is spent or the watchdog fired: the hour must keep moving.
+     * Starts the first agenda entry that has a deterministic template, with reflexes first.
      */
     boolean firstTemplate(
             UUID owner,

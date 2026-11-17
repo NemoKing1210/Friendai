@@ -3,6 +3,7 @@ package dev.friendai.agent.autonomy;
 import dev.friendai.agent.turn.AgentSettings.Autonomy;
 import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 
@@ -13,14 +14,14 @@ import java.util.Map;
  * that evolves when a shift completes, and no Minecraft class is involved. What it does prove is that
  * {@link NeedsAssessor}, {@link ShiftPolicy}, {@link ReflexPlans}, {@link ShiftBudget} and
  * {@link ShiftOutcome} keep an hour moving: needs are offered, shifts start and finish, the budget is
- * respected and a free time that stands still becomes a counted stall.
+ * respected and deliberate idle time is reported separately.
  */
 final class FreeTimeAuditHarness {
     /** One second of simulated time. */
     private static final long STEP_MILLIS = 1_000L;
     /** The audit window, one hour. */
     static final long HOUR_SECONDS = 3_600L;
-    /** A free time that has nothing running for this long is a stall, like {@code IdleWatchdog} says. */
+    /** A ready decision without progress for this long is a counted stall. */
     static final long STALL_WINDOW_SECONDS = IdleWatchdog.DEFAULT_WINDOW_SEC;
     /** A made-up token cost per director turn; enough to compare reports, not a provider measurement. */
     static final int TOKENS_PER_DIRECTOR_TURN = 900;
@@ -40,6 +41,10 @@ final class FreeTimeAuditHarness {
 
         /** Blocks the plan placed, for the report. */
         int blocksPlaced(NeedKind kind);
+
+        default boolean ownerWorkQueued(long nowMillis) {
+            return false;
+        }
     }
 
     /** One row of the audit table. */
@@ -74,6 +79,11 @@ final class FreeTimeAuditHarness {
             int shifts,
             int directorTurns,
             int stalls,
+            long restingSeconds,
+            long blockedSeconds,
+            int duplicateAttempts,
+            int notices,
+            long ownerOrderDelaySeconds,
             String finalStage,
             Map<NeedKind, Tally> table,
             List<String> events) {
@@ -91,6 +101,15 @@ final class FreeTimeAuditHarness {
                     .append(" (windows of ")
                     .append(STALL_WINDOW_SECONDS)
                     .append(" s with nothing running)\n");
+            sb.append("- resting seconds: ").append(restingSeconds).append('\n');
+            sb.append("- blocked seconds: ").append(blockedSeconds).append('\n');
+            sb.append("- repeated attempts with the same blocker: ")
+                    .append(duplicateAttempts)
+                    .append('\n');
+            sb.append("- actionable notices: ").append(notices).append('\n');
+            sb.append("- owner order delay from new autonomous work: ")
+                    .append(ownerOrderDelaySeconds)
+                    .append(" s\n");
             sb.append("- final ladder stage: ").append(finalStage).append("\n\n");
             sb.append("| Need | offered | chosen | completed | failed | seconds | blocks |\n");
             sb.append("|---|---|---|---|---|---|---|\n");
@@ -113,6 +132,14 @@ final class FreeTimeAuditHarness {
     private long directorTurns;
     private long stallSeconds;
     private long quietSince;
+    private long restingSeconds;
+    private long blockedSeconds;
+    private long ownerOrderDelaySeconds;
+    private int duplicateAttempts;
+    private int notices;
+    private long hungerBlockedWithoutFood;
+    private final EnumSet<NeedKind> failedNeeds = EnumSet.noneOf(NeedKind.class);
+    private final List<ShiftRecord> recent = new ArrayList<>();
     private int shifts;
     private FreeTime state;
     private Shift shift;
@@ -144,6 +171,11 @@ final class FreeTimeAuditHarness {
                 shifts,
                 (int) directorTurns,
                 (int) (stallSeconds / STALL_WINDOW_SECONDS),
+                restingSeconds,
+                blockedSeconds,
+                duplicateAttempts,
+                notices,
+                ownerOrderDelaySeconds,
                 ProgressionLadder.evaluate(world.facts(startMillis + seconds * STEP_MILLIS))
                         .stage(),
                 table,
@@ -155,8 +187,14 @@ final class FreeTimeAuditHarness {
             endShift(shiftSuccess, shiftSummary, now);
         }
         AutonomyFacts facts = world.facts(now);
+        if (ShiftPolicy.foodUnblocksHunger(hungerBlockedWithoutFood, state, facts)) {
+            state = withShiftAndCooldowns(shift, withCooldown(NeedKind.HUNGER, now));
+            hungerBlockedWithoutFood = 0;
+            failedNeeds.remove(NeedKind.HUNGER);
+        }
         List<Need> needs = NeedsAssessor.assess(facts, state, settings);
         needs.forEach(need -> table.compute(need.kind(), (kind, tally) -> tally.plusOffered()));
+        boolean ownerWork = world.ownerWorkQueued(now);
         ShiftInputs in = new ShiftInputs(
                 state,
                 facts,
@@ -165,13 +203,22 @@ final class FreeTimeAuditHarness {
                 false,
                 shift != null,
                 false,
-                false,
+                ownerWork,
                 false,
                 now - 10 * 60_000L,
                 false);
         ShiftPolicy.Decision decision = ShiftPolicy.decide(in, budget);
+        if (decision instanceof ShiftPolicy.None waiting) {
+            if (waiting.reason() == ShiftPolicy.WaitReason.RESTING) restingSeconds++;
+            if (waiting.reason() == ShiftPolicy.WaitReason.NEED_COOLDOWN) blockedSeconds++;
+        }
+        int before = shifts;
         apply(decision, needs, facts, now);
-        if (shift == null) {
+        if (ownerWork && shifts > before) ownerOrderDelaySeconds += (planEndsAt - now) / 1_000L;
+        if (shift == null
+                && (decision instanceof ShiftPolicy.Reflex
+                        || decision instanceof ShiftPolicy.Fallback
+                        || decision instanceof ShiftPolicy.Director)) {
             quietSince = quietSince == 0 ? now : quietSince;
             if (now - quietSince >= STALL_WINDOW_SECONDS * 1_000L) {
                 stallSeconds += (now - quietSince) / 1_000L;
@@ -223,10 +270,11 @@ final class FreeTimeAuditHarness {
             events.add("no template for " + need.kind() + " at " + seconds(now) + " s");
             return;
         }
-        startShift(need.kind(), need.kind() + " template", now, true);
+        startShift(need.kind(), need.kind() + " template", now, world.canPlan(need.kind()));
     }
 
     private void startShift(NeedKind need, String goal, long now, boolean canPlan) {
+        if (failedNeeds.contains(need)) duplicateAttempts++;
         String stage = ProgressionLadder.evaluate(world.facts(now)).stage();
         shift = new Shift(
                 nextShiftId++,
@@ -275,6 +323,15 @@ final class FreeTimeAuditHarness {
         world.completed(shift.need(), success);
         String after = ProgressionLadder.evaluate(world.facts(now)).stage();
         ShiftOutcome.Result result = ShiftOutcome.of(shift, success, summary, before, after, "", now, settings);
+        if (success) {
+            failedNeeds.remove(shift.need());
+        } else {
+            failedNeeds.add(shift.need());
+            if (dev.friendai.agent.turn.CompanionSpeechPolicy.shouldReportShiftFailure(
+                    shift, summary, result.record().stopWhen(), recent)) notices++;
+        }
+        recent.addFirst(result.record());
+        if (recent.size() > FreeTime.MAX_HISTORY) recent.removeLast();
         int placed = success ? world.blocksPlaced(shift.need()) : 0;
         table.compute(shift.need(), (kind, tally) -> tally.plusEnd(success, world.planSeconds(kind), placed));
         if (success) {
@@ -282,38 +339,33 @@ final class FreeTimeAuditHarness {
         } else if (!shift.reflex() && result.cooldownUntil().isPresent()) {
             budget.failed();
         }
+        Map<NeedKind, Long> cooldowns = state.cooldownUntil();
         if (result.cooldownUntil().isPresent()) {
-            state = new FreeTime(
-                    state.on(),
-                    state.origin(),
-                    state.wish(),
-                    state.sinceMillis(),
-                    null,
-                    state.awaitingChoice(),
-                    state.nextShiftId(),
-                    state.history(),
-                    state.lessons(),
-                    withCooldown(shift.need(), result.cooldownUntil().get()),
-                    state.away());
-        } else {
-            state = new FreeTime(
-                    state.on(),
-                    state.origin(),
-                    state.wish(),
-                    state.sinceMillis(),
-                    null,
-                    state.awaitingChoice(),
-                    state.nextShiftId(),
-                    state.history(),
-                    state.lessons(),
-                    state.cooldownUntil(),
-                    state.away());
+            long until = result.cooldownUntil().get();
+            cooldowns = withCooldown(shift.need(), until);
+            if (shift.need() == NeedKind.HUNGER && world.facts(now).foodPoints() == 0) hungerBlockedWithoutFood = until;
         }
+        state = withShiftAndCooldowns(null, cooldowns);
         events.add("end " + shift.id() + " " + shift.need() + ": " + (success ? "ok" : "failed")
                 + (summary.isBlank() ? "" : " (" + summary + ")") + " ["
                 + result.record().stopWhen().name() + "]");
         shift = null;
         planEndsAt = 0;
+    }
+
+    private FreeTime withShiftAndCooldowns(Shift shift, Map<NeedKind, Long> cooldowns) {
+        return new FreeTime(
+                state.on(),
+                state.origin(),
+                state.wish(),
+                state.sinceMillis(),
+                shift,
+                state.awaitingChoice(),
+                state.nextShiftId(),
+                state.history(),
+                state.lessons(),
+                cooldowns,
+                state.away());
     }
 
     private Map<NeedKind, Long> withCooldown(NeedKind kind, long until) {

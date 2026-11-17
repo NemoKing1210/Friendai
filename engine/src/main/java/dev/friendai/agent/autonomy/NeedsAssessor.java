@@ -24,6 +24,20 @@ public final class NeedsAssessor {
     private NeedsAssessor() {}
 
     public static List<Need> assess(AutonomyFacts f, FreeTime state, AutonomySettings s) {
+        return candidates(f, s).stream()
+                .filter(need -> !isBlocked(f, state, need.kind()))
+                .sorted(Comparator.comparingInt(Need::urgency)
+                        .reversed()
+                        .thenComparingInt(need -> need.kind().ordinal()))
+                .limit(MAX_NEEDS)
+                .toList();
+    }
+
+    static boolean hasCoolingNeed(AutonomyFacts f, FreeTime state, AutonomySettings s) {
+        return candidates(f, s).stream().anyMatch(need -> isBlocked(f, state, need.kind()));
+    }
+
+    private static List<Need> candidates(AutonomyFacts f, AutonomySettings s) {
         List<Need> needs = new ArrayList<>();
         if (f.health() * 10 < f.maxHealth() * 4) {
             needs.add(new Need(
@@ -201,13 +215,7 @@ public final class NeedsAssessor {
         }
         needs.add(new Need(
                 NeedKind.EXPLORE, 10, Executor.DIRECTOR, "nothing urgent; explore, gather or improve the base"));
-        return needs.stream()
-                .filter(need -> !isCoolingDown(state, need.kind(), f.nowMillis()))
-                .sorted(Comparator.comparingInt(Need::urgency)
-                        .reversed()
-                        .thenComparingInt(need -> need.kind().ordinal()))
-                .limit(MAX_NEEDS)
-                .toList();
+        return needs;
     }
 
     private static boolean gearAtLeastIron(AutonomyFacts f) {
@@ -240,5 +248,14 @@ public final class NeedsAssessor {
     public static boolean isCoolingDown(FreeTime state, NeedKind kind, long now) {
         Long until = state.cooldownUntil().get(kind);
         return until != null && until > now;
+    }
+
+    /** A failed search for immediate hunger also blocks starting a second food search under the stock-up need. */
+    public static boolean isBlocked(AutonomyFacts f, FreeTime state, NeedKind kind) {
+        return isCoolingDown(state, kind, f.nowMillis())
+                || (kind == NeedKind.FOOD
+                        && f.foodPoints() == 0
+                        && f.self().hungry(0)
+                        && isCoolingDown(state, NeedKind.HUNGER, f.nowMillis()));
     }
 }

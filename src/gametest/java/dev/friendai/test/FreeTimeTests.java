@@ -1,6 +1,7 @@
 package dev.friendai.test;
 
 import dev.friendai.agent.autonomy.AutonomySettings;
+import dev.friendai.agent.autonomy.NeedKind;
 import dev.friendai.agent.llm.model.LlmResponse;
 import dev.friendai.agent.llm.model.Message;
 import dev.friendai.agent.llm.model.StopReason;
@@ -17,6 +18,7 @@ import dev.friendai.foundation.places.PlaceKind;
 import dev.friendai.foundation.places.PlaceSource;
 import dev.friendai.foundation.places.PlaceValues;
 import dev.friendai.foundation.spatial.Pos;
+import dev.friendai.server.agent.FreeTimeTickTestAccess;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.task.TaskStatus;
@@ -294,6 +296,10 @@ public class FreeTimeTests {
 
     /** Queues a free-time shift by hand: one plan the driver owns, the way a reflex would. */
     private static long shiftPlan(GameTestHelper h, CompanionEntity c, String steps) {
+        return shiftPlan(h, c, steps, NeedKind.EXPLORE, Long.MAX_VALUE);
+    }
+
+    private static long shiftPlan(GameTestHelper h, CompanionEntity c, String steps, NeedKind need, long deadline) {
         var builtins = dev.friendai.server.agent.tools.FriendaiTools.build(
                 () -> 16, dev.friendai.features.memory.minecraft.tool.MemoryAccess.DISABLED);
         var caller = new dev.friendai.execution.tool.Caller(
@@ -315,15 +321,7 @@ public class FreeTimeTests {
                 .orElseThrow();
         c.executionCoordinator().markAutonomousPlan(plan);
         var service = GameTestSupport.runtime(h.getLevel().getServer()).freeTime();
-        service.beginShift(
-                c.ownerUuid(),
-                "free time",
-                java.util.List.of(),
-                "",
-                dev.friendai.agent.autonomy.NeedKind.EXPLORE,
-                true,
-                0,
-                Long.MAX_VALUE);
+        service.beginShift(c.ownerUuid(), "free time", java.util.List.of(), "", need, true, 0, deadline);
         service.linkPlan(c.ownerUuid(), plan);
         return plan;
     }
@@ -726,6 +724,37 @@ public class FreeTimeTests {
     }
 
     @GameTest(maxTicks = 400)
+    public void timedOutHungerWaitsForSafeFood(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity companion = onlineCompanion(h);
+        UUID owner = companion.ownerUuid();
+        var driver = driver(h);
+        drainHunger(h, companion, 6);
+        driver.start(companion, dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, "");
+        long start = System.currentTimeMillis() + 60_000;
+        shiftPlan(h, companion, "[{\"tool\":\"jump\",\"args\":\"{}\"}]", NeedKind.HUNGER, start - 1);
+        FreeTimeTickTestAccess.tick(driver, companion, start);
+        Long blockedUntil = driver.state(owner).cooldownUntil().get(NeedKind.HUNGER);
+        h.assertTrue(blockedUntil != null && blockedUntil > start, "an expired hunger attempt cools down");
+
+        companion.inventory().addItem(new ItemStack(Items.ROTTEN_FLESH));
+        FreeTimeTickTestAccess.tick(driver, companion, start + 6_000);
+        h.assertValueEqual(
+                driver.state(owner).cooldownUntil().get(NeedKind.HUNGER),
+                blockedUntil,
+                "unsafe food keeps the cooldown");
+
+        companion.inventory().addItem(new ItemStack(Items.BREAD));
+        FreeTimeTickTestAccess.tick(driver, companion, start + 12_000);
+        var resumed = driver.state(owner).shift();
+        h.assertTrue(resumed != null && resumed.need() == NeedKind.HUNGER, "safe food reopens the hungry reflex");
+        h.assertTrue(
+                driver.state(owner).cooldownUntil().get(NeedKind.HUNGER) < blockedUntil, "the old blocker was cleared");
+        driver.stop(owner, "test over");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 400)
     public void hungerReflexEats(GameTestHelper h) {
         GameTestSupport.platform(h, 8);
         CompanionEntity c = onlineCompanion(h);
@@ -832,9 +861,9 @@ public class FreeTimeTests {
         });
     }
 
-    /** A silent director must not leave an hour empty: after the grace window a template starts. */
+    /** A silent director charges the existing backoff once; an idle watchdog cannot ask again on its own. */
     @GameTest(environment = "friendai-gametest:free_time_watchdog", maxTicks = 500)
-    public void silentDirectorFallsBack(GameTestHelper h) {
+    public void silentDirectorCannotBypassTheBackoff(GameTestHelper h) {
         GameTestSupport.platform(h, 8);
         CompanionEntity c = onlineCompanion(h);
         UUID owner = c.ownerUuid();
@@ -843,15 +872,22 @@ public class FreeTimeTests {
         shortWatchdogConfig.tasks.freeTimeWatchdogSec = 1;
         serverState.applyConfig(shortWatchdogConfig);
         driver(h).start(c, dev.friendai.agent.autonomy.FreeTime.Origin.COMMAND, "");
-        h.succeedWhen(() -> {
-            var state = driver(h).state(owner);
-            h.assertTrue(
-                    state.shift() != null
-                            || !c.executionCoordinator().queue().plans().isEmpty()
-                            || state.awaitingChoice(),
-                    "the silent director does not leave free time idle: " + state);
-            driver(h).stop(owner, "test over");
-        });
+        var driver = driver(h);
+        long start = System.currentTimeMillis() + 60_000;
+        FreeTimeTickTestAccess.tick(driver, c, start);
+        h.assertTrue(driver.state(owner).awaitingChoice(), "the first decision asks the director");
+        h.assertValueEqual(driver.budget(owner).used(start), 1, "one director request");
+        h.assertTrue(
+                FreeTimeTickTestAccess.choose(driver, c, start + 1_000).error(),
+                "an answer received at the choice deadline cannot start a shift");
+        FreeTimeTickTestAccess.tick(driver, c, start + 4_000);
+        FreeTimeTickTestAccess.tick(driver, c, start + 6_000);
+
+        h.assertValueEqual(driver.budget(owner).used(start + 6_000), 1, "watchdog cannot bypass budget");
+        h.assertValueEqual(driver.budget(owner).failStreak(), 1, "charge the unanswered choice once");
+        h.assertTrue(!driver.state(owner).awaitingChoice(), "the obsolete choice was cleared");
+        driver.stop(owner, "test over");
+        h.succeed();
     }
 
     @GameTest(environment = "friendai-gametest:free_time_daylight", maxTicks = 300)

@@ -260,7 +260,25 @@ class ShiftPolicyTest {
                 .storage("s", 3)
                 .storageFreeSlots(9)
                 .farm("f", "wheat", 4, 0);
-        assertInstanceOf(ShiftPolicy.None.class, decide(in(coolingExplore, settled)));
+        var waiting = assertInstanceOf(ShiftPolicy.None.class, decide(in(coolingExplore, settled)));
+        assertEquals(ShiftPolicy.WaitReason.NEED_COOLDOWN, waiting.reason());
+    }
+
+    @Test
+    void idleBesideTheOwnerRestsUntilARealNeedAppears() {
+        FreeTime idle = new FreeTime(
+                true, FreeTime.Origin.IDLE, "", 0, null, false, 1, List.of(), List.of(), Map.of(), List.of());
+        Facts settled = Facts.base()
+                .everything()
+                .home("h", 2)
+                .storage("s", 3)
+                .storageFreeSlots(9)
+                .farm("f", "wheat", 4, 0);
+        var resting = assertInstanceOf(ShiftPolicy.None.class, decide(in(idle, settled)));
+        assertEquals(ShiftPolicy.WaitReason.RESTING, resting.reason());
+
+        var ready = assertInstanceOf(ShiftPolicy.Reflex.class, decide(in(idle, settled.health(4))));
+        assertEquals(NeedKind.SURVIVE, ready.need().kind());
     }
 
     @Test

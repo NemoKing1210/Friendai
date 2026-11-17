@@ -4,7 +4,9 @@ import dev.friendai.agent.autonomy.AwaySummary;
 import dev.friendai.agent.autonomy.FreeTimeLogEvents;
 import dev.friendai.agent.autonomy.FreeTimeService;
 import dev.friendai.agent.autonomy.FreeTimeText;
+import dev.friendai.agent.autonomy.NeedKind;
 import dev.friendai.agent.autonomy.Shift;
+import dev.friendai.agent.autonomy.ShiftBlocker;
 import dev.friendai.agent.autonomy.ShiftStopWhen;
 import dev.friendai.agent.turn.CompanionSpeechPolicy;
 import dev.friendai.common.Components;
@@ -12,6 +14,9 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.server.companion.CompanionNames;
 import dev.friendai.server.runtime.ServerRuntimeRegistry;
+import java.util.EnumMap;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import net.minecraft.network.chat.Component;
@@ -25,6 +30,8 @@ final class ShiftReporter {
     private final MinecraftServer server;
     private final FreeTimeService service;
     private final CompanionSessions brains;
+    /** One unresolved notice per need per owner, independent of the small display history. */
+    private final Map<UUID, Map<NeedKind, String>> reportedBlockers = new HashMap<>();
 
     ShiftReporter(MinecraftServer server, FreeTimeService service, CompanionSessions brains) {
         this.server = server;
@@ -49,6 +56,7 @@ final class ShiftReporter {
                 ? null
                 : new dev.friendai.agent.recover.RecoveryAdvisor().diagnose("", summary, Set.of());
         service.finishShift(owner, success, summary, nowMillis, stopWhen);
+        if (success && shift != null) clearBlocker(owner, shift.need());
         brains.logFreeTime(FreeTimeLogEvents.end(
                 owner,
                 companion.getUUID(),
@@ -77,12 +85,29 @@ final class ShiftReporter {
         }
         if (!success
                 && CompanionSpeechPolicy.shouldReportShiftFailure(
-                        shift, summary, stopWhen, service.state(owner).history())) {
+                        shift, summary, stopWhen, service.state(owner).history())
+                && rememberBlocker(owner, shift.need(), summary)) {
             UserMessage line = FreeTimeText.shiftFailureMessage(summary);
             brains.logFreeTime(FreeTimeLogEvents.report(
                     owner, companion.getUUID(), brains.logSession(owner), shift.planId(), line.key()));
             tell(owner, companion, line);
         }
+    }
+
+    private boolean rememberBlocker(UUID owner, NeedKind need, String summary) {
+        Map<NeedKind, String> reported =
+                reportedBlockers.computeIfAbsent(owner, ignored -> new EnumMap<>(NeedKind.class));
+        String key = ShiftBlocker.key(summary);
+        boolean first = !reported.containsValue(key);
+        reported.put(need, key);
+        return first;
+    }
+
+    private void clearBlocker(UUID owner, NeedKind need) {
+        Map<NeedKind, String> reported = reportedBlockers.get(owner);
+        if (reported == null) return;
+        reported.remove(need);
+        if (reported.isEmpty()) reportedBlockers.remove(owner);
     }
 
     /** A fixed line to the owner when they can hear it, otherwise saved for when they come back. */
