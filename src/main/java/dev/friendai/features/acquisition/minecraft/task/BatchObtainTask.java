@@ -325,7 +325,7 @@ public final class BatchObtainTask implements Task {
             ChildKind kind = childKind;
             String key = childKey;
             String target = childTarget;
-            ObtainTask.safeStop(current, c);
+            ObtainTask.safeTerminate(current, c);
             current = null;
             childKind = ChildKind.NONE;
             childKey = "";
@@ -560,7 +560,10 @@ public final class BatchObtainTask implements Task {
 
     @Override
     public void onTerminal(TaskContext c) {
-        current = null;
+        if (current != null) {
+            ObtainTask.safeTerminate(current, c);
+            current = null;
+        }
     }
 
     @Override

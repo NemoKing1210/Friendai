@@ -203,15 +203,30 @@ public final class TaskLogEvents {
 
     /** A cancellation carrying the activation time already spent, so stop receipt → cancellation is measurable. */
     public static TaskLogEvent cancelEvent(LogContext context, String tool, String reason, long durationMs) {
+        return cancelEvent(context, tool, reason, durationMs, Map.of());
+    }
+
+    /** A cancellation with bounded caller facts such as the partial work verified before stop. */
+    public static TaskLogEvent cancelEvent(
+            LogContext context, String tool, String reason, long durationMs, Map<String, String> extraFacts) {
         requireTool(tool);
+        Map<String, String> facts = new LinkedHashMap<>();
+        if (extraFacts != null) facts.putAll(extraFacts);
+        facts.put("disposition", "cancelled");
+        facts.put("reason", reason == null ? "" : reason);
         return new TaskLogEvent(
-                context,
-                TaskLogEvent.Parent.EXECUTION,
-                LogEvents.TASK_CANCEL,
-                tool,
-                "cancelled",
-                durationMs,
-                Map.of("reason", reason == null ? "" : reason));
+                context, TaskLogEvent.Parent.EXECUTION, LogEvents.TASK_CANCEL, tool, "cancelled", durationMs, facts);
+    }
+
+    /** A queued job cancelled before activation, linked to the invocation stamped on that job when available. */
+    public static TaskLogEvent queuedCancelEvent(LogContext context, String tool, String reason) {
+        requireTool(tool);
+        Map<String, String> facts = new LinkedHashMap<>();
+        facts.put("disposition", "CANCELLED");
+        facts.put("phase", "queued");
+        facts.put("reason", reason == null ? "" : reason);
+        return new TaskLogEvent(
+                context, TaskLogEvent.Parent.INVOCATION, LogEvents.TASK_CANCEL, tool, "cancelled", -1L, facts);
     }
 
     public static TaskLogEvent holdEvent(LogContext context, String tool) {

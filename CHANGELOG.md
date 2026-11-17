@@ -6,6 +6,13 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.221.2] - 2026-11-18
+
+### Fixed
+
+- Task history distinguishes cancellations and timeouts from other failures. Cancelling work no longer triggers failure recovery, and inventory changes count as task progress only when the task records the work.
+- Item acquisition forgets a remembered resource site after directly confirming it is empty. Unreachable, obscured or unloaded sites remain in memory.
+
 ## [0.221.1] - 2026-11-18
 
 ### Fixed

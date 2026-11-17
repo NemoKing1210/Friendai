@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -47,7 +48,15 @@ public final class ResourceCandidates {
         PRESENT,
         ABSENT,
         OCCLUDED,
-        UNLOADED
+        UNLOADED,
+        TIMED_OUT
+    }
+
+    /** The exact remembered member checks launched from one reached viewpoint. */
+    public record VerificationTicket(long siteId, Map<Pos, Long> requests) {
+        public VerificationTicket {
+            requests = requests == null ? Map.of() : Map.copyOf(requests);
+        }
     }
 
     /** Where a listed block came from: this session's revalidated sight, or the durable owner book. */
@@ -497,18 +506,56 @@ public final class ResourceCandidates {
         return Verification.PENDING;
     }
 
+    /** Starts exact member checks after a visit reaches its remembered approach. */
+    public VerificationTicket beginVerification(CompanionEntity companion, long siteId) {
+        java.util.Optional<ResourceSite> found = site(companion, siteId);
+        if (found.isEmpty()) return new VerificationTicket(siteId, Map.of());
+        ResourceObserver observer = observations.observer(companion);
+        Map<Pos, Long> requests = new LinkedHashMap<>();
+        for (Pos member : found.get().members()) {
+            long request = observer.inspectForVerification(new BlockPos(member.x(), member.y(), member.z()));
+            requests.put(member, request);
+        }
+        return new VerificationTicket(siteId, requests);
+    }
+
+    /** Reads only the completed direct checks from a ticket; a blocked or unloaded ray is inconclusive. */
+    public Verification verification(CompanionEntity companion, VerificationTicket ticket) {
+        if (ticket == null || companion.ownerUuid() == null || !(companion.level() instanceof ServerLevel))
+            return Verification.UNLOADED;
+        ResourceSite site = site(companion, ticket.siteId()).orElse(null);
+        if (site == null) return Verification.ABSENT;
+        if (siteVisible(companion, ticket.siteId())) return Verification.PRESENT;
+        if (ticket.requests().isEmpty()) return Verification.PENDING;
+        ResourceObserver observer = observations.observer(companion);
+        for (Map.Entry<Pos, Long> request : ticket.requests().entrySet()) {
+            if (request.getValue() <= 0) return Verification.PENDING;
+            ResourceObserver.TargetResult result = observer.targetResult(request.getValue());
+            if (result == null || result.outcome() == ResourceSight.Outcome.PENDING) return Verification.PENDING;
+            if (result.outcome() == ResourceSight.Outcome.UNLOADED) return Verification.UNLOADED;
+            if (result.outcome() == ResourceSight.Outcome.OCCLUDED) return Verification.OCCLUDED;
+            if (result.outcome() == ResourceSight.Outcome.VISIBLE
+                    && site.family().equals(result.blockId())) return Verification.PRESENT;
+            if (result.outcome() != ResourceSight.Outcome.ABSENT && result.outcome() != ResourceSight.Outcome.VISIBLE)
+                return Verification.PENDING;
+        }
+        return Verification.ABSENT;
+    }
+
     /**
      * Forgets a site's exact members after a visit proved the blocks are no longer there. The site and any
      * remaining members stay in the book, so a partly mined outcrop keeps the blocks that were not checked.
      */
-    public void confirmAbsent(CompanionEntity companion, long siteId) {
+    public void confirmAbsent(CompanionEntity companion, VerificationTicket ticket) {
         if (companion.ownerUuid() == null || !(companion.level() instanceof ServerLevel level)) return;
         ResourceKnowledge book = knowledge.book(companion.ownerUuid());
-        ResourceSite site = book.site(siteId, logicalTick(level)).orElse(null);
+        ResourceSite site = book.site(ticket.siteId(), logicalTick(level)).orElse(null);
         if (site == null) return;
         long tick = logicalTick(level);
         String dimension = level.dimension().identifier().toString();
-        site.members().forEach(pos -> book.confirmAbsent(new ResourceObservation.Location(dimension, pos), tick));
+        site.members().stream()
+                .filter(ticket.requests()::containsKey)
+                .forEach(pos -> book.confirmAbsent(new ResourceObservation.Location(dimension, pos), tick));
     }
 
     public java.util.Optional<ResourceSite> site(CompanionEntity companion, long siteId) {

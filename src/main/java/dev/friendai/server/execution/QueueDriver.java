@@ -1,6 +1,7 @@
 package dev.friendai.server.execution;
 
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.execution.TaskDisposition;
 import dev.friendai.execution.queue.FailurePolicy;
 import dev.friendai.execution.queue.GuardFacts;
 import dev.friendai.execution.queue.Job;
@@ -62,6 +63,10 @@ public final class QueueDriver {
 
     JobQueue.FailureOutcome fail(long id, String reason) {
         return queue.fail(id, reason);
+    }
+
+    JobQueue.FailureOutcome failPermanently(long id, String reason) {
+        return queue.failPermanently(id, reason);
     }
 
     void finish(long id, String summary) {
@@ -246,8 +251,16 @@ public final class QueueDriver {
     }
 
     void cancelPlanAndFinish(long id, String summary) {
+        cancelPlanAndFinish(id, summary, TaskDisposition.CANCELLED);
+    }
+
+    void cancelPlanAndFinish(long id, String summary, TaskDisposition disposition) {
+        List<Job> pending = queue.jobsOfPlan(id).stream()
+                .filter(job -> !JobQueue.terminal(job))
+                .toList();
         queue.cancelPlan(id);
-        finishPlan(id, summary, false);
+        pending.forEach(job -> coordinator.publishQueuedCancellation(job, summary));
+        finishPlan(id, summary, disposition);
     }
 
     void applySettings(ServerSettings settings) {
@@ -397,6 +410,10 @@ public final class QueueDriver {
     }
 
     void handleStructuredActionFailure(long planId, long jobId, String reason) {
+        handleStructuredActionFailure(planId, jobId, reason, TaskDisposition.FAILED);
+    }
+
+    void handleStructuredActionFailure(long planId, long jobId, String reason, TaskDisposition disposition) {
         PlanRecord plan = queue.plan(planId).orElse(null);
         if (plan == null) return;
         FailurePolicy policy = queue.job(jobId).map(Job::onFailure).orElse(plan.onFailure());
@@ -404,7 +421,7 @@ public final class QueueDriver {
             case SKIP -> advanceStructuredPlan(planId, new PlanInterpreter.ActionResult.Succeeded());
             case STOP_PLAN -> {
                 queue.cancelPlan(planId);
-                finishPlan(planId, reason, false);
+                finishPlan(planId, reason, disposition);
             }
             case ASK -> {
                 awaitingDecision.add(planId);
@@ -436,18 +453,23 @@ public final class QueueDriver {
     }
 
     void finishPlan(long id, String summary, boolean success) {
+        finishPlan(id, summary, success ? TaskDisposition.SUCCESS : TaskDisposition.FAILED);
+    }
+
+    void finishPlan(long id, String summary, TaskDisposition disposition) {
         PlanRecord plan = queue.plan(id).orElse(null);
         if (plan == null) return;
+        TaskDisposition terminal = disposition == null ? TaskDisposition.FAILED : disposition;
         String goal = plan.goal();
         // Read the step results before archiving removes the jobs. QueueSave still bounds the persisted archive
         // summary at 200 characters, so a reloaded archive may be shorter than the live event.
         String full = QueueText.finishedSummary(queue, id, summary);
-        queue.archivePlan(id, success, full);
+        queue.archivePlan(id, terminal == TaskDisposition.SUCCESS, full);
         factories.entrySet().removeIf(entry -> queue.job(entry.getKey()).isEmpty());
         structuredFactories.remove(id);
         blockedPlans.remove(id);
         awaitingDecision.remove(id);
-        coordinator.publishPlanFinished(id, goal, success, full);
+        coordinator.publishPlanFinished(id, goal, terminal, full);
     }
 
     void maybeNoticeBlocked(GuardFacts facts, long noticeInterval, boolean activeJob) {

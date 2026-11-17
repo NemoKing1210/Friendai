@@ -2,6 +2,7 @@ package dev.friendai.agent.turn;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import dev.friendai.execution.TaskDisposition;
 import dev.friendai.execution.tool.AccessLevel;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -45,6 +46,26 @@ class BrainEventTest {
         assertEquals(
                 "[event] task #7 mine_blocks failed: no logs nearby",
                 new BrainEvent.TaskFinished(7, "mine_blocks", false, "no logs nearby").toPromptLine());
+    }
+
+    @Test
+    void timeoutAndCancelledPlanHaveDistinctLines() {
+        assertEquals(
+                "[event] task #8 go_to timed out: no progress (plan #3)",
+                new BrainEvent.TaskFinished(
+                                8,
+                                3,
+                                0,
+                                "go_to",
+                                TaskDisposition.TIMED_OUT,
+                                "no progress",
+                                "",
+                                java.util.Optional.empty())
+                        .toPromptLine());
+        BrainEvent.PlanFinished cancelled =
+                new BrainEvent.PlanFinished(3, "build a shelter", TaskDisposition.CANCELLED, "cleared by owner");
+        assertEquals("[event] plan #3 build a shelter cancelled: cleared by owner", cancelled.toPromptLine());
+        org.junit.jupiter.api.Assertions.assertFalse(CompanionSpeechPolicy.needsModelTurn(cancelled));
     }
 
     @Test

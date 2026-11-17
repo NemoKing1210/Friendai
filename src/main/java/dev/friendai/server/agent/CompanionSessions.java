@@ -24,6 +24,7 @@ import dev.friendai.agent.turn.Speaker;
 import dev.friendai.debug.DebugService;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
+import dev.friendai.execution.TaskDisposition;
 import dev.friendai.execution.TaskWorkResult;
 import dev.friendai.execution.history.TaskRecord;
 import dev.friendai.execution.queue.PlanNode;
@@ -1118,12 +1119,29 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                     TaskStatus status,
                     String summary,
                     Optional<TaskWorkResult> workResult) {
+                onFinished(
+                        id,
+                        planId,
+                        toolName,
+                        status == TaskStatus.SUCCESS ? TaskDisposition.SUCCESS : TaskDisposition.FAILED,
+                        summary,
+                        workResult,
+                        0);
+            }
+
+            @Override
+            public void onFinished(
+                    int id,
+                    long planId,
+                    String toolName,
+                    TaskDisposition disposition,
+                    String summary,
+                    Optional<TaskWorkResult> workResult,
+                    long execution) {
                 if (!isCurrent(session, companion)) return;
                 // The structured lifecycle producer owns task.finish; this callback keeps history and speech only.
-                debug.historyOf(owner)
-                        .add(new TaskRecord(
-                                id, toolName, status == TaskStatus.SUCCESS ? "SUCCESS" : "FAILED", summary));
-                boolean ok = status == TaskStatus.SUCCESS;
+                debug.historyOf(owner).add(new TaskRecord(id, toolName, disposition, summary));
+                boolean ok = disposition == TaskDisposition.SUCCESS;
                 if (ok && companion.owner().isPresent()) {
                     // A direct job that succeeded while the owner was there is shared work; a free-time shift is a
                     // plan.
@@ -1145,40 +1163,76 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                                 planId,
                                 goalId,
                                 toolName,
-                                ok,
+                                disposition,
                                 summary,
-                                agent.extra(ok, planId, toolName, summary, workResult),
+                                agent.extra(disposition, execution, planId, toolName, summary, workResult),
                                 workResult));
             }
 
             @Override
             public void onCancelled(int id, String toolName, String reason) {
+                onCancelled(id, 0, toolName, reason);
+            }
+
+            @Override
+            public void onCancelled(int id, long execution, String toolName, String reason) {
                 if (!isCurrent(session, companion)) return;
                 // The structured lifecycle producer owns task.cancel; this callback keeps history and speech only.
-                debug.historyOf(owner).add(new TaskRecord(id, toolName, "CANCELLED", reason));
+                agent.cancelled(execution);
+                debug.historyOf(owner).add(new TaskRecord(id, toolName, TaskDisposition.CANCELLED, reason));
                 postFromSession(session, companion, owner, new BrainEvent.TaskCancelled(id, toolName, reason));
             }
 
             @Override
             public void onJobFinished(long jobId, long planId, String toolName, TaskStatus status, String summary) {
+                onJobFinished(
+                        jobId,
+                        planId,
+                        toolName,
+                        status == TaskStatus.SUCCESS ? TaskDisposition.SUCCESS : TaskDisposition.FAILED,
+                        summary,
+                        0);
+            }
+
+            @Override
+            public void onJobFinished(
+                    long jobId,
+                    long planId,
+                    String toolName,
+                    TaskDisposition disposition,
+                    String summary,
+                    long execution) {
+                onJobFinished(jobId, planId, toolName, disposition, summary, execution, Optional.empty());
+            }
+
+            @Override
+            public void onJobFinished(
+                    long jobId,
+                    long planId,
+                    String toolName,
+                    TaskDisposition disposition,
+                    String summary,
+                    long execution,
+                    Optional<TaskWorkResult> workResult) {
                 if (!isCurrent(session, companion)) return;
                 if (planId != 0) { // direct jobs are recorded through onFinished/onCancelled
-                    debug.historyOf(owner)
-                            .add(new TaskRecord(
-                                    (int) jobId,
-                                    toolName,
-                                    status == TaskStatus.SUCCESS ? "SUCCESS" : "FAILED",
-                                    summary));
+                    debug.historyOf(owner).add(new TaskRecord((int) jobId, toolName, disposition, summary));
+                    agent.jobSettled(disposition, execution, planId, jobId, toolName, workResult);
                 }
             }
 
             @Override
             public void onPlanFinished(long planId, String goal, boolean success, String summary) {
+                onPlanFinished(planId, goal, success ? TaskDisposition.SUCCESS : TaskDisposition.FAILED, summary);
+            }
+
+            @Override
+            public void onPlanFinished(long planId, String goal, TaskDisposition disposition, String summary) {
                 if (!isCurrent(session, companion)) return;
                 // A settled plan starts fresh if its id is ever reused, and its budget entry stops growing.
                 session.planReplans().settled(planId);
                 if (session.replacedPlans().remove(planId)
-                        || freeTime.onPlanEnded(owner, companion, planId, success, summary)) {
+                        || freeTime.onPlanEnded(owner, companion, planId, disposition, summary)) {
                     return;
                 }
                 postFromSession(
@@ -1186,7 +1240,11 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                         companion,
                         owner,
                         new BrainEvent.PlanFinished(
-                                planId, goal, success, summary, agent.extra(success, planId, goal, summary)));
+                                planId,
+                                goal,
+                                disposition,
+                                summary,
+                                agent.extra(disposition, 0, planId, goal, summary, Optional.empty())));
             }
 
             @Override
@@ -1236,6 +1294,12 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
             @Override
             public void onDiagnostic(dev.friendai.execution.log.TaskLogEvent event) {
                 if (!isCurrent(session, companion) || event == null) return;
+                if (dev.friendai.foundation.diagnostics.LogEvents.TASK_START.equals(event.event()))
+                    agent.started(event.context().execution());
+                if (dev.friendai.foundation.diagnostics.LogEvents.TASK_CANCEL.equals(event.event())
+                        || dev.friendai.foundation.diagnostics.LogEvents.TASK_FINISH.equals(event.event())
+                                && "start_failed".equals(event.facts().get("reason")))
+                    agent.cancelled(event.context().execution());
                 dev.friendai.execution.log.TaskLogCorrelation correlation = debug.correlation(owner);
                 long parent = correlation.parentSeq(event);
                 java.util.Map<String, String> data = new java.util.LinkedHashMap<>(

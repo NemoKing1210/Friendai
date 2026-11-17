@@ -10,7 +10,9 @@ import dev.friendai.agent.verify.OutcomeChecker;
 import dev.friendai.agent.verify.WorldSnapshot;
 import dev.friendai.debug.DebugService;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.execution.TaskDisposition;
 import dev.friendai.execution.TaskWorkResult;
+import dev.friendai.execution.log.TaskLogCorrelation;
 import dev.friendai.foundation.diagnostics.LogCategory;
 import dev.friendai.foundation.diagnostics.LogEvents;
 import dev.friendai.foundation.diagnostics.LogLevel;
@@ -48,7 +50,7 @@ final class SessionEvents {
     private final DebugService debug;
     private final GoalOutcome goalOutcome;
     private final FailureHandler handler;
-    private WorldSnapshot last;
+    private final Map<Long, WorldSnapshot> starts = new LinkedHashMap<>();
 
     SessionEvents(
             UUID owner,
@@ -69,7 +71,42 @@ final class SessionEvents {
         // debug-log loop window, not in a private tally nobody reads.
         this.handler = new FailureHandler(
                 new RecoveryAdvisor(), companion.executionCoordinator().loopMetrics());
-        this.last = OutcomeFacts.snapshot(companion);
+    }
+
+    /** Captures the server-thread evidence window when the existing task lifecycle publishes its start. */
+    void started(long execution) {
+        if (execution <= 0) return;
+        starts.remove(execution);
+        starts.put(execution, OutcomeFacts.snapshot(companion));
+        while (starts.size() > TaskLogCorrelation.MAX_EXECUTIONS) {
+            starts.remove(starts.keySet().iterator().next());
+        }
+    }
+
+    /** Drops a cancelled execution's evidence window; its partial receipts remain in task.cancel diagnostics. */
+    void cancelled(long execution) {
+        if (execution > 0) starts.remove(execution);
+    }
+
+    /** Records the queued activation's evidence without running plan recovery or updating goal criteria. */
+    void jobSettled(
+            TaskDisposition disposition,
+            long execution,
+            long planId,
+            long jobId,
+            String tool,
+            Optional<TaskWorkResult> workResult) {
+        WorldSnapshot before = starts.remove(execution);
+        if (disposition == TaskDisposition.CANCELLED || execution <= 0) return;
+        try {
+            WorldSnapshot after = OutcomeFacts.snapshot(companion);
+            boolean succeeded = disposition == TaskDisposition.SUCCESS;
+            Outcome outcome = OutcomeChecker.check(
+                    before == null ? after : before, after, succeeded, List.of(), null, workResult, false);
+            emitOutcomeCheck(outcome, succeeded, true, execution, planId, jobId, tool);
+        } catch (RuntimeException e) {
+            FriendaiMod.LOGGER.warn("Could not build queued task evidence", e);
+        }
     }
 
     /** The text to append to an event line; empty when there is nothing verified to add. */
@@ -79,8 +116,25 @@ final class SessionEvents {
 
     /** The text to append to an event line, with optional measured facts from the completed task. */
     String extra(boolean success, long planId, String tool, String text, Optional<TaskWorkResult> workResult) {
+        return extra(success ? TaskDisposition.SUCCESS : TaskDisposition.FAILED, 0, planId, tool, text, workResult);
+    }
+
+    /** Builds facts against only the snapshot owned by this execution; a plan event has no task delta. */
+    String extra(
+            TaskDisposition disposition,
+            long execution,
+            long planId,
+            String tool,
+            String text,
+            Optional<TaskWorkResult> workResult) {
+        if (disposition == TaskDisposition.CANCELLED) {
+            cancelled(execution);
+            return "";
+        }
         try {
+            WorldSnapshot before = execution > 0 ? starts.remove(execution) : null;
             WorldSnapshot after = OutcomeFacts.snapshot(companion);
+            if (before == null) before = after;
             var board = goals.board(owner);
             // The goal that owns this plan is what the task was for: its criteria are the proof to check.
             List<dev.friendai.agent.goal.Criterion> criteria = planId == 0
@@ -91,9 +145,15 @@ final class SessionEvents {
                             .map(dev.friendai.agent.goal.Goal::criteria)
                             .orElse(List.of());
             var outcome = OutcomeChecker.check(
-                    last, after, success, criteria, new CompanionGuardFacts(companion), workResult);
-            emitOutcomeCheck(outcome, success, criteria.isEmpty(), planId, tool);
-            last = after;
+                    before,
+                    after,
+                    disposition == TaskDisposition.SUCCESS,
+                    criteria,
+                    new CompanionGuardFacts(companion),
+                    workResult,
+                    false);
+            emitOutcomeCheck(
+                    outcome, disposition == TaskDisposition.SUCCESS, criteria.isEmpty(), execution, planId, 0, tool);
             session.noteVerified(outcome.facts().stream().map(Fact::text).toList());
             if (planId != 0) {
                 // Only the goal that owns this plan inherited this task, so only it may cite these facts.
@@ -112,16 +172,17 @@ final class SessionEvents {
             }
             var priorGoals = board.all();
             String extra;
-            if (success) {
+            if (disposition == TaskDisposition.SUCCESS) {
                 var facts = new CompanionGuardFacts(companion);
                 facts.refresh();
                 extra = handler.onSuccess(board, planId, factsLine, facts);
             } else {
-                extra = handler.onFailure(board, planId, tool, text, factsLine);
+                extra = handler.onTerminal(board, planId, tool, disposition, text, factsLine);
             }
             goals.save(owner);
             for (var prior : priorGoals) {
-                if (board.find(prior.id()).isEmpty()) goalOutcome.posted(prior.id(), success, text);
+                if (board.find(prior.id()).isEmpty())
+                    goalOutcome.posted(prior.id(), disposition == TaskDisposition.SUCCESS, text);
             }
             return extra;
         } catch (RuntimeException e) {
@@ -132,11 +193,17 @@ final class SessionEvents {
 
     /** A passive verdict record for the existing check; delivered speech is never treated as proof. */
     private void emitOutcomeCheck(
-            Outcome outcome, boolean taskSucceeded, boolean hasCriteria, long planId, String tool) {
+            Outcome outcome,
+            boolean taskSucceeded,
+            boolean hasNoCriteria,
+            long execution,
+            long planId,
+            long jobId,
+            String tool) {
         String verdict;
         if (!taskSucceeded) {
             verdict = "unmet";
-        } else if (!hasCriteria) {
+        } else if (hasNoCriteria) {
             verdict = "unknown";
         } else {
             verdict = outcome.success() ? "met" : "unmet";
@@ -146,6 +213,7 @@ final class SessionEvents {
         data.put("subject", "companion");
         data.put("source", "outcome_checker");
         data.put("plan", Long.toString(planId));
+        if (execution > 0) data.put("execution", Long.toString(execution));
         data.put("facts", outcome.facts().stream().map(Fact::text).collect(Collectors.joining("; ")));
         data.put("unmet", String.join("; ", outcome.unmetCriteria()));
         debug.pipeline()
@@ -161,7 +229,7 @@ final class SessionEvents {
                         "",
                         0L,
                         planId,
-                        0L,
+                        jobId,
                         0L,
                         tool == null ? "" : tool,
                         0L,

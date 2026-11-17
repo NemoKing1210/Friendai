@@ -237,7 +237,7 @@ The chain below is one request from chat to speech; a change may alter a step's 
 6. `CompanionBrain.requestStep` — decides what the model sees. Contract: `PromptBuilder.system`, `memory.snapshot()`, and catalog-filtered specs (`trade_item` hidden in `CHAT`) with one request in flight. It must not send a schema the caller cannot use or run a tool before the response.
 7. `CompanionBrain.onResponse` — decides what is said and run. Contract: `ReplyGuard` may reduce the text to silence but never drops a tool call; calls run in order, each appending exactly one TOOL message, errors included. It must not act on a stale `generation`.
 8. `GoalTools`, `QueueTools`, `TaskToolRuntime.tool` — decide what work exists. Contract: goals are OWNER-only and saved through `GoalService`; `queue_add` validates against the caller's allowlist and links a plan to a planless goal; a task tool starts a `Task` or enqueues a `QueuedStep` and reports `task #N` / `job #N`. They must not save an `AccessLevel`: `CompanionSessions.currentCaller` re-resolves it at activation.
-9. `ExecutionCoordinator.tick` → `QueueDriver` → `ActiveTaskController` — decides what runs. Contract: priority then queue order among ready jobs (`SKIP` guards skipped first), one active task, a direct task freezes a queue job, and `ActiveTaskController` turns timeout, stall and a thrown tick into `FAILED`. It must not start work under a hold.
+9. `ExecutionCoordinator.tick` → `QueueDriver` → `ActiveTaskController` — decides what runs. Contract: priority then queue order among ready jobs (`SKIP` guards skipped first), one active task, and a direct task freezes a queue job. The controller reports `TIMED_OUT` for a deadline and `FAILED` for a stall or thrown tick. It must not start work under a hold.
 10. `ExecutionCoordinator.emit` → `TaskEventSink` — decides when it is published. Contract: `emit` defers events to `pendingEvents` during a transition and flushes after it settles; `CompanionSessions` posts only for the current session and companion, adding the plan and goal correlation. It must not let a listener reenter a half-settled queue update.
 11. `SessionEvents.extra` → `OutcomeChecker` / `FailureHandler` — decides whether the result is proven. Contract: `OutcomeChecker.check` compares the before/after `WorldSnapshot` with the goal's criteria and can turn a success into unmet; `FailureHandler` adds facts, diagnosis, lessons and replans, or `BUDGET_SPENT` plus a blocker. It must not treat a cancellation as a failure or a summary as proof.
 12. `OwnerPresentSpeaker` → `CompanionSpeaker` — decides how it sounds. Contract: silent while the owner is away; chat chunks go to everyone, then the SPEECH view to mod clients with the addressee. It must not bypass `ReplyGuard`.
@@ -253,6 +253,8 @@ The chain below is one request from chat to speech; a change may alter a step's 
 | brain → speaker | silence when the owner is away; no internal name or unasked coordinate is spoken |
 
 ### Task lifecycle
+
+`TaskDisposition` distinguishes successful, failed, timed out and cancelled work in the existing event path and task history. An activation carries its invocation context and keeps its execution ID through holds and child spans. Restore starts a fresh activation. Cancellation calls `stop`; natural settlement releases the task through `onTerminal`. Acquisition tasks apply the same distinction to their children. A resource visit clears remembered members only after direct checks from the reached viewpoint confirm absence.
 
 Every server tick runs the reflexes before the queue: `CombatController` (fight, retreat, eat), `FireReflex` (a burning body or owner), `SelfCareReflex` (a water drop, a milk bucket, a golden apple, a potion) and `RecoveryReflex` (going back for the drops of a death, on a cooldown). A consumable takes a `HoldReason.SELF_CARE` hold for the few ticks vanilla needs — the self-care reflex and `CombatController`'s eating share it — so the running task resumes with its tool in hand; `CombatController.busy()` and `SelfCareReflex.busy()` keep the two from eating at once.
 
@@ -393,12 +395,13 @@ text behind. A turn arrives as a sealed `BrainEvent` — `PlayerSaid`, `TaskFini
 `PlanBlocked`, `GoalTick`, `SocialOpening`, `WorldNotice`, `SkillOutcome`, `FreeTimeShift` or `IdleNudge` — whose
 `toPromptLine` is what the model reads. `DebugLogObserver` also writes every one of them verbatim to the owner's
 `DebugLog` as a TASK line (a `PlayerSaid` as USER), the raw assistant text as ASSISTANT, each tool call and result,
-the provider error and token usage. That bounded log, `TaskRecord` history (SUCCESS, FAILED, CANCELLED) and the goal
+the provider error and token usage. That bounded log, `TaskRecord` history (SUCCESS, FAILED, TIMED_OUT, CANCELLED) and the goal
 and free-time files are the measurement surface; the Log tab and the `/friendai diagnose` bundle read the same state.
 
-The honest half of the chain is the evidence `SessionEvents.extra` builds. `OutcomeFacts.snapshot`
-captures a `WorldSnapshot` before and after a task, and `OutcomeChecker.check` diffs it — inventory deltas, empty
-slots, health, food and owner distance, at most `MAX_FACTS` (eight) — then asks `GoalBoard` whether the criteria of
+The evidence `SessionEvents.extra` builds uses a bounded set of start snapshots keyed by execution ID.
+`OutcomeChecker.check` compares the matching task snapshots and reads measured item counts from task receipts.
+Plan outcomes use current world facts and can verify criteria without attributing inventory changes to a task.
+The checker returns at most `MAX_FACTS` (eight) and asks `GoalBoard` whether the criteria of
 the goal that owns the plan hold. `Criterion` pairs text with an optional `Guard` (`has_item`, `inventory_space`,
 `health_at_least`, `owner_within`, `block_within`, `dimension`, `all_of`/`any_of`/`not`, `biome`, `fluid_ahead`,
 `distance_travelled`, `time_elapsed`); a failing guard and a text-only criterion both count as unmet. `FailureHandler`

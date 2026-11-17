@@ -8,6 +8,7 @@ import dev.friendai.agent.goal.Criterion;
 import dev.friendai.agent.goal.GoalBoard;
 import dev.friendai.agent.goal.GoalStatus;
 import dev.friendai.agent.verify.LoopMetrics;
+import dev.friendai.execution.TaskDisposition;
 import dev.friendai.execution.queue.Guard;
 import dev.friendai.execution.queue.GuardFacts;
 import java.util.List;
@@ -157,6 +158,22 @@ class FailureHandlerTest {
         assertFalse(FailureHandler.isCancellation("can't reach 1 2 3"));
         assertFalse(FailureHandler.isCancellation("the bridge collapsed and the stop sign fell"));
         assertFalse(FailureHandler.isCancellation(null));
+    }
+
+    @Test
+    void typedCancellationNeverConsumesRepairBudgetRegardlessOfSummary() {
+        GoalBoard board = boardWithPlan(1, 7);
+        String extra = handler.onTerminal(
+                board,
+                7,
+                "mine_blocks",
+                TaskDisposition.CANCELLED,
+                "owner cleared the queue",
+                "facts: +2 minecraft:oak_log");
+
+        assertEquals("facts: +2 minecraft:oak_log", extra);
+        assertEquals(0, board.primary().orElseThrow().replans());
+        assertEquals(GoalStatus.ACTIVE, board.primary().orElseThrow().status());
     }
 
     @Test

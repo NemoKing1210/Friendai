@@ -4,6 +4,7 @@ import dev.friendai.agent.autonomy.Shift;
 import dev.friendai.agent.autonomy.ShiftBlocker;
 import dev.friendai.agent.autonomy.ShiftRecord;
 import dev.friendai.agent.autonomy.ShiftStopWhen;
+import dev.friendai.execution.TaskDisposition;
 import java.util.List;
 import java.util.Locale;
 
@@ -32,7 +33,12 @@ public final class CompanionSpeechPolicy {
 
     /** Cancellation is already kept in task history and does not need a model turn by itself. */
     public static boolean needsModelTurn(BrainEvent event) {
-        return !(event instanceof BrainEvent.TaskCancelled);
+        return switch (event) {
+            case BrainEvent.TaskCancelled ignored -> false;
+            case BrainEvent.TaskFinished task -> task.disposition() != TaskDisposition.CANCELLED;
+            case BrainEvent.PlanFinished plan -> plan.disposition() != TaskDisposition.CANCELLED;
+            default -> true;
+        };
     }
 
     /** An unchanged authority blocker gets one owner-facing model turn per cooldown. */
