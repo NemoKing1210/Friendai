@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.221.3] - 2026-11-18
+
+### Fixed
+
+- The companion rests beside its owner when no useful work is ready. Free-time status shows rest, waits and blocked needs. The watchdog no longer repeats idle messages or bypasses the director's retry limits.
+
 ## [0.221.2] - 2026-11-18
 
 ### Fixed

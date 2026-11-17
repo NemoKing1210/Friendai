@@ -47,11 +47,11 @@ public final class ShiftOutcome {
         ShiftRecord record =
                 new ShiftRecord(shift.id(), shift.goal(), shift.need(), success, text, nowMillis, stopWhen);
         Optional<String> notable = !stageAfter.equals(stageBefore) ? Optional.of(stageAfter) : Optional.empty();
-        if (success || text.contains(TIME_UP)) {
+        if (success) {
             return new Result(record, Optional.empty(), Optional.empty(), notable);
         }
-        Optional<Long> cooldown = Optional.of(nowMillis + s.failCooldownMin() * 60_000L);
-        if (shift.reflex()) {
+        Optional<Long> cooldown = Optional.of(retryAt(nowMillis, s));
+        if (shift.reflex() || text.contains(TIME_UP)) {
             return new Result(record, Optional.empty(), cooldown, notable);
         }
         boolean unknown = diagnosis == null
@@ -66,5 +66,10 @@ public final class ShiftOutcome {
                         : "observed: " + evidence + "; " + FreeTime.cut(diagnosis, 64);
         return new Result(
                 record, Optional.of(FreeTime.cut(shift.goal() + ": " + why, FreeTime.MAX_LESSON)), cooldown, notable);
+    }
+
+    /** A timeout and an execution failure both wait before repeating the same need. */
+    public static long retryAt(long nowMillis, AutonomySettings s) {
+        return nowMillis + Math.max(1, s.failCooldownMin()) * 60_000L;
     }
 }

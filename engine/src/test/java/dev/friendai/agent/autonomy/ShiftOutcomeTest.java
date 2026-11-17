@@ -76,11 +76,11 @@ class ShiftOutcomeTest {
     }
 
     @Test
-    void timeLimitIsNotAFailure() {
+    void timeLimitCoolsDownWithoutTeachingAFailureLesson() {
         ShiftOutcome.Result r = ShiftOutcome.of(SHIFT, false, "ran out of time", "STONE", "STONE", "", 0, S);
         assertFalse(r.record().success());
         assertTrue(r.lesson().isEmpty());
-        assertTrue(r.cooldownUntil().isEmpty());
+        assertEquals(S.failCooldownMin() * 60_000L, r.cooldownUntil().orElseThrow());
     }
 
     @Test

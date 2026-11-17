@@ -500,7 +500,10 @@ final class ControlTab extends StatefulMenuTab {
                 : s.freeTimeActivity();
         rows.add(new Row("friendai.menu.activity.free_time", Ui.PURPLE, status));
         if (!s.freeTimeNext().isBlank()) {
-            rows.add(new Row("friendai.menu.activity.next", Ui.ACCENT, s.freeTimeNext()));
+            String next = dev.friendai.agent.autonomy.FreeTimeText.decisionTranslationKey(s.freeTimeNext())
+                    .map(key -> Component.translatable(key).getString())
+                    .orElse(s.freeTimeNext());
+            rows.add(new Row("friendai.menu.activity.next", Ui.ACCENT, next));
         }
         if (!s.freeTimeBudget().isBlank()) {
             rows.add(new Row("friendai.menu.activity.budget", Ui.DIM, s.freeTimeBudget()));

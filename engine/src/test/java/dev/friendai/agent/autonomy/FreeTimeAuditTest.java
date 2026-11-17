@@ -26,7 +26,75 @@ class FreeTimeAuditTest {
         Files.createDirectories(out.getParent());
         Files.writeString(out, report.markdown());
         assertTrue(report.shifts() >= 2, "an hour of free time must start work, got " + report.shifts());
-        assertEquals(0, report.stalls(), "nothing running for a watchdog window is a bug: " + report.events());
+        assertEquals(0, report.stalls(), "ready work should progress: " + report.events());
+    }
+
+    @Test
+    void aQuietHourWithBlockedHungerAndNewFood() throws IOException {
+        var world = new FreeTimeAuditHarness.World() {
+            private boolean ate;
+            private long time;
+
+            @Override
+            public AutonomyFacts facts(long now) {
+                time = now;
+                long second = (now - Facts.NOW) / 1_000;
+                return Facts.base()
+                        .everything()
+                        .home("home", 2)
+                        .storage("storage", 3)
+                        .storageFreeSlots(9)
+                        .farm("farm", "wheat", 4, 0)
+                        .hunger(second < 120 || ate ? 20 : 5)
+                        .foodPoints(second < 120 || second >= 300 ? 20 : 0)
+                        .now(now)
+                        .build();
+            }
+
+            @Override
+            public boolean canPlan(NeedKind kind) {
+                return time >= Facts.NOW + 300_000;
+            }
+
+            @Override
+            public boolean ownerWorkQueued(long now) {
+                return now >= Facts.NOW + 300_000 && now < Facts.NOW + 310_000;
+            }
+
+            @Override
+            public int planSeconds(NeedKind kind) {
+                return 2;
+            }
+
+            @Override
+            public void completed(NeedKind kind, boolean success) {
+                if (kind == NeedKind.HUNGER && success) ate = true;
+            }
+
+            @Override
+            public int blocksPlaced(NeedKind kind) {
+                return 0;
+            }
+        };
+        var report = new FreeTimeAuditHarness(world, AutonomySettings.DEFAULTS).run(Facts.NOW, 3_600);
+        Path out = Path.of("build", "reports", "freetime-agenda-audit.md");
+        Files.createDirectories(out.getParent());
+        Files.writeString(out, report.markdown());
+
+        var hunger = report.table().get(NeedKind.HUNGER);
+        assertEquals(1, hunger.failed(), report.events().toString());
+        assertEquals(1, hunger.completed(), report.events().toString());
+        assertEquals(0, report.table().get(NeedKind.FOOD).chosen(), "a failed food search also holds the food agenda");
+        assertTrue(
+                report.events().stream().anyMatch(line -> line.contains("HUNGER at 310 s")),
+                report.events().toString());
+        assertTrue(report.restingSeconds() >= 120);
+        assertTrue(report.blockedSeconds() > 0);
+        assertEquals(0, report.duplicateAttempts());
+        assertEquals(0, report.ownerOrderDelaySeconds());
+        assertEquals(0, report.stalls());
+        assertTrue(report.directorTurns() <= AutonomySettings.DEFAULTS.maxShiftsPerHour());
+        assertTrue(report.notices() <= 1, report.events().toString());
     }
 
     /** A scripted survival world: what the facts say now and what a finished shift changes. */

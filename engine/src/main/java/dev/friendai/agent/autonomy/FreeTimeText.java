@@ -100,13 +100,21 @@ public final class FreeTimeText {
         if (decision instanceof ShiftPolicy.CloseStale) {
             return "close stale shift";
         }
-        if (decision instanceof ShiftPolicy.None) {
-            return "waiting";
+        if (decision instanceof ShiftPolicy.None waiting) {
+            return waiting.reason().label();
         }
         if (decision instanceof ShiftPolicy.WaitBudget) {
             return "waiting for budget";
         }
         return "waiting";
+    }
+
+    /** Keeps the existing status field readable to older clients while allowing fixed labels to be localized. */
+    public static java.util.Optional<String> decisionTranslationKey(String label) {
+        for (ShiftPolicy.WaitReason reason : ShiftPolicy.WaitReason.values()) {
+            if (reason.label().equals(label)) return java.util.Optional.of(reason.translationKey());
+        }
+        return java.util.Optional.empty();
     }
 
     /** One English line for the model or the audit; the owner-facing command builds its own components. */

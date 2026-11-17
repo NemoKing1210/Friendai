@@ -110,11 +110,10 @@ public final class FreeTimeDriver {
     private final Map<UUID, String> stageAtStart = new HashMap<>();
     private final AutonomyFactsBuilder facts = new AutonomyFactsBuilder();
     private final Map<UUID, ShiftBudget> budgets = new HashMap<>();
+    /** A hunger cooldown observed without food. New carried food makes the eat reflex possible. */
+    private final Map<UUID, Long> hungerBlockedWithoutFood = new HashMap<>();
+
     private final Map<UUID, Long> lastOwnerActivity = new HashMap<>();
-    /** Free time with nothing running since this tick is a stall the watchdog answers. */
-    private final Map<UUID, Long> quietSince = new HashMap<>();
-    /** The last stall line told to each owner, so a quiet agenda does not repeat itself. */
-    private final Map<UUID, Long> stallSaidAt = new HashMap<>();
     /** Whether a movement order ran on the previous tick, to notice when one ends. */
     private final Map<UUID, Boolean> wasMovementOrder = new HashMap<>();
 
@@ -449,8 +448,8 @@ public final class FreeTimeDriver {
         long now = now();
         Shift shift = service().state(owner).shift();
         facts.invalidate(owner);
-        String stageAfter = ProgressionLadder.evaluate(facts.build(companion, owner, now, placeService))
-                .stage();
+        AutonomyFacts settledFacts = facts.build(companion, owner, now, placeService);
+        String stageAfter = ProgressionLadder.evaluate(settledFacts).stage();
         var diagnosis = success
                 ? null
                 : new dev.friendai.agent.recover.RecoveryAdvisor()
@@ -488,7 +487,7 @@ public final class FreeTimeDriver {
                         ? dev.friendai.foundation.teaching.TeachingContext.OutcomeKind.SHIFT_SUCCESS
                         : dev.friendai.foundation.teaching.TeachingContext.OutcomeKind.SHIFT_FAILURE,
                 summary);
-        outcome.cooldownUntil().ifPresent(until -> service().cooldown(owner, shift.need(), until));
+        outcome.cooldownUntil().ifPresent(until -> coolDownNeed(owner, shift.need(), settledFacts, until));
         if (success) {
             // Any finished shift, template included, shows the companion is working: retry the director later.
             budget(owner).succeeded();
@@ -602,16 +601,17 @@ public final class FreeTimeDriver {
             runner.markAutonomousPlan(shiftPlan); // after a restart the runner forgot its marks
         }
         AutonomyFacts f = facts.build(companion, owner, nowMillis, placeService);
-        if (state.awaitingChoice()
-                && !brainThinking
-                && nowMillis - awaitingSince.getOrDefault(owner, 0L) > CHOICE_GRACE_MILLIS) {
-            // the director turn ended without choose_activity ([silent], an error, or a restart):
-            // do not leave the hour empty, start the first deterministic template the agenda offers
+        Long hungerBlock = hungerBlockedWithoutFood.get(owner);
+        if (hungerBlock != null && (hungerBlock <= nowMillis || f.foodPoints() > 0)) {
+            hungerBlockedWithoutFood.remove(owner);
+            if (ShiftPolicy.foodUnblocksHunger(hungerBlock, state, f))
+                state = service.cooldown(owner, NeedKind.HUNGER, nowMillis);
+        }
+        IdleWatchdog.Choice choice = choiceState(owner, state, brainThinking, nowMillis);
+        if (choice == IdleWatchdog.Choice.UNANSWERED) {
             state = service.clearChoice(owner);
+            awaitingSince.remove(owner);
             budget(owner).failed();
-            if (queueFirstTemplate(owner, companion, f, s, nowMillis, ownerGoalActive)) {
-                state = service.state(owner);
-            }
         }
         boolean planExists = shiftPlan != 0;
         ShiftInputs in = new ShiftInputs(
@@ -627,12 +627,17 @@ public final class FreeTimeDriver {
                 lastOwner,
                 movementOrder);
         ShiftPolicy.Decision decision = ShiftPolicy.decide(in, budget(owner));
-        lastDecision.put(owner, FreeTimeText.decisionLabel(decision));
+        lastDecision.put(
+                owner,
+                choice == IdleWatchdog.Choice.STALE_IN_FLIGHT
+                        ? ShiftPolicy.WaitReason.STALE_DECISION.label()
+                        : FreeTimeText.decisionLabel(decision));
         switch (decision) {
             case ShiftPolicy.CloseStale ignored -> {
                 Shift shift = state.shift();
                 finishShift(
                         owner, companion, shift, false, "plan is gone", ShiftStopWhen.WORK_CONFLICTS, nowMillis, true);
+                coolDownNeed(owner, shift.need(), f, ShiftOutcome.retryAt(nowMillis, s));
             }
             case ShiftPolicy.Expired ignored -> {
                 Shift shift = state.shift();
@@ -647,6 +652,7 @@ public final class FreeTimeDriver {
                             ShiftStopWhen.BUDGET_SPENT,
                             nowMillis,
                             true);
+                    coolDownNeed(owner, shift.need(), f, ShiftOutcome.retryAt(nowMillis, s));
                     budget(owner).succeeded(); // the plan ran; a timeout is not an unanswered director
                 }
             }
@@ -662,6 +668,10 @@ public final class FreeTimeDriver {
                         s,
                         nowMillis,
                         ownerGoalActive);
+                if (reflex.need().kind() == NeedKind.HUNGER && f.foodPoints() == 0) {
+                    Long until = service.state(owner).cooldownUntil().get(NeedKind.HUNGER);
+                    if (until != null && until > nowMillis) hungerBlockedWithoutFood.put(owner, until);
+                }
             }
             case ShiftPolicy.Fallback fallback ->
                 queueTemplate(
@@ -676,57 +686,21 @@ public final class FreeTimeDriver {
             case ShiftPolicy.None ignored -> {}
             case ShiftPolicy.WaitBudget ignored -> {}
         }
-        watchdog(owner, companion, f, s, brainThinking, nowMillis, ownerGoalActive);
     }
 
-    /**
-     * Free time on with nothing running is a bug state, not a rest: after the window the director is asked anyway
-     * (the failure backoff is skipped, the hourly cap is not), a fallback template is queued, or the owner is told
-     * once that nothing could start.
-     */
-    private void watchdog(
-            UUID owner,
-            CompanionEntity companion,
-            AutonomyFacts f,
-            AutonomySettings s,
-            boolean brainThinking,
-            long nowMillis,
-            boolean ownerGoalActive) {
-        var runner = companion.executionCoordinator();
-        FreeTime state = service().state(owner);
-        boolean movementOrder = runner.movementOrderActive();
-        IdleWatchdog.Busy busy = new IdleWatchdog.Busy(
-                state.shift() != null,
-                runner.hasWork() && !movementOrder,
+    private IdleWatchdog.Choice choiceState(UUID owner, FreeTime state, boolean brainThinking, long now) {
+        return IdleWatchdog.choice(
                 state.awaitingChoice(),
                 brainThinking,
-                planningInFlight(owner),
-                f.inCombat(),
-                movementOrder);
-        boolean mayDecide = !runner.paused() && !runner.suspended() && (f.ownerOnline() || s.whileOffline());
-        if (busy.anything() || !mayDecide) {
-            quietSince.remove(owner);
-            return;
-        }
-        long since = quietSince.computeIfAbsent(owner, id -> nowMillis);
-        // Free time switched off on this server is not a stall: nothing may start anyway.
-        int watchdogSeconds = settings.get().tasks().freeTimeWatchdogSec();
-        if (!IdleWatchdog.due(state.on() && s.enabled(), busy, since, nowMillis, watchdogSeconds)) {
-            return;
-        }
-        quietSince.put(owner, nowMillis);
-        int perHour = f.ownerOnline() ? s.maxShiftsPerHour() : s.offlineShiftsPerHour();
-        if (budget(owner).allows(nowMillis, perHour)) {
-            askDirector(owner, companion, f, nowMillis);
-            return;
-        }
-        if (queueFirstTemplate(owner, companion, f, s, nowMillis, ownerGoalActive)) {
-            return;
-        }
-        if (nowMillis - stallSaidAt.getOrDefault(owner, 0L) >= watchdogSeconds * 1000L) {
-            stallSaidAt.put(owner, nowMillis);
-            tell(owner, companion, UserMessage.of("friendai.freetime.stalled"));
-        }
+                awaitingSince.getOrDefault(owner, 0L),
+                now,
+                settings.get().tasks().freeTimeWatchdogSec(),
+                CHOICE_GRACE_MILLIS);
+    }
+
+    private void coolDownNeed(UUID owner, NeedKind need, AutonomyFacts facts, long until) {
+        service().cooldown(owner, need, until);
+        if (need == NeedKind.HUNGER && facts.foodPoints() == 0) hungerBlockedWithoutFood.put(owner, until);
     }
 
     private boolean wasOnlineThisRun(UUID owner, boolean online) {
@@ -847,22 +821,35 @@ public final class FreeTimeDriver {
      */
     public ToolResult choose(
             CompanionEntity companion, String goal, List<String> criteria, String why, int minutes, String needName) {
+        return chooseAt(companion, goal, criteria, why, minutes, needName, now());
+    }
+
+    ToolResult chooseAt(
+            CompanionEntity companion,
+            String goal,
+            List<String> criteria,
+            String why,
+            int minutes,
+            String needName,
+            long now) {
         UUID owner = companion.ownerUuid();
         FreeTime state = service().state(owner);
         if (!state.on() || !state.awaitingChoice()) {
             return ToolResult.error("no free-time shift is waiting for a choice");
         }
+        if (choiceState(owner, state, true, now) == IdleWatchdog.Choice.STALE_IN_FLIGHT) {
+            return ToolResult.error("that free-time choice has expired");
+        }
         Optional<String> refused = refusalToStart(companion, false, List.of());
         if (refused.isPresent()) {
             return ToolResult.error(refused.get());
         }
-        long now = now();
         AutonomySettings s = config.get().autonomy.toSettings();
         int length = Math.max(3, Math.min(minutes, s.shiftMinutes()));
         AutonomyFacts f = facts.build(companion, owner, now, placeService);
         List<Need> agenda = NeedsAssessor.assess(f, state, s);
         NeedKind need = NeedsAssessor.kindNamed(needName, agenda);
-        if (NeedsAssessor.isCoolingDown(state, need, now)) {
+        if (NeedsAssessor.isBlocked(f, state, need)) {
             return ToolResult.error("that need is cooling down after a recent failure; choose from the current agenda");
         }
         markStart(owner, f);
@@ -896,8 +883,7 @@ public final class FreeTimeDriver {
     }
 
     /**
-     * Starts the first agenda entry that has a deterministic template, reflex first. Used when the director is
-     * silent, the planner failed, the budget is spent or the watchdog fired: the hour must keep moving.
+     * Offers an existing deterministic template when planning did not produce a runnable shift.
      */
     private boolean queueFirstTemplate(
             UUID owner,

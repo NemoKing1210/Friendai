@@ -700,7 +700,7 @@ const RU = {
   "Fallback ladder": "Запасная лестница",
   "Wood, stone, iron, diamond.": "Дерево, камень, железо, алмаз.",
   "Idle watchdog": "Сторожевой таймер простоя",
-  "Closes stuck shifts.": "Закрывает зависшие смены.",
+  "Expires unanswered choices. A quiet agenda can rest.": "Закрывает запросы, оставшиеся без ответа. Если подходящих дел нет, компаньон отдыхает.",
   "Away summary": "Сводка об отсутствии",
   "Routines": "Расписания",
   "One owner-set timetable with a phase or interval, saved across restarts.": "Одно расписание владельца с фазой дня или интервалом, сохраняется между перезапусками.",

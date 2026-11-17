@@ -102,6 +102,9 @@ final class AutonomyFactsBuilder {
                 free++;
             } else {
                 stacks.add(stack);
+                if (dev.friendai.world.food.Food.isSafe(companion, stack, false)) {
+                    food += stack.get(DataComponents.FOOD).nutrition() * stack.getCount();
+                }
             }
         }
         for (ItemStack stack : stacks) {
@@ -111,10 +114,6 @@ final class AutonomyFactsBuilder {
             var tool =
                     tools.toolOf(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString());
             best.merge(tool.kind(), tool.tier(), (a, b) -> b.ordinal() > a.ordinal() ? b : a);
-            var properties = stack.get(DataComponents.FOOD);
-            if (properties != null) {
-                food += properties.nutrition() * stack.getCount();
-            }
             stockOf(stack).ifPresent(kind -> stock.merge(kind, stack.getCount(), Integer::sum));
             shield |= stack.is(Items.SHIELD);
             bucket |= stack.is(Items.BUCKET) || stack.is(Items.WATER_BUCKET);
