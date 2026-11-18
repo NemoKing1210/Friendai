@@ -12,12 +12,14 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.world.entity.ExperienceOrb;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.phys.Vec3;
 
 /** The companion strips enchantments at a grindstone and keeps the experience that comes out. */
 public class GrindstoneSkillTests {
@@ -70,6 +72,9 @@ public class GrindstoneSkillTests {
         ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 300, () -> false);
         runner.setEventSink(result);
         runner.start(new GrindstoneItemTask(match(Items.DIAMOND_SWORD), null, null), "grindstone_item");
+        Vec3 unrelatedPos = Vec3.atCenterOf(h.absolutePos(new BlockPos(5, 145, 2)));
+        ExperienceOrb unrelated = new ExperienceOrb(h.getLevel(), unrelatedPos.x, unrelatedPos.y, unrelatedPos.z, 100);
+        h.getLevel().addFreshEntity(unrelated);
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
@@ -77,6 +82,11 @@ public class GrindstoneSkillTests {
             h.assertTrue(!back.isEmpty(), "the sword did not come back");
             h.assertTrue(!EnchantmentHelper.hasAnyEnchantments(back), "the sword is still enchanted");
             h.assertTrue(c.experience().points() > 0, "no experience was gained");
+            h.assertTrue(!unrelated.isRemoved(), "unrelated experience was left alone");
+            h.assertTrue(c.experience().points() < 100, "only the station's XP was credited");
+            h.assertTrue(
+                    result.summary.contains("gained " + c.experience().points() + " experience points"),
+                    result.summary);
         });
     }
 

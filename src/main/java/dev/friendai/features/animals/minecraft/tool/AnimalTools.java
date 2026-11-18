@@ -5,6 +5,7 @@ import dev.friendai.agent.tools.Cost;
 import dev.friendai.agent.tools.ToolGroup;
 import dev.friendai.agent.tools.ToolMeta;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.execution.tool.ArgValidator;
 import dev.friendai.execution.tool.SchemaBuilder;
 import dev.friendai.features.animals.minecraft.task.BreedTask;
 import dev.friendai.features.animals.minecraft.task.FishTask;
@@ -95,16 +96,21 @@ public final class AnimalTools implements FeatureToolContributor {
                                 && !a.get("tie").isJsonNull()
                                 && a.get("tie").getAsBoolean())));
         registry.registerTask(task(
-                "harvest_honey",
-                "Collect honey from a full beehive or bee nest with a glass bottle, or honeycomb with shears. The hive must be smoked by a campfire below.",
-                SchemaBuilder.object()
-                        .enumeration("using", "What to collect", "bottle", "shears")
-                        .integer("x", "Hive X coordinate")
-                        .integer("y", "Hive Y coordinate")
-                        .integer("z", "Hive Z coordinate")
-                        .required("using")
-                        .build(),
-                (c, a) -> new HoneyTask(a.get("using").getAsString().equals("bottle"), optionalPos(a))));
+                        "harvest_honey",
+                        "Collect honey from a full beehive or bee nest with a glass bottle, or honeycomb with shears. The hive must be smoked by a campfire below.",
+                        SchemaBuilder.object()
+                                .enumeration("using", "What to collect", "bottle", "shears")
+                                .integer(
+                                        "x",
+                                        "Hive X coordinate. Supply x, y and z together.",
+                                        Integer.MIN_VALUE,
+                                        Integer.MAX_VALUE)
+                                .integer("y", "Hive Y coordinate", Integer.MIN_VALUE, Integer.MAX_VALUE)
+                                .integer("z", "Hive Z coordinate", Integer.MIN_VALUE, Integer.MAX_VALUE)
+                                .required("using")
+                                .build(),
+                        (c, a) -> new HoneyTask(a.get("using").getAsString().equals("bottle"), optionalPos(a)))
+                .withNormalizer(args -> ArgValidator.requireTogether(args, "x", "y", "z")));
         registry.registerTask(task(
                 "fish",
                 "Fish with a fishing rod at nearby open water.",

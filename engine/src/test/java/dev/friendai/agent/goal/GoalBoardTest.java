@@ -148,9 +148,10 @@ class GoalBoardTest {
     void finishDoneSetsStatusAndFreesThePrimarySlot() {
         GoalBoard board = new GoalBoard(3, 3);
         long id = board.set("g", List.of(), false, 1).value().id();
-        GoalResult<Goal> done = board.finish(id, true, "built");
+        GoalResult<GoalBoard.Finished> done = board.finish(id, true, "built");
         assertTrue(done.ok());
-        assertEquals(GoalStatus.DONE, done.value().status());
+        assertEquals(GoalStatus.DONE, done.value().goal().status());
+        assertEquals("built", done.value().reason());
         assertTrue(board.primary().isEmpty());
         assertTrue(board.set("next", List.of(), false, 2).ok());
     }

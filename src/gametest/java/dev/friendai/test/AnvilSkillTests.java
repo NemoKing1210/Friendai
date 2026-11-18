@@ -85,7 +85,8 @@ public class AnvilSkillTests {
         return book;
     }
 
-    private static void succeeds(GameTestHelper h, CompanionEntity c, AnvilItemTask task, Runnable check) {
+    private static void succeeds(
+            GameTestHelper h, CompanionEntity c, AnvilItemTask task, java.util.function.Consumer<String> check) {
         Result result = new Result();
         ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 300, () -> false);
         runner.setEventSink(result);
@@ -93,7 +94,7 @@ public class AnvilSkillTests {
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
-            check.run();
+            check.accept(result.summary);
         });
     }
 
@@ -119,12 +120,15 @@ public class AnvilSkillTests {
         c.inventory().addItem(pickaxe);
         c.inventory().addItem(new ItemStack(Items.IRON_INGOT, 2));
         levels(c, 30);
-        succeeds(h, c, new AnvilItemTask(match(Items.IRON_PICKAXE), match(Items.IRON_INGOT), null, null), () -> {
+        succeeds(h, c, new AnvilItemTask(match(Items.IRON_PICKAXE), match(Items.IRON_INGOT), null, null), summary -> {
             h.assertTrue(find(c, Items.IRON_PICKAXE).getDamageValue() < 100, "the pickaxe was not repaired");
             h.assertTrue(
                     c.experience().level() < 30,
                     "levels were not spent: " + c.experience().level());
             h.assertTrue(count(c, Items.IRON_INGOT) < 2, "no ingot was used");
+            int spent = 30 - c.experience().level();
+            h.assertTrue(summary.contains("spent " + spent + " level"), summary);
+            h.assertTrue(summary.contains("minecraft:iron_pickaxe"), summary);
         });
     }
 
@@ -134,10 +138,14 @@ public class AnvilSkillTests {
         c.inventory().addItem(sharpnessBook(h, 1));
         c.inventory().addItem(sharpnessBook(h, 1));
         levels(c, 30);
-        succeeds(h, c, new AnvilItemTask(match(Items.ENCHANTED_BOOK), match(Items.ENCHANTED_BOOK), null, null), () -> {
-            h.assertTrue(count(c, Items.ENCHANTED_BOOK) == 1, "books left " + count(c, Items.ENCHANTED_BOOK));
-            h.assertTrue(c.experience().level() < 30, "levels were not spent");
-        });
+        succeeds(
+                h,
+                c,
+                new AnvilItemTask(match(Items.ENCHANTED_BOOK), match(Items.ENCHANTED_BOOK), null, null),
+                summary -> {
+                    h.assertTrue(count(c, Items.ENCHANTED_BOOK) == 1, "books left " + count(c, Items.ENCHANTED_BOOK));
+                    h.assertTrue(c.experience().level() < 30, "levels were not spent");
+                });
     }
 
     @GameTest(structure = GameTestArenas.ARENA_16)
@@ -145,7 +153,7 @@ public class AnvilSkillTests {
         CompanionEntity c = setup(h, 120, true);
         c.inventory().addItem(new ItemStack(Items.IRON_SWORD));
         levels(c, 30);
-        succeeds(h, c, new AnvilItemTask(match(Items.IRON_SWORD), null, "Excalibur", null), () -> {
+        succeeds(h, c, new AnvilItemTask(match(Items.IRON_SWORD), null, "Excalibur", null), summary -> {
             var name = find(c, Items.IRON_SWORD).get(DataComponents.CUSTOM_NAME);
             h.assertTrue(name != null && name.getString().equals("Excalibur"), "name was " + name);
             h.assertTrue(
@@ -182,7 +190,7 @@ public class AnvilSkillTests {
         h.setBlock(3, 221, 2, Blocks.CHIPPED_ANVIL);
         c.inventory().addItem(new ItemStack(Items.IRON_SWORD));
         levels(c, 30);
-        succeeds(h, c, new AnvilItemTask(match(Items.IRON_SWORD), null, "Chipped", null), () -> {
+        succeeds(h, c, new AnvilItemTask(match(Items.IRON_SWORD), null, "Chipped", null), summary -> {
             var name = find(c, Items.IRON_SWORD).get(DataComponents.CUSTOM_NAME);
             h.assertTrue(name != null && name.getString().equals("Chipped"), "name was " + name);
         });
@@ -195,7 +203,7 @@ public class AnvilSkillTests {
         c.inventory().addItem(new ItemStack(Items.IRON_SWORD));
         levels(c, 30);
         BlockPos worn = h.absolutePos(new BlockPos(3, 231, 2));
-        succeeds(h, c, new AnvilItemTask(match(Items.IRON_SWORD), null, "Damaged", worn), () -> {
+        succeeds(h, c, new AnvilItemTask(match(Items.IRON_SWORD), null, "Damaged", worn), summary -> {
             var name = find(c, Items.IRON_SWORD).get(DataComponents.CUSTOM_NAME);
             h.assertTrue(name != null && name.getString().equals("Damaged"), "name was " + name);
         });

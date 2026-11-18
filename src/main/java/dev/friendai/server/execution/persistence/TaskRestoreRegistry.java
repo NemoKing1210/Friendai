@@ -14,6 +14,7 @@ import dev.friendai.features.navigation.minecraft.task.NavigationCheckpoints;
 import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.server.execution.tools.CheckpointRestorer;
 import dev.friendai.server.execution.tools.TaskToolDefinition;
+import dev.friendai.server.execution.tools.TaskToolRuntime;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskState;
@@ -221,9 +222,7 @@ public final class TaskRestoreRegistry {
     private Task create(TaskToolDefinition def, TaskContext context, UUID principal, JsonObject args) {
         Caller caller =
                 callers.apply(context.companion().ownerUuid(), principal).withTradingScope(QueueTradeScope.read(args));
-        return def.callerFactory() == null
-                ? def.factory().create(context.companion(), args.deepCopy())
-                : def.callerFactory().create(context.companion(), caller, args.deepCopy());
+        return TaskToolRuntime.create(def, context.companion(), caller, args);
     }
 
     private Optional<Task> restorePlan(String saved, dev.friendai.entity.CompanionEntity companion, ServerLevel level) {
@@ -251,9 +250,7 @@ public final class TaskRestoreRegistry {
                         .withTradingScope(QueueTradeScope.read(args));
                 if (!caller.access().allows(def.minAccess()))
                     throw new IllegalArgumentException("saved actor no longer has access");
-                return def.callerFactory() == null
-                        ? def.factory().create(context.companion(), args.deepCopy())
-                        : def.callerFactory().create(context.companion(), caller, args.deepCopy());
+                return TaskToolRuntime.create(def, context.companion(), caller, args);
             }));
         }
         Task active =

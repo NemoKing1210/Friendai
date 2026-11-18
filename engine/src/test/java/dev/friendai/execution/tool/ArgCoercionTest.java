@@ -68,4 +68,28 @@ class ArgCoercionTest {
 
         assertEquals(List.of("'count' must be at most 64"), ArgValidator.validate(SCHEMA, repaired));
     }
+
+    @Test
+    void omitsOptionalNullsBeforeExecutionAndKeepsRequiredExplicitAndUnknownNulls() {
+        JsonObject schema = args("""
+                {"type":"object","properties":{
+                  "flag":{"type":"boolean"},
+                  "caps":{"oneOf":[{"type":"object"},{"type":"array","items":{"type":"object",
+                    "required":["item"],"properties":{"item":{"type":"string"},
+                    "reserve":{"type":"integer"},"explicit":{"type":"null"}}}}]}}}
+                """);
+        JsonObject written = args("""
+                {"flag":null,"caps":[{"item":null,"reserve":null,"explicit":null,"unknown":null}]}
+                """);
+
+        assertEquals(args("""
+                        {"caps":[{"item":null,"explicit":null,"unknown":null}]}
+                        """), ArgCoercion.coerce(schema, written));
+        assertTrue(written.get("flag").isJsonNull());
+        assertTrue(written.getAsJsonArray("caps")
+                .get(0)
+                .getAsJsonObject()
+                .get("reserve")
+                .isJsonNull());
+    }
 }

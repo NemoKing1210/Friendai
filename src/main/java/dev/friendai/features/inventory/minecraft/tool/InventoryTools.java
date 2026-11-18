@@ -108,7 +108,7 @@ public final class InventoryTools implements FeatureToolContributor {
         registry.registerTool(
                 inventoryTool(
                         "get_inventory",
-                        "List what the companion is carrying.",
+                        "List carried items, equipped gear, hunger and current experience levels and points.",
                         SchemaBuilder.object().build(),
                         (c, a) -> {
                             Map<String, Integer> counts = new java.util.LinkedHashMap<>();
@@ -122,7 +122,10 @@ public final class InventoryTools implements FeatureToolContributor {
                                 }
                             }
                             String equipment =
-                                    c.equipmentText() + "; hunger " + c.hunger().food() + '/' + HungerModel.MAX_FOOD;
+                                    c.equipmentText() + "; hunger " + c.hunger().food() + '/'
+                                            + HungerModel.MAX_FOOD + "; experience "
+                                            + c.experience().level() + " levels ("
+                                            + c.experience().points() + " points)";
                             return counts.isEmpty()
                                     ? ToolResult.ok("Inventory is empty\n" + equipment)
                                     : ToolResult.ok(

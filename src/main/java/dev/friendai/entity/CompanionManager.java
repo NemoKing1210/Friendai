@@ -106,11 +106,7 @@ public final class CompanionManager {
         entity.syncCreativeModePreference();
         entity.syncOutlinePreference();
         byOwner.put(owner, entity);
-        runtime()
-                .skins()
-                .load(owner)
-                .ifPresentOrElse(
-                        stored -> entity.setSkin(stored.hash(), stored.slim()), () -> entity.setSkin("", false));
+        if (existing != entity) runtime().skinHandler().restore(entity);
         if (entity.hasCustomName()) {
             // Saves made before the name tag was shown carry a name but not the visible flag.
             entity.setCustomNameVisible(true);
@@ -124,6 +120,7 @@ public final class CompanionManager {
         UUID owner = entity.ownerUuid();
         if (owner != null && byOwner.get(owner) == entity) {
             byOwner.remove(owner);
+            runtime().skinHandler().onRemoved(entity);
             new ArrayList<>(listeners).forEach(l -> l.onRemoved(owner));
         }
     }

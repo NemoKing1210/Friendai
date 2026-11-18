@@ -2,63 +2,89 @@ package dev.friendai.features.brewing.minecraft.task;
 
 import dev.friendai.features.brewing.BrewPlanner;
 import dev.friendai.features.brewing.BrewRecipe;
-import dev.friendai.features.brewing.BrewStep;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.interact.MenuBlockTask;
 import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.inventory.ItemMatcher;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Optional;
+import java.util.Map;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.Container;
 import net.minecraft.world.inventory.BrewingStandMenu;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.alchemy.Potion;
 import net.minecraft.world.item.alchemy.PotionContents;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.entity.BrewingStandBlockEntity;
 import org.jetbrains.annotations.Nullable;
 
-/**
- * Brews a supported potion at a found brewing stand through the vanilla menu, one stand operation at a time.
- *
- * <p>The task keeps the intermediate potions in the stand's bottle slots between steps, so a resumed stand does not
- * repeat a completed operation: each tick it reads the potion component and advances past any step whose result is
- * already in the bottles. A vanilla operation takes 400 ticks; the task waits 400 plus {@link #WAIT_MARGIN} and then
- * reads the component, never a timeout equal to the brew duration. Missing bottles, ingredient, fuel or stand are
- * typed failures that name the piece.
- */
+/** Brews one batch through the vanilla stand and verifies each operation before moving its output. */
 public final class BrewTask extends MenuBlockTask {
-    /** Bottle slots in a brewing stand. */
-    private static final int FIRST_BOTTLE = 0;
-
-    private static final int LAST_BOTTLE = 2;
+    private static final int BOTTLE_SLOTS = BrewRecipe.BOTTLES_PER_OPERATION;
     private static final int INGREDIENT_SLOT = 3;
     private static final int FUEL_SLOT = 4;
-    /** A bounded margin over the vanilla 400-tick operation, so a slow tick never reads mid-brew. */
-    static final int WAIT_MARGIN = 60;
+    private static final int WAIT_MARGIN = 60;
+    private static final int CHECK_INTERVAL = 5;
+
+    private record Step(ResourceKey<Potion> input, ItemMatcher ingredient, ResourceKey<Potion> output) {}
 
     private final String target;
     private final int bottles;
-    private BrewRecipe plan;
+    private final List<Step> steps;
+    private final @Nullable BlockPos requestedStand;
+    private @Nullable BlockPos batchStand;
+    private @Nullable Identifier batchDimension;
+    private @Nullable BrewingStandBlockEntity observedStand;
     private int stepIndex;
+    private boolean staged;
+    private String addedFuel;
+    private int fuelBefore;
     private int waited;
+    private int waitLimit = BrewRecipe.OPERATION_TICKS + WAIT_MARGIN;
 
     public BrewTask(String target, int bottles, @Nullable BlockPos stand) {
-        this(target, bottles, stand, 0);
+        this(target, bottles, stand, null, 0, false, "", 0);
     }
 
-    /** Restores a task from a checkpoint; {@code stepIndex} is the next unfinished step. */
-    public BrewTask(String target, int bottles, @Nullable BlockPos stand, int stepIndex) {
+    BrewTask(
+            String target,
+            int bottles,
+            @Nullable BlockPos stand,
+            @Nullable Identifier batchDimension,
+            int stepIndex,
+            boolean staged,
+            String addedFuel,
+            int fuelBefore) {
         super(Blocks.BREWING_STAND, "brewing stand", stand);
         this.target = target == null ? "" : target.strip().toLowerCase(java.util.Locale.ROOT);
-        if (bottles < 1 || bottles > 3) {
+        if (bottles < 1 || bottles > BOTTLE_SLOTS) {
             throw new IllegalArgumentException("bottles must be 1 to 3");
         }
         this.bottles = bottles;
-        this.plan = BrewPlanner.plan(this.target).orElse(null);
-        this.stepIndex =
-                Math.max(0, Math.min(stepIndex, plan == null ? 0 : plan.steps().size()));
+        this.steps = BrewPlanner.plan(this.target)
+                .map(recipe -> recipe.steps().stream()
+                        .map(step -> new Step(
+                                potionKey(step.fromPotion()),
+                                ItemMatcher.parse(step.ingredient()).orElseThrow(),
+                                potionKey(step.toPotion())))
+                        .toList())
+                .orElseGet(List::of);
+        this.requestedStand = stand;
+        this.batchStand = batchDimension == null ? null : stand;
+        this.batchDimension = batchDimension;
+        this.stepIndex = stepIndex;
+        this.staged = staged;
+        this.addedFuel = addedFuel;
+        this.fuelBefore = fuelBefore;
     }
 
     @Override
@@ -72,83 +98,273 @@ public final class BrewTask extends MenuBlockTask {
     }
 
     @Override
-    public String saveData() {
-        return target + "|" + bottles + "|" + stepIndex;
+    public @Nullable String saveData() {
+        if (stepIndex >= steps.size()) {
+            return null;
+        }
+        BlockPos pos = batchStand == null ? requestedStand : batchStand;
+        return target + "|" + bottles + "|" + stepIndex + "|" + (pos == null ? "" : pos.asLong()) + "|"
+                + (batchDimension == null ? "" : batchDimension) + "|" + staged + "|" + addedFuel + "|" + fuelBefore;
     }
 
-    /** The next unfinished step, for a checkpoint restore test. */
-    int stepIndex() {
-        return stepIndex;
+    @Override
+    public long progressStamp() {
+        return stepIndex * 2L + (staged ? 1 : 0);
+    }
+
+    @Override
+    public int waitingTicks() {
+        return staged ? waited : -1;
+    }
+
+    @Override
+    public int waitingLimitTicks() {
+        return waitLimit;
+    }
+
+    @Override
+    public TaskStatus tick(TaskContext c) {
+        if (batchDimension != null
+                && !batchDimension.equals(c.level().dimension().identifier())) {
+            return fail("the brewing batch is in another dimension");
+        }
+        return super.tick(c);
     }
 
     @Override
     protected TaskStatus operate(TaskContext c, BlockPos pos) {
-        if (plan == null) {
-            summary = "unsupported potion: " + target;
-            return TaskStatus.FAILED;
+        if (steps.isEmpty()) {
+            return fail("unsupported potion: " + target);
         }
-        if (stepIndex >= plan.steps().size()) {
+        if (stepIndex >= steps.size()) {
             return TaskStatus.SUCCESS;
         }
-        if (!(c.companion().hands().openMenu(pos) instanceof BrewingStandMenu menu)) {
-            summary = "the brewing stand at " + pos.getX() + " " + pos.getY() + " " + pos.getZ() + " would not open";
-            return TaskStatus.FAILED;
-        }
-        return brewStep(c, menu);
-    }
-
-    private TaskStatus brewStep(TaskContext c, BrewingStandMenu menu) {
-        BrewStep step = plan.steps().get(stepIndex);
-        // An operation completed between ticks: the bottles already hold the step's result.
-        if (bottleCount(menu, step.toPotion()) == bottles) {
-            return advance(c, menu);
-        }
-        // First step: take the starting potions (water bottles) from the inventory.
-        if (bottleCount(menu, step.fromPotion()) < bottles) {
-            if (!fillBottles(c, menu, step.fromPotion())) {
-                return fail("I do not have " + bottles + " " + label(step.fromPotion()) + " bottle(s)");
-            }
-        }
-        if (!ensureIngredient(c, menu, step)) {
-            return fail("I do not have " + label(step.ingredient()));
-        }
-        if (!ensureFuel(c, menu)) {
-            return fail("I do not have brewing fuel (blaze powder)");
-        }
-        int brewing = menu.getBrewingTicks();
-        if (brewing > 0) {
-            waited++;
-            if (waited > BrewRecipe.OPERATION_TICKS + WAIT_MARGIN) {
-                return fail("the stand did not finish brewing " + label(step.toPotion()));
-            }
+        if (staged && waited++ % CHECK_INTERVAL != 0) {
             return TaskStatus.RUNNING;
         }
-        // The block entity starts the operation on its next tick; wait for it rather than spinning.
-        waited++;
-        if (waited > BrewRecipe.OPERATION_TICKS + WAIT_MARGIN) {
-            return fail("the stand did not start brewing " + label(step.toPotion()));
+        if (!(c.level().getBlockEntity(pos) instanceof BrewingStandBlockEntity stand)
+                || !(c.companion().hands().openMenu(pos) instanceof BrewingStandMenu menu)) {
+            return fail("the brewing stand at " + coords(pos) + " would not open");
+        }
+        if (batchStand == null) {
+            return startBatch(c, pos, stand, menu);
+        }
+        if (observedStand != null && observedStand != stand) {
+            return fail("the brewing stand at " + coords(pos) + " was replaced");
+        }
+        return continueBatch(c, stand, menu);
+    }
+
+    private TaskStatus startBatch(TaskContext c, BlockPos pos, BrewingStandBlockEntity stand, BrewingStandMenu menu) {
+        if (!stand.isEmpty() || menu.getBrewingTicks() > 0) {
+            return fail("the brewing stand at " + coords(pos) + " is occupied");
+        }
+        Container inventory = c.companion().inventory();
+        ResourceKey<Potion> water = steps.getFirst().input();
+        if (countPotions(inventory, water) < bottles) {
+            return fail("I do not have " + bottles + " water bottle(s)");
+        }
+        Map<String, Integer> requirements = new LinkedHashMap<>();
+        for (Step step : steps) {
+            requirements.merge(step.ingredient().label(), 1, Integer::sum);
+        }
+        for (var requirement : requirements.entrySet()) {
+            ItemMatcher ingredient = ItemMatcher.parse(requirement.getKey()).orElseThrow();
+            if (InventoryOps.count(inventory, ingredient) < requirement.getValue()) {
+                return fail("I do not have " + label(ingredient.label()));
+            }
+        }
+        if (menu.getFuel() < steps.size() && fuelSlot(inventory) < 0) {
+            return fail("I do not have brewing fuel in addition to the ingredients");
+        }
+
+        int taken = 0;
+        for (int slot = 0; slot < inventory.getContainerSize() && taken < bottles; slot++) {
+            while (taken < bottles && isPotion(inventory.getItem(slot), water)) {
+                menu.getSlot(taken++).set(inventory.removeItem(slot, 1));
+            }
+        }
+        batchStand = pos;
+        batchDimension = c.level().dimension().identifier();
+        observedStand = stand;
+        return stage(inventory, menu);
+    }
+
+    private TaskStatus continueBatch(TaskContext c, BrewingStandBlockEntity stand, BrewingStandMenu menu) {
+        Step step = steps.get(stepIndex);
+        if (staged
+                && menu.getBrewingTicks() == 0
+                && stand.getItem(INGREDIENT_SLOT).isEmpty()
+                && standMatches(stand, step.output())) {
+            if (!spentFuelUse(stand, menu)) {
+                return fail(
+                        "the bottles changed without a verified brewing operation at " + coords(stand.getBlockPos()));
+            }
+            observedStand = stand;
+            stepIndex++;
+            staged = false;
+            addedFuel = "";
+            if (stepIndex == steps.size()) {
+                return finish(c, stand);
+            }
+            return stage(c.companion().inventory(), menu);
+        }
+        ItemStack ingredient = stand.getItem(INGREDIENT_SLOT);
+        if (!standMatches(stand, step.input())
+                || (staged
+                        ? ingredient.getCount() != 1 || !step.ingredient().test(ingredient)
+                        : !ingredient.isEmpty())) {
+            return fail("the brewing batch at " + coords(stand.getBlockPos()) + " no longer matches its staged inputs");
+        }
+        observedStand = stand;
+        if (!staged) {
+            return stage(c.companion().inventory(), menu);
+        }
+        waitLimit = Math.max(waitLimit, menu.getTotalBrewingTicks() + WAIT_MARGIN);
+        if (waited >= waitLimit) {
+            return fail("the stand did not finish brewing "
+                    + label(step.output().identifier().toString()));
         }
         return TaskStatus.RUNNING;
     }
 
-    private TaskStatus advance(TaskContext c, BrewingStandMenu menu) {
-        stepIndex++;
+    private boolean spentFuelUse(BrewingStandBlockEntity stand, BrewingStandMenu menu) {
+        if (fuelBefore > 0) {
+            return menu.getFuel() == fuelBefore - 1;
+        }
+        return menu.getTotalFuel() > 0
+                && menu.getFuel() == menu.getTotalFuel() - 1
+                && !isAddedFuel(stand.getItem(FUEL_SLOT));
+    }
+
+    private TaskStatus stage(Container inventory, BrewingStandMenu menu) {
+        Step step = steps.get(stepIndex);
+        if (InventoryOps.count(inventory, step.ingredient()) == 0) {
+            return fail("I do not have " + label(step.ingredient().label()));
+        }
+        if (!menu.getSlot(FUEL_SLOT).getItem().isEmpty()) {
+            return fail("the brewing stand's fuel slot changed");
+        }
+        fuelBefore = menu.getFuel();
+        if (fuelBefore <= 0) {
+            int slot = fuelSlot(inventory);
+            if (slot < 0) {
+                return fail("I do not have brewing fuel in addition to the ingredients");
+            }
+            ItemStack fuel = inventory.removeItem(slot, 1);
+            addedFuel = BuiltInRegistries.ITEM.getKey(fuel.getItem()).toString();
+            menu.getSlot(FUEL_SLOT).set(fuel);
+        }
+        menu.getSlot(INGREDIENT_SLOT)
+                .set(InventoryOps.remove(inventory, step.ingredient(), 1).getFirst());
+        staged = true;
         waited = 0;
-        if (stepIndex >= plan.steps().size()) {
-            return TaskStatus.SUCCESS;
-        }
+        waitLimit = BrewRecipe.OPERATION_TICKS + WAIT_MARGIN;
         return TaskStatus.RUNNING;
     }
 
-    private TaskStatus finish(TaskContext c) {
-        int produced = 0;
-        for (int slot = FIRST_BOTTLE; slot <= LAST_BOTTLE; slot++) {
-            // The menu is already closed here only on the terminal path; count the plan's bottles when it is not open.
-            produced += bottles;
-            break;
+    /** Selects an item with the fuel component only when enough of that item remains for its recipe uses. */
+    private int fuelSlot(Container inventory) {
+        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
+            ItemStack fuel = inventory.getItem(slot);
+            if (!fuel.has(DataComponents.BREWING_FUEL)) {
+                continue;
+            }
+            int reserved = 0;
+            ItemMatcher matchingIngredient = null;
+            for (int step = stepIndex; step < steps.size(); step++) {
+                ItemMatcher ingredient = steps.get(step).ingredient();
+                if (ingredient.test(fuel)) {
+                    reserved++;
+                    matchingIngredient = ingredient;
+                }
+            }
+            if (matchingIngredient == null || InventoryOps.count(inventory, matchingIngredient) > reserved) {
+                return slot;
+            }
         }
-        summary = "brewed " + bottles + " " + label(target) + " using " + String.join(", ", labels(plan.ingredients()));
+        return -1;
+    }
+
+    private TaskStatus finish(TaskContext c, BrewingStandBlockEntity stand) {
+        int carried = 0;
+        int remaining = 0;
+        for (int slot = 0; slot < bottles; slot++) {
+            ItemStack potion = stand.getItem(slot);
+            ItemStack leftover = c.companion().inventory().addItem(potion.copy());
+            carried += potion.getCount() - leftover.getCount();
+            remaining += leftover.getCount();
+            stand.setItem(slot, leftover);
+        }
+        List<String> ingredients = new ArrayList<>(steps.size());
+        for (Step step : steps) {
+            ingredients.add("1 " + label(step.ingredient().label()));
+        }
+        summary = "brewed " + (carried + remaining) + " " + label(target) + " potion(s): " + carried
+                + " in my inventory, " + remaining + " in the stand at " + coords(stand.getBlockPos()) + "; consumed "
+                + String.join(", ", ingredients) + " and " + stepIndex + " fuel uses";
+        batchStand = null;
         return TaskStatus.SUCCESS;
+    }
+
+    @Override
+    public void stop(TaskContext c) {
+        super.stop(c);
+        returnBatch(c);
+    }
+
+    @Override
+    public void onTerminal(TaskContext c) {
+        returnBatch(c);
+    }
+
+    private void returnBatch(TaskContext c) {
+        BlockPos pos = batchStand;
+        batchStand = null;
+        if (pos == null
+                || !c.level().dimension().identifier().equals(batchDimension)
+                || stepIndex >= steps.size()
+                || !c.level().hasChunkAt(pos)
+                || !(c.level().getBlockEntity(pos) instanceof BrewingStandBlockEntity stand)
+                || stand != observedStand
+                || !c.companion().hands().canInteract(pos)
+                || stand.isLocked()) {
+            return;
+        }
+        Step step = steps.get(stepIndex);
+        ItemStack ingredient = stand.getItem(INGREDIENT_SLOT);
+        boolean pending =
+                staged && ingredient.getCount() == 1 && step.ingredient().test(ingredient);
+        boolean input = standMatches(stand, step.input()) && (pending || !staged && ingredient.isEmpty());
+        if (!input) {
+            return;
+        }
+        for (int slot = 0; slot < bottles; slot++) {
+            InventoryOps.insertOrDrop(c.companion(), stand.removeItem(slot, 1));
+        }
+        if (pending) {
+            InventoryOps.insertOrDrop(c.companion(), stand.removeItem(INGREDIENT_SLOT, 1));
+        }
+        ItemStack fuel = stand.getItem(FUEL_SLOT);
+        if (isAddedFuel(fuel)) {
+            InventoryOps.insertOrDrop(c.companion(), stand.removeItem(FUEL_SLOT, 1));
+        }
+    }
+
+    private boolean isAddedFuel(ItemStack fuel) {
+        return !addedFuel.isEmpty()
+                && fuel.getCount() == 1
+                && BuiltInRegistries.ITEM.getKey(fuel.getItem()).toString().equals(addedFuel);
+    }
+
+    private boolean standMatches(Container stand, ResourceKey<Potion> potion) {
+        for (int slot = 0; slot < BOTTLE_SLOTS; slot++) {
+            ItemStack stack = stand.getItem(slot);
+            if (slot < bottles ? stack.getCount() != 1 || !isPotion(stack, potion) : !stack.isEmpty()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private TaskStatus fail(String message) {
@@ -156,122 +372,31 @@ public final class BrewTask extends MenuBlockTask {
         return TaskStatus.FAILED;
     }
 
-    /** Takes {@code bottles} potions of the given id from the inventory into the empty bottle slots. */
-    private boolean fillBottles(TaskContext c, BrewingStandMenu menu, String potionId) {
-        List<ItemStack> taken = takePotions(c, potionId, bottles);
-        if (taken.isEmpty()) {
-            return false;
-        }
-        int slot = FIRST_BOTTLE;
-        for (ItemStack stack : taken) {
-            if (slot > LAST_BOTTLE) {
-                break;
-            }
-            menu.getSlot(slot).set(stack);
-            slot++;
-        }
-        return bottleCount(menu, potionId) >= bottles;
-    }
-
-    private boolean ensureIngredient(TaskContext c, BrewingStandMenu menu, BrewStep step) {
-        ItemStack current = menu.getSlot(INGREDIENT_SLOT).getItem();
-        if (!current.isEmpty() && matches(current, step.ingredient())) {
-            return true;
-        }
-        if (!current.isEmpty()) {
-            InventoryOps.insertOrDrop(c.companion(), current.copy());
-            menu.getSlot(INGREDIENT_SLOT).set(ItemStack.EMPTY);
-        }
-        Optional<ItemMatcher> matcher = ItemMatcher.parse(step.ingredient());
-        if (matcher.isEmpty()) {
-            return false;
-        }
-        List<ItemStack> taken = InventoryOps.remove(c.companion().inventory(), matcher.get(), 1);
-        if (taken.isEmpty()) {
-            return false;
-        }
-        menu.getSlot(INGREDIENT_SLOT).set(taken.getFirst());
-        return true;
-    }
-
-    private boolean ensureFuel(TaskContext c, BrewingStandMenu menu) {
-        if (menu.getFuel() > 0) {
-            return true;
-        }
-        ItemStack fuel = menu.getSlot(FUEL_SLOT).getItem();
-        if (!fuel.isEmpty() && fuel.has(DataComponents.BREWING_FUEL)) {
-            return true;
-        }
-        for (int i = 0; i < c.companion().inventory().getContainerSize(); i++) {
-            ItemStack stack = c.companion().inventory().getItem(i);
-            if (!stack.isEmpty() && stack.has(DataComponents.BREWING_FUEL)) {
-                ItemStack taken = stack.copyWithCount(1);
-                stack.shrink(1);
-                if (stack.isEmpty()) {
-                    c.companion().inventory().setItem(i, ItemStack.EMPTY);
-                }
-                c.companion().inventory().setChanged();
-                menu.getSlot(FUEL_SLOT).set(taken);
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private int bottleCount(BrewingStandMenu menu, String potionId) {
+    private static int countPotions(Container inventory, ResourceKey<Potion> potion) {
         int count = 0;
-        for (int slot = FIRST_BOTTLE; slot <= LAST_BOTTLE; slot++) {
-            ItemStack stack = menu.getSlot(slot).getItem();
-            if (!stack.isEmpty() && potionId(stack).equals(potionId)) {
-                count++;
+        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
+            ItemStack stack = inventory.getItem(slot);
+            if (isPotion(stack, potion)) {
+                count += stack.getCount();
             }
         }
         return count;
     }
 
-    private List<ItemStack> takePotions(TaskContext c, String potionId, int max) {
-        List<ItemStack> taken = new ArrayList<>(max);
-        for (int i = 0; i < c.companion().inventory().getContainerSize() && taken.size() < max; i++) {
-            ItemStack stack = c.companion().inventory().getItem(i);
-            if (stack.isEmpty() || !potionId(stack).equals(potionId)) {
-                continue;
-            }
-            ItemStack one = stack.copyWithCount(1);
-            stack.shrink(1);
-            if (stack.isEmpty()) {
-                c.companion().inventory().setItem(i, ItemStack.EMPTY);
-            }
-            taken.add(one);
-        }
-        c.companion().inventory().setChanged();
-        return taken;
-    }
-
-    private static boolean matches(ItemStack stack, String itemId) {
-        return ItemMatcher.parse(itemId).map(m -> m.test(stack)).orElse(false);
-    }
-
-    private static String potionId(ItemStack stack) {
+    private static boolean isPotion(ItemStack stack, ResourceKey<Potion> potion) {
         PotionContents contents = stack.get(DataComponents.POTION_CONTENTS);
-        if (contents == null) {
-            return "";
-        }
-        return contents.potion()
-                .flatMap(
-                        holder -> holder.unwrapKey().map(key -> key.identifier().toString()))
-                .orElse("");
+        return stack.is(Items.POTION)
+                && contents != null
+                && contents.potion().isPresent()
+                && contents.potion().get().is(potion);
+    }
+
+    private static ResourceKey<Potion> potionKey(String id) {
+        return ResourceKey.create(Registries.POTION, Identifier.parse(id));
     }
 
     private static String label(String id) {
         int colon = id.indexOf(':');
         return colon >= 0 ? id.substring(colon + 1).replace('_', ' ') : id;
-    }
-
-    private static List<String> labels(List<String> ids) {
-        List<String> labels = new ArrayList<>(ids.size());
-        for (String id : ids) {
-            labels.add(label(id));
-        }
-        return labels;
     }
 }

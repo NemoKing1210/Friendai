@@ -7,6 +7,8 @@ import dev.friendai.execution.queue.GuardAction;
 import dev.friendai.execution.queue.QueueTradeScope;
 import dev.friendai.execution.queue.QueuedStep;
 import dev.friendai.execution.tool.AccessLevel;
+import dev.friendai.execution.tool.ArgCoercion;
+import dev.friendai.execution.tool.ArgValidator;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.Tool;
 import dev.friendai.execution.tool.ToolResult;
@@ -197,9 +199,18 @@ public final class TaskToolRuntime {
         };
     }
 
-    private static Task create(
+    public static Task create(
             TaskToolDefinition definition, CompanionEntity companion, Caller caller, JsonObject args) {
-        JsonObject safeArgs = args == null ? new JsonObject() : args.deepCopy();
+        JsonObject safeArgs = definition.normalizer().apply(args == null ? new JsonObject() : args.deepCopy());
+        if (safeArgs == null) throw new IllegalArgumentException("arguments cannot be normalized");
+        safeArgs = ArgCoercion.coerce(definition.schema(), safeArgs);
+        JsonObject schemaArgs = safeArgs;
+        if (safeArgs.has(QueueTradeScope.ARG) && definition.queueTraits().requiresTradingScope()) {
+            schemaArgs = safeArgs.deepCopy();
+            schemaArgs.remove(QueueTradeScope.ARG);
+        }
+        List<String> issues = ArgValidator.validate(definition.schema(), schemaArgs);
+        if (!issues.isEmpty()) throw new IllegalArgumentException(String.join("; ", issues));
         if (definition.callerFactory() != null) {
             return definition.callerFactory().create(companion, caller, safeArgs);
         }

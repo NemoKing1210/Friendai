@@ -40,10 +40,14 @@ final class GoalOutcomeRecorder {
 
     /**
      * Leaves the one memory fact an ended goal earns: what it was, whether the world checked every checkable
-     * criterion, and the shortest verified fact. An abandoned goal the world verified nothing about is not
-     * remembered; the book itself replaces an identical line instead of adding a second one.
+     * criterion, and the shortest verified fact. An abandoned goal earns a line with evidence or a stated reason.
+     * The book itself replaces an identical line instead of adding a second one.
      */
     void remember(UUID owner, String source, TeachingContext.OutcomeKind kind, String summary) {
+        remember(owner, source, kind, summary, "");
+    }
+
+    void remember(UUID owner, String source, TeachingContext.OutcomeKind kind, String summary, String reason) {
         ServerConfig current = config.get();
         if (current == null || !current.memory.enabled || source == null || !source.startsWith(GOAL_OUTCOME)) {
             return;
@@ -64,7 +68,7 @@ final class GoalOutcomeRecorder {
             end = verified ? GoalOutcomeFact.End.VERIFIED : GoalOutcomeFact.End.UNVERIFIED;
         }
         MemoryLimits limits = current.memory.limits();
-        String text = GoalOutcomeFact.text(summary, end, takeFact(owner, goalId), limits.maxFactChars());
+        String text = GoalOutcomeFact.text(summary, end, takeFact(owner, goalId), reason, limits.maxFactChars());
         if (text == null) {
             return;
         }

@@ -2,6 +2,7 @@ package dev.friendai.server.execution.tools;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.JsonArray;
@@ -55,22 +56,17 @@ class QueueAliasEndToEndTest {
     }
 
     @Test
-    void aBrokenEditNormalizerLeavesTheArgumentsForValidationToReject() {
+    void aBrokenEditNormalizerRejectsTheEditWithoutFallingBackToRawArgs() {
         TaskToolDefinition obtainItems = definitions().get("obtain_items");
-        String raw = "{\"item\":\"minecraft:stone\",\"count\":36}";
-        JsonObject expected = JsonParser.parseString(raw).getAsJsonObject();
+        String raw = "{\"items\":[{\"item\":\"minecraft:stone\",\"count\":36}]}";
 
         TaskToolDefinition thrown = obtainItems.withNormalizer(args -> {
             throw new IllegalStateException("broken normalizer");
         });
-        JsonObject keptAfterThrow = QueueTools.updateArgs(thrown, raw);
-        assertEquals(expected, keptAfterThrow);
-        assertFalse(ArgValidator.validate(thrown.schema(), keptAfterThrow).isEmpty());
+        assertThrows(IllegalStateException.class, () -> QueueTools.updateArgs(thrown, raw));
 
         TaskToolDefinition empty = obtainItems.withNormalizer(args -> null);
-        JsonObject keptAfterEmpty = QueueTools.updateArgs(empty, raw);
-        assertEquals(expected, keptAfterEmpty);
-        assertFalse(ArgValidator.validate(empty.schema(), keptAfterEmpty).isEmpty());
+        assertThrows(IllegalArgumentException.class, () -> QueueTools.updateArgs(empty, raw));
     }
 
     private static Map<String, TaskToolDefinition> definitions() {

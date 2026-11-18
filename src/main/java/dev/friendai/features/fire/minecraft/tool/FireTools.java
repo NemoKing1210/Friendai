@@ -1,11 +1,13 @@
 package dev.friendai.features.fire.minecraft.tool;
 
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import dev.friendai.agent.tools.Cost;
 import dev.friendai.agent.tools.ToolGroup;
 import dev.friendai.agent.tools.ToolMeta;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.tool.AccessLevel;
+import dev.friendai.execution.tool.ArgValidator;
 import dev.friendai.execution.tool.SchemaBuilder;
 import dev.friendai.features.fire.FireTarget;
 import dev.friendai.features.fire.minecraft.FireScan;
@@ -19,26 +21,46 @@ import java.util.Locale;
 
 /** The fire skill: one task, whichever target the player means. */
 public final class FireTools implements FeatureToolContributor {
+    private static final List<String> TARGETS = List.of("self", "owner", "entity", "near");
+
     @Override
     public void register(FeatureToolRegistry registry) {
         registry.registerTask(new TaskToolDefinition(
-                "extinguish_fire",
-                "Put a fire out: your own, the owner's, a burning mob's, one burning block, or every fire nearby.",
-                SchemaBuilder.object()
-                        .string("target", "What to put out: self, owner, entity or near (default near)")
-                        .integer("radius", "How far to look and work, in blocks", 1, 16)
-                        .integer("x", "Block X, for one burning block")
-                        .integer("y", "Block Y, for one burning block")
-                        .integer("z", "Block Z, for one burning block")
-                        .build(),
-                FireTools::create,
-                null,
-                true,
-                AccessLevel.TRUSTED,
-                new TaskToolDefinition.QueueTraits(true, null),
-                true,
-                true,
-                metadata("extinguish_fire")));
+                        "extinguish_fire",
+                        "Put a fire out: your own, the owner's, a burning mob's, one burning block, or every fire nearby.",
+                        SchemaBuilder.object()
+                                .string("target", "What to put out: self, owner, entity or near (default near)")
+                                .integer("radius", "How far to look and work, in blocks", 1, 16)
+                                .integer(
+                                        "x",
+                                        "Block X, for one burning block. Supply x, y and z together.",
+                                        Integer.MIN_VALUE,
+                                        Integer.MAX_VALUE)
+                                .integer("y", "Block Y, for one burning block", Integer.MIN_VALUE, Integer.MAX_VALUE)
+                                .integer("z", "Block Z, for one burning block", Integer.MIN_VALUE, Integer.MAX_VALUE)
+                                .build(),
+                        FireTools::create,
+                        null,
+                        true,
+                        AccessLevel.TRUSTED,
+                        new TaskToolDefinition.QueueTraits(true, null),
+                        true,
+                        true,
+                        metadata("extinguish_fire"))
+                .withNormalizer(FireTools::normalize));
+    }
+
+    private static JsonObject normalize(JsonObject args) {
+        ArgValidator.requireTogether(args, "x", "y", "z");
+        JsonElement target = args.get("target");
+        if ((!args.has("x") || args.get("x").isJsonNull())
+                && target != null
+                && target.isJsonPrimitive()
+                && target.getAsJsonPrimitive().isString()
+                && !TARGETS.contains(target.getAsString().strip().toLowerCase(Locale.ROOT))) {
+            throw new IllegalArgumentException("target must be self, owner, entity or near");
+        }
+        return args;
     }
 
     private static ToolMeta metadata(String name) {

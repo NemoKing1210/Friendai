@@ -133,6 +133,33 @@ public class GoalTests {
     }
 
     @GameTest(structure = GameTestArenas.ARENA_16)
+    public void abandoning_a_goal_keeps_its_reason_in_memory_and_frees_the_slot(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
+        CompanionEntity c = CompanionManager.get(h.getLevel().getServer()).summon(player);
+        Caller owner = owner(player);
+        var runtime = GameTestSupport.runtime(h.getLevel().getServer());
+        var board = runtime.goals().board(player.getUUID());
+        h.assertFalse(
+                call(c, owner, "set_goal", "{\"text\":\"Find a village\"}").error(), "sets a goal");
+        long id = board.primary().orElseThrow().id();
+        ToolResult finished = call(
+                c,
+                owner,
+                "finish_goal",
+                "{\"id\":" + id + ",\"done\":false,\"reason\":\"The owner asked to head home\"}");
+        h.assertFalse(finished.error(), finished.content());
+        var book = runtime.memory().book(player.getUUID());
+        h.assertTrue(
+                book.allFacts().stream()
+                        .anyMatch(fact ->
+                                fact.text().contains("abandoned, unverified; reason: The owner asked to head home")),
+                "the abandonment reason reaches goal history");
+        h.assertFalse(call(c, owner, "set_goal", "{\"text\":\"Go home\"}").error(), "reuses the primary slot");
+        h.succeed();
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16)
     public void queue_add_links_the_plan_to_the_primary_goal(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);

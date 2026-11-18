@@ -44,6 +44,47 @@ class ArgValidatorTest {
     }
 
     @Test
+    void nestedObjectsValidateRequiredFieldsAndRejectOnlyDeclaredExtras() {
+        JsonObject contract = args("""
+                {"type":"object","properties":{"target":{"type":"object","additionalProperties":false,
+                "properties":{"x":{"type":"integer"}},"required":["x"]}}}
+                """);
+        assertEquals(
+                List.of("missing required argument 'target.x'", "unknown argument 'target.xx'"),
+                ArgValidator.validate(contract, args("{\"target\":{\"xx\":1},\"legacy\":true}")));
+        assertEquals(List.of("'target' must be an object"), ArgValidator.validate(contract, args("{\"target\":5}")));
+        assertTrue(
+                ArgValidator.validate(contract, args("{\"target\":{\"x\":1}}")).isEmpty());
+    }
+
+    @Test
+    void oneOfRequiresExactlyOneShapeAndSupportsExplicitNull() {
+        JsonObject contract = args("""
+                {"type":"object","properties":{"value":{"oneOf":[{"type":"integer"},{"type":"number"}]},
+                 "note":{"oneOf":[{"type":"string"},{"type":"null"}]}},"required":["note"]}
+                """);
+        assertEquals(
+                List.of("'value' must match one supported shape"),
+                ArgValidator.validate(contract, args("{\"value\":1,\"note\":null}")));
+        assertTrue(ArgValidator.validate(contract, args("{\"value\":1.5,\"note\":null}"))
+                .isEmpty());
+        assertTrue(ArgValidator.validate(contract, args("{\"value\":1.5,\"note\":1}"))
+                        .size()
+                == 1);
+    }
+
+    @Test
+    void numericArgumentsCannotOverflowToInfinityOrRoundAwayTheirFraction() {
+        JsonObject contract = SchemaBuilder.object()
+                .number("distance", "")
+                .integer("count", "")
+                .build();
+        assertEquals(
+                List.of("'distance' must be a finite number", "'count' must be an integer"),
+                ArgValidator.validate(contract, args("{\"distance\":1e9999,\"count\":9007199254740992.5}")));
+    }
+
+    @Test
     void requiredMissing() {
         assertEquals(1, ArgValidator.validate(SCHEMA, args("{}")).size());
         assertTrue(ArgValidator.validate(SCHEMA, args("{}")).get(0).contains("block"));

@@ -254,6 +254,12 @@ The chain below is one request from chat to speech; a change may alter a step's 
 
 ### Task lifecycle
 
+Tool arguments pass through feature-owned normalizers and the engine schema validator. Direct calls, plan parsing, queue edits and restored jobs share the same schema rules. Fire and honey tools require all coordinates together when a position is supplied. Open schemas retain extra fields, and explicit null counts as omission for optional fields unless a schema declares a null value.
+
+When a goal ends, its active slot is released immediately. An abandonment reason travels through the existing goal outcome. The teaching event and the durable memory line share the same redacted, bounded explanation. The memory line labels the explanation separately from verified world evidence.
+
+Brewing checkpoints bind an owned batch to its stand and dimension. Each vanilla operation must produce the expected bottles, consume its ingredient and account for a fuel use before the task advances. The result distinguishes bottles carried from bottles left in the stand. Enchanting and anvil tasks distinguish the level needed to use the offer from the levels spent, and the inventory tool exposes XP and equipment.
+
 `TaskDisposition` distinguishes successful, failed, timed out and cancelled work in the existing event path and task history. An activation carries its invocation context and keeps its execution ID through holds and child spans. Restore starts a fresh activation. Cancellation calls `stop`; natural settlement releases the task through `onTerminal`. Acquisition tasks apply the same distinction to their children. A resource visit clears remembered members only after direct checks from the reached viewpoint confirm absence.
 
 `ShiftPolicy` publishes the current free-time agenda disposition through the existing status. Idle free time rests near an owner when it has only generic exploration to offer. Failed needs wait for their existing cooldown, and new carried food can reopen a hunger reflex after a failed search. `IdleWatchdog` tracks the director choice's window. The driver clears an unanswered choice and charges the regular backoff once. All new director decisions go through the ordinary hourly budget and backoff in `ShiftPolicy`.
@@ -520,9 +526,11 @@ line instead of silent lag, and the same lines appear in `/friendai diagnose`; i
 exception message and never writes anything itself. `ServerServiceGraph.storeStatuses()` is the one store list: it
 covers memory, the transcript, companion profiles, per-companion and operator instruction skills (reported apart as
 `skills` and `skills-server`), goals, free time, social memory, terrain, routines, knowledge, places, placed blocks and
-trading, and `OwnerRecordFlush` reads that same view instead of keeping a second list. Appearance (`SkinStore`) and
-blueprints write synchronously and hand a failure to their caller, so they carry no stored status; a source test fails
-when a store the graph builds is neither reported nor documented as untracked. `OwnerFileStore<T>` lazily loads records and captures
+trading, and `OwnerRecordFlush` reads that same view instead of keeping a second list. The appearance coordinator
+submits one-shot `SkinStore` operations to the bounded runtime writer and reports update failures to the caller.
+Blueprints write synchronously and report failures to their caller. These stores carry no revision health status.
+A source test checks that every store the graph builds is reported or documented as untracked.
+`OwnerFileStore<T>` lazily loads records and captures
 immutable UTF-8 bytes plus their revision on the server thread. At most one snapshot per owner is pending;
 a completion records only its own saved revision. A later server-thread flush captures any newer revision,
 and final close repeats that capture/wait cycle until settled, failed, or its 30-second bound expires.
@@ -534,6 +542,11 @@ before acquiring stores. Memory, profiles, goals, free time, routines, social me
 and both instruction-skill scopes borrow it; reverse-order `ServerRuntime` teardown closes and flushes these stores
 before closing the writer once. Standalone test stores may explicitly own a writer. Store close is idempotent
 and never closes a borrowed writer.
+
+The skin worker validates bounded image bytes and publishes the PNG, hash and model type as one atomic revision.
+It reads older PNG and JSON pairs and keeps at most 64 recently used validated revisions in memory. Server-thread
+callbacks recheck the loaded companion and its level. Viewer replies also recheck the session, level and the
+companion's current hash and model type before sending any bytes.
 
 Missing files stay absent until mutated. Corrupt files are backed up and remain read-only even when the backup
 succeeds; failed backups and failed reads also preserve the original in read-only mode. Unsupported and oversized

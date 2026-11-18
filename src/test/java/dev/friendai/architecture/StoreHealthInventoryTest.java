@@ -45,11 +45,10 @@ class StoreHealthInventoryTest {
             Map.entry("SkillService", List.of("skills", "skills-server")));
 
     /**
-     * Persistent stores the graph builds that cannot report a store status, each with why. Appearance is the one this
-     * list exists for: {@code SkinStore} writes synchronously and reports a failure by throwing to the upload caller.
+     * Persistent stores the graph builds that cannot report a store status, each with why.
      */
     private static final Map<String, String> NOT_STATUS_TRACKED = Map.of(
-            "SkinStore", "synchronous PNG write that throws to the upload caller; no typed status exists",
+            "SkinStore", "one-shot appearance commit with a failure callback; no typed health status exists",
             "SearchHintStore", "in-memory search hints, no file and nothing to write");
 
     @Test

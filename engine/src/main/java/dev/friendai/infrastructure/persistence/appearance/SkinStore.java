@@ -1,87 +1,203 @@
 package dev.friendai.infrastructure.persistence.appearance;
 
-import dev.friendai.features.appearance.*;
-import dev.friendai.infrastructure.config.ConfigStore;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
+import com.google.gson.JsonParser;
+import dev.friendai.features.appearance.SkinHash;
+import dev.friendai.features.appearance.SkinImage;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.util.Optional;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-/**
- * One skin per owner on disk: {@code <uuid>.png} holds the canonical image and {@code <uuid>.json} the arm model.
- * The metadata goes through {@link ConfigStore}, so a corrupt file is backed up and replaced by the defaults
- * while the image itself survives. Callers validate the PNG with {@link SkinImage} first.
- */
+/** Stores one atomically published model and image revision per owner, with read compatibility for legacy files. */
 public final class SkinStore {
-    /** On-disk metadata. Gson POJO; keep field names stable for old saves. */
-    public static final class Meta {
-        public int version = 1;
-        public boolean slim;
+    private static final Logger LOGGER = LoggerFactory.getLogger("friendai/skin");
+    private static final int MAGIC = 0x46534B01; // FSK, format version 1
+    private static final byte WIDE = 0;
+    private static final byte SLIM = 1;
+    private static final byte RESET = 2;
+    private static final int PREFIX_SIZE = Integer.BYTES + Byte.BYTES;
+    private static final int HEADER_SIZE = PREFIX_SIZE + SkinHash.LENGTH;
+    private static final int MAX_LEGACY_METADATA = 4096;
+
+    public record Stored(String hash, boolean slim, byte[] png) {
+        public Stored {
+            png = png.clone();
+        }
+
+        @Override
+        public byte[] png() {
+            return png.clone();
+        }
     }
 
-    public record Stored(String hash, boolean slim, byte[] png) {}
+    @FunctionalInterface
+    interface StagedWriter {
+        void write(Path file, byte[] bytes) throws IOException;
+    }
 
     private final Path dir;
+    private final StagedWriter writer;
 
     public SkinStore(Path dir) {
-        this.dir = dir;
+        this(dir, SkinStore::writeAndForce);
     }
 
-    public synchronized void save(UUID owner, byte[] png, boolean slim) {
+    SkinStore(Path dir, StagedWriter writer) {
+        this.dir = dir;
+        this.writer = writer;
+    }
+
+    /** Validates an uploaded PNG and returns the published revision, or empty for a rejected image. */
+    public synchronized Optional<Stored> save(UUID owner, byte[] png, boolean slim) {
+        if (!(SkinImage.validate(png) instanceof SkinImage.Valid valid)) return Optional.empty();
+        byte[] canonical = valid.png();
+        String hash = SkinHash.of(canonical);
+        byte[] revision = ByteBuffer.allocate(HEADER_SIZE + canonical.length)
+                .putInt(MAGIC)
+                .put(slim ? SLIM : WIDE)
+                .put(hash.getBytes(StandardCharsets.US_ASCII))
+                .put(canonical)
+                .array();
         try {
-            Files.createDirectories(dir);
-            Path target = png(owner);
-            Path temp = target.resolveSibling(target.getFileName() + ".tmp");
-            Files.write(temp, png);
-            Files.move(temp, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+            publish(revision(owner), revision);
+            return Optional.of(new Stored(hash, slim, canonical));
+        } catch (IOException failure) {
+            throw new UncheckedIOException(failure);
         }
-        Meta meta = new Meta();
-        meta.slim = slim;
-        metaStore(owner).save(meta);
     }
 
     public synchronized Optional<Stored> load(UUID owner) {
-        Path png = png(owner);
-        if (!Files.exists(png)) {
+        try {
+            byte[] revision = readBounded(revision(owner), HEADER_SIZE + SkinImage.MAX_CANONICAL);
+            return revision == null ? loadLegacy(owner) : decode(revision);
+        } catch (IOException failure) {
+            LOGGER.warn("Could not read companion appearance for {}", owner, failure);
             return Optional.empty();
         }
-        try {
-            byte[] bytes = Files.readAllBytes(png);
-            boolean slim = Files.exists(meta(owner)) && metaStore(owner).load().slim;
-            return Optional.of(new Stored(SkinHash.of(bytes), slim, bytes));
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-    }
-
-    /** The owner's PNG, but only when {@code hash} is the hash of the skin currently stored. */
-    public synchronized Optional<byte[]> pngByHash(UUID owner, String hash) {
-        return load(owner).filter(stored -> stored.hash().equals(hash)).map(Stored::png);
     }
 
     public synchronized void clear(UUID owner) {
+        Path revision = revision(owner);
+        Path legacyPng = dir.resolve(owner + ".png");
         try {
-            Files.deleteIfExists(png(owner));
-            Files.deleteIfExists(meta(owner));
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+            if (Files.notExists(legacyPng)) {
+                Files.deleteIfExists(revision);
+                removeLegacyMetadata(owner);
+                return;
+            }
+            // A reset marker hides the legacy PNG even if deleting it after publication fails.
+            publish(
+                    revision,
+                    ByteBuffer.allocate(PREFIX_SIZE).putInt(MAGIC).put(RESET).array());
+            try {
+                Files.deleteIfExists(legacyPng);
+                Files.deleteIfExists(revision);
+            } catch (IOException failure) {
+                LOGGER.warn("Could not remove old companion skin files for {}", owner, failure);
+            }
+            removeLegacyMetadata(owner);
+        } catch (IOException failure) {
+            throw new UncheckedIOException(failure);
         }
     }
 
-    private Path png(UUID owner) {
-        return dir.resolve(owner + ".png");
+    private void removeLegacyMetadata(UUID owner) {
+        try {
+            Files.deleteIfExists(dir.resolve(owner + ".json"));
+        } catch (IOException failure) {
+            LOGGER.warn("Could not remove old companion skin metadata for {}", owner, failure);
+        }
     }
 
-    private Path meta(UUID owner) {
-        return dir.resolve(owner + ".json");
+    private Path revision(UUID owner) {
+        return dir.resolve(owner + ".skin");
     }
 
-    private ConfigStore<Meta> metaStore(UUID owner) {
-        return new ConfigStore<>(meta(owner), Meta.class, Meta::new, 1);
+    private Optional<Stored> loadLegacy(UUID owner) throws IOException {
+        byte[] png = readBounded(dir.resolve(owner + ".png"), SkinImage.MAX_CANONICAL);
+        if (png == null || !(SkinImage.validate(png) instanceof SkinImage.Valid)) return Optional.empty();
+        return Optional.of(new Stored(SkinHash.of(png), legacySlim(dir.resolve(owner + ".json")), png));
+    }
+
+    private static boolean legacySlim(Path path) {
+        try {
+            byte[] bytes = readBounded(path, MAX_LEGACY_METADATA);
+            if (bytes == null) return false;
+            try {
+                if (JsonParser.parseString(new String(bytes, StandardCharsets.UTF_8)) instanceof JsonObject meta) {
+                    var slim = meta.get("slim");
+                    return slim != null
+                            && slim.isJsonPrimitive()
+                            && slim.getAsJsonPrimitive().isBoolean()
+                            && slim.getAsBoolean();
+                }
+                throw new JsonParseException("expected a skin metadata object");
+            } catch (JsonParseException failure) {
+                Path backup = path.resolveSibling(path.getFileName() + ".bak");
+                if (Files.notExists(backup)) Files.write(backup, bytes, StandardOpenOption.CREATE_NEW);
+            }
+        } catch (IOException failure) {
+            LOGGER.warn("Could not read old companion skin metadata at {}", path, failure);
+        }
+        return false;
+    }
+
+    private static Optional<Stored> decode(byte[] revision) {
+        if (revision.length <= HEADER_SIZE) return Optional.empty();
+        ByteBuffer data = ByteBuffer.wrap(revision);
+        if (data.getInt() != MAGIC) return Optional.empty();
+        byte model = data.get();
+        if (model != WIDE && model != SLIM) return Optional.empty();
+        byte[] hashBytes = new byte[SkinHash.LENGTH];
+        data.get(hashBytes);
+        String hash = new String(hashBytes, StandardCharsets.US_ASCII);
+        byte[] png = new byte[data.remaining()];
+        data.get(png);
+        if (!hash.equals(SkinHash.of(png)) || !(SkinImage.validate(png) instanceof SkinImage.Valid)) {
+            return Optional.empty();
+        }
+        return Optional.of(new Stored(hash, model == SLIM, png));
+    }
+
+    /** Reads at most one sentinel byte beyond the limit even if a file grows after opening it. */
+    private static byte[] readBounded(Path path, int limit) throws IOException {
+        try (var input = Files.newInputStream(path)) {
+            byte[] bytes = input.readNBytes(limit + 1);
+            if (bytes.length > limit) throw new IOException("appearance file exceeds its byte limit");
+            return bytes;
+        } catch (NoSuchFileException noFile) {
+            return null;
+        }
+    }
+
+    private void publish(Path target, byte[] bytes) throws IOException {
+        Files.createDirectories(dir);
+        Path temp = Files.createTempFile(dir, target.getFileName().toString(), ".tmp");
+        try {
+            writer.write(temp, bytes);
+            Files.move(temp, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+        } finally {
+            Files.deleteIfExists(temp);
+        }
+    }
+
+    private static void writeAndForce(Path path, byte[] bytes) throws IOException {
+        try (FileChannel channel = FileChannel.open(path, StandardOpenOption.WRITE)) {
+            ByteBuffer buffer = ByteBuffer.wrap(bytes);
+            while (buffer.hasRemaining()) channel.write(buffer);
+            channel.force(true);
+        }
     }
 }

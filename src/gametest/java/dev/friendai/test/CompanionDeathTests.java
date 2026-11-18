@@ -17,7 +17,6 @@ import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.execution.queue.PlanOptions;
 import dev.friendai.execution.queue.QueuedStep;
-import dev.friendai.features.appearance.SkinHash;
 import dev.friendai.features.combat.ProtectionPolicy;
 import dev.friendai.features.cooking.minecraft.FurnaceJob;
 import dev.friendai.features.crafting.Station;
@@ -155,8 +154,8 @@ public class CompanionDeathTests {
         CompanionManager manager = CompanionManager.get(h.getLevel().getServer());
         ServerRuntime state = GameTestSupport.runtime(h.getLevel().getServer());
         CompanionEntity companion = manager.summon(owner);
-        byte[] skin = {1, 2, 3};
-        state.skins().save(owner.getUUID(), skin, true);
+        byte[] skin = SkinRenameTests.skinPng(61);
+        state.skinHandler().upload(owner, new dev.friendai.transport.payload.SkinUploadC2SPayload(true, skin));
         state.companionLife().setCreativeMode(owner.getUUID(), true);
         long leaseKey = 42L;
         companion
@@ -204,7 +203,8 @@ public class CompanionDeathTests {
                     ProtectionPolicy.SELF_ONLY,
                     "combat settings must survive death");
             h.assertValueEqual(revived.paceMode(), PaceMode.RUN, "pace must survive death");
-            h.assertValueEqual(revived.getSkinHash(), SkinHash.of(skin), "the owner's skin must survive death");
+            h.assertValueEqual(
+                    revived.getSkinHash(), SkinRenameTests.canonicalHash(skin), "the owner's skin must survive death");
             h.assertTrue(revived.isSlimSkin(), "the slim arm model must survive death");
             h.assertTrue(revived.creativeMode(), "the creative preference must survive death");
             h.assertValueEqual(

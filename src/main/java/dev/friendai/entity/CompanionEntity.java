@@ -263,6 +263,10 @@ public class CompanionEntity extends PathfinderMob {
     public ExperienceModel experience() {
         return experience;
     }
+    /** The companion's total experience points on the server. */
+    public int experiencePoints() {
+        return experience.points();
+    }
     /** The experience level as the client sees it. */
     public int syncedXpLevel() {
         return entityData.get(DATA_XP_LEVEL);

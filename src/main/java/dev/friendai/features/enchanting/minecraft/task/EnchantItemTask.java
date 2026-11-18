@@ -64,32 +64,38 @@ public final class EnchantItemTask extends MenuBlockTask {
         }
         ServerPlayer player = companion.hands().player();
 
-        List<ItemStack> taken = InventoryOps.remove(companion.inventory(), item, 1);
-        menu.getSlot(ITEM_SLOT).set(taken.get(0));
-        List<ItemStack> lapis = InventoryOps.remove(companion.inventory(), LAPIS, option);
-        int lapisCount = 0;
-        for (ItemStack stack : lapis) {
-            lapisCount += stack.getCount();
-        }
-        menu.getSlot(LAPIS_SLOT).set(new ItemStack(Items.LAPIS_LAZULI, lapisCount));
+        ItemStack input = InventoryOps.remove(companion.inventory(), item, 1).getFirst();
+        menu.getSlot(ITEM_SLOT).set(input);
 
         int cost = menu.costs[option - 1];
         if (cost <= 0 || menu.enchantClue[option - 1] < 0) {
-            summary = describe(taken.get(0)) + " can't be enchanted (it may already be enchanted)";
+            summary = describe(input) + " can't be enchanted (it may already be enchanted)";
             return TaskStatus.FAILED;
         }
-        if (player.experienceLevel < option || player.experienceLevel < cost) {
-            summary = "option " + option + " needs " + Math.max(cost, option) + " experience levels; I have "
-                    + player.experienceLevel;
+        int required = Math.max(cost, option);
+        int beforeLevels = player.experienceLevel;
+        if (beforeLevels < required) {
+            summary = "option " + option + " needs " + required + " experience levels; I have " + beforeLevels;
             return TaskStatus.FAILED;
         }
+        int lapisTaken = InventoryOps.remove(companion.inventory(), LAPIS, option).stream()
+                .mapToInt(ItemStack::getCount)
+                .sum();
+        menu.getSlot(LAPIS_SLOT).set(new ItemStack(Items.LAPIS_LAZULI, lapisTaken));
         if (!menu.clickMenuButton(player, option - 1)) {
             summary = "the enchanting table refused option " + option;
             return TaskStatus.FAILED;
         }
         ItemStack result = menu.getSlot(ITEM_SLOT).getItem();
-        summary = "enchanted " + describe(result) + " for " + option + " level" + (option == 1 ? "" : "s") + " and "
-                + option + " lapis: " + enchantmentList(result);
+        if (!EnchantmentHelper.hasAnyEnchantments(result)) {
+            summary = "the enchanting table produced no enchanted item";
+            return TaskStatus.FAILED;
+        }
+        int spentLevels = beforeLevels - player.experienceLevel;
+        int spentLapis = lapisTaken - menu.getSlot(LAPIS_SLOT).getItem().getCount();
+        summary = "enchanted " + describe(result) + " (required " + required + " levels, spent "
+                + spentLevels + (spentLevels == 1 ? " level" : " levels") + " and " + spentLapis
+                + " lapis; " + player.experienceLevel + " levels remaining): " + enchantmentList(result);
         return TaskStatus.SUCCESS;
     }
 

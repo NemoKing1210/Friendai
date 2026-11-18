@@ -35,7 +35,7 @@ const CATS = [
   { id: "building", domain: "hands", name: "Building", icon: "🧱", color: COLORS.oak,
     desc: "Places blocks through a fake player so vanilla rules and protection apply. Blueprints up to 32x32x32.",
     items: [
-      "place_block|Place one block.", "use_block|Right-click a block like a player.", "light_area|Place torches to stop mob spawns.",
+      "place_block|Place one block.", "use_block|Use a block or wait for a powered button to release.", "light_area|Place torches to stop mob spawns.",
       "clear_area|Clear vegetation, snow and stray blocks, up to 256 cells per call.", "preview_structure|Show a ghost preview.", "build_structure|Build from a generated or saved layout.",
       "save_blueprint|Store a layout as JSON.", "list_blueprints|List saved blueprints.", "blueprint_help|Explain the blueprint format.",
       "build_special|Build an iron golem, snow golem or nether portal.", "plan_special|Dry-run a special structure.",
@@ -44,9 +44,9 @@ const CATS = [
     desc: "Recursive crafting plans (depth up to 5), furnace jobs and enchanting-station work through real menus.",
     items: [
       "craft_item|Craft an item, placing a table if needed.", "get_recipe|Look up how something is made.", "smelt_items|Smelt up to 256 items in one call with fuel.",
-      "cook_food|Cook raw food.", "collect_smelted|Pick up finished furnace output.", "enchant_item|Use an enchanting table.",
-      "anvil_item|Repair or combine at an anvil.", "grindstone_item|Strip enchantments at a grindstone.",
-      "brew_potion|Brew a supported potion at a brewing stand.", "plan_brew|Show the brewing steps without doing them.",
+      "cook_food|Cook raw food.", "collect_smelted|Pick up finished furnace output.", "enchant_item|Enchant an item and report the levels required and spent.",
+      "anvil_item|Repair or combine at an anvil and report its cost.", "grindstone_item|Strip enchantments and report the XP collected.",
+      "brew_potion|Brew potions and report what was used, carried or left in the stand.", "plan_brew|Show the brewing steps without doing them.",
       "~Craft planner|Turns a goal item into ordered steps.", "~Station leases|Remembers a table it placed for 600 ticks." ] },
   { id: "combat", domain: "hands", name: "Combat", icon: "⚔️", color: COLORS.redstone,
     desc: "Reflex combat ticked before everything else, with a single arbiter for movement, shields, bow, potions and retreat.",
@@ -73,7 +73,7 @@ const CATS = [
   { id: "inventory", domain: "hands", name: "Inventory & Storage", icon: "🎒", color: COLORS.amethyst,
     desc: "A 27-slot inventory plus six gear slots, shared container logic, and a bounded memory of containers the companion has opened.",
     items: [
-      "get_inventory|List what it carries.", "show_inventory|Open the inventory view.", "equip_item|Equip gear.", "give_items|Hand items to a player; strict orders can reserve the companion's share and wait for a safe handover.",
+      "get_inventory|List carried items, equipment and experience.", "show_inventory|Open the inventory view.", "equip_item|Equip gear.", "give_items|Hand items to a player; strict orders can reserve the companion's share and wait for a safe handover.",
       "drop_items|Drop items.", "throw_item|Throw an item.", "store_items|Store up to two stacks in one call.", "take_items|Take items out of a container.",
       "check_container|Look inside a container.", "check_containers|Look through the nearby chests not opened in the last five minutes.", "deposit_items|Deposit into the nearest storage.",
       "find_stored_item|Report where you last saw an item in a recorded container.", "move_items|Move a known quantity between two containers in one call.",
@@ -105,7 +105,7 @@ const CATS = [
   { id: "planning", domain: "mind", name: "Goals & Planning", icon: "🎯", color: COLORS.nether,
     desc: "The cognitive layer above the task queue: goals, a conditional plan queue, and free time when nobody is giving orders.",
     items: [
-      "set_goal|Set the main goal (owner).", "update_goal|Update progress.", "finish_goal|Close a goal.", "queue_add|Add a step.",
+      "set_goal|Set the main goal (owner).", "update_goal|Update progress.", "finish_goal|Close a goal and record why it was abandoned.", "queue_add|Add a step.",
       "queue_show|Show the queue.", "queue_edit|Edit queued steps.", "plan_help|Explain plan syntax.", "plan_validate|Dry-run a plan.",
       "plan_patch|Update eligible parts of an existing plan.", "set_routine|Schedule a recurring plan.", "list_routines|Show scheduled routines.", "cancel_routine|Remove a scheduled routine.",
       "request_tools|Unlock a tool group for this turn.", "stop|Stop everything.", "start_free_time|Begin autonomous time.", "end_free_time|End it.", "choose_activity|Pick what to do in free time.",
