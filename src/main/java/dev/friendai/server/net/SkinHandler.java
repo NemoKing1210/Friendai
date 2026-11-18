@@ -1,88 +1,212 @@
 package dev.friendai.server.net;
 
+import dev.friendai.FriendaiMod;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.appearance.SkinHash;
-import dev.friendai.features.appearance.SkinImage;
+import dev.friendai.infrastructure.persistence.appearance.SkinStore.Stored;
 import dev.friendai.server.runtime.ServerRuntime;
 import dev.friendai.transport.payload.SkinRequestC2SPayload;
 import dev.friendai.transport.payload.SkinS2CPayload;
 import dev.friendai.transport.payload.SkinUploadC2SPayload;
+import java.io.UncheckedIOException;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.function.BiConsumer;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.Level;
 
-/** Server side of companion skins: stores an owner's upload and serves images to clients that ask by hash. */
+/** Serializes appearance I/O on the runtime's store worker and publishes revisions on the server thread. */
 public final class SkinHandler {
-    private static volatile SkinSender sender = SkinHandler::send;
+    private static final int CACHE_SIZE = 64;
 
-    private SkinHandler() {}
+    private final ServerRuntime runtime;
+    /** Worker-only LRU. Requests for an unchanged appearance reuse its validated revision. */
+    private final LinkedHashMap<UUID, Stored> images = new LinkedHashMap<>(16, 0.75f, true);
+    /** Server-thread bookkeeping, only for writes that are still awaiting completion. */
+    private final Map<UUID, Integer> writes = new HashMap<>();
+    /** Saturated submissions are retried for still-loaded companions, one attempt per server tick. */
+    private final LinkedHashMap<UUID, CompanionRef> restoreRetries = new LinkedHashMap<>();
 
-    /** Test hook: replace the way an image reaches a client. */
-    public static void setSender(BiConsumer<ServerPlayer, SkinS2CPayload> replacement) {
-        BiConsumer<ServerPlayer, SkinS2CPayload> testSender = Objects.requireNonNull(replacement, "replacement");
-        sender = (runtime, player, payload) -> testSender.accept(player, payload);
+    private BiConsumer<ServerPlayer, SkinS2CPayload> sender = this::send;
+    private boolean accepting = true;
+
+    public SkinHandler(ServerRuntime runtime) {
+        this.runtime = runtime;
     }
 
-    /** Sets the sender's companion skin, or resets it when the image is empty. Invalid images change nothing. */
-    public static void upload(ServerRuntime runtime, ServerPlayer player, SkinUploadC2SPayload payload) {
-        if (!runtime.protocolConnections().skinLimiter().tryAcquire(player.getUUID())) {
-            return;
+    /** Test hook for observing a reply on mock connections without an appearance-capable client. */
+    public void setSenderForTest(BiConsumer<ServerPlayer, SkinS2CPayload> replacement) {
+        sender = Objects.requireNonNull(replacement);
+    }
+
+    public void restore(CompanionEntity companion) {
+        var target = new CompanionRef(companion);
+        if (accepting && !submitRestore(target)) restoreRetries.put(target.owner(), target);
+    }
+
+    private boolean submitRestore(CompanionRef target) {
+        return runtime.storeWriter().trySubmit(() -> {
+            Optional<Stored> stored = load(target.owner());
+            runtime.server().execute(() -> {
+                if (current(target)) apply(target.companion(), stored);
+            });
+        });
+    }
+
+    public void onRemoved(CompanionEntity companion) {
+        restoreRetries.remove(companion.ownerUuid(), new CompanionRef(companion));
+    }
+
+    public void retryRestore() {
+        if (restoreRetries.isEmpty()) return;
+        var pending = restoreRetries.firstEntry();
+        if (!current(pending.getValue()) || submitRestore(pending.getValue())) {
+            restoreRetries.pollFirstEntry();
         }
-        Optional<CompanionEntity> companion = runtime.companions().find(player.getUUID());
-        if (companion.isEmpty()) {
+    }
+
+    public void stopAcceptingWork() {
+        accepting = false;
+        restoreRetries.clear();
+        writes.clear();
+    }
+
+    /** Sets or resets the sender's appearance after its replacement commits on the store worker. */
+    public void upload(ServerPlayer player, SkinUploadC2SPayload payload) {
+        UUID owner = player.getUUID();
+        if (!accepting || !runtime.protocolConnections().skinLimiter().tryAcquire(owner)) return;
+        CompanionEntity companion = runtime.companions().find(owner).orElse(null);
+        if (companion == null) {
             player.sendSystemMessage(Component.translatable("friendai.menu.no_companion"));
             return;
         }
-        var skins = runtime.skins();
-        if (payload.png().length == 0) {
-            skins.clear(player.getUUID());
-            companion.get().setSkin("", false);
-            return;
+        var target = new CompanionRef(companion);
+        var requester = new PlayerRef(player, runtime);
+        if (runtime.storeWriter().trySubmit(() -> update(target, requester, payload))) {
+            writes.merge(owner, 1, Integer::sum);
+        } else {
+            FriendaiMod.LOGGER.warn("Could not queue companion appearance update for {}", owner);
+            player.sendSystemMessage(Component.translatable("friendai.error.unknown"));
         }
-        if (!(SkinImage.validate(payload.png()) instanceof SkinImage.Valid valid)) {
-            player.sendSystemMessage(Component.translatable("friendai.skin.error.rejected"));
-            return;
-        }
-        skins.save(player.getUUID(), valid.png(), payload.slim());
-        companion.get().setSkin(SkinHash.of(valid.png()), payload.slim());
     }
 
-    /** Answers with the image only when {@code hash} is the skin some loaded companion currently wears. */
-    public static void request(ServerRuntime runtime, ServerPlayer player, SkinRequestC2SPayload payload) {
+    private void update(CompanionRef target, PlayerRef requester, SkinUploadC2SPayload payload) {
+        UUID owner = target.owner();
+        try {
+            if (payload.png().length == 0) {
+                runtime.skins().clear(owner);
+                images.remove(owner);
+                finishUpdate(target, requester, Optional.empty(), null);
+            } else {
+                Optional<Stored> stored = runtime.skins().save(owner, payload.png(), payload.slim());
+                stored.ifPresent(revision -> remember(owner, revision));
+                finishUpdate(target, requester, stored, stored.isPresent() ? null : "friendai.skin.error.rejected");
+            }
+        } catch (UncheckedIOException failure) {
+            FriendaiMod.LOGGER.warn("Could not update companion appearance for {}", owner, failure);
+            finishUpdate(target, requester, Optional.empty(), "friendai.error.unknown");
+        }
+    }
+
+    private void finishUpdate(CompanionRef target, PlayerRef requester, Optional<Stored> stored, String error) {
+        runtime.server().execute(() -> {
+            if (!accepting) return;
+            writes.computeIfPresent(target.owner(), (owner, count) -> count == 1 ? null : count - 1);
+            if (!current(target)) return;
+            if (error == null) {
+                apply(target.companion(), stored);
+            } else if (current(requester)) {
+                requester.player().sendSystemMessage(Component.translatable(error));
+            }
+        });
+    }
+
+    /** Serves a hash only while a loaded companion still wears that exact revision. */
+    public void request(ServerPlayer player, SkinRequestC2SPayload payload) {
         String hash = payload.hash();
-        if (!SkinHash.isValid(hash)
-                || !runtime.protocolConnections().skinLimiter().tryAcquire(player.getUUID())) {
-            return;
-        }
-        var skins = runtime.skins();
+        if (!accepting
+                || !SkinHash.isValid(hash)
+                || !runtime.protocolConnections().skinLimiter().tryAcquire(player.getUUID())) return;
+        var viewer = new PlayerRef(player, runtime);
+        if (viewer.session() == null) return;
         for (CompanionEntity companion : runtime.companions().all()) {
-            if (!hash.equals(companion.getSkinHash()) || companion.ownerUuid() == null) {
-                continue;
-            }
-            var stored = skins.load(companion.ownerUuid());
-            if (stored.isPresent() && stored.get().hash().equals(hash)) {
-                sender.send(
-                        runtime,
-                        player,
-                        new SkinS2CPayload(
-                                hash, stored.get().slim(), stored.get().png()));
-                return;
-            }
+            if (!hash.equals(companion.getSkinHash())
+                    || companion.ownerUuid() == null
+                    || writes.containsKey(companion.ownerUuid())) continue;
+            var target = new CompanionRef(companion);
+            boolean slim = companion.isSlimSkin();
+            runtime.storeWriter()
+                    .trySubmit(() -> load(target.owner())
+                            .filter(stored -> hash.equals(stored.hash()) && slim == stored.slim())
+                            .ifPresent(stored -> runtime.server().execute(() -> {
+                                if (current(viewer)
+                                        && current(target)
+                                        && !writes.containsKey(target.owner())
+                                        && hash.equals(companion.getSkinHash())
+                                        && slim == companion.isSlimSkin()) {
+                                    sender.accept(player, new SkinS2CPayload(hash, slim, stored.png()));
+                                }
+                            })));
+            return;
         }
     }
 
-    private static void send(ServerRuntime runtime, ServerPlayer player, SkinS2CPayload payload) {
+    private Optional<Stored> load(UUID owner) {
+        Stored cached = images.get(owner);
+        if (cached != null) return Optional.of(cached);
+        Optional<Stored> stored = runtime.skins().load(owner);
+        stored.ifPresent(revision -> remember(owner, revision));
+        return stored;
+    }
+
+    private void remember(UUID owner, Stored stored) {
+        images.put(owner, stored);
+        if (images.size() > CACHE_SIZE) images.pollFirstEntry();
+    }
+
+    private static void apply(CompanionEntity companion, Optional<Stored> stored) {
+        stored.ifPresentOrElse(
+                revision -> companion.setSkin(revision.hash(), revision.slim()), () -> companion.setSkin("", false));
+    }
+
+    private boolean current(CompanionRef target) {
+        return accepting
+                && target.companion().level() == target.level()
+                && runtime.companions().find(target.owner()).orElse(null) == target.companion();
+    }
+
+    private boolean current(PlayerRef player) {
+        return accepting
+                && player.session() != null
+                && player.player().level() == player.level()
+                && runtime.protocolConnections()
+                        .sessionId(player.player())
+                        .filter(player.session()::equals)
+                        .isPresent();
+    }
+
+    private void send(ServerPlayer player, SkinS2CPayload payload) {
         if (ServerPlayNetworking.canSend(player, SkinS2CPayload.TYPE)
                 && runtime.protocolConnections().allowsAppearance(player)) {
             ServerPlayNetworking.send(player, payload);
         }
     }
 
-    @FunctionalInterface
-    private interface SkinSender {
-        void send(ServerRuntime runtime, ServerPlayer player, SkinS2CPayload payload);
+    private record CompanionRef(UUID owner, CompanionEntity companion, Level level) {
+        private CompanionRef(CompanionEntity companion) {
+            this(companion.ownerUuid(), companion, companion.level());
+        }
+    }
+
+    private record PlayerRef(ServerPlayer player, UUID session, Level level) {
+        private PlayerRef(ServerPlayer player, ServerRuntime runtime) {
+            this(player, runtime.protocolConnections().sessionId(player).orElse(null), player.level());
+        }
     }
 }

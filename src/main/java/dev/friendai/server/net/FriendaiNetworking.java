@@ -44,7 +44,7 @@ public final class FriendaiNetworking {
                     var runtime = ServerRuntimeRegistry.getOrCreate(context.server());
                     then(
                             runtime.protocolConnections().allowsAppearance(context.player()),
-                            () -> SkinHandler.upload(runtime, context.player(), payload));
+                            () -> runtime.skinHandler().upload(context.player(), payload));
                 }));
         ServerPlayNetworking.registerGlobalReceiver(
                 SkinRequestC2SPayload.TYPE,
@@ -52,7 +52,7 @@ public final class FriendaiNetworking {
                     var runtime = ServerRuntimeRegistry.getOrCreate(context.server());
                     then(
                             runtime.protocolConnections().allowsAppearance(context.player()),
-                            () -> SkinHandler.request(runtime, context.player(), payload));
+                            () -> runtime.skinHandler().request(context.player(), payload));
                 }));
     }
 

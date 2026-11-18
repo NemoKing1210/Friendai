@@ -13,6 +13,7 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 - Tool calls and queued plans validate nested arguments and reject non-finite numbers. Fire and honey tasks reject incomplete coordinates before selecting a target.
 - When asked to turn off a powered button, the companion waits for vanilla release. Lever tasks still verify the state after a single use.
 - Abandoning a goal with an explanation now records why it ended in goal memory and the teaching outcome.
+- Custom skin updates save the image and model type together. Upload validation, saved skin recovery and viewer disk reads run off the server thread.
 
 ## [0.221.4] - 2026-11-18
 

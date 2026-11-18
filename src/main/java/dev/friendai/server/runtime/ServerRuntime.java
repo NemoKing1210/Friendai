@@ -42,6 +42,7 @@ import dev.friendai.server.net.MovementDebugStream;
 import dev.friendai.server.net.PlaceViewStream;
 import dev.friendai.server.net.ServerProtocolConnections;
 import dev.friendai.server.net.SkillsViewStream;
+import dev.friendai.server.net.SkinHandler;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -59,6 +60,7 @@ public final class ServerRuntime implements AutoCloseable {
     private final Runnable stopWork;
     private final RuntimeResources resources;
     private final ServerProtocolConnections protocolConnections;
+    private final SkinHandler skinHandler;
     private final CompanionManager companions;
     private final ServerCoordination coordination;
     private final dev.friendai.server.agent.social.SocialDirector socialDirector;
@@ -98,6 +100,7 @@ public final class ServerRuntime implements AutoCloseable {
         this.socialDirector = new dev.friendai.server.agent.social.SocialDirector(
                 services == null ? SocialMemoryRepository.NONE : services.socialMemoryStore());
         this.protocolConnections = server == null ? null : new ServerProtocolConnections(server);
+        this.skinHandler = services == null ? null : new SkinHandler(this);
         this.companions = server == null ? null : CompanionManager.get(server);
         if (companions != null) companions.attachRuntime(this);
         this.coordination = companions == null ? null : new ServerCoordination(this);
@@ -169,6 +172,7 @@ public final class ServerRuntime implements AutoCloseable {
     /** Runs the unchanged server tick pipeline until shutdown starts. */
     public void tick() {
         if (protocolConnections != null) protocolConnections.tick();
+        if (skinHandler != null) skinHandler.retryRestore();
         if (acceptingWork) tickWork.accept(this);
     }
 
@@ -354,6 +358,10 @@ public final class ServerRuntime implements AutoCloseable {
         return services.skins();
     }
 
+    public SkinHandler skinHandler() {
+        return skinHandler;
+    }
+
     public TradingToolAccess tradingAccess() {
         return services;
     }
@@ -420,6 +428,7 @@ public final class ServerRuntime implements AutoCloseable {
     public synchronized void stopAcceptingWork() {
         if (!acceptingWork) return;
         acceptingWork = false;
+        if (skinHandler != null) skinHandler.stopAcceptingWork();
         stopWork.run();
     }
 
