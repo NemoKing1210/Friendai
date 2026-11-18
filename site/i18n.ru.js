@@ -114,7 +114,7 @@ const RU = {
   "Building": "Строительство",
   "Places blocks through a fake player so vanilla rules and protection apply. Blueprints up to 32x32x32.": "Ставит блоки через фейкового игрока, поэтому действуют ванильные правила и защита. Чертежи до 32x32x32.",
   "Place one block.": "Поставить один блок.",
-  "Right-click a block like a player.": "Нажать ПКМ по блоку как игрок.",
+  "Use a block or wait for a powered button to release.": "Взаимодействовать с блоком или дождаться отпускания нажатой кнопки.",
   "Place torches to stop mob spawns.": "Расставить факелы, чтобы не спавнились мобы.",
   "Clear vegetation, snow and stray blocks, up to 256 cells per call.": "Убирает растительность, снег и лишние блоки — до 256 клеток за вызов.",
   "Show a ghost preview.": "Показать призрачный предпросмотр.",

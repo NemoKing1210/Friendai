@@ -67,12 +67,20 @@ public final class InteractionTools implements FeatureToolContributor {
         registerTask(
                 registry,
                 "use_block",
-                "Use a door, trapdoor, fence gate, lever or button at the given coordinates. With want, only acts if the block is not already in that state.",
+                "Use a door, trapdoor, fence gate, lever or button at the given coordinates. "
+                        + "With want, leave the block alone if it already matches. Buttons pulse briefly when pressed. "
+                        + "For a powered button, off waits up to two seconds for its natural release.",
                 SchemaBuilder.object()
                         .integer("x", "Block X coordinate")
                         .integer("y", "Block Y coordinate")
                         .integer("z", "Block Z coordinate")
-                        .enumeration("want", "The state to reach, if the block has it", "open", "closed", "on", "off")
+                        .enumeration(
+                                "want",
+                                "Open or closed for doors, trapdoors and gates. On or off for levers and buttons.",
+                                "open",
+                                "closed",
+                                "on",
+                                "off")
                         .required("x", "y", "z")
                         .build(),
                 (c, a) -> new UseBlockTask(
