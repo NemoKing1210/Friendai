@@ -69,6 +69,13 @@ tasks.named('runGameTest') {
 	systemProperty "friendai.gametest.tolerateUnnegotiatedPeers", "true"
 }
 
+tasks.named('runClientGameTest') {
+	if (providers.systemProperty("friendai.gametest.noOptionalMods").getOrElse("false") == "true") {
+		systemProperty "friendai.gametest.noOptionalMods", "true"
+		systemProperty "fabric.debug.disableModIds", "yet_another_config_lib_v3,modmenu"
+	}
+}
+
 // CI runs the GameTest suite as a matrix of shards, each booting its own server, and every registered class must be in
 // exactly one shard so a new test cannot silently stop running. The map lives in one file; this task checks it and
 // writes the `strategy.matrix` body the workflow reads.

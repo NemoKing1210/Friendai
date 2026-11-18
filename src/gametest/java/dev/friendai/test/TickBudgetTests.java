@@ -2,14 +2,20 @@ package dev.friendai.test;
 
 import dev.friendai.agent.perception.PerceptionSnapshot;
 import dev.friendai.entity.CompanionManager;
+import dev.friendai.foundation.diagnostics.LogKind;
 import dev.friendai.server.agent.perception.PerceptionBuilder;
 import dev.friendai.server.agent.perception.PerceptionContext;
 import dev.friendai.server.net.DebugStream;
+import dev.friendai.server.net.Operators;
 import dev.friendai.server.runtime.ServerRuntime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.permissions.LevelBasedPermissionSet;
 
 /** The per-tick bounds on menus, perception and passive observation. */
 public final class TickBudgetTests {
@@ -47,6 +53,47 @@ public final class TickBudgetTests {
         } finally {
             stream.closeMenu(runtime, a.getUUID());
             stream.closeMenu(runtime, b.getUUID());
+        }
+        h.succeed();
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 100)
+    public void deferredOpenUsesLatestIntentAndCurrentAuthority(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerRuntime runtime = GameTestSupport.runtime(h.getLevel().getServer());
+        ServerPlayer viewer =
+                GameTestSupport.onlinePlayer(h, "deferred-menu", 2, 2, 2, true).player();
+        var playerList = runtime.server().getPlayerList();
+        List<Long> replies = new ArrayList<>();
+        DebugStream stream = new DebugStream((snapshot, operator, requestId) -> {
+            h.assertFalse(operator, "the snapshot rechecks the downgraded viewer");
+            h.assertTrue(snapshot.newLog().isEmpty(), "no operator log is prepared");
+            replies.add(requestId);
+            return new byte[0];
+        });
+        try {
+            playerList.op(viewer.nameAndId(), Optional.of(LevelBasedPermissionSet.GAMEMASTER), Optional.empty());
+            h.assertTrue(Operators.isOperator(viewer), "fixture starts as operator");
+            runtime.sessions().debug().logOf(viewer.getUUID()).add(LogKind.ERROR, "operator-only fixture log");
+            stream.openMenu(runtime, viewer, 21, false);
+            stream.closeMenu(runtime, viewer.getUUID());
+            stream.openMenu(runtime, viewer, 23, false);
+            h.assertTrue(replies.isEmpty(), "the deferred open does no snapshot work immediately");
+
+            playerList.deop(viewer.nameAndId());
+            h.assertFalse(Operators.isOperator(viewer), "fixture permission was downgraded");
+            stream.tick(runtime);
+            h.assertValueEqual(replies, List.of(23L), "only the final open receives its correlated snapshot");
+
+            stream.openMenu(runtime, viewer, 24, false);
+            stream.onDisconnect(runtime, viewer);
+            for (int tick = 0; tick < 11; tick++) stream.tick(runtime);
+            h.assertValueEqual(replies, List.of(23L), "the disconnected viewer receives no deferred snapshot");
+            h.assertFalse(
+                    runtime.sessions().debug().subscribers().contains(viewer.getUUID()), "disconnect closes the menu");
+        } finally {
+            playerList.deop(viewer.nameAndId());
+            stream.closeMenu(runtime, viewer.getUUID());
         }
         h.succeed();
     }

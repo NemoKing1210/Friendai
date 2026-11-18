@@ -6,6 +6,20 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.221.6] - 2026-11-19
+
+### Added
+
+- Incoming help and handoff requests show their conditions and accept or decline actions. Use `/friendai coordination` to see live requests again.
+- Release verification exercises real client connections, appearance and voice reconnect with scripted audio, plus a launch with optional menu integrations disabled.
+
+### Fixed
+
+- Handoffs check both inventories and the meeting point before moving the full offered quantity.
+- Leading animals reports blocked routes and animals that cannot catch up. Cancelled work returns only leads still attached by that task, and fence ties respect protection.
+- Extinguishing a moving mob follows its identity and verifies that its fire is out.
+- Reopening the companion menu during throttling keeps the subscription active. Losing operator access clears cached diagnostic text.
+
 ## [0.221.5] - 2026-11-18
 
 ### Fixed

@@ -1,7 +1,10 @@
 package dev.friendai.test;
 
 import com.google.gson.JsonObject;
+import dev.friendai.agent.coordination.HandoffRequest;
 import dev.friendai.agent.coordination.HelpRequest;
+import dev.friendai.agent.llm.model.ToolCall;
+import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.execution.queue.FailurePolicy;
 import dev.friendai.execution.queue.Guard;
@@ -17,12 +20,17 @@ import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.features.memory.minecraft.tool.MemoryAccess;
+import dev.friendai.server.agent.coordination.ServerCoordination;
 import dev.friendai.server.runtime.ServerRuntime;
 import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.inventory.ItemMatcher;
 import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.network.chat.ClickEvent;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -314,7 +322,12 @@ public class CompanionCoordinationTests {
                                 "test", "offer_handoff", offer, offer.toString(), null),
                         new Caller(a.getUUID(), a.getName().getString(), AccessLevel.OWNER));
         h.assertFalse(offered.error(), offered.content());
-        h.assertValueEqual(runtime.coordination().openHandoffCount(), 1, "one open handoff");
+        h.assertValueEqual(
+                runtime.coordination()
+                        .openHandoffsFor(b.getUUID(), runtime.coordination().clock())
+                        .size(),
+                1,
+                "one open handoff");
 
         com.google.gson.JsonObject accept = new com.google.gson.JsonObject();
         accept.addProperty("owner", a.getName().getString());
@@ -327,7 +340,11 @@ public class CompanionCoordinationTests {
         h.assertFalse(accepted.error(), accepted.content());
         h.assertValueEqual(InventoryOps.count(source.inventory(), logs), 4, "source keeps the rest");
         h.assertValueEqual(InventoryOps.count(target.inventory(), logs), 6, "target receives exactly six");
-        h.assertValueEqual(runtime.coordination().openHandoffCount(), 0, "the offer is consumed");
+        h.assertTrue(
+                runtime.coordination()
+                        .openHandoffsFor(b.getUUID(), runtime.coordination().clock())
+                        .isEmpty(),
+                "the offer is consumed");
         ToolResult retried = GameTestToolRegistry.create(target, () -> 16, MemoryAccess.DISABLED)
                 .bind(target)
                 .execute(
@@ -338,5 +355,252 @@ public class CompanionCoordinationTests {
         h.assertValueEqual(InventoryOps.count(source.inventory(), logs), 4, "a retry does not move more");
         h.assertValueEqual(InventoryOps.count(target.inventory(), logs), 6, "a retry does not move more");
         h.succeed();
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 60)
+    public void handoffFailuresKeepBothInventoriesAndTheOffer(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        var runtime = GameTestSupport.runtime(h);
+        var a = GameTestSupport.onlinePlayer(h, "transfer-from", 2, 2, 2, true);
+        var b = GameTestSupport.onlinePlayer(h, "transfer-to", 5, 2, 2, true);
+        var source = runtime.companions().summon(a.player());
+        var target = runtime.companions().summon(b.player());
+        long now = runtime.coordination().clock();
+        var pos = source.blockPosition();
+        var logs = ItemMatcher.parse("minecraft:oak_log").orElseThrow();
+        var offer = new HandoffRequest(
+                a.id(),
+                b.id(),
+                "minecraft:oak_log",
+                6,
+                h.getLevel().dimension().identifier().toString(),
+                pos.getX(),
+                pos.getY(),
+                pos.getZ(),
+                now + 100);
+        h.assertTrue(runtime.coordination().offerHandoff(offer), "offer is open");
+
+        var accept = new JsonObject();
+        accept.addProperty("owner", a.player().getName().getString());
+        source.inventory().setItem(0, new ItemStack(Items.OAK_LOG, 4));
+        h.assertTrue(call(target, b.player(), "accept_handoff", accept).error(), "short stock refuses");
+        h.assertTrue(
+                runtime.coordination().openHandoffsFor(b.id(), now).contains(offer), "short stock retains the offer");
+        h.assertValueEqual(InventoryOps.count(source.inventory(), logs), 4, "short stock moves nothing");
+        h.assertValueEqual(InventoryOps.count(target.inventory(), logs), 0, "target gets nothing on short stock");
+
+        source.inventory().setItem(0, new ItemStack(Items.OAK_LOG, 10));
+        for (int slot = 0; slot < target.inventory().getContainerSize(); slot++) {
+            target.inventory().setItem(slot, new ItemStack(Items.COBBLESTONE, 64));
+        }
+        h.assertTrue(call(target, b.player(), "accept_handoff", accept).error(), "full inventory refuses");
+        h.assertValueEqual(InventoryOps.count(source.inventory(), logs), 10, "full inventory leaves the source alone");
+        h.assertValueEqual(InventoryOps.count(target.inventory(), logs), 0, "full inventory gets nothing");
+
+        ItemStack named = new ItemStack(Items.OAK_LOG, 62);
+        named.set(DataComponents.CUSTOM_NAME, Component.literal("Kept separate"));
+        target.inventory().setItem(0, named);
+        target.inventory().setItem(1, new ItemStack(Items.OAK_LOG, 61));
+        h.assertTrue(
+                call(target, b.player(), "accept_handoff", accept).error(),
+                "three compatible slots cannot hold six logs");
+        h.assertValueEqual(InventoryOps.count(source.inventory(), logs), 10, "partial room moves nothing");
+        h.assertValueEqual(InventoryOps.count(target.inventory(), logs), 123, "neither destination stack changes");
+        h.assertTrue(
+                runtime.coordination().openHandoffsFor(b.id(), now).contains(offer),
+                "capacity refusals retain the offer");
+
+        target.inventory().setItem(1, new ItemStack(Items.OAK_LOG, 57));
+        h.assertFalse(
+                call(target, b.player(), "accept_handoff", accept).error(),
+                "freeing enough compatible space allows retry");
+        h.assertValueEqual(source.inventory().getItem(0).getCount(), 4, "source paid exactly six");
+        h.assertValueEqual(target.inventory().getItem(1).getCount(), 63, "target got exactly six");
+        h.assertTrue(ItemStack.matches(target.inventory().getItem(0), named), "named stack stays separate");
+        h.assertTrue(call(target, b.player(), "accept_handoff", accept).error(), "successful transfer cannot replay");
+        h.succeed();
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 60)
+    public void handoffInAnotherDimensionRemainsOpen(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        var runtime = GameTestSupport.runtime(h);
+        var a = GameTestSupport.onlinePlayer(h, "wrong-from", 2, 2, 2, true);
+        var b = GameTestSupport.onlinePlayer(h, "wrong-to", 5, 2, 2, true);
+        var source = runtime.companions().summon(a.player());
+        var target = runtime.companions().summon(b.player());
+        long now = runtime.coordination().clock();
+        var pos = source.blockPosition();
+        HandoffRequest offer = new HandoffRequest(
+                a.id(),
+                b.id(),
+                "minecraft:oak_log",
+                6,
+                "minecraft:the_nether",
+                pos.getX(),
+                pos.getY(),
+                pos.getZ(),
+                now + 100);
+        source.inventory().setItem(0, new ItemStack(Items.OAK_LOG, 10));
+        h.assertTrue(runtime.coordination().offerHandoff(offer), "offer is open");
+        var accept = new JsonObject();
+        accept.addProperty("owner", a.player().getName().getString());
+        h.assertTrue(call(target, b.player(), "accept_handoff", accept).error(), "wrong dimension refuses");
+        h.assertTrue(
+                runtime.coordination().openHandoffsFor(b.id(), now).contains(offer),
+                "dimension refusal retains the offer");
+        h.assertValueEqual(target.inventory().getItem(0).getCount(), 0, "wrong world transfers nothing");
+        h.assertValueEqual(source.inventory().getItem(0).getCount(), 10, "wrong world consumes nothing");
+        runtime.coordination().declineHandoff(a.id(), b.id());
+        h.succeed();
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 60)
+    public void onlyTheRecipientCanActOnTheExactVisibleRequest(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        var runtime = GameTestSupport.runtime(h);
+        var a = GameTestSupport.onlinePlayer(h, "notice-a", 2, 2, 2, true);
+        var b = GameTestSupport.onlinePlayer(h, "notice-b", 5, 2, 2, true);
+        var unrelated = GameTestSupport.onlinePlayer(h, "notice-c", 8, 2, 2, true);
+        long now = runtime.coordination().clock();
+        HelpRequest first = new HelpRequest(a.id(), b.id(), "bring four logs", now + 100);
+        h.assertTrue(runtime.coordination().requestHelp(first), "one open help request");
+        var notice = notice(b, "friendai.coordination.help");
+        h.assertTrue(notice != null, "the recipient gets a help notice");
+        h.assertTrue(notice(a, "friendai.coordination.help") == null, "the notice is not addressed to the sender");
+        h.assertTrue(notice(unrelated, "friendai.coordination.help") == null, "the notice is private");
+        String accept = action(notice, "accept");
+        String decline = action(notice, "decline");
+        command(unrelated.player(), accept);
+        h.assertValueEqual(
+                runtime.coordination().openFor(b.id(), now), List.of(first), "unrelated owners cannot accept");
+        command(b.player(), "friendai coordination");
+        h.assertTrue(notice(b, "friendai.coordination.help") != null, "listing shows the live request again");
+        command(b.player(), decline);
+        h.assertTrue(runtime.coordination().openFor(b.id(), now).isEmpty(), "recipient declines the request");
+        HelpRequest second = new HelpRequest(a.id(), b.id(), "bring two planks", now + 100);
+        h.assertTrue(runtime.coordination().requestHelp(second), "replacement opens");
+        var replacement = notice(b, "friendai.coordination.help");
+        h.assertTrue(replacement != null, "replacement has its own notice");
+        command(b.player(), accept);
+        h.assertValueEqual(
+                runtime.coordination().openFor(b.id(), now),
+                List.of(second),
+                "old actions cannot accept a replacement");
+        command(b.player(), action(replacement, "accept"));
+        h.assertTrue(runtime.coordination().openFor(b.id(), now).isEmpty(), "recipient accepts the new request");
+        h.assertTrue(notice(a, "friendai.coordination.help_accepted") != null, "source sees the decision");
+        h.assertTrue(
+                runtime.coordination().requestHelp(new HelpRequest(b.id(), a.id(), "bring string", now + 100)),
+                "the other owner can ask in turn");
+        var reverse = notice(a, "friendai.coordination.help");
+        h.assertTrue(reverse != null, "either owner can discover a request");
+        command(a.player(), action(reverse, "accept"));
+        h.assertTrue(runtime.coordination().openFor(a.id(), now).isEmpty(), "the other owner can accept as recipient");
+        h.succeed();
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 60)
+    public void liveHandoffNoticesAllowAnExplicitDecisionButNeverReplay(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        var runtime = GameTestSupport.runtime(h);
+        var a = GameTestSupport.onlinePlayer(h, "decide-from", 2, 2, 2, true);
+        var b = GameTestSupport.onlinePlayer(h, "decide-to", 5, 2, 2, true);
+        var source = runtime.companions().summon(a.player());
+        var target = runtime.companions().summon(b.player());
+        source.inventory().setItem(0, new ItemStack(Items.OAK_LOG, 10));
+        long now = runtime.coordination().clock();
+        var expiring = offer(a, b, source, now + 1);
+        h.assertTrue(runtime.coordination().offerHandoff(expiring), "one short handoff");
+        var expiredNotice = notice(b, "friendai.coordination.handoff");
+        h.assertTrue(expiredNotice != null, "recipient discovers the offer and meeting");
+        h.assertTrue(notice(a, "friendai.coordination.handoff") == null, "creation notice is for the recipient");
+
+        h.runAfterDelay(2, () -> {
+            command(b.player(), action(expiredNotice, "accept"));
+            h.assertValueEqual(source.inventory().getItem(0).getCount(), 10, "expired offer cannot take the logs");
+            h.assertTrue(target.inventory().isEmpty(), "expired offer cannot deliver logs");
+
+            long currentTick = runtime.coordination().clock();
+            var declined = offer(a, b, source, currentTick + 100);
+            h.assertTrue(runtime.coordination().offerHandoff(declined), "expired offer leaves room for a new one");
+            var declineNotice = notice(b, "friendai.coordination.handoff");
+            h.assertTrue(declineNotice != null, "new offer arrives");
+            command(b.player(), action(declineNotice, "decline"));
+            h.assertTrue(
+                    runtime.coordination().openHandoffsFor(b.id(), currentTick).isEmpty(), "decline consumes it");
+            h.assertTrue(target.inventory().isEmpty(), "decline moves nothing");
+
+            var live = offer(a, b, source, currentTick + 100);
+            h.assertTrue(runtime.coordination().offerHandoff(live), "a later offer can be accepted");
+            var liveNotice = notice(b, "friendai.coordination.handoff");
+            h.assertTrue(liveNotice != null, "recipient discovers the latest offer");
+            var details = ((TranslatableContents) liveNotice.getContents()).getArgs();
+            h.assertValueEqual(details[1], 6, "notice shows the offered count");
+            h.assertValueEqual(details[2], "minecraft:oak_log", "notice shows the offered item");
+            h.assertValueEqual(details[3], live.dimension(), "notice shows the meeting dimension");
+            h.assertValueEqual(details[7], 5L, "notice shows seconds before expiry");
+            String accept = action(liveNotice, "accept");
+            command(b.player(), accept);
+            h.assertValueEqual(target.inventory().getItem(0).getCount(), 6, "explicit acceptance transfers the offer");
+            h.assertValueEqual(source.inventory().getItem(0).getCount(), 4, "the sender retains the balance");
+            command(b.player(), accept);
+            var reloaded = new ServerCoordination(runtime);
+            h.assertFalse(
+                    reloaded.answer(b.player(), live.id(), true), "a fresh coordination book rejects a live stale id");
+            h.assertValueEqual(target.inventory().getItem(0).getCount(), 6, "replay and restart move nothing");
+            h.succeed();
+        });
+    }
+
+    private static HandoffRequest offer(
+            GameTestSupport.OnlinePlayer from,
+            GameTestSupport.OnlinePlayer to,
+            CompanionEntity source,
+            long expiresAt) {
+        var pos = source.blockPosition();
+        return new HandoffRequest(
+                from.id(),
+                to.id(),
+                "minecraft:oak_log",
+                6,
+                source.level().dimension().identifier().toString(),
+                pos.getX(),
+                pos.getY(),
+                pos.getZ(),
+                expiresAt);
+    }
+
+    private static Component notice(GameTestSupport.OnlinePlayer player, String key) {
+        // Minecraft batches writes during its world tick. Expose that tick's packets before inspecting this channel.
+        player.channel().flushOutbound();
+        return player.drainSystemMessages().stream()
+                .filter(message -> message.getContents() instanceof TranslatableContents text
+                        && text.getKey().equals(key))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private static String action(Component notice, String action) {
+        return notice.getSiblings().stream()
+                .map(child -> child.getStyle().getClickEvent())
+                .filter(ClickEvent.RunCommand.class::isInstance)
+                .map(ClickEvent.RunCommand.class::cast)
+                .map(ClickEvent.RunCommand::command)
+                .filter(command -> command.startsWith("/friendai coordination " + action + " "))
+                .findFirst()
+                .orElseThrow();
+    }
+
+    private static void command(ServerPlayer player, String command) {
+        player.level().getServer().getCommands().performPrefixedCommand(player.createCommandSourceStack(), command);
+    }
+
+    private static ToolResult call(CompanionEntity companion, ServerPlayer owner, String tool, JsonObject args) {
+        return GameTestToolRegistry.create(companion, () -> 16)
+                .bind(companion)
+                .execute(
+                        new ToolCall("coordination", tool, args, args.toString(), null),
+                        new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
     }
 }

@@ -3,6 +3,7 @@ package dev.friendai.features.coordination.minecraft.tool;
 import dev.friendai.agent.coordination.HandoffRequest;
 import dev.friendai.agent.coordination.HelpRequest;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.execution.tool.ToolResult;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -48,8 +49,8 @@ public interface CoordinationAccess {
         }
 
         @Override
-        public Optional<HandoffRequest> takeHandoff(UUID fromOwner, UUID toOwner, long now) {
-            return Optional.empty();
+        public ToolResult acceptHandoff(UUID fromOwner, UUID toOwner, long now) {
+            return ToolResult.error("there is no open handoff from that owner");
         }
 
         @Override
@@ -74,7 +75,7 @@ public interface CoordinationAccess {
 
     boolean offerHandoff(HandoffRequest request);
 
-    Optional<HandoffRequest> takeHandoff(UUID fromOwner, UUID toOwner, long now);
+    ToolResult acceptHandoff(UUID fromOwner, UUID toOwner, long now);
 
     Optional<CompanionEntity> companion(UUID owner);
 

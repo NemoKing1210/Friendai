@@ -2,6 +2,7 @@ package dev.friendai.features.fire;
 
 import dev.friendai.foundation.spatial.Pos;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * What has to stop burning. The pure layer only names the target; the Minecraft adapter resolves it into
@@ -15,8 +16,8 @@ public sealed interface FireTarget {
     /** The player who owns the companion. */
     record Owner() implements FireTarget {}
 
-    /** A burning mob or animal, identified by where it stands. */
-    record BurningEntity(Pos pos, String kind) implements FireTarget {}
+    /** A burning mob or animal and the last position observed for its current plan. */
+    record BurningEntity(UUID id, Pos pos, String kind) implements FireTarget {}
 
     /** One burning block: a fire, a soul fire or a lit campfire. */
     record Block(Pos pos) implements FireTarget {}

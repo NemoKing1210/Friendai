@@ -59,7 +59,7 @@ const CATS = [
     desc: "Hunger, food rules, sleep, fire handling and recovery of dropped inventory after death.",
     items: [
       "eat|Eat suitable food.", "get_food|Gather food.", "allow_food|Allow an item as food.", "forbid_food|Never eat an item.",
-      "reset_food_rule|Forget a food rule.", "get_food_rules|Show food rules.", "sleep|Sleep in a bed at night.", "extinguish_fire|Put fires out with a water bucket.",
+      "reset_food_rule|Forget a food rule.", "get_food_rules|Show food rules.", "sleep|Sleep in a bed at night.", "extinguish_fire|Put fires out and verify the same burning mob.",
       "dropped_items|Show remembered drops from a death.", "recover_drops|Return to collect recoverable drops.", "forget_drops|Clear a remembered death drop record.",
       "~Hunger model|Food, saturation, exhaustion, regeneration, starvation.", "~Fire reflex|Reacts to nearby flames automatically.",
       "~Self-care reflex|Spends its own water bucket, milk, golden apples and potions to stay alive.",
@@ -68,7 +68,7 @@ const CATS = [
     desc: "Plans a field, plants, tends and harvests; works with animals and fishing.",
     items: [
       "farm|Plant and harvest a whole field in one pass.", "plan_farm|Preview what a farm would need.", "tend_farm|Keep an existing farm going.", "use_bonemeal|Speed up growth.",
-      "breed_animals|Breed a species.", "shear|Shear sheep.", "milk|Milk up to 16 cows in one call.", "tame_animal|Tame an animal.", "lead_animals|Lead animals with a lead.",
+      "breed_animals|Breed a species.", "shear|Shear sheep.", "milk|Milk up to 16 cows in one call.", "tame_animal|Tame an animal.", "lead_animals|Lead animals, report blocked routes and respect protected fences.",
       "harvest_honey|Collect honey.", "fish|Go fishing.", "~Farm planner|Cells, soil, crops, food need.", "~Re-plans on mismatch|Adjusts when the world differs from the plan." ] },
   { id: "inventory", domain: "hands", name: "Inventory & Storage", icon: "🎒", color: COLORS.amethyst,
     desc: "A 27-slot inventory plus six gear slots, shared container logic, and a bounded memory of containers the companion has opened.",
@@ -115,7 +115,7 @@ const CATS = [
   { id: "memory", domain: "mind", name: "Memory & Trust", icon: "🧠", color: COLORS.amethyst,
     desc: "Per-owner memory with strict visibility: guests only see facts about themselves, and trust changes need the owner's confirmation.",
     items: [
-      "remember|Store a fact.", "recall|Read facts back.", "forget|Delete a fact.", "trust_player|Raise a player to trusted (needs confirmation).", "request_help|Ask another owner's companion for bounded help.", "accept_help|Accept the named help only.", "decline_help|Decline with no transfer.", "offer_handoff|Offer an exact item quantity at a meeting point.", "accept_handoff|Accept only the named transfer.", "replan_plan|Ask the planner to repair one stalled plan.",
+      "remember|Store a fact.", "recall|Read facts back.", "forget|Delete a fact.", "trust_player|Raise a player to trusted (needs confirmation).", "request_help|Send bounded help to its owner with accept and decline actions.", "accept_help|Accept the named help only.", "decline_help|Decline with no transfer.", "offer_handoff|Offer an exact item quantity at a meeting point.", "accept_handoff|Move the exact offered quantity after checking space and the meeting.", "replan_plan|Ask the planner to repair one stalled plan.",
       "untrust_player|Lower trust.", "set_name|Rename the companion.", "use_skill|Load an instruction skill once.", "list_skills|List the owner's skills with ids, versions and on/off state.", "skill_help|Read the skill-authoring checklist and its limits.", "manage_skill|Propose a skill after a finished goal.",
       "read_log|Read your recent activity log (owner only).", "logs_search|Search the durable log files by level, category, event, turn, task, trace, execution or request (owner only).", "recent_chat|Read recent conversations with a player.", "memory_overview|See facts with ids and how full each book is.", "compress_memory|Merge duplicate facts safely, dry run first (owner only).", "reset_manner|Drop a manner the owner dislikes and never drift back into it (owner only).",
       "~Access levels|GUEST < TRUSTED < OWNER on every tool.", "~Language learning|Learns your language after a few samples.", "~Skills advise only|They never change permissions.",
@@ -557,8 +557,8 @@ const DOC = {
       { id: "engine", x: 110, y: 230, label: "Engine unit tests", icon: "🧪", color: COLORS.amethyst, kind: "hub", desc: "`engine/src/test`: queue, planner, policies, LLM protocols, config migration. No Minecraft, no Fabric." },
       { id: "root", x: 410, y: 230, label: "Root unit tests", icon: "🧱", color: COLORS.grass, kind: "hub", desc: "`src/test`: server adapters, tools and features, run without booting a game." },
       { id: "game", x: 710, y: 230, label: "GameTests", icon: "🌍", color: COLORS.copper, kind: "hub", desc: "111 classes in the separate `friendai-gametest` mod, in one shared world, six CI shards." },
-      { id: "client", x: 1010, y: 350, label: "Client UI test", icon: "🖥️", color: COLORS.water, kind: "cat", desc: "`runClientGameTest` drives the real YACL screen and checks both UI languages." },
-      { id: "gate", x: 1010, y: 90, label: "CI gate", icon: "🚦", color: COLORS.gold, kind: "cat", desc: "The required check: unit suites, GameTest shards, formatting, packaging, shard map and docs links." }
+      { id: "client", x: 1010, y: 350, label: "Client UI test", icon: "🖥️", color: COLORS.water, kind: "cat", desc: "`runClientGameTest` checks eight locales, integrated and dedicated connections, skins and voice reconnect. A second mode disables YACL and Mod Menu." },
+      { id: "gate", x: 1010, y: 90, label: "CI gate", icon: "🚦", color: COLORS.gold, kind: "cat", desc: "The required check: unit suites, server and client GameTests, formatting, packaging, shard map and docs links." }
     ], edges: [
       ["engine", "root"], ["root", "game"], ["game", "client", "display"],
       ["game", "gate", "required", { curve: [40, -40] }], ["client", "gate", "required", { curve: [60, 0] }]
@@ -598,7 +598,7 @@ const DOC = {
       { title: "The gates", sub: "What CI requires before anything merges", color: COLORS.gold,
         hub: { label: "Gates", icon: "🚦", color: COLORS.gold, desc: "Nothing merges on a red or pending gate." },
         items: [
-          "~CI gate|Unit suites, all GameTest shards, `spotlessCheck`, packaging, the shard map and docs links.",
+          "~CI gate|Unit suites, server and client GameTests, `spotlessCheck`, packaging, the shard map and docs links.",
           "~Commit lint gate|Conventional commits and a conventional PR title.",
           "~Docs links|`scripts/check-docs.sh` checks relative links, anchors and table cell counts.",
           "~Workflow lint|`actionlint` and `shellcheck` over the workflows and scripts.",

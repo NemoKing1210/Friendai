@@ -15,7 +15,9 @@ import dev.friendai.task.TaskStatus;
 import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.Leashable;
@@ -38,7 +40,7 @@ import net.minecraft.world.phys.Vec3;
 public class AnimalTests {
     private static final class Result implements TaskEventSink {
         TaskStatus status;
-        String summary;
+        String summary = "task has not finished";
         int cancelled;
 
         @Override
@@ -361,6 +363,158 @@ public class AnimalTests {
             h.assertTrue(!((Leashable) goat).isLeashed(), "goat should be free");
             h.assertValueEqual(c.inventory().countItem(Items.LEAD), 1, "lead returned");
         });
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 240)
+    public void leadFailsWhenTheRouteEndsBelowTheDestination(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        Pig pig = h.spawn(EntityTypes.PIG, 4, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.LEAD));
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(new LeadTask(EntityTypes.PIG, 1, h.absolutePos(new BlockPos(8, 9, 2)), false), "lead_animals");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.FAILED, "waiting for failure: " + result.summary);
+            h.assertTrue(result.summary.contains("cannot reach destination"), result.summary);
+            h.assertFalse(((Leashable) pig).isLeashed(), "unreachable destination must release the pig");
+            h.assertValueEqual(c.inventory().countItem(Items.LEAD), 1, "the lead was returned");
+        });
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 240)
+    public void leadRefusesAProtectedFence(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        Pig pig = h.spawn(EntityTypes.PIG, 4, 2, 2);
+        BlockPos fence = h.absolutePos(new BlockPos(8, 2, 2));
+        h.setBlock(8, 2, 2, Blocks.OAK_FENCE);
+        c.hands().overrideProtection(fence::equals);
+        c.inventory().addItem(new ItemStack(Items.LEAD));
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(new LeadTask(EntityTypes.PIG, 1, fence, true), "lead_animals");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.FAILED, "waiting for failure: " + result.summary);
+            h.assertTrue(result.summary.contains("protected by the server"), result.summary);
+            h.assertTrue(h.getLevel().getBlockState(fence).is(Blocks.OAK_FENCE), "the protected fence is unchanged");
+            h.assertTrue(
+                    h.getLevel()
+                            .getEntitiesOfClass(LeashFenceKnotEntity.class, new AABB(fence))
+                            .isEmpty(),
+                    "no protected knot was created");
+            h.assertFalse(((Leashable) pig).isLeashed(), "failed tie must release the pig");
+            h.assertValueEqual(c.inventory().countItem(Items.LEAD), 1, "the lead was returned");
+        });
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 100)
+    public void cancellingLeadRestoresOnlyTheTasksStack(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        Pig pig = h.spawn(EntityTypes.PIG, 4, 2, 2);
+        Pig previouslyLeashed = h.spawn(EntityTypes.PIG, 4, 2, 3);
+        ((Leashable) previouslyLeashed).setLeashedTo(c, true);
+        ItemStack lead = new ItemStack(Items.LEAD);
+        Component name = Component.literal("Marked lead");
+        lead.set(DataComponents.CUSTOM_NAME, name);
+        c.inventory().addItem(lead);
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(new LeadTask(EntityTypes.PIG, 1, h.absolutePos(new BlockPos(12, 2, 2)), false), "lead_animals");
+        h.startSequence()
+                .thenWaitUntil(() -> {
+                    runner.tick();
+                    h.assertTrue(((Leashable) pig).getLeashHolder() == c, "waiting for the task to attach the pig");
+                })
+                .thenExecute(() -> {
+                    runner.stopAll("test cancellation");
+                    h.assertValueEqual(result.cancelled, 1, "one task was cancelled");
+                    h.assertFalse(((Leashable) pig).isLeashed(), "the task's pig was released");
+                    h.assertValueEqual(((Leashable) previouslyLeashed).getLeashHolder(), c, "old leash was left alone");
+                    h.assertValueEqual(c.inventory().countItem(Items.LEAD), 1, "exactly one lead was returned");
+                    h.assertValueEqual(
+                            c.inventory().getItem(0).get(DataComponents.CUSTOM_NAME), name, "lead components");
+                })
+                .thenSucceed();
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 170)
+    public void leadWaitsForItsAnimalsAndFailsWhenTheyCannotCatchUp(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        Pig pig = h.spawn(EntityTypes.PIG, 4, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.LEAD));
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(new LeadTask(EntityTypes.PIG, 1, h.absolutePos(new BlockPos(12, 2, 2)), false), "lead_animals");
+        h.succeedWhen(() -> {
+            if (((Leashable) pig).getLeashHolder() == c) {
+                pig.setPos(c.getX() + 8.0, c.getY(), c.getZ());
+                pig.setDeltaMovement(Vec3.ZERO);
+            }
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.FAILED, "waiting for failure: " + result.summary);
+            h.assertTrue(result.summary.contains("could not catch up"), result.summary);
+            h.assertFalse(((Leashable) pig).isLeashed(), "the lagging pig was released");
+            h.assertValueEqual(c.inventory().countItem(Items.LEAD), 1, "the distant lead was returned");
+        });
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 100)
+    public void leadDoesNotTouchAnAnimalThatHasAChangedHolder(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        Pig pig = h.spawn(EntityTypes.PIG, 4, 2, 2);
+        Cow newHolder = h.spawn(EntityTypes.COW, 5, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.LEAD));
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(new LeadTask(EntityTypes.PIG, 1, h.absolutePos(new BlockPos(8, 2, 2)), false), "lead_animals");
+        h.startSequence()
+                .thenWaitUntil(() -> {
+                    runner.tick();
+                    h.assertTrue(((Leashable) pig).getLeashHolder() == c, "waiting for the task to attach the pig");
+                })
+                .thenExecute(() -> {
+                    ((Leashable) pig).setLeashedTo(newHolder, true);
+                    runner.tick();
+                    h.assertTrue(
+                            result.status == TaskStatus.FAILED,
+                            "the changed holder must end the task: " + result.summary);
+                    h.assertTrue(result.summary.contains("lost 1 on the way"), result.summary);
+                    h.assertValueEqual(((Leashable) pig).getLeashHolder(), newHolder, "the new holder kept the leash");
+                    h.assertValueEqual(c.inventory().countItem(Items.LEAD), 0, "no replacement lead was created");
+                })
+                .thenSucceed();
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 100)
+    public void leadDoesNotReclaimAReplacementLeashOnTheSameHolder(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        Pig pig = h.spawn(EntityTypes.PIG, 4, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.LEAD));
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(new LeadTask(EntityTypes.PIG, 1, h.absolutePos(new BlockPos(8, 2, 2)), false), "lead_animals");
+        Leashable leash = (Leashable) pig;
+        h.startSequence()
+                .thenWaitUntil(() -> {
+                    runner.tick();
+                    h.assertTrue(leash.getLeashHolder() == c, "waiting for the task to attach the pig");
+                })
+                .thenExecute(() -> {
+                    leash.dropLeash();
+                    leash.setLeashedTo(c, true);
+                    runner.tick();
+                    h.assertValueEqual(result.status, TaskStatus.FAILED, "the original leash snapped");
+                    h.assertValueEqual(leash.getLeashHolder(), c, "the replacement leash is untouched");
+                    h.assertValueEqual(c.inventory().countItem(Items.LEAD), 0, "no replacement lead was refunded");
+                })
+                .thenSucceed();
     }
 
     @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 1600)

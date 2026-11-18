@@ -50,8 +50,7 @@ public final class CompanionRequestHandler {
         var server = player.level().getServer();
         UUID owner = player.getUUID();
         if (request instanceof ControlRequest.Subscribe) {
-            if (!mayOpen(runtime, owner, "menu", server)) return;
-            runtime.debugStream().openMenu(runtime, player, requestId);
+            runtime.debugStream().openMenu(runtime, player, requestId, mayOpen(runtime, owner, "menu", server));
             return;
         }
         if (request instanceof ControlRequest.Unsubscribe) {
