@@ -14,11 +14,11 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 
 /**
- * A placement refusal is typed, never prose. The build used to grow a new {@code fail(c, "...")} for every new way a
- * block could be blocked; this guard makes the next one impossible without a {@link PlacementRefusal} cause.
+ * Placement and delivery failures carry typed causes. The guard catches call sites that pass only prose instead of
+ * a cause such as {@link PlacementRefusal}.
  */
 class NoUntypedFailureTest {
-    private static final Pattern UNTYPED = Pattern.compile("fail\\(c,\\s*\"");
+    private static final Pattern UNTYPED = Pattern.compile("fail(?:Delivery)?\\(c,\\s*\"");
     private static final List<Path> SOURCE_ROOTS = List.of(Path.of("src/main/java"), Path.of("engine/src/main/java"));
 
     @Test
@@ -41,6 +41,6 @@ class NoUntypedFailureTest {
                 offenders.add(file.toString());
             }
         }
-        assertTrue(offenders.isEmpty(), "untyped placement failure in " + offenders);
+        assertTrue(offenders.isEmpty(), "untyped placement or delivery failure in " + offenders);
     }
 }
