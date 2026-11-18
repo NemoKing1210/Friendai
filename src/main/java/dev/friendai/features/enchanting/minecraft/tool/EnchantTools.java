@@ -22,7 +22,10 @@ public final class EnchantTools implements FeatureToolContributor {
     public void register(FeatureToolRegistry registry) {
         registry.registerTask(new TaskToolDefinition(
                 "enchant_item",
-                "Enchant an item from the inventory at an enchanting table, paying lapis lazuli and experience levels. Option 1 is the cheapest and 3 the strongest; option N costs N lapis and N levels. Check your levels with get_inventory first.",
+                "Enchant an item from the companion's inventory at an enchanting table. Option N spends N lapis and N "
+                        + "levels, but the actual offer can require more levels (up to 30 with bookshelves). Check carried "
+                        + "items, lapis and current levels with get_inventory. The table reports the selected offer's "
+                        + "requirement and actual spend.",
                 SchemaBuilder.object()
                         .string("item", "Item id like minecraft:iron_sword, or a tag")
                         .integer("option", "Which of the three offers to take: 1, 2 or 3", 1, 3)
@@ -39,7 +42,9 @@ public final class EnchantTools implements FeatureToolContributor {
                 metadata("enchant_item")));
         registry.registerTask(new TaskToolDefinition(
                 "anvil_item",
-                "Use an anvil: repair an item with its material, combine it with another item or enchanted book, or rename it. Costs experience levels; the result is kept in the inventory. Give 'with' to repair or combine, 'rename' to rename, or both.",
+                "Use an anvil to repair an item, combine it with another item or enchanted book, or rename it. Carry the "
+                        + "inputs and enough XP levels to pay the anvil's variable cost. Check get_inventory for carried "
+                        + "items and levels. Give 'with' for repair or combination, 'rename' for a new name, or both.",
                 SchemaBuilder.object()
                         .string("item", "The item to work on, like minecraft:iron_pickaxe")
                         .string("with", "The second item: repair material, another item or an enchanted book")
@@ -62,7 +67,9 @@ public final class EnchantTools implements FeatureToolContributor {
                 metadata("anvil_item")));
         registry.registerTask(new TaskToolDefinition(
                 "grindstone_item",
-                "Use a grindstone: strip the enchantments from an item (curses stay) and collect the experience that comes out, or merge two damaged items into one.",
+                "Use a grindstone with carried items and no XP or lapis cost. Remove enchantments (curses stay) or combine "
+                        + "two damaged items of the same kind. The result and any XP recovered from the operation are "
+                        + "reported.",
                 SchemaBuilder.object()
                         .string("item", "The item to grind, like minecraft:diamond_sword")
                         .string("with", "A second item of the same kind to merge, optional")

@@ -44,9 +44,9 @@ const CATS = [
     desc: "Recursive crafting plans (depth up to 5), furnace jobs and enchanting-station work through real menus.",
     items: [
       "craft_item|Craft an item, placing a table if needed.", "get_recipe|Look up how something is made.", "smelt_items|Smelt up to 256 items in one call with fuel.",
-      "cook_food|Cook raw food.", "collect_smelted|Pick up finished furnace output.", "enchant_item|Use an enchanting table.",
-      "anvil_item|Repair or combine at an anvil.", "grindstone_item|Strip enchantments at a grindstone.",
-      "brew_potion|Brew a supported potion at a brewing stand.", "plan_brew|Show the brewing steps without doing them.",
+      "cook_food|Cook raw food.", "collect_smelted|Pick up finished furnace output.", "enchant_item|Enchant an item and report the levels required and spent.",
+      "anvil_item|Repair or combine at an anvil and report its cost.", "grindstone_item|Strip enchantments and report the XP collected.",
+      "brew_potion|Brew potions and report what was used, carried or left in the stand.", "plan_brew|Show the brewing steps without doing them.",
       "~Craft planner|Turns a goal item into ordered steps.", "~Station leases|Remembers a table it placed for 600 ticks." ] },
   { id: "combat", domain: "hands", name: "Combat", icon: "⚔️", color: COLORS.redstone,
     desc: "Reflex combat ticked before everything else, with a single arbiter for movement, shields, bow, potions and retreat.",
@@ -73,7 +73,7 @@ const CATS = [
   { id: "inventory", domain: "hands", name: "Inventory & Storage", icon: "🎒", color: COLORS.amethyst,
     desc: "A 27-slot inventory plus six gear slots, shared container logic, and a bounded memory of containers the companion has opened.",
     items: [
-      "get_inventory|List what it carries.", "show_inventory|Open the inventory view.", "equip_item|Equip gear.", "give_items|Hand items to a player; strict orders can reserve the companion's share and wait for a safe handover.",
+      "get_inventory|List carried items, equipment and experience.", "show_inventory|Open the inventory view.", "equip_item|Equip gear.", "give_items|Hand items to a player; strict orders can reserve the companion's share and wait for a safe handover.",
       "drop_items|Drop items.", "throw_item|Throw an item.", "store_items|Store up to two stacks in one call.", "take_items|Take items out of a container.",
       "check_container|Look inside a container.", "check_containers|Look through the nearby chests not opened in the last five minutes.", "deposit_items|Deposit into the nearest storage.",
       "find_stored_item|Report where you last saw an item in a recorded container.", "move_items|Move a known quantity between two containers in one call.",

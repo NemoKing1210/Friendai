@@ -1,5 +1,7 @@
 package dev.friendai.test;
 
+import com.google.gson.JsonObject;
+import dev.friendai.agent.llm.model.ToolCall;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.features.enchanting.minecraft.task.EnchantItemTask;
@@ -11,10 +13,12 @@ import dev.friendai.task.inventory.ItemMatcher;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.EnchantingTableBlock;
 
 /** The companion enchants items at an enchanting table with lapis and its own experience levels. */
 public class EnchantSkillTests {
@@ -58,14 +62,15 @@ public class EnchantSkillTests {
     @GameTest(structure = GameTestArenas.ARENA_16)
     public void enchantsWithLapisAndLevels(GameTestHelper h) {
         CompanionEntity c = setup(h, 64, true);
+        addBookshelves(h, 64);
         c.inventory().addItem(new ItemStack(Items.IRON_SWORD));
         c.inventory().addItem(new ItemStack(Items.LAPIS_LAZULI, 3));
+        c.setItemSlot(EquipmentSlot.HEAD, new ItemStack(Items.IRON_HELMET));
         levels(c, 30);
         Result result = new Result();
         ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 300, () -> false);
         runner.setEventSink(result);
-        runner.start(
-                new EnchantItemTask(ItemMatcher.parse("minecraft:iron_sword").orElseThrow(), 1, null), "enchant_item");
+        runner.start(swordTask(3), "enchant_item");
         h.succeedWhen(() -> {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
@@ -77,9 +82,42 @@ public class EnchantSkillTests {
             }
             h.assertTrue(EnchantmentHelper.hasAnyEnchantments(sword), "the sword was not enchanted");
             h.assertTrue(
-                    c.experience().level() == 29, "level was " + c.experience().level());
-            h.assertTrue(count(c, Items.LAPIS_LAZULI) == 2, "lapis left " + count(c, Items.LAPIS_LAZULI));
+                    c.experience().level() == 27, "level was " + c.experience().level());
+            h.assertTrue(count(c, Items.LAPIS_LAZULI) == 0, "lapis left " + count(c, Items.LAPIS_LAZULI));
+            h.assertTrue(
+                    result.summary.contains("required 30") && result.summary.contains("spent 3 levels and 3 lapis"),
+                    result.summary);
+            var tools = GameTestToolRegistry.create(c, () -> 8);
+            var inventory = tools.bind(c)
+                    .execute(new ToolCall("inv", "get_inventory", new JsonObject(), "{}", null))
+                    .content();
+            h.assertTrue(
+                    inventory.contains("27 levels")
+                            && inventory.contains(c.experience().points() + " points"),
+                    inventory);
+            h.assertTrue(inventory.contains("iron_helmet"), inventory);
         });
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16)
+    public void level29CannotTakeALevel30Offer(GameTestHelper h) {
+        CompanionEntity c = setup(h, 60, true);
+        addBookshelves(h, 60);
+        c.inventory().addItem(new ItemStack(Items.IRON_SWORD));
+        c.inventory().addItem(new ItemStack(Items.LAPIS_LAZULI, 3));
+        levels(c, 29);
+        failing(h, c, swordTask(3), "needs 30 experience levels", () -> {
+            h.assertValueEqual(count(c, Items.LAPIS_LAZULI), 3, "lapis untouched");
+            h.assertValueEqual(count(c, Items.IRON_SWORD), 1, "sword returned");
+            h.assertValueEqual(c.experience().points(), ExperienceModel.pointsForLevel(29), "XP untouched");
+        });
+    }
+
+    private static void addBookshelves(GameTestHelper h, int bandY) {
+        BlockPos table = new BlockPos(3, bandY + 1, 2);
+        for (BlockPos offset : EnchantingTableBlock.BOOKSHELF_OFFSETS) {
+            h.setBlock(table.offset(offset), Blocks.BOOKSHELF);
+        }
     }
 
     private static void failing(

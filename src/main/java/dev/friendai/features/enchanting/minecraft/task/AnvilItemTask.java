@@ -72,7 +72,11 @@ public final class AnvilItemTask extends MenuBlockTask {
         menu.getSlot(LEFT_SLOT).set(first.get(0));
         if (right != null) {
             List<ItemStack> second = InventoryOps.remove(companion.inventory(), right, 1);
-            menu.getSlot(RIGHT_SLOT).set(second.get(0));
+            if (second.isEmpty()) {
+                summary = "I don't have a separate " + right.label() + " for the second input";
+                return TaskStatus.FAILED;
+            }
+            menu.getSlot(RIGHT_SLOT).set(second.getFirst());
         }
         if (rename != null) {
             menu.setItemName(rename);
@@ -91,9 +95,16 @@ public final class AnvilItemTask extends MenuBlockTask {
                     : "the anvil refused it (too expensive)";
             return TaskStatus.FAILED;
         }
-        menu.quickMoveStack(player, RESULT_SLOT);
-        summary = "anvil made " + BuiltInRegistries.ITEM.getKey(result.getItem()) + " for " + cost + " level"
-                + (cost == 1 ? "" : "s");
+        int before = player.experienceLevel;
+        ItemStack collected = menu.quickMoveStack(player, RESULT_SLOT);
+        if (collected.isEmpty()) {
+            summary = "the anvil result could not be collected";
+            return TaskStatus.FAILED;
+        }
+        int spent = before - player.experienceLevel;
+        summary = "anvil made " + BuiltInRegistries.ITEM.getKey(collected.getItem()) + " (required " + cost
+                + " levels, spent " + spent + (spent == 1 ? " level" : " levels") + "; "
+                + player.experienceLevel + " levels remaining)";
         return TaskStatus.SUCCESS;
     }
 }

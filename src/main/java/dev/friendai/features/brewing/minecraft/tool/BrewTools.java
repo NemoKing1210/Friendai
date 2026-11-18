@@ -29,11 +29,10 @@ public final class BrewTools implements FeatureToolContributor {
     public void register(FeatureToolRegistry registry) {
         registry.registerTask(new TaskToolDefinition(
                         BREW,
-                        "Brew a supported potion at a brewing stand using water bottles, the recipe ingredient and blaze "
-                                + "powder as fuel. It walks to the nearest stand, or the given coordinates, keeps the "
-                                + "intermediate potions in the stand, and reports the potion count and every ingredient spent. "
-                                + "A missing bottle, ingredient, fuel or stand is one refusal naming the missing piece. Use "
-                                + "plan_brew first when the recipe or amounts are uncertain.",
+                        "Brew a supported potion at an empty brewing stand using water bottles, recipe ingredients and "
+                                + "fuel (such as blaze powder). It walks to the nearest stand or the given coordinates, "
+                                + "and reports the verified potion count, ingredients and fuel uses spent, and where the "
+                                + "bottles ended up. Use plan_brew first when the recipe or amounts are uncertain.",
                         SchemaBuilder.object()
                                 .enumeration(
                                         "potion",
