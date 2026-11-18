@@ -85,7 +85,7 @@ public final class GoalOutcomeFact {
         if (text == null) {
             return "";
         }
-        return text.strip().replaceAll("\\s+", " ").replace('"', '\'');
+        return text.replaceAll("(?U)\\s+", " ").strip().replace('"', '\'');
     }
 
     /** Truncates to {@code max} characters, ending an over-long value with an ellipsis. */

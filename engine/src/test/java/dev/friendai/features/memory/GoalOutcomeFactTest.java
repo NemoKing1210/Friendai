@@ -65,5 +65,6 @@ class GoalOutcomeFactTest {
         assertEquals(
                 "goal \"Say 'hi' then wait\" \u2014 verified",
                 GoalOutcomeFact.text(" Say \"hi\" then\nwait ", GoalOutcomeFact.End.VERIFIED, null, 160));
+        assertEquals("No route home", GoalOutcomeFact.boundedReason("\u00A0No\u2028route\u2029home\u00A0"));
     }
 }

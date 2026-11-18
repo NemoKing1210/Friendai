@@ -528,8 +528,9 @@ covers memory, the transcript, companion profiles, per-companion and operator in
 `skills` and `skills-server`), goals, free time, social memory, terrain, routines, knowledge, places, placed blocks and
 trading, and `OwnerRecordFlush` reads that same view instead of keeping a second list. The appearance coordinator
 submits one-shot `SkinStore` operations to the bounded runtime writer and reports update failures to the caller.
-Blueprints write synchronously and report failures to their caller. These stores carry no revision health status; a source test fails
-when a store the graph builds is neither reported nor documented as untracked. `OwnerFileStore<T>` lazily loads records and captures
+Blueprints write synchronously and report failures to their caller. These stores carry no revision health status.
+A source test checks that every store the graph builds is reported or documented as untracked.
+`OwnerFileStore<T>` lazily loads records and captures
 immutable UTF-8 bytes plus their revision on the server thread. At most one snapshot per owner is pending;
 a completion records only its own saved revision. A later server-thread flush captures any newer revision,
 and final close repeats that capture/wait cycle until settled, failed, or its 30-second bound expires.

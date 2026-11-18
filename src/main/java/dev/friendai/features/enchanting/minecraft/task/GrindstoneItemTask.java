@@ -107,11 +107,11 @@ public final class GrindstoneItemTask extends MenuBlockTask {
                 mergedXp += award;
             }
         }
-        int beforePoints = companion.experience().points();
+        int beforePoints = companion.experiencePoints();
         // Through the fake player: closing the menu copies its experience back and would drop a direct addition.
         player.giveExperiencePoints(collectedXp);
         companion.hands().closeMenu();
-        int gained = companion.experience().points() - beforePoints;
+        int gained = companion.experiencePoints() - beforePoints;
         summary = "ground " + item.label() + " into " + BuiltInRegistries.ITEM.getKey(collected.getItem())
                 + " and gained " + gained + " experience points"
                 + (mergedXp == 0 ? "" : "; " + mergedXp + " experience points remain in orbs at the grindstone");
