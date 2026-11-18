@@ -290,14 +290,15 @@ public class ToolTests {
                 run(tools, "get_inventory", "{}")
                         .content()
                         .equals(
-                                "Inventory is empty\nWearing: nothing; holding: nothing; combat: bodyguard/balanced; hunger 20/20"),
+                                "Inventory is empty\nWearing: nothing; holding: nothing; combat: bodyguard/balanced; hunger 20/20; experience 0 levels (0 points)"),
                 "should start empty");
         c.inventory().addItem(new ItemStack(Items.OAK_LOG, 5));
+        c.addExperience(20);
         ToolResult r = run(tools, "get_inventory", "{}");
         h.assertTrue(
                 r.content()
                         .equals(
-                                "Inventory: oak_log×5\nWearing: nothing; holding: nothing; combat: bodyguard/balanced; hunger 20/20"),
+                                "Inventory: oak_log×5\nWearing: nothing; holding: nothing; combat: bodyguard/balanced; hunger 20/20; experience 2 levels (20 points)"),
                 "result was " + r.content());
         h.succeed();
     }
