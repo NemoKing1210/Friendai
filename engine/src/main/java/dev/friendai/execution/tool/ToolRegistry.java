@@ -10,6 +10,9 @@ import java.util.Map;
 public final class ToolRegistry<C> {
     private final Map<String, Tool<C>> tools = new LinkedHashMap<>();
 
+    /** One contribution before feature and caller filtering. */
+    public record Registration(ToolSpec spec, AccessLevel minAccess, boolean enabled) {}
+
     public ToolRegistry<C> register(Tool<C> tool) {
         if (tool == null) {
             throw new IllegalArgumentException("Tool is required");
@@ -30,6 +33,17 @@ public final class ToolRegistry<C> {
         return tools.values().stream()
                 .filter(Tool::enabled)
                 .map(ToolRegistry::spec)
+                .toList();
+    }
+
+    /** A detached inventory for diagnostics and coverage checks. */
+    public List<Registration> registrations() {
+        return tools.values().stream()
+                .map(tool -> new Registration(
+                        new ToolSpec(
+                                tool.name(), tool.description(), tool.schema().deepCopy()),
+                        tool.minAccess(),
+                        tool.enabled()))
                 .toList();
     }
 

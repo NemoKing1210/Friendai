@@ -480,7 +480,16 @@ const RU = {
 
   /* ---- Menu ---- */
   "Companion Menu": "Меню компаньона",
-  "A tabbed control screen that pauses the companion while open. Operator-only tabs are filtered on the server.": "Экран управления с вкладками; пока он открыт, компаньон на паузе. Вкладки только для операторов фильтруются на сервере.",
+  "A tabbed control screen. The companion keeps working while it is open. The separate inventory view holds the companion until it closes.": "Экран управления с вкладками. Пока он открыт, компаньон продолжает работу. Отдельное окно инвентаря приостанавливает компаньона до закрытия.",
+  "Show remembered drops from a death.": "Показать запомненные предметы, выпавшие после гибели.",
+  "Return to collect recoverable drops.": "Вернуться за предметами, которые ещё можно подобрать.",
+  "Clear a remembered death drop record.": "Удалить запись о предметах, выпавших после гибели.",
+  "Update eligible parts of an existing plan.": "Изменить доступные для правки части существующего плана.",
+  "Schedule a recurring plan.": "Запланировать повторяющийся план.",
+  "Show scheduled routines.": "Показать запланированные распорядки.",
+  "Remove a scheduled routine.": "Удалить запланированный распорядок.",
+  "Hunger, food rules, sleep, fire handling and recovery of dropped inventory after death.": "Голод, правила питания, сон, тушение огня и возврат предметов, выпавших после гибели.",
+  "The companion records its drops and can return for them.": "Компаньон запоминает, какие предметы выпали, и может вернуться за ними.",
   "Status, health, hunger, task.": "Статус, здоровье, голод, задача.",
   "Toggles": "Переключатели",
   "Per-companion switches.": "Переключатели для компаньона.",

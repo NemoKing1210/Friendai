@@ -182,6 +182,9 @@ footer { text-align: center; font-family: var(--pixel); font-size: 9px; line-hei
 /* ---------- graph canvas (vis-network) ---------- */
 .vis { width: 100%; height: 620px; outline: none; touch-action: none; }
 .vis.main { height: max(560px, calc(100vh - 300px)); }
+.vis.graph-list { height: auto !important; padding: 1rem; touch-action: auto; }
+.graph-list li { margin-bottom: .6rem; }
+.graph-list li p { margin: .15rem 0; }
 .tools { position: absolute; top: 8px; right: 8px; display: flex; gap: 4px; z-index: 2; }
 .tools button {
   font-family: var(--body); font-size: 20px; line-height: 1; color: #222; cursor: pointer;

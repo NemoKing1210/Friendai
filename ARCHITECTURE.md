@@ -483,9 +483,12 @@ agreement is `runGameTest -Dfabric-api.gametest.filter='friendai-gametest:compan
 `memory_menu_tests_*`), duplicate shifts are `FreeTimeServiceTest`, restore rejection is `QueueSaveTest` and
 `active_task_lifecycle_tests_*`, and a real quantity or build is the tool's filtered GameTest.
 
-**The capability inventory.** `ToolInventoryTest` builds the live registry and writes `build/tool-inventory.md`: one row
-per tool with its group, plannable/restorable flags, parameter and required counts, description, and the total tool-spec
-bytes. It fails on a duplicate name, a blank description or more than 16 parameters. The first audit batch changed no
+**The capability inventory.** `ToolInventoryTest` enumerates registrations before feature and caller filters and writes
+`build/tool-inventory.md`. It records each tool's gate, access level, plan and restore eligibility, checkpoint type,
+schema counts, validated example when present and separate world test references. `ToolCatalogTests` checks the real
+server registry with memory on and off. `CapabilityMapTest` checks the map's tools, Russian descriptions and source paths
+against the same registrations. The map renders a keyboard accessible list if the optional graph library is unavailable.
+The inventory fails on a duplicate name, a blank description or more than 16 parameters. The first audit batch changed no
 schema: `mine_blocks`, `smelt_items`, `farm`, `store_items`, `milk`, `pickup_items` and `clear_area` now state their
 one-call count/radius coverage in the description, so a multi-item request is one bounded call rather than one call per
 item. World outcomes stay with the filtered GameTests named in the measurement fixture list; the audit's tick/drop

@@ -56,13 +56,14 @@ const CATS = [
       "~Shield timing|Raises on a draw or arrow, lowers to swing.", "~Bow aim with lead|Bounded predictive aim.", "~Potion use|Drinks the right potion at the right time.",
       "~Weapon choice|Scores weapons by DPS and durability.", "~Group pressure|Sidesteps away from a second attacker.", "~Hostiles target it|Mobs treat it like a player." ] },
   { id: "survival", domain: "hands", name: "Survival", icon: "🍖", color: COLORS.gold,
-    desc: "A vanilla-like hunger model, food rules you control, sleep, and fire handling. It keeps what it carries when it dies.",
+    desc: "Hunger, food rules, sleep, fire handling and recovery of dropped inventory after death.",
     items: [
       "eat|Eat suitable food.", "get_food|Gather food.", "allow_food|Allow an item as food.", "forbid_food|Never eat an item.",
       "reset_food_rule|Forget a food rule.", "get_food_rules|Show food rules.", "sleep|Sleep in a bed at night.", "extinguish_fire|Put fires out with a water bucket.",
+      "dropped_items|Show remembered drops from a death.", "recover_drops|Return to collect recoverable drops.", "forget_drops|Clear a remembered death drop record.",
       "~Hunger model|Food, saturation, exhaustion, regeneration, starvation.", "~Fire reflex|Reacts to nearby flames automatically.",
       "~Self-care reflex|Spends its own water bucket, milk, golden apples and potions to stay alive.",
-      "~Death and respawn|Inventory and queue return with the new body." ] },
+      "~Death and respawn|The companion records its drops and can return for them." ] },
   { id: "farming", domain: "hands", name: "Farming & Animals", icon: "🌾", color: COLORS.emerald,
     desc: "Plans a field, plants, tends and harvests; works with animals and fishing.",
     items: [
@@ -106,6 +107,7 @@ const CATS = [
     items: [
       "set_goal|Set the main goal (owner).", "update_goal|Update progress.", "finish_goal|Close a goal.", "queue_add|Add a step.",
       "queue_show|Show the queue.", "queue_edit|Edit queued steps.", "plan_help|Explain plan syntax.", "plan_validate|Dry-run a plan.",
+      "plan_patch|Update eligible parts of an existing plan.", "set_routine|Schedule a recurring plan.", "list_routines|Show scheduled routines.", "cancel_routine|Remove a scheduled routine.",
       "request_tools|Unlock a tool group for this turn.", "stop|Stop everything.", "start_free_time|Begin autonomous time.", "end_free_time|End it.", "choose_activity|Pick what to do in free time.",
       "~LLM planner|Preliminary planning for complex orders; recovery for troubled plans, unmet goals and free time.", "~Conditional plans|If, repeat and guards over world facts.", "~Outcome checker|Compares before and after snapshots.",
       "~Recovery advisor|Classifies a failure and suggests a new remedy.", "~Quiet outcomes|Learns without narrating repeated status.", "~Shift reports|One line per blocker (missing support, an own place, a tree it cannot climb); a repeat is silent.",
@@ -148,7 +150,7 @@ const CATS = [
       "~Streamed sentences|Ordered per stream and session, with one cut-off report.", "~Early sentence|Only ordinary conversation speaks its first safe sentence before the provider finishes; a claim about work waits for the tool result.", "~Grounded reply|A reply that arrives with tool calls is spoken only after every call is accepted, so a refused order is answered by what really happened.", "~One line per plan|A successful step inside a plan stays quiet; the plan's final result is what the owner hears.", "~Local Piper voices|Five catalogued voices via sherpa-onnx.", "~OpenAI TTS|Cloud speech.", "~ElevenLabs|Cloud speech.", "~Yandex SpeechKit|Cloud speech.",
       "~Spatial audio|Equal-power pan and distance level.", "~Voice chat|Optional: with Simple Voice Chat installed the voice plays through it from the companion, so Sound Physics Remastered can shape it, and the wake word listens to what you say in voice chat; without it the built-in output and microphone are used.", "~Stop speaking key|Cuts playback instantly.", "~Off by default|Opt in from settings." ] },
   { id: "menu", domain: "senses", name: "Companion Menu", icon: "🖥️", color: COLORS.iron,
-    desc: "A tabbed control screen that pauses the companion while open. Operator-only tabs are filtered on the server.",
+    desc: "A tabbed control screen. The companion keeps working while it is open. The separate inventory view holds the companion until it closes.",
     items: [
       "~Overview|Status, health, hunger, task.", "~Toggles|Per-companion switches.", "~Tasks|Queue and history.", "~Memory|Browse and forget.", "~Skills|Instruction skills.",
       "~Places|Rename or forget places.", "~Map|Explored cells, sites and roads, never the full grid.", "~Plan controls|Pause, resume or defer the first plan from the menu.", "~Appearance|Name and custom skin.", "~Traders|Known trades.", "~Log and Debug|Operator-only brain log with trace and execution prefixes, plus the incident bundle.", "~Settings screen|YACL, optional." ] }
@@ -181,6 +183,7 @@ const CODE = {
   "follow_player": ["src/main/java/dev/friendai/features/navigation/minecraft/tool/MovementTools.java", "src/main/java/dev/friendai/features/navigation/minecraft/task/FollowTask.java"],
   "stay": ["src/main/java/dev/friendai/features/navigation/minecraft/tool/MovementTools.java", "src/main/java/dev/friendai/features/navigation/minecraft/task/StayTask.java"],
   "go_to": ["src/main/java/dev/friendai/features/navigation/minecraft/tool/MovementTools.java", "src/main/java/dev/friendai/features/navigation/minecraft/task/GoToTask.java"],
+  "travel_through_portal": ["src/main/java/dev/friendai/features/navigation/minecraft/tool/MovementTools.java", "src/main/java/dev/friendai/features/navigation/minecraft/task/TravelThroughPortalTask.java"],
   "jump": ["src/main/java/dev/friendai/features/navigation/minecraft/tool/MovementTools.java", "src/main/java/dev/friendai/features/navigation/minecraft/task/JumpTask.java"],
   "set_pace": ["src/main/java/dev/friendai/features/navigation/minecraft/tool/MovementTools.java"],
   "set_follow_mode": ["src/main/java/dev/friendai/server/execution/tools/ControlTools.java"],
@@ -194,6 +197,9 @@ const CODE = {
   "mine_block_at": ["src/main/java/dev/friendai/features/mining/minecraft/tool/GatheringTools.java", "src/main/java/dev/friendai/features/mining/minecraft/task/MineBlockAtTask.java"],
   "excavate": ["src/main/java/dev/friendai/features/mining/minecraft/tool/ExcavationTools.java", "src/main/java/dev/friendai/features/mining/minecraft/task/ExcavateTask.java", "engine/src/main/java/dev/friendai/features/mining/excavation/ExcavationGeometry.java"],
   "pickup_items": ["src/main/java/dev/friendai/features/inventory/minecraft/tool/InventoryTools.java", "src/main/java/dev/friendai/features/inventory/minecraft/task/PickupItemsTask.java"],
+  "dropped_items": ["src/main/java/dev/friendai/features/survival/minecraft/tool/SurvivalTools.java"],
+  "recover_drops": ["src/main/java/dev/friendai/features/survival/minecraft/task/RecoverDropsTask.java"],
+  "forget_drops": ["src/main/java/dev/friendai/features/survival/minecraft/tool/SurvivalTools.java"],
   "find_trees": ["src/main/java/dev/friendai/features/mining/minecraft/tool/BlockInfoTools.java"],
   "find_blocks": ["src/main/java/dev/friendai/features/mining/minecraft/tool/BlockInfoTools.java"],
   "find_placed": ["src/main/java/dev/friendai/features/placements/minecraft/tool/PlacedTools.java"],
@@ -201,6 +207,8 @@ const CODE = {
   "use_block": ["src/main/java/dev/friendai/features/interaction/minecraft/tool/InteractionTools.java", "src/main/java/dev/friendai/features/interaction/minecraft/task/UseBlockTask.java"],
   "light_area": ["src/main/java/dev/friendai/features/construction/minecraft/tool/BuildingTools.java", "src/main/java/dev/friendai/features/construction/minecraft/task/LightAreaTask.java"],
   "clear_area": ["src/main/java/dev/friendai/features/construction/minecraft/tool/BuildingTools.java", "src/main/java/dev/friendai/features/construction/minecraft/task/ClearAreaTask.java"],
+  "brew_potion": ["src/main/java/dev/friendai/features/brewing/minecraft/tool/BrewTools.java", "src/main/java/dev/friendai/features/brewing/minecraft/task/BrewTask.java"],
+  "plan_brew": ["src/main/java/dev/friendai/features/brewing/minecraft/tool/BrewTools.java"],
   "preview_structure": ["src/main/java/dev/friendai/features/construction/minecraft/tool/BuildTools.java"],
   "build_structure": ["src/main/java/dev/friendai/features/construction/minecraft/tool/BuildTools.java", "src/main/java/dev/friendai/features/construction/minecraft/task/BuildTask.java"],
   "save_blueprint": ["src/main/java/dev/friendai/features/construction/minecraft/tool/BuildTools.java"],
@@ -292,6 +300,10 @@ const CODE = {
   "queue_add": ["src/main/java/dev/friendai/server/execution/tools/QueueTools.java"],
   "queue_show": ["src/main/java/dev/friendai/server/execution/tools/QueueTools.java"],
   "queue_edit": ["src/main/java/dev/friendai/server/execution/tools/QueueTools.java"],
+  "plan_patch": ["src/main/java/dev/friendai/server/execution/tools/QueueTools.java"],
+  "set_routine": ["src/main/java/dev/friendai/server/agent/tools/RoutineTools.java"],
+  "list_routines": ["src/main/java/dev/friendai/server/agent/tools/RoutineTools.java"],
+  "cancel_routine": ["src/main/java/dev/friendai/server/agent/tools/RoutineTools.java"],
   "plan_help": ["src/main/java/dev/friendai/server/execution/tools/QueueTools.java"],
   "plan_validate": ["src/main/java/dev/friendai/server/execution/tools/QueueTools.java"],
   "request_tools": ["src/main/java/dev/friendai/server/agent/tools/RoutingTools.java"],
@@ -875,11 +887,13 @@ try {
   LANG = saved === "ru" || saved === "en" ? saved : (navigator.language || "").toLowerCase().startsWith("ru") ? "ru" : "en";
 } catch (e) { /* storage blocked: keep the default */ }
 const t = (s) => (LANG === "ru" && typeof RU !== "undefined" && RU[s]) || s;
-const count = (n, key) => {
-  if (LANG !== "ru" || typeof RU_PLURALS === "undefined") return n + " " + key;
-  const f = RU_PLURALS[key], m10 = n % 10, m100 = n % 100;
-  return n + " " + (m10 === 1 && m100 !== 11 ? f[0] : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? f[1] : f[2]);
+const countLabel = (n, key) => {
+  const f = LANG === "ru" && typeof RU_PLURALS !== "undefined" && RU_PLURALS[key];
+  if (!f) return t(key);
+  const m10 = n % 10, m100 = n % 100;
+  return m10 === 1 && m100 !== 11 ? f[0] : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? f[1] : f[2];
 };
+const count = (n, key) => n + " " + countLabel(n, key);
 
 /* ---- copy a name and its file paths (double click) ---- */
 let toastTimer = 0;
@@ -987,7 +1001,28 @@ function renderGraph(box, g) {
   if (prev) { prev.ro?.disconnect(); prev.net.destroy(); }
   box.textContent = "";
   if (!box.classList.contains("main")) box.style.height = Math.round(g.h * 0.9) + "px";   // main graphs are sized by CSS to fill the screen
-  if (typeof vis === "undefined") { box.textContent = t("The graph library failed to load (check your connection)."); return; }
+  if (typeof vis === "undefined") {
+    box.classList.add("graph-list");
+    box.setAttribute("role", "region");
+    const intro = document.createElement("p");
+    intro.textContent = t("The graph library failed to load (check your connection).");
+    const list = document.createElement("ul");
+    for (const node of g.nodes) {
+      const item = document.createElement("li");
+      const title = document.createElement(node.onclick ? "button" : "strong");
+      title.textContent = node.label;
+      if (node.onclick) {
+        title.type = "button";
+        title.addEventListener("click", node.onclick);
+      }
+      const detail = document.createElement("p");
+      detail.textContent = node.desc || node.sub || "";
+      item.append(title, detail);
+      list.append(item);
+    }
+    box.append(intro, list);
+    return;
+  }
 
   const byId = {};
   g.nodes.forEach((n) => { byId[n.id] = n; });
@@ -1145,13 +1180,13 @@ const toolCount = (c) => c.items.filter((s) => !s.startsWith("~")).length;
 function buildStats() {
   const tools = new Set();
   CATS.forEach((c) => c.items.forEach((s) => { if (!s.startsWith("~")) tools.add(parseItem(s).label); }));
-  const stats = [[tools.size + "+", "tools"], [CATS.length, "categories"], ["111", "GameTest classes"], ["6", "CI shards"], ["5", "LLM protocols"], ["3", "access levels"]];
+  const stats = [[tools.size, "tools"], [CATS.length, "categories"], ["111", "GameTest classes"], ["6", "CI shards"], ["5", "LLM protocols"], ["3", "access levels"]];
   const box = $("#stats");
   box.textContent = "";
   stats.forEach(([v, l]) => {
     const d = document.createElement("div"); d.className = "stat";
     const b = document.createElement("b"); b.textContent = v;
-    const s = document.createElement("span"); s.textContent = t(l);
+    const s = document.createElement("span"); s.textContent = countLabel(Number(v), l);
     d.append(b, s); box.append(d);
   });
 }
@@ -1198,7 +1233,7 @@ let currentCat = CATS[0].id;
 function openCategory(id) {
   currentCat = id;
   switchTab("categories");
-  renderCategory();
+  $("#cat-title").focus();
 }
 function renderCategory() {
   const c = CATS.find((x) => x.id === currentCat);
