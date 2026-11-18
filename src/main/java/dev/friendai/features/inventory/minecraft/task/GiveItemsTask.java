@@ -59,12 +59,31 @@ public final class GiveItemsTask implements Task {
     private double lastOwnerZ;
     private boolean lastRouteProbeKnown;
     private long lastRouteProbe;
-    private String waitBlocker = "can't reach the owner";
+    private DeliveryFailure approachFailure = DeliveryFailure.ROUTE_BLOCKED;
     private boolean started;
     private String reasonCode = "blocked";
     private String blocker = "";
     private String nextAction = "resolve the delivery blocker and retry without spending the retained share";
     private TaskWorkResult workResult;
+
+    private enum DeliveryFailure {
+        MISSING_STOCK("missing_stock"),
+        INSUFFICIENT_STOCK("insufficient_stock"),
+        OWNER_UNAVAILABLE("owner_unavailable"),
+        ROUTE_BLOCKED("route_blocked"),
+        RESERVATION_FAILED("reservation_failed"),
+        HANDOVER_FAILED("handover_failed");
+
+        private final String code;
+
+        DeliveryFailure(String code) {
+            this.code = code;
+        }
+
+        String approachMessage() {
+            return this == OWNER_UNAVAILABLE ? "the owner is not around" : "can't reach the owner";
+        }
+    }
 
     public GiveItemsTask(ItemMatcher matcher, int count) {
         this(matcher, count, 0, false);
@@ -102,7 +121,7 @@ public final class GiveItemsTask implements Task {
         lastOwnerAvailable = false;
         lastOwnerPositionKnown = false;
         lastRouteProbeKnown = false;
-        waitBlocker = "can't reach the owner";
+        approachFailure = DeliveryFailure.ROUTE_BLOCKED;
         handedOverById.clear();
         summary = "";
         started = true;
@@ -120,12 +139,12 @@ public final class GiveItemsTask implements Task {
             pickedUp += absorbNearby(companion);
             have = carried(companion);
         }
-        if (have == 0) return failDelivery(c, "I don't have " + itemLabel());
+        if (have == 0) return failDelivery(c, DeliveryFailure.MISSING_STOCK, "I don't have " + itemLabel());
 
         ServerPlayer owner = c.owner().orElse(null);
         if (waitingForApproach) return waitForApproach(c, owner);
         if (!ownerAvailable(c, owner)) {
-            waitBlocker = "the owner is not around";
+            approachFailure = DeliveryFailure.OWNER_UNAVAILABLE;
             beginApproachWait(c, owner);
             return TaskStatus.RUNNING;
         }
@@ -133,7 +152,7 @@ public final class GiveItemsTask implements Task {
         boolean close = companion.distanceTo(owner) <= GIVE_DISTANCE;
         MoveHelper.State state = close ? MoveHelper.State.ARRIVED : mover.tick(c, owner.position());
         if (state == MoveHelper.State.STUCK) {
-            waitBlocker = "can't reach the owner";
+            approachFailure = DeliveryFailure.ROUTE_BLOCKED;
             beginApproachWait(c, owner);
             return TaskStatus.RUNNING;
         }
@@ -157,18 +176,22 @@ public final class GiveItemsTask implements Task {
                 boolean close = companion.distanceTo(owner) <= GIVE_DISTANCE;
                 MoveHelper.State state = close ? MoveHelper.State.ARRIVED : mover.tick(c, owner.position());
                 if (state == MoveHelper.State.STUCK) {
-                    waitBlocker = "can't reach the owner";
+                    approachFailure = DeliveryFailure.ROUTE_BLOCKED;
                     beginApproachWait(c, owner);
                 } else if (state == MoveHelper.State.ARRIVED || close) {
                     return handOver(c, owner);
                 }
                 if (approachWaitTicks >= APPROACH_WAIT_LIMIT_TICKS && waitingForApproach) {
-                    return failDelivery(c, waitBlocker);
+                    return failDelivery(c, approachFailure, approachFailure.approachMessage());
                 }
                 return TaskStatus.RUNNING;
             }
         }
-        if (approachWaitTicks >= APPROACH_WAIT_LIMIT_TICKS) return failDelivery(c, waitBlocker);
+        if (approachWaitTicks >= APPROACH_WAIT_LIMIT_TICKS) {
+            DeliveryFailure failure =
+                    ownerAvailable(c, owner) ? DeliveryFailure.ROUTE_BLOCKED : DeliveryFailure.OWNER_UNAVAILABLE;
+            return failDelivery(c, failure, failure.approachMessage());
+        }
         return TaskStatus.RUNNING;
     }
 
@@ -257,12 +280,16 @@ public final class GiveItemsTask implements Task {
         if (strict && available < count + retain) {
             return failDelivery(
                     c,
+                    DeliveryFailure.INSUFFICIENT_STOCK,
                     "need " + (count + retain) + " " + itemLabel() + " to give " + count + " and keep " + retain
                             + "; have " + available);
         }
         int wanted = Math.min(count, Math.max(0, available - retain));
         if (wanted == 0) {
-            return failDelivery(c, "not enough " + itemLabel() + " to give " + count + " and keep " + retain);
+            return failDelivery(
+                    c,
+                    DeliveryFailure.INSUFFICIENT_STOCK,
+                    "not enough " + itemLabel() + " to give " + count + " and keep " + retain);
         }
 
         int bag = InventoryOps.count(companion.inventory(), matcher);
@@ -286,7 +313,9 @@ public final class GiveItemsTask implements Task {
         if (removed != wanted) {
             restore(companion, taken);
             return failDelivery(
-                    c, "could only reserve " + removed + " of " + wanted + " " + itemLabel() + " for handover");
+                    c,
+                    DeliveryFailure.RESERVATION_FAILED,
+                    "could only reserve " + removed + " of " + wanted + " " + itemLabel() + " for handover");
         }
 
         List<ItemEntity> drops = new ArrayList<>(taken.size());
@@ -295,7 +324,8 @@ public final class GiveItemsTask implements Task {
             if (drop == null) {
                 drops.forEach(ItemEntity::discard);
                 restore(companion, taken);
-                return failDelivery(c, "could not create the owner handover for " + itemLabel());
+                return failDelivery(
+                        c, DeliveryFailure.HANDOVER_FAILED, "could not create the owner handover for " + itemLabel());
             }
             drops.add(drop);
         }
@@ -324,11 +354,11 @@ public final class GiveItemsTask implements Task {
         return TaskStatus.SUCCESS;
     }
 
-    private TaskStatus failDelivery(TaskContext c, String message) {
+    private TaskStatus failDelivery(TaskContext c, DeliveryFailure failure, String message) {
         mover.stop(c);
         c.companion().getNavigation().stop();
         summary = message;
-        reasonCode = handedOverById.isEmpty() ? "blocked" : "partial";
+        reasonCode = handedOverById.isEmpty() ? failure.code : "partial";
         blocker = message;
         nextAction = "resolve the delivery blocker and retry without spending the retained share";
         workResult = createWorkResult(c.companion());
@@ -508,7 +538,8 @@ public final class GiveItemsTask implements Task {
     @Override
     public String debugStatus() {
         return waitingForApproach
-                ? "waiting for owner route " + approachWaitTicks + "/" + APPROACH_WAIT_LIMIT_TICKS + ": " + waitBlocker
+                ? "waiting for owner route " + approachWaitTicks + "/" + APPROACH_WAIT_LIMIT_TICKS + ": "
+                        + approachFailure.approachMessage()
                 : mover.debugStatus();
     }
 

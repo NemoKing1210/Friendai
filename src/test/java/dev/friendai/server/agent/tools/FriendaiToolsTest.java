@@ -50,12 +50,20 @@ class FriendaiToolsTest {
     }
 
     @Test
-    void giveItemsNotesThatTheOwnersRequestIsThePermission() {
+    void giveItemsGuidanceCoversRecipientQuantityReserveAndConsent() {
         FriendaiTools.Builtins builtins = FriendaiTools.build(() -> 8, MemoryAccess.DISABLED);
         String note = builtins.catalog().meta("give_items").orElseThrow().whenToUse();
 
-        assertTrue(note.contains("finish a job that was for the owner"), note);
-        assertTrue(note.contains("their request is the permission"), note);
+        for (String concept : List.of(
+                "authenticated",
+                "owner",
+                "count=<owner share>",
+                "retain=<companion share>",
+                "strict=true",
+                "request",
+                "permission")) {
+            assertTrue(note.contains(concept), "missing delivery guidance for " + concept + ": " + note);
+        }
     }
 
     private static void assertBefore(List<String> names, String first, String second) {

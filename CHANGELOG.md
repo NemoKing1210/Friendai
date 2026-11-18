@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.221.4] - 2026-11-18
+
+### Fixed
+
+- Delivery diagnostics identify missing or reserved stock, an unavailable owner, a blocked route and a failed handover.
+
 ## [0.221.3] - 2026-11-18
 
 ### Fixed

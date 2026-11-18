@@ -1,8 +1,12 @@
 package dev.friendai.test;
 
+import com.google.gson.JsonParser;
+import dev.friendai.agent.llm.model.ToolCall;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.execution.TaskWorkResult;
+import dev.friendai.execution.tool.AccessLevel;
+import dev.friendai.execution.tool.Caller;
 import dev.friendai.features.inventory.minecraft.task.DropItemsTask;
 import dev.friendai.features.inventory.minecraft.task.GiveItemsTask;
 import dev.friendai.features.inventory.minecraft.task.PickupItemsTask;
@@ -13,6 +17,7 @@ import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.inventory.ItemMatcher;
 import dev.friendai.task.queue.CompanionGuardFacts;
 import java.util.List;
+import java.util.Optional;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -30,11 +35,24 @@ public class ItemTaskTests {
     private static final class Result implements TaskEventSink {
         TaskStatus status;
         String summary;
+        Optional<TaskWorkResult> receipt = Optional.empty();
 
         @Override
         public void onFinished(int id, String toolName, TaskStatus status, String summary) {
             this.status = status;
             this.summary = summary;
+        }
+
+        @Override
+        public void onFinished(
+                int id,
+                long planId,
+                String toolName,
+                TaskStatus status,
+                String summary,
+                Optional<TaskWorkResult> receipt) {
+            this.receipt = receipt;
+            onFinished(id, toolName, status, summary);
         }
 
         @Override
@@ -275,6 +293,75 @@ public class ItemTaskTests {
     }
 
     @GameTest(structure = GameTestArenas.ARENA_16)
+    public void trustedQueuedDeliveryStillGoesToTheOwner(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        var owner = GameTestSupport.onlinePlayer(h, "give-owner", 5.5, 2, 3.5, true);
+        var requester = GameTestSupport.onlinePlayer(h, "give-requester", 1.5, 2, 3.5, true);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 3, 2, 3);
+        c.setOwner(owner.id());
+        c.inventory().addItem(new ItemStack(Items.CARROT, 5));
+        var runner = c.executionCoordinator();
+        runner.setPaused(true);
+        var events = new Result();
+        runner.setEventSink(events);
+        var executor = GameTestToolRegistry.create(c, () -> 8).bind(c);
+        String raw = "{\"item\":\"minecraft:carrot\",\"count\":2,\"retain\":4,\"strict\":true}";
+        var args = JsonParser.parseString(raw).getAsJsonObject();
+        var call = new ToolCall("delivery", "give_items", args, raw, null);
+        var guest = new Caller(requester.id(), "", AccessLevel.GUEST);
+        h.assertTrue(executor.execute(call, guest).error(), "a guest cannot queue a handover");
+        h.assertValueEqual(runner.queue().jobCount(), 0, "denied work leaves the queue untouched");
+
+        GameTestSupport.runtime(h)
+                .memory()
+                .book(owner.id())
+                .setTrusted(requester.id(), requester.player().getName().getString(), true, h.getTick());
+        var trusted = new Caller(requester.id(), "", AccessLevel.TRUSTED);
+        h.assertTrue(!executor.execute(call, trusted).error(), "the trusted caller may request delivery to the owner");
+        var job = runner.queue().jobs().getFirst();
+        h.assertValueEqual(job.principal(), requester.id(), "queued work keeps the authenticated requester");
+        h.assertValueEqual(job.args(), args, "the queue preserves count, retained share and strictness");
+        runner.setPaused(false);
+        for (int i = 0; i < 8 && events.status == null; i++) runner.tick();
+
+        h.assertValueEqual(events.status, TaskStatus.FAILED, "queued strict delivery refuses short stock");
+        var refused = events.receipt.orElseThrow();
+        h.assertValueEqual(refused.reasonCode(), "insufficient_stock", "queued failure identifies the shortage");
+        h.assertTrue(
+                refused.lines().stream()
+                        .noneMatch(row -> row.evidence() == TaskWorkResult.Evidence.HANDED_OVER && row.verified() > 0),
+                "strict shortage delivers nothing");
+        h.assertValueEqual(c.inventory().countItem(Items.CARROT), 5, "short stock remains carried");
+
+        c.inventory().addItem(new ItemStack(Items.CARROT));
+        events.status = null;
+        h.assertTrue(!executor.execute(call, trusted).error(), "the same order can run with enough stock");
+        for (int i = 0; i < 8 && events.status == null; i++) runner.tick();
+
+        h.assertValueEqual(events.status, TaskStatus.SUCCESS, "the admitted delivery completed");
+        h.assertValueEqual(c.inventory().countItem(Items.CARROT), 4, "the companion keeps the retained share");
+        h.assertValueEqual(
+                events.receipt.orElseThrow().lines(),
+                List.of(
+                        new TaskWorkResult.Line("minecraft:carrot", 2, 2, TaskWorkResult.Evidence.HANDED_OVER),
+                        new TaskWorkResult.Line("minecraft:carrot", 4, 4, TaskWorkResult.Evidence.CARRIED)),
+                "the receipt measures transfer and reserve independently");
+        ItemEntity handover = h.getLevel()
+                .getEntitiesOfClass(
+                        ItemEntity.class,
+                        c.getBoundingBox().inflate(4),
+                        drop -> drop.getItem().is(Items.CARROT))
+                .getFirst();
+        h.assertTrue(
+                handover.getDeltaMovement().dot(owner.player().position().subtract(handover.position())) > 0,
+                "the delivery goes toward the owner");
+        h.assertTrue(
+                handover.getDeltaMovement().dot(requester.player().position().subtract(handover.position())) < 0,
+                "the requester cannot redirect the delivery");
+        h.succeed();
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16)
     public void strictTransferRefusesWhenReservedStockIsMissing(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 4.5, 2, 2.5);
@@ -283,11 +370,13 @@ public class ItemTaskTests {
         c.inventory().addItem(new ItemStack(Items.STONE_AXE));
         Result result = new Result();
         ExecutionCoordinator runner = runner(c, result);
-        runner.start(
-                new GiveItemsTask(ItemMatcher.parse("minecraft:stone_axe").orElseThrow(), 1, 1, true), "give_items");
+        GiveItemsTask task =
+                new GiveItemsTask(ItemMatcher.parse("minecraft:stone_axe").orElseThrow(), 1, 1, true);
+        runner.start(task, "give_items");
         runner.tick();
 
         h.assertTrue(result.status == TaskStatus.FAILED, "strict transfer needs the requested item plus its reserve");
+        h.assertValueEqual(task.workResult().orElseThrow().reasonCode(), "insufficient_stock", "typed delivery cause");
         h.assertValueEqual(c.inventory().countItem(Items.STONE_AXE), 1, "the available axe remains carried");
         h.assertValueEqual(
                 h.getLevel().getEntitiesOfClass(ItemEntity.class, new AABB(owner.blockPosition()).inflate(8)).stream()

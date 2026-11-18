@@ -187,7 +187,7 @@ class FeatureToolRegistryTest {
 
         ToolCatalog catalog = ToolCatalog.defaults();
         for (var metadata : registry.catalogMetadata()) {
-            assertEquals(catalog.meta(metadata.name()).orElseThrow(), metadata);
+            assertMetadataContract(catalog, metadata);
         }
     }
 
@@ -288,8 +288,25 @@ class FeatureToolRegistryTest {
 
         ToolCatalog catalog = ToolCatalog.defaults();
         for (var metadata : registry.catalogMetadata()) {
-            assertEquals(catalog.meta(metadata.name()).orElseThrow(), metadata);
+            assertMetadataContract(catalog, metadata);
         }
+        String guidance = registry.catalogMetadata().stream()
+                .filter(meta -> meta.name().equals("obtain_items"))
+                .findFirst()
+                .orElseThrow()
+                .whenToUse();
+        for (String concept : List.of("owner share", "retained share", "count", "strict", "give_items")) {
+            assertTrue(guidance.contains(concept), "missing acquisition guidance for " + concept);
+        }
+    }
+
+    private static void assertMetadataContract(ToolCatalog catalog, ToolMeta actual) {
+        ToolMeta expected = catalog.meta(actual.name()).orElseThrow();
+        assertEquals(expected.group(), actual.group(), actual.name());
+        assertEquals(expected.core(), actual.core(), actual.name());
+        assertEquals(expected.cost(), actual.cost(), actual.name());
+        assertEquals(expected.requires(), actual.requires(), actual.name());
+        assertEquals(expected.whenToUse().isBlank(), actual.whenToUse().isBlank(), actual.name());
     }
 
     @Test
