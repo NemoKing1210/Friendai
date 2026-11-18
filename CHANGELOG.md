@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.221.5] - 2026-11-18
+
+### Fixed
+
+- Tool calls and queued plans validate nested arguments and reject non-finite numbers. Fire and honey tasks reject incomplete coordinates before selecting a target.
+
 ## [0.221.4] - 2026-11-18
 
 ### Fixed

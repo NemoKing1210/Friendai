@@ -227,6 +227,9 @@ public final class QueueParser {
             JsonObject normalized;
             try {
                 normalized = normalizer.apply(args.deepCopy());
+            } catch (IllegalArgumentException rejected) {
+                errors.add(path(path, rejected.getMessage()));
+                return null;
             } catch (RuntimeException e) {
                 normalized = null;
             }

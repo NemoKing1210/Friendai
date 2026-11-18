@@ -948,17 +948,12 @@ public final class QueueTools implements FeatureToolContributor {
 
     /**
      * Applies a tool's documented alias to edited arguments, so a repair is not refused for a form a top-level call
-     * accepts. A normalizer that throws or returns nothing leaves the arguments untouched for validation to report.
+     * accepts. A rejected normalization cannot be committed as a queue edit.
      */
     static JsonObject normalizeEditArgs(TaskToolDefinition definition, JsonObject args) {
         if (definition == null || args == null) return args;
-        JsonObject shaped = args;
-        try {
-            JsonObject normalized = definition.normalizer().apply(args);
-            if (normalized != null) shaped = normalized;
-        } catch (RuntimeException e) {
-            // The arguments stay as written; validation reports what is wrong with them.
-        }
+        JsonObject shaped = definition.normalizer().apply(args);
+        if (shaped == null) throw new IllegalArgumentException("arguments cannot be normalized");
         // A quoted number or flag is repaired here as it is for a direct call and a plan step.
         return ArgCoercion.coerce(definition.schema(), shaped);
     }
@@ -989,9 +984,7 @@ public final class QueueTools implements FeatureToolContributor {
 
     private static dev.friendai.task.Task createTask(
             TaskToolDefinition def, CompanionEntity c, Caller caller, JsonObject args) {
-        return def.callerFactory() == null
-                ? def.factory().create(c, args.deepCopy())
-                : def.callerFactory().create(c, caller, args.deepCopy());
+        return TaskToolRuntime.create(def, c, caller, args);
     }
 
     private static String validateGuards(List<QueuedStep> steps) {

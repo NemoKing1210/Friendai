@@ -1,5 +1,6 @@
 package dev.friendai.execution.tool;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
@@ -13,8 +14,8 @@ import java.util.regex.Pattern;
  * so refusing it only costs another request and usually the same mistake again.
  *
  * <p>Only a top-level property whose schema names {@code integer}, {@code number} or {@code boolean} is touched, and
- * only when the whole string is that value. Everything else reaches {@link ArgValidator} unchanged, so a wrong type
- * is still an error result.
+ * only when the whole string is that value. Optional nulls without an explicit null type are omitted at any depth.
+ * Wrong types still reach {@link ArgValidator}.
  */
 public final class ArgCoercion {
     private static final Pattern INTEGER = Pattern.compile("-?\\d{1,18}");
@@ -22,35 +23,98 @@ public final class ArgCoercion {
 
     private ArgCoercion() {}
 
-    /** The arguments with quoted scalars unquoted, or the input itself when nothing needed repair. Never mutates it. */
+    /** Repairs the arguments without mutating the caller's object. */
     public static JsonObject coerce(JsonObject schema, JsonObject args) {
-        if (schema == null
-                || args == null
-                || !schema.has("properties")
-                || !schema.get("properties").isJsonObject()) {
+        return schema == null || args == null ? args : repairObject(schema, args, true);
+    }
+
+    private static JsonObject repairObject(JsonObject schema, JsonObject args, boolean coerceScalars) {
+        JsonElement properties = schema.get("properties");
+        if (properties == null || !properties.isJsonObject()) {
             return args;
         }
         JsonObject repaired = null;
         for (Map.Entry<String, JsonElement> property :
-                schema.getAsJsonObject("properties").entrySet()) {
-            JsonElement value = args.get(property.getKey());
-            if (value == null
-                    || !value.isJsonPrimitive()
-                    || !value.getAsJsonPrimitive().isString()
-                    || !property.getValue().isJsonObject()) {
+                properties.getAsJsonObject().entrySet()) {
+            String name = property.getKey();
+            JsonElement value = args.get(name);
+            if (value == null || !property.getValue().isJsonObject()) {
                 continue;
             }
-            JsonPrimitive typed = typed(
-                    property.getValue().getAsJsonObject(), value.getAsString().strip());
-            if (typed == null) {
+            JsonObject spec = property.getValue().getAsJsonObject();
+            JsonElement replacement = value;
+            if (value.isJsonNull() && !ArgValidator.declaresNull(spec) && !required(schema, name)) {
+                replacement = null;
+            } else if (coerceScalars
+                    && value.isJsonPrimitive()
+                    && value.getAsJsonPrimitive().isString()) {
+                JsonPrimitive typed = typed(spec, value.getAsString().strip());
+                replacement = typed == null ? value : typed;
+            } else {
+                replacement = repairNested(spec, value);
+            }
+            if (replacement == value) {
                 continue;
             }
             if (repaired == null) {
                 repaired = args.deepCopy();
             }
-            repaired.add(property.getKey(), typed);
+            if (replacement == null) {
+                repaired.remove(name);
+            } else {
+                repaired.add(name, replacement);
+            }
         }
         return repaired == null ? args : repaired;
+    }
+
+    private static boolean required(JsonObject schema, String name) {
+        JsonElement required = schema.get("required");
+        return required != null
+                && required.isJsonArray()
+                && required.getAsJsonArray().contains(new JsonPrimitive(name));
+    }
+
+    private static JsonElement repairNested(JsonObject schema, JsonElement value) {
+        if (!value.isJsonObject() && !value.isJsonArray()) {
+            return value;
+        }
+        JsonElement options = schema.get("oneOf");
+        if (options != null && options.isJsonArray()) {
+            String type = value.isJsonObject() ? "object" : "array";
+            JsonObject match = null;
+            for (JsonElement option : options.getAsJsonArray()) {
+                if (option.isJsonObject()
+                        && new JsonPrimitive(type)
+                                .equals(option.getAsJsonObject().get("type"))) {
+                    if (match != null) {
+                        return value;
+                    }
+                    match = option.getAsJsonObject();
+                }
+            }
+            return match == null ? value : repairNested(match, value);
+        }
+        if (value.isJsonObject()) {
+            return repairObject(schema, value.getAsJsonObject(), false);
+        }
+        JsonElement items = schema.get("items");
+        if (items == null || !items.isJsonObject()) {
+            return value;
+        }
+        JsonArray original = value.getAsJsonArray();
+        JsonArray repaired = null;
+        for (int i = 0; i < original.size(); i++) {
+            JsonElement item = original.get(i);
+            JsonElement replacement = repairNested(items.getAsJsonObject(), item);
+            if (replacement != item) {
+                if (repaired == null) {
+                    repaired = original.deepCopy();
+                }
+                repaired.set(i, replacement);
+            }
+        }
+        return repaired == null ? value : repaired;
     }
 
     private static JsonPrimitive typed(JsonObject spec, String text) {

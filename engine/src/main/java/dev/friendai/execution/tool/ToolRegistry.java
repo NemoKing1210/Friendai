@@ -94,6 +94,8 @@ public final class ToolRegistry<C> {
         JsonObject normalized;
         try {
             normalized = tool.normalizeArguments(args);
+        } catch (IllegalArgumentException rejected) {
+            return ToolResult.error("Invalid arguments for " + call.name() + ": " + rejected.getMessage());
         } catch (RuntimeException e) {
             return invalidJson(call);
         }
