@@ -19,7 +19,6 @@ import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.SchemaBuilder;
 import dev.friendai.execution.tool.Tool;
 import dev.friendai.execution.tool.ToolResult;
-import dev.friendai.foundation.teaching.TeachingContext;
 import dev.friendai.server.execution.tools.FeatureToolContributor;
 import dev.friendai.server.execution.tools.FeatureToolRegistry;
 import java.util.ArrayList;
@@ -170,7 +169,7 @@ public final class GoalTools implements FeatureToolContributor {
                             }
                         }
                     }
-                    GoalResult<Goal> result = board.finish(
+                    GoalResult<GoalBoard.Finished> result = board.finish(
                             args.get("id").getAsLong(),
                             done,
                             args.has("reason") ? args.get("reason").getAsString() : "");
@@ -184,16 +183,9 @@ public final class GoalTools implements FeatureToolContributor {
                         }
                     }
                     if (result.ok() && companion.level() instanceof ServerLevel level) {
-                        access.skillOutcome(
-                                level,
-                                owner,
-                                "goal:" + result.value().id(),
-                                done
-                                        ? TeachingContext.OutcomeKind.GOAL_SUCCESS
-                                        : TeachingContext.OutcomeKind.GOAL_FAILURE,
-                                result.value().text());
+                        access.goalOutcome(level, owner, result.value());
                     }
-                    return result.ok() ? describe("finished", result.value()) : ToolResult.error(result.error());
+                    return result.ok() ? describe("finished", result.value().goal()) : ToolResult.error(result.error());
                 }));
     }
 

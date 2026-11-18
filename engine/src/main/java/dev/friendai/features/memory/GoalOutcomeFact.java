@@ -6,12 +6,14 @@ package dev.friendai.features.memory;
  * write, its time and its category.
  *
  * <p>The line never exceeds {@link #MAX_TEXT} characters (or the book's smaller limit), and it keeps the
- * verdict even when the goal has to be shortened. An abandoned goal with nothing verified contributes nothing,
- * so a failure the world never observed is not remembered as work.
+ * verdict even when the goal has to be shortened. An abandoned goal contributes a line when there is evidence
+ * or an explanation for the abandonment.
  */
 public final class GoalOutcomeFact {
     /** The longest line this helper produces unless the book's limit is smaller. */
     public static final int MAX_TEXT = 160;
+
+    private static final int MAX_REASON = 80;
 
     /** How a goal ended, judged by the world rather than by the model's own word. */
     public enum End {
@@ -39,27 +41,43 @@ public final class GoalOutcomeFact {
      * @return the fact text, or null when nothing durable should be written
      */
     public static String text(String goal, End end, String verifiedFact, int maxChars) {
+        return text(goal, end, verifiedFact, "", maxChars);
+    }
+
+    public static String text(String goal, End end, String verifiedFact, String abandonmentReason, int maxChars) {
         String sentence = clean(goal);
         if (sentence.isEmpty() || end == null) {
             return null;
         }
         String fact = clean(verifiedFact);
-        if (end == End.ABANDONED && fact.isEmpty()) {
+        String reason = end == End.ABANDONED ? boundedReason(abandonmentReason) : "";
+        if (end == End.ABANDONED && fact.isEmpty() && reason.isEmpty()) {
             return null;
         }
         int max = Math.max(1, Math.min(MAX_TEXT, maxChars));
         String head = "goal \"";
-        String tail = "\" \u2014 " + end.word + (fact.isEmpty() ? "" : "; " + fact);
-        int room = max - head.length() - tail.length();
-        if (room < 1) {
-            // The evidence is optional; the verdict is not. A tight limit drops the fact before the goal.
-            tail = "\" \u2014 " + end.word;
-            room = max - head.length() - tail.length();
-        }
+        String verdict = "\" \u2014 " + end.word;
+        int room = max - head.length() - verdict.length();
         if (room < 1) {
             return clip(head + end.word, max);
         }
+        String tail = verdict;
+        String reasonLabel = "; reason: ";
+        if (!reason.isEmpty() && room > reasonLabel.length() + 1) {
+            String detail = reasonLabel + clip(reason, room - reasonLabel.length() - 1);
+            tail += detail;
+            room -= detail.length();
+        }
+        if (!fact.isEmpty() && room > fact.length() + 2) {
+            tail += "; " + fact;
+            room -= fact.length() + 2;
+        }
         return head + clip(sentence, room) + tail;
+    }
+
+    /** Folds a redacted explanation to one bounded line. */
+    public static String boundedReason(String redacted) {
+        return clip(clean(redacted), MAX_REASON);
     }
 
     /** Squeezes whitespace and quotes so the sentence stays one readable memory line. */
@@ -75,6 +93,13 @@ public final class GoalOutcomeFact {
         if (text.length() <= max) {
             return text;
         }
-        return max < 2 ? text.substring(0, max) : text.substring(0, max - 1) + "\u2026";
+        if (max == 1) {
+            return Character.isHighSurrogate(text.charAt(0)) ? "\u2026" : text.substring(0, 1);
+        }
+        int end = max - 1;
+        if (end > 0 && Character.isHighSurrogate(text.charAt(end - 1))) {
+            end--;
+        }
+        return text.substring(0, end) + "\u2026";
     }
 }

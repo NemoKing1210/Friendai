@@ -314,7 +314,7 @@ const RU = {
   "The cognitive layer above the task queue: goals, a conditional plan queue, and free time when nobody is giving orders.": "Когнитивный слой над очередью задач: цели, условная очередь планов и свободное время, когда никто не отдаёт приказов.",
   "Set the main goal (owner).": "Поставить главную цель (владелец).",
   "Update progress.": "Обновить прогресс.",
-  "Close a goal.": "Закрыть цель.",
+  "Close a goal and record why it was abandoned.": "Завершить цель и записать причину отказа от неё.",
   "Add a step.": "Добавить шаг.",
   "Show the queue.": "Показать очередь.",
   "Edit queued steps.": "Изменить шаги в очереди.",

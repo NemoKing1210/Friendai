@@ -1,7 +1,7 @@
 package dev.friendai.server.agent.tools;
 
+import dev.friendai.agent.goal.GoalBoard;
 import dev.friendai.agent.goal.GoalService;
-import dev.friendai.foundation.teaching.TeachingContext;
 import java.util.UUID;
 import net.minecraft.server.level.ServerLevel;
 
@@ -9,5 +9,5 @@ import net.minecraft.server.level.ServerLevel;
 public interface GoalToolAccess {
     GoalService goals(ServerLevel level);
 
-    void skillOutcome(ServerLevel level, UUID owner, String source, TeachingContext.OutcomeKind kind, String summary);
+    void goalOutcome(ServerLevel level, UUID owner, GoalBoard.Finished outcome);
 }

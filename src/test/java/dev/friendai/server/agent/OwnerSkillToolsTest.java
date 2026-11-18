@@ -11,6 +11,7 @@ import dev.friendai.features.memory.CompanionProfile;
 import dev.friendai.features.memory.CompanionProfileRepository;
 import dev.friendai.features.memory.MemoryBook;
 import dev.friendai.features.memory.Subject;
+import dev.friendai.foundation.diagnostics.SecretRedactor;
 import dev.friendai.foundation.teaching.TeachingContext.OutcomeKind;
 import dev.friendai.infrastructure.config.ServerConfig;
 import dev.friendai.server.instructions.SkillService;
@@ -33,6 +34,31 @@ class OwnerSkillToolsTest {
     private final ServerConfig config = ServerConfig.defaults();
     private final List<BrainEvent> posted = new ArrayList<>();
     private final GoalOutcomeRecorder outcomes = new GoalOutcomeRecorder(() -> config, id -> book);
+
+    @Test
+    void anAbandonedGoalRedactsAndBoundsItsReasonBeforePostingAndRemembering() {
+        config.skills.enabled = true;
+        try (SkillService skills = new SkillService(dir.resolve("skills"), () -> config, new Profiles(), null)) {
+            OwnerSkillTools tools = tools(skills);
+
+            tools.outcome(
+                    owner,
+                    "goal:7",
+                    OutcomeKind.GOAL_FAILURE,
+                    "Find a village",
+                    "  Access denied with test-secret\n " + "details ".repeat(20));
+
+            BrainEvent.SkillOutcome event = assertInstanceOf(BrainEvent.SkillOutcome.class, posted.getFirst());
+            String prefix = "Find a village; reason: ";
+            assertTrue(event.summary().startsWith(prefix + "Access denied with *** details "));
+            assertEquals(80, event.summary().length() - prefix.length());
+            assertEquals(OutcomeKind.GOAL_FAILURE, event.kind());
+            assertEquals(
+                    List.of("goal \"Find a village\" — abandoned, unverified; reason: "
+                            + event.summary().substring(prefix.length())),
+                    factTexts());
+        }
+    }
 
     @Test
     void anEnabledOutcomeReachesTheBrainAndTheGoalMemory() {
@@ -87,7 +113,8 @@ class OwnerSkillToolsTest {
                 id -> SkillTurnSession.NONE,
                 id -> null,
                 (id, event) -> posted.add(event),
-                outcomes);
+                outcomes,
+                SecretRedactor.of(() -> List.of("test-secret")));
     }
 
     private List<String> factTexts() {

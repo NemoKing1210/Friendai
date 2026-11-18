@@ -18,6 +18,8 @@ public final class GoalBoard {
     public static final int MAX_LESSONS = 5;
     public static final int MAX_LESSON_TEXT = 160;
 
+    public record Finished(Goal goal, String reason) {}
+
     private final int maxBackground;
     private final int maxReplans;
     private final List<Goal> goals = new ArrayList<>();
@@ -139,14 +141,14 @@ public final class GoalBoard {
     }
 
     /** Ends a goal as done or abandoned and removes it from the board. */
-    public GoalResult<Goal> finish(long id, boolean done, String reason) {
+    public GoalResult<Finished> finish(long id, boolean done, String reason) {
         Optional<Goal> found = find(id);
         if (found.isEmpty()) {
             return GoalResult.fail("No goal #" + id + ".");
         }
         Goal ended = found.get().withStatus(done ? GoalStatus.DONE : GoalStatus.ABANDONED);
         goals.removeIf(g -> g.id() == id);
-        return GoalResult.ok(ended);
+        return GoalResult.ok(new Finished(ended, reason));
     }
 
     public void linkPlan(long goalId, long planId) {

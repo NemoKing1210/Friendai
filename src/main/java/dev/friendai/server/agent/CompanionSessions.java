@@ -4,7 +4,9 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.friendai.FriendaiMod;
+import dev.friendai.agent.goal.GoalBoard;
 import dev.friendai.agent.goal.GoalService;
+import dev.friendai.agent.goal.GoalStatus;
 import dev.friendai.agent.llm.model.Message;
 import dev.friendai.agent.llm.model.ToolCall;
 import dev.friendai.agent.llm.model.ToolSpec;
@@ -61,6 +63,7 @@ import dev.friendai.features.trading.TradeAuthority;
 import dev.friendai.features.trading.TradePromptSummary;
 import dev.friendai.foundation.diagnostics.DebugLog;
 import dev.friendai.foundation.diagnostics.LogKind;
+import dev.friendai.foundation.teaching.TeachingContext.OutcomeKind;
 import dev.friendai.infrastructure.config.ServerConfig;
 import dev.friendai.infrastructure.persistence.memory.MemoryStore;
 import dev.friendai.infrastructure.persistence.places.PlaceStore;
@@ -177,7 +180,8 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                     return session == null ? null : session.teachingContext();
                 },
                 this::post,
-                goalOutcomes);
+                goalOutcomes,
+                gateways.redactor());
         this.transcripts = transcripts;
         this.profiles = profiles;
         this.settings = settings;
@@ -631,13 +635,18 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
     }
 
     @Override
-    public void skillOutcome(
-            ServerLevel level,
-            UUID owner,
-            String source,
-            dev.friendai.foundation.teaching.TeachingContext.OutcomeKind kind,
-            String summary) {
-        if (level.getServer() == server) skillOutcome(owner, source, kind, summary);
+    public void goalOutcome(ServerLevel level, UUID owner, GoalBoard.Finished outcome) {
+        if (level.getServer() != server) {
+            return;
+        }
+        var goal = outcome.goal();
+        boolean abandoned = goal.status() == GoalStatus.ABANDONED;
+        ownerSkills.outcome(
+                owner,
+                "goal:" + goal.id(),
+                abandoned ? OutcomeKind.GOAL_FAILURE : OutcomeKind.GOAL_SUCCESS,
+                goal.text(),
+                abandoned ? outcome.reason() : "");
     }
 
     @Override

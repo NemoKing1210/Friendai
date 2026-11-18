@@ -105,7 +105,7 @@ const CATS = [
   { id: "planning", domain: "mind", name: "Goals & Planning", icon: "🎯", color: COLORS.nether,
     desc: "The cognitive layer above the task queue: goals, a conditional plan queue, and free time when nobody is giving orders.",
     items: [
-      "set_goal|Set the main goal (owner).", "update_goal|Update progress.", "finish_goal|Close a goal.", "queue_add|Add a step.",
+      "set_goal|Set the main goal (owner).", "update_goal|Update progress.", "finish_goal|Close a goal and record why it was abandoned.", "queue_add|Add a step.",
       "queue_show|Show the queue.", "queue_edit|Edit queued steps.", "plan_help|Explain plan syntax.", "plan_validate|Dry-run a plan.",
       "plan_patch|Update eligible parts of an existing plan.", "set_routine|Schedule a recurring plan.", "list_routines|Show scheduled routines.", "cancel_routine|Remove a scheduled routine.",
       "request_tools|Unlock a tool group for this turn.", "stop|Stop everything.", "start_free_time|Begin autonomous time.", "end_free_time|End it.", "choose_activity|Pick what to do in free time.",

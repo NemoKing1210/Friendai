@@ -255,12 +255,10 @@ public final class FriendaiTools {
             }
 
             @Override
-            public void skillOutcome(
+            public void goalOutcome(
                     net.minecraft.server.level.ServerLevel level,
                     java.util.UUID owner,
-                    String source,
-                    dev.friendai.foundation.teaching.TeachingContext.OutcomeKind kind,
-                    String summary) {}
+                    dev.friendai.agent.goal.GoalBoard.Finished outcome) {}
         };
         SkillToolAccess skills = new SkillToolAccess() {
             @Override
