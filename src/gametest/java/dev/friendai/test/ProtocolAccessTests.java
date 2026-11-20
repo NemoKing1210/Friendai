@@ -2,6 +2,7 @@ package dev.friendai.test;
 
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.foundation.diagnostics.LogKind;
+import dev.friendai.foundation.limits.RateLimiter;
 import dev.friendai.protocol.ClientRequestCodec;
 import dev.friendai.protocol.DecodeResult;
 import dev.friendai.protocol.ProtocolCapabilities;
@@ -61,6 +62,46 @@ public class ProtocolAccessTests {
         h.assertTrue(
                 memory.book(guest.getUUID()).isTrusted(owner.getUUID()), "requester trust state should be updated");
         h.assertTrue(memory.book(owner.getUUID()).trusted().isEmpty(), "target player's book must remain unchanged");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 100)
+    public void sameTickMenuReopenStillRegistersWhenTheSnapshotIsCoalesced(GameTestHelper h) {
+        ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        var runtime = GameTestSupport.runtime(h.getLevel().getServer());
+        var debug = runtime.sessions().debug();
+        try {
+            TestMenuRequests.handle(player, new ControlRequest.Subscribe(), 1);
+            h.assertTrue(debug.subscribers().contains(player.getUUID()), "the first open subscribes");
+            TestMenuRequests.handle(player, new ControlRequest.Unsubscribe(), 2);
+            h.assertFalse(debug.subscribers().contains(player.getUUID()), "the close removes the first subscription");
+            TestMenuRequests.handle(player, new ControlRequest.Subscribe(), 3);
+            h.assertTrue(debug.subscribers().contains(player.getUUID()), "a coalesced reopen still subscribes");
+        } finally {
+            runtime.debugStream().closeMenu(runtime, player.getUUID());
+        }
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 100)
+    public void throttledMenuOpenStillRegistersTheSubscription(GameTestHelper h) {
+        ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        var runtime = GameTestSupport.runtime(h.getLevel().getServer());
+        var connections = runtime.protocolConnections();
+        RateLimiter original = connections.controlLimiter();
+        RateLimiter exhausted = new RateLimiter(300, () -> 0);
+        connections.setControlLimiterForTest(exhausted);
+        try {
+            h.assertTrue(exhausted.tryAcquire(player.getUUID()), "the first request acquires the throttle");
+            var context = new AuthenticatedRequestContext(player, UUID.randomUUID(), 11, runtime);
+            ServerRequestDispatcher.handle(context, new ControlRequest.Subscribe());
+            h.assertTrue(
+                    runtime.sessions().debug().subscribers().contains(player.getUUID()),
+                    "throttle defers only delivery");
+        } finally {
+            connections.setControlLimiterForTest(original);
+            runtime.debugStream().closeMenu(runtime, player.getUUID());
+        }
         h.succeed();
     }
 

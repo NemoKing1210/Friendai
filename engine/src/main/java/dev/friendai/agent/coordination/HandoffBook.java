@@ -9,8 +9,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Bounded in-memory handoff offers, one per owner pair. Taking an offer consumes it; a failed transfer leaves the
- * items where they are and does not silently replay the offer.
+ * Bounded in-memory handoff offers, one per owner pair. A failed handoff can be retried while it is open.
  */
 public final class HandoffBook {
     public static final int MAX_OPEN = 4;
@@ -30,7 +29,7 @@ public final class HandoffBook {
         return request == null || request.expired(now) ? Optional.empty() : Optional.of(request);
     }
 
-    /** Consumes an offer; the caller must revalidate the meeting, items and capacity before moving anything. */
+    /** Consumes an offer after its transfer has committed. */
     public Optional<HandoffRequest> take(UUID fromOwner, UUID toOwner, long now) {
         HandoffRequest request = open.remove(new Pair(fromOwner, toOwner));
         return request == null || request.expired(now) ? Optional.empty() : Optional.of(request);

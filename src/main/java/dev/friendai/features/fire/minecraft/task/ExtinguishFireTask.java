@@ -17,14 +17,12 @@ import dev.friendai.world.block.BlockBreaker;
 import dev.friendai.world.movement.Approach;
 import dev.friendai.world.movement.MoveHelper;
 import java.util.List;
-import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.CampfireBlock;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 /**
@@ -39,6 +37,9 @@ public final class ExtinguishFireTask implements Task {
     public static final int TIMEOUT_TICKS = 600;
 
     private static final int REPLANS = 1;
+    private static final int ENTITY_SCAN_INTERVAL = 5;
+    private static final int ENTITY_DOUSE_TICKS = 20;
+    private static final int ENTITY_RECOVERY_TICKS = 40;
 
     private final FireTarget target;
     private final int radius;
@@ -57,6 +58,11 @@ public final class ExtinguishFireTask implements Task {
     private boolean recovered = true;
     /** A source this task poured and has not taken back yet; the cleanup task owns it if the task is cancelled. */
     private BlockPos pendingSource;
+
+    private ServerLevel entityLevel;
+    private BlockPos plannedEntityCell;
+    private int nextEntityScan;
+    private int pouredAt;
 
     private String summary = "";
 
@@ -93,7 +99,11 @@ public final class ExtinguishFireTask implements Task {
 
     @Override
     public void start(TaskContext c) {
-        replan(c);
+        if (target instanceof FireTarget.BurningEntity) {
+            entityLevel = c.level();
+        } else {
+            replan(c);
+        }
     }
 
     @Override
@@ -101,6 +111,9 @@ public final class ExtinguishFireTask implements Task {
         ticks++;
         if (ticks > TIMEOUT_TICKS) {
             return fail("it took too long");
+        }
+        if (target instanceof FireTarget.BurningEntity entity) {
+            return tickEntity(c, entity);
         }
         if (plan == null) {
             replan(c);
@@ -137,6 +150,104 @@ public final class ExtinguishFireTask implements Task {
         return settle();
     }
 
+    private TaskStatus tickEntity(TaskContext c, FireTarget.BurningEntity wanted) {
+        LivingEntity entity = trackedEntity(c, wanted);
+        if (pendingSource != null) {
+            return recoverEntityWater(c, entity);
+        }
+        if (entity == null) {
+            return entityFailure("I lost the burning mob");
+        }
+        if (!entity.isOnFire()) {
+            return entitySuccess();
+        }
+        BlockPos cell = entity.blockPosition();
+        if (plan == null || !cell.equals(plannedEntityCell)) {
+            stop(c);
+            if (ticks < nextEntityScan) {
+                return TaskStatus.RUNNING;
+            }
+            plannedEntityCell = cell;
+            live = new FireTarget.BurningEntity(
+                    wanted.id(), Pos.of(cell.getX(), cell.getY(), cell.getZ()), wanted.kind());
+            replan(c);
+            nextEntityScan = ticks + ENTITY_SCAN_INTERVAL;
+        }
+        if (plan.steps().isEmpty()) {
+            // Rain may finish the work. Check the mob again every tick and periodically reconsider pouring.
+            plan = null;
+            return TaskStatus.RUNNING;
+        }
+        return switch (plan.steps().getFirst()) {
+            case ExtinguishStep.GiveUp giveUp -> entityFailure(giveUp.reason());
+            case ExtinguishStep.PlaceWater water ->
+                switch (pour(c, water.pos(), false)) {
+                    case RUNNING -> TaskStatus.RUNNING;
+                    case DONE -> {
+                        pouredAt = ticks;
+                        yield TaskStatus.RUNNING;
+                    }
+                    case REFUSED -> retryEntityDouse();
+                };
+            default -> entityFailure("I could not make a plan to put out the mob's fire");
+        };
+    }
+
+    private LivingEntity trackedEntity(TaskContext c, FireTarget.BurningEntity wanted) {
+        if (c.level() == entityLevel
+                && entityLevel.getEntity(wanted.id()) instanceof LivingEntity living
+                && living.isAlive()) {
+            return living;
+        }
+        return null;
+    }
+
+    private TaskStatus recoverEntityWater(TaskContext c, LivingEntity entity) {
+        boolean burning = entity != null && entity.isOnFire();
+        if (burning && ticks - pouredAt < ENTITY_DOUSE_TICKS) {
+            return TaskStatus.RUNNING;
+        }
+        if (c.level() == entityLevel && entityLevel.isLoaded(pendingSource)) {
+            FireHands hands = new FireHands(c);
+            if (hands.holdsSource(pendingSource)) {
+                Approach.State state = approach(c, pendingSource);
+                if (state == Approach.State.MOVING && ticks - pouredAt < ENTITY_RECOVERY_TICKS) {
+                    return TaskStatus.RUNNING;
+                }
+                recovered = state == Approach.State.IN_REACH && hands.recoverSource(pendingSource) == null;
+            } else {
+                recovered = false;
+            }
+        } else {
+            recovered = false;
+        }
+        pendingSource = null;
+        if (entity == null) {
+            return entityFailure("I lost the burning mob");
+        }
+        if (!burning) {
+            return entitySuccess();
+        }
+        return recovered ? retryEntityDouse() : entityFailure("the mob is still burning");
+    }
+
+    private TaskStatus retryEntityDouse() {
+        if (replans++ >= REPLANS) {
+            return entityFailure("the fire on the mob would not go out");
+        }
+        plan = null;
+        return TaskStatus.RUNNING;
+    }
+
+    private TaskStatus entitySuccess() {
+        summary = "the fire on the mob is out" + (recovered ? "" : " (the poured water was not recovered)");
+        return TaskStatus.SUCCESS;
+    }
+
+    private TaskStatus entityFailure(String reason) {
+        return fail(reason + (recovered ? "" : " (the poured water was not recovered)"));
+    }
+
     /**
      * A cancelled douse must not leave its source behind: the runner starts {@link RecoverWaterTask} for a source
      * that was poured but not yet taken back.
@@ -148,7 +259,25 @@ public final class ExtinguishFireTask implements Task {
         }
         BlockPos source = pendingSource;
         pendingSource = null;
+        if (target instanceof FireTarget.BurningEntity && c.level() != entityLevel) {
+            return null;
+        }
         return new RecoverWaterTask(Pos.of(source.getX(), source.getY(), source.getZ()));
+    }
+
+    @Override
+    public void onTerminal(TaskContext c) {
+        if (!(target instanceof FireTarget.BurningEntity)) {
+            return;
+        }
+        stop(c);
+        if (pendingSource != null && c.level() == entityLevel && entityLevel.isLoaded(pendingSource)) {
+            FireHands hands = new FireHands(c);
+            if (hands.holdsSource(pendingSource)) {
+                hands.recoverSource(pendingSource);
+            }
+            pendingSource = null;
+        }
     }
 
     @Override
@@ -338,10 +467,7 @@ public final class ExtinguishFireTask implements Task {
             case FireTarget.Self self -> !c.companion().isOnFire();
             case FireTarget.Owner owner ->
                 c.owner().map(ownerPlayer -> !ownerPlayer.isOnFire()).orElse(true);
-            case FireTarget.BurningEntity entity ->
-                burningEntity(level, blockPos(entity.pos()))
-                        .map(target -> !target.isOnFire())
-                        .orElse(true);
+            case FireTarget.BurningEntity entity -> false;
             case FireTarget.Block block -> !isBurning(level.getBlockState(blockPos(block.pos())));
             case FireTarget.Area area ->
                 area.cells().stream().noneMatch(pos -> isBurning(level.getBlockState(blockPos(pos))));
@@ -382,11 +508,6 @@ public final class ExtinguishFireTask implements Task {
     private TaskStatus fail(String reason) {
         summary = FireText.gaveUp(reason);
         return TaskStatus.FAILED;
-    }
-
-    private static Optional<LivingEntity> burningEntity(ServerLevel level, BlockPos pos) {
-        return level.getEntitiesOfClass(LivingEntity.class, new AABB(pos).inflate(1.5)).stream()
-                .findFirst();
     }
 
     private static BlockPos blockPos(Pos pos) {

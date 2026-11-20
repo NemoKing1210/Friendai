@@ -1,5 +1,7 @@
 package dev.friendai.test;
 
+import com.google.gson.JsonObject;
+import dev.friendai.agent.llm.model.ToolCall;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.features.crafting.Station;
@@ -16,11 +18,16 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
+import net.minecraft.world.entity.EntityTypes;
+import net.minecraft.world.entity.animal.pig.Pig;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.CampfireBlock;
 import net.minecraft.world.level.material.Fluids;
+import net.minecraft.world.level.portal.TeleportTransition;
+import net.minecraft.world.phys.Vec3;
 
 /** Fires: dousing a block, the bucket coming back, the portal frame, the companion's own fire and its campfire. */
 public class FireTests {
@@ -131,6 +138,130 @@ public class FireTests {
                     c.inventory().countItem(Items.WATER_BUCKET) == 1,
                     "the bucket came back: " + c.inventory().countItem(Items.WATER_BUCKET));
         });
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 100)
+    public void verifiesTheSameBurningMobAfterItMoves(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 3, 2, 3);
+        Pig target = burningPig(h);
+        Result result = startEntityDouse(h, companion);
+        BlockPos destination = h.absolutePos(new BlockPos(9, 2, 3));
+        target.snapTo(destination.getX() + 0.5, destination.getY(), destination.getZ() + 0.5);
+        Pig decoy = h.spawn(EntityTypes.PIG, 4, 2, 3);
+        decoy.setNoAi(true);
+
+        h.runAfterDelay(
+                6,
+                () -> h.assertFalse(
+                        result.status == TaskStatus.SUCCESS && target.isOnFire(),
+                        "the tool reported success for the unlit mob at the original position"));
+        h.succeedWhen(() -> {
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
+            h.assertFalse(target.isOnFire(), "the selected pig is still burning");
+            h.assertTrue(target.isAlive(), "the selected pig must still be alive");
+            h.assertTrue(companion.inventory().countItem(Items.WATER_BUCKET) == 1, "the bucket was not recovered");
+        });
+    }
+
+    @GameTest(maxTicks = 60)
+    public void reportsLostBurningMobInsteadOfSuccessWhenItDisappears(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 3, 2, 3);
+        Pig target = burningPig(h);
+        Result result = startEntityDouse(h, companion);
+        target.discard();
+
+        h.succeedWhen(() -> assertLostEntity(h, companion, result));
+    }
+
+    @GameTest(maxTicks = 100)
+    public void takesBackItsWaterWhenTheBurningMobDisappearsAfterThePour(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 3, 2, 3);
+        Pig target = burningPig(h);
+        Result result = startEntityDouse(h, companion);
+
+        h.startSequence()
+                .thenWaitUntil(() -> h.assertTrue(
+                        companion.inventory().countItem(Items.BUCKET) == 1, "wait for the water to be poured"))
+                .thenExecute(target::discard)
+                .thenWaitUntil(() -> assertLostEntity(h, companion, result))
+                .thenSucceed();
+    }
+
+    @GameTest(maxTicks = 60)
+    public void reportsUnrecoveredWaterWhenThePouredSourceIsRemoved(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 3, 2, 3);
+        Pig target = burningPig(h);
+        Result result = startEntityDouse(h, companion);
+        h.startSequence()
+                .thenWaitUntil(
+                        () -> h.assertTrue(companion.inventory().countItem(Items.BUCKET) == 1, "wait for the pour"))
+                .thenExecute(() -> {
+                    for (int x = 1; x <= 6; x++) {
+                        for (int z = 1; z <= 6; z++) {
+                            BlockPos cell = h.absolutePos(new BlockPos(x, 2, z));
+                            if (h.getLevel().getFluidState(cell).getType().isSame(Fluids.WATER)) {
+                                h.getLevel().setBlock(cell, Blocks.AIR.defaultBlockState(), 3);
+                            }
+                        }
+                    }
+                    target.clearFire();
+                })
+                .thenWaitUntil(() -> {
+                    h.assertTrue(result.status != null, "wait for the final verification");
+                    h.assertTrue(result.status == TaskStatus.SUCCESS, result.summary);
+                    h.assertTrue(result.summary.contains("water was not recovered"), result.summary);
+                    h.assertTrue(companion.inventory().countItem(Items.BUCKET) == 1, "the empty bucket stays carried");
+                })
+                .thenSucceed();
+    }
+
+    @GameTest(maxTicks = 60)
+    public void reportsLostBurningMobWhenItChangesDimension(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 3, 2, 3);
+        Pig target = burningPig(h);
+        Result result = startEntityDouse(h, companion);
+        var nether = h.getLevel().getServer().getLevel(Level.NETHER);
+        var moved = target.teleport(new TeleportTransition(
+                nether, new Vec3(0.5, 64, 0.5), Vec3.ZERO, 0.0F, 0.0F, TeleportTransition.DO_NOTHING));
+        h.assertTrue(moved instanceof Pig && moved.isOnFire(), "the burning pig must reach the other dimension");
+
+        h.runAfterDelay(20, moved::discard);
+        h.succeedWhen(() -> {
+            h.assertTrue(moved.isAlive() && moved.level() == nether, "the target is alive in another dimension");
+            assertLostEntity(h, companion, result);
+            moved.discard();
+        });
+    }
+
+    private static Pig burningPig(GameTestHelper h) {
+        Pig target = h.spawn(EntityTypes.PIG, 4, 2, 3);
+        target.setNoAi(true);
+        target.setRemainingFireTicks(400);
+        return target;
+    }
+
+    private static Result startEntityDouse(GameTestHelper h, CompanionEntity companion) {
+        companion.inventory().addItem(new ItemStack(Items.WATER_BUCKET));
+        Result result = new Result();
+        companion.executionCoordinator().setEventSink(result);
+        JsonObject args = new JsonObject();
+        args.addProperty("target", "entity");
+        var started = GameTestToolRegistry.create(companion, () -> 8)
+                .bind(companion)
+                .execute(new ToolCall("1", "extinguish_fire", args, args.toString(), null));
+        h.assertFalse(started.error(), started.content());
+        return result;
+    }
+
+    private static void assertLostEntity(GameTestHelper h, CompanionEntity companion, Result result) {
+        h.assertTrue(result.status == TaskStatus.FAILED, "status " + result.status + ": " + result.summary);
+        h.assertTrue(result.summary.contains("lost the burning mob"), "reason: " + result.summary);
+        h.assertTrue(companion.inventory().countItem(Items.WATER_BUCKET) == 1, "the attempt spent the bucket");
     }
 
     @GameTest(maxTicks = 600)

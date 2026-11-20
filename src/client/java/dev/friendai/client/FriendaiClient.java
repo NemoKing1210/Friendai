@@ -104,7 +104,10 @@ public class FriendaiClient implements ClientModInitializer {
         PauseMenuButton.register();
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) ->
                 RUNTIME.onConnect(ClientPlayNetworking.canSend(ProtocolAcceptC2SPayload.TYPE)));
-        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> RUNTIME.onDisconnect());
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
+            var endingSession = RUNTIME.sessionId();
+            client.execute(() -> RUNTIME.onDisconnect(endingSession));
+        });
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> {
             stopFileLog();
             RUNTIME.close();

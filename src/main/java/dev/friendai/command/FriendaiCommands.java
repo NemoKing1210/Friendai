@@ -50,6 +50,7 @@ public final class FriendaiCommands {
                 .then(Commands.literal("stop").executes(FriendaiCommands::stop))
                 .then(Commands.literal("inventory").executes(FriendaiCommands::inventory))
                 .then(Commands.literal("status").executes(FriendaiCommands::status))
+                .then(CoordinationCommand.command())
                 .then(Commands.literal("settings").executes(FriendaiCommands::settings))
                 .then(Commands.literal("social")
                         .then(Commands.literal("status").executes(FriendaiCommands::socialStatus)))

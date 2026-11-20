@@ -11,8 +11,10 @@ import dev.friendai.task.autonomy.PlaceGuard;
 import dev.friendai.world.movement.LevelCellView;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
+import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -112,21 +114,17 @@ public final class FireScan {
         return cells;
     }
 
-    /** The nearest burning mob or animal that is neither the companion nor its owner. */
-    public static java.util.Optional<Pos> burningEntityNear(TaskContext c, int radius) {
-        return burningEntityNear(c.companion(), radius);
-    }
-
-    /** The same scan without a task context, for a tool that only runs on the server thread. */
-    public static java.util.Optional<Pos> burningEntityNear(CompanionEntity companion, int radius) {
+    /** Selects the closest living burning entity other than the companion and its owner. */
+    public static Optional<FireTarget.BurningEntity> burningEntityNear(CompanionEntity companion, int radius) {
         if (!(companion.level() instanceof ServerLevel level)) {
-            return java.util.Optional.empty();
+            return Optional.empty();
         }
         LivingEntity best = null;
         double bestDistance = Double.MAX_VALUE;
         for (LivingEntity entity :
                 level.getEntitiesOfClass(LivingEntity.class, new AABB(companion.blockPosition()).inflate(radius))) {
             if (entity == companion
+                    || !entity.isAlive()
                     || !entity.isOnFire()
                     || (companion.ownerUuid() != null && entity.getUUID().equals(companion.ownerUuid()))) {
                 continue;
@@ -137,11 +135,17 @@ public final class FireScan {
                 bestDistance = distance;
             }
         }
-        return best == null ? java.util.Optional.empty() : java.util.Optional.of(toPos(best.blockPosition()));
+        return best == null
+                ? Optional.empty()
+                : Optional.of(new FireTarget.BurningEntity(best.getUUID(), toPos(best.blockPosition()), "burning mob"));
     }
 
     /** Whether a cell may safely hold water: no nether, no portal, no crops or redstone in the flood path. */
     public static boolean waterSafe(TaskContext c, BlockPos cell) {
+        return waterSafe(c, cell, null);
+    }
+
+    private static boolean waterSafe(TaskContext c, BlockPos cell, UUID intendedTarget) {
         ServerLevel level = c.level();
         if (level.dimension() == Level.NETHER) {
             return false;
@@ -155,8 +159,10 @@ public final class FireScan {
         if (flowSensitiveNear(level, cell)) {
             return false;
         }
-        for (LivingEntity other :
-                level.getEntitiesOfClass(LivingEntity.class, new AABB(cell), e -> e != c.companion())) {
+        for (LivingEntity other : level.getEntitiesOfClass(
+                LivingEntity.class,
+                new AABB(cell),
+                entity -> entity != c.companion() && !entity.getUUID().equals(intendedTarget))) {
             return false;
         }
         return true;
@@ -279,7 +285,7 @@ public final class FireScan {
         Pos waterCell = switch (target) {
             case FireTarget.Self ignored -> waterSafe(c, entityPos(companion)) ? self : null;
             case FireTarget.Owner ignored -> nether ? null : waterCellBeside(c, focus);
-            case FireTarget.BurningEntity entity -> nether ? null : waterCellBeside(c, blockPos(entity.pos()));
+            case FireTarget.BurningEntity entity -> nether ? null : waterCellForEntity(c, entity);
             case FireTarget.Block block -> nether ? null : waterSafe(c, blockPos(block.pos())) ? block.pos() : null;
             case FireTarget.Area area -> nether ? null : firstSafeWaterCell(c, area);
         };
@@ -317,6 +323,15 @@ public final class FireScan {
             return toPos(below);
         }
         return null;
+    }
+
+    private static Pos waterCellForEntity(TaskContext c, FireTarget.BurningEntity target) {
+        BlockPos cell = blockPos(target.pos());
+        // Water beside a mob can flow away toward a nearer drop. Put its source at the target's feet.
+        if (c.level().getBlockState(cell).isAir() && waterSafe(c, cell, target.id())) {
+            return target.pos();
+        }
+        return waterCellBeside(c, cell);
     }
 
     private static Pos waterSourceNear(TaskContext c, BlockPos center) {
