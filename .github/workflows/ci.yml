@@ -220,7 +220,7 @@ jobs:
           if [ "$CLIENT_TEST_MODE" = "without-optional" ]; then
             args+=(-Dfriendai.gametest.noOptionalMods=true)
           fi
-          xvfb-run -a -s '-screen 0 1280x720x24' ./gradlew "${args[@]}" 2>&1 | tee client-gametest.log
+          timeout 12m xvfb-run -a -s '-screen 0 1280x720x24 +extension GLX +render -noreset' ./gradlew "${args[@]}" 2>&1 | tee client-gametest.log
       - name: Upload client test diagnostics
         if: failure()
         uses: actions/upload-artifact@v4

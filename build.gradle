@@ -70,6 +70,10 @@ tasks.named('runGameTest') {
 }
 
 tasks.named('runClientGameTest') {
+	// CI starts Xvfb with a 24-bit GLX visual; Loom must use that display instead of starting another one.
+	if (providers.environmentVariable('CI').isPresent()) {
+		useXvfb.set(false)
+	}
 	if (providers.systemProperty("friendai.gametest.noOptionalMods").getOrElse("false") == "true") {
 		systemProperty "friendai.gametest.noOptionalMods", "true"
 		systemProperty "fabric.debug.disableModIds", "yet_another_config_lib_v3,modmenu"
