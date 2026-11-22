@@ -180,7 +180,7 @@ const RU = {
   "Forget a food rule.": "Забыть правило питания.",
   "Show food rules.": "Показать правила питания.",
   "Sleep in a bed at night.": "Спать в кровати ночью.",
-  "Put fires out with a water bucket.": "Тушить огонь ведром воды.",
+  "Put fires out and verify the same burning mob.": "Тушить огонь и проверять, что выбранное существо погасло.",
   "Hunger model": "Модель голода",
   "Food, saturation, exhaustion, regeneration, starvation.": "Еда, насыщение, истощение, регенерация, голодание.",
   "Fire reflex": "Рефлекс на огонь",
@@ -201,7 +201,7 @@ const RU = {
   "Shear sheep.": "Остричь овец.",
   "Milk up to 16 cows in one call.": "Подоить до 16 коров за один вызов.",
   "Tame an animal.": "Приручить животное.",
-  "Lead animals with a lead.": "Вести животных на поводке.",
+  "Lead animals, report blocked routes and respect protected fences.": "Вести животных, сообщать о непроходимом пути и учитывать защиту забора.",
   "Collect honey.": "Собрать мёд.",
   "Go fishing.": "Пойти на рыбалку.",
   "Farm planner": "Планировщик фермы",
@@ -357,11 +357,11 @@ const RU = {
   "Read facts back.": "Вспомнить факты.",
   "Delete a fact.": "Удалить факт.",
   "Raise a player to trusted (needs confirmation).": "Сделать игрока доверенным (нужно подтверждение).",
-  "Ask another owner's companion for bounded help.": "Попросить компаньона другого владельца о помощи.",
+  "Send bounded help to its owner with accept and decline actions.": "Отправить владельцу запрос помощи с действиями принятия и отказа.",
   "Accept the named help only.": "Принять только названную помощь.",
   "Decline with no transfer.": "Отклонить без передачи.",
   "Offer an exact item quantity at a meeting point.": "Предложить точное количество предметов в точке встречи.",
-  "Accept only the named transfer.": "Принять только названную передачу.",
+  "Move the exact offered quantity after checking space and the meeting.": "Передать точное предложенное количество после проверки места и точки встречи.",
   "Ask the planner to repair one stalled plan.": "Попросить планировщика починить один застрявший план.",
   "Lower trust.": "Понизить доверие.",
   "Rename the companion.": "Переименовать компаньона.",
@@ -749,10 +749,10 @@ Object.assign(RU, {
   "111 classes in the separate `friendai-gametest` mod, in one shared world, six CI shards.":
     "111 классов в отдельном моде `friendai-gametest`, в общем мире, шесть шардов CI.",
   "Client UI test": "Тест клиентского интерфейса",
-  "`runClientGameTest` drives the real YACL screen and checks both UI languages.":
-    "`runClientGameTest` управляет настоящим экраном YACL и проверяет оба языка интерфейса.",
-  "The required check: unit suites, GameTest shards, formatting, packaging, shard map and docs links.":
-    "Обязательная проверка: юнит-наборы, шарды GameTest, форматирование, сборка, карта шардов и ссылки в документации.",
+  "`runClientGameTest` checks eight locales, integrated and dedicated connections, skins and voice reconnect. A second mode disables YACL and Mod Menu.":
+    "`runClientGameTest` проверяет восемь локалей, встроенный и выделенный серверы, скины и голос после переподключения. Второй режим отключает YACL и Mod Menu.",
+  "The required check: unit suites, server and client GameTests, formatting, packaging, shard map and docs links.":
+    "Обязательная проверка: юнит-наборы, серверные и клиентские GameTest, форматирование, сборка, карта шардов и ссылки в документации.",
   "display": "экран",
   "required": "обязательно",
   "Unit suites": "Юнит-наборы",
@@ -824,8 +824,8 @@ Object.assign(RU, {
   "What CI requires before anything merges": "Что требует CI до слияния",
   "Gates": "Шлюзы",
   "Nothing merges on a red or pending gate.": "Ничего не сливается на красном или незавершённом шлюзе.",
-  "Unit suites, all GameTest shards, `spotlessCheck`, packaging, the shard map and docs links.":
-    "Юнит-наборы, все шарды GameTest, `spotlessCheck`, сборка, карта шардов и ссылки в документации.",
+  "Unit suites, server and client GameTests, `spotlessCheck`, packaging, the shard map and docs links.":
+    "Юнит-наборы, серверные и клиентские GameTest, `spotlessCheck`, сборка, карта шардов и ссылки в документации.",
   "Commit lint gate": "Шлюз коммитов",
   "Conventional commits and a conventional PR title.": "Conventional commits и conventional заголовок PR.",
   "Docs links": "Проверка ссылок",

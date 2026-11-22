@@ -180,6 +180,12 @@ The feature graph is acyclic with no baseline file: a cycle between two feature 
 
 ## Client
 
+Client release verification runs through `test/client/FriendaiClientGameTests`. Its full mode runs
+`SettingsScreenTests` for widget behavior, eight locales, keyboard use and integrated-server permissions,
+then `ReleaseConnectionTests` over a loopback dedicated server for appearance and voice reconnect.
+The second mode starts the negotiated companion menu with YACL and Mod Menu disabled. The CI gate requires both
+client jobs under a virtual display. Audio comes from fixture PCM and scripted services.
+
 - `client/` — `FriendaiClient`: entity renderer, container screen, HUD, pause-menu button and push-to-talk registration. `client/net/ClientProtocolNetworking` registers S2C receivers, accepts the handshake and applies correlated typed views. `client/runtime/ClientRuntime` owns connection/app resources; `ClientLifecycle` closes them by scope and rejects stale session work. Client config is `config/friendai-client.json`.
 - `client/config/` — YACL `FriendaiConfigScreen` (one tab per group of settings; every rebuild flushes all categories into detached session drafts and retains unsaved-change status and the active tab). `SettingsScreenLifecycle` preserves sessions across controller popups, documentation and rebuilds. Save publishes a fresh voice snapshot and starts a new editable session; voice previews resolve the draft without publishing it. Model-list refresh is explicit, uses pending credentials and rejects stale screen revisions; modal screens postpone refresh until return. `SettingsDraftSession` owns the session, revision and pending widgets, `SettingsWidgets` the shared YACL builders and reset/filter wrappers, `ProviderModelControls` the asynchronous model fetch, first fetch and connection test, `VoiceSettingsCategory` the Voice tab and `SettingsCategorySections` the server tabs. `ModMenuIntegration` returns `null` when YACL is absent; `ModelCache` retains model lists. Search narrowing, the Basic/Advanced split, reset scope and the reported validation line are decided by the pure `features/settings/SettingsModel`; the screen translates a widget into a `SettingsModel.Row` and asks it. UI-independent `ClientConfigurationCoordinator`/`IntegratedServerConfiguration` own validated config persistence and integrated-server apply. `test/client/SettingsScreenTests` exercises the actual widgets through `runClientGameTest`, using loopback HTTP and an isolated game directory.
 - `client/render/` — `CompanionRenderer` (humanoid/player model with a bundled 128x128 default skin, armor layer and the player's arm pose while eating).
@@ -253,6 +259,20 @@ The chain below is one request from chat to speech; a change may alter a step's 
 | brain → speaker | silence when the owner is away; no internal name or unasked coordinate is spoken |
 
 ### Task lifecycle
+
+Incoming coordination requests use bounded live books and recipient chat actions. `/friendai coordination`
+lists the recipient's pending help and handoffs with their expiry and conditions. Accept and decline actions
+resolve the recipient and request UUID on the server thread. A handoff simulates component-aware inventory
+changes before committing both inventories and consuming the offer.
+
+Animal leading tracks each leash attachment and its original lead. A blocked route or an animal that cannot
+catch up ends the task and releases only its own surviving attachments. Tying checks fence protection.
+A burning-entity target carries its UUID. Extinguishing checks that same living entity in the original
+dimension after pouring and bounds recovery of the exact water source.
+
+Menu subscription intent is recorded even when the initial snapshot is throttled or coalesced. The existing
+snapshot rotation delivers the latest pending open after checking the current player and authority.
+A non-operator snapshot clears cached client diagnostic text.
 
 Tool arguments pass through feature-owned normalizers and the engine schema validator. Direct calls, plan parsing, queue edits and restored jobs share the same schema rules. Fire and honey tools require all coordinates together when a position is supplied. Open schemas retain extra fields, and explicit null counts as omission for optional fields unless a schema declares a null value.
 

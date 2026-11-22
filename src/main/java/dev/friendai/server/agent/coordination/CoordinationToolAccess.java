@@ -4,6 +4,7 @@ import dev.friendai.agent.coordination.HandoffRequest;
 import dev.friendai.agent.coordination.HelpRequest;
 import dev.friendai.agent.turn.BrainEvent;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.features.coordination.minecraft.tool.CoordinationAccess;
 import dev.friendai.server.runtime.ServerRuntime;
 import dev.friendai.server.runtime.ServerRuntimeRegistry;
@@ -66,8 +67,10 @@ public final class CoordinationToolAccess implements CoordinationAccess {
     }
 
     @Override
-    public Optional<HandoffRequest> takeHandoff(UUID fromOwner, UUID toOwner, long now) {
-        return runtime().flatMap(runtime -> runtime.coordination().takeHandoff(fromOwner, toOwner, now));
+    public ToolResult acceptHandoff(UUID fromOwner, UUID toOwner, long now) {
+        return runtime()
+                .map(runtime -> runtime.coordination().acceptHandoff(fromOwner, toOwner, now))
+                .orElseGet(() -> ToolResult.error("there is no open handoff from that owner"));
     }
 
     @Override

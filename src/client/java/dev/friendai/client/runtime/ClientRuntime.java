@@ -145,9 +145,13 @@ public final class ClientRuntime implements AutoCloseable {
     }
 
     public void onDisconnect() {
-        ClientSessionId current = sessionId();
-        if (current != null) {
-            lifecycle.onDisconnect(current);
+        onDisconnect(sessionId());
+    }
+
+    /** Closes only the captured connection when a network callback is delivered on the client thread. */
+    public void onDisconnect(ClientSessionId expectedSession) {
+        if (expectedSession != null) {
+            lifecycle.onDisconnect(expectedSession);
         }
     }
 

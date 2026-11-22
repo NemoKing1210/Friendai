@@ -108,9 +108,24 @@ class CompanionViewStateTest {
     }
 
     @Test
+    void downgradeClearsCachedOperatorContentAndDropsLatePromptReplies() {
+        CompanionViewState state = new CompanionViewState(FIRST);
+        state.onSnapshot(FIRST, snapshot(true), 100);
+        assertTrue(state.onPrompt(FIRST, "operator prompt"));
+        assertFalse(state.log().view(Set.of(LogKind.ASSISTANT)).isEmpty());
+
+        assertTrue(state.onSnapshot(FIRST, snapshot(false), 101));
+
+        assertTrue(state.log().view(Set.of(LogKind.ASSISTANT)).isEmpty());
+        assertEquals("", state.prompt());
+        assertFalse(state.onPrompt(FIRST, "late operator prompt"));
+        assertEquals("", state.prompt());
+    }
+
+    @Test
     void resetClearsEveryWorldBoundViewAndAccumulatedLog() {
         CompanionViewState state = new CompanionViewState(FIRST);
-        state.onSnapshot(FIRST, snapshot(), 100);
+        state.onSnapshot(FIRST, snapshot(true), 100);
         state.onPrompt(FIRST, "prompt");
         state.onMemoryView(FIRST, memoryView(List.of()));
         state.onPlaceView(FIRST, placeView(List.of()));
@@ -198,10 +213,10 @@ class CompanionViewStateTest {
         return new TradeView(UUID.randomUUID(), 0, 0, 1, List.of(), List.of(), 0, 1_200);
     }
 
-    private static CompanionSnapshot snapshot() {
+    private static CompanionSnapshot snapshot(boolean operator) {
         return new CompanionSnapshot(
                 false,
-                false,
+                operator,
                 "",
                 "",
                 "",

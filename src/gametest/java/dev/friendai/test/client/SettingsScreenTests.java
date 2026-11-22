@@ -11,10 +11,12 @@ import dev.friendai.client.ui.CompanionControlScreen;
 import dev.friendai.client.ui.CompanionRequests;
 import dev.friendai.features.speech.stt.SttPresets;
 import dev.friendai.features.speech.tts.TtsPresets;
+import dev.friendai.foundation.limits.RateLimiter;
 import dev.friendai.infrastructure.config.ClientConfig;
 import dev.friendai.infrastructure.config.ServerConfig;
 import dev.friendai.presentation.companion.CompanionSnapshot;
 import dev.friendai.server.net.Operators;
+import dev.friendai.server.runtime.ServerRuntimeRegistry;
 import dev.friendai.testutil.MockHttpServer;
 import dev.isxander.yacl3.api.ButtonOption;
 import dev.isxander.yacl3.api.Option;
@@ -58,7 +60,8 @@ public final class SettingsScreenTests implements FabricClientGameTest {
     private static final int KEYBOARD_TAB_LIMIT = 32;
 
     /** The server-side access state the non-operator scenario must put back before its world closes. */
-    private record AccessState(boolean operator, GameProfile singleplayerProfile, NameAndId player) {}
+    private record AccessState(
+            boolean operator, GameProfile singleplayerProfile, NameAndId player, RateLimiter controlLimiter) {}
 
     private final List<String> failures = new ArrayList<>();
     private int passed;
@@ -159,18 +162,27 @@ public final class SettingsScreenTests implements FabricClientGameTest {
                 AccessState original = server.computeOnServer(s -> {
                     ServerPlayer player = world.getConnection().getServerPlayer();
                     return new AccessState(
-                            s.getPlayerList().isOp(player.nameAndId()), s.getSingleplayerProfile(), player.nameAndId());
+                            s.getPlayerList().isOp(player.nameAndId()),
+                            s.getSingleplayerProfile(),
+                            player.nameAndId(),
+                            ServerRuntimeRegistry.getOrCreate(s)
+                                    .protocolConnections()
+                                    .controlLimiter());
                 });
                 try {
                     server.runOnServer(s -> {
                         ServerPlayer player = world.getConnection().getServerPlayer();
                         s.getPlayerList().op(player.nameAndId());
                         require(Operators.isOperator(player), "operator precondition failed");
+                        // The clock stays within one admission interval even if rendering slows down.
+                        ServerRuntimeRegistry.getOrCreate(s)
+                                .protocolConnections()
+                                .setControlLimiterForTest(new RateLimiter(300, () -> 0));
                     });
                     c.waitFor(mc -> CompanionRequests.serverSupported(), 400);
                     c.runOnClient(mc -> mc.setScreenAndShow(
                             new CompanionControlScreen(new TitleScreen(), FriendaiClient.companionSession())));
-                    c.waitFor(mc -> clientSnapshot() != null && clientSnapshot().operator(), 200);
+                    waitForAccessSnapshot(c, world, true);
                     c.waitTicks(3);
                     c.runOnClient(mc -> {
                         Screen menu = mc.gui.screen();
@@ -189,11 +201,12 @@ public final class SettingsScreenTests implements FabricClientGameTest {
                                 "permission level was not cleared");
                         require(!Operators.isOperator(player), "player still counts as an operator");
                     });
-                    c.runOnClient(mc -> mc.setScreenAndShow(new TitleScreen()));
-                    c.runOnClient(mc -> mc.setScreenAndShow(
-                            new CompanionControlScreen(new TitleScreen(), FriendaiClient.companionSession())));
-                    c.waitFor(
-                            mc -> clientSnapshot() != null && !clientSnapshot().operator(), 200);
+                    c.runOnClient(mc -> {
+                        mc.setScreenAndShow(new TitleScreen());
+                        mc.setScreenAndShow(
+                                new CompanionControlScreen(new TitleScreen(), FriendaiClient.companionSession()));
+                    });
+                    waitForAccessSnapshot(c, world, false);
                     c.waitTicks(3);
                     c.runOnClient(mc -> {
                         Screen menu = mc.gui.screen();
@@ -230,6 +243,9 @@ public final class SettingsScreenTests implements FabricClientGameTest {
                     c.waitForScreen(TitleScreen.class);
                 } finally {
                     server.runOnServer(s -> {
+                        ServerRuntimeRegistry.getOrCreate(s)
+                                .protocolConnections()
+                                .setControlLimiterForTest(original.controlLimiter());
                         s.setSingleplayerProfile(original.singleplayerProfile());
                         if (original.operator()) s.getPlayerList().op(original.player());
                         else s.getPlayerList().deop(original.player());
@@ -533,7 +549,8 @@ public final class SettingsScreenTests implements FabricClientGameTest {
                     var values = ((DropdownStringController) option(key).controller()).getAllowedValues();
                     set(key, values.getLast());
                 }
-                screen().finishOrSave();
+                // Headless runners can expose only the system default. Done closes the screen if nothing changed.
+                if (screen().pendingChanges()) screen().finishOrSave();
                 for (String key : List.of("friendai.config.voice.device", "friendai.config.voice.tts.output_device")) {
                     var values = ((DropdownStringController) option(key).controller()).getAllowedValues();
                     require(option(key).pendingValue().equals(values.getLast()), "device selection did not save");
@@ -546,6 +563,24 @@ public final class SettingsScreenTests implements FabricClientGameTest {
                 require(
                         FriendaiClient.clientConfig().voice.tts.outputDevice == null,
                         "output default stored its translated label");
+            });
+        });
+        check(context, "reset audio device preferences without physical devices", c -> {
+            c.runOnClient(mc -> {
+                var config = ClientConfig.defaults();
+                config.voice.stt.inputDevice = "Disconnected test microphone";
+                config.voice.tts.outputDevice = "Disconnected test speakers";
+                FriendaiClient.runtime().configuration().save(config);
+                var parent = new TitleScreen();
+                mc.setScreenAndShow(FriendaiConfigScreen.create(parent));
+
+                for (String key : List.of("friendai.config.voice.device", "friendai.config.voice.tts.output_device")) {
+                    option(key).requestSetDefault();
+                }
+                require(screen().pendingChanges(), "resetting saved audio preferences must enable Save");
+                screen().finishOrSave();
+                require(FriendaiClient.clientConfig().voice.stt.inputDevice == null, "saved input was not reset");
+                require(FriendaiClient.clientConfig().voice.tts.outputDevice == null, "saved output was not reset");
             });
         });
         check(context, "copying an edited key keeps Save enabled", c -> {
@@ -959,6 +994,24 @@ public final class SettingsScreenTests implements FabricClientGameTest {
             set("friendai.config.model", "pending-llm-model");
         });
         context.waitTicks(2);
+    }
+
+    /** Labels a failed wait with the role and subscription state observed at the other end of the connection. */
+    private static void waitForAccessSnapshot(
+            ClientGameTestContext context, TestSingleplayerContext world, boolean operator) {
+        try {
+            context.waitFor(mc -> clientSnapshot() != null && clientSnapshot().operator() == operator, 200);
+        } catch (AssertionError timeout) {
+            String serverState = world.getServer().computeOnServer(server -> {
+                var player = world.getConnection().getServerPlayer();
+                var runtime = ServerRuntimeRegistry.getOrCreate(server);
+                return "server operator=" + Operators.isOperator(player)
+                        + ", subscribed="
+                        + runtime.sessions().debug().subscribers().contains(player.getUUID())
+                        + ", tick=" + server.getTickCount();
+            });
+            throw new AssertionError("No menu snapshot with operator=" + operator + " (" + serverState + ")", timeout);
+        }
     }
 
     /** The snapshot the connected client accepted last, or null before the first one arrives. */

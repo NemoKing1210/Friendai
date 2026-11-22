@@ -13,16 +13,12 @@ import dev.friendai.execution.tool.Tool;
 import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.server.execution.tools.FeatureToolContributor;
 import dev.friendai.server.execution.tools.FeatureToolRegistry;
-import dev.friendai.task.inventory.InventoryOps;
-import dev.friendai.task.inventory.ItemMatcher;
 import java.util.Optional;
 import java.util.UUID;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.world.item.ItemStack;
 
 /**
- * Owner-only help requests between companions. A request names one bounded piece of help and expires; acceptance
- * authorizes only that help, never the requester's queue, access level or resources. Nothing here transfers items.
+ * Owner-only coordination between companions. Each expiring request authorizes just the named help or handoff.
  */
 public final class CoordinationTools implements FeatureToolContributor {
     private final CoordinationAccess access;
@@ -224,40 +220,7 @@ public final class CoordinationTools implements FeatureToolContributor {
         Optional<CoordinationAccess.OnlineOwner> from =
                 access.onlineOwner(args.get("owner").getAsString());
         if (from.isEmpty()) return ToolResult.error("that owner is not online");
-        var request = access.takeHandoff(from.get().owner(), context.owner, context.now);
-        if (request.isEmpty()) return ToolResult.error("there is no open handoff from that owner");
-        HandoffRequest handoff = request.get();
-        var source = access.companion(handoff.fromOwner()).orElse(null);
-        var target = access.companion(handoff.toOwner()).orElse(null);
-        if (source == null || target == null) return ToolResult.error("both companions must exist");
-        if (!source.level().dimension().identifier().toString().equals(handoff.dimension())
-                || !target.level().dimension().identifier().toString().equals(handoff.dimension())) {
-            return ToolResult.error("both companions must be in the offered dimension");
-        }
-        if (!atMeeting(source, handoff) || !atMeeting(target, handoff)) {
-            return ToolResult.error("both companions must be at the meeting point");
-        }
-        ItemMatcher matcher = ItemMatcher.parse(handoff.item()).orElse(null);
-        if (matcher == null) return ToolResult.error("unknown item or tag: " + handoff.item());
-        int have = InventoryOps.count(source.inventory(), matcher);
-        if (have < handoff.count()) {
-            return ToolResult.error("the source companion has only " + have + " " + handoff.item());
-        }
-        int moved = 0;
-        for (ItemStack stack : InventoryOps.remove(source.inventory(), matcher, handoff.count())) {
-            ItemStack leftover = target.inventory().addItem(stack);
-            if (!leftover.isEmpty()) source.inventory().addItem(leftover);
-            moved += stack.getCount() - leftover.getCount();
-        }
-        return ToolResult.ok("moved " + moved + " " + handoff.item() + " to the other companion");
-    }
-
-    private static boolean atMeeting(CompanionEntity companion, HandoffRequest request) {
-        var at = companion.blockPosition();
-        long dx = (long) at.getX() - request.x();
-        long dy = (long) at.getY() - request.y();
-        long dz = (long) at.getZ() - request.z();
-        return dx * dx + dy * dy + dz * dz <= 25;
+        return access.acceptHandoff(from.get().owner(), context.owner, context.now);
     }
 
     private ToolResult decline(CompanionEntity companion, JsonObject args) {

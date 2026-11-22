@@ -101,11 +101,9 @@ public final class FireTools implements FeatureToolContributor {
             case "owner" -> new ExtinguishFireTask(new FireTarget.Owner(), radius);
             case "entity" ->
                 new ExtinguishFireTask(
-                        new FireTarget.BurningEntity(
-                                FireScan.burningEntityNear(companion, radius)
-                                        .orElseThrow(() -> new IllegalArgumentException(
-                                                "no burning mob or animal within " + radius + " blocks")),
-                                "burning mob"),
+                        FireScan.burningEntityNear(companion, radius)
+                                .orElseThrow(() -> new IllegalArgumentException(
+                                        "no burning mob or animal within " + radius + " blocks")),
                         radius);
             case "near" -> ExtinguishFireTask.near(radius);
             default -> throw new IllegalArgumentException("target must be self, owner, entity or near");

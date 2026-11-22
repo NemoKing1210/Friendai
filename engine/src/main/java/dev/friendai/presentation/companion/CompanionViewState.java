@@ -52,14 +52,19 @@ public final class CompanionViewState {
     public boolean onSnapshot(ClientSessionId source, CompanionSnapshot received, long receivedAtMillis) {
         if (!accepts(source)) return false;
         Objects.requireNonNull(received, "received");
-        log.append(received.newLog());
+        if (received.operator()) {
+            log.append(received.newLog());
+        } else {
+            log.clear();
+            prompt = "";
+        }
         snapshot = received;
         receivedAt = receivedAtMillis;
         return true;
     }
 
     public boolean onPrompt(ClientSessionId source, String received) {
-        if (!accepts(source)) return false;
+        if (!accepts(source) || (snapshot != null && !snapshot.operator())) return false;
         prompt = received == null ? "" : received;
         return true;
     }

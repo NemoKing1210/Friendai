@@ -16,13 +16,28 @@ public record HandoffRequest(
         int x,
         int y,
         int z,
-        long expiresAtTick) {
+        long expiresAtTick,
+        UUID id) {
     public static final int MAX_COUNT = 64;
     public static final int MAX_TEXT = 64;
     public static final int COORDINATE_MAX = 30_000_000;
 
+    public HandoffRequest(
+            UUID fromOwner,
+            UUID toOwner,
+            String item,
+            int count,
+            String dimension,
+            int x,
+            int y,
+            int z,
+            long expiresAtTick) {
+        this(fromOwner, toOwner, item, count, dimension, x, y, z, expiresAtTick, UUID.randomUUID());
+    }
+
     public HandoffRequest {
-        if (fromOwner == null || toOwner == null) throw new IllegalArgumentException("owners are required");
+        if (fromOwner == null || toOwner == null || id == null)
+            throw new IllegalArgumentException("owners and offer identity are required");
         if (fromOwner.equals(toOwner)) throw new IllegalArgumentException("a handoff needs two owners");
         if (item == null || item.isBlank()) throw new IllegalArgumentException("item is required");
         item = item.strip();
@@ -30,7 +45,7 @@ public record HandoffRequest(
         if (count < 1 || count > MAX_COUNT) throw new IllegalArgumentException("count must be 1.." + MAX_COUNT);
         if (dimension == null || dimension.isBlank()) throw new IllegalArgumentException("dimension is required");
         dimension = dimension.strip();
-        if (Math.abs(x) > COORDINATE_MAX || Math.abs(y) > 1_000 || Math.abs(z) > COORDINATE_MAX) {
+        if (Math.abs((long) x) > COORDINATE_MAX || Math.abs((long) y) > 1_000 || Math.abs((long) z) > COORDINATE_MAX) {
             throw new IllegalArgumentException("meeting point is outside the world");
         }
         if (expiresAtTick <= 0) throw new IllegalArgumentException("expiry is required");

@@ -37,9 +37,12 @@ public final class DebugStream {
     private int rotation;
     private final Map<UUID, Long> lastPush = new HashMap<>();
     private final Map<UUID, MapCache> maps = new HashMap<>();
+    private final Map<UUID, InitialSnapshot> deferred = new HashMap<>();
 
     /** One viewer's projection and the facts it was built from. */
     private record MapCache(String dimension, long generation, long builtTick, TerrainMapView view) {}
+
+    private record InitialSnapshot(ServerPlayer player, long requestId) {}
 
     /** Encodes one menu snapshot; the production value is the protocol codec, tests replace it. */
     public interface SnapshotEncoder {
@@ -63,6 +66,7 @@ public final class DebugStream {
         java.util.Set<UUID> subscribers = debug.subscribers();
         lastPush.keySet().retainAll(subscribers);
         maps.keySet().retainAll(subscribers);
+        deferred.keySet().retainAll(subscribers);
         if (subscribers.isEmpty()) {
             return;
         }
@@ -75,12 +79,12 @@ public final class DebugStream {
                 continue;
             }
             ServerPlayer player = server.getPlayerList().getPlayer(owner);
-            if (player == null) {
+            InitialSnapshot initial = deferred.remove(owner);
+            if (player == null || (initial != null && initial.player() != player)) {
                 closeMenu(runtime, owner);
                 continue;
             }
-            send(runtime, player);
-            lastPush.put(owner, tick);
+            sendOnTick(runtime, player, initial == null ? 0 : initial.requestId());
             rotation = index + 1;
             // One snapshot per tick bounds the menu work; the rotation serves the other viewers next.
             return;
@@ -89,7 +93,16 @@ public final class DebugStream {
 
     /** A client opened the companion menu: subscribe it and send the first snapshot. */
     public void openMenu(ServerRuntime runtime, ServerPlayer player, long requestId) {
+        openMenu(runtime, player, requestId, true);
+    }
+
+    /** Registers the menu even when its initial snapshot must use the next available tick. */
+    public void openMenu(ServerRuntime runtime, ServerPlayer player, long requestId, boolean buildNow) {
         runtime.sessions().debug().subscribe(player.getUUID());
+        if (!buildNow) {
+            deferred.put(player.getUUID(), new InitialSnapshot(player, requestId));
+            return;
+        }
         try {
             sendNow(runtime, player, requestId);
         } catch (RuntimeException | Error failure) {
@@ -103,6 +116,7 @@ public final class DebugStream {
      * subscribed.
      */
     public void closeMenu(ServerRuntime runtime, UUID viewer) {
+        deferred.remove(viewer);
         runtime.sessions().debug().unsubscribe(viewer);
     }
 
@@ -110,6 +124,7 @@ public final class DebugStream {
     public void sendNow(ServerRuntime runtime, ServerPlayer player, long requestId) {
         DebugService debug = runtime.sessions().debug();
         if (debug.subscribers().contains(player.getUUID())) {
+            deferred.remove(player.getUUID());
             send(runtime, player, requestId);
         }
     }
@@ -118,9 +133,9 @@ public final class DebugStream {
         closeMenu(runtime, player.getUUID());
     }
 
-    private void send(ServerRuntime runtime, ServerPlayer player) {
+    private void sendOnTick(ServerRuntime runtime, ServerPlayer player, long requestId) {
         try {
-            send(runtime, player, 0);
+            send(runtime, player, requestId);
         } catch (RuntimeException failure) {
             // A snapshot that cannot be encoded is a bug in one frame, not a reason to stop the
             // server tick: close that viewer's menu and keep the rest of the world running.

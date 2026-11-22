@@ -6,12 +6,16 @@ import java.util.UUID;
  * One bounded request for a named piece of help from another owner's companion. It carries no access level, spend or
  * trade authority: accepting it authorizes only the named help, and it expires by itself.
  */
-public record HelpRequest(UUID fromOwner, UUID toOwner, String help, long expiresAtTick) {
+public record HelpRequest(UUID fromOwner, UUID toOwner, String help, long expiresAtTick, UUID id) {
     public static final int MAX_HELP = 200;
     public static final long MAX_TTL_TICKS = 24_000;
 
+    public HelpRequest(UUID fromOwner, UUID toOwner, String help, long expiresAtTick) {
+        this(fromOwner, toOwner, help, expiresAtTick, UUID.randomUUID());
+    }
+
     public HelpRequest {
-        if (fromOwner == null || toOwner == null) throw new IllegalArgumentException("owner");
+        if (fromOwner == null || toOwner == null || id == null) throw new IllegalArgumentException("request identity");
         if (fromOwner.equals(toOwner)) throw new IllegalArgumentException("a request needs two owners");
         help = help == null ? "" : help.strip();
         if (help.isEmpty() || help.length() > MAX_HELP) throw new IllegalArgumentException("help");
