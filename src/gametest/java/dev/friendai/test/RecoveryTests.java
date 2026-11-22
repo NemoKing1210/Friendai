@@ -179,7 +179,7 @@ public class RecoveryTests {
         brains.post(player.getUUID(), new dev.friendai.agent.turn.BrainEvent.WorldNotice("test"));
         Caller owner = new Caller(player.getUUID(), "Steve", AccessLevel.OWNER);
         h.assertFalse(call(c, owner, "set_goal", "{\"text\":\"get a pickaxe\"}").error(), "goal set");
-        ToolResult r = call(c, owner, "queue_add", FAILING_PLAN);
+        ToolResult r = call(c, owner, "queue_add", GameTestToolRegistry.forPrimaryGoal(c, FAILING_PLAN));
         h.assertFalse(r.error(), "queue_add: " + r.content());
         h.succeedWhen(() -> h.assertTrue(
                 recorded(prompts).stream().anyMatch(line -> line.contains("diagnosis: MISSING_ITEM")),
@@ -212,7 +212,10 @@ public class RecoveryTests {
         brains.post(player.getUUID(), new dev.friendai.agent.turn.BrainEvent.WorldNotice("test"));
         Caller owner = new Caller(player.getUUID(), "Steve", AccessLevel.OWNER);
         h.assertFalse(call(c, owner, "set_goal", "{\"text\":\"get a pickaxe\"}").error(), "goal set");
-        h.assertFalse(call(c, owner, "queue_add", FAILING_PLAN).error(), "queue_add");
+        h.assertFalse(
+                call(c, owner, "queue_add", GameTestToolRegistry.forPrimaryGoal(c, FAILING_PLAN))
+                        .error(),
+                "queue_add");
         h.succeedWhen(() -> {
             h.assertTrue(
                     recorded(prompts).stream().anyMatch(line -> line.contains(FailureHandler.BUDGET_SPENT)),
@@ -289,7 +292,10 @@ public class RecoveryTests {
         JsonObject first = new JsonObject();
         first.addProperty("goal", "walk");
         first.add("steps", steps(goToStepJson(h.absolutePos(new BlockPos(10, 2, 10)))));
-        h.assertFalse(call(c, owner, "queue_add", first.toString()).error(), "the first route is queued");
+        h.assertFalse(
+                call(c, owner, "queue_add", GameTestToolRegistry.forPrimaryGoal(c, first.toString()))
+                        .error(),
+                "the first route is queued");
         AtomicBoolean repaired = new AtomicBoolean();
         h.succeedWhen(() -> {
             List<String> failureLines = recorded(prompts).stream()

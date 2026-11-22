@@ -549,7 +549,8 @@ public final class SettingsScreenTests implements FabricClientGameTest {
                     var values = ((DropdownStringController) option(key).controller()).getAllowedValues();
                     set(key, values.getLast());
                 }
-                screen().finishOrSave();
+                // Headless runners can expose only the system default. Done closes the screen if nothing changed.
+                if (screen().pendingChanges()) screen().finishOrSave();
                 for (String key : List.of("friendai.config.voice.device", "friendai.config.voice.tts.output_device")) {
                     var values = ((DropdownStringController) option(key).controller()).getAllowedValues();
                     require(option(key).pendingValue().equals(values.getLast()), "device selection did not save");
@@ -562,6 +563,24 @@ public final class SettingsScreenTests implements FabricClientGameTest {
                 require(
                         FriendaiClient.clientConfig().voice.tts.outputDevice == null,
                         "output default stored its translated label");
+            });
+        });
+        check(context, "reset audio device preferences without physical devices", c -> {
+            c.runOnClient(mc -> {
+                var config = ClientConfig.defaults();
+                config.voice.stt.inputDevice = "Disconnected test microphone";
+                config.voice.tts.outputDevice = "Disconnected test speakers";
+                FriendaiClient.runtime().configuration().save(config);
+                var parent = new TitleScreen();
+                mc.setScreenAndShow(FriendaiConfigScreen.create(parent));
+
+                for (String key : List.of("friendai.config.voice.device", "friendai.config.voice.tts.output_device")) {
+                    option(key).requestSetDefault();
+                }
+                require(screen().pendingChanges(), "resetting saved audio preferences must enable Save");
+                screen().finishOrSave();
+                require(FriendaiClient.clientConfig().voice.stt.inputDevice == null, "saved input was not reset");
+                require(FriendaiClient.clientConfig().voice.tts.outputDevice == null, "saved output was not reset");
             });
         });
         check(context, "copying an edited key keeps Save enabled", c -> {

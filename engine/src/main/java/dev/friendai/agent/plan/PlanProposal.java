@@ -10,7 +10,8 @@ public record PlanProposal(
         String rationale,
         String expectedOutcome,
         long targetPlanId,
-        String targetFingerprint) {
+        String targetFingerprint,
+        dev.friendai.agent.goal.Goal targetGoal) {
     public PlanProposal {
         if (plan == null) throw new IllegalArgumentException("plan");
         stepsJson = stepsJson.deepCopy();
@@ -21,7 +22,17 @@ public record PlanProposal(
 
     /** A proposal with no arbitrary-plan identity, preserving older callers. */
     public PlanProposal(PlanDefinition plan, JsonArray stepsJson, String rationale, String expectedOutcome) {
-        this(plan, stepsJson, rationale, expectedOutcome, 0, "");
+        this(plan, stepsJson, rationale, expectedOutcome, 0, "", null);
+    }
+
+    public PlanProposal(
+            PlanDefinition plan,
+            JsonArray stepsJson,
+            String rationale,
+            String expectedOutcome,
+            long targetPlanId,
+            String targetFingerprint) {
+        this(plan, stepsJson, rationale, expectedOutcome, targetPlanId, targetFingerprint, null);
     }
 
     @Override

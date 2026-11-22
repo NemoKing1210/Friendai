@@ -126,13 +126,72 @@ public class PlannerTests {
             h.assertTrue(goal.isPresent(), "the goal was set");
             CompanionEntity c =
                     CompanionManager.get(server).find(player.getUUID()).orElseThrow();
-            // The planner queues the work beside the goal: a plan never links itself, so it cannot manufacture a
-            // verified goal. The model links one itself when it means to.
+            // This proposal serves the owner order, which had no persisted goal when the planner started.
             h.assertTrue(goal.get().planId() == 0, "the planner's plan stays off the goal");
             h.assertTrue(
                     c.executionCoordinator().queue().plan(goal.get().planId()).isPresent()
                             || !c.executionCoordinator().queue().archives().isEmpty(),
                     "the plan is in the queue or already done");
+        });
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 400)
+    public void active_goal_planner_links_the_exact_goal(GameTestHelper h) {
+        activeGoalPlan(h, false);
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 400)
+    public void active_goal_planner_refuses_a_replaced_goal(GameTestHelper h) {
+        activeGoalPlan(h, true);
+    }
+
+    private static void activeGoalPlan(GameTestHelper h, boolean replace) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
+        var server = h.getLevel().getServer();
+        var state = GameTestSupport.runtime(server);
+        var owner = player.getUUID();
+        var board = state.goals().board(owner);
+        var original = board.set("Jump once", List.of(), false, h.getLevel().getGameTime())
+                .value();
+        var pending = new CompletableFuture<PlanProposal>();
+        var observed = new AtomicInteger();
+        var replied = new AtomicInteger();
+        var planner = jumpPlanner(new AtomicInteger());
+        state.sessions().setPlannerOverride(owner, input -> {
+            observed.incrementAndGet();
+            h.runAfterDelay(1, () -> {
+                if (replace) {
+                    board.finish(original.id(), false, "changed order");
+                    board.set("Jump once", List.of(), false, h.getLevel().getGameTime());
+                }
+                planner.propose(input).whenComplete((plan, failure) -> {
+                    if (failure == null) pending.complete(plan);
+                    else pending.completeExceptionally(failure);
+                });
+            });
+            return pending;
+        });
+        state.sessions().setGatewayOverride(owner, (system, messages, tools) -> {
+            replied.incrementAndGet();
+            return CompletableFuture.completedFuture(
+                    new LlmResponse("[silent]", List.of(), StopReason.END, new Usage(0, 0)));
+        });
+        var companion = CompanionManager.get(server).summon(player);
+        state.sessions().post(owner, new BrainEvent.GoalTick(original.text(), List.of("jump once")));
+        h.succeedWhen(() -> {
+            h.assertTrue(observed.get() == 1 && replied.get() > 0, "the submitted proposal reached disposition");
+            var current = board.primary().orElseThrow();
+            var queue = companion.executionCoordinator().queue();
+            if (replace) {
+                h.assertTrue(current.id() != original.id() && current.planId() == 0, "replacement goal stays unlinked");
+                h.assertTrue(queue.archives().isEmpty() && queue.jobs().isEmpty(), "stale work never starts");
+            } else {
+                h.assertTrue(current.id() == original.id() && current.planId() > 0, "planner links the exact goal");
+                h.assertTrue(
+                        queue.archives().stream().anyMatch(a -> a.id() == current.planId() && a.success()),
+                        "the linked plan actually succeeds");
+            }
         });
     }
 
@@ -161,7 +220,10 @@ public class PlannerTests {
         brains.post(player.getUUID(), new BrainEvent.WorldNotice("ready"));
         Caller owner = new Caller(player.getUUID(), "Steve", AccessLevel.OWNER);
         h.assertFalse(call(c, owner, "set_goal", "{\"text\":\"get a pickaxe\"}").error(), "goal set");
-        h.assertFalse(call(c, owner, "queue_add", FLAT_FAILING_PLAN).error(), "flat plan queued and linked");
+        h.assertFalse(
+                call(c, owner, "queue_add", GameTestToolRegistry.forPrimaryGoal(c, FLAT_FAILING_PLAN))
+                        .error(),
+                "flat plan queued and linked");
         long planId =
                 state.goals().board(player.getUUID()).primary().orElseThrow().planId();
         h.assertTrue(planId != 0, "linked to the goal");
@@ -224,7 +286,10 @@ public class PlannerTests {
         brains.post(player.getUUID(), new BrainEvent.WorldNotice("ready"));
         Caller owner = new Caller(player.getUUID(), "Steve", AccessLevel.OWNER);
         h.assertFalse(call(c, owner, "set_goal", "{\"text\":\"get a pickaxe\"}").error(), "goal set");
-        h.assertFalse(call(c, owner, "queue_add", BLOCKED_PLAN).error(), "blocked plan queued and linked");
+        h.assertFalse(
+                call(c, owner, "queue_add", GameTestToolRegistry.forPrimaryGoal(c, BLOCKED_PLAN))
+                        .error(),
+                "blocked plan queued and linked");
         long firstPlan =
                 state.goals().board(player.getUUID()).primary().orElseThrow().planId();
         h.assertTrue(firstPlan != 0, "linked to the goal");
@@ -285,7 +350,11 @@ public class PlannerTests {
                 server.execute(() -> {
                     ToolResult goal = call(c, owner, "set_goal", "{\"text\":\"mine iron\"}");
                     if (goal.error()) setupErrors.add(goal.content());
-                    ToolResult plan = call(c, owner, "queue_add", FAILING_PLAN_WITH_A_STEP_LEFT);
+                    ToolResult plan = call(
+                            c,
+                            owner,
+                            "queue_add",
+                            GameTestToolRegistry.forPrimaryGoal(c, FAILING_PLAN_WITH_A_STEP_LEFT));
                     if (plan.error()) setupErrors.add(plan.content());
                 });
                 return CompletableFuture.completedFuture(

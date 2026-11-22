@@ -57,6 +57,18 @@ final class GameTestToolRegistry {
                 .registry();
     }
 
+    static String forPrimaryGoal(CompanionEntity companion, String plan) {
+        var goal = GameTestSupport.runtime(companion.level().getServer())
+                .goals()
+                .board(companion.ownerUuid())
+                .primary()
+                .orElseThrow();
+        var args = com.google.gson.JsonParser.parseString(plan).getAsJsonObject();
+        args.addProperty("goal_id", goal.id());
+        args.addProperty("goal", goal.text());
+        return args.toString();
+    }
+
     static ToolResult addPlan(
             CompanionEntity companion,
             Caller caller,

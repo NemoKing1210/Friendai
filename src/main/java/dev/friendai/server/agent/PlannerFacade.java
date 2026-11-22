@@ -262,6 +262,7 @@ final class PlannerFacade {
 
         @Override
         public CompletableFuture<PlanProposal> propose(PlannerInput input, BooleanSupplier cancelled) {
+            var goalSnapshot = goals.board(owner).find(input.goal().id()).orElse(null);
             return PlannerFacade.this
                     .propose(owner, input, cancelled)
                     .thenApply(proposal -> new PlanProposal(
@@ -270,7 +271,8 @@ final class PlannerFacade {
                             proposal.rationale(),
                             proposal.expectedOutcome(),
                             input.targetPlanId(),
-                            input.targetFingerprint()));
+                            input.targetFingerprint(),
+                            goalSnapshot));
         }
 
         @Override
@@ -328,19 +330,31 @@ final class PlannerFacade {
                 debugLog(owner, result.error() ? "planner disposition=patch refused" : "planner disposition=patched");
                 return result;
             }
-            // A subject without a target plan never edits a goal's plan: it queues a new one beside it. The plan
-            // stays off the goal board, so a plan cannot manufacture a verified goal; the model links one itself.
+            // An active-goal proposal can attach only to the revision supplied to the planner.
             var board = goals.board(owner);
+            boolean activeGoal = subject instanceof dev.friendai.agent.plan.PlanSubject.ActiveGoal;
+            if (activeGoal) {
+                var expected = proposal.targetGoal();
+                var requested = (dev.friendai.agent.plan.PlanSubject.ActiveGoal) subject;
+                if (expected == null
+                        || expected.id() != requested.goalId()
+                        || !board.find(requested.goalId())
+                                .filter(expected::equals)
+                                .isPresent()) {
+                    return ToolResult.error("the goal changed since the proposal; re-plan it");
+                }
+            }
             String goalText = objectiveText(subject, board);
             if (goalText == null) {
                 return ToolResult.error("this planner subject cannot be queued");
             }
             JsonObject add = new JsonObject();
             add.addProperty("goal", goalText);
+            if (activeGoal) add.addProperty("goal_id", proposal.targetGoal().id());
             // Preserve the normalized tree; queue_add and plan_validate share the same parser and tool allowlist.
             add.add("steps", proposal.stepsJson());
             ToolResult result = dev.friendai.server.execution.tools.QueueTools.addPlan(
-                    queueAccess, companion, caller, add, planTools, false, java.util.Set.of());
+                    queueAccess, companion, caller, add, planTools, activeGoal, java.util.Set.of());
             debugLog(owner, result.error() ? "planner disposition=queued refused" : "planner disposition=queued");
             return result;
         }

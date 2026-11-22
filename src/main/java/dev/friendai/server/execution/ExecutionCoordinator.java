@@ -556,11 +556,24 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
 
     public long enqueuePlan(
             String goal, PlanDefinition definition, PlanOptions options, Map<String, PlanStepFactory> stepFactories) {
-        return inTransition(() -> enqueuePlanActive(goal, definition, options, stepFactories));
+        return enqueuePlan(goal, definition, options, stepFactories, id -> {});
+    }
+
+    public long enqueuePlan(
+            String goal,
+            PlanDefinition definition,
+            PlanOptions options,
+            Map<String, PlanStepFactory> stepFactories,
+            java.util.function.LongConsumer prepare) {
+        return inTransition(() -> enqueuePlanActive(goal, definition, options, stepFactories, prepare));
     }
 
     private long enqueuePlanActive(
-            String goal, PlanDefinition definition, PlanOptions options, Map<String, PlanStepFactory> stepFactories) {
+            String goal,
+            PlanDefinition definition,
+            PlanOptions options,
+            Map<String, PlanStepFactory> stepFactories,
+            java.util.function.LongConsumer prepare) {
         syncSettings();
         stoppedByOrder = false;
         for (PlanNode node : definition.nodes()) validateStructuredAuthorization(node);
@@ -569,6 +582,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         long startDistance = queueDriver.totalTravelledDistance();
         long planId = queueDriver.enqueueStructuredPlan(goal, definition, options, startTick, startDistance);
         queueDriver.addStructuredFactories(planId, stepFactories);
+        prepare.accept(planId);
         wakeQueue();
         if (activeTask() == null || activeTask().defaultActivity() || movementOrder(activeTask())) startNextQueued();
         return planId;

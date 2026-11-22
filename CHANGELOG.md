@@ -6,7 +6,7 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
-## [0.221.6] - 2026-11-19
+## [0.221.8] - 2026-11-22
 
 ### Added
 
@@ -19,6 +19,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 - Leading animals reports blocked routes and animals that cannot catch up. Cancelled work returns only leads still attached by that task, and fence ties respect protection.
 - Extinguishing a moving mob follows its identity and verifies that its fire is out.
 - Reopening the companion menu during throttling keeps the subscription active. Losing operator access clears cached diagnostic text.
+
+## [0.221.7] - 2026-11-22
+
+### Fixed
+
+- Plans attach only to the matching goal requested by the owner. A delayed planner response cannot attach to a changed or replaced goal.
 
 ## [0.221.5] - 2026-11-18
 

@@ -25,9 +25,6 @@ class InventoryToolsTest {
         public Caller currentCaller(CompanionEntity companion, UUID principal) {
             return new Caller(null, "", AccessLevel.OWNER);
         }
-
-        @Override
-        public void linkPlan(CompanionEntity companion, long planId) {}
     };
 
     @Test

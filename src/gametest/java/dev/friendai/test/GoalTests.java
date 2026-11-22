@@ -2,6 +2,7 @@ package dev.friendai.test;
 
 import com.google.gson.JsonParser;
 import dev.friendai.agent.llm.model.ToolCall;
+import dev.friendai.agent.turn.BrainEvent;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.execution.tool.AccessLevel;
@@ -160,13 +161,75 @@ public class GoalTests {
     }
 
     @GameTest(structure = GameTestArenas.ARENA_16)
+    public void a_trusted_players_unrelated_plan_does_not_attach_to_the_owners_goal(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
+        CompanionEntity companion =
+                CompanionManager.get(h.getLevel().getServer()).summon(player);
+        h.assertFalse(
+                call(companion, owner(player), "set_goal", "{\"text\":\"Build my house\"}")
+                        .error(),
+                "goal set");
+        var trusted = new Caller(java.util.UUID.randomUUID(), "friend", AccessLevel.TRUSTED);
+        ToolResult result =
+                call(companion, trusted, "queue_add", "{\"goal\":\"Jump\",\"steps\":[{\"tool\":\"jump\"}]}");
+        h.assertFalse(result.error(), result.content());
+        var board = GameTestSupport.runtime(h.getLevel().getServer()).goals().board(player.getUUID());
+        h.assertTrue(board.primary().orElseThrow().planId() == 0, "an unrelated trusted plan must remain unlinked");
+        var unrelatedOwner = call(
+                companion,
+                owner(player),
+                "queue_add",
+                "{\"goal\":\"Walk somewhere else\",\"steps\":[{\"tool\":\"jump\"}]}");
+        h.assertFalse(unrelatedOwner.error(), unrelatedOwner.content());
+        long goalId = board.primary().orElseThrow().id();
+        var mismatched = call(
+                companion,
+                owner(player),
+                "queue_add",
+                "{\"goal\":\"Jump\",\"goal_id\":" + goalId + ",\"steps\":[{\"tool\":\"jump\"}]}");
+        h.assertTrue(mismatched.error(), "a mismatched objective is refused even with the goal ID");
+        h.assertTrue(board.primary().orElseThrow().planId() == 0, "unrelated owner work leaves the goal alone");
+        h.succeed();
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 200)
+    public void a_goal_and_plan_created_in_one_owner_turn_are_linked(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
+        var runtime = GameTestSupport.runtime(h.getLevel().getServer());
+        var owner = player.getUUID();
+        var script = new CompanionControlTests.Script()
+                .call("set_goal", "{\"text\":\"Jump twice\"}")
+                .call("queue_add", "{\"goal\":\"Jump twice\",\"steps\":[{\"tool\":\"jump\"},{\"tool\":\"jump\"}]}")
+                .text("[silent]");
+        runtime.sessions().setGatewayOverride(owner, script);
+        CompanionManager.get(h.getLevel().getServer()).summon(player);
+        runtime.sessions().post(owner, new BrainEvent.PlayerSaid(owner, "Steve", "Jump twice", BrainEvent.Source.CHAT));
+        h.succeedWhen(() -> {
+            var goal = runtime.goals().board(owner).primary();
+            h.assertTrue(goal.isPresent() && goal.orElseThrow().planId() > 0, "same-turn goal and plan must be linked");
+        });
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16)
     public void queue_add_links_the_plan_to_the_primary_goal(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
         CompanionEntity c = CompanionManager.get(h.getLevel().getServer()).summon(player);
         Caller owner = owner(player);
-        h.assertFalse(call(c, owner, "set_goal", "{\"text\":\"stay put\"}").error(), "goal set");
-        ToolResult r = call(c, owner, "queue_add", "{\"goal\":\"stay\",\"steps\":[{\"tool\":\"jump\"}]}");
+        h.assertFalse(call(c, owner, "set_goal", "{\"text\":\"Jump once\"}").error(), "goal set");
+        long goalId = GameTestSupport.runtime(h.getLevel().getServer())
+                .goals()
+                .board(player.getUUID())
+                .primary()
+                .orElseThrow()
+                .id();
+        ToolResult r = call(
+                c,
+                owner,
+                "queue_add",
+                "{\"goal\":\"Jump once\",\"goal_id\":" + goalId + ",\"steps\":[{\"tool\":\"jump\"}]}");
         h.assertFalse(r.error(), "queue_add error: " + r.content());
         var goal = GameTestSupport.runtime(h.getLevel().getServer())
                 .goals()
@@ -174,7 +237,10 @@ public class GoalTests {
                 .primary()
                 .get();
         h.assertTrue(goal.planId() != 0, "the plan is linked to the goal");
-        h.succeed();
+        h.succeedWhen(() -> h.assertTrue(
+                c.executionCoordinator().queue().archives().stream()
+                        .anyMatch(result -> result.id() == goal.planId() && result.success()),
+                "the linked jump settles successfully under its own plan"));
     }
 
     @GameTest(structure = GameTestArenas.ARENA_16)
@@ -183,12 +249,12 @@ public class GoalTests {
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
         CompanionEntity c = CompanionManager.get(h.getLevel().getServer()).summon(player);
         Caller owner = owner(player);
-        ToolResult queued = call(c, owner, "queue_add", "{\"goal\":\"stay\",\"steps\":[{\"tool\":\"jump\"}]}");
+        ToolResult queued = call(c, owner, "queue_add", "{\"goal\":\"Jump once\",\"steps\":[{\"tool\":\"jump\"}]}");
         h.assertFalse(queued.error(), "queue_add error: " + queued.content());
         long planId = planIdIn(queued.content());
         h.assertTrue(planId > 0, "the queue reports the plan id: " + queued.content());
         h.assertFalse(
-                call(c, owner, "set_goal", "{\"text\":\"stay put\",\"plan\":" + planId + "}")
+                call(c, owner, "set_goal", "{\"text\":\"Jump once\",\"plan\":" + planId + "}")
                         .error(),
                 "set_goal with the returned id links the queued plan");
         var goal = GameTestSupport.runtime(h.getLevel().getServer())

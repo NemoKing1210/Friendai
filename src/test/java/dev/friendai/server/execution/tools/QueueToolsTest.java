@@ -181,10 +181,5 @@ class QueueToolsTest {
         public Caller currentCaller(CompanionEntity companion, UUID principal) {
             throw new AssertionError("Registration must not resolve a current caller");
         }
-
-        @Override
-        public void linkPlan(CompanionEntity companion, long planId) {
-            throw new AssertionError("Registration must not link a plan");
-        }
     }
 }

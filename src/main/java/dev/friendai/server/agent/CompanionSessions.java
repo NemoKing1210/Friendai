@@ -4,6 +4,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.friendai.FriendaiMod;
+import dev.friendai.agent.goal.Goal;
 import dev.friendai.agent.goal.GoalBoard;
 import dev.friendai.agent.goal.GoalService;
 import dev.friendai.agent.goal.GoalStatus;
@@ -730,16 +731,74 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
     }
 
     @Override
-    public void linkPlan(CompanionEntity companion, long planId) {
+    public void goalCreated(CompanionEntity companion, Goal goal) {
         UUID owner = companion.ownerUuid();
-        if (owner == null || !(companion.level() instanceof ServerLevel level) || level.getServer() != server) return;
-        goals.board(owner)
-                .primary()
-                .filter(goal -> goal.status() == dev.friendai.agent.goal.GoalStatus.ACTIVE && goal.planId() == 0)
-                .ifPresent(goal -> {
-                    goals.board(owner).linkPlan(goal.id(), planId);
-                    goals.save(owner);
-                });
+        CompanionSession session = sessions.get(owner);
+        if (session == null || session.brain() == null) return;
+        long turn = session.brain().playerTurnId(owner);
+        if (turn > 0) session.noteCreatedGoal(turn, goal.id());
+    }
+
+    @Override
+    public Optional<String> rejectExistingPlan(CompanionEntity companion, UUID owner, long planId, String objective) {
+        var board = goals.board(owner);
+        if (board.all().stream().anyMatch(goal -> goal.planId() == planId)) {
+            return Optional.of("the plan already serves a goal");
+        }
+        var queue = companion.executionCoordinator().queue();
+        var plan = queue.plan(planId).orElse(null);
+        if (plan == null) return Optional.of("the requested plan is no longer queued");
+        var jobs = queue.jobsOfPlan(planId);
+        if (jobs.stream().anyMatch(job -> !owner.equals(job.principal()))
+                || (plan.definition() != null && !planOwnedBy(plan.definition().nodes(), owner))
+                || (jobs.isEmpty() && plan.definition() == null)) {
+            return Optional.of("the requested plan is not owned by the goal owner");
+        }
+        if (!plan.goal().strip().equalsIgnoreCase(objective.strip())) {
+            return Optional.of("the plan objective does not match this goal");
+        }
+        return Optional.empty();
+    }
+
+    private static boolean planOwnedBy(List<PlanNode> nodes, UUID owner) {
+        return nodes.stream().allMatch(node -> switch (node) {
+            case PlanNode.Action action -> owner.equals(action.step().principal());
+            case PlanNode.Conditional branch ->
+                planOwnedBy(branch.thenNodes(), owner) && planOwnedBy(branch.elseNodes(), owner);
+            case PlanNode.Repeat repeat -> planOwnedBy(repeat.body(), owner);
+        });
+    }
+
+    @Override
+    public Optional<Goal> goalForPlan(CompanionEntity companion, Caller caller, Long goalId) {
+        UUID owner = companion.ownerUuid();
+        if (owner == null || !owner.equals(caller.uuid())) {
+            if (goalId != null) throw new IllegalArgumentException("only the owner may link a goal");
+            return Optional.empty();
+        }
+        if (goalId == null) {
+            CompanionSession session = sessions.get(owner);
+            if (session == null || session.brain() == null) return Optional.empty();
+            long sameTurnGoal = session.goalCreatedInTurn(session.brain().playerTurnId(owner));
+            if (sameTurnGoal == 0) return Optional.empty();
+            goalId = sameTurnGoal;
+        }
+        var goal = goals.board(owner).find(goalId).orElse(null);
+        if (goal == null || goal.status() != GoalStatus.ACTIVE || goal.planId() != 0) {
+            throw new IllegalArgumentException("the requested goal is unavailable or already has a plan");
+        }
+        return Optional.of(goal);
+    }
+
+    @Override
+    public void linkPlan(CompanionEntity companion, long planId, Goal snapshot) {
+        UUID owner = companion.ownerUuid();
+        var board = goals.board(owner);
+        if (board.find(snapshot.id()).filter(snapshot::equals).isEmpty()) {
+            throw new IllegalArgumentException("the goal changed before the plan could be linked");
+        }
+        board.linkPlan(snapshot.id(), planId);
+        goals.save(owner);
     }
 
     private String searchHintLine(CompanionEntity companion) {

@@ -34,6 +34,8 @@ public final class CompanionSession {
     private long lastGoalTick;
     private int nudgeStreak;
     private String logSession = "";
+    private long createdGoalTurn;
+    private long createdGoalId;
 
     public CompanionSession(UUID owner, MemoryBook memory) {
         this.owner = Objects.requireNonNull(owner);
@@ -43,6 +45,15 @@ public final class CompanionSession {
 
     public UUID owner() {
         return owner;
+    }
+
+    void noteCreatedGoal(long turn, long goalId) {
+        createdGoalTurn = turn;
+        createdGoalId = goalId;
+    }
+
+    long goalCreatedInTurn(long turn) {
+        return turn > 0 && createdGoalTurn == turn ? createdGoalId : 0L;
     }
 
     /** The id this session's durable records carry; empty until the brain attaches. */
@@ -155,12 +166,16 @@ public final class CompanionSession {
     void attach(CompanionEntity companion, CompanionBrain brain) {
         this.companion = Objects.requireNonNull(companion);
         this.brain = Objects.requireNonNull(brain);
+        createdGoalTurn = 0;
+        createdGoalId = 0;
     }
 
     void invalidateBrain() {
         CompanionBrain detached = brain;
         brain = null;
         companion = null;
+        createdGoalTurn = 0;
+        createdGoalId = 0;
         if (detached != null) detached.cancel();
     }
 }
