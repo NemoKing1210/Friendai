@@ -435,6 +435,11 @@ public final class CompanionBrain {
 
     private long streamSeq;
 
+    /** Identity of the active player turn, scoped to this brain instance. */
+    public long playerTurnId(UUID principal) {
+        return thinking && turnKind == TurnKind.PLAYER && principal.equals(activePrincipal) ? turnSeq : 0;
+    }
+
     public boolean isSkillFreeTimeTurn() {
         return skillFreeTimeTurn;
     }

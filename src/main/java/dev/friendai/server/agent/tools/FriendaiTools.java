@@ -242,11 +242,6 @@ public final class FriendaiTools {
                                 ? dev.friendai.execution.tool.AccessLevel.OWNER
                                 : dev.friendai.execution.tool.AccessLevel.GUEST);
             }
-
-            @Override
-            public void linkPlan(CompanionEntity companion, long planId) {
-                throw new IllegalStateException("queue access is unavailable");
-            }
         };
         GoalToolAccess goals = new GoalToolAccess() {
             @Override
