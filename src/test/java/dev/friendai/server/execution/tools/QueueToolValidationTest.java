@@ -47,9 +47,6 @@ class QueueToolValidationTest {
             public Caller currentCaller(dev.friendai.entity.CompanionEntity companion, java.util.UUID principal) {
                 return new Caller(principal, "", AccessLevel.GUEST);
             }
-
-            @Override
-            public void linkPlan(dev.friendai.entity.CompanionEntity companion, long planId) {}
         };
         FeatureToolRegistry contributions =
                 new FeatureToolRegistry(tools, definition -> TaskToolRuntime.tool(definition, access));

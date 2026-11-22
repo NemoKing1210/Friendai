@@ -69,9 +69,10 @@ public final class QueueTools implements FeatureToolContributor {
         registry.registerTool(
                 callerTool(
                         "queue_add",
-                        "Add a durable multi-step plan. When an ordinary owner order needs new queued work and the available context is sufficient, include the whole plan and a short reply in the same response. If the planner already queued the work, use that plan instead of adding a duplicate. For a new primary multi-step objective, call set_goal before queue_add so the plan links to the goal. A later set_goal must pass the known plan id explicitly. Read queue_show when the queue context is insufficient for a safe decision; otherwise skip that round trip. queue_add validates the plan and returns errors; correct the arguments and retry instead of preflighting ordinary work with plan_validate. Use guards for world conditions and after only when priority changes must not bypass a dependency. Example: {\"goal\":\"One stone pickaxe\",\"steps\":[{\"tool\":\"obtain_item\",\"args\":\"{\\\"item\\\":\\\"minecraft:stone_pickaxe\\\",\\\"count\\\":1}\"}]}.",
+                        "Add a durable multi-step plan. When an ordinary owner order needs new queued work and the available context is sufficient, include the whole plan and a short reply in the same response. If the planner already queued the work, use that plan instead of adding a duplicate. To link to a goal set in this owner turn, use the same objective text in set_goal and queue_add. To link an older goal, pass goal_id and its exact objective text. A later set_goal must pass the known plan id explicitly. Read queue_show when the queue context is insufficient for a safe decision; otherwise skip that round trip. queue_add validates the plan and returns errors; correct the arguments and retry instead of preflighting ordinary work with plan_validate. Use guards for world conditions and after only when priority changes must not bypass a dependency. Example: {\"goal\":\"One stone pickaxe\",\"steps\":[{\"tool\":\"obtain_item\",\"args\":\"{\\\"item\\\":\\\"minecraft:stone_pickaxe\\\",\\\"count\\\":1}\"}]}.",
                         SchemaBuilder.object()
                                 .string("goal", "Short goal")
+                                .integer("goal_id", "Owner goal this plan serves")
                                 .array("steps", "Steps to run", stepSchema, 1, 64)
                                 .integer("priority", "Default priority", -10, 10)
                                 .enumeration("on_failure", "Default failure policy", "ask", "skip", "stop_plan")
@@ -330,6 +331,22 @@ public final class QueueTools implements FeatureToolContributor {
         boolean autoRepair = !args.has("auto_repair")
                 || args.get("auto_repair").isJsonNull()
                 || args.get("auto_repair").getAsBoolean();
+        java.util.Optional<dev.friendai.agent.goal.Goal> selected;
+        try {
+            Long goalId = args.has("goal_id") && !args.get("goal_id").isJsonNull()
+                    ? args.get("goal_id").getAsLong()
+                    : null;
+            selected = linkGoal ? access.goalForPlan(c, caller, goalId) : java.util.Optional.empty();
+        } catch (IllegalArgumentException invalidGoal) {
+            return ToolResult.error("Invalid plan: " + invalidGoal.getMessage());
+        }
+        if (selected.isPresent() && !selected.get().text().strip().equalsIgnoreCase(goal.strip())) {
+            if (args.has("goal_id"))
+                return ToolResult.error("Invalid plan: use the exact objective of the selected goal");
+        }
+        var goalToAttach = selected.filter(chosen -> chosen.text().strip().equalsIgnoreCase(goal.strip()));
+        java.util.function.LongConsumer attach =
+                planId -> goalToAttach.ifPresent(chosen -> access.linkPlan(c, planId, chosen));
         long id;
         try {
             if (optimize && allActions(bound.nodes())) {
@@ -359,6 +376,7 @@ public final class QueueTools implements FeatureToolContributor {
                                                     .map(dev.friendai.execution.queue.Job::id)
                                                     .toList(),
                                             allowed);
+                                    attach.accept(planId);
                                 });
             } else {
                 id = c.executionCoordinator()
@@ -366,12 +384,12 @@ public final class QueueTools implements FeatureToolContributor {
                                 goal,
                                 bound,
                                 new PlanOptions(priority, policy, time, autoRepair),
-                                planFactories(access, allowed));
+                                planFactories(access, allowed),
+                                attach);
             }
         } catch (IllegalArgumentException e) {
             return ToolResult.error("Invalid plan: " + e.getMessage());
         }
-        if (linkGoal) access.linkPlan(c, id);
         return ToolResult.ok("plan #" + id + (goal.isBlank() ? "" : " \"" + goal + "\"") + " added: "
                 + bound.worstCaseActions() + " worst-case actions");
     }

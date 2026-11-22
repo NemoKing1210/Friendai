@@ -73,6 +73,14 @@ public final class GoalTools implements FeatureToolContributor {
                     if (!due.ok()) {
                         return ToolResult.error(due.error());
                     }
+                    if (args.has("plan")) {
+                        var refusal = access.rejectExistingPlan(
+                                companion,
+                                owner,
+                                args.get("plan").getAsLong(),
+                                args.get("text").getAsString());
+                        if (refusal.isPresent()) return ToolResult.error(refusal.get());
+                    }
                     GoalResult<Goal> result = board.set(
                             args.get("text").getAsString(),
                             criteria(args),
@@ -83,6 +91,7 @@ public final class GoalTools implements FeatureToolContributor {
                         return ToolResult.error(result.error());
                     }
                     Goal goal = result.value();
+                    access.goalCreated(companion, goal);
                     if (args.has("plan")) {
                         long planId = args.get("plan").getAsLong();
                         if (companion

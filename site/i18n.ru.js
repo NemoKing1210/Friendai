@@ -315,7 +315,7 @@ const RU = {
   "Set the main goal (owner).": "Поставить главную цель (владелец).",
   "Update progress.": "Обновить прогресс.",
   "Close a goal and record why it was abandoned.": "Завершить цель и записать причину отказа от неё.",
-  "Add a step.": "Добавить шаг.",
+  "Queue a plan and optionally link it to the owner goal it serves.": "Поставить план в очередь и при необходимости связать его с целью владельца.",
   "Show the queue.": "Показать очередь.",
   "Edit queued steps.": "Изменить шаги в очереди.",
   "Explain plan syntax.": "Объяснить синтаксис плана.",

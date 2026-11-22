@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.221.7] - 2026-11-22
+
+### Fixed
+
+- Plans attach only to the matching goal requested by the owner. A delayed planner response cannot attach to a changed or replaced goal.
+
 ## [0.221.5] - 2026-11-18
 
 ### Fixed
