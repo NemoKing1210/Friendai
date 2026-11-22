@@ -38,6 +38,8 @@ public final class CompanionAnchors extends SavedData {
             new SavedDataType<>(FriendaiMod.id("companion_anchors"), CompanionAnchors::new, CODEC, DataFixTypes.LEVEL);
 
     private final Map<UUID, Anchor> anchors = new HashMap<>();
+    /** Bumped on every change, so a tick can notice a new saved anchor without copying the whole map. */
+    private long revision;
 
     public CompanionAnchors() {}
 
@@ -53,14 +55,21 @@ public final class CompanionAnchors extends SavedData {
     public void put(UUID owner, Anchor anchor) {
         Anchor previous = anchors.put(owner, anchor);
         if (!anchor.equals(previous)) {
+            revision++;
             setDirty();
         }
     }
 
     public void remove(UUID owner) {
         if (anchors.remove(owner) != null) {
+            revision++;
             setDirty();
         }
+    }
+
+    /** Changes since the file was loaded; equal revisions mean the saved anchor set cannot have changed. */
+    public long revision() {
+        return revision;
     }
 
     /** Every anchor, as a copy safe to iterate while removing entries. */

@@ -658,7 +658,7 @@ const RU = {
   "Carry data": "Данные переноски",
   "Body captured at death + last five deaths.": "Тело, снятое при смерти, и последние пять смертей.",
   "Anchors": "Якоря",
-  "Owner to chunk, used to load on startup.": "Владелец → чанк, для загрузки при старте.",
+  "Owner to chunk, used to load on startup; restored eight at a time per tick.": "Владелец → чанк, для загрузки при старте; восстановление по восемь за тик.",
   "Settings & caches": "Настройки и кэши",
   "config/ and the game directory": "config/ и каталог игры",
   "Settings": "Настройки",

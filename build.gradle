@@ -54,7 +54,30 @@ fabricApi {
 
 tasks.register('resetGameTestWorld', Delete) {
 	// The test server otherwise reopens the previous world's chunks and Friendai companion anchors.
-	delete layout.projectDirectory.dir('build/run/gameTest/world')
+	def gameTestDir = layout.projectDirectory.dir('build/run/gameTest')
+	delete gameTestDir.dir('world')
+	// A run marker stamps each reset, so a test can prove the world it opened belongs to this run rather than to a
+	// save left behind by an earlier boot.
+	def runMarker = gameTestDir.file('.gameTest-run-id').asFile
+	// A verification run can leave a copied world beside the live one; the server only opens `world`, so any
+	// `world-*` sibling would otherwise die with the fresh run and could make a fixture's claim look reproducible.
+	// Resolve the real path of every candidate first: a symlinked sibling must never reach outside the profile.
+	def profile = gameTestDir.asFile.toPath()
+	def staleWorlds = profile.toFile().listFiles()?.findAll { candidate ->
+		if (!candidate.isDirectory() || !candidate.name.startsWith('world-')) {
+			return false
+		}
+		def real = candidate.toPath().toRealPath()
+		real.parent == profile.toRealPath() && real.fileName.toString() != 'world'
+	} ?: []
+	staleWorlds.each { delete it }
+	doLast {
+		runMarker.parentFile.mkdirs()
+		runMarker.text = java.util.UUID.randomUUID().toString()
+		if (!staleWorlds.isEmpty()) {
+			logger.lifecycle("Removed ${staleWorlds.size()} stale GameTest world(s) from ${gameTestDir}")
+		}
+	}
 }
 
 // Forwards `-Dfabric-api.gametest.filter=<glob>` (for example `friendai-gametest:build_tests_*`) from the Gradle

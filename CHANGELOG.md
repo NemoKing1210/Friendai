@@ -6,6 +6,10 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+### Changed
+
+- A world with many companions no longer stutters at startup: saved companions are restored a few at a time per tick instead of all at once, and stale test worlds can no longer make a test run look reproducible.
+
 ## [0.221.8] - 2026-11-22
 
 ### Added
