@@ -68,6 +68,8 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] Check the Routine row in each of the eight shipped languages; long routine names and status text stay inside the panel.
 - [ ] The Settings tab's free-time switch toggles it and shows the current activity (or "choosing an activity" while the director decides), in both UI languages.
 - [ ] Tell the companion "don't follow me" while free time runs: it stops walking after you, keeps working, and the Toggles tab shows "Following: off" after a relog. "Follow me" switches it back on.
+- [ ] Ask it to circle a slowly walking cow and then a point behind a wall: the moving ring keeps the cow inside the
+  orbit, and the obstructed one reports how many waypoints it covered instead of claiming a full lap.
 
 ## Smartness and quiet
 
