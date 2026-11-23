@@ -36,6 +36,10 @@ import org.jetbrains.annotations.Nullable;
 /**
  * Collects finished items from the furnaces this companion loaded, or from one given furnace. Only the result
  * slot is touched on somebody else's furnace; leftover fuel and station take-back belong to our own jobs.
+ *
+ * <p>A loaded furnace is identified by its dimension and position. A coordinate-free collection only visits jobs
+ * recorded in the companion's current dimension; jobs recorded elsewhere stay remembered and are reported, never
+ * walked to or read through a same-coordinate block of the current world.
  */
 public final class CollectSmeltedTask implements Task {
     private record Target(
@@ -83,6 +87,8 @@ public final class CollectSmeltedTask implements Task {
     private int waitLimit;
     /** The first furnace of this task that cannot produce its output any more. */
     private String blocked;
+    /** Jobs recorded in another dimension: never targeted, but named in the result. */
+    private int elsewhere;
 
     public CollectSmeltedTask(@Nullable BlockPos target) {
         this.target = target;
@@ -109,18 +115,36 @@ public final class CollectSmeltedTask implements Task {
                 }
             } else {
                 List<FurnaceJob> jobs = c.companion().furnaceJobs().all();
-                if (!jobs.isEmpty()) {
-                    for (FurnaceJob job : jobs) {
-                        targets.add(new Target(job.pos(), job.station(), job));
-                    }
-                } else {
+                if (jobs.isEmpty()) {
                     nearestWithResult(c)
                             .ifPresent(pos -> targets.add(
                                     new Target(pos, stationOf(c.level().getBlockState(pos)), null)));
+                } else {
+                    String dimension = c.level().dimension().identifier().toString();
+                    for (FurnaceJob job : jobs) {
+                        if (job.dimension().equals(dimension)) {
+                            targets.add(new Target(job.pos(), job.station(), job));
+                        } else {
+                            elsewhere++;
+                        }
+                    }
+                    if (targets.isEmpty() && elsewhere > 0) {
+                        // The only work is out of this world: name it instead of reading a stranger's station here.
+                        FurnaceJob remote = jobs.stream()
+                                .filter(job -> !job.dimension().equals(dimension))
+                                .findFirst()
+                                .orElse(null);
+                        if (remote != null) {
+                            blockedOnce("the " + remote.station().noun() + " at " + coords(remote.pos())
+                                    + " is in another dimension; its job for " + remote.output()
+                                    + " was not collected");
+                        }
+                    }
                 }
             }
             if (targets.isEmpty()) {
-                failure = "no furnace with finished items nearby";
+                // A remote-only job is a named blocker; only a truly empty scene is "nothing here".
+                failure = blocked != null ? null : "no furnace with finished items nearby";
             }
         } catch (RuntimeException e) {
             failure = "no furnace with finished items nearby";
@@ -179,6 +203,12 @@ public final class CollectSmeltedTask implements Task {
     }
 
     private TaskStatus approach(TaskContext c, Target current) {
+        if (current.job() != null && !inJobDimension(c, current.job())) {
+            // A portal trip between the start and this tick: the coordinates now name a different world's block.
+            noteOtherDimension(current.job());
+            nextTarget();
+            return TaskStatus.RUNNING;
+        }
         if (approach == null) {
             approach = new Approach(current.pos());
         }
@@ -198,10 +228,20 @@ public final class CollectSmeltedTask implements Task {
 
     private TaskStatus take(TaskContext c, Target current) {
         BlockPos pos = current.pos();
+        FurnaceJob job = settled.contains(pos) ? null : current.job();
+        if (job != null && !inJobDimension(c, job)) {
+            noteOtherDimension(job);
+            nextTarget();
+            return TaskStatus.RUNNING;
+        }
         if (!(c.level().getBlockEntity(pos) instanceof AbstractFurnaceBlockEntity furnace)) {
-            if (current.job() != null) {
+            if (job != null) {
                 noteMissing(c, current);
             }
+            nextTarget();
+            return TaskStatus.RUNNING;
+        }
+        if (job != null && !stationStillThere(c, current, furnace)) {
             nextTarget();
             return TaskStatus.RUNNING;
         }
@@ -214,13 +254,12 @@ public final class CollectSmeltedTask implements Task {
             stationsUsed.add(current.station());
             collectedPositions.add(pos);
         }
-        FurnaceJob job = settled.contains(pos) ? null : current.job();
         if (job != null) {
             ItemStack input = furnace.getItem(0);
             if (input.isEmpty()) {
                 settled.add(pos);
                 takeFuel(c, furnace);
-                c.companion().furnaceJobs().remove(pos);
+                c.companion().furnaceJobs().remove(job.dimension(), pos);
                 decideStation(c, current);
             } else if (outOfFuel(c, pos, furnace)) {
                 blockedOnce("the " + noun(current) + " at " + coords(pos) + " stopped: out of fuel, " + input.getCount()
@@ -239,6 +278,39 @@ public final class CollectSmeltedTask implements Task {
         return TaskStatus.RUNNING;
     }
 
+    private static boolean inJobDimension(TaskContext c, FurnaceJob job) {
+        return c.level().dimension().identifier().toString().equals(job.dimension());
+    }
+
+    /**
+     * The job's own station is still at its coordinates and still holds its own output. A replaced station or an
+     * unrelated result is a named blocker: the block and its contents are left untouched.
+     */
+    private boolean stationStillThere(TaskContext c, Target current, AbstractFurnaceBlockEntity furnace) {
+        FurnaceJob job = current.job();
+        BlockState state = c.level().getBlockState(current.pos());
+        if (!state.is(Stations.block(job.station()))) {
+            blockedOnce("the " + job.station().noun() + " at " + coords(current.pos())
+                    + " is no longer there; its job for " + job.output() + " was not collected");
+            c.companion().furnaceJobs().remove(job.dimension(), job.pos());
+            return false;
+        }
+        ItemStack result = furnace.getItem(2);
+        if (!result.isEmpty() && !idOf(result).equals(job.output())) {
+            blockedOnce("the " + job.station().noun() + " at " + coords(current.pos()) + " holds " + idOf(result)
+                    + ", not the " + job.output() + " it loaded; that job was not collected");
+            c.companion().furnaceJobs().remove(job.dimension(), job.pos());
+            return false;
+        }
+        return true;
+    }
+
+    /** A job whose station is in another world: named once, never walked to. */
+    private void noteOtherDimension(FurnaceJob job) {
+        blockedOnce("the " + job.station().noun() + " at " + coords(job.pos())
+                + " is in another dimension; its job for " + job.output() + " was not collected");
+    }
+
     /** A known job whose furnace is not visible: another dimension is a blocker, an unloaded chunk is a wait. */
     private void noteMissing(TaskContext c, Target current) {
         FurnaceJob job = current.job();
@@ -247,9 +319,8 @@ public final class CollectSmeltedTask implements Task {
             return;
         }
         String pos = coords(current.pos());
-        if (!c.level().dimension().identifier().toString().equals(job.dimension())) {
-            blockedOnce("the " + noun(current) + " at " + pos + " is in another dimension; its job for " + job.output()
-                    + " was not collected");
+        if (!inJobDimension(c, job)) {
+            noteOtherDimension(job);
             return;
         }
         if (!c.level().hasChunkAt(current.pos())) {
@@ -269,9 +340,8 @@ public final class CollectSmeltedTask implements Task {
             return;
         }
         String pos = coords(current.pos());
-        if (!c.level().dimension().identifier().toString().equals(job.dimension())) {
-            blockedOnce("the " + noun(current) + " at " + pos + " is in another dimension; its job for " + job.output()
-                    + " was not collected");
+        if (!inJobDimension(c, job)) {
+            noteOtherDimension(job);
             return;
         }
         if (!c.level().hasChunkAt(current.pos())) {
@@ -467,6 +537,12 @@ public final class CollectSmeltedTask implements Task {
         }
         for (String note : notes) {
             text.append("; ").append(note);
+        }
+        if (elsewhere > 0) {
+            text.append("; left ")
+                    .append(elsewhere)
+                    .append(elsewhere == 1 ? " job" : " jobs")
+                    .append(" in another dimension");
         }
         return text.toString();
     }

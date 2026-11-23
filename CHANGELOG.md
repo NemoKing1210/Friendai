@@ -6,6 +6,15 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.223.1] - 2026-11-23
+
+### Fixed
+
+- Two furnaces at the same coordinates in different dimensions no longer overwrite or clear each other's job.
+  Collecting waits for, and reads, only the furnaces in the companion's current world; a job in another world is
+  named as a blocker instead of being read through an unrelated block at the same spot. A station that was replaced
+  or now holds a different item is reported and left untouched rather than collected as the job's result.
+
 ## [0.223.0] - 2026-11-23
 
 ### Added

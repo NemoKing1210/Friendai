@@ -248,9 +248,13 @@ public class CookingTests {
     private static final int LAVA_DECK = 301;
 
     private static ExecutionCoordinator collect(CompanionEntity c, Result result, BlockPos target) {
+        return runCollect(c, result, new CollectSmeltedTask(target));
+    }
+
+    private static ExecutionCoordinator runCollect(CompanionEntity c, Result result, CollectSmeltedTask task) {
         ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 300, () -> false);
         runner.setEventSink(result);
-        runner.start(new CollectSmeltedTask(target), "collect_smelted");
+        runner.start(task, "collect_smelted");
         return runner;
     }
 
@@ -414,6 +418,222 @@ public class CookingTests {
                             + " is gone; its job for minecraft:gold_ingot was not collected",
                     "summary");
         });
+    }
+
+    /**
+     * A job is identified by its dimension and position: a job recorded in the nether at the same coordinates
+     * neither replaces the overworld job nor is cleared with it, and the watcher only reads the local station.
+     */
+    @GameTest
+    public void furnaceJobsKeepDimensionsApart(GameTestHelper h) {
+        deck(h, 16, DIMENSION_DECK);
+        int y = DIMENSION_DECK + 1;
+        var furnace = (net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity) furnaceAt(h, 4, y, 2);
+        BlockPos pos = pos(h, 4, y, 2);
+        furnace.setItem(2, new ItemStack(Items.GOLD_INGOT, 2));
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, y, 4);
+        String here = h.getLevel().dimension().identifier().toString();
+        c.furnaceJobs()
+                .add(new FurnaceJob(
+                        pos, here, Station.FURNACE, "minecraft:raw_gold", "minecraft:gold_ingot", 1, false));
+        c.furnaceJobs()
+                .add(new FurnaceJob(
+                        pos,
+                        "minecraft:the_nether",
+                        Station.FURNACE,
+                        "minecraft:raw_iron",
+                        "minecraft:iron_ingot",
+                        1,
+                        false));
+        h.assertValueEqual(
+                c.furnaceJobs().all().size(),
+                2,
+                "both worlds keep their job: " + c.furnaceJobs().all());
+
+        c.furnaceJobs().remove(here, pos);
+        h.assertValueEqual(c.furnaceJobs().all().size(), 1, "removing one world's job must keep the other");
+        h.assertValueEqual(c.furnaceJobs().all().get(0).dimension(), "minecraft:the_nether", "the nether job stays");
+
+        c.furnaceJobs()
+                .add(new FurnaceJob(
+                        pos, here, Station.FURNACE, "minecraft:raw_gold", "minecraft:gold_ingot", 1, false));
+        java.util.List<String> notices = new java.util.ArrayList<>();
+        c.furnaceJobs().tick(c, notices::add);
+        h.assertValueEqual(
+                notices,
+                List.of("the furnace at " + coords(pos)
+                        + " finished: 2 minecraft:gold_ingot ready (use collect_smelted)"),
+                "one notice for the local job, none for the nether job");
+        h.assertValueEqual(c.furnaceJobs().all().size(), 2, "the watcher must not drop the nether job");
+
+        // The station kind at those coordinates changed: the watcher names it and drops that world's job only.
+        h.setBlock(4, y, 2, Blocks.BLAST_FURNACE);
+        java.util.List<String> replaced = new java.util.ArrayList<>();
+        c.furnaceJobs().tick(c, replaced::add);
+        h.assertValueEqual(
+                replaced,
+                List.of("the furnace at " + coords(pos) + " is no longer there; the job for minecraft:gold_ingot"
+                        + " was dropped"),
+                "a replaced station is named once");
+        h.assertValueEqual(c.furnaceJobs().all().size(), 1, "the nether job survives the local replacement");
+        h.succeed();
+    }
+
+    /**
+     * The only remembered job is in another dimension and a stranger's furnace with a ready result sits at the
+     * same coordinates here. The collection names the dimension and touches nothing: no pickup, no job removal.
+     */
+    @GameTest(maxTicks = 200)
+    public void coordinateFreeCollectionLeavesOtherDimensionJobs(GameTestHelper h) {
+        deck(h, 16, UNEXPECTED_DECK);
+        int y = UNEXPECTED_DECK + 1;
+        var furnace = (net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity) furnaceAt(h, 12, y, 12);
+        BlockPos pos = pos(h, 12, y, 12);
+        furnace.setItem(2, new ItemStack(Items.COPPER_INGOT, 3));
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, y, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, pos), "the local furnace should be visible");
+        c.furnaceJobs()
+                .add(new FurnaceJob(
+                        pos,
+                        "minecraft:the_nether",
+                        Station.FURNACE,
+                        "minecraft:raw_copper",
+                        "minecraft:copper_ingot",
+                        3,
+                        false));
+        Result result = new Result();
+        ExecutionCoordinator collector = collect(c, result, (BlockPos) null);
+        h.succeedWhen(() -> {
+            collector.tick();
+            h.assertTrue(result.status == TaskStatus.FAILED, "not failed: " + result.status + " " + result.summary);
+            h.assertValueEqual(
+                    result.summary,
+                    "the furnace at " + coords(pos)
+                            + " is in another dimension; its job for minecraft:copper_ingot was not collected",
+                    "summary");
+            h.assertTrue(
+                    furnace.getItem(2).is(Items.COPPER_INGOT)
+                            && furnace.getItem(2).getCount() == 3,
+                    "the local furnace must be untouched");
+            h.assertValueEqual(c.inventory().countItem(Items.COPPER_INGOT), 0, "nothing collected");
+            h.assertValueEqual(c.furnaceJobs().all().size(), 1, "the nether job stays remembered");
+        });
+    }
+
+    /** A job that recorded a smoker whose block is now a furnace is a blocker, and the block stays untouched. */
+    @GameTest(maxTicks = 200)
+    public void collectionRejectsReplacedStation(GameTestHelper h) {
+        deck(h, 16, REPLACED_DECK);
+        int y = REPLACED_DECK + 1;
+        var furnace = (net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity) furnaceAt(h, 4, y, 2);
+        BlockPos pos = pos(h, 4, y, 2);
+        furnace.setItem(2, new ItemStack(Items.COOKED_BEEF, 2));
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, y, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, pos), "the furnace should be visible");
+        c.furnaceJobs()
+                .add(new FurnaceJob(
+                        pos,
+                        h.getLevel().dimension().identifier().toString(),
+                        Station.SMOKER,
+                        "minecraft:beef",
+                        "minecraft:cooked_beef",
+                        2,
+                        false));
+        Result result = new Result();
+        ExecutionCoordinator collector = collect(c, result, (BlockPos) null);
+        h.succeedWhen(() -> {
+            collector.tick();
+            h.assertTrue(result.status == TaskStatus.FAILED, "not failed: " + result.status + " " + result.summary);
+            h.assertValueEqual(
+                    result.summary,
+                    "the smoker at " + coords(pos) + " is no longer there; its job for minecraft:cooked_beef"
+                            + " was not collected",
+                    "summary");
+            h.assertTrue(furnace.getItem(2).is(Items.COOKED_BEEF), "the replaced station's contents must stay");
+            h.assertValueEqual(c.inventory().countItem(Items.COOKED_BEEF), 0, "nothing collected");
+            h.assertTrue(
+                    c.furnaceJobs().all().isEmpty(),
+                    "the stale job is dropped: " + c.furnaceJobs().all());
+        });
+    }
+
+    /** A result slot holding an unrelated item is not this job's output: the collection blocks and leaves it. */
+    @GameTest(maxTicks = 200)
+    public void collectionSkipsUnexpectedOutput(GameTestHelper h) {
+        deck(h, 16, UNEXPECTED_DECK);
+        int y = UNEXPECTED_DECK + 1;
+        var furnace = (net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity) furnaceAt(h, 4, y, 2);
+        BlockPos pos = pos(h, 4, y, 2);
+        furnace.setItem(2, new ItemStack(Items.GOLD_INGOT, 1));
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, y, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, pos), "the furnace should be visible");
+        c.furnaceJobs()
+                .add(new FurnaceJob(
+                        pos,
+                        h.getLevel().dimension().identifier().toString(),
+                        Station.FURNACE,
+                        "minecraft:raw_copper",
+                        "minecraft:copper_ingot",
+                        1,
+                        false));
+        Result result = new Result();
+        ExecutionCoordinator collector = collect(c, result, (BlockPos) null);
+        h.succeedWhen(() -> {
+            collector.tick();
+            h.assertTrue(result.status == TaskStatus.FAILED, "not failed: " + result.status + " " + result.summary);
+            h.assertValueEqual(
+                    result.summary,
+                    "the furnace at " + coords(pos) + " holds minecraft:gold_ingot, not the minecraft:copper_ingot"
+                            + " it loaded; that job was not collected",
+                    "summary");
+            h.assertTrue(furnace.getItem(2).is(Items.GOLD_INGOT), "the stranger's result must stay");
+            h.assertValueEqual(c.inventory().countItem(Items.GOLD_INGOT), 0, "nothing collected");
+            h.assertTrue(
+                    c.furnaceJobs().all().isEmpty(),
+                    "the job is dropped: " + c.furnaceJobs().all());
+        });
+    }
+
+    /**
+     * The job resolved at start is no longer reachable once the companion has crossed a portal: the next tick
+     * neither walks to those coordinates in the new world nor reads a same-coordinate block there, and the job
+     * stays remembered.
+     */
+    @GameTest(maxTicks = 200)
+    public void collectionStopsInAnotherDimension(GameTestHelper h) {
+        deck(h, 16, REPLACED_DECK);
+        int y = REPLACED_DECK + 1;
+        var furnace = (net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity) furnaceAt(h, 12, y, 12);
+        BlockPos pos = pos(h, 12, y, 12);
+        furnace.setItem(2, new ItemStack(Items.GOLD_INGOT, 2));
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, y, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, pos), "the furnace should be visible");
+        c.furnaceJobs()
+                .add(new FurnaceJob(
+                        pos,
+                        h.getLevel().dimension().identifier().toString(),
+                        Station.FURNACE,
+                        "minecraft:raw_gold",
+                        "minecraft:gold_ingot",
+                        2,
+                        false));
+        CollectSmeltedTask task = new CollectSmeltedTask(null);
+        task.start(new TaskContext(c, h.getLevel()));
+        var nether = h.getLevel().getServer().getLevel(net.minecraft.world.level.Level.NETHER);
+        h.assertTrue(nether != null, "the test server has a nether");
+        TaskContext elsewhere = new TaskContext(c, nether);
+        // The companion crossed a portal between the start and this tick.
+        h.assertValueEqual(
+                task.tick(elsewhere), TaskStatus.RUNNING, "the guard rejects the target before any movement");
+        h.assertValueEqual(task.tick(elsewhere), TaskStatus.FAILED, "the collection ends with the named blocker");
+        h.assertValueEqual(
+                task.resultSummary(),
+                "the furnace at " + coords(pos)
+                        + " is in another dimension; its job for minecraft:gold_ingot was not collected",
+                "summary");
+        h.assertTrue(furnace.getItem(2).is(Items.GOLD_INGOT), "the local block must stay untouched");
+        h.assertValueEqual(c.furnaceJobs().all().size(), 1, "the job stays remembered");
+        h.succeed();
     }
 
     /** A batch the station cannot all take is a blocker with the exact quantity that never started. */
@@ -702,6 +922,7 @@ public class CookingTests {
     }
 
     // Task 5: load-and-leave scenes live on their own decks, 24 blocks apart, so no test sees another's stations.
+    // TODO 124 scenes use DIMENSION_DECK and the REPLACED/UNEXPECTED/REMOTE deck heights.
     private static final int LOAD_DECK = 4;
     private static final int BLAST_DECK = 4;
     private static final int SMOKER_DECK = -30;
@@ -715,6 +936,9 @@ public class CookingTests {
     private static final int COLLECT_DECK = 250;
     private static final int WAITING_COLLECT_DECK = 41;
     private static final int GONE_COLLECT_DECK = 171;
+    private static final int DIMENSION_DECK = 209;
+    private static final int REPLACED_DECK = 72;
+    private static final int UNEXPECTED_DECK = 137;
     private static final int PARTIAL_LOAD_DECK = 106;
 
     private static void deck(GameTestHelper h, int size, int y) {
