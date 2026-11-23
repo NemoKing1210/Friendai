@@ -35,6 +35,7 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.SimpleContainer;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -122,6 +123,9 @@ public final class SmeltTask implements Task {
 
     private String unstartedReason;
     private String outputId;
+    /** The item ids this job's inputs cook into: what a campfire's ground drops must match to count. */
+    private final Set<String> expectedOutputs = new LinkedHashSet<>();
+
     private final Set<String> fuelsUsed = new LinkedHashSet<>();
     private final List<ItemStack> waitingInputs = new ArrayList<>();
     private Approach waitApproach;
@@ -382,6 +386,13 @@ public final class SmeltTask implements Task {
         }
         waitMode = waitRequest == CookingWait.WAIT
                 || waitRequest == CookingWait.AUTO && (estimate <= waitLimitTicks || resultNeeded);
+        expectedOutputs.clear();
+        for (String id : distinctIds()) {
+            Recipe cooked = recipeOn(kind, id);
+            if (cooked != null) {
+                expectedOutputs.add(cooked.output());
+            }
+        }
 
         if (free.isEmpty()) {
             String stationItem = index.stationItem(kind);
@@ -993,7 +1004,8 @@ public final class SmeltTask implements Task {
         for (Target target : targets) {
             if (kind == Station.CAMPFIRE) {
                 // A campfire throws its results out with the vanilla pickup delay; WAIT_INTERVAL is longer than it.
-                collected += c.companion().collectNearbyItems(3.0, e -> !e.hasPickUpDelay());
+                // Only this job's own cooked items count: an unrelated drop at our feet is not cooking progress.
+                collected += c.companion().collectNearbyItems(3.0, e -> !e.hasPickUpDelay() && isExpectedOutput(e));
                 if (campfireCooking(c.level(), target.pos())) {
                     allDone = false;
                 }
@@ -1004,11 +1016,23 @@ public final class SmeltTask implements Task {
                         + outputName() + " collected so far";
                 return TaskStatus.FAILED;
             }
-            ItemStack result = FurnaceSlots.takeResult(furnace);
+            ItemStack result =
+                    FurnaceSlots.takeResultInto(furnace, c.companion().inventory());
             if (!result.isEmpty()) {
                 collected += result.getCount();
-                InventoryOps.insertOrDrop(c.companion(), result);
                 FurnaceSlots.popExperience(c.level(), furnace, center);
+            }
+            ItemStack unfitted = furnace.getItem(2);
+            if (!unfitted.isEmpty()) {
+                // The bag took what it could hold; the rest stays in the station and this job does not claim it.
+                summary = collected > 0
+                        ? "collected " + collected + " " + outputName() + " so far; my inventory is full; "
+                                + unfitted.getCount() + " " + idOf(unfitted) + " left in the " + kind.noun() + " at "
+                                + coords(target.pos())
+                        : "my inventory is full; " + unfitted.getCount() + " " + idOf(unfitted) + " left in the "
+                                + kind.noun() + " at " + coords(target.pos());
+                phase = Phase.DONE;
+                return TaskStatus.FAILED;
             }
             ItemStack input = furnace.getItem(0);
             if (input.isEmpty()) {
@@ -1202,6 +1226,15 @@ public final class SmeltTask implements Task {
 
     private String outputName() {
         return outputId == null ? input.label() : outputId;
+    }
+
+    /** True when a ground drop is one of the items this job's inputs cook into, not an unrelated pickup. */
+    private boolean isExpectedOutput(ItemEntity entity) {
+        if (expectedOutputs.isEmpty()) {
+            return false;
+        }
+        return expectedOutputs.contains(
+                BuiltInRegistries.ITEM.getKey(entity.getItem().getItem()).toString());
     }
 
     // ---------------------------------------------------------------- small helpers

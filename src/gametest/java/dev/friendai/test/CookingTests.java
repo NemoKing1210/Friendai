@@ -26,9 +26,12 @@ import java.util.Optional;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 
 public class CookingTests {
     /** Records the notices and task outcomes a companion's runner reports. */
@@ -264,6 +267,29 @@ public class CookingTests {
                 && furnace.getItem(2).is(item);
     }
 
+    /** Fills every bag slot with one full stack, leaving no room for a station receipt. */
+    private static void fillBag(CompanionEntity c, net.minecraft.world.item.Item item) {
+        for (int slot = 0; slot < c.inventory().getContainerSize(); slot++) {
+            c.inventory().setItem(slot, new ItemStack(item, 64));
+        }
+    }
+
+    private static AABB around(BlockPos pos) {
+        Vec3 center = Vec3.atCenterOf(pos);
+        return new AABB(center, center).inflate(8.0);
+    }
+
+    private static int groundEntities(GameTestHelper h, BlockPos pos) {
+        return h.getLevel().getEntitiesOfClass(ItemEntity.class, around(pos)).size();
+    }
+
+    private static int groundCount(GameTestHelper h, BlockPos pos, net.minecraft.world.item.Item item) {
+        return h.getLevel().getEntitiesOfClass(ItemEntity.class, around(pos)).stream()
+                .filter(entity -> entity.getItem().is(item))
+                .mapToInt(entity -> entity.getItem().getCount())
+                .sum();
+    }
+
     @GameTest(maxTicks = 900)
     public void loadThenCollect(GameTestHelper h) {
         deck(h, 16, COLLECT_DECK);
@@ -341,6 +367,80 @@ public class CookingTests {
             runner.tick();
             h.assertTrue(result.status == TaskStatus.FAILED, "not failed: " + result.status + " " + result.summary);
             h.assertValueEqual(result.summary, "no furnace with finished items nearby", "summary");
+        });
+    }
+
+    /** A bag with no room leaves the whole result in the station: a receipt never turns into a ground drop. */
+    @GameTest(maxTicks = 400)
+    public void collectLeavesUnfittedResult(GameTestHelper h) {
+        deck(h, 16, GIVEN_DECK);
+        var furnace =
+                (net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity) furnaceAt(h, 4, GIVEN_DECK + 1, 2);
+        BlockPos pos = pos(h, 4, GIVEN_DECK + 1, 2);
+        furnace.setItem(2, new ItemStack(Items.GOLD_INGOT, 2));
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, GIVEN_DECK + 1, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, pos), "furnace should be visible");
+        c.furnaceJobs()
+                .add(new FurnaceJob(
+                        pos,
+                        h.getLevel().dimension().identifier().toString(),
+                        Station.FURNACE,
+                        "minecraft:raw_gold",
+                        "minecraft:gold_ingot",
+                        2,
+                        false));
+        fillBag(c, Items.STONE);
+        Result result = new Result();
+        ExecutionCoordinator runner = collect(c, result, pos);
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.FAILED, "not failed: " + result.status + " " + result.summary);
+            h.assertValueEqual(
+                    result.summary,
+                    "my inventory is full; 2 minecraft:gold_ingot left in the furnace at " + coords(pos),
+                    "summary");
+            h.assertValueEqual(furnace.getItem(2).getCount(), 2, "the result stays in the furnace");
+            h.assertValueEqual(c.inventory().countItem(Items.GOLD_INGOT), 0, "nothing entered the bag");
+            h.assertValueEqual(c.furnaceJobs().all().size(), 1, "the job stays for a later trip");
+            h.assertValueEqual(groundEntities(h, pos), 0, "no result may drop on the ground");
+        });
+    }
+
+    /** One free item of room takes one ingot and leaves the other in the station, with a named blocker. */
+    @GameTest(maxTicks = 400)
+    public void collectKeepsTheShareThatFits(GameTestHelper h) {
+        deck(h, 16, GIVEN_DECK);
+        var furnace =
+                (net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity) furnaceAt(h, 4, GIVEN_DECK + 1, 2);
+        BlockPos pos = pos(h, 4, GIVEN_DECK + 1, 2);
+        furnace.setItem(2, new ItemStack(Items.GOLD_INGOT, 2));
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, GIVEN_DECK + 1, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, pos), "furnace should be visible");
+        c.furnaceJobs()
+                .add(new FurnaceJob(
+                        pos,
+                        h.getLevel().dimension().identifier().toString(),
+                        Station.FURNACE,
+                        "minecraft:raw_gold",
+                        "minecraft:gold_ingot",
+                        2,
+                        false));
+        fillBag(c, Items.STONE);
+        c.inventory().setItem(0, new ItemStack(Items.GOLD_INGOT, 63));
+        Result result = new Result();
+        ExecutionCoordinator runner = collect(c, result, pos);
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.FAILED, "not failed: " + result.status + " " + result.summary);
+            h.assertValueEqual(
+                    result.summary,
+                    "collected 1 minecraft:gold_ingot from 1 furnace; my inventory is full; "
+                            + "1 minecraft:gold_ingot left in the furnace at " + coords(pos),
+                    "summary");
+            h.assertValueEqual(furnace.getItem(2).getCount(), 1, "the share that did not fit stays");
+            h.assertValueEqual(c.inventory().countItem(Items.GOLD_INGOT), 64, "the bag keeps 63 + 1");
+            h.assertValueEqual(c.furnaceJobs().all().size(), 1, "the job stays for a later trip");
+            h.assertValueEqual(groundEntities(h, pos), 0, "no result may drop on the ground");
         });
     }
 
@@ -871,6 +971,47 @@ public class CookingTests {
         });
     }
 
+    /** A bag that fills up after loading leaves the waited-out result in the station instead of dropping it. */
+    @GameTest(maxTicks = 900)
+    public void smeltWaitLeavesUnfittedResult(GameTestHelper h) {
+        deck(h, 16, WAIT_DECK);
+        h.setBlock(4, WAIT_DECK + 1, 2, Blocks.FURNACE);
+        BlockPos pos = pos(h, 4, WAIT_DECK + 1, 2);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, WAIT_DECK + 1, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, pos), "furnace should be visible");
+        c.inventory().addItem(new ItemStack(Items.RAW_COPPER, 1));
+        c.inventory().addItem(new ItemStack(Items.COAL, 1));
+        Result result = new Result();
+        ExecutionCoordinator runner =
+                smelt(c, result, "minecraft:raw_copper", 1, Station.FURNACE, null, false, 60 * 20);
+        boolean[] filled = {false};
+        h.succeedWhen(() -> {
+            runner.tick();
+            var furnace = h.getLevel().getBlockEntity(pos)
+                            instanceof net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity loaded
+                    ? loaded
+                    : null;
+            if (!filled[0] && furnace != null && !furnace.getItem(0).isEmpty()) {
+                // The job loaded its input and fuel; from here the bag has no room for its output.
+                fillBag(c, Items.STONE);
+                filled[0] = true;
+            }
+            h.assertTrue(result.status == TaskStatus.FAILED, "not finished: " + result.status + " " + result.summary);
+            h.assertValueEqual(
+                    result.summary,
+                    "my inventory is full; 1 minecraft:copper_ingot left in the furnace at " + coords(pos),
+                    "summary");
+            h.assertValueEqual(
+                    furnace != null && furnace.getItem(2).is(Items.COPPER_INGOT)
+                            ? furnace.getItem(2).getCount()
+                            : 0,
+                    1,
+                    "the result stays in the furnace");
+            h.assertValueEqual(c.inventory().countItem(Items.COPPER_INGOT), 0, "nothing entered the bag");
+            h.assertValueEqual(groundEntities(h, pos), 0, "no result may drop on the ground");
+        });
+    }
+
     @GameTest(maxTicks = 1200)
     public void campfireCooks(GameTestHelper h) {
         deck(h, 16, WAIT_DECK);
@@ -890,6 +1031,38 @@ public class CookingTests {
             h.assertTrue(
                     result.notices.stream().noneMatch(text -> text.contains("is gone")),
                     "no gone notice: " + result.notices);
+        });
+    }
+
+    /** A campfire counts only its own cooked output: unrelated drops at the companion's feet stay on the ground. */
+    @GameTest(maxTicks = 1200)
+    public void campfireIgnoresUnrelatedDrops(GameTestHelper h) {
+        deck(h, 16, WAIT_DECK);
+        h.setBlock(4, WAIT_DECK + 1, 2, Blocks.CAMPFIRE);
+        BlockPos pos = pos(h, 4, WAIT_DECK + 1, 2);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, WAIT_DECK + 1, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, pos), "campfire should be visible");
+        c.inventory().addItem(new ItemStack(Items.BEEF, 2));
+        BlockPos feet = pos(h, 2, WAIT_DECK + 1, 2);
+        ItemEntity gold = new ItemEntity(
+                h.getLevel(),
+                feet.getX() + 0.5,
+                feet.getY() + 0.1,
+                feet.getZ() + 0.5,
+                new ItemStack(Items.GOLD_INGOT, 3));
+        gold.setPickUpDelay(0);
+        h.getLevel().addFreshEntity(gold);
+        Result result = new Result();
+        ExecutionCoordinator runner = smelt(c, result, "minecraft:beef", 2, Station.CAMPFIRE, null, false, 60 * 20);
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(
+                    result.summary.startsWith("smelted 2 minecraft:beef into 2 minecraft:cooked_beef in 1 campfire"),
+                    "summary was " + result.summary);
+            h.assertValueEqual(c.inventory().countItem(Items.COOKED_BEEF), 2, "cooked beef");
+            h.assertValueEqual(c.inventory().countItem(Items.GOLD_INGOT), 0, "the gold must not be picked up");
+            h.assertValueEqual(groundCount(h, feet, Items.GOLD_INGOT), 3, "the gold stays on the ground");
         });
     }
 

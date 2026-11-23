@@ -6,6 +6,16 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.223.2] - 2026-11-23
+
+### Fixed
+
+- A full bag no longer turns a finished furnace into a drop on the ground: the companion keeps what fits, leaves the
+  rest in the furnace, and says how many items are still there. Collecting and waiting out a smelt both report a
+  blocked result instead of claiming an output that never reached the bag.
+- A campfire now counts only the food it cooked. An unrelated item lying next to the companion is no longer picked up
+  and counted as smelting progress.
+
 ## [0.223.1] - 2026-11-23
 
 ### Fixed

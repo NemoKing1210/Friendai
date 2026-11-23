@@ -245,14 +245,21 @@ public final class CollectSmeltedTask implements Task {
             nextTarget();
             return TaskStatus.RUNNING;
         }
-        ItemStack result = FurnaceSlots.takeResult(furnace);
+        ItemStack result = FurnaceSlots.takeResultInto(furnace, c.companion().inventory());
         if (!result.isEmpty()) {
             var output = BuiltInRegistries.ITEM.getKey(result.getItem()).toString();
             collected.merge(output, result.getCount(), Integer::sum);
-            InventoryOps.insertOrDrop(c.companion(), result);
             FurnaceSlots.popExperience(c.level(), furnace, Vec3.atCenterOf(pos));
             stationsUsed.add(current.station());
             collectedPositions.add(pos);
+        }
+        ItemStack unfitted = furnace.getItem(2);
+        if (!unfitted.isEmpty()) {
+            // The bag took what it could hold: the rest stays in the station, and the job stays for a later trip.
+            blockedOnce("my inventory is full; " + unfitted.getCount() + " " + idOf(unfitted) + " left in the "
+                    + noun(current) + " at " + coords(pos));
+            nextTarget();
+            return TaskStatus.RUNNING;
         }
         if (job != null) {
             ItemStack input = furnace.getItem(0);
@@ -438,17 +445,19 @@ public final class CollectSmeltedTask implements Task {
     }
 
     private TaskStatus finish(TaskContext c) {
-        if (blocked != null) {
-            String collectedText = collectionSummary();
-            summary = collectedText == null ? blocked : collectedText + "; " + blocked;
-            return TaskStatus.FAILED;
-        }
         if (pendingCooking) {
             if (waitLimit <= 0) {
                 waitLimit = waitTicks + pendingCookingTicks(c) + WAIT_GRACE_TICKS;
             }
             phase = Phase.WAIT;
             return TaskStatus.RUNNING;
+        }
+        // A named blocker outranks a completed partial collection, so a plan never advances on a bag that missed
+        // the output it was waiting for.
+        if (blocked != null) {
+            String collectedText = collectionSummary();
+            summary = collectedText == null ? blocked : collectedText + "; " + blocked;
+            return TaskStatus.FAILED;
         }
         String collectedText = collectionSummary();
         if (collectedText == null) {

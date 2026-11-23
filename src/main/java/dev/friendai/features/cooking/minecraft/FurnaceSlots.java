@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -97,13 +98,24 @@ public final class FurnaceSlots {
         return count;
     }
 
-    /** Takes everything in the result slot. */
-    public static ItemStack takeResult(AbstractFurnaceBlockEntity furnace) {
+    /**
+     * Takes as much of the result slot as the inventory accepts and leaves the rest in the station, so a full bag
+     * never turns a station receipt into a drop on the ground. Returns the stack that actually moved.
+     */
+    public static ItemStack takeResultInto(AbstractFurnaceBlockEntity furnace, SimpleContainer inventory) {
         ItemStack result = furnace.getItem(2);
         if (result.isEmpty()) {
             return ItemStack.EMPTY;
         }
-        return furnace.removeItem(2, result.getCount());
+        ItemStack leftover = inventory.addItem(result.copy());
+        int accepted = result.getCount() - leftover.getCount();
+        if (accepted <= 0) {
+            return ItemStack.EMPTY;
+        }
+        inventory.setChanged();
+        furnace.setItem(2, leftover);
+        furnace.setChanged();
+        return result.copyWithCount(accepted);
     }
 
     /**
