@@ -577,6 +577,81 @@ public class MineBlocksTests {
         });
     }
 
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 1200)
+    public void mineAtWithTheExpectedBlockMinesIt(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(6, 2, 2, Blocks.EMERALD_BLOCK);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(Items.IRON_PICKAXE.getDefaultInstance());
+        BlockPos target = h.absolutePos(new BlockPos(6, 2, 2));
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(
+                new MineBlockAtTask(
+                        target,
+                        false,
+                        32,
+                        true,
+                        "minecraft:emerald_block",
+                        h.getLevel().dimension().identifier().toString()),
+                "mine_block_at");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(h.getBlockState(new BlockPos(6, 2, 2)).isAir(), "the expected block must be mined");
+        });
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16)
+    public void mineAtWithAChangedExpectedBlockLeavesItAlone(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(6, 2, 2, Blocks.LAPIS_BLOCK);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        BlockPos target = h.absolutePos(new BlockPos(6, 2, 2));
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        h.setBlock(6, 2, 2, Blocks.GOLD_BLOCK);
+        runner.start(
+                new MineBlockAtTask(
+                        target,
+                        false,
+                        32,
+                        true,
+                        "minecraft:lapis_block",
+                        h.getLevel().dimension().identifier().toString()),
+                "mine_block_at");
+        runner.tick();
+        h.assertTrue(result.status == TaskStatus.FAILED, "should fail: " + result.status + " " + result.summary);
+        h.assertTrue(
+                result.summary.equals("the block at " + coords(target)
+                        + " is now minecraft:gold_block, not minecraft:lapis_block; it changed since the order, so I"
+                        + " left it alone"),
+                "summary was " + result.summary);
+        h.assertTrue(h.getBlockState(new BlockPos(6, 2, 2)).is(Blocks.GOLD_BLOCK), "the new block must stay");
+        h.succeed();
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16)
+    public void mineAtInAnotherDimensionFailsWithoutMining(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(6, 2, 2, Blocks.DIAMOND_BLOCK);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        BlockPos target = h.absolutePos(new BlockPos(6, 2, 2));
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(
+                new MineBlockAtTask(target, true, 32, true, "minecraft:diamond_block", "minecraft:the_nether"),
+                "mine_block_at");
+        runner.tick();
+        h.assertTrue(result.status == TaskStatus.FAILED, "should fail: " + result.status + " " + result.summary);
+        h.assertTrue(
+                result.summary.startsWith("the block at " + coords(target) + " is in minecraft:the_nether, not here")
+                        && result.summary.endsWith("; I did not mine anything"),
+                "summary was " + result.summary);
+        h.assertTrue(h.getBlockState(new BlockPos(6, 2, 2)).is(Blocks.DIAMOND_BLOCK), "the block must stay");
+        h.succeed();
+    }
+
     @GameTest
     public void mineAtAirFails(GameTestHelper h) {
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);

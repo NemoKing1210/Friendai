@@ -56,10 +56,17 @@ public final class MineBlockAtTask implements Task {
     private final boolean veinEnabled;
     private final int veinLimit;
     private final boolean collect;
+    /** The block id the order meant, or null when the caller gave only coordinates. */
+    private final String expect;
+    /** The dimension the order was made in, so a queued order cannot mine the same coordinates elsewhere. */
+    private final String dimension;
+
     private BlockBreaker breaker;
     private DropCollector sweep;
     private BlockState startBlock;
     private String summary = "";
+    /** Why the order's referent no longer holds, or null while it still does. */
+    private String refusedReferent;
     /** Whether the safe break of the block under the companion was already tried. */
     private boolean supportRetry;
     /** The vein still to break, in the order the fill found it. */
@@ -92,10 +99,21 @@ public final class MineBlockAtTask implements Task {
     }
 
     public MineBlockAtTask(BlockPos pos, boolean vein, int veinLimit, boolean collect) {
+        this(pos, vein, veinLimit, collect, null, null);
+    }
+
+    /**
+     * @param expect the block id the order meant, checked before anything is touched, or null for a coordinate order
+     * @param dimension the dimension the order was made in, or null to mine whatever dimension the task runs in
+     */
+    public MineBlockAtTask(
+            BlockPos pos, boolean vein, int veinLimit, boolean collect, String expect, String dimension) {
         this.pos = pos;
         this.veinEnabled = vein;
         this.veinLimit = Math.max(1, Math.min(MAX_VEIN_BLOCKS, veinLimit));
         this.collect = collect;
+        this.expect = expect;
+        this.dimension = dimension;
     }
 
     @Override
@@ -122,11 +140,32 @@ public final class MineBlockAtTask implements Task {
 
     @Override
     public void start(TaskContext c) {
+        String here = c.level().dimension().identifier().toString();
+        if (dimension != null && !dimension.equals(here)) {
+            refusedReferent = "the block at " + coords() + " is in " + dimension + ", not here (" + here
+                    + "); I did not mine anything";
+            return;
+        }
         startBlock = c.level().getBlockState(pos);
+        if (expect != null) {
+            String now = BuiltInRegistries.BLOCK.getKey(startBlock.getBlock()).toString();
+            if (!now.equals(expect)) {
+                refusedReferent = "the block at " + coords() + " is now " + now + ", not " + expect
+                        + "; it changed since the order, so I left it alone";
+            }
+        }
     }
 
     @Override
     public TaskStatus tick(TaskContext c) {
+        if (refusedReferent != null) {
+            summary = refusedReferent;
+            return TaskStatus.FAILED;
+        }
+        return tickAfterReferent(c);
+    }
+
+    private TaskStatus tickAfterReferent(TaskContext c) {
         if (catchCleanup != null) {
             TemporaryBlockCleanup.State state = catchCleanup.tick(c);
             if (state == TemporaryBlockCleanup.State.WORKING) {

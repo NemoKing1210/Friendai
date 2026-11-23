@@ -22,7 +22,9 @@ public record OwnerFocus(
         float maxHealth,
         int food,
         int armor,
-        String bodyState) {
+        String bodyState,
+        /** What the speaker pointed at when they spoke, or null outside a turn that captured it. */
+        String utterance) {
 
     public enum Visibility {
         VISIBLE,
@@ -59,16 +61,37 @@ public record OwnerFocus(
                 maxHealth,
                 food,
                 armor,
-                bodyState);
+                bodyState,
+                null);
     }
 
     public static OwnerFocus unavailable(String label, Visibility visibility, double distance) {
         return new OwnerFocus(
-                label, visibility, distance, null, null, null, OwnerGear.NOTHING, null, null, 0f, 0f, 0, 0, null);
+                label, visibility, distance, null, null, null, OwnerGear.NOTHING, null, null, 0f, 0f, 0, 0, null, null);
+    }
+
+    /** The same focus with the aim the speaker had when they gave the order, rendered as its own line. */
+    public OwnerFocus withUtterance(String sentence) {
+        return new OwnerFocus(
+                label,
+                visibility,
+                distance,
+                position,
+                standingOn,
+                lookingAt,
+                gear,
+                relative,
+                facing,
+                health,
+                maxHealth,
+                food,
+                armor,
+                bodyState,
+                sentence);
     }
 
     public String toPromptText() {
-        return switch (visibility) {
+        String base = switch (visibility) {
             case OFFLINE -> label + ": offline";
             case OTHER_DIMENSION -> label + ": in another dimension";
             case OUT_OF_SIGHT -> label + ": " + blocksAway() + ", out of sight (I can't tell where they stand or look)";
@@ -78,7 +101,7 @@ public record OwnerFocus(
                         + (facing == null ? "" : ", " + facing)
                         + "\n  at: " + position
                         + "\n  standing on: " + standingOn
-                        + "\n  looking at: " + lookingAt
+                        + "\n  looking at" + (utterance == null ? ": " : " now: ") + lookingAt
                         + "\n  holding: " + gear.holding()
                         + "\n  wearing: " + gear.wearing()
                         + (bodyState == null
@@ -88,6 +111,7 @@ public record OwnerFocus(
                                         + ", food " + food + "/" + HungerModel.MAX_FOOD + ", armor " + armor
                                         + "\n  body: " + bodyState);
         };
+        return utterance == null ? base : base + "\n  when they spoke: " + utterance;
     }
 
     private String blocksAway() {

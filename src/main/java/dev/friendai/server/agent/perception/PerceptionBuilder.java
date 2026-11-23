@@ -4,6 +4,7 @@ import dev.friendai.agent.autonomy.FreeTimeText;
 import dev.friendai.agent.perception.OwnerFocus;
 import dev.friendai.agent.perception.PerceptionSnapshot;
 import dev.friendai.agent.perception.SelfStatus;
+import dev.friendai.agent.turn.UtteranceReferent;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.combat.Threat;
 import dev.friendai.features.knowledge.minecraft.LandmarkScanner;
@@ -19,6 +20,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
@@ -63,6 +65,15 @@ public final class PerceptionBuilder {
     /** The brief snapshot with the view of {@code principal} (or the owner when null or offline). */
     public static PerceptionSnapshot brief(CompanionEntity c, UUID principal, PerceptionContext context) {
         return build(c, BRIEF_RADIUS, OwnerFocusBuilder.of(c, principal), context);
+    }
+
+    /**
+     * The brief snapshot for a player turn, with what {@code principal} pointed at when their line was accepted. The
+     * live aim stays visible beside it; {@code player_view} is the explicit refresh.
+     */
+    public static PerceptionSnapshot brief(
+            CompanionEntity c, UUID principal, PerceptionContext context, Optional<UtteranceReferent> referent) {
+        return build(c, BRIEF_RADIUS, OwnerFocusBuilder.of(c, principal, referent), context);
     }
 
     /** The detailed snapshot, shared by every consumer that asks in the same tick with the same context. */

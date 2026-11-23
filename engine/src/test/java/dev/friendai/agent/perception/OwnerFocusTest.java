@@ -86,6 +86,39 @@ class OwnerFocusTest {
     }
 
     @Test
+    void utteranceSeparatesTheOrderFromTheLiveAim() {
+        OwnerFocus focus = OwnerFocus.visible(
+                        "Owner",
+                        6.2,
+                        "10 64 -4",
+                        "grass_block at 10 63 -4",
+                        "block sand at 12 65 -3 (5.1 blocks)",
+                        OwnerGear.NOTHING,
+                        "ahead",
+                        "looking toward you",
+                        20f,
+                        20f,
+                        20,
+                        0,
+                        "ok")
+                .withUtterance("block minecraft:oak_log at 8 3 2, still there — that is the block a \"this block\" "
+                        + "order means");
+        String text = focus.toPromptText();
+        assertTrue(text.contains("\n  looking at now: block sand at 12 65 -3 (5.1 blocks)\n"), text);
+        assertTrue(
+                text.contains("\n  when they spoke: block minecraft:oak_log at 8 3 2, still there — that is the block"
+                        + " a \"this block\" order means"),
+                text);
+    }
+
+    @Test
+    void withoutAnUtteranceTheAimIsJustTheAim() {
+        OwnerFocus focus =
+                OwnerFocus.unavailable("Owner", Visibility.OFFLINE, 0).withUtterance("nothing within 64 blocks");
+        assertEquals("Owner: offline\n  when they spoke: nothing within 64 blocks", focus.toPromptText());
+    }
+
+    @Test
     void distanceIsLocaleIndependent() {
         java.util.Locale previous = java.util.Locale.getDefault();
         try {

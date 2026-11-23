@@ -63,7 +63,8 @@ public final class PerceptionTools implements FeatureToolContributor {
                         "Where the player who is talking to you stands, what both hands hold, which armor they "
                                 + "wear and what they are looking at or standing on, right now. Use it when they say "
                                 + "'this block', 'the one I'm looking at', 'where I stand' or ask what they are "
-                                + "carrying, especially after they may have moved.",
+                                + "carrying, especially after they may have moved. It is the live refresh: the "
+                                + "speaker's line in your context already says what they pointed at when they spoke.",
                         SchemaBuilder.object().build(),
                         AccessLevel.TRUSTED,
                         (companion, caller, args) -> ToolResult.ok(

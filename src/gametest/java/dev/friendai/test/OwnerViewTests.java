@@ -7,6 +7,7 @@ import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.server.agent.perception.OwnerFocusBuilder;
 import java.util.UUID;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
+import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EntityTypes;
@@ -324,6 +325,63 @@ public class OwnerViewTests {
         OwnerFocus unnamed = OwnerFocusBuilder.of(companion, null);
         h.assertTrue(unnamed.visibility() == Visibility.VISIBLE, "no speaker still means the owner: " + unnamed);
         h.succeed();
+    }
+
+    /**
+     * An order keeps the block the speaker pointed at, even after they look elsewhere: the captured referent is what
+     * "this block" means, and the live aim is labelled as the current gaze beside it.
+     */
+    @GameTest(structure = GameTestArenas.ARENA_16)
+    public void theAimWhenTheySpokeOutlivesALaterGaze(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        h.setBlock(8, 3, 2, Blocks.OAK_LOG);
+        h.setBlock(2, 3, 8, Blocks.STONE);
+        ServerPlayer owner = lookingEast(h, 2.5, 2, 2.5);
+        CompanionEntity companion = companionFor(h, owner);
+        BlockPos logAt = h.absolutePos(new BlockPos(8, 3, 2));
+        BlockPos stoneAt = h.absolutePos(new BlockPos(2, 3, 8));
+        java.util.Optional<dev.friendai.agent.turn.UtteranceReferent> spoken = OwnerFocusBuilder.capture(owner);
+        h.assertTrue(spoken.isPresent(), "the aim must be captured");
+        dev.friendai.agent.turn.UtteranceReferent referent = spoken.get();
+        h.assertTrue(referent.dimension().equals("minecraft:overworld"), "dimension: " + referent.dimension());
+        h.assertTrue(referent.kind() == dev.friendai.agent.turn.UtteranceReferent.Kind.BLOCK, "kind: " + referent);
+        h.assertTrue(referent.target().equals("minecraft:oak_log"), "target: " + referent.target());
+        h.assertTrue(
+                referent.x() == logAt.getX() && referent.y() == logAt.getY() && referent.z() == logAt.getZ(),
+                "position: " + referent);
+
+        owner.setYRot(0F); // now look south at the stone
+        owner.setYHeadRot(0F);
+        OwnerFocus focus = OwnerFocusBuilder.of(companion, owner.getUUID(), spoken);
+        String text = focus.toPromptText();
+        h.assertTrue(text.contains("\n  looking at now: block stone at " + logLine(stoneAt)), text);
+        h.assertTrue(
+                text.contains("\n  when they spoke: block minecraft:oak_log at " + logLine(logAt) + ", still there"),
+                text);
+        h.succeed();
+    }
+
+    /** A block replaced between the order and the turn is reported as changed; the same turn keeps the live aim. */
+    @GameTest(structure = GameTestArenas.ARENA_16)
+    public void aReplacedPointedBlockIsReportedAsChanged(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        h.setBlock(8, 3, 2, Blocks.OAK_LOG);
+        ServerPlayer owner = lookingEast(h, 2.5, 2, 2.5);
+        CompanionEntity companion = companionFor(h, owner);
+        BlockPos at = h.absolutePos(new BlockPos(8, 3, 2));
+        java.util.Optional<dev.friendai.agent.turn.UtteranceReferent> spoken = OwnerFocusBuilder.capture(owner);
+        h.setBlock(8, 3, 2, Blocks.DIAMOND_BLOCK);
+        OwnerFocus focus = OwnerFocusBuilder.of(companion, owner.getUUID(), spoken);
+        h.assertTrue(
+                focus.toPromptText()
+                        .contains("\n  when they spoke: block minecraft:oak_log at " + logLine(at)
+                                + ", now minecraft:diamond_block — it changed since they spoke"),
+                focus.toPromptText());
+        h.succeed();
+    }
+
+    private static String logLine(BlockPos pos) {
+        return pos.getX() + " " + pos.getY() + " " + pos.getZ();
     }
 
     @GameTest(structure = GameTestArenas.ARENA_16)

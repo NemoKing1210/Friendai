@@ -4,6 +4,7 @@ import dev.friendai.agent.turn.BrainEvent;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.conversation.*;
 import dev.friendai.infrastructure.config.ServerConfig;
+import dev.friendai.server.agent.perception.OwnerFocusBuilder;
 import dev.friendai.server.runtime.ServerRuntime;
 import java.util.ArrayList;
 import java.util.List;
@@ -66,6 +67,15 @@ public final class CompanionRouting {
         } else {
             runtime.socialDirector().guestSpoke(owner);
         }
-        runtime.sessions().post(owner, new BrainEvent.PlayerSaid(sender.getUUID(), name, text, source, audience));
+        runtime.sessions()
+                .post(
+                        owner,
+                        new BrainEvent.PlayerSaid(
+                                sender.getUUID(),
+                                name,
+                                text,
+                                source,
+                                audience,
+                                OwnerFocusBuilder.capture(sender).orElse(null)));
     }
 }

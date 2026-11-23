@@ -108,6 +108,7 @@
 				"BrainServiceTests",
 				"PerceptionTests",
 				"OwnerViewTests",
+				"ReferentTests",
 				"GuestTests",
 				"TrustTests",
 				"SpeechTests",

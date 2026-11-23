@@ -60,15 +60,39 @@ public sealed interface BrainEvent {
         }
     }
 
-    record PlayerSaid(UUID playerUuid, String playerName, String text, Source source, Audience audience)
+    /**
+     * @param referent what the speaker pointed at when the line was accepted, or empty when nothing was captured
+     */
+    record PlayerSaid(
+            UUID playerUuid,
+            String playerName,
+            String text,
+            Source source,
+            Audience audience,
+            Optional<UtteranceReferent> referent)
             implements BrainEvent {
         public PlayerSaid {
             audience = audience == null ? AudienceOrigin.of(source == Source.VOICE) : audience;
+            referent = referent == null ? Optional.empty() : referent;
         }
 
         /** Keeps the historical constructors working: typed chat is public and voice is private. */
         public PlayerSaid(UUID playerUuid, String playerName, String text, Source source) {
-            this(playerUuid, playerName, text, source, AudienceOrigin.of(source == Source.VOICE));
+            this(playerUuid, playerName, text, source, AudienceOrigin.of(source == Source.VOICE), Optional.empty());
+        }
+
+        public PlayerSaid(UUID playerUuid, String playerName, String text, Source source, Audience audience) {
+            this(playerUuid, playerName, text, source, audience, Optional.empty());
+        }
+
+        public PlayerSaid(
+                UUID playerUuid,
+                String playerName,
+                String text,
+                Source source,
+                Audience audience,
+                UtteranceReferent referent) {
+            this(playerUuid, playerName, text, source, audience, Optional.ofNullable(referent));
         }
 
         @Override

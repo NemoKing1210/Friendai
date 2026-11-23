@@ -492,6 +492,79 @@ class CompanionBrainTest {
         return new BrainEvent.PlayerSaid(GUEST, "Bob", text, BrainEvent.Source.CHAT);
     }
 
+    @Test
+    void perceptionReceivesTheTurnReferent() {
+        List<java.util.Optional<UtteranceReferent>> seen = new ArrayList<>();
+        brain = new CompanionBrain(
+                () -> new Persona("Friendai", "friendly", "auto"),
+                () -> new BrainSettings(maxSteps, 30, cooldown, guestCooldown),
+                () -> gatewaySupplier.get(),
+                tools,
+                new PerceptionSource() {
+                    @Override
+                    public String describe() {
+                        return "plain";
+                    }
+
+                    @Override
+                    public String describe(
+                            dev.friendai.execution.tool.Caller caller, java.util.Optional<UtteranceReferent> referent) {
+                        seen.add(referent);
+                        return "VIEW";
+                    }
+                },
+                speaker,
+                scheduler,
+                AccessResolver.of(OWNER, trusted::contains));
+        gateway.enqueue(text("ok"));
+        gateway.enqueue(text("ok"));
+        gateway.enqueue(text("ok"));
+        UtteranceReferent oak = referent(2, 3, 8, "minecraft:oak_log", UtteranceReferent.Kind.BLOCK);
+        brain.post(new BrainEvent.PlayerSaid(
+                OWNER, "Steve", "break this block", BrainEvent.Source.CHAT, Audience.PUBLIC, oak));
+        // The pointed block stays with the turn while the model answers; an unrelated event turn has none.
+        assertEquals(Optional.of(oak), seen.get(seen.size() - 1));
+        brain.post(new BrainEvent.TaskFinished(1, "mine_blocks", true, "mined 3 logs"));
+        assertEquals(Optional.empty(), seen.get(seen.size() - 1));
+        assertEquals(2, seen.size());
+    }
+
+    @Test
+    void aLaterTargetedLineWinsOverAnEarlierOne() {
+        List<java.util.Optional<UtteranceReferent>> seen = new ArrayList<>();
+        brain = new CompanionBrain(
+                () -> new Persona("Friendai", "friendly", "auto"),
+                () -> new BrainSettings(maxSteps, 30, cooldown, guestCooldown),
+                () -> gatewaySupplier.get(),
+                tools,
+                new PerceptionSource() {
+                    @Override
+                    public String describe() {
+                        return "plain";
+                    }
+
+                    @Override
+                    public String describe(
+                            dev.friendai.execution.tool.Caller caller, java.util.Optional<UtteranceReferent> referent) {
+                        seen.add(referent);
+                        return "VIEW";
+                    }
+                },
+                speaker,
+                scheduler,
+                AccessResolver.of(OWNER, trusted::contains));
+        gateway.enqueue(text("ok"));
+        UtteranceReferent oak = referent(2, 3, 8, "minecraft:oak_log", UtteranceReferent.Kind.BLOCK);
+        UtteranceReferent stone = referent(5, 6, 7, "minecraft:stone", UtteranceReferent.Kind.BLOCK);
+        brain.post(new BrainEvent.PlayerSaid(OWNER, "Steve", "one", BrainEvent.Source.CHAT, Audience.PUBLIC, oak));
+        brain.post(new BrainEvent.PlayerSaid(OWNER, "Steve", "two", BrainEvent.Source.CHAT, Audience.PUBLIC, stone));
+        assertEquals(Optional.of(stone), seen.get(seen.size() - 1), "the last line that pointed at something wins");
+    }
+
+    private static UtteranceReferent referent(int x, int y, int z, String target, UtteranceReferent.Kind kind) {
+        return new UtteranceReferent(OWNER, "minecraft:overworld", x, y, z, target, kind, 40L);
+    }
+
     private static Message lastUser(FakeGateway.Request r) {
         for (int i = r.messages().size() - 1; i >= 0; i--) {
             if (r.messages().get(i).role() == Role.USER) {

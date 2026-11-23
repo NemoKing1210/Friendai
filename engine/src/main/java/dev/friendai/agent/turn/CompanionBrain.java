@@ -161,6 +161,13 @@ public final class CompanionBrain {
     private BrainEvent turnEvent;
 
     private final List<String> turnPlayerTexts = new ArrayList<>();
+    /**
+     * What the talking player pointed at when their line was accepted, kept for the turn so a delayed answer still
+     * means the block they pointed at. The last line that carried a target wins; a batch of blind lines falls back
+     * to the last captured "nothing there".
+     */
+    private Optional<UtteranceReferent> turnReferent = Optional.empty();
+
     private String lastOwnerText;
     private long lastOwnerAtMillis;
     /** What the player just heard, newest first: an event turn repeats none of it. */
@@ -377,6 +384,7 @@ public final class CompanionBrain {
         teachingContext = null;
         skillSession = SkillTurnSession.NONE;
         activePrincipal = null;
+        turnReferent = Optional.empty();
         queue.clear();
         incidents.cancelled();
         recoveryTurn = false;
@@ -513,7 +521,7 @@ public final class CompanionBrain {
     private String buildSystemPrompt(String note) {
         return PromptBuilder.system(
                 skillSession.persona(persona.get()),
-                perception.describe(turnCaller),
+                perception.describe(turnCaller, turnReferent),
                 turnCaller,
                 memorySource.describe(turnCaller, String.join("\n", turnPlayerTexts)),
                 turnKind,
@@ -697,12 +705,16 @@ public final class CompanionBrain {
         });
         String name = "";
         turnPlayerTexts.clear();
+        turnReferent = Optional.empty();
         turnAudience = Audience.NEARBY;
         for (BrainEvent event : batch) {
             if (event instanceof BrainEvent.PlayerSaid said) {
                 name = said.playerName();
                 turnPlayerTexts.add(said.text());
                 turnAudience = said.audience();
+                said.referent()
+                        .filter(referent -> referent.hasTarget() || turnReferent.isEmpty())
+                        .ifPresent(referent -> turnReferent = Optional.of(referent));
                 if (said.playerUuid().equals(access.owner())) {
                     lastOwnerText = said.text();
                     lastOwnerAtMillis = scheduler.nowMillis();
@@ -1614,6 +1626,7 @@ public final class CompanionBrain {
         // Internal state is already settled: an external indicator that fails must not stop the next turn.
         speakSafely("thinking", () -> speaker.thinking(false));
         activePrincipal = null;
+        turnReferent = Optional.empty();
         maybeStartTurn();
     }
 }

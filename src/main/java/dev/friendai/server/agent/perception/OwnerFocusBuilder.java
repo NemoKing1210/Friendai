@@ -3,6 +3,8 @@ package dev.friendai.server.agent.perception;
 import dev.friendai.agent.perception.OwnerFocus;
 import dev.friendai.agent.perception.OwnerGear;
 import dev.friendai.agent.perception.PerceptionSnapshot;
+import dev.friendai.agent.turn.UtteranceReferent;
+import dev.friendai.agent.turn.UtteranceReferent.Kind;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.foundation.spatial.RelativeDirection;
 import dev.friendai.world.block.MiningToolView;
@@ -73,6 +75,42 @@ public final class OwnerFocusBuilder {
                 player.getFoodData().getFoodLevel(),
                 player.getArmorValue(),
                 bodyState(player));
+    }
+
+    /**
+     * The same view plus what the speaker pointed at when their line was accepted. The live aim is still shown, so a
+     * speaker who walked away keeps the evidence that made their order make sense.
+     */
+    public static OwnerFocus of(CompanionEntity c, UUID principal, Optional<UtteranceReferent> referent) {
+        OwnerFocus focus = of(c, principal);
+        if (referent == null || referent.isEmpty()) {
+            return focus;
+        }
+        UtteranceReferent spoken = referent.get();
+        if (principal == null || !principal.equals(spoken.speaker())) {
+            return focus;
+        }
+        return focus.withUtterance(utteranceText(c, spoken));
+    }
+
+    /**
+     * What {@code speaker} points at right now: the nearest of the block their look ray hits and a pickable entity in
+     * front of it. The {@code NONE} kind means nothing within {@link #LOOK_RANGE}. Server thread only.
+     */
+    public static Optional<UtteranceReferent> capture(ServerPlayer speaker) {
+        if (!(speaker.level() instanceof ServerLevel level)) {
+            return Optional.empty();
+        }
+        Aim aim = aim(level, speaker, null);
+        return Optional.of(new UtteranceReferent(
+                speaker.getUUID(),
+                level.dimension().identifier().toString(),
+                aim.pos().getX(),
+                aim.pos().getY(),
+                aim.pos().getZ(),
+                aim.id() == null ? "" : aim.id().toString(),
+                aim.kind(),
+                level.getGameTime()));
     }
 
     /**
@@ -148,6 +186,22 @@ public final class OwnerFocusBuilder {
     }
 
     private static String lookingAt(CompanionEntity companion, ServerLevel level, ServerPlayer player) {
+        Aim aim = aim(level, player, companion);
+        return switch (aim.kind()) {
+            case ENTITY ->
+                "entity " + shortName(aim.id()) + " at " + coords(aim.pos()) + " (" + blocks(aim.distance())
+                        + " blocks)";
+            case BLOCK ->
+                "block " + shortName(aim.id()) + " at " + coords(aim.pos()) + " (" + blocks(aim.distance()) + " blocks)"
+                        + blockFacts(level, aim.pos(), companion);
+            case NONE -> "nothing within " + (int) LOOK_RANGE + " blocks";
+        };
+    }
+
+    /** The nearest aim of the player's look ray: a pickable entity in front of it, or the block it hits. */
+    private record Aim(Kind kind, BlockPos pos, Identifier id, double distance) {}
+
+    private static Aim aim(ServerLevel level, ServerPlayer player, CompanionEntity companion) {
         Vec3 eye = player.getEyePosition();
         Vec3 look = player.getViewVector(1.0F);
         Vec3 end = eye.add(look.scale(LOOK_RANGE));
@@ -166,7 +220,7 @@ public final class OwnerFocusBuilder {
                 eye,
                 end,
                 box,
-                e -> e != companion
+                e -> (companion == null || e != companion)
                         && e != player.getVehicle()
                         && !e.isPassengerOfSameVehicle(player)
                         && !e.isSpectator()
@@ -176,14 +230,53 @@ public final class OwnerFocusBuilder {
 
         if (entityHit != null && entityDistance < blockDistance) {
             Entity target = entityHit.getEntity();
-            return "entity " + shortName(BuiltInRegistries.ENTITY_TYPE.getKey(target.getType())) + " at "
-                    + coords(target.blockPosition()) + " (" + blocks(entityDistance) + " blocks)";
+            return new Aim(
+                    Kind.ENTITY,
+                    target.blockPosition(),
+                    BuiltInRegistries.ENTITY_TYPE.getKey(target.getType()),
+                    entityDistance);
         }
         if (blockPos != null) {
-            return "block " + blockName(level, blockPos) + " at " + coords(blockPos) + " (" + blocks(blockDistance)
-                    + " blocks)" + blockFacts(level, blockPos, companion);
+            return new Aim(
+                    Kind.BLOCK,
+                    blockPos,
+                    BuiltInRegistries.BLOCK.getKey(level.getBlockState(blockPos).getBlock()),
+                    blockDistance);
         }
-        return "nothing within " + (int) LOOK_RANGE + " blocks";
+        return new Aim(Kind.NONE, player.blockPosition(), null, 0);
+    }
+
+    /**
+     * The evidence sentence for a referent: the id at the captured position, and whether it is still what they pointed
+     * at. It names the block a contextual order means, so the live gaze and the order cannot be confused.
+     */
+    private static String utteranceText(CompanionEntity c, UtteranceReferent referent) {
+        String at = coords(new BlockPos(referent.x(), referent.y(), referent.z()));
+        if (referent.kind() == Kind.NONE) {
+            return "nothing within " + (int) LOOK_RANGE + " blocks";
+        }
+        ServerLevel level = c.level() instanceof ServerLevel serverLevel ? serverLevel : null;
+        boolean here =
+                level != null && level.dimension().identifier().toString().equals(referent.dimension());
+        String where = here ? "" : " in " + referent.dimension();
+        if (referent.kind() == Kind.ENTITY) {
+            return "entity " + referent.target() + " at " + at + where + "; it may have moved since";
+        }
+        BlockPos pos = new BlockPos(referent.x(), referent.y(), referent.z());
+        if (here && !level.isLoaded(pos)) {
+            return "block " + referent.target() + " at " + at + ", in an unloaded chunk";
+        }
+        if (here) {
+            String now = BuiltInRegistries.BLOCK
+                    .getKey(level.getBlockState(pos).getBlock())
+                    .toString();
+            return now.equals(referent.target())
+                    ? "block " + referent.target() + " at " + at
+                            + ", still there — that is the block a \"this block\" order means"
+                    : "block " + referent.target() + " at " + at + ", now " + now
+                            + " — it changed since they spoke, so ask before mining anything there";
+        }
+        return "block " + referent.target() + " at " + at + where;
     }
 
     private static String blockFacts(ServerLevel level, BlockPos pos, CompanionEntity companion) {
@@ -231,10 +324,6 @@ public final class OwnerFocusBuilder {
         }
         String name = shortName(BuiltInRegistries.ITEM.getKey(stack.getItem()));
         return stack.getCount() > 1 ? name + " x" + stack.getCount() : name;
-    }
-
-    private static String blockName(ServerLevel level, BlockPos pos) {
-        return shortName(BuiltInRegistries.BLOCK.getKey(level.getBlockState(pos).getBlock()));
     }
 
     private static String coords(BlockPos pos) {

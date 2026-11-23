@@ -6,6 +6,15 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.226.7] - 2026-11-24
+
+### Fixed
+
+- "Mine this block" now means the block you were pointing at when you said it, even if the answer arrives late and
+  you have already looked elsewhere. The companion acts on that block and leaves the one you later looked at
+  untouched; if the block was replaced in the meantime, or the companion ended up in another world, it says so and
+  mines nothing rather than digging up whatever is there now.
+
 ## [0.226.6] - 2026-11-23
 
 ### Fixed

@@ -625,6 +625,15 @@ These need a real provider and a long session; the automated suite used scripted
 
 These need a live world and two players; the automated suite used a scripted model and a live transcript book.
 
+## A pointed block stays with the order (TODO 132)
+
+- [ ] Look at a block, type "break this block" and look at a different block the moment you send it; with a slow provider the companion still mines the first block and leaves the second alone. Repeat with push-to-talk.
+- [ ] Look at a block, say "mine this block", then replace that block with another kind before the companion starts: it reports what is there now, mines nothing and leaves the replacement standing.
+- [ ] Send "break this block" and step through a portal before the job starts: it says the block is in the other world and digs nothing here.
+- [ ] Give only coordinates ("mine the block at X Y Z") and check that call still mines exactly that block.
+
+These need a real provider with visible latency and a live world; the automated suite used a scripted model held open while the test owner turned away.
+
 ## Tool calls limited to the offered schemas (TODO 139)
 
 - [ ] With tool routing on (`toolRouting: true`), ask a casual question and let the model drift on a real provider: any action it calls that this chat request did not offer is refused with an explanation and nothing in the world or the queue changes; the companion answers in words instead of claiming it acted.

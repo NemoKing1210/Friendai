@@ -34,6 +34,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.IntSupplier;
 import net.minecraft.core.BlockPos;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 
 /** Getting resources: mining blocks and picking up what is lying around. */
@@ -218,7 +219,8 @@ public final class GatheringTools implements FeatureToolContributor {
                 "Mine the block at the given coordinates and collect the drops. When the block is an ore or a log it "
                         + "continues into the whole connected vein of the same block (by default up to 32 blocks) and reports how "
                         + "many it mined and what it took. Use mine_blocks instead to collect a number of blocks of a "
-                        + "kind found around you.",
+                        + "kind found around you. For an order that means a block the player pointed at, pass expect: its "
+                        + "block id, so a block that changed since the order is refused instead of mined.",
                 SchemaBuilder.object()
                         .integer("x", "Block X coordinate", -30000000, 30000000)
                         .integer("y", "Block Y coordinate", -64, 320)
@@ -226,6 +228,10 @@ public final class GatheringTools implements FeatureToolContributor {
                         .bool("vein", "Continue into the connected ore or log vein (default true)")
                         .integer("vein_limit", "How many vein blocks to mine at most, the pointed one included", 1, 64)
                         .bool("collect", "Whether to pick up the drops afterwards; default follows the server setting")
+                        .string(
+                                "expect",
+                                "The block id the order meant, such as minecraft:oak_log; the job refuses when the "
+                                        + "block there is no longer that id")
                         .required("x", "y", "z")
                         .build(),
                 (c, a) -> createMineBlockAt(c, a),
@@ -412,10 +418,11 @@ public final class GatheringTools implements FeatureToolContributor {
     }
 
     private MineBlockAtTask createMineBlockAt(CompanionEntity c, JsonObject args) {
-        rejectUnknown(args, "x", "y", "z", "vein", "vein_limit", "collect");
+        rejectUnknown(args, "x", "y", "z", "vein", "vein_limit", "collect", "expect");
         int x = args.get("x").getAsInt();
         int y = args.get("y").getAsInt();
         int z = args.get("z").getAsInt();
+        String expected = expect(args);
         if (y < c.level().getMinY() || y > c.level().getMaxY()) {
             throw new IllegalArgumentException("y is outside the world ("
                     + c.level().getMinY() + ".." + c.level().getMaxY() + ")");
@@ -427,7 +434,23 @@ public final class GatheringTools implements FeatureToolContributor {
                 new BlockPos(x, y, z),
                 boolArg(args, "vein", true),
                 intArg(args, "vein_limit", 32),
-                boolArg(args, "collect", mineCollectDrops.getAsBoolean()));
+                boolArg(args, "collect", mineCollectDrops.getAsBoolean()),
+                expected,
+                c.level().dimension().identifier().toString());
+    }
+
+    /** The block id the order meant, normalized to a full id; null when the caller gave only coordinates. */
+    private static String expect(JsonObject args) {
+        String raw = stringOrNull(args, "expect");
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        String full = raw.contains(":") ? raw.strip() : "minecraft:" + raw.strip();
+        Identifier id = Identifier.tryParse(full);
+        if (id == null) {
+            throw new IllegalArgumentException("expect is not a block id: " + raw);
+        }
+        return id.toString();
     }
 
     private static BlockMatcher parseBlockMatcher(String value) {
@@ -493,6 +516,7 @@ public final class GatheringTools implements FeatureToolContributor {
                         + "- radius widens or narrows this call. exclude skips ids or tags. until_item/until_count stop once that many items were actually taken, e.g. until_item \"minecraft:raw_iron\" with until_count 16. require_tool:true refuses a block that needs a tool the companion does not carry.";
             case "mine_block_at" ->
                 "- Use mine_block_at when the owner points at one block: it mines that block and continues into its connected vein, then says how many it mined and what it took. Use mine_blocks to collect a number of blocks of a kind found around you; use fell_tree for a whole tree.\n"
+                        + "- For \"this block\", \"that one\" or any order about what the player pointed at, copy the block id from the speaker's \"when they spoke\" line into expect and use its coordinates: a block that changed since they spoke is then refused instead of mined.\n"
                         + "- vein:false mines only the pointed block; vein_limit caps the vein. collect:false skips the drop sweep when speed matters.";
             default -> throw new IllegalArgumentException("unknown gathering tool: " + name);
         };
