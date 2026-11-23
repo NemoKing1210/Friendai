@@ -640,3 +640,11 @@ These need a real provider whose calls can drift from the offered schemas; the a
 - [ ] Stand in the nether and type "come here": the reply says it cannot cross dimensions and points at the portal trip, and the companion does not walk toward your coordinates.
 
 These need a live world with both dimensions; the automated suite used a teleported test owner.
+
+## One named speaker (TODO 133)
+
+- [ ] Join as a trusted player, look at a block and say "what is this?"; then disconnect and have the owner look at a different block: the companion does not describe the owner's block as the guest's.
+- [ ] As a trusted player standing near the companion, say "remember this spot" and check the place anchor is where you stood; disconnect first and repeat: the companion asks for coordinates instead of saving its own position.
+- [ ] With the owner in another dimension, ask about "the block I'm looking at": the refusal names the dimension instead of answering from the companion's feet.
+
+These need two players and a live world; the automated suite used a mock guest and a logged-out player list.

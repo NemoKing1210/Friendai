@@ -287,6 +287,45 @@ public class OwnerViewTests {
         h.succeed();
     }
 
+    /**
+     * A named speaker who left is not answered for by the owner: their focus says offline, and the block tools that
+     * read a speaker's aim return nothing rather than the owner's target.
+     */
+    @GameTest(structure = GameTestArenas.ARENA_16)
+    public void anOfflineSpeakerIsNotReplacedByTheOwner(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        h.setBlock(8, 3, 2, Blocks.OAK_LOG);
+        ServerPlayer owner = lookingEast(h, 2.5, 2, 2.5);
+        ServerPlayer guest = lookingEast(h, 8.5, 2, 8.5);
+        CompanionEntity companion = companionFor(h, owner);
+        UUID guestId = guest.getUUID();
+
+        OwnerFocus before = OwnerFocusBuilder.of(companion, guestId);
+        h.assertTrue(before.visibility() == Visibility.VISIBLE, "the fixture guest must be visible: " + before);
+        h.assertTrue(
+                OwnerFocusBuilder.lookedAtBlock(companion, guestId).isPresent(),
+                "the online guest's look must resolve");
+
+        h.getLevel().getServer().getPlayerList().remove(guest);
+
+        OwnerFocus gone = OwnerFocusBuilder.of(companion, guestId);
+        h.assertTrue(gone.visibility() == Visibility.OFFLINE, "a gone speaker must be offline: " + gone);
+        h.assertTrue(gone.label().equals("Speaker"), "a gone guest is not the owner: " + gone.label());
+        h.assertTrue(gone.lookingAt() == null, "a gone speaker has no aim to report: " + gone);
+        h.assertTrue(
+                OwnerFocusBuilder.lookedAtBlock(companion, guestId).isEmpty(),
+                "the owner's target must not answer for a gone guest");
+        h.assertTrue(
+                OwnerFocusBuilder.speakerBlock(companion, guestId).isEmpty(),
+                "the owner's position must not answer for a gone guest");
+
+        OwnerFocus ownerFocus = OwnerFocusBuilder.of(companion, owner.getUUID());
+        h.assertTrue(ownerFocus.visibility() == Visibility.VISIBLE, "the owner is still visible: " + ownerFocus);
+        OwnerFocus unnamed = OwnerFocusBuilder.of(companion, null);
+        h.assertTrue(unnamed.visibility() == Visibility.VISIBLE, "no speaker still means the owner: " + unnamed);
+        h.succeed();
+    }
+
     @GameTest(structure = GameTestArenas.ARENA_16)
     public void viewSpeakerLabel(GameTestHelper h) {
         GameTestSupport.platform(h, 12);

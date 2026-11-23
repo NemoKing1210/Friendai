@@ -6,6 +6,14 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.226.6] - 2026-11-23
+
+### Fixed
+
+- "This block", "where I stand" and "save this spot" now always mean the player who said them. When that player has
+  left or is out of reach, the companion says so or asks for coordinates instead of quietly using your aim or its own
+  feet, so a guest's order can no longer describe or save something in your place.
+
 ## [0.226.5] - 2026-11-23
 
 ### Fixed

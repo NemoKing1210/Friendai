@@ -1658,6 +1658,42 @@ public class ToolTests {
         h.succeed();
     }
 
+    /**
+     * "This block" from a player who left must not be answered with the owner's target: without coordinates the
+     * call is refused, while the same order from the online owner still describes the ore.
+     */
+    @GameTest(structure = GameTestArenas.ARENA_16)
+    public void describeBlockDoesNotBorrowTheOwnersLook(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        h.setBlock(8, 3, 2, Blocks.IRON_ORE);
+        ServerPlayer owner = mockPlayerNamed(h, "look-owner", 2.5, 2, 2.5);
+        owner.setYRot(-90F);
+        owner.setYHeadRot(-90F);
+        owner.setXRot(0F);
+        ServerPlayer guest = mockPlayerNamed(h, "look-guest", 2.5, 2, 2.5);
+        guest.setYRot(-90F);
+        guest.setYHeadRot(-90F);
+        guest.setXRot(0F);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 7);
+        c.setOwner(owner.getUUID());
+        var tools = GameTestToolRegistry.create(c, () -> 32).bind(c);
+        java.util.UUID guestId = guest.getUUID();
+        h.getLevel().getServer().getPlayerList().remove(guest);
+
+        ToolResult refused = tools.execute(
+                new ToolCall("1", "describe_block", new JsonObject(), "{}", null),
+                new Caller(guestId, "guest", AccessLevel.TRUSTED));
+        h.assertTrue(refused.error(), "a gone speaker has no view to describe: " + refused.content());
+        h.assertTrue(refused.content().contains("no block in view"), refused.content());
+
+        ToolResult ownerLook = tools.execute(
+                new ToolCall("2", "describe_block", new JsonObject(), "{}", null),
+                new Caller(owner.getUUID(), "owner", AccessLevel.OWNER));
+        h.assertTrue(!ownerLook.error(), "the online owner's look still works: " + ownerLook.content());
+        h.assertTrue(ownerLook.content().contains("iron_ore"), ownerLook.content());
+        h.succeed();
+    }
+
     @GameTest(structure = GameTestArenas.ARENA_16)
     public void describeBlockHandlesUnbreakableBlocks(GameTestHelper h) {
         GameTestSupport.platform(h, 12);

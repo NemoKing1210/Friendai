@@ -36,14 +36,18 @@ public final class OwnerFocusBuilder {
 
     private OwnerFocusBuilder() {}
 
-    /** The view of {@code principal} if that player is online, else of the companion's owner. */
+    /**
+     * The view of {@code principal}, or of the companion's owner when no speaker was named. A named speaker who is
+     * gone is reported as offline and never replaced by the owner: their aim and gear must not answer for them.
+     */
     public static OwnerFocus of(CompanionEntity c, UUID principal) {
         if (!(c.level() instanceof ServerLevel level)) {
             return OwnerFocus.unavailable("Owner", OwnerFocus.Visibility.OFFLINE, 0);
         }
-        ServerPlayer player = resolve(c, principal);
+        ServerPlayer player = named(c, principal);
         if (player == null) {
-            return OwnerFocus.unavailable("Owner", OwnerFocus.Visibility.OFFLINE, 0);
+            boolean owner = principal == null || principal.equals(c.ownerUuid());
+            return OwnerFocus.unavailable(owner ? "Owner" : "Speaker", OwnerFocus.Visibility.OFFLINE, 0);
         }
         boolean isOwner = player.getUUID().equals(c.ownerUuid());
         String label = isOwner ? "Owner" : "Speaker (" + player.getName().getString() + ")";
@@ -72,8 +76,8 @@ public final class OwnerFocusBuilder {
     }
 
     /**
-     * The block {@code principal} (or the owner when the principal is null or offline) is looking at, if that player
-     * is close enough and in sight. Server thread only.
+     * The block {@code principal} (or the owner when no principal was named) is looking at, if that player is close
+     * enough and in sight. Server thread only.
      */
     public static Optional<BlockPos> lookedAtBlock(CompanionEntity c, UUID principal) {
         ServerPlayer player = visibleSpeaker(c, principal);
@@ -95,16 +99,21 @@ public final class OwnerFocusBuilder {
         if (!(c.level() instanceof ServerLevel level)) {
             return null;
         }
-        ServerPlayer player = resolve(c, principal);
+        ServerPlayer player = named(c, principal);
         return player != null && player.level() == level && inView(c, player, c.distanceTo(player)) ? player : null;
     }
 
-    private static ServerPlayer resolve(CompanionEntity c, UUID principal) {
-        ServerPlayer player = null;
-        if (principal != null && c.level() instanceof ServerLevel level) {
-            player = level.getServer().getPlayerList().getPlayer(principal);
+    /**
+     * The named player, or the owner when nobody was named. A named player who cannot be resolved yields null
+     * rather than the owner, so an absent speaker is never answered for by somebody else.
+     */
+    private static ServerPlayer named(CompanionEntity c, UUID principal) {
+        if (principal == null) {
+            return c.owner().orElse(null);
         }
-        return player != null ? player : c.owner().orElse(null);
+        return c.level() instanceof ServerLevel level
+                ? level.getServer().getPlayerList().getPlayer(principal)
+                : null;
     }
 
     private static boolean inView(CompanionEntity c, ServerPlayer player, double distance) {

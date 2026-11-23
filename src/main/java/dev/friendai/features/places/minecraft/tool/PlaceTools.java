@@ -181,7 +181,11 @@ public final class PlaceTools implements FeatureToolContributor {
                 above);
     }
 
-    /** Explicit coordinates win; otherwise {@code here} defaults to the speaker's position. */
+    /**
+     * Explicit coordinates win; {@code here:false} is the companion's own position; otherwise the anchor is the
+     * speaker's. A named speaker who is gone is refused: storing the companion's position instead would save a
+     * different place than the one the owner pointed at.
+     */
     private static BlockPos position(CompanionEntity companion, Caller caller, JsonObject args) {
         Optional<BlockPos> coordinates = optionalPos(args);
         if (coordinates.isPresent()) {
@@ -194,6 +198,9 @@ public final class PlaceTools implements FeatureToolContributor {
         }
         ServerPlayer speaker = speaker(companion, caller);
         if (speaker == null) {
+            if (caller.uuid() != null) {
+                throw new IllegalArgumentException("the player is not online; give x, y and z or here:false");
+            }
             return companion.blockPosition();
         }
         if (speaker.level() != companion.level()) {

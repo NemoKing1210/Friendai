@@ -322,16 +322,17 @@ public final class BlockInfoTools implements FeatureToolContributor {
                 facts + ", needs a proper tool (you have " + (tool == null ? "none" : tool) + "); light " + light);
     }
 
-    /** The visible speaker's looked-at block; an online speaker takes precedence over the owner. */
+    /**
+     * The visible speaker's looked-at block. A caller-less run reads the owner's view; a named caller who is gone
+     * yields nothing, so the tool asks for coordinates instead of answering with the owner's aim.
+     */
     private static Optional<BlockPos> lookedAtBlock(CompanionEntity companion, java.util.UUID principal) {
         if (!(companion.level() instanceof ServerLevel level)) {
             return Optional.empty();
         }
-        ServerPlayer speaker =
-                principal == null ? null : level.getServer().getPlayerList().getPlayer(principal);
-        if (speaker == null) {
-            speaker = companion.owner().orElse(null);
-        }
+        ServerPlayer speaker = principal == null
+                ? companion.owner().orElse(null)
+                : level.getServer().getPlayerList().getPlayer(principal);
         if (speaker == null
                 || speaker.level() != level
                 || companion.distanceTo(speaker) > SPEAKER_VIEW_RANGE

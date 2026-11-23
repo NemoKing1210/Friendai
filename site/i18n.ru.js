@@ -418,6 +418,8 @@ const RU = {
   "Turns the world into prompt text: surroundings, threats, landmarks and what the owner is looking at.": "Превращает мир в текст промпта: окружение, угрозы, ориентиры и то, на что смотрит владелец.",
   "Describe the surroundings.": "Описать окружение.",
   "What the owner sees, holds and wears.": "Что владелец видит, держит и носит.",
+  "One named speaker": "Один названный говорящий",
+  "Relative references answer for the player who spoke; a speaker who left is reported offline rather than replaced by the owner.": "Относительные ссылки относятся к тому, кто говорил; ушедший говорящий считается офлайн, а не подменяется владельцем.",
   "Inspect one block.": "Осмотреть один блок.",
   "Survey a region.": "Обследовать область.",
   "Brief radius 8": "Краткий радиус 8",

@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.commands.CommandSource;
 import net.minecraft.commands.CommandSourceStack;
@@ -141,6 +142,43 @@ public class PlaceTests {
             }
         }
         return Optional.empty();
+    }
+
+    /**
+     * A place is saved where the speaker stood. A speaker who left is refused rather than replaced by the
+     * companion's feet, while explicit coordinates and {@code here:false} keep their documented meaning.
+     */
+    @GameTest(structure = GameTestArenas.ARENA_16)
+    public void rememberPlaceDoesNotSubstituteTheCompanionForAGoneSpeaker(GameTestHelper h) {
+        GameTestSupport.platform(h, 15);
+        ServerPlayer guest = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 9, 2, 9);
+        companion.setOwner(UUID.randomUUID());
+        ToolExecutor tools = tools(companion);
+        Caller gone = new Caller(guest.getUUID(), guest.getName().getString(), AccessLevel.OWNER);
+        h.getLevel().getServer().getPlayerList().remove(guest);
+
+        ToolResult refused = runAs(tools, "remember_place", "{\"name\":\"home\",\"kind\":\"house\"}", gone);
+        h.assertTrue(
+                refused.error() && refused.content().contains("not online"),
+                "a gone speaker must not save the companion's own spot: " + refused.content());
+        h.assertTrue(placeService(companion).book(companion).all().isEmpty(), "a refused remember must store nothing");
+
+        ToolResult self = runAs(tools, "remember_place", "{\"name\":\"camp\",\"kind\":\"house\",\"here\":false}", gone);
+        h.assertTrue(!self.error(), "here:false asks for the companion's spot: " + self.content());
+        Place camp = placeService(companion).book(companion).all().get(0);
+        BlockPos at = companion.blockPosition();
+        h.assertValueEqual(camp.anchor(), new Pos(at.getX(), at.getY(), at.getZ()), "here:false anchor");
+
+        ToolResult given =
+                runAs(tools, "remember_place", "{\"name\":\"pit\",\"kind\":\"mine\",\"x\":3,\"y\":4,\"z\":5}", gone);
+        h.assertTrue(!given.error(), "explicit coordinates do not need a speaker: " + given.content());
+        Place pit = placeService(companion).book(companion).all().stream()
+                .filter(place -> place.name().equals("pit"))
+                .findFirst()
+                .orElseThrow();
+        h.assertValueEqual(pit.anchor(), new Pos(3, 4, 5), "explicit anchor");
+        h.succeed();
     }
 
     @GameTest(structure = GameTestArenas.ARENA_16)
