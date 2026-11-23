@@ -427,6 +427,9 @@ const RU = {
   "Decides who is being spoken to and which companion hears it.": "Определяет, к кому обращаются и какой компаньон это слышит.",
   "Address detection": "Распознавание обращения",
   "Name or direct address.": "Имя или прямое обращение.",
+  "Chosen audience": "Выбранная аудитория",
+  "Typed chat is public in chat and spoken nearby; push-to-talk is private to the speaker; a companion-initiated line is public chat spoken nearby.":
+    "Печатный чат публичен в чате и звучит рядом; push-to-talk личен для говорящего; реплика по инициативе компаньона — публичный чат, озвученный рядом.",
   "Companion picker": "Выбор компаньона",
   "Own within hearing range, else nearest other.": "Свой в зоне слышимости, иначе ближайший чужой.",
   "Reply splitter": "Разбиение ответа",
@@ -546,6 +549,8 @@ const RU = {
   "Validates arguments and access. Never throws: bad input becomes an error result.": "Проверяет аргументы и доступ. Не бросает исключений: плохой ввод становится результатом-ошибкой.",
   "Speaker": "Озвучка",
   "Posts the chat line and sends the speech packet to the client for TTS.": "Отправляет строку в чат и пакет речи клиенту для TTS.",
+  "Posts the chat line and sends the speech packet to the audience the turn chose: everyone for typed chat, nearby for speech, the speaker alone for push-to-talk.":
+    "Отправляет строку в чат и пакет речи той аудитории, которую выбрал ход: всем для печатного чата, рядом для речи, только говорящему для push-to-talk.",
   "Task queue": "Очередь задач",
   "TaskRunner ticks one task at a time; guards, retries and plans live here.": "TaskRunner тикает одну задачу за раз; здесь живут охранные условия, повторы и планы.",
   "Minecraft world": "Мир Minecraft",
@@ -756,8 +761,8 @@ Object.assign(RU, {
   "Root unit tests": "Юнит-тесты мода",
   "`src/test`: server adapters, tools and features, run without booting a game.":
     "`src/test`: серверные адаптеры, инструменты и фичи, без запуска игры.",
-  "111 classes in the separate `friendai-gametest` mod, in one shared world, six CI shards.":
-    "111 классов в отдельном моде `friendai-gametest`, в общем мире, шесть шардов CI.",
+  "115 classes in the separate `friendai-gametest` mod, in one shared world, six CI shards.":
+    "115 классов в отдельном моде `friendai-gametest`, в общем мире, шесть шардов CI.",
   "Client UI test": "Тест клиентского интерфейса",
   "`runClientGameTest` checks eight locales, integrated and dedicated connections, skins and voice reconnect. A second mode disables YACL and Mod Menu.":
     "`runClientGameTest` проверяет восемь локалей, встроенный и выделенный серверы, скины и голос после переподключения. Второй режим отключает YACL и Mod Menu.",
@@ -789,8 +794,8 @@ Object.assign(RU, {
   "In-game tests that drive the real server thread, entity, tasks and world.":
     "Тесты в игре, которые работают с настоящим серверным потоком, сущностью, задачами и миром.",
   "Separate mod": "Отдельный мод",
-  "`friendai-gametest` registers 111 classes in `src/gametest/resources/fabric.mod.json`.":
-    "`friendai-gametest` регистрирует 111 классов в `src/gametest/resources/fabric.mod.json`.",
+  "`friendai-gametest` registers 115 classes in `src/gametest/resources/fabric.mod.json`.":
+    "`friendai-gametest` регистрирует 115 классов в `src/gametest/resources/fabric.mod.json`.",
   "Shards": "Шарды",
   "`.github/gametest-shards.json` splits them into six CI shards, one class per server boot.":
     "`.github/gametest-shards.json` делит их на шесть шардов CI, по одному классу на запуск сервера.",

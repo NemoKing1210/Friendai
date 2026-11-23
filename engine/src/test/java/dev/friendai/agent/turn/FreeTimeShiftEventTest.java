@@ -98,6 +98,9 @@ class FreeTimeShiftEventTest {
         assertTrue(inner.streamed.isEmpty(), "nobody to talk to: " + inner.streamed);
         online[0] = true;
         quiet.streamSentence(7, 7, 0, "hello", true, OWNER);
-        assertEquals(List.of(new RecordingSpeaker.Streamed(7, 7, 0, "hello", true, OWNER)), inner.streamed);
+        assertEquals(
+                List.of(new RecordingSpeaker.Streamed(
+                        7, 7, 0, "hello", true, dev.friendai.features.conversation.Audience.NEARBY, OWNER)),
+                inner.streamed);
     }
 }

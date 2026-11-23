@@ -240,6 +240,8 @@
   "friendai.voice.error.unknown_model": "所选语音模型在此版本中不可用。请在“设置 → 语音”中选择其他模型。",
   "friendai.voice.error.overflow": "麦克风发送音频的速度快于识别速度。请重试。",
   "friendai.voice.hud.recording": "录音中…",
+  "friendai.voice.hud.recording_private": "正在私密录音…",
+  "friendai.voice.hud.recording_private.partial": "私密：%s",
   "friendai.voice.hud.transcribing": "转写中…",
   "friendai.voice.hud.listening": "正在等待唤醒词…",
 

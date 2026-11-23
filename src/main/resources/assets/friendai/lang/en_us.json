@@ -240,6 +240,8 @@
   "friendai.voice.error.unknown_model": "The selected speech model is not available in this build. Choose another in Settings → Voice.",
   "friendai.voice.error.overflow": "The microphone sent audio faster than it could be recognised. Try again.",
   "friendai.voice.hud.recording": "Recording…",
+  "friendai.voice.hud.recording_private": "Recording privately…",
+  "friendai.voice.hud.recording_private.partial": "Private: %s",
   "friendai.voice.hud.transcribing": "Transcribing…",
   "friendai.voice.hud.listening": "Listening for the wake word…",
 

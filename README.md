@@ -184,6 +184,8 @@ The transcript is sent to the server as a chat message. Local recognition keeps 
 
 Both typed chat and push-to-talk only reach a companion in the same dimension within the server's hearing radius (32 blocks by default, `chat.hearingRadius`). Farther away the companion neither hears you nor answers, and says so instead of staying silent.
 
+The reply follows the channel you used. Typed chat is public: the reply's chat line reaches every player, exactly like your own chat, while its spoken form is heard around the companion. Push-to-talk is private: the transcript line, the reply and its speech are sent only to you, so a nearby player hears none of it. A companion that starts a line on its own (a task report or a social opener) is ordinary chat and its voice carries nearby.
+
 ### Speech output
 
 The companion can also speak its replies. Synthesis is off by default; turn on **Speak replies** in **Settings → Voice → Synthesis** and choose a provider:

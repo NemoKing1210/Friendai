@@ -1,6 +1,7 @@
 package dev.friendai.server.net;
 
 import dev.friendai.agent.turn.BrainEvent;
+import dev.friendai.features.conversation.AudienceOrigin;
 import dev.friendai.server.agent.chat.CompanionRouting;
 import dev.friendai.server.runtime.ServerRuntime;
 import java.util.Optional;
@@ -44,8 +45,8 @@ public final class VoiceTranscriptHandler {
             return;
         }
         String name = player.getName().getString();
-        server.getPlayerList()
-                .broadcastSystemMessage(Component.translatable("friendai.voice.chat_line", name, clean), false);
-        CompanionRouting.deliver(runtime, player, owner.get(), clean, BrainEvent.Source.VOICE);
+        // Push-to-talk is private: the transcript line and the reply stay with the player who spoke.
+        player.sendSystemMessage(Component.translatable("friendai.voice.chat_line", name, clean), false);
+        CompanionRouting.deliver(runtime, player, owner.get(), clean, BrainEvent.Source.VOICE, AudienceOrigin.of(true));
     }
 }

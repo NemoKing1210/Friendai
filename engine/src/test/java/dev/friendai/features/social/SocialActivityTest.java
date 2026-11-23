@@ -21,7 +21,7 @@ class SocialActivityTest {
         activity.event();
 
         assertEquals(
-                "social activity: 2 ordinary, 1 urgent, 2 held, 1 dropped lines; 3 owner messages; 2 events seen",
+                "social activity: 2 ordinary, 1 urgent, 2 held, 1 dropped lines; 3 owner messages, 0 guest messages; 2 events seen",
                 activity.summary());
     }
 
@@ -51,7 +51,7 @@ class SocialActivityTest {
         assertEquals(3, activity.events());
         assertEquals(0, activity.totalLines());
         assertEquals(
-                "social activity: 0 ordinary, 0 urgent, 0 held, 0 dropped lines; 0 owner messages; 3 events seen",
+                "social activity: 0 ordinary, 0 urgent, 0 held, 0 dropped lines; 0 owner messages, 0 guest messages; 3 events seen",
                 activity.summary());
     }
 
@@ -73,7 +73,7 @@ class SocialActivityTest {
         }
 
         assertEquals(
-                "social activity: 3 ordinary, 1 urgent, 2 held, 1 dropped lines; 14 owner messages; 4 events seen",
+                "social activity: 3 ordinary, 1 urgent, 2 held, 1 dropped lines; 14 owner messages, 0 guest messages; 4 events seen",
                 activity.summary());
         assertEquals(4, activity.totalLines());
         assertEquals(4, activity.events());
@@ -82,7 +82,7 @@ class SocialActivityTest {
     @Test
     void anEmptyWindowStillSummarisesToZeroes() {
         assertEquals(
-                "social activity: 0 ordinary, 0 urgent, 0 held, 0 dropped lines; 0 owner messages; 0 events seen",
+                "social activity: 0 ordinary, 0 urgent, 0 held, 0 dropped lines; 0 owner messages, 0 guest messages; 0 events seen",
                 new SocialActivity().summary());
         assertEquals(0, new SocialActivity().events());
     }
@@ -95,6 +95,7 @@ class SocialActivityTest {
         activity.held();
         activity.dropped();
         activity.ownerSpoke();
+        activity.guestSpoke();
         activity.event();
 
         activity.reset();
@@ -102,7 +103,18 @@ class SocialActivityTest {
         assertEquals(0, activity.totalLines());
         assertEquals(0, activity.events());
         assertEquals(
-                "social activity: 0 ordinary, 0 urgent, 0 held, 0 dropped lines; 0 owner messages; 0 events seen",
+                "social activity: 0 ordinary, 0 urgent, 0 held, 0 dropped lines; 0 owner messages, 0 guest messages; 0 events seen",
+                activity.summary());
+    }
+
+    @Test
+    void aGuestMessageIsCountedWithoutMovingTheOwnerCount() {
+        SocialActivity activity = new SocialActivity();
+        activity.ownerSpoke();
+        activity.guestSpoke();
+
+        assertEquals(
+                "social activity: 0 ordinary, 0 urgent, 0 held, 0 dropped lines; 1 owner messages, 1 guest messages; 0 events seen",
                 activity.summary());
     }
 }

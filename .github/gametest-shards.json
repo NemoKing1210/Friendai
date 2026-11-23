@@ -111,6 +111,7 @@
 				"GuestTests",
 				"TrustTests",
 				"SpeechTests",
+				"AudienceTests",
 				"VoiceTests",
 				"LocalOrderTests"
 			]

@@ -8,6 +8,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [0.223.0] - 2026-11-23
 
+### Added
+
+- A reply now reaches the players the conversation is meant for: typed chat is public, push-to-talk and its
+  reply stay private to the speaker, and anything the companion starts is heard nearby. The recording HUD says
+  that push-to-talk is private.
+
 ### Changed
 
 - A circle around a point or a mob now reports the waypoints it really reached. A blocked arc gets one wider and one

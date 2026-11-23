@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import dev.friendai.agent.llm.model.Message;
 import dev.friendai.agent.llm.model.Role;
 import dev.friendai.execution.tool.ToolResult;
+import dev.friendai.features.conversation.Audience;
 import dev.friendai.testutil.FakeGateway;
 import dev.friendai.testutil.FakeToolExecutor;
 import dev.friendai.testutil.ManualScheduler;
@@ -75,7 +76,22 @@ class CompanionBrainOneShotTest {
         assertTrue(speaker.said.isEmpty(), "the composed line is translated by the speaker");
         assertEquals(1, speaker.messages.size(), speaker.messages.toString());
         assertEquals("friendai.agent.plan_queued", speaker.messages.getFirst().key());
+        assertEquals(
+                List.of(Audience.PUBLIC),
+                speaker.messageAudiences,
+                "a typed order's acknowledgement is a public line, not an owner-only notice");
         assertFalse(brain.isThinking());
+    }
+
+    @Test
+    void aVoiceOrdersAcknowledgementStaysPrivate() {
+        gateway.enqueue(calls("", call("q1", "queue_add")));
+
+        brain.post(new BrainEvent.PlayerSaid(OWNER, "Steve", "mine 3 stone", BrainEvent.Source.VOICE));
+
+        assertEquals(1, speaker.messages.size(), speaker.messages.toString());
+        assertEquals(List.of(Audience.PRIVATE), speaker.messageAudiences);
+        assertEquals(List.of(OWNER), speaker.addressees);
     }
 
     @Test

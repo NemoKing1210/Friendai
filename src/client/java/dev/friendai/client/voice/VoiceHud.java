@@ -82,8 +82,8 @@ public final class VoiceHud {
             case LISTENING -> Component.translatable("friendai.voice.hud.listening");
             case RECORDING ->
                 state.partial() == null || state.partial().isBlank()
-                        ? Component.translatable("friendai.voice.hud.recording")
-                        : Component.literal(state.partial());
+                        ? Component.translatable("friendai.voice.hud.recording_private")
+                        : Component.translatable("friendai.voice.hud.recording_private.partial", state.partial());
             case TRANSCRIBING -> Component.translatable("friendai.voice.hud.transcribing");
             case ERROR -> state.message() == null ? null : Components.of(state.message());
             default -> null;
