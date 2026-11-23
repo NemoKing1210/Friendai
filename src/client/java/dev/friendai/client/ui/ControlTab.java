@@ -445,6 +445,9 @@ final class ControlTab extends StatefulMenuTab {
         if (s.freeTimeOn()) {
             addFreeTime(rows, s);
         }
+        if (s.present() && !s.holdReason().isBlank()) {
+            rows.add(new Row("friendai.menu.hold", Ui.WARN, holdName(s.holdReason())));
+        }
         if (!s.routine().isBlank()) {
             rows.add(new Row("friendai.menu.activity.routine", Ui.ACCENT, s.routine()));
         }
@@ -552,6 +555,21 @@ final class ControlTab extends StatefulMenuTab {
                             case "disengage" -> "friendai.menu.action.disengage";
                             case "avoid" -> "friendai.menu.action.avoid";
                             default -> "friendai.menu.action.none";
+                        })
+                .getString();
+    }
+
+    /** The reason the companion is not working, translated from the server's stable token. */
+    private static String holdName(String reason) {
+        return Component.translatable(
+                        switch (reason) {
+                            case "manual_pause" -> "friendai.menu.hold.manual_pause";
+                            case "owner_away" -> "friendai.menu.hold.owner_away";
+                            case "paused" -> "friendai.menu.hold.paused";
+                            case "combat" -> "friendai.menu.hold.combat";
+                            case "self_care" -> "friendai.menu.hold.self_care";
+                            case "inventory" -> "friendai.menu.hold.inventory";
+                            default -> "friendai.menu.hold.other";
                         })
                 .getString();
     }

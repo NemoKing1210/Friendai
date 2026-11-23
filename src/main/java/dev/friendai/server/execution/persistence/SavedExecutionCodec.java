@@ -21,8 +21,11 @@ public final class SavedExecutionCodec {
 
     public static String encode(SavedExecution saved) {
         JsonObject root = new JsonObject();
-        root.addProperty("version", saved.version());
+        root.addProperty("version", SavedExecution.CURRENT_VERSION);
         root.add("queue", QueueSave.encode(saved.queue().queue(), saved.queue().activeJobId()));
+        if (saved.manualPause()) {
+            root.addProperty("manualPause", true);
+        }
         if (saved.activeTask() != null) {
             JsonObject task = new JsonObject();
             task.addProperty("type", saved.activeTask().type());
@@ -41,9 +44,14 @@ public final class SavedExecutionCodec {
                 || encoded.getBytes(StandardCharsets.UTF_8).length > MAX_SAVE_BYTES) return Optional.empty();
         try {
             JsonObject root = JsonParser.parseString(encoded).getAsJsonObject();
-            if (root.get("version").getAsInt() != SavedExecution.CURRENT_VERSION) return Optional.empty();
+            int version = root.get("version").getAsInt();
+            // An older document predates the saved pause, so it keeps loading with the companion free to work.
+            if (version != SavedExecution.CURRENT_VERSION && version != SavedExecution.LEGACY_VERSION)
+                return Optional.empty();
             var queue = QueueSave.decode(root.getAsJsonObject("queue"), limits);
             if (queue.isEmpty()) return Optional.empty();
+            boolean manualPause =
+                    root.has("manualPause") && root.get("manualPause").getAsBoolean();
             TaskState activeTask = null;
             if (root.has("activeTask")) {
                 JsonObject task = root.getAsJsonObject("activeTask");
@@ -52,7 +60,8 @@ public final class SavedExecutionCodec {
                 if (data.length() > MAX_TASK_STATE_CHARS) return Optional.empty();
                 activeTask = new TaskState(type, data);
             }
-            return Optional.of(new SavedExecution(SavedExecution.CURRENT_VERSION, queue.get(), activeTask));
+            return Optional.of(
+                    new SavedExecution(SavedExecution.CURRENT_VERSION, queue.get(), activeTask, manualPause));
         } catch (RuntimeException invalid) {
             return Optional.empty();
         }

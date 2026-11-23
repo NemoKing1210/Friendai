@@ -81,7 +81,8 @@ public final class SnapshotBuilder {
                     0,
                     "",
                     "",
-                    outline);
+                    outline,
+                    "");
         }
         CompanionEntity c = companion.get();
         Feeling feeling = feelingOf(runtime, owner, c);
@@ -128,7 +129,8 @@ public final class SnapshotBuilder {
                 feeling.goalId(),
                 phaseOf(c),
                 runtime.sessions().routines().status(owner),
-                outline);
+                outline,
+                c.executionCoordinator().holdReason());
     }
 
     /**

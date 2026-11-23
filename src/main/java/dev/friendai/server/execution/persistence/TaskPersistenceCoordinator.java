@@ -52,11 +52,16 @@ public final class TaskPersistenceCoordinator {
     public Optional<SavedExecution> capture(ExecutionCoordinator runner) {
         JobQueue queue = runner.queue();
         Optional<TaskState> activeTask = runner.persistenceTaskState();
-        if (queue.jobCount() == 0 && queue.planCount() == 0 && queue.archives().isEmpty() && activeTask.isEmpty())
-            return Optional.empty();
+        boolean manualPause = runner.manualPause();
+        // The owner's pause is state of its own: a paused companion with no work still has to come back paused.
+        if (!manualPause
+                && queue.jobCount() == 0
+                && queue.planCount() == 0
+                && queue.archives().isEmpty()
+                && activeTask.isEmpty()) return Optional.empty();
         long activeJob = runner.persistenceActiveJobId();
-        return Optional.of(new SavedExecution(
-                SavedExecution.CURRENT_VERSION, new QueueSave.Decoded(queue, activeJob), activeTask.orElse(null)));
+        return Optional.of(
+                new SavedExecution(new QueueSave.Decoded(queue, activeJob), activeTask.orElse(null), manualPause));
     }
 
     public String encode(SavedExecution saved) {
@@ -84,6 +89,10 @@ public final class TaskPersistenceCoordinator {
         invalidateTradingAuthority.accept(owner);
         // Restored work must not run before its owner logs in; free time may resume it under its own policy.
         if (companion.owner().isEmpty()) companion.executionCoordinator().suspend();
+        // The owner's pause outlives the restart: the companion comes back held until they release it.
+        if (saved.manualPause() && !companion.executionCoordinator().manualPause()) {
+            companion.executionCoordinator().setManualPause(true);
+        }
 
         JobQueue queue = saved.queue().queue();
         List<String> restored = new ArrayList<>();

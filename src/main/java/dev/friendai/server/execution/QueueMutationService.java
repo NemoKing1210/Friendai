@@ -42,6 +42,7 @@ final class QueueMutationService {
     }
 
     private void stopActive(String reason) {
+        coordinator.discardPendingRestored();
         if (coordinator.activeTask() != null && coordinator.activeTask().interrupt()) {
             coordinator.cancelCurrent(reason);
             coordinator.resumeFrozen();
@@ -101,6 +102,7 @@ final class QueueMutationService {
     }
 
     private void cancelForCapabilityChangeActive() {
+        coordinator.discardPendingRestored();
         ActiveTask active = coordinator.activeTask();
         Task cleanup = active == null ? null : active.task().cleanupAfterCancel(coordinator.context());
         ActiveTask frozen = coordinator.frozenTask();
@@ -125,6 +127,7 @@ final class QueueMutationService {
     }
 
     private void stopAllActive(String reason) {
+        coordinator.discardPendingRestored();
         ActiveTask active = coordinator.activeTask();
         Task cleanup = active == null ? null : active.task().cleanupAfterCancel(coordinator.context());
         ActiveTask frozen = coordinator.frozenTask();
@@ -153,6 +156,7 @@ final class QueueMutationService {
     }
 
     private String clearQueueActive(String reason) {
+        coordinator.discardPendingRestored();
         ActiveTask active = coordinator.activeTask();
         int plans = coordinator.queueDriver().queue().plans().size();
         int jobs = coordinator.queueDriver().queue().jobCount();

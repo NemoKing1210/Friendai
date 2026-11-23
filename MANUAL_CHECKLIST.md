@@ -101,6 +101,7 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 
 - [ ] Pause from the menu's Control tab: a running job stops, the button reads Resume, and Resume continues the same job.
 - [ ] Pause, quit to the title and rejoin: the button still reads Resume and no new work starts until it is pressed.
+- [ ] The Control tab names the hold while nothing runs: "Paused by you" after the menu pause, "Owner away" for a companion whose owner is not in the game, and "In combat" while it fights. Releasing the hold removes the row.
 - [ ] `/friendai pause` and the menu button agree in both directions.
 
 ## Companion feeling tab

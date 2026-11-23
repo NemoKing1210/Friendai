@@ -169,7 +169,7 @@ final class CompanionSnapshotProtocolCodecTest {
     }
 
     @Test
-    void aRoutineLineSurvivesTheSnapshotRoundTrip() {
+    void aHoldReasonSurvivesTheSnapshotRoundTripAndAnOldPayloadHasNone() {
         CompanionSnapshotView producer = new CompanionSnapshotView(
                 true,
                 false,
@@ -205,7 +205,8 @@ final class CompanionSnapshotProtocolCodecTest {
                 0,
                 "",
                 "morning · next in 1200 ticks · last: succeeded",
-                true);
+                true,
+                "manual_pause");
 
         byte[] encoded = CompanionSnapshotProtocolCodec.encodeForRecipient(producer, false, 6);
         DecodeResult.Valid<ProtocolView<CompanionSnapshotView>> decoded =
@@ -215,6 +216,11 @@ final class CompanionSnapshotProtocolCodecTest {
                 "morning · next in 1200 ticks · last: succeeded",
                 decoded.value().value().routine());
         assertTrue(decoded.value().value().outline(), "the outline switch survives the snapshot round trip");
+        assertEquals(
+                "manual_pause",
+                decoded.value().value().holdReason(),
+                "the reason no work runs survives the snapshot round trip");
+        assertEquals("", snapshot().holdReason(), "a payload written before the reason existed carries none");
     }
 
     @Test

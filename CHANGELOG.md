@@ -6,6 +6,22 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.226.0] - 2026-11-23
+
+### Fixed
+
+- A companion you paused stays paused after the world is reloaded and after you log back in, instead of quietly
+  going back to work the moment the game starts.
+- Logging out now stops the companion where it stands. It no longer finishes the walk, leap or swim it had already
+  started while you are away, and it picks that work up when you return.
+- Stopping or clearing work also cancels a task the world was still waiting to resume, so the companion cannot start
+  it later on its own.
+
+### Changed
+
+- The companion menu now says why no work is running — paused by you, owner away, a temporary hold such as combat or
+  self-care — instead of leaving the idle state unexplained.
+
 ## [0.225.0] - 2026-11-23
 
 ### Changed

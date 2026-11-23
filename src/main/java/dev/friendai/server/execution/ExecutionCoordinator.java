@@ -228,6 +228,19 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
 
     public void suspend() {
         suspended = true;
+        holdBody();
+    }
+
+    /**
+     * Suspending stops the ticks, not the body: the move control keeps its last wanted point, so a body already
+     * walking would finish that step while nobody is watching it. Halt it where it stands and let the task pick up
+     * from there when the hold is released.
+     */
+    private void holdBody() {
+        companion.getNavigation().stop();
+        companion.getMoveControl().setWantedPosition(companion.getX(), companion.getY(), companion.getZ(), 0.0);
+        companion.setDeltaMovement(0.0, companion.getDeltaMovement().y, 0.0);
+        companion.setPathing(false);
     }
 
     /**
@@ -237,13 +250,6 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     public void setManualPause(boolean paused) {
         manualPause = paused;
         if (paused) {
-            // Suspending stops the ticks, not the body: the move control keeps its last wanted point, so a body
-            // already walking would finish that step while its owner believes it paused. Halt it where it stands and
-            // let the task pick up from there.
-            companion.getNavigation().stop();
-            companion.getMoveControl().setWantedPosition(companion.getX(), companion.getY(), companion.getZ(), 0.0);
-            companion.setDeltaMovement(0.0, companion.getDeltaMovement().y, 0.0);
-            companion.setPathing(false);
             suspend();
             inTransition(events::flush);
         } else {
@@ -263,12 +269,29 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         });
     }
 
-    private void startPendingRestoredTask() {
-        Task task = pendingRestoredTask;
-        long jobId = pendingRestoredJobId;
+    /**
+     * Drops a restored task that waits for the owner, so a stop or dismissal covers it too. The task never started,
+     * so it has no slot of its own in the active or frozen task and no queue job.
+     */
+    public void discardPendingRestored() {
         pendingRestoredTask = null;
         pendingRestoredJobId = 0;
+    }
+
+    private void startPendingRestoredTask() {
+        if (suspended) {
+            return; // Kept for the next resume: a manual pause must not start what it was holding.
+        }
+        Task task = pendingRestoredTask;
+        long jobId = pendingRestoredJobId;
         if (task == null) return;
+        if (jobId == 0 && companion.owner().isEmpty()) {
+            // Owner work restored from a save waits for its owner; the offline free-time policy resumes the runner
+            // without meaning to start it.
+            return;
+        }
+        pendingRestoredTask = null;
+        pendingRestoredJobId = 0;
         if (jobId == 0) {
             restore(task);
             return;
@@ -299,6 +322,18 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
 
     public boolean held() {
         return holds.held();
+    }
+
+    /**
+     * Why no work runs, as a stable token the menu translates: the owner's own pause first, then the owner being
+     * away, the server-wide switch, and finally a temporary hold such as combat. Empty while work may run.
+     */
+    public String holdReason() {
+        if (manualPause) return "manual_pause";
+        if (companion.owner().isEmpty()) return "owner_away";
+        if (paused) return "paused";
+        HoldReason temporary = holds.first();
+        return temporary == null ? "" : temporary.name().toLowerCase(java.util.Locale.ROOT);
     }
 
     public void notice(String text) {

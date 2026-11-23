@@ -25,6 +25,7 @@ import java.util.List;
  * @param currentPhase the running task's lifecycle phase name (see {@code TaskPhase}), empty when nothing runs
  * @param routine the owner's routine: name, next due and last outcome, empty when there is none
  * @param outline the owner's outline switch for this world's companion
+ * @param holdReason why no work runs, as a stable token the menu translates, empty while work may run
  */
 public record CompanionSnapshot(
         boolean present,
@@ -61,7 +62,8 @@ public record CompanionSnapshot(
         long goalId,
         String currentPhase,
         String routine,
-        boolean outline) {
+        boolean outline,
+        String holdReason) {
     public static final int MAX_ACTIVITY = 200;
     public static final int MAX_NEXT = 160;
     public static final int MAX_BUDGET = 80;
@@ -71,6 +73,9 @@ public record CompanionSnapshot(
     public static final int MAX_PHASE = 16;
 
     public static final int MAX_ROUTINE = 800;
+
+    /** Longest hold-reason token; the short snake_case names are all shorter. */
+    public static final int MAX_HOLD_REASON = 24;
 
     public static final int MAX_LIST_ENTRIES = 6;
     public static final int MAX_LIST_TEXT = 160;
@@ -279,7 +284,84 @@ public record CompanionSnapshot(
                 goalId,
                 "",
                 "",
-                false);
+                false,
+                "");
+    }
+
+    /** The shape before the hold reason, so a caller that does not report a hold stays unchanged. */
+    public CompanionSnapshot(
+            boolean present,
+            boolean operator,
+            String companionName,
+            String provider,
+            String model,
+            boolean thinking,
+            String currentTask,
+            List<TaskRecord> history,
+            List<LogEntry> newLog,
+            String perception,
+            List<String> toolNames,
+            CompanionVitals vitals,
+            List<QueueRow> queue,
+            boolean autoRespawn,
+            boolean autoRespawnAvailable,
+            boolean creativeMode,
+            boolean creativeModeAvailable,
+            boolean freeTimeOn,
+            String freeTimeActivity,
+            boolean freeTimeWaiting,
+            boolean followMode,
+            String freeTimeNext,
+            String freeTimeBudget,
+            String freeTimeLast,
+            String freeTimePlannerModel,
+            String bondTier,
+            List<String> bondReasons,
+            String goalText,
+            List<String> goalCriteria,
+            List<String> goalUnmet,
+            boolean workPaused,
+            long goalId,
+            String currentPhase,
+            String routine,
+            boolean outline) {
+        this(
+                present,
+                operator,
+                companionName,
+                provider,
+                model,
+                thinking,
+                currentTask,
+                history,
+                newLog,
+                perception,
+                toolNames,
+                vitals,
+                queue,
+                autoRespawn,
+                autoRespawnAvailable,
+                creativeMode,
+                creativeModeAvailable,
+                freeTimeOn,
+                freeTimeActivity,
+                freeTimeWaiting,
+                followMode,
+                freeTimeNext,
+                freeTimeBudget,
+                freeTimeLast,
+                freeTimePlannerModel,
+                bondTier,
+                bondReasons,
+                goalText,
+                goalCriteria,
+                goalUnmet,
+                workPaused,
+                goalId,
+                currentPhase,
+                routine,
+                outline,
+                "");
     }
 
     public CompanionSnapshot {
@@ -295,6 +377,7 @@ public record CompanionSnapshot(
         goalUnmet = cut(goalUnmet);
         currentPhase = cut(currentPhase, MAX_PHASE);
         routine = cut(routine, MAX_ROUTINE);
+        holdReason = cut(holdReason, MAX_HOLD_REASON);
     }
 
     /** Every shorter constructor ends here, so a caller that knows nothing about the feelings block stays unchanged. */

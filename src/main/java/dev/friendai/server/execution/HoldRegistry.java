@@ -22,6 +22,14 @@ public final class HoldRegistry {
         return active.size();
     }
 
+    /** The temporary reason most relevant to the owner, in a fixed order so the panel text does not flicker. */
+    public HoldReason first() {
+        for (HoldReason reason : HoldReason.values()) {
+            if (active.containsValue(reason)) return reason;
+        }
+        return null;
+    }
+
     public void closeAll() {
         for (Token token : active.keySet().toArray(Token[]::new)) token.close();
     }

@@ -154,7 +154,7 @@ const CATS = [
     desc: "A tabbed control screen. The companion keeps working while it is open. The separate inventory view holds the companion until it closes.",
     items: [
       "~Overview|Status, health, hunger, task.", "~Toggles|Per-companion switches.", "~Tasks|Queue and history.", "~Memory|Browse and forget.", "~Skills|Instruction skills.",
-      "~Places|Rename or forget places.", "~Map|Explored cells, sites and roads, never the full grid.", "~Plan controls|Pause, resume or defer the first plan from the menu.", "~Appearance|Name and custom skin.", "~Traders|Known trades.", "~Log and Debug|Operator-only brain log with trace and execution prefixes, plus the incident bundle.", "~Settings screen|YACL, optional." ] }
+      "~Places|Rename or forget places.", "~Map|Explored cells, sites and roads, never the full grid.", "~Plan controls|Pause, resume or defer the first plan from the menu.", "~Hold reason|The Control tab says why nothing runs: your pause, owner away or a temporary hold such as combat.", "~Appearance|Name and custom skin.", "~Traders|Known trades.", "~Log and Debug|Operator-only brain log with trace and execution prefixes, plus the incident bundle.", "~Settings screen|YACL, optional." ] }
 ];
 
 /* ================= CODE LOCATIONS ================= */
@@ -473,7 +473,7 @@ const MEM_CARDS = [
     hub: { label: "Companion entity", icon: "🧍", color: COLORS.grass, desc: "Saved with the world; versioned by Mojang's entity data." },
     color: COLORS.grass, items: [
       "~Inventory 27 slots|Plus six gear slots.", "~Hunger and XP|Food, saturation, exhaustion, level.", "~Combat and pace|Mode, style, pace.",
-      "~Saved task queue|Bounded checkpoints, restored by stable keys.", "~Carry data|Body captured at death + last five deaths.", "~Anchors|Owner to chunk, used to load on startup; restored eight at a time per tick." ] },
+      "~Saved task queue|Bounded checkpoints, restored by stable keys; also keeps your own pause across a reload.", "~Carry data|Body captured at death + last five deaths.", "~Anchors|Owner to chunk, used to load on startup; restored eight at a time per tick." ] },
   { title: "Settings & caches", sub: "config/ and the game directory",
     hub: { label: "Settings", icon: "⚙️", color: COLORS.iron, desc: "API keys may be written as env:NAME so they never sit in a file." },
     color: COLORS.iron, items: [

@@ -43,12 +43,31 @@ class SavedExecutionCodecTest {
         SavedExecution decoded =
                 SavedExecutionCodec.decode(encoded, QueueLimits.DEFAULTS).orElseThrow();
 
-        assertTrue(encoded.contains("\"version\":1"));
+        assertTrue(encoded.contains("\"version\":2"));
         assertFalse(encoded.contains("queue:v1:"));
         assertFalse(encoded.contains("queue:v2:"));
         assertEquals("gather", decoded.queue().queue().plan(plan).orElseThrow().goal());
         assertEquals(active, decoded.queue().activeJobId());
         assertEquals(saved.activeTask(), decoded.activeTask());
+        assertFalse(decoded.manualPause(), "an unpaused save stays unpaused");
+    }
+
+    @Test
+    void keepsTheOwnerPauseAndStillLoadsADocumentThatPredatesIt() {
+        JobQueue queue = new JobQueue(QueueLimits.DEFAULTS);
+        String paused = SavedExecutionCodec.encode(new SavedExecution(new QueueSave.Decoded(queue, 0), null, true));
+        assertTrue(paused.contains("\"manualPause\":true"));
+        SavedExecution decoded =
+                SavedExecutionCodec.decode(paused, QueueLimits.DEFAULTS).orElseThrow();
+        assertTrue(decoded.manualPause(), "the pause survives the round trip");
+        assertEquals(SavedExecution.CURRENT_VERSION, decoded.version());
+
+        String legacy = SavedExecutionCodec.encode(new SavedExecution(new QueueSave.Decoded(queue, 0), null, false))
+                .replace("\"version\":2", "\"version\":1");
+        SavedExecution older =
+                SavedExecutionCodec.decode(legacy, QueueLimits.DEFAULTS).orElseThrow();
+        assertFalse(older.manualPause(), "a document written before the pause existed cannot claim one");
+        assertEquals(SavedExecution.CURRENT_VERSION, older.version(), "the older document is read at the new shape");
     }
 
     @Test
