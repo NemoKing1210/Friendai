@@ -717,6 +717,16 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
         if (companion.ownerUuid() != null) entryFor(companion.ownerUuid());
     }
 
+    /**
+     * The owner's trust book changed: every job admitted under the old grant is rechecked against the live book, so a
+     * revoked player's running, frozen or restored order stops instead of finishing with authority it no longer has.
+     */
+    public void authorityChanged(UUID owner) {
+        CompanionManager.get(server)
+                .find(owner)
+                .ifPresent(companion -> companion.executionCoordinator().revalidateAuthority());
+    }
+
     /** Reconstructs a caller from current owner/trust data; queue saves never carry an access level. */
     private Caller currentCaller(UUID owner, UUID principal) {
         if (principal == null) return new Caller(null, "", AccessLevel.GUEST);

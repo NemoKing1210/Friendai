@@ -20,6 +20,8 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
   the next time the companion speaks, rather than replacing a reply about something else with a second model call.
 - When a reload leaves the companion unable to tell what it already did, it now stops that one job and says so,
   instead of quietly repeating the request and moving your items a second time.
+- Withdrawing a player's trust now stops the work they already gave: the companion puts down a task that player
+  started, so nothing more happens in their name after you untrust them.
 
 ## [0.226.7] - 2026-11-24
 

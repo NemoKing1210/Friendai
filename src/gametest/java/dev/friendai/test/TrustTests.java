@@ -13,7 +13,9 @@ import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.execution.queue.FailurePolicy;
 import dev.friendai.execution.queue.GuardAction;
+import dev.friendai.execution.queue.Job;
 import dev.friendai.execution.queue.JobState;
+import dev.friendai.execution.queue.QueueSave;
 import dev.friendai.execution.queue.QueuedStep;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
@@ -498,5 +500,183 @@ public class TrustTests {
             h.assertValueEqual(created.get(), afterEnqueue, "a queued job ran after its requester lost access");
             h.assertTrue(!ran.contains(probe), "the revoked job became the active task: " + ran);
         });
+    }
+
+    /** A queued step only a currently trusted player may run, like every production task tool. */
+    private static dev.friendai.task.plan.StepFactory trustedStep(UUID principal, dev.friendai.task.Task task) {
+        return new dev.friendai.task.plan.StepFactory() {
+            @Override
+            public dev.friendai.task.Task create(TaskContext context) {
+                return task;
+            }
+
+            @Override
+            public boolean authorized(TaskContext context) {
+                return context.currentCaller(principal).access().allows(AccessLevel.TRUSTED);
+            }
+        };
+    }
+
+    /**
+     * A revoked requester's task that still owns the body must stop on the trust change, not at the next natural
+     * boundary: nothing after the revocation may be done in that player's name.
+     */
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 400)
+    public void runningWorkStopsWhenItsGrantIsRevoked(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        ServerPlayer friend = GameTestSupport.mockPlayerAt(h, 3, 2, 3);
+        ServerRuntime state = GameTestSupport.runtime(h);
+        CompanionEntity companion = summon(owner);
+        state.memory()
+                .book(owner.getUUID())
+                .setTrusted(friend.getUUID(), friend.getName().getString(), true, 0);
+        ExecutionCoordinator runner = companion.executionCoordinator();
+        runner.resume();
+        StayTask stay = new StayTask(600);
+        long job = runner.enqueue(
+                new QueuedStep(
+                        "stay",
+                        new JsonObject(),
+                        null,
+                        List.of(),
+                        GuardAction.WAIT,
+                        FailurePolicy.ASK,
+                        1,
+                        List.of(),
+                        friend.getUUID(),
+                        false),
+                trustedStep(friend.getUUID(), stay));
+        for (int i = 0;
+                i < 5 && runner.activeJob().map(active -> active.id() != job).orElse(true);
+                i++) runner.tick();
+        h.assertTrue(runner.activeJob().map(active -> active.id() == job).orElse(false), "the trusted task must run");
+
+        state.memory()
+                .book(owner.getUUID())
+                .setTrusted(friend.getUUID(), friend.getName().getString(), false, 0);
+        state.sessions().authorityChanged(owner.getUUID());
+
+        h.assertValueEqual(runner.activeJob().isPresent(), false, "revoked work kept the body");
+        h.assertTrue(runner.current().orElse(null) != stay, "revoked work is still the current task");
+        h.assertTrue(
+                runner.queue().job(job).isEmpty(), "revoked work must leave the queue instead of staying runnable");
+        int[] ticksAfterRevocation = {0};
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(runner.current().orElse(null) != stay, "revoked work was started again");
+            ticksAfterRevocation[0]++;
+            h.assertTrue(ticksAfterRevocation[0] > 5, "the revoked order needs a few ticks to prove it stays stopped");
+        });
+    }
+
+    /**
+     * A task frozen behind an urgent one must not resume once its grant is gone: the trust change reaches the frozen
+     * slot too, so the resume boundary cannot hand back authority the owner withdrew.
+     */
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 600)
+    public void frozenWorkNeverResumesAfterItsGrantIsRevoked(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        ServerPlayer friend = GameTestSupport.mockPlayerAt(h, 3, 2, 3);
+        ServerRuntime state = GameTestSupport.runtime(h);
+        CompanionEntity companion = summon(owner);
+        state.memory()
+                .book(owner.getUUID())
+                .setTrusted(friend.getUUID(), friend.getName().getString(), true, 0);
+        ExecutionCoordinator runner = companion.executionCoordinator();
+        runner.resume();
+        StayTask stay = new StayTask(600);
+        long job = runner.enqueue(
+                new QueuedStep(
+                        "stay",
+                        new JsonObject(),
+                        null,
+                        List.of(),
+                        GuardAction.WAIT,
+                        FailurePolicy.ASK,
+                        1,
+                        List.of(),
+                        friend.getUUID(),
+                        false),
+                trustedStep(friend.getUUID(), stay));
+        for (int i = 0;
+                i < 5 && runner.activeJob().map(active -> active.id() != job).orElse(true);
+                i++) runner.tick();
+        h.assertTrue(runner.activeJob().map(active -> active.id() == job).orElse(false), "the trusted task must run");
+        // An urgent direct task takes the body; the trusted job is frozen, not cancelled.
+        runner.start(new StayTask(30), "stay");
+        h.assertTrue(
+                runner.current().map(task -> task.type()).orElse("").equals("stay"), "the urgent task holds the body");
+
+        state.memory()
+                .book(owner.getUUID())
+                .setTrusted(friend.getUUID(), friend.getName().getString(), false, 0);
+        state.sessions().authorityChanged(owner.getUUID());
+
+        h.assertTrue(
+                runner.queue().job(job).isEmpty(),
+                "the frozen revoked job must be settled now: "
+                        + runner.queue().job(job).map(Job::state));
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(runner.current().orElse(null) != stay, "the revoked frozen job resumed");
+        });
+    }
+
+    /**
+     * A checkpoint waiting for its owner must not start after the grant it was saved under is gone: the restore slot
+     * is rechecked like a resume, so the pending task is dropped before the owner's return can start it.
+     */
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 400)
+    public void restoredWorkWaitingForItsOwnerIsRefusedAfterRevocation(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        ServerPlayer friend = GameTestSupport.mockPlayerAt(h, 3, 2, 3);
+        ServerRuntime state = GameTestSupport.runtime(h);
+        CompanionEntity companion = summon(owner);
+        state.memory()
+                .book(owner.getUUID())
+                .setTrusted(friend.getUUID(), friend.getName().getString(), true, 0);
+        ExecutionCoordinator runner = companion.executionCoordinator();
+        runner.resume();
+        StayTask stay = new StayTask(600);
+        long job = runner.enqueue(
+                new QueuedStep(
+                        "stay",
+                        new JsonObject(),
+                        null,
+                        List.of(),
+                        GuardAction.WAIT,
+                        FailurePolicy.ASK,
+                        1,
+                        List.of(),
+                        friend.getUUID(),
+                        false),
+                trustedStep(friend.getUUID(), stay));
+        for (int i = 0;
+                i < 5 && runner.activeJob().map(active -> active.id() != job).orElse(true);
+                i++) runner.tick();
+        h.assertTrue(runner.activeJob().map(active -> active.id() == job).orElse(false), "the trusted task must run");
+        // The owner leaves: the restored task is held back until they return.
+        runner.suspend();
+        runner.installRestoredState(
+                new QueueSave.Decoded(runner.queue(), job),
+                java.util.Map.of(job, trustedStep(friend.getUUID(), stay)),
+                java.util.Map.of(),
+                stay);
+
+        state.memory()
+                .book(owner.getUUID())
+                .setTrusted(friend.getUUID(), friend.getName().getString(), false, 0);
+        state.sessions().authorityChanged(owner.getUUID());
+        h.assertTrue(
+                runner.queue().job(job).isEmpty(),
+                "the waiting checkpoint must be settled: "
+                        + runner.queue().job(job).map(Job::state));
+
+        runner.resume();
+        h.assertTrue(runner.current().orElse(null) != stay, "a revoked checkpoint started when its owner returned");
+        h.succeed();
     }
 }

@@ -27,12 +27,14 @@ import dev.friendai.task.Task;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 
 public final class FriendaiCommands {
@@ -498,6 +500,7 @@ public final class FriendaiCommands {
         }
         String name = target.getName().getString();
         boolean changed = book(ctx.getSource()).setTrusted(target.getUUID(), name, true, System.currentTimeMillis());
+        if (changed) settleAuthority(ctx.getSource().getServer(), sender.getUUID());
         ctx.getSource()
                 .sendSuccess(
                         () -> Component.translatable(
@@ -518,12 +521,18 @@ public final class FriendaiCommands {
             return 0;
         }
         book.setTrusted(record.get().uuid(), record.get().lastName(), false, System.currentTimeMillis());
+        settleAuthority(ctx.getSource().getServer(), sender.getUUID());
         ctx.getSource()
                 .sendSuccess(
                         () -> Component.translatable(
                                 "friendai.command.untrust.removed", record.get().lastName()),
                         false);
         return 1;
+    }
+
+    /** A trust change settles the work already admitted under the old grant before the next tick can act on it. */
+    private static void settleAuthority(MinecraftServer server, UUID owner) {
+        ServerRuntimeRegistry.getOrCreate(server).sessions().authorityChanged(owner);
     }
 
     private static int trusted(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {

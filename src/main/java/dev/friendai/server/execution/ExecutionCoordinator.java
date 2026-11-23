@@ -56,6 +56,9 @@ import org.slf4j.LoggerFactory;
 /** Runs one task at a time and schedules durable jobs when no urgent or direct task owns the coordinator. */
 public final class ExecutionCoordinator implements TaskExecutionPort {
     private static final int POLL_INTERVAL_TICKS = 10;
+    /** The one reason running, frozen and restored work gives when the grant behind it was withdrawn. */
+    static final String REVOKED = "the grant behind this work was revoked";
+
     private static final Logger LOGGER = LoggerFactory.getLogger("friendai/task");
     private final CompanionEntity companion;
     private final IntSupplier timeoutSec;
@@ -1275,17 +1278,65 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
 
     void resumeFrozen() {
         ActiveTask old = frozenTask();
-        if (old != null
-                && queueDriver
-                        .queue()
-                        .job(old.jobId())
-                        .filter(j -> j.state() == JobState.RUNNING)
-                        .isPresent()) {
+        Job frozenJob =
+                old == null ? null : queueDriver.queue().job(old.jobId()).orElse(null);
+        if (old != null && frozenJob != null && frozenJob.state() == JobState.RUNNING && stillAuthorized(frozenJob)) {
             activeTasks.takeFrozen();
             activeTasks.resumeFrozen(old);
         } else {
-            if (old != null) stopFrozen("frozen task is no longer queued");
+            // Revoked work is settled here rather than resumed: a preempting task must not hand the grant back.
+            if (old != null && frozenJob != null && frozenJob.state() == JobState.RUNNING)
+                mutations.cancelJob(old.jobId(), REVOKED);
+            else if (old != null) stopFrozen("frozen task is no longer queued");
             startNextOrDefault();
+        }
+    }
+
+    /**
+     * Rechecks the grant behind running, frozen and restored work after a trust change, so work admitted under the old
+     * grant cannot keep changing the world. Work that keeps its grant is untouched and the queue carries on.
+     */
+    public void revalidateAuthority() {
+        inTransition(() -> {
+            for (ActiveTask task : java.util.Arrays.asList(activeTask(), frozenTask())) {
+                if (task == null || task.jobId() == 0) continue;
+                Job job = queueDriver.queue().job(task.jobId()).orElse(null);
+                if (job != null && !stillAuthorized(job)) mutations.cancelJob(task.jobId(), REVOKED);
+            }
+            if (pendingRestoredTask != null && pendingRestoredJobId > 0) {
+                Job job = queueDriver.queue().job(pendingRestoredJobId).orElse(null);
+                if (job == null || !stillAuthorized(job)) {
+                    long jobId = pendingRestoredJobId;
+                    discardPendingRestored();
+                    if (job != null) mutations.cancelJob(jobId, REVOKED);
+                }
+            }
+            if (activeTask() == null) startNextOrDefault();
+        });
+    }
+
+    /**
+     * Whether a queued job's principal may still start or continue it, asked through the same factory the activation
+     * boundary uses: the answer comes from the live trust book, never from the grant saved with the job.
+     */
+    private boolean stillAuthorized(Job job) {
+        StepFactory factory = queueDriver.factory(job.id());
+        // No factory means no step of this shape can be built at all; the activation boundary reports that itself.
+        if (factory == null) return true;
+        TaskContext context = new TaskContext(
+                companion,
+                (ServerLevel) companion.level(),
+                this,
+                actionContext(job.principal(), job.creativeSensitive()),
+                settingsSupplier.get());
+        try {
+            if (isStructuredPlan(job.planId())) {
+                PlanStepFactory planFactory = queueDriver.planFactory(job.planId(), job.tool());
+                return planFactory != null && planFactory.authorized(context, step(job));
+            }
+            return factory.authorized(context);
+        } catch (RuntimeException invalid) {
+            return false;
         }
     }
 
@@ -1478,6 +1529,11 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     }
 
     private void startRestoredTask(Task restoredTask, Job activeJob) {
+        // A save names the principal, not the access: a grant withdrawn while the checkpoint waited must not resume.
+        if (!stillAuthorized(activeJob)) {
+            mutations.cancelJob(activeJob.id(), REVOKED);
+            return;
+        }
         CreativeActionContext actionContext = actionContext(activeJob.principal(), activeJob.creativeSensitive());
         try {
             ServerSettings settings = settingsSupplier.get();

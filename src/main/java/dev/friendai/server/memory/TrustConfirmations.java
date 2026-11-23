@@ -54,6 +54,7 @@ public final class TrustConfirmations {
         TrustRequest request = taken.get();
         if (confirm) {
             memory.book(owner).setTrusted(request.target(), request.targetName(), request.trust(), now);
+            brains.authorityChanged(owner);
             send(
                     owner,
                     Component.translatable(

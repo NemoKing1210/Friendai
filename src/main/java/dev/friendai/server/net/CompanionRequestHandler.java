@@ -272,8 +272,13 @@ public final class CompanionRequestHandler {
         if (request instanceof MemoryRequest.FactForget forget)
             return actions.forget(Integer.toString(forget.factId()));
         if (request instanceof MemoryRequest.FactClear clear) return actions.clear(clear.groupKey());
-        if (request instanceof MemoryRequest.TrustSet trust)
-            return actions.trust(trust.target().toString(), Boolean.toString(trust.trusted()));
+        if (request instanceof MemoryRequest.TrustSet trust) {
+            MenuStatus status = actions.trust(trust.target().toString(), Boolean.toString(trust.trusted()));
+            // The panel is the third way to change trust, so it settles admitted work like the command and the
+            // confirmation do: a revoked player's queued order stops before its next tick acts.
+            if (status != null && status.ok()) runtime.sessions().authorityChanged(owner);
+            return status;
+        }
         if (request instanceof MemoryRequest.PersonaSet persona) return actions.persona(persona.text());
         if (request instanceof MemoryRequest.TranscriptClear) {
             MenuStatus status =
