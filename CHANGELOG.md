@@ -6,6 +6,13 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.222.1] - 2026-11-23
+
+### Fixed
+
+- Fetching an item from storage now tries the nearby containers in turn instead of stopping at the first empty,
+  locked or protected one, and takes an amount split across several containers in one trip.
+
 ## [0.222.0] - 2026-11-23
 
 ### Changed

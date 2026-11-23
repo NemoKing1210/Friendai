@@ -2,6 +2,7 @@ package dev.friendai.task.interact;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.knowledge.ContainerFreshness;
+import dev.friendai.features.knowledge.ContainerWithdrawals;
 import dev.friendai.features.knowledge.ResourceKnowledge;
 import dev.friendai.features.knowledge.ResourceObservation;
 import dev.friendai.foundation.spatial.Pos;
@@ -10,9 +11,11 @@ import dev.friendai.world.block.BlockMatcher;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -223,6 +226,59 @@ public final class ContainerAccess {
             }
         }
         return Optional.ofNullable(best);
+    }
+
+    /**
+     * A bounded withdrawal order. The first list is what recorded evidence says holds the item, ranked live-first,
+     * nearer-first and more-stock-first; the second is containers the companion can currently see with no record of
+     * the item, as a last resort. A recorded container whose stock is stale stays in the first list only while the
+     * record still names the item; the caller revalidates every candidate by opening it.
+     */
+    public record WithdrawalTargets(List<BlockPos> recorded, List<BlockPos> visible) {
+        public WithdrawalTargets {
+            recorded = List.copyOf(recorded);
+            visible = List.copyOf(visible);
+        }
+
+        public boolean isEmpty() {
+            return recorded.isEmpty() && visible.isEmpty();
+        }
+    }
+
+    /** Ranked withdrawal candidates for the items the predicate accepts, live records first. */
+    public static WithdrawalTargets withdrawals(TaskContext context, Predicate<String> item, int radius) {
+        CompanionEntity companion = context.companion();
+        if (companion.ownerUuid() == null || item == null) {
+            return new WithdrawalTargets(List.of(), List.of());
+        }
+        ServerLevel level = context.level();
+        ResourceKnowledge book = context.ownerKnowledge();
+        refreshLive(level, companion, book);
+        long now = level.getServer().overworld().getGameTime();
+        String dimension = level.dimension().identifier().toString();
+        BlockPos origin = companion.blockPosition();
+        List<BlockPos> recorded = new ArrayList<>();
+        Set<BlockPos> seen = new LinkedHashSet<>();
+        for (ContainerWithdrawals.Candidate candidate : ContainerWithdrawals.rank(
+                book.containerObservations(),
+                item,
+                dimension,
+                origin.getX(),
+                origin.getY(),
+                origin.getZ(),
+                now,
+                radius)) {
+            Pos at = candidate.location().pos();
+            BlockPos pos = new BlockPos(at.x(), at.y(), at.z());
+            if (seen.add(pos)) recorded.add(pos);
+        }
+        List<BlockPos> visible = new ArrayList<>();
+        for (BlockPos raw : known(context, radius)) {
+            if (recorded.size() + visible.size() >= ContainerWithdrawals.MAX_CANDIDATES) break;
+            BlockPos pos = canonicalChest(level, raw);
+            if (seen.add(pos)) visible.add(pos);
+        }
+        return new WithdrawalTargets(recorded, visible);
     }
 
     private record Contents(Map<String, Integer> items, int used) {}

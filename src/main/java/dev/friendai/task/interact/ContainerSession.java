@@ -16,6 +16,18 @@ import net.minecraft.world.Container;
 
 /** Shared walk, protection, open and close lifecycle for one storage-container action. */
 public final class ContainerSession {
+    /** Why a session stopped, so a caller can try another candidate or report the right refusal. */
+    public enum FailureKind {
+        NONE,
+        NO_TARGET,
+        MISSING,
+        UNLOADED,
+        UNREACHABLE,
+        PROTECTED,
+        LOCKED,
+        OUTSIDE_PLACES
+    }
+
     @FunctionalInterface
     public interface TargetFinder {
         Optional<BlockPos> find(TaskContext context);
@@ -38,6 +50,7 @@ public final class ContainerSession {
     private CompanionHands.Storage storage;
     private boolean arrived;
     private String failureSummary = "";
+    private FailureKind failureKind = FailureKind.NONE;
 
     public ContainerSession(
             BlockPos requestedTarget,
@@ -58,12 +71,14 @@ public final class ContainerSession {
             if (requestedTarget != null) {
                 position = requestedTarget;
                 if (ContainerAccess.at(context.level(), position).isEmpty()) {
+                    failureKind = absentKind(context, position);
                     failureSummary = missingTargetSummary.apply(position);
                     return TaskStatus.FAILED;
                 }
             } else {
                 Optional<BlockPos> found = targetFinder == null ? Optional.empty() : targetFinder.find(context);
                 if (found.isEmpty()) {
+                    failureKind = FailureKind.NO_TARGET;
                     failureSummary = noTargetSummary.get();
                     return TaskStatus.FAILED;
                 }
@@ -73,6 +88,7 @@ public final class ContainerSession {
                     && context.autonomous()
                     && PlaceGuard.enabled(context)
                     && !PlaceGuard.insideAnyPlace(context, position)) {
+                failureKind = FailureKind.OUTSIDE_PLACES;
                 failureSummary = "container is outside known places";
                 return TaskStatus.FAILED;
             }
@@ -82,6 +98,7 @@ public final class ContainerSession {
         if (!arrived) {
             switch (approach.tick(context)) {
                 case UNREACHABLE -> {
+                    failureKind = FailureKind.UNREACHABLE;
                     failureSummary = "can't reach " + coords(position);
                     return TaskStatus.FAILED;
                 }
@@ -94,17 +111,20 @@ public final class ContainerSession {
 
         Optional<Container> at = ContainerAccess.at(context.level(), position);
         if (at.isEmpty()) {
+            failureKind = absentKind(context, position);
             failureSummary = missingTargetSummary.apply(position);
             return TaskStatus.FAILED;
         }
         container = at.get();
         if (!context.companion().hands().canInteract(position)) {
+            failureKind = FailureKind.PROTECTED;
             failureSummary = coords(position) + " is " + ProtectionText.describe(context, position);
             return TaskStatus.FAILED;
         }
         if (storage == null) {
             storage = context.companion().hands().openStorage(position);
             if (storage == null) {
+                failureKind = FailureKind.LOCKED;
                 failureSummary = coords(position) + " is locked or blocked";
                 return TaskStatus.FAILED;
             }
@@ -139,6 +159,15 @@ public final class ContainerSession {
 
     public String failureSummary() {
         return failureSummary;
+    }
+
+    public FailureKind failureKind() {
+        return failureKind;
+    }
+
+    /** A container whose chunk is not loaded is absent for now, not gone; the two read differently to a caller. */
+    private static FailureKind absentKind(TaskContext context, BlockPos pos) {
+        return context.level().hasChunkAt(pos) ? FailureKind.MISSING : FailureKind.UNLOADED;
     }
 
     public List<DebugTarget> debugTargets() {

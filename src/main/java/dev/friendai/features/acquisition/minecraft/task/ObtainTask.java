@@ -30,9 +30,8 @@ import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.interact.ContainerAccess;
-import dev.friendai.task.interact.ContainerSession;
+import dev.friendai.task.interact.ContainerTakeRun;
 import dev.friendai.task.interact.ContainerTour;
-import dev.friendai.task.interact.ContainerTransfer;
 import dev.friendai.task.inventory.ItemMatcher;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -82,6 +81,9 @@ public final class ObtainTask implements Task {
 
     private final List<String> history = new ArrayList<>();
     private final Set<Long> excludedSiteIds = new LinkedHashSet<>();
+    /** Containers this acquisition found unusable, so a later step does not walk back to them. */
+    private final Set<Long> unusableContainers = new LinkedHashSet<>();
+
     private Task current;
     /** A look through nearby storage, run once before making or gathering the item. */
     private Task tour;
@@ -300,6 +302,7 @@ public final class ObtainTask implements Task {
         lastNoticeTick = -NOTICE_INTERVAL;
         history.clear();
         excludedSiteIds.clear();
+        unusableContainers.clear();
     }
 
     @Override
@@ -481,7 +484,7 @@ public final class ObtainTask implements Task {
         childContext = c.forSpan(span);
         if (step instanceof ObtainStep.Take take) {
             currentVisitVerification = null;
-            return new TakeFromContainerTask(itemMatcher(take.item()), take.count());
+            return new TakeFromContainerTask(itemMatcher(take.item()), take.count(), unusableContainers);
         }
         ObtainSubtaskFactory.Created created = subtaskFactory.create(
                 c,
@@ -786,16 +789,6 @@ public final class ObtainTask implements Task {
         return !(first instanceof ObtainStep.Take);
     }
 
-    /** Accepts an item id the matcher accepts, so remembered container contents can be searched by matcher. */
-    private static java.util.function.Predicate<String> acceptsId(ItemMatcher matcher) {
-        return id -> {
-            Identifier key = Identifier.tryParse(id);
-            return key != null
-                    && BuiltInRegistries.ITEM.containsKey(key)
-                    && matcher.test(new ItemStack(BuiltInRegistries.ITEM.getValue(key)));
-        };
-    }
-
     /**
      * Records the material source a failed step tried, so the next plan prefers another reachable source and stops
      * offering one that already failed twice. Only source-bearing steps count: a craft or a container take has no
@@ -876,24 +869,18 @@ public final class ObtainTask implements Task {
 
     /** Acquisition owns this nested step; container access and inventory movement are shared helpers. */
     private static final class TakeFromContainerTask implements Task {
-        private final ItemMatcher matcher;
-        private final int count;
-        private final ContainerSession session;
-        private String summary = "";
-        private boolean preflightDone;
+        private final ContainerTakeRun run;
 
-        private TakeFromContainerTask(ItemMatcher matcher, int count) {
-            this.matcher = matcher;
-            this.count = count;
-            // The chest the item was seen in, live records first; the nearest container only when none is recorded.
-            this.session = new ContainerSession(
+        private TakeFromContainerTask(ItemMatcher matcher, int count, Set<Long> unusable) {
+            // The chest the item was seen in, live records first; the nearest visible container only as a last resort.
+            this.run = new ContainerTakeRun(
+                    matcher,
+                    count,
                     null,
-                    context -> ContainerAccess.recordedWith(context, acceptsId(matcher), CONTAINER_RADIUS)
-                            .or(() -> ContainerAccess.nearest(context, CONTAINER_RADIUS)),
+                    context -> ContainerAccess.withdrawals(context, matcher::accepts, CONTAINER_RADIUS),
                     true,
                     () -> "no storage container with " + matcher.label() + " within " + CONTAINER_RADIUS + " blocks",
-                    position -> "there is no chest, barrel or other storage at " + position.getX() + " "
-                            + position.getY() + " " + position.getZ());
+                    unusable);
         }
 
         @Override
@@ -903,44 +890,32 @@ public final class ObtainTask implements Task {
 
         @Override
         public void start(TaskContext c) {
-            summary = "";
-            preflightDone = false;
+            run.start(c);
         }
 
         @Override
         public TaskStatus tick(TaskContext c) {
-            if (!preflightDone) {
-                preflightDone = true;
-                if (!ContainerTransfer.canFit(c.companion(), matcher)) {
-                    summary = "my inventory is full";
-                    return TaskStatus.FAILED;
-                }
-            }
-            return session.tick(c, (context, position, container) -> {
-                ContainerTransfer.Result result = ContainerTransfer.take(context, position, container, matcher, count);
-                summary = result.summary();
-                return result.status();
-            });
+            return run.tick(c);
         }
 
         @Override
         public void stop(TaskContext c) {
-            session.stop(c);
+            run.stop(c);
         }
 
         @Override
         public String describe() {
-            return "taking " + count + " " + matcher.label() + " from a container";
+            return run.describe();
         }
 
         @Override
         public String resultSummary() {
-            return summary.isEmpty() ? session.failureSummary() : summary;
+            return run.resultSummary();
         }
 
         @Override
         public List<DebugTarget> debugTargets() {
-            return session.debugTargets();
+            return run.debugTargets();
         }
     }
 

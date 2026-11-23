@@ -1152,4 +1152,117 @@ public class StorageTests {
                     "the refusal must name the missing target: " + result.summary);
         });
     }
+
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 1200)
+    public void takeSplitsStockAcrossTwoChests(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(12, 2, 3, Blocks.CHEST);
+        containerAt(h, 12, 2, 3).setItem(0, new ItemStack(Items.IRON_INGOT, 6));
+        h.setBlock(3, 2, 6, Blocks.CHEST);
+        containerAt(h, 3, 2, 6).setItem(0, new ItemStack(Items.IRON_INGOT, 7));
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(UUID.randomUUID());
+        recordContainer(h, c, 12, 2, 3);
+        recordContainer(h, c, 3, 2, 6);
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(new TakeItemsTask(matcher("minecraft:iron_ingot"), 13, null), "take_items");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertValueEqual(c.inventory().countItem(Items.IRON_INGOT), 13, "the exact amount");
+            h.assertValueEqual(containerAt(h, 12, 2, 3).countItem(Items.IRON_INGOT), 0, "far chest emptied");
+            h.assertValueEqual(containerAt(h, 3, 2, 6).countItem(Items.IRON_INGOT), 0, "near chest emptied");
+        });
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 1200)
+    public void takeSkipsALockedFirstChoice(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(5, 2, 5, Blocks.CHEST);
+        containerAt(h, 5, 2, 5).setItem(0, new ItemStack(Items.IRON_INGOT, 4));
+        h.setBlock(12, 2, 6, Blocks.CHEST);
+        containerAt(h, 12, 2, 6).setItem(0, new ItemStack(Items.IRON_INGOT, 4));
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(UUID.randomUUID());
+        recordContainer(h, c, 5, 2, 5);
+        recordContainer(h, c, 12, 2, 6);
+        lockContainer(h, 5, 2, 5);
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(new TakeItemsTask(matcher("minecraft:iron_ingot"), 4, null), "take_items");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertValueEqual(c.inventory().countItem(Items.IRON_INGOT), 4, "the locked chest must not stop the take");
+            h.assertValueEqual(containerAt(h, 5, 2, 5).countItem(Items.IRON_INGOT), 4, "the locked chest is untouched");
+            h.assertValueEqual(containerAt(h, 12, 2, 6).countItem(Items.IRON_INGOT), 0, "the open chest supplied it");
+        });
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 1200)
+    public void takeSkipsAnEmptyNearerChest(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(3, 2, 6, Blocks.CHEST);
+        h.setBlock(12, 2, 3, Blocks.CHEST);
+        containerAt(h, 12, 2, 3).setItem(0, new ItemStack(Items.IRON_INGOT, 4));
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(UUID.randomUUID());
+        recordContainer(h, c, 3, 2, 6);
+        recordContainer(h, c, 12, 2, 3);
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(new TakeItemsTask(matcher("minecraft:iron_ingot"), 6, null), "take_items");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertValueEqual(
+                    c.inventory().countItem(Items.IRON_INGOT), 4, "the far chest still supplies what it has");
+            h.assertValueEqual(containerAt(h, 12, 2, 3).countItem(Items.IRON_INGOT), 0, "the far chest is emptied");
+        });
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 2400)
+    public void anObtainSkipsALockedRecordedChest(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(5, 2, 5, Blocks.CHEST);
+        containerAt(h, 5, 2, 5).setItem(0, new ItemStack(Items.IRON_INGOT, 4));
+        h.setBlock(12, 2, 6, Blocks.CHEST);
+        containerAt(h, 12, 2, 6).setItem(0, new ItemStack(Items.IRON_INGOT, 4));
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(UUID.randomUUID());
+        recordContainer(h, c, 5, 2, 5);
+        recordContainer(h, c, 12, 2, 6);
+        lockContainer(h, 5, 2, 5);
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(
+                new ObtainTask("minecraft:iron_ingot", 4, true, false, new MinecraftObtainSubtaskFactory()),
+                "obtain_item");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertValueEqual(c.inventory().countItem(Items.IRON_INGOT), 4, "the second chest supplies the order");
+            h.assertValueEqual(containerAt(h, 5, 2, 5).countItem(Items.IRON_INGOT), 4, "the locked chest is untouched");
+            h.assertValueEqual(containerAt(h, 12, 2, 6).countItem(Items.IRON_INGOT), 0, "the open chest supplied it");
+        });
+    }
+
+    /** Records what a chest holds through the same hook an authorized opening uses. */
+    private static void recordContainer(GameTestHelper h, CompanionEntity c, int x, int y, int z) {
+        ContainerAccess.recordContents(
+                new TaskContext(c, h.getLevel()), h.absolutePos(new BlockPos(x, y, z)), containerAt(h, x, y, z));
+    }
+
+    /** Locks a chest the way the existing refusal fixture does, after its contents were recorded. */
+    private static void lockContainer(GameTestHelper h, int x, int y, int z) {
+        BlockPos absolute = h.absolutePos(new BlockPos(x, y, z));
+        ChestBlockEntity chest = (ChestBlockEntity) h.getLevel().getBlockEntity(absolute);
+        var registry = h.getLevel().registryAccess();
+        net.minecraft.nbt.CompoundTag tag = chest.saveWithFullMetadata(registry);
+        net.minecraft.nbt.CompoundTag lockTag = new net.minecraft.nbt.CompoundTag();
+        lockTag.putString("items", "minecraft:stick");
+        tag.put(LockCode.TAG_LOCK, lockTag);
+        chest.loadWithComponents(TagValueInput.create(ProblemReporter.DISCARDING, registry, tag));
+    }
 }
