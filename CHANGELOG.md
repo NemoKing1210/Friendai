@@ -6,6 +6,13 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.222.1] - 2026-11-23
+
+### Fixed
+
+- A bed or door that the game placed half-orientated is now repaired and checked as one pair before the companion
+  counts it; a blocked or protected neighbour makes the build report it instead of leaving a stray bed half behind.
+
 ## [0.222.0] - 2026-11-23
 
 ### Changed

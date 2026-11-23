@@ -25,6 +25,7 @@ class PlacementRefusalTest {
                 new PlacementRefusal.OutOfReach(AT, "boxed in", 1),
                 new PlacementRefusal.OutOfMaterial(AT, "minecraft:cobblestone", "gather failed", 1),
                 new PlacementRefusal.Rejected(AT, "minecraft:stone", "minecraft:chest", 1),
+                new PlacementRefusal.Unloaded(AT, 1),
                 new PlacementRefusal.AttemptsExhausted(AT, "no stance left", 3));
     }
 
@@ -65,6 +66,7 @@ class PlacementRefusalTest {
         assertTrue(new PlacementRefusal.Rejected(AT, "minecraft:stone", "minecraft:chest", 1)
                 .describe()
                 .contains("minecraft:chest"));
+        assertTrue(new PlacementRefusal.Unloaded(AT, 1).describe().contains("not loaded"));
         assertTrue(new PlacementRefusal.AttemptsExhausted(AT, "no stance left", 3)
                 .describe()
                 .contains("no stance left"));

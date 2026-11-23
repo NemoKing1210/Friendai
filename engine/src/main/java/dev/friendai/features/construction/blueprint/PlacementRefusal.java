@@ -34,6 +34,7 @@ public sealed interface PlacementRefusal {
             case OutOfReach r -> "out of reach";
             case OutOfMaterial r -> "missing material";
             case Rejected r -> "placement refused";
+            case Unloaded r -> "chunk not loaded";
             case AttemptsExhausted r -> "attempts spent";
         };
     }
@@ -230,6 +231,26 @@ public sealed interface PlacementRefusal {
         @Override
         public String remedy() {
             return "clear that cell, then resume the build at its origin";
+        }
+    }
+
+    /**
+     * The cell sits in a chunk that is not loaded. Reading it would generate terrain, so the build reports it instead
+     * of guessing; the cell is retried once the chunk is there.
+     */
+    record Unloaded(Pos pos, int attempts) implements PlacementRefusal {
+        public Unloaded {
+            attempts = clamp(attempts);
+        }
+
+        @Override
+        public String describe() {
+            return coords(pos) + " is in a chunk that is not loaded" + attemptSuffix(attempts);
+        }
+
+        @Override
+        public String remedy() {
+            return "come closer so the chunk loads, then retry the build";
         }
     }
 
