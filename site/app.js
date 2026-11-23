@@ -105,11 +105,11 @@ const CATS = [
   { id: "planning", domain: "mind", name: "Goals & Planning", icon: "🎯", color: COLORS.nether,
     desc: "The cognitive layer above the task queue: goals, a conditional plan queue, and free time when nobody is giving orders.",
     items: [
-      "set_goal|Set the main goal (owner).", "update_goal|Update progress.", "finish_goal|Close a goal and record why it was abandoned.", "queue_add|Queue a plan and optionally link it to the owner goal it serves.",
+      "set_goal|Set the main goal (owner); it keeps the owner's order and warns when the criteria miss a requested item, quantity or build part.", "update_goal|Update progress.", "finish_goal|Close a goal only when the order is covered and every criterion has a check; record why it was abandoned.", "queue_add|Queue a plan and optionally link it to the owner goal it serves; a plan that omits a requested delivery or build part is refused.",
       "queue_show|Show the queue.", "queue_edit|Edit queued steps.", "plan_help|Explain plan syntax.", "plan_validate|Dry-run a plan.",
       "plan_patch|Update eligible parts of an existing plan.", "set_routine|Schedule a recurring plan.", "list_routines|Show scheduled routines.", "cancel_routine|Remove a scheduled routine.",
       "request_tools|Unlock a tool group for this turn.", "stop|Stop everything.", "start_free_time|Begin autonomous time.", "end_free_time|End it.", "choose_activity|Pick what to do in free time.",
-      "~LLM planner|Preliminary planning for complex orders; recovery for troubled plans, unmet goals and free time.", "~Conditional plans|If, repeat and guards over world facts.", "~Outcome checker|Compares before and after snapshots.",
+      "~LLM planner|Preliminary planning for complex orders; recovery for troubled plans, unmet goals and free time.", "~Conditional plans|If, repeat and guards over world facts.", "~Outcome checker|Compares before and after snapshots.", "~Order coverage|Measures the owner's items, quantities and build parts against the goal's criteria and the queued plan.",
       "~Recovery advisor|Classifies a failure and suggests a new remedy.", "~Quiet outcomes|Learns without narrating repeated status.", "~Shift reports|One line per blocker (missing support, an own place, a tree it cannot climb); a repeat is silent.",
       "~Speech gate|Irrelevant status stays silent; a new blocker gets one line; a player question is always answered." ] },
   { id: "memory", domain: "mind", name: "Memory & Trust", icon: "🧠", color: COLORS.amethyst,
@@ -462,7 +462,8 @@ const MEM_CARDS = [
   { title: "Per-owner files", sub: "<world>/friendai/ - one file per owner UUID, atomic writes, .bak recovery", wide: true,
     hub: { label: "Owner data", icon: "🗂️", color: COLORS.amethyst, desc: "Memory, profile, goals and free-time stores share one bounded runtime writer; it flushes latest-revision snapshots on a 5 s server-tick cadence, one store per tick and at most 64 records per flush. Unsupported versions are never overwritten." },
     color: COLORS.amethyst, items: [
-      "~Memory|Facts about players, trust, learned language, food rules.", "~Conversation transcript|Both sides of every chat, redacted, capped by count and age; a recreated companion restores the last few delivered lines.", "~Companion profile|Name, description, language and address.", "~Goals|One primary and three background goals, lessons, replan budget.",
+      "~Memory|Facts about players, trust, learned language, food rules.", "~Conversation transcript|Both sides of every chat, redacted, capped by count and age; a recreated companion restores the last few delivered lines.", "~Companion profile|Name, description, language and address.", "~Goals|One primary and three background goals, lessons, replan budget, and the owner order each one answers.",
+      "~Delivery receipts|The bounded hand-over ledger records what left the companion, the stock the owner already had, and what they later picked up.",
       "~Free time|Shifts, history, cooldowns, away summaries, and shift.start/end/report records in the durable log.", "~Instruction skills|19 builtins, global and owner records; list_skills and skill_help read, manage_skill writes.", "~Places|Named places with aliases, dimension and visits.",
       "~Placed blocks|Ledger of blocks it placed (cap 512).", "~Knowledge|Observed resources.", "~Trades|Known villager trades.", "~Blueprints|Saved layouts as JSON." ] },
   { title: "In the world save", sub: "Companion entity + SavedData",

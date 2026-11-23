@@ -332,11 +332,13 @@ public final class QueueTools implements FeatureToolContributor {
                 || args.get("auto_repair").isJsonNull()
                 || args.get("auto_repair").getAsBoolean();
         java.util.Optional<dev.friendai.agent.goal.Goal> selected;
+        boolean freshOrder;
         try {
             Long goalId = args.has("goal_id") && !args.get("goal_id").isJsonNull()
                     ? args.get("goal_id").getAsLong()
                     : null;
             selected = linkGoal ? access.goalForPlan(c, caller, goalId) : java.util.Optional.empty();
+            freshOrder = goalId == null;
         } catch (IllegalArgumentException invalidGoal) {
             return ToolResult.error("Invalid plan: " + invalidGoal.getMessage());
         }
@@ -345,6 +347,19 @@ public final class QueueTools implements FeatureToolContributor {
                 return ToolResult.error("Invalid plan: use the exact objective of the selected goal");
         }
         var goalToAttach = selected.filter(chosen -> chosen.text().strip().equalsIgnoreCase(goal.strip()));
+        // A fresh owner order is measured against the plan before anything is queued; a repair or an existing goal
+        // is an update to work already accounted for, so its residual steps are not re-judged as a whole order.
+        if (freshOrder && linkGoal) {
+            var intent = dev.friendai.agent.goal.OrderIntent.parse(goal);
+            if (intent.recognised()) {
+                var coverage = dev.friendai.agent.goal.GoalCoverage.checkPlan(intent, bound);
+                if (!coverage.covered()) {
+                    return ToolResult.error("Invalid plan: it does not cover the order — "
+                            + coverage.describeMissing()
+                            + ". Add the step that delivers each requested item and keeps the requested share.");
+                }
+            }
+        }
         java.util.function.LongConsumer attach =
                 planId -> goalToAttach.ifPresent(chosen -> access.linkPlan(c, planId, chosen));
         long id;

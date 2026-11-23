@@ -316,7 +316,8 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                         selfAccess,
                         storage,
                         companion -> routines(),
-                        new dev.friendai.server.agent.coordination.CoordinationToolAccess(server)),
+                        new dev.friendai.server.agent.coordination.CoordinationToolAccess(server),
+                        companion -> currentOrderText(companion)),
                 () -> settings.get().tasks().mineCollectDrops(),
                 () -> settings.get().tasks().fellCollectDrops());
         this.tools = builtins.registry();
@@ -728,6 +729,13 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
     @Override
     public Caller currentCaller(CompanionEntity companion, UUID principal) {
         return currentCaller(companion.ownerUuid(), principal);
+    }
+
+    /** The phrase the owner used in the active player turn; empty when the turn is an event or a panel edit. */
+    public String currentOrderText(CompanionEntity companion) {
+        UUID owner = companion == null ? null : companion.ownerUuid();
+        CompanionSession session = owner == null ? null : sessions.get(owner);
+        return session == null || session.brain() == null ? "" : session.brain().currentPlayerText();
     }
 
     @Override

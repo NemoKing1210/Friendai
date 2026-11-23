@@ -6,6 +6,15 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.222.0] - 2026-11-23
+
+### Changed
+
+- A goal now keeps the order that created it and must account for every requested item, quantity, recipient and
+  requested build part before it can be finished; a free-form criterion no longer counts as proof on its own.
+- Delivering an item is proven by the companion's own hand-over rather than by stock the owner already had, and a
+  partial owner pickup is reported separately from the share the companion keeps.
+
 ## [0.221.10] - 2026-11-23
 
 ### Changed

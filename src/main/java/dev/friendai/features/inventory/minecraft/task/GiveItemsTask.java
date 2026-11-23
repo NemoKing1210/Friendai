@@ -331,6 +331,7 @@ public final class GiveItemsTask implements Task {
         }
 
         int gave = 0;
+        int ownerBefore = InventoryOps.count(owner.getInventory(), matcher);
         for (int i = 0; i < taken.size(); i++) {
             ItemStack stack = taken.get(i);
             ItemEntity drop = drops.get(i);
@@ -338,7 +339,8 @@ public final class GiveItemsTask implements Task {
             String itemId = itemId(stack);
             handedOverById.merge(itemId, stack.getCount(), Integer::sum);
             companion.recordDelivery(new dev.friendai.features.inventory.DeliveredLedger.Entry(
-                    itemId, stack.getCount(), c.level().getGameTime(), drop.getUUID()));
+                    itemId, stack.getCount(), c.level().getGameTime(), drop.getUUID(), ownerBefore));
+            ownerBefore += stack.getCount();
         }
         int carriedAfter = carried(companion);
         summary = "gave " + gave + " " + itemLabel();

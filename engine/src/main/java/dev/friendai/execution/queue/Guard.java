@@ -24,6 +24,9 @@ public sealed interface Guard
                 Guard.DistanceTravelled,
                 Guard.TimeElapsed,
                 Guard.OwnerHasAtLeast,
+                Guard.HandedOver,
+                Guard.PickedUp,
+                Guard.Possesses,
                 Guard.BlockAt,
                 Guard.OwnerOnline,
                 Guard.OwnerOffline,
@@ -91,6 +94,20 @@ public sealed interface Guard
                 }
                 case "delivered" ->
                     Optional.of(new OwnerHasAtLeast(strictString(json, "item"), strictInteger(json, "count")));
+                case "handed_over" -> {
+                    if (!onlyKeys(json, "type", "item", "count", "after")) yield Optional.empty();
+                    yield Optional.of(new HandedOver(
+                            strictString(json, "item"), strictInteger(json, "count"), strictLong(json, "after")));
+                }
+                case "picked_up" -> {
+                    if (!onlyKeys(json, "type", "item", "count", "after")) yield Optional.empty();
+                    yield Optional.of(new PickedUp(
+                            strictString(json, "item"), strictInteger(json, "count"), strictLong(json, "after")));
+                }
+                case "possesses" -> {
+                    if (!onlyKeys(json, "type", "item", "count")) yield Optional.empty();
+                    yield Optional.of(new Possesses(strictString(json, "item"), strictInteger(json, "count")));
+                }
                 case "block_at" ->
                     Optional.of(new BlockAt(
                             strictString(json, "block"),
@@ -599,6 +616,91 @@ public sealed interface Guard
         @Override
         public JsonObject toJson() {
             JsonObject j = json("delivered");
+            j.addProperty("item", item);
+            j.addProperty("count", count);
+            return j;
+        }
+    }
+
+    /**
+     * A hand-over the companion itself recorded after the goal was created. Pre-existing owner stock and drops from
+     * before the order prove nothing, so the owner's inventory is never consulted.
+     */
+    record HandedOver(String item, int count, long afterTick) implements Guard {
+        public HandedOver {
+            item = id(item);
+            if (count < 1) throw new IllegalArgumentException("count");
+            if (afterTick < -1) throw new IllegalArgumentException("after");
+        }
+
+        @Override
+        public boolean holds(GuardFacts facts) {
+            return facts.handedOverItems(item, afterTick) >= count;
+        }
+
+        @Override
+        public String describe() {
+            return "hand over " + count + " " + item + " to the owner";
+        }
+
+        @Override
+        public JsonObject toJson() {
+            JsonObject j = json("handed_over");
+            j.addProperty("item", item);
+            j.addProperty("count", count);
+            j.addProperty("after", afterTick);
+            return j;
+        }
+    }
+
+    /** A hand-over the owner actually picked up: the drop is gone and the matching count is in their inventory. */
+    record PickedUp(String item, int count, long afterTick) implements Guard {
+        public PickedUp {
+            item = id(item);
+            if (count < 1) throw new IllegalArgumentException("count");
+            if (afterTick < -1) throw new IllegalArgumentException("after");
+        }
+
+        @Override
+        public boolean holds(GuardFacts facts) {
+            return facts.pickedUpItems(item, afterTick) >= count;
+        }
+
+        @Override
+        public String describe() {
+            return "the owner picks up " + count + " " + item;
+        }
+
+        @Override
+        public JsonObject toJson() {
+            JsonObject j = json("picked_up");
+            j.addProperty("item", item);
+            j.addProperty("count", count);
+            j.addProperty("after", afterTick);
+            return j;
+        }
+    }
+
+    /** An explicit "do I have X" question: the owner's own inventory, with no delivery credit. */
+    record Possesses(String item, int count) implements Guard {
+        public Possesses {
+            item = id(item);
+            if (count < 1) throw new IllegalArgumentException("count");
+        }
+
+        @Override
+        public boolean holds(GuardFacts facts) {
+            return facts.ownerOwnedItems(item) >= count;
+        }
+
+        @Override
+        public String describe() {
+            return "the owner holds " + count + " " + item;
+        }
+
+        @Override
+        public JsonObject toJson() {
+            JsonObject j = json("possesses");
             j.addProperty("item", item);
             j.addProperty("count", count);
             return j;

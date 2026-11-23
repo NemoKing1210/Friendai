@@ -91,4 +91,21 @@ class GoalSaveTest {
                         .deadlineTick(),
                 "a broken deadline never becomes a due date");
     }
+
+    @Test
+    void theOwnerOrderRoundTripsAndOlderSavesHaveNone() {
+        GoalBoard board = new GoalBoard(3, 3);
+        board.set("bring logs", List.of(), false, 7, 0, "give me 4 oak logs");
+
+        GoalBoard back = GoalSave.decode(GoalSave.encode(board), 3, 3).orElseThrow();
+        assertEquals("give me 4 oak logs", back.primary().orElseThrow().order());
+
+        // A goal record written before the order field existed is still readable and simply carries no contract.
+        String old = "{\"nextId\":2,\"goals\":["
+                + "{\"id\":1,\"text\":\"wood\",\"status\":\"ACTIVE\",\"plan\":0,\"replans\":0,"
+                + "\"created\":7,\"background\":false,\"lessons\":[],\"criteria\":[{\"text\":\"12 logs\"}]}]}";
+        assertEquals(
+                "",
+                GoalSave.decode(old, 3, 3).orElseThrow().primary().orElseThrow().order());
+    }
 }

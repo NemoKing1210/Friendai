@@ -29,6 +29,7 @@ public final class GoalSave {
             g.addProperty("created", goal.createdTick());
             g.addProperty("background", goal.background());
             g.addProperty("deadline", goal.deadlineTick());
+            if (!goal.order().isEmpty()) g.addProperty("order", goal.order());
             JsonArray lessons = new JsonArray();
             goal.lessons().forEach(lessons::add);
             g.add("lessons", lessons);
@@ -79,7 +80,9 @@ public final class GoalSave {
                         g.get("created").getAsLong(),
                         g.get("background").getAsBoolean(),
                         // Files written before the deadline existed simply have no deadline.
-                        g.has("deadline") ? g.get("deadline").getAsLong() : 0L));
+                        g.has("deadline") ? g.get("deadline").getAsLong() : 0L,
+                        // Files written before the original order was kept are treated as having no contract.
+                        g.has("order") ? g.get("order").getAsString() : ""));
             }
             long nextId = root.has("nextId") ? root.get("nextId").getAsLong() : 1;
             return Optional.of(GoalBoard.restore(maxBackground, maxReplans, nextId, goals));

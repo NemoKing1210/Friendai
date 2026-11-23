@@ -47,7 +47,8 @@ final class GameTestToolRegistry {
                 dev.friendai.features.memory.minecraft.tool.SelfAccess.DISABLED,
                 state.storage(),
                 candidate -> sessions.routines(),
-                new CoordinationToolAccess(companion.level().getServer()));
+                new CoordinationToolAccess(companion.level().getServer()),
+                sessions::currentOrderText);
         return FriendaiTools.build(
                         radius,
                         radius,

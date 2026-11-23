@@ -42,7 +42,8 @@ public final class PlannerObjective {
                 goal.lessons(),
                 goal.createdTick(),
                 goal.background(),
-                goal.deadlineTick());
+                goal.deadlineTick(),
+                goal.order());
     }
 
     /** A queued plan: the goal that owns it when there is one, otherwise the plan's own bounded text. */
@@ -59,7 +60,8 @@ public final class PlannerObjective {
                     goal.lessons(),
                     goal.createdTick(),
                     goal.background(),
-                    goal.deadlineTick());
+                    goal.deadlineTick(),
+                    goal.order());
         }
         return new Goal(
                 plan.id(), bounded(plan.goal()), List.of(), GoalStatus.ACTIVE, plan.id(), 0, List.of(), 0L, false);

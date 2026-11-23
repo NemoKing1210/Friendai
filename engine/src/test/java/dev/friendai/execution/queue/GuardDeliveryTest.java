@@ -108,4 +108,96 @@ class GuardDeliveryTest {
         assertFalse(new Guard.OwnerHasAtLeast("minecraft:oak_log", 1).holds(empty));
         assertFalse(new Guard.BlockAt("friendai:not_a_block", 0, 64, 0).holds(empty));
     }
+
+    @Test
+    void theNewDeliveryKindsRoundTripAndReadTheirOwnFacts() {
+        Guard handed = Guard.parse(json(
+                        "{\"type\":\"handed_over\",\"item\":\"minecraft:oak_log\"," + "\"count\":4,\"after\":120}"))
+                .orElseThrow();
+        assertEquals("hand over 4 minecraft:oak_log to the owner", handed.describe());
+        assertEquals(handed, Guard.parse(handed.toJson()).orElseThrow());
+
+        Guard picked = Guard.parse(
+                        json("{\"type\":\"picked_up\",\"item\":\"minecraft:oak_log\"," + "\"count\":2,\"after\":120}"))
+                .orElseThrow();
+        assertEquals("the owner picks up 2 minecraft:oak_log", picked.describe());
+        assertEquals(picked, Guard.parse(picked.toJson()).orElseThrow());
+
+        Guard holds = Guard.parse(json("{\"type\":\"possesses\",\"item\":\"minecraft:oak_log\",\"count\":3}"))
+                .orElseThrow();
+        assertEquals("the owner holds 3 minecraft:oak_log", holds.describe());
+        assertEquals(holds, Guard.parse(holds.toJson()).orElseThrow());
+
+        GuardFacts facts = new EvidenceFacts(10, 4, 2);
+        assertTrue(new Guard.HandedOver("minecraft:oak_log", 4, 120).holds(facts));
+        assertFalse(new Guard.HandedOver("minecraft:oak_log", 5, 120).holds(facts));
+        assertTrue(new Guard.PickedUp("minecraft:oak_log", 2, 120).holds(facts));
+        assertFalse(new Guard.PickedUp("minecraft:oak_log", 3, 120).holds(facts));
+        assertTrue(new Guard.Possesses("minecraft:oak_log", 10).holds(facts));
+        assertFalse(new Guard.Possesses("minecraft:oak_log", 11).holds(facts));
+    }
+
+    @Test
+    void aLegacyDeliveredGuardStillReadsTheOwnerInventory() {
+        Guard legacy = Guard.parse(json("{\"type\":\"delivered\",\"item\":\"minecraft:oak_log\",\"count\":12}"))
+                .orElseThrow();
+        assertTrue(legacy.holds(new OwnerWorld(12, false, new int[3])));
+        // A saved "delivered" criterion keeps its old meaning: the owner's inventory alone decides, even when no
+        // hand-over was recorded by the newer ledger.
+        assertTrue(legacy.holds(new EvidenceFacts(12, 0, 0)), "a legacy file keeps its old meaning");
+        assertFalse(legacy.holds(new EvidenceFacts(11, 12, 12)), "only the owner inventory answers it");
+    }
+
+    /** The three evidence categories read from distinct numbers. */
+    private record EvidenceFacts(int owner, int handed, int picked) implements GuardFacts {
+        @Override
+        public int countItems(String idOrTag) {
+            return 0;
+        }
+
+        @Override
+        public int emptySlots() {
+            return 0;
+        }
+
+        @Override
+        public float healthFraction() {
+            return 0;
+        }
+
+        @Override
+        public int ownerDistance() {
+            return -1;
+        }
+
+        @Override
+        public int countBlocks(String idOrTag, int radius) {
+            return 0;
+        }
+
+        @Override
+        public String dimension() {
+            return "minecraft:overworld";
+        }
+
+        @Override
+        public int ownerCountItems(String idOrTag) {
+            return owner;
+        }
+
+        @Override
+        public int ownerOwnedItems(String idOrTag) {
+            return owner;
+        }
+
+        @Override
+        public int handedOverItems(String idOrTag, long afterTick) {
+            return handed;
+        }
+
+        @Override
+        public int pickedUpItems(String idOrTag, long afterTick) {
+            return picked;
+        }
+    }
 }

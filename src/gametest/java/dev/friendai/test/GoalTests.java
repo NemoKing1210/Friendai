@@ -313,4 +313,184 @@ public class GoalTests {
                 "with the item in hand the claim holds");
         h.succeed();
     }
+
+    /** A set is four tools; a goal that records one of them must not finish the order. */
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 300)
+    public void finishRefusesAFourToolOrderCoveredByOneItem(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
+        CompanionEntity c = CompanionManager.get(h.getLevel().getServer()).summon(player);
+        Caller owner = owner(player);
+        h.assertFalse(
+                call(
+                                c,
+                                owner,
+                                "set_goal",
+                                "{\"text\":\"one stone pickaxe\","
+                                        + "\"order\":\"make one stone tool set for each of us\","
+                                        + "\"criteria\":[{\"text\":\"a pickaxe\","
+                                        + "\"type\":\"handed_over\",\"item\":\"minecraft:stone_pickaxe\",\"count\":1}]}")
+                        .error(),
+                "a narrow goal is still recorded, with a warning");
+        long id = GameTestSupport.runtime(h.getLevel().getServer())
+                .goals()
+                .board(player.getUUID())
+                .primary()
+                .orElseThrow()
+                .id();
+        var refused = call(c, owner, "finish_goal", "{\"id\":" + id + ",\"done\":true,\"reason\":\"done\"}");
+        h.assertTrue(refused.error(), "one tool cannot finish a four-tool order");
+        h.assertTrue(
+                refused.content().contains("minecraft:stone_axe"),
+                "the refusal names a missing tool: " + refused.content());
+        h.succeed();
+    }
+
+    /** Stock the owner already had is not a hand-over. */
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 300)
+    public void existingOwnerStockDoesNotProveANewHandover(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
+        CompanionEntity c = CompanionManager.get(h.getLevel().getServer()).summon(player);
+        Caller owner = owner(player);
+        player.getInventory().add(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.STONE_AXE));
+        var facts = new dev.friendai.task.queue.CompanionGuardFacts(c);
+        facts.refresh();
+        h.assertTrue(facts.ownerCountItems("minecraft:stone_axe") >= 1, "the owner really holds an axe");
+        h.assertValueEqual(
+                facts.handedOverItems(
+                        "minecraft:stone_axe", Math.max(0L, h.getLevel().getGameTime() - 100)),
+                0,
+                "held stock is not a hand-over");
+        h.assertFalse(
+                new dev.friendai.execution.queue.Guard.HandedOver(
+                                "minecraft:stone_axe",
+                                1,
+                                Math.max(0L, h.getLevel().getGameTime() - 100))
+                        .holds(facts),
+                "a handed_over criterion cannot be satisfied by existing stock");
+        h.assertTrue(
+                new dev.friendai.execution.queue.Guard.Possesses("minecraft:stone_axe", 1).holds(facts),
+                "the possession criterion still reads the owner's inventory");
+        h.succeed();
+    }
+
+    /** A partial pickup and a reserved companion share are different numbers. */
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 300)
+    public void partialPickupAndReservedStockStayDistinct(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
+        CompanionEntity c = CompanionManager.get(h.getLevel().getServer()).summon(player);
+        long now = h.getLevel().getGameTime();
+        c.recordDelivery(new dev.friendai.features.inventory.DeliveredLedger.Entry(
+                "minecraft:oak_log", 4, now, java.util.UUID.randomUUID(), 0));
+        c.inventory().addItem(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.OAK_LOG, 4));
+        player.getInventory().add(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.OAK_LOG, 2));
+        var facts = new dev.friendai.task.queue.CompanionGuardFacts(c);
+        facts.refresh();
+        h.assertValueEqual(facts.handedOverItems("minecraft:oak_log", now), 4, "four logs left the companion");
+        h.assertValueEqual(facts.pickedUpItems("minecraft:oak_log", now), 2, "the owner picked up only two");
+        h.assertValueEqual(facts.countItems("minecraft:oak_log"), 4, "the companion kept the reserved share");
+        h.assertTrue(
+                new dev.friendai.execution.queue.Guard.PickedUp("minecraft:oak_log", 2, now).holds(facts),
+                "the partial pickup is proven");
+        h.assertFalse(
+                new dev.friendai.execution.queue.Guard.PickedUp("minecraft:oak_log", 4, now).holds(facts),
+                "the partial pickup is not a full pickup");
+        h.succeed();
+    }
+
+    /** "Do I have X" stays a possession question rather than becoming a delivery. */
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 300)
+    public void possessionQuestionStillFinishes(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
+        CompanionEntity c = CompanionManager.get(h.getLevel().getServer()).summon(player);
+        Caller owner = owner(player);
+        player.getInventory().add(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND, 3));
+        h.assertFalse(
+                call(
+                                c,
+                                owner,
+                                "set_goal",
+                                "{\"text\":\"check diamonds\",\"order\":\"do I have 3 diamonds?\","
+                                        + "\"criteria\":[{\"text\":\"owner holds 3 diamonds\","
+                                        + "\"type\":\"possesses\",\"item\":\"minecraft:diamond\",\"count\":3}]}")
+                        .error(),
+                "the possession goal is accepted");
+        long id = GameTestSupport.runtime(h.getLevel().getServer())
+                .goals()
+                .board(player.getUUID())
+                .primary()
+                .orElseThrow()
+                .id();
+        var before = call(c, owner, "finish_goal", "{\"id\":" + id + ",\"done\":true,\"reason\":\"checked\"}");
+        if (before.error()) throw new IllegalStateException("possession refusal: " + before.content());
+        var finished = before;
+        h.assertFalse(finished.error(), "with the diamonds held, the question is answered: " + finished.content());
+        h.succeed();
+    }
+
+    /** A build order that names a roof cannot be met by a plan that only lays a floor and walls. */
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 200)
+    public void buildWithAMissingPartIsRefusedBeforeQueueing(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
+        CompanionEntity c = CompanionManager.get(h.getLevel().getServer()).summon(player);
+        Caller owner = owner(player);
+        var refused = call(
+                c,
+                owner,
+                "queue_add",
+                "{\"goal\":\"build a small house with a roof and a door\","
+                        + "\"steps\":[{\"tool\":\"build_structure\",\"args\":\"{\\\"generator\\\":"
+                        + "\\\"{\\\\\\\"type\\\\\\\":\\\\\\\"house\\\\\\\",\\\\\\\"walls\\\\\\\":"
+                        + "\\\\\\\"minecraft:oak_planks\\\\\\\"}\\\","
+                        + "\\\"parts\\\":[\\\"floor\\\",\\\"walls\\\"]}\"}]}");
+        h.assertTrue(refused.error(), "a plan that omits the roof must not enter the queue");
+        h.assertTrue(refused.content().contains("roof"), "the refusal names the missing part: " + refused.content());
+        h.assertValueEqual(c.executionCoordinator().queue().planCount(), 0, "nothing was queued");
+        h.succeed();
+    }
+
+    /** A queued delivery is intent: until the hand-over is recorded the order stays open. */
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 200)
+    public void aQueuedDeliveryPlanDoesNotFinishTheOrder(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
+        CompanionEntity c = CompanionManager.get(h.getLevel().getServer()).summon(player);
+        Caller owner = owner(player);
+        h.assertFalse(
+                call(
+                                c,
+                                owner,
+                                "set_goal",
+                                "{\"text\":\"bring two oak logs\",\"order\":\"give me 2 oak logs\","
+                                        + "\"criteria\":[{\"text\":\"two logs handed over\","
+                                        + "\"type\":\"handed_over\",\"item\":\"minecraft:oak_log\",\"count\":2}]}")
+                        .error(),
+                "the order is recorded");
+        long id = GameTestSupport.runtime(h.getLevel().getServer())
+                .goals()
+                .board(player.getUUID())
+                .primary()
+                .orElseThrow()
+                .id();
+        h.assertFalse(
+                call(
+                                c,
+                                owner,
+                                "queue_add",
+                                "{\"goal\":\"bring two oak logs\",\"goal_id\":" + id + ","
+                                        + "\"steps\":[{\"tool\":\"give_items\",\"args\":"
+                                        + "\"{\\\"item\\\":\\\"minecraft:oak_log\\\",\\\"count\\\":2}\"}]}")
+                        .error(),
+                "the plan that will deliver both logs is admitted");
+        var refused = call(c, owner, "finish_goal", "{\"id\":" + id + ",\"done\":true,\"reason\":\"queued\"}");
+        h.assertTrue(refused.error(), "a queued job is not a completed delivery");
+        h.assertTrue(
+                refused.content().contains("handed over"),
+                "the refusal names the missing delivery: " + refused.content());
+        h.succeed();
+    }
 }

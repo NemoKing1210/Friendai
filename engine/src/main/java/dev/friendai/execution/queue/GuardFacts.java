@@ -48,6 +48,21 @@ public interface GuardFacts {
         return 0;
     }
 
+    /** What the companion handed over after this tick, or 0 when the ledger cannot be read. */
+    default int handedOverItems(String idOrTag, long afterTick) {
+        return 0;
+    }
+
+    /** What the owner verifiably picked up after this tick, or 0 when the ledger cannot be read. */
+    default int pickedUpItems(String idOrTag, long afterTick) {
+        return 0;
+    }
+
+    /** Items of this kind in the owner's inventory only; a drop on the ground is not possession. */
+    default int ownerOwnedItems(String idOrTag) {
+        return ownerCountItems(idOrTag);
+    }
+
     /** Whether the named block sits at exactly this position, or false when the position cannot be read. */
     default boolean blockAt(String idOrTag, int x, int y, int z) {
         return false;

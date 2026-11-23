@@ -440,6 +440,11 @@ public final class CompanionBrain {
         return thinking && turnKind == TurnKind.PLAYER && principal.equals(activePrincipal) ? turnSeq : 0;
     }
 
+    /** The player text of the active turn, joined in arrival order; empty outside a player turn. */
+    public String currentPlayerText() {
+        return turnKind == TurnKind.PLAYER ? String.join("\n", turnPlayerTexts) : "";
+    }
+
     public boolean isSkillFreeTimeTurn() {
         return skillFreeTimeTurn;
     }

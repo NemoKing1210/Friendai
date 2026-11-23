@@ -41,7 +41,7 @@ class GoalToolsTest {
 
         JsonObject setGoal = schema(tools, "set_goal");
         assertEquals(
-                Set.of("text", "criteria", "background", "deadline_minutes", "plan"),
+                Set.of("text", "criteria", "order", "background", "deadline_minutes", "plan"),
                 setGoal.getAsJsonObject("properties").keySet());
         assertEquals(Set.of("text"), strings(setGoal.getAsJsonArray("required")));
         assertEquals(
@@ -84,6 +84,32 @@ class GoalToolsTest {
                         .getAsJsonObject());
         assertEquals("tell the owner", textOnly.text());
         assertTrue(textOnly.check().isEmpty());
+    }
+
+    @Test
+    void aDeliveryCriterionKeepsItsCheckAndGetsTheGoalTickAsItsBaseline() {
+        var parsed = GoalTools.parseCriterion(
+                JsonParser.parseString("{\"text\":\"one axe\",\"type\":\"handed_over\","
+                                + "\"item\":\"minecraft:stone_axe\",\"count\":1}")
+                        .getAsJsonObject(),
+                500L);
+
+        assertEquals("one axe", parsed.text());
+        assertEquals(
+                new dev.friendai.execution.queue.Guard.HandedOver("minecraft:stone_axe", 1, 500),
+                parsed.check().orElseThrow());
+    }
+
+    @Test
+    void aPossessionCriterionParsesBesideItsText() {
+        var parsed =
+                GoalTools.parseCriterion(JsonParser.parseString("{\"text\":\"owner holds it\",\"type\":\"possesses\","
+                                + "\"item\":\"minecraft:diamond\",\"count\":3}")
+                        .getAsJsonObject());
+
+        assertEquals(
+                new dev.friendai.execution.queue.Guard.Possesses("minecraft:diamond", 3),
+                parsed.check().orElseThrow());
     }
 
     @Test

@@ -15,6 +15,7 @@ public final class GoalBoard {
     public static final int MAX_TEXT = 200;
     public static final int MAX_CRITERIA = 6;
     public static final int MAX_CRITERION_TEXT = 160;
+    public static final int MAX_ORDER = 400;
     public static final int MAX_LESSONS = 5;
     public static final int MAX_LESSON_TEXT = 160;
 
@@ -50,6 +51,14 @@ public final class GoalBoard {
     /** @param deadlineTick the absolute game tick the goal is due at, or zero for no deadline */
     public GoalResult<Goal> set(
             String text, List<Criterion> criteria, boolean background, long tick, long deadlineTick) {
+        return set(text, criteria, background, tick, deadlineTick, "");
+    }
+
+    /**
+     * @param order the owner phrase this goal answers, preserved so completion can be judged against it later
+     */
+    public GoalResult<Goal> set(
+            String text, List<Criterion> criteria, boolean background, long tick, long deadlineTick, String order) {
         String cleaned = clean(text, MAX_TEXT);
         if (cleaned.isEmpty()) {
             return GoalResult.fail("The goal needs a short text.");
@@ -68,7 +77,17 @@ public final class GoalBoard {
                     + primary().get().id() + "); finish or update it first, or add this one as a background goal.");
         }
         Goal goal = new Goal(
-                nextId++, cleaned, checked.value(), GoalStatus.ACTIVE, 0, 0, List.of(), tick, background, deadlineTick);
+                nextId++,
+                cleaned,
+                checked.value(),
+                GoalStatus.ACTIVE,
+                0,
+                0,
+                List.of(),
+                tick,
+                background,
+                deadlineTick,
+                clean(order, MAX_ORDER));
         goals.add(goal);
         return GoalResult.ok(goal);
     }

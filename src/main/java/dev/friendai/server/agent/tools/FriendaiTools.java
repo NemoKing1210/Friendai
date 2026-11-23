@@ -156,7 +156,10 @@ public final class FriendaiTools {
 
         // Queue schemas are derived after all task contributions, so every plannable feature is available.
         new QueueTools(dependencies.queue()).register(featureTools);
-        new GoalTools(dependencies.goals()).register(featureTools);
+        new GoalTools(
+                        dependencies.goals(),
+                        companion -> dependencies.currentOrder().apply(companion))
+                .register(featureTools);
         new SkillTools(dependencies.skills()).register(featureTools);
         new PerceptionTools(
                         dependencies.perceptionContext(),

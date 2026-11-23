@@ -73,6 +73,8 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 
 - [ ] With a real provider, "Friendai, mine 3 logs" next to trees, operator Log tab open: a `set_goal` with a `has_item` criterion, then `facts: +3 ...`, `all criteria confirmed: call finish_goal`, `finish_goal` and one completed-work outcome; nothing claims done before the criterion holds. Record it if no goal is set at all.
 - [ ] Ask for a 3×3 stone platform with no stone in the bag: the reply names what is still missing (an `unmet:` or `not proven yet:` line in the log), the goal stays open, and a second trip finishes it.
+- [ ] With a real provider, ask for "one stone tool set for each of us" and then claim it is done after one tool: the completion is refused and names the missing tools. Hold a stone axe before the order and repeat: the pre-existing axe is not accepted as the new hand-over.
+- [ ] Deliver four planks, pick up only two: the log and the goal distinguish the partial pickup from the share the companion still keeps, and a "do I have two planks?" follow-up is answered from the owner's own inventory.
 - [ ] Start "mine 15 logs" and say "stop" as the first log is cut: the log shows one cancelled task, no tool call follows, and the reply is one line rather than a report of every step.
 - [ ] Leave and rejoin mid-plan: the job resumes, the result is reported once on return, and the server log prints an `Execution restore:` line only for what was rejected.
 - [ ] `/friendai freetime on`, stay within hearing and quiet for a recorded hour: `/friendai freetime status` shows the shifts, and the log records how many repeat a recent activity and whether a failed shift was retried.

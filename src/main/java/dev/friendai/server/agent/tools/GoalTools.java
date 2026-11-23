@@ -5,10 +5,12 @@ import com.google.gson.JsonObject;
 import dev.friendai.agent.goal.Criterion;
 import dev.friendai.agent.goal.Goal;
 import dev.friendai.agent.goal.GoalBoard;
+import dev.friendai.agent.goal.GoalCoverage;
 import dev.friendai.agent.goal.GoalDeadline;
 import dev.friendai.agent.goal.GoalResult;
 import dev.friendai.agent.goal.GoalService;
 import dev.friendai.agent.goal.GoalStatus;
+import dev.friendai.agent.goal.OrderIntent;
 import dev.friendai.agent.tools.Cost;
 import dev.friendai.agent.tools.ToolGroup;
 import dev.friendai.agent.tools.ToolMeta;
@@ -36,9 +38,16 @@ public final class GoalTools implements FeatureToolContributor {
     private static final String FINISH_GOAL = "finish_goal";
 
     private final GoalToolAccess access;
+    /** The order this turn is answering, when the caller knows it; empty for panel edits and older callers. */
+    private final java.util.function.Function<CompanionEntity, String> currentOrder;
 
     public GoalTools(GoalToolAccess access) {
+        this(access, companion -> "");
+    }
+
+    public GoalTools(GoalToolAccess access, java.util.function.Function<CompanionEntity, String> currentOrder) {
         this.access = Objects.requireNonNull(access);
+        this.currentOrder = Objects.requireNonNull(currentOrder);
     }
 
     @Override
@@ -50,7 +59,9 @@ public final class GoalTools implements FeatureToolContributor {
                 "Record what you are working toward so it survives plans, failures and restarts. Use it for a "
                         + "multi-step objective, not for a single action. Each criterion has a short text; add a "
                         + "type with its fields (for example type has_item, item minecraft:oak_log, count 12, or "
-                        + "type delivered, item minecraft:oak_log, count 12 for items the owner now holds, or "
+                        + "type handed_over, item minecraft:oak_log, count 12 for items given to the owner after "
+                        + "this goal was set, or type possesses, item minecraft:oak_log, count 12 when the owner "
+                        + "only needs to have them, or "
                         + "type block_at, block minecraft:oak_planks, x 10, y 64, z -3 for one exact position) when "
                         + "the world can check it by itself. One primary goal at a time; background:true adds one "
                         + "of at most three side goals. deadline_minutes says how soon it is due. Pass plan to make "
@@ -58,6 +69,7 @@ public final class GoalTools implements FeatureToolContributor {
                 SchemaBuilder.object()
                         .string("text", "The goal in one short sentence")
                         .array("criteria", "How you will know it is done", criterionSchema, 0, 6)
+                        .string("order", "The owner phrase this goal answers; filled from the current turn")
                         .bool("background", "Add as a background goal instead of the primary one")
                         .integer(
                                 "deadline_minutes",
@@ -83,10 +95,11 @@ public final class GoalTools implements FeatureToolContributor {
                     }
                     GoalResult<Goal> result = board.set(
                             args.get("text").getAsString(),
-                            criteria(args),
+                            criteria(args, companion.level().getGameTime()),
                             args.has("background") && args.get("background").getAsBoolean(),
                             now,
-                            due.value());
+                            due.value(),
+                            orderFor(companion, args));
                     if (!result.ok()) {
                         return ToolResult.error(result.error());
                     }
@@ -103,6 +116,15 @@ public final class GoalTools implements FeatureToolContributor {
                                     + " is not queued, so the goal stays planless: " + goal.text());
                         }
                         board.linkPlan(goal.id(), planId);
+                    }
+                    OrderIntent intent = OrderIntent.parse(goal.order());
+                    GoalCoverage.Result coverage = GoalCoverage.checkProof(intent, goal.criteria());
+                    if (intent.recognised() && !coverage.covered()) {
+                        // The goal is recorded and its plan is linked; the warning only says completion will be
+                        // refused until the missing evidence exists.
+                        return ToolResult.ok("goal #" + goal.id() + " set, but it does not cover the order yet: "
+                                + coverage.describeMissing()
+                                + ". Add criteria that prove every requested item and quantity before finishing.");
                     }
                     return describe("set", goal);
                 }));
@@ -124,8 +146,9 @@ public final class GoalTools implements FeatureToolContributor {
                         .required("id")
                         .build(),
                 (companion, args) -> withBoard(companion, (owner, goals, board) -> {
-                    Optional<List<Criterion>> criteria =
-                            args.has("criteria") ? Optional.of(criteria(args)) : Optional.empty();
+                    Optional<List<Criterion>> criteria = args.has("criteria")
+                            ? Optional.of(criteria(args, companion.level().getGameTime()))
+                            : Optional.empty();
                     Optional<GoalStatus> status = args.has("status")
                             ? Optional.of(GoalStatus.valueOf(
                                     args.get("status").getAsString().toUpperCase(Locale.ROOT)))
@@ -162,6 +185,29 @@ public final class GoalTools implements FeatureToolContributor {
                         long id = args.get("id").getAsLong();
                         Optional<Goal> found = board.find(id);
                         if (found.isPresent()) {
+                            OrderIntent intent = OrderIntent.parse(found.get().order());
+                            if (intent.recognised()) {
+                                var coverage = GoalCoverage.checkProof(
+                                        intent, found.get().criteria());
+                                if (!coverage.covered()) {
+                                    metrics.completionRefused();
+                                    return ToolResult.error("Not done yet: the order needs "
+                                            + coverage.describeMissing()
+                                            + ". Finish the missing work or add criteria that prove it.");
+                                }
+                            }
+                            // A free-form criterion names a result the world cannot test. A completion claim needs
+                            // evidence for every criterion, so one that cannot be checked keeps the goal open.
+                            var unchecked = found.get().criteria().stream()
+                                    .filter(criterion -> criterion.check().isEmpty())
+                                    .map(dev.friendai.agent.goal.Criterion::text)
+                                    .toList();
+                            if (!unchecked.isEmpty()) {
+                                metrics.completionRefused();
+                                return ToolResult.error("Not done yet: no evidence confirms "
+                                        + String.join("; ", unchecked)
+                                        + ". Add a checkable criterion or report what still has to happen.");
+                            }
                             worldCheckable = found.get().criteria().stream()
                                     .anyMatch(criterion -> criterion.check().isPresent());
                             var facts = new dev.friendai.task.queue.CompanionGuardFacts(companion);
@@ -169,7 +215,7 @@ public final class GoalTools implements FeatureToolContributor {
                             var unmet = board.unmet(id, facts);
                             if (!unmet.isEmpty()) {
                                 metrics.completionRefused();
-                                return ToolResult.error("Not done yet: "
+                                return ToolResult.error("Not done yet: the world does not confirm "
                                         + String.join(
                                                 "; ",
                                                 unmet.stream()
@@ -250,7 +296,7 @@ public final class GoalTools implements FeatureToolContributor {
             property.addProperty("type", "string");
             props.add(name, property);
         }
-        for (String name : List.of("count", "slots", "percent", "blocks", "radius", "x", "y", "z")) {
+        for (String name : List.of("count", "slots", "percent", "blocks", "radius", "x", "y", "z", "after")) {
             JsonObject property = new JsonObject();
             property.addProperty("type", "integer");
             props.add(name, property);
@@ -259,12 +305,23 @@ public final class GoalTools implements FeatureToolContributor {
         return item;
     }
 
-    private static List<Criterion> criteria(JsonObject args) {
+    /**
+     * The owner phrase a goal answers: an explicit {@code order} argument from a restore or a test, otherwise the
+     * player text of the current turn. The goal keeps its own copy, so a later turn cannot rewrite the contract.
+     */
+    private String orderFor(CompanionEntity companion, JsonObject args) {
+        if (args.has("order") && args.get("order").isJsonPrimitive()) {
+            return args.get("order").getAsString();
+        }
+        return currentOrder.apply(companion);
+    }
+
+    private static List<Criterion> criteria(JsonObject args, long nowTick) {
         List<Criterion> list = new ArrayList<>();
         if (args.has("criteria") && args.get("criteria").isJsonArray()) {
             for (JsonElement element : args.getAsJsonArray("criteria")) {
                 if (element.isJsonObject()) {
-                    list.add(parseCriterion(element.getAsJsonObject()));
+                    list.add(parseCriterion(element.getAsJsonObject(), nowTick));
                 }
             }
         }
@@ -291,9 +348,24 @@ public final class GoalTools implements FeatureToolContributor {
 
     /** An object with a valid guard {@code type} keeps its check; otherwise only its text counts. */
     static Criterion parseCriterion(JsonObject object) {
+        return parseCriterion(object, 0L);
+    }
+
+    /** As above, filling the "after" tick of a delivery criterion with the goal's creation tick. */
+    static Criterion parseCriterion(JsonObject object, long nowTick) {
         String text = object.has("text") && object.get("text").isJsonPrimitive()
                 ? object.get("text").getAsString().strip()
                 : "";
+        // A criterion carries its human text beside the guard fields; the guard parser accepts only its own keys.
+        object = object.deepCopy();
+        object.remove("text");
+        if (object.has("type")
+                && object.get("type").isJsonPrimitive()
+                && ("handed_over".equals(object.get("type").getAsString())
+                        || "picked_up".equals(object.get("type").getAsString()))
+                && !object.has("after")) {
+            object.addProperty("after", nowTick);
+        }
         Optional<Guard> guard = object.has("type") ? Guard.parse(object) : Optional.empty();
         if (text.isEmpty() && guard.isPresent()) {
             text = guard.get().describe();

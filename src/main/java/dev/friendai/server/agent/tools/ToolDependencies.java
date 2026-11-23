@@ -37,7 +37,9 @@ public record ToolDependencies(
         SelfAccess self,
         StorageAccess storage,
         Function<CompanionEntity, RoutineDriver> routines,
-        CoordinationAccess coordination) {
+        CoordinationAccess coordination,
+        Function<CompanionEntity, String> currentOrder) {
+
     public ToolDependencies(
             MemoryAccess memory,
             CompanionProfileRepository profiles,
@@ -69,7 +71,8 @@ public record ToolDependencies(
                 SelfAccess.DISABLED,
                 StorageAccess.UNAVAILABLE,
                 companion -> null,
-                CoordinationAccess.UNAVAILABLE);
+                CoordinationAccess.UNAVAILABLE,
+                companion -> "");
     }
 
     public ToolDependencies(
@@ -101,7 +104,8 @@ public record ToolDependencies(
                 SelfAccess.DISABLED,
                 StorageAccess.UNAVAILABLE,
                 companion -> null,
-                CoordinationAccess.UNAVAILABLE);
+                CoordinationAccess.UNAVAILABLE,
+                companion -> "");
     }
 
     public ToolDependencies(
@@ -137,7 +141,8 @@ public record ToolDependencies(
                 SelfAccess.DISABLED,
                 storage,
                 routines,
-                CoordinationAccess.UNAVAILABLE);
+                CoordinationAccess.UNAVAILABLE,
+                companion -> "");
     }
 
     public ToolDependencies(
@@ -172,7 +177,8 @@ public record ToolDependencies(
                 SelfAccess.DISABLED,
                 storage,
                 companion -> null,
-                CoordinationAccess.UNAVAILABLE);
+                CoordinationAccess.UNAVAILABLE,
+                companion -> "");
     }
 
     public ToolDependencies {

@@ -24,6 +24,9 @@ public final class CompanionGuardFacts implements GuardFacts {
     private final CompanionEntity companion;
     private final Map<String, Integer> itemCounts = new HashMap<>();
     private final Map<String, Integer> ownerItemCounts = new HashMap<>();
+    private final Map<String, Integer> ownerOwnedCounts = new HashMap<>();
+    private final Map<String, Integer> handedOverCounts = new HashMap<>();
+    private final Map<String, Integer> pickedUpCounts = new HashMap<>();
     private final Map<String, Boolean> blockFacts = new HashMap<>();
     private Integer emptySlots, ownerDistance;
     private Float healthFraction;
@@ -49,6 +52,9 @@ public final class CompanionGuardFacts implements GuardFacts {
     public void refresh(long startTick, long startDistance) {
         itemCounts.clear();
         ownerItemCounts.clear();
+        ownerOwnedCounts.clear();
+        handedOverCounts.clear();
+        pickedUpCounts.clear();
         emptySlots = null;
         ownerDistance = null;
         healthFraction = null;
@@ -108,16 +114,55 @@ public final class CompanionGuardFacts implements GuardFacts {
         ServerPlayer owner = companion.owner().orElse(null);
         var matcher = owner == null ? null : ItemMatcher.parse(id).orElse(null);
         if (matcher == null) return 0;
+        int count = ownerOwnedAll(matcher);
+        // A drop the companion handed over at the owner's feet is evidence too, but only while it is still there:
+        // the owner's pickup is confirmation, and a despawned or destroyed stack proves nothing.
+        count = Math.max(count, delivered(matcher));
+        ownerItemCounts.put(id, count);
+        return count;
+    }
+
+    @Override
+    public int ownerOwnedItems(String id) {
+        if (ownerOwnedCounts.containsKey(id)) return ownerOwnedCounts.get(id);
+        var owner = companion.owner().orElse(null);
+        var matcher = owner == null ? null : ItemMatcher.parse(id).orElse(null);
+        int count = matcher == null ? 0 : ownerOwnedAll(matcher);
+        ownerOwnedCounts.put(id, count);
+        return count;
+    }
+
+    private int ownerOwnedAll(ItemMatcher matcher) {
+        ServerPlayer owner = companion.owner().orElse(null);
+        if (owner == null) return 0;
         var inventory = owner.getInventory();
         int count = 0;
         for (int i = 0; i < inventory.getContainerSize(); i++) {
             ItemStack stack = inventory.getItem(i);
             if (matcher.test(stack)) count += stack.getCount();
         }
-        // A drop the companion handed over at the owner's feet is evidence too, but only while it is still there:
-        // the owner's pickup is confirmation, and a despawned or destroyed stack proves nothing.
-        count = Math.max(count, delivered(matcher));
-        ownerItemCounts.put(id, count);
+        return count;
+    }
+
+    @Override
+    public int handedOverItems(String id, long afterTick) {
+        String key = id + ":" + afterTick;
+        if (handedOverCounts.containsKey(key)) return handedOverCounts.get(key);
+        int count = companion
+                .delivered()
+                .handedOver(id, afterTick, companion.level().getGameTime());
+        handedOverCounts.put(key, count);
+        return count;
+    }
+
+    @Override
+    public int pickedUpItems(String id, long afterTick) {
+        String key = id + ":" + afterTick;
+        if (pickedUpCounts.containsKey(key)) return pickedUpCounts.get(key);
+        int owned = ownerOwnedItems(id);
+        int count =
+                companion.delivered().pickedUp(id, afterTick, companion.level().getGameTime(), owned);
+        pickedUpCounts.put(key, count);
         return count;
     }
 
