@@ -15,6 +15,17 @@ public interface ItemMatcher {
     /** The id or #tag this matcher was built from, normalized with its namespace. */
     String label();
 
+    /** True when this matcher accepts the item named by {@code id}; an id that names no item is never accepted. */
+    default boolean accepts(String id) {
+        if (id == null || id.isBlank()) {
+            return false;
+        }
+        Identifier key = Identifier.tryParse(id);
+        return key != null
+                && BuiltInRegistries.ITEM.containsKey(key)
+                && test(new ItemStack(BuiltInRegistries.ITEM.getValue(key)));
+    }
+
     /** A matcher for an item id or a {@code #tag}, or empty when the text names neither. */
     static Optional<ItemMatcher> parse(String idOrTag) {
         if (idOrTag == null || idOrTag.isBlank()) {
