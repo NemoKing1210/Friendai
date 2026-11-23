@@ -120,6 +120,13 @@ public final class CompanionBrain {
     private boolean clearConversationOnTurnEnd;
     /** A plan that failed or needs a decision in this turn's batch is the one the goal follows. */
     private boolean ownsTroubledPlan;
+    /**
+     * The plans and goals this turn is about. A background job failing elsewhere is news for the next turn, not a
+     * reason to discard an answer that is still valid for the current order.
+     */
+    private final Set<Long> turnPlanIds = new java.util.HashSet<>();
+
+    private final Set<Long> turnGoalIds = new java.util.HashSet<>();
     /** What the planner just did; shown once in the next request's Mission block. */
     private String plannerNote = "";
 
@@ -281,12 +288,52 @@ public final class CompanionBrain {
         if (shouldDrop(e)) {
             return;
         }
+        boolean supersedes = e instanceof BrainEvent.PlayerSaid said && revisesTheCurrentOrder(said);
         if (e instanceof BrainEvent.PlanBlocked blocked && !mayAskAuthorityQuestion(blocked)) {
             observe(o -> o.onEventDropped(e, "authority blocker is still pending; question cooldown"));
             return;
         }
+        // The correction itself is kept: it is the newest authorized intent and opens the next turn. Only the answer
+        // already in flight is dropped, so the old reasoning cannot speak or act for an order the owner replaced.
         queue.addLast(e);
+        if (supersedes) abortForCorrection();
         maybeStartTurn();
+    }
+
+    /**
+     * True when the owner's line restates the action the running turn is about. A guest never corrects the owner's
+     * order. Only the owner's own order can be revised: a turn already answering an event continues, so an aside
+     * ("where is my coal?") does not discard the news it was about to report.
+     */
+    private boolean revisesTheCurrentOrder(BrainEvent.PlayerSaid said) {
+        return thinking
+                && turnKind == TurnKind.PLAYER
+                && turnCaller != null
+                && said.playerUuid().equals(access.owner())
+                && said.playerUuid().equals(turnCaller.uuid())
+                && router.marksCorrection(said.text());
+    }
+
+    /**
+     * Drops the answer in flight so a late response is rejected by its generation, and lets the queued correction
+     * open the next turn. The task already running is not touched: stopping work stays the owner's explicit stop.
+     */
+    private void abortForCorrection() {
+        observe(o -> o.onTurnEnd(turnSeq, "superseded"));
+        generation++;
+        CompletableFuture<PlanProposal> planning = plannerFuture;
+        plannerFuture = null;
+        if (planning != null) planning.cancel(true);
+        CompletableFuture<LlmResponse> request = requestFuture;
+        requestFuture = null;
+        if (request != null) request.cancel(true);
+        teachingContext = null;
+        skillSession = SkillTurnSession.NONE;
+        streamInFlight = false;
+        thinking = false;
+        activePrincipal = null;
+        turnReferent = Optional.empty();
+        speakSafely("thinking", () -> speaker.thinking(false));
     }
 
     private boolean mayAskAuthorityQuestion(BrainEvent.PlanBlocked event) {
@@ -386,6 +433,8 @@ public final class CompanionBrain {
         activePrincipal = null;
         turnReferent = Optional.empty();
         queue.clear();
+        turnPlanIds.clear();
+        turnGoalIds.clear();
         incidents.cancelled();
         recoveryTurn = false;
         streamInFlight = false;
@@ -755,9 +804,17 @@ public final class CompanionBrain {
             }
         }
         ownsTroubledPlan = troubledPlan > 0;
+        turnPlanIds.clear();
+        turnPlanIds.addAll(troubledPlans);
+        turnGoalIds.clear();
+        batch.forEach(event -> {
+            if (event instanceof BrainEvent.TaskFinished task && task.goalId() > 0) turnGoalIds.add(task.goalId());
+            if (event instanceof BrainEvent.PlanBlocked blocked) turnPlanIds.add(blocked.planId());
+        });
         boolean budgetSpent =
                 batch.stream().anyMatch(event -> event.toPromptLine().contains(BUDGET_SPENT));
         GoalView goalView = goalSource.view(candidateCaller);
+        if (goalView.goalId() > 0) turnGoalIds.add(goalView.goalId());
         boolean goalTickWithUnmet = batch.stream()
                 .anyMatch(event -> event instanceof BrainEvent.GoalTick tick
                         && !tick.unmet().isEmpty());
@@ -890,13 +947,27 @@ public final class CompanionBrain {
     private boolean hasPendingFailure() {
         return turnCaller != null
                 && queue.stream()
-                        .anyMatch(event -> principalOf(event).equals(turnCaller.uuid()) && isExecutionFailure(event));
+                        .anyMatch(event -> principalOf(event).equals(turnCaller.uuid()) && isRelevantFailure(event));
     }
 
-    private static boolean isExecutionFailure(BrainEvent event) {
-        // Plan events stay in the queue so the next turn can consult the planner for their own subject.
-        return event instanceof BrainEvent.TaskFinished task
-                && task.disposition().failure();
+    /**
+     * Only a failure this turn is about can replace its answer. A job that fails in the background belongs to the
+     * next turn; discarding a valid reply about another order would cost a model round trip and lose the owner's
+     * answer. A stand-alone job has no plan to compare, so it is relevant while the turn answers the owner's own
+     * order rather than conversation or unrelated events.
+     */
+    private boolean isRelevantFailure(BrainEvent event) {
+        if (!(event instanceof BrainEvent.TaskFinished task)
+                || task.success()
+                || !task.disposition().failure()
+                || FailureHandler.isCancellation(task.summary())) {
+            return false;
+        }
+        if (task.planId() > 0) {
+            return turnPlanIds.contains(task.planId()) || (task.goalId() > 0 && turnGoalIds.contains(task.goalId()));
+        }
+        if (task.goalId() > 0 && turnGoalIds.contains(task.goalId())) return true;
+        return turnKind == TurnKind.PLAYER && !socialTurn;
     }
 
     /** Read outcomes once before replacing a response that could otherwise announce or start stale work. */
@@ -908,10 +979,8 @@ public final class CompanionBrain {
         }
         List<BrainEvent.TaskFinished> outcomes = new ArrayList<>();
         queue.removeIf(event -> {
-            if (!(event instanceof BrainEvent.TaskFinished task)
-                    || task.success()
-                    || !principalOf(event).equals(turnCaller.uuid())) return false;
-            outcomes.add(task);
+            if (!isRelevantFailure(event) || !principalOf(event).equals(turnCaller.uuid())) return false;
+            outcomes.add((BrainEvent.TaskFinished) event);
             return true;
         });
         if (streamedTurn && earlySequence > 0) closeStreamQuietly();
@@ -1623,6 +1692,8 @@ public final class CompanionBrain {
         requestFuture = null;
         hasFinishedTurn = true;
         lastTurnEnd = scheduler.nowMillis();
+        turnPlanIds.clear();
+        turnGoalIds.clear();
         // Internal state is already settled: an external indicator that fails must not stop the next turn.
         speakSafely("thinking", () -> speaker.thinking(false));
         activePrincipal = null;

@@ -39,6 +39,7 @@
     "own": ["AUTONOMY"], "whatever": ["AUTONOMY"], "free": ["AUTONOMY"], "yourself": ["AUTONOMY"],
     "villager": ["TRADING"], "trader": ["TRADING"], "merchant": ["TRADING"], "emerald": ["TRADING"],
     "price": ["TRADING"], "offer": ["TRADING"], "restock": ["TRADING"], "barter": ["TRADING"]  },
+  "statement_negations": ["no", "nope", "don't", "do not", "dont", "stop", "wait", "hold on", "actually", "instead", "never mind", "nevermind", "forget it", "not that", "not this", "not like that", "change of plan", "i changed my mind", "on second thought", "scratch that"],
   "complex_markers": ["and then", "after that", "afterwards", "first", "then", "once you", "when you are done", "before you"],
   "plan_request_markers": ["plan", "plans", "planned", "planning", "step by step", "make a plan", "organize", "organise", "figure out how"]
 }

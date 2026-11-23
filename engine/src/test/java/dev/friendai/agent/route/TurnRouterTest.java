@@ -297,4 +297,13 @@ class TurnRouterTest {
         }
         assertEquals(TurnMode.GOAL, player("plan the farm for me", false).mode());
     }
+
+    @Test
+    void aLineThatOpensByRestatingTheOrderMarksACorrection() {
+        assertTrue(router.marksCorrection("No, build it out of sandstone."));
+        assertTrue(router.marksCorrection("Actually, put the roof on first"));
+        assertTrue(router.marksCorrection("нет, построй из песчаника"));
+        assertFalse(router.marksCorrection("And also bring me coal."));
+        assertFalse(router.marksCorrection("The wall is fine, no need to change it."));
+    }
 }

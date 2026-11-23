@@ -29,6 +29,7 @@ public final class IntentVocabulary {
     private final List<String> complexMarkers;
     private final List<String> planMarkers;
     private final List<String> conversationMarkers;
+    private final List<String> statementNegations;
 
     IntentVocabulary(
             List<String> questionMarkers,
@@ -37,7 +38,8 @@ public final class IntentVocabulary {
             Map<String, Set<ToolGroup>> topicWords,
             List<String> complexMarkers,
             List<String> planMarkers,
-            List<String> conversationMarkers) {
+            List<String> conversationMarkers,
+            List<String> statementNegations) {
         this.questionMarkers = questionMarkers;
         this.adviceQuestionMarkers = adviceQuestionMarkers;
         this.actionVerbs = actionVerbs;
@@ -45,6 +47,7 @@ public final class IntentVocabulary {
         this.complexMarkers = complexMarkers;
         this.planMarkers = planMarkers;
         this.conversationMarkers = List.copyOf(conversationMarkers);
+        this.statementNegations = List.copyOf(statementNegations);
     }
 
     /** Both languages merged. */
@@ -56,6 +59,7 @@ public final class IntentVocabulary {
         List<String> complex = new ArrayList<>();
         List<String> plans = new ArrayList<>();
         List<String> conversation = new ArrayList<>();
+        List<String> negations = new ArrayList<>();
         for (String file : List.of("/agent/intents_en.json", "/agent/intents_ru.json")) {
             JsonObject json = read(file);
             strings(json, "question_markers", questions);
@@ -65,13 +69,35 @@ public final class IntentVocabulary {
             strings(json, "complex_markers", complex);
             strings(json, "plan_request_markers", plans);
             strings(json, "conversation_markers", conversation);
+            strings(json, "statement_negations", negations);
         }
-        return new IntentVocabulary(questions, adviceQuestions, verbs, topics, complex, plans, conversation);
+        return new IntentVocabulary(questions, adviceQuestions, verbs, topics, complex, plans, conversation, negations);
     }
 
     /** Exact whole-utterance matches only: a greeting beside an order must never hide that order's tools. */
     public boolean isConversation(List<String> tokens) {
         return conversationMarkers.contains(String.join(" ", tokens));
+    }
+
+    /**
+     * True when the message opens with a marker that revises the order it answers. Only the opening counts: "no,
+     * build it out of stone" replaces the pending plan, while "the wall is fine, no need to change it" is ordinary
+     * conversation and "and also bring coal" is an independent order.
+     */
+    public boolean marksCorrection(String text) {
+        if (text == null) return false;
+        String lower = text.length() > TurnRouter.MAX_TEXT
+                ? text.substring(0, TurnRouter.MAX_TEXT).toLowerCase(java.util.Locale.ROOT)
+                : text.toLowerCase(java.util.Locale.ROOT);
+        List<String> words = words(lower);
+        if (words.isEmpty()) return false;
+        String normalized = String.join(" ", words);
+        for (String marker : statementNegations) {
+            if (normalized.equals(marker) || normalized.startsWith(marker + " ")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public boolean startsWithQuestionMarker(String lowerText, List<String> tokens) {

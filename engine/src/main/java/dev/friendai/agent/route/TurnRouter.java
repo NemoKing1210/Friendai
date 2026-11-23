@@ -33,6 +33,11 @@ public final class TurnRouter {
         this.planningPolicy = planningPolicy;
     }
 
+    /** True when the line opens by restating the order it answers, so a pending answer no longer applies. */
+    public boolean marksCorrection(String playerText) {
+        return vocabulary.marksCorrection(playerText);
+    }
+
     /** True only when the text contains a recognized trading action verb, not merely a trading topic. */
     public boolean explicitlyRequestsTrading(String playerText) {
         if (playerText == null || playerText.isBlank()) return false;

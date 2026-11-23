@@ -757,6 +757,75 @@ class CompanionBrainTest {
     }
 
     @Test
+    void anUnrelatedPlanFailureDoesNotDiscardTheConversationReply() {
+        CompletableFuture<LlmResponse> pending = gateway.enqueuePending();
+        gateway.enqueue(text("Hello back."));
+        gateway.enqueue(text("Acknowledged."));
+        brain.post(said("hello"));
+        brain.post(new BrainEvent.TaskFinished(7, 9, 0, "go_to", false, "a background route failed", ""));
+        pending.complete(text("Hello back."));
+
+        assertEquals("Hello back.", speaker.said.get(0), "an unrelated job's failure must not replace the reply");
+        assertTrue(
+                lastUser(gateway.requests.get(1)).text().contains("a background route failed"),
+                "the failure is still reported to the model in the next turn");
+    }
+
+    @Test
+    void aPlanFailureThisTurnIsAboutReplacesTheAnswer() {
+        CompletableFuture<LlmResponse> pending = gateway.enqueuePending();
+        gateway.enqueue(text("The repair is queued."));
+        brain.post(new BrainEvent.PlanBlocked(8, "shelter", 2, "build", "missing planks", 3));
+        brain.post(new BrainEvent.TaskFinished(7, 8, 0, "build", false, "ran out of planks", ""));
+        pending.complete(calls("The wall is finished.", call("stale", "give_items")));
+
+        assertEquals(List.of("The repair is queued."), speaker.said);
+        assertTrue(tools.executed.isEmpty(), "the superseded answer must not run work");
+        assertTrue(
+                lastUser(gateway.requests.get(1)).text().contains("ran out of planks"),
+                "the affected plan's failure is what the next request sees");
+    }
+
+    @Test
+    void anOwnerCorrectionDropsThePendingAnswerAndUsesTheNewestIntent() {
+        CompletableFuture<LlmResponse> first = gateway.enqueuePending();
+        CompletableFuture<LlmResponse> second = gateway.enqueuePending();
+        gateway.enqueue(text("Sandstone it is."));
+        brain.post(said("build the wall out of wood"));
+        brain.post(said("No, build it out of sandstone"));
+        assertEquals(2, gateway.requests.size(), "the correction starts at once instead of waiting for the answer");
+        first.complete(calls("I am building the wooden wall.", call("stale", "queue_add")));
+        second.complete(text("Sandstone it is."));
+
+        assertTrue(tools.executed.isEmpty(), "the answered-for order was replaced before it could act");
+        assertEquals(List.of("Sandstone it is."), speaker.said);
+        assertTrue(lastUser(gateway.requests.get(1)).text().contains("sandstone"));
+    }
+
+    @Test
+    void anAdditionGetsItsOwnTurnWithoutDroppingTheAnswer() {
+        CompletableFuture<LlmResponse> first = gateway.enqueuePending();
+        gateway.enqueue(text("And the coal too."));
+        brain.post(said("come here"));
+        brain.post(said("and also bring me coal"));
+        first.complete(text("On my way."));
+
+        assertEquals(List.of("On my way.", "And the coal too."), speaker.said);
+        assertEquals(2, gateway.requests.size());
+    }
+
+    @Test
+    void aGuestMessageNeverSupersedesTheOwnerTurn() {
+        CompletableFuture<LlmResponse> pending = gateway.enqueuePending();
+        gateway.enqueue(text("Hello Steve."));
+        brain.post(said("hello"));
+        brain.post(guest("No, stop talking"));
+        pending.complete(text("Hello Steve."));
+
+        assertEquals("Hello Steve.", speaker.said.get(0), "a guest cannot replace the owner's answer");
+    }
+
+    @Test
     void blockedWorkUsesItsToolContextAndKeepsRecoveryAndDiscoveryAvailable() {
         for (String name : List.of(
                 "obtain_item", "clear_area", "go_to", "queue_edit", "request_tools", "barter", "breed_animals")) {

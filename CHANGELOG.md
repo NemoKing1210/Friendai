@@ -6,6 +6,14 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+### Fixed
+
+- Correcting the companion no longer has to wait for an answer you have already replaced: "no, build it out of
+  stone" drops the reply still being written and starts again from the correction, instead of the old plan being
+  carried out or the correction being answered with facts that no longer apply.
+- A job failing in the background no longer costs you the answer to an unrelated question. The failure is reported
+  the next time the companion speaks, rather than replacing a reply about something else with a second model call.
+
 ## [0.226.7] - 2026-11-24
 
 ### Fixed
