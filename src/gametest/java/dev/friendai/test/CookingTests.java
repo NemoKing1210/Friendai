@@ -557,6 +557,53 @@ public class CookingTests {
         });
     }
 
+    /** A local job is collected while a job in another world stays remembered and is named in the result. */
+    @GameTest(maxTicks = 200)
+    public void coordinateFreeCollectionReportsOtherDimensionJobs(GameTestHelper h) {
+        deck(h, 16, REPLACED_DECK);
+        int y = REPLACED_DECK + 1;
+        var furnace = (net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity) furnaceAt(h, 8, y, 8);
+        BlockPos pos = pos(h, 8, y, 8);
+        furnace.setItem(2, new ItemStack(Items.GOLD_INGOT, 2));
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, y, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, pos), "the local furnace should be visible");
+        c.furnaceJobs()
+                .add(new FurnaceJob(
+                        pos,
+                        h.getLevel().dimension().identifier().toString(),
+                        Station.FURNACE,
+                        "minecraft:raw_gold",
+                        "minecraft:gold_ingot",
+                        2,
+                        false));
+        c.furnaceJobs()
+                .add(new FurnaceJob(
+                        pos,
+                        "minecraft:the_nether",
+                        Station.FURNACE,
+                        "minecraft:raw_iron",
+                        "minecraft:iron_ingot",
+                        2,
+                        false));
+        Result result = new Result();
+        ExecutionCoordinator collector = collect(c, result, (BlockPos) null);
+        h.succeedWhen(() -> {
+            collector.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertValueEqual(
+                    result.summary,
+                    "collected 2 minecraft:gold_ingot from 1 furnace; left 1 job in another dimension",
+                    "summary");
+            h.assertValueEqual(c.inventory().countItem(Items.GOLD_INGOT), 2, "the local job is collected");
+            h.assertValueEqual(
+                    c.furnaceJobs().all().size(),
+                    1,
+                    "the nether job stays: " + c.furnaceJobs().all());
+            h.assertValueEqual(
+                    c.furnaceJobs().all().get(0).dimension(), "minecraft:the_nether", "the nether job is kept");
+        });
+    }
+
     /** A result slot holding an unrelated item is not this job's output: the collection blocks and leaves it. */
     @GameTest(maxTicks = 200)
     public void collectionSkipsUnexpectedOutput(GameTestHelper h) {
