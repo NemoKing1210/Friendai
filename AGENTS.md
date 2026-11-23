@@ -177,6 +177,9 @@ The detailed GameTest mechanics — arenas, chunk loading, `TaskTrace`, shard is
 3. Fix all of them in one pass, then re-run. Do not restart the loop after each individual fix.
 4. Treat compilation as part of the batch: write against the type system, not the compiler's first error message.
 5. Format as part of the batch: one `spotlessApply -PspotlessFiles=<your files>` before the single test run, never after it.
+6. **One Gradle invocation per batch of edits, not per edit.** Finish the edits, then run one `compileJava` (`compileGametestJava` when you touched GameTest sources). Read every error, fix them in one pass, and rerun once.
+7. **One filtered test invocation per batch.** Pass each affected package as another `--tests` flag instead of starting a second run; run the full `test` or `check` at most once, at the end.
+8. **One GameTest boot per batch**, after the fixture code is complete; tuning one constant per boot turns a minute of work into an hour. A full engine pass takes under a minute — the cost is the number of invocations, not a single run.
 
 **Keep the tests honest while batching.**
 

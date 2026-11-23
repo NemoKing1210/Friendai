@@ -28,8 +28,11 @@ A child does not see the conversation. Make each brief self-contained:
 - **Goal** and why it matters, in one or two sentences.
 - **Paths** to read and, for writers, the exact files it may change.
 - **Constraints**: the relevant `AGENTS.md` rules (layer boundaries, threading, English only, no commits unless asked) and what is out of scope.
+- **Build discipline** for a writer: one Gradle invocation per batch of edits, one filtered test invocation, one GameTest, and the final `assemble verifyModArtifact` — never a per-edit loop (`AGENTS.md`, "Batch the loop").
 - **Result format**: for example, "reply with a summary under 200 words plus a `path:line` list".
 - **Done when**: a checkable criterion (a test passes, a symbol is found, a list is complete).
+
+A worker that takes one `TODO.md` item uses [`worker-brief.md`](../executing-todo-items/worker-brief.md): it carries the one-item-per-run rule and the build discipline without restating them by hand.
 
 ## Isolation
 

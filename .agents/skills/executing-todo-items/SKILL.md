@@ -82,6 +82,8 @@ The plan is a list of slices, and every slice carries: the files it touches, its
 ## Execute
 
 - TDD per slice, batched: write the slice and its tests, format, then run **once**. Read every failure before editing again.
+- Build ladder (`AGENTS.md`, "Batch the loop"): one `compileJava` per batch of edits, one filtered test invocation with every affected package as an extra `--tests` flag, one filtered GameTest after the fixture is complete, one `assemble verifyModArtifact` at the end. Never the full `test` or `check` more than once.
+- Timebox the reading: roughly ten minutes of anchors, callers and existing tests, then the first edit. A design still unclear after that becomes the simplest correct version, with tests deciding the rest.
 - Test scope while working: the covering unit group and at most one filtered GameTest class (`AGENTS.md`, "Test scope"). Never `build`, `check` or a bare `runGameTest` "to be safe".
 - A check that passed on its first run proves nothing until you have seen it fail for the right reason. Break the guarded line once inside the batch.
 - Every world change is exercised once before the commit: a filtered GameTest class or a real client/server session, and the report says which.
@@ -113,6 +115,7 @@ Then stop. The run is over with this one item; the next item needs a new invocat
 | "The item says the code is broken, so it is" | The item may predate a fix. Gate 1 first. |
 | "Tests are green, so there is no regression" | Green means the checked paths are fine; the unfound caller is the risk. Gate 2. |
 | "I'll run the full suite to be safe" | 9+ minutes, shared lock, other sessions. Run the covering group. |
+| "One more compile after this small edit" | Per-edit builds are what turn a one-hour item into a day. Batch the edits, fix every error, run once. |
 | "The line number matches, so the anchor is valid" | Numbers drift. Read the symbol. |
 | "The spec is obvious" | Medium item or an interface/save/config change: write it, one paragraph is enough. |
 | "The marker/version/docs can land later" | They land in the same commit, or the item is not closed. |
