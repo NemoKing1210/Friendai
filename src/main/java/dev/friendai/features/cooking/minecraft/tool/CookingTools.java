@@ -5,6 +5,7 @@ import dev.friendai.agent.tools.Cost;
 import dev.friendai.agent.tools.ToolGroup;
 import dev.friendai.agent.tools.ToolMeta;
 import dev.friendai.execution.tool.SchemaBuilder;
+import dev.friendai.features.cooking.minecraft.CookingWait;
 import dev.friendai.features.cooking.minecraft.FuelPolicy;
 import dev.friendai.features.cooking.minecraft.task.CollectSmeltedTask;
 import dev.friendai.features.cooking.minecraft.task.CookFoodTask;
@@ -46,14 +47,14 @@ public final class CookingTools implements FeatureToolContributor {
     public void register(FeatureToolRegistry registry) {
         registry.registerTask(new TaskToolDefinition(
                 "smelt_items",
-                "Smelt or cook items in a furnace, blast furnace, smoker or campfire, with fuel from the inventory. One call smelts up to 256 items; give count for the whole batch instead of repeating. Short jobs are waited out and collected; long jobs are loaded and you get an event when they are done. Use wait=true in plans that need the result right away.",
+                "Smelt or cook items in a furnace, blast furnace, smoker or campfire, with fuel from the inventory. One call smelts up to 256 items; give count for the whole batch instead of repeating. Short jobs are waited out and collected. A long job is loaded and you are told when it is done; when the next step of a plan needs the result, the job stays until the finished items are collected. Pass wait=false only when the owner wants to leave it cooking, and collect_smelted later. A batch the stations cannot all take is reported as a blocker with the exact quantity not started.",
                 SchemaBuilder.object()
                         .string("item", "Item id like minecraft:raw_iron, or a tag like #minecraft:iron_ores")
                         .integer("count", "How many to smelt", 1, MAX_COUNT)
                         .enumeration(
                                 "station", "Force a station kind", "furnace", "blast_furnace", "smoker", "campfire")
                         .string("fuel", "Fuel item id or #tag; without it only cheap fuels are burned")
-                        .bool("wait", "Wait for the result instead of leaving the job in the furnace")
+                        .bool("wait", "true collects the result now, false loads and leaves it cooking")
                         .enumeration(
                                 "keep_station", "What to do with a station the companion places itself", "keep", "take")
                         .required("item", "count")
@@ -72,10 +73,10 @@ public final class CookingTools implements FeatureToolContributor {
                 metadata("smelt_items")));
         registry.registerTask(new TaskToolDefinition(
                 "cook_food",
-                "Cook the raw food the companion carries, using a smoker, campfire or furnace nearby.",
+                "Cook the raw food the companion carries, using a smoker, campfire or furnace nearby. A long job is loaded and left; when the next step of a plan needs the result, it stays until the cooked food is collected.",
                 SchemaBuilder.object()
                         .integer("count", "How many raw food items to cook; all when omitted", 1, MAX_COUNT)
-                        .bool("wait", "Wait for the result instead of leaving the job in the furnace")
+                        .bool("wait", "true collects the result now, false loads and leaves it cooking")
                         .enumeration(
                                 "keep_station", "What to do with a station the companion places itself", "keep", "take")
                         .build(),
@@ -92,7 +93,7 @@ public final class CookingTools implements FeatureToolContributor {
                 metadata("cook_food")));
         registry.registerTask(new TaskToolDefinition(
                 "collect_smelted",
-                "Collect finished items from furnaces the companion loaded, or from the furnace at the given coordinates.",
+                "Collect finished items from furnaces the companion loaded, or from the furnace at the given coordinates. Furnaces this companion loaded are waited for: the task collects them when they finish, or reports the named blocker (removed, out of fuel, out of sight, or still cooking at the deadline).",
                 SchemaBuilder.object()
                         .integer("x", "Furnace x")
                         .integer("y", "Furnace y")
@@ -142,10 +143,11 @@ public final class CookingTools implements FeatureToolContributor {
         };
     }
 
-    private static boolean wait(JsonObject args) {
-        return args.has("wait")
-                && !args.get("wait").isJsonNull()
-                && args.get("wait").getAsBoolean();
+    private static CookingWait wait(JsonObject args) {
+        if (!args.has("wait") || args.get("wait").isJsonNull()) {
+            return CookingWait.AUTO;
+        }
+        return args.get("wait").getAsBoolean() ? CookingWait.WAIT : CookingWait.LEAVE;
     }
 
     private static StationPolicy policy(JsonObject args) {

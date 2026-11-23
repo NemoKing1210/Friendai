@@ -19,6 +19,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 - A circle around a point or a mob now reports the waypoints it really reached. A blocked arc gets one wider and one
   narrower safe bypass and, when those fail, the result says how much of the requested orbit was covered instead of
   claiming a complete lap.
+- Smelting a large batch no longer lets the plan move on with nothing collected: when the next step needs the
+  result, the companion stays at the furnace until the finished items are in its bag. Asking it to collect waits for
+  the furnaces it loaded instead of coming back empty, and names a furnace that was removed, ran out of fuel, cannot
+  be reached or is still cooking at the deadline.
+- A batch the stations cannot all take no longer counts as loaded: the answer says exactly how many items never
+  started and why, and a load-and-leave request still starts everything it was asked to start.
 
 ### Fixed
 

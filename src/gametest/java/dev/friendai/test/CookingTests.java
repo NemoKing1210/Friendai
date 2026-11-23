@@ -340,6 +340,109 @@ public class CookingTests {
         });
     }
 
+    /**
+     * A collection started while the job is still cooking waits for the result instead of finishing empty. The scene
+     * uses a smoker on its own deck height so a neighbouring test's furnace is outside the 64-block station search.
+     */
+    @GameTest(maxTicks = 900)
+    public void collectWaitsForCookingJob(GameTestHelper h) {
+        deck(h, 16, WAITING_COLLECT_DECK);
+        int y = WAITING_COLLECT_DECK + 1;
+        h.setBlock(4, y, 2, Blocks.SMOKER);
+        BlockPos smoker = pos(h, 4, y, 2);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, y, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, smoker), "smoker should be visible");
+        c.inventory().addItem(new ItemStack(Items.BEEF, 2));
+        c.inventory().addItem(new ItemStack(Items.COAL, 1));
+        Result loaded = new Result();
+        ExecutionCoordinator smelt = smelt(c, loaded, "minecraft:beef", 2, Station.SMOKER, null, false, 20);
+        Result collected = new Result();
+        ExecutionCoordinator[] collector = {null};
+        h.succeedWhen(() -> {
+            if (collector[0] == null) {
+                smelt.tick();
+                h.assertTrue(
+                        loaded.status == TaskStatus.SUCCESS,
+                        "load not finished: " + loaded.status + " " + loaded.summary);
+                h.assertValueEqual(
+                        c.furnaceJobs().all().size(),
+                        1,
+                        "one job: " + c.furnaceJobs().all());
+                h.assertFalse(resultReady(h, smoker, Items.COOKED_BEEF), "the smoker should still be cooking");
+                collector[0] = collect(c, collected, smoker);
+            } else {
+                collector[0].tick();
+            }
+            h.assertTrue(
+                    collected.status == TaskStatus.SUCCESS,
+                    "collect not finished: " + collected.status + " " + collected.summary);
+            h.assertValueEqual(collected.summary, "collected 2 minecraft:cooked_beef from 1 smoker", "summary");
+            h.assertValueEqual(c.inventory().countItem(Items.COOKED_BEEF), 2, "cooked beef");
+        });
+    }
+
+    /** A job whose furnace was removed is a named blocker, not a silent empty collection. */
+    @GameTest(maxTicks = 400)
+    public void collectNamesGoneFurnace(GameTestHelper h) {
+        deck(h, 16, GONE_COLLECT_DECK);
+        int y = GONE_COLLECT_DECK + 1;
+        h.setBlock(4, y, 2, Blocks.FURNACE);
+        BlockPos furnace = pos(h, 4, y, 2);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, y, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, furnace), "furnace should be visible");
+        c.furnaceJobs()
+                .add(new FurnaceJob(
+                        furnace,
+                        h.getLevel().dimension().identifier().toString(),
+                        Station.FURNACE,
+                        "minecraft:raw_gold",
+                        "minecraft:gold_ingot",
+                        1,
+                        false));
+        Result collected = new Result();
+        // The task records its target before the block is taken away, so the removal is seen on the next tick.
+        ExecutionCoordinator collector = collect(c, collected, furnace);
+        h.setBlock(4, y, 2, Blocks.AIR);
+        h.succeedWhen(() -> {
+            collector.tick();
+            h.assertTrue(
+                    collected.status == TaskStatus.FAILED,
+                    "collect should fail: " + collected.status + " " + collected.summary);
+            h.assertValueEqual(
+                    collected.summary,
+                    "the furnace at " + coords(furnace)
+                            + " is gone; its job for minecraft:gold_ingot was not collected",
+                    "summary");
+        });
+    }
+
+    /** A batch the station cannot all take is a blocker with the exact quantity that never started. */
+    @GameTest(maxTicks = 400)
+    public void backgroundLoadReportsUnstarted(GameTestHelper h) {
+        deck(h, 16, PARTIAL_LOAD_DECK);
+        int y = PARTIAL_LOAD_DECK + 1;
+        h.setBlock(4, y, 2, Blocks.SMOKER);
+        BlockPos smoker = pos(h, 4, y, 2);
+        var blockEntity = (net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity)
+                h.getLevel().getBlockEntity(smoker);
+        // Room for two more results only: the other three beef cannot be admitted at all.
+        blockEntity.setItem(2, new ItemStack(Items.COOKED_BEEF, 62));
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, y, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, smoker), "smoker should be visible");
+        c.inventory().addItem(new ItemStack(Items.BEEF, 5));
+        c.inventory().addItem(new ItemStack(Items.COAL, 2));
+        Result result = new Result();
+        ExecutionCoordinator runner = smelt(c, result, "minecraft:beef", 5, Station.SMOKER, null, false, 20);
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.FAILED, "not finished: " + result.status + " " + result.summary);
+            h.assertValueEqual(
+                    result.summary,
+                    "loaded 2 of 5 minecraft:beef in 1 smoker; 3 minecraft:beef not started: no room in the smoker",
+                    "summary");
+        });
+    }
+
     @GameTest(maxTicks = 1600)
     public void placedFurnaceKeptUntilCollected(GameTestHelper h) {
         deck(h, 16, TAKEOVER_DECK);
@@ -610,6 +713,9 @@ public class CookingTests {
     private static final int TAG_DECK = -64;
     private static final int BROKEN_DECK = 233;
     private static final int COLLECT_DECK = 250;
+    private static final int WAITING_COLLECT_DECK = 41;
+    private static final int GONE_COLLECT_DECK = 171;
+    private static final int PARTIAL_LOAD_DECK = 106;
 
     private static void deck(GameTestHelper h, int size, int y) {
         for (int x = 0; x < size; x++) {

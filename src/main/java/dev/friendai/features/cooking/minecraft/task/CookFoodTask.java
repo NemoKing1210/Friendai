@@ -2,6 +2,7 @@ package dev.friendai.features.cooking.minecraft.task;
 
 import dev.friendai.debug.DebugTarget;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.cooking.minecraft.CookingWait;
 import dev.friendai.features.crafting.Recipe;
 import dev.friendai.features.crafting.Station;
 import dev.friendai.features.crafting.StationPolicy;
@@ -21,7 +22,7 @@ import org.jetbrains.annotations.Nullable;
 /** Cooks the raw food the companion carries, using a smoker, campfire or furnace nearby. */
 public final class CookFoodTask implements Task {
     private final int count;
-    private final boolean forceWait;
+    private final CookingWait waitRequest;
     private final StationPolicy policy;
     private final int waitLimitTicks;
     private final CraftingTaskFactory craftingTaskFactory;
@@ -33,7 +34,12 @@ public final class CookFoodTask implements Task {
     private String summary = "";
 
     public CookFoodTask(int count, boolean forceWait, StationPolicy policy, int waitLimitTicks) {
-        this(count, forceWait, policy, waitLimitTicks, CraftingTaskFactory.UNAVAILABLE);
+        this(
+                count,
+                forceWait ? CookingWait.WAIT : CookingWait.AUTO,
+                policy,
+                waitLimitTicks,
+                CraftingTaskFactory.UNAVAILABLE);
     }
 
     public CookFoodTask(
@@ -42,11 +48,20 @@ public final class CookFoodTask implements Task {
             StationPolicy policy,
             int waitLimitTicks,
             CraftingTaskFactory craftingTaskFactory) {
+        this(count, forceWait ? CookingWait.WAIT : CookingWait.AUTO, policy, waitLimitTicks, craftingTaskFactory);
+    }
+
+    public CookFoodTask(
+            int count,
+            CookingWait wait,
+            StationPolicy policy,
+            int waitLimitTicks,
+            CraftingTaskFactory craftingTaskFactory) {
         if (count <= 0) {
             throw new IllegalArgumentException("cook count must be positive: " + count);
         }
         this.count = count;
-        this.forceWait = forceWait;
+        this.waitRequest = wait == null ? CookingWait.AUTO : wait;
         this.policy = policy == null ? StationPolicy.AUTO : policy;
         this.waitLimitTicks = waitLimitTicks;
         this.craftingTaskFactory = craftingTaskFactory == null ? CraftingTaskFactory.UNAVAILABLE : craftingTaskFactory;
@@ -85,7 +100,7 @@ public final class CookFoodTask implements Task {
                 }
             }
             current = new SmeltTask(
-                    new SetMatcher(ids), total, null, null, forceWait, policy, waitLimitTicks, craftingTaskFactory);
+                    new SetMatcher(ids), total, null, null, waitRequest, policy, waitLimitTicks, craftingTaskFactory);
             current.start(c);
         } catch (RuntimeException e) {
             failure = "I have no raw food";

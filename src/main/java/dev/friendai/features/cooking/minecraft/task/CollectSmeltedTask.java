@@ -6,7 +6,9 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.cooking.minecraft.FuelPolicy;
 import dev.friendai.features.cooking.minecraft.FurnaceJob;
 import dev.friendai.features.cooking.minecraft.FurnaceSlots;
+import dev.friendai.features.crafting.Recipe;
 import dev.friendai.features.crafting.Station;
+import dev.friendai.features.crafting.minecraft.RecipeIndex;
 import dev.friendai.features.crafting.minecraft.Stations;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
@@ -42,11 +44,22 @@ public final class CollectSmeltedTask implements Task {
     private enum Phase {
         APPROACH,
         TAKE,
-        BREAK
+        BREAK,
+        WAIT
     }
+
+    /** How often a wait rechecks the loaded furnaces. */
+    private static final int WAIT_INTERVAL = 20;
+
+    /** Extra ticks on top of the computed cooking time before a wait gives up and names the blocker. */
+    private static final int WAIT_GRACE_TICKS = 400;
+
+    /** Cooking time assumed for a furnace whose contents cannot be read, so an out-of-sight wait still ends. */
+    private static final int UNSEEN_COOK_TICKS = 200;
 
     private final @Nullable BlockPos target;
     private final List<Target> targets = new ArrayList<>();
+    private final Set<BlockPos> settled = new LinkedHashSet<>();
     private final Map<String, Integer> collected = new LinkedHashMap<>();
     private final Set<Station> stationsUsed = new LinkedHashSet<>();
     private final List<String> notes = new ArrayList<>();
@@ -56,9 +69,20 @@ public final class CollectSmeltedTask implements Task {
     private int index;
     private Phase phase = Phase.APPROACH;
     private Approach approach;
-    private int collectedStations;
+    /** Each station counted once, however many times a wait rechecks it. */
+    private final Set<BlockPos> collectedPositions = new LinkedHashSet<>();
+
     private BlockPos breakPos;
     private BlockBreaker breaker;
+    /** A loaded furnace that is still cooking: the collection waits for it instead of finishing empty. */
+    private boolean pendingCooking;
+    /** What the wait is currently about, replaced on every sweep rather than accumulated. */
+    private String waitingNote;
+
+    private int waitTicks;
+    private int waitLimit;
+    /** The first furnace of this task that cannot produce its output any more. */
+    private String blocked;
 
     public CollectSmeltedTask(@Nullable BlockPos target) {
         this.target = target;
@@ -67,6 +91,12 @@ public final class CollectSmeltedTask implements Task {
     @Override
     public String type() {
         return "collect_smelted";
+    }
+
+    /** The wait has its own deadline computed from the remaining cooking time, so the generic timeout is off. */
+    @Override
+    public boolean hasTimeout() {
+        return false;
     }
 
     @Override
@@ -133,14 +163,18 @@ public final class CollectSmeltedTask implements Task {
             summary = failure;
             return TaskStatus.FAILED;
         }
+        if (phase == Phase.WAIT) {
+            return tickWait(c);
+        }
         if (index >= targets.size()) {
-            return finish();
+            return finish(c);
         }
         Target current = targets.get(index);
         return switch (phase) {
             case APPROACH -> approach(c, current);
             case TAKE -> take(c, current);
             case BREAK -> tickBreak(c);
+            case WAIT -> tickWait(c);
         };
     }
 
@@ -154,6 +188,7 @@ public final class CollectSmeltedTask implements Task {
         }
         approach = null;
         if (state == Approach.State.UNREACHABLE || !c.companion().hands().canInteract(current.pos())) {
+            noteUnreachable(c, current);
             nextTarget();
             return TaskStatus.RUNNING;
         }
@@ -164,6 +199,9 @@ public final class CollectSmeltedTask implements Task {
     private TaskStatus take(TaskContext c, Target current) {
         BlockPos pos = current.pos();
         if (!(c.level().getBlockEntity(pos) instanceof AbstractFurnaceBlockEntity furnace)) {
+            if (current.job() != null) {
+                noteMissing(c, current);
+            }
             nextTarget();
             return TaskStatus.RUNNING;
         }
@@ -174,18 +212,23 @@ public final class CollectSmeltedTask implements Task {
             InventoryOps.insertOrDrop(c.companion(), result);
             FurnaceSlots.popExperience(c.level(), furnace, Vec3.atCenterOf(pos));
             stationsUsed.add(current.station());
-            collectedStations++;
+            collectedPositions.add(pos);
         }
-        FurnaceJob job = current.job();
+        FurnaceJob job = settled.contains(pos) ? null : current.job();
         if (job != null) {
             ItemStack input = furnace.getItem(0);
             if (input.isEmpty()) {
+                settled.add(pos);
                 takeFuel(c, furnace);
                 c.companion().furnaceJobs().remove(pos);
                 decideStation(c, current);
+            } else if (outOfFuel(c, pos, furnace)) {
+                blockedOnce("the " + noun(current) + " at " + coords(pos) + " stopped: out of fuel, " + input.getCount()
+                        + " " + idOf(input) + " left");
             } else {
-                notes.add("the " + current.station().noun() + " at " + coords(pos) + " is still working ("
-                        + input.getCount() + " " + idOf(input) + " left)");
+                pendingCooking = true;
+                waitingNote = "the " + noun(current) + " at " + coords(pos) + " is still working (" + input.getCount()
+                        + " " + idOf(input) + " left)";
             }
         }
         if (breakPos != null) {
@@ -194,6 +237,68 @@ public final class CollectSmeltedTask implements Task {
         }
         nextTarget();
         return TaskStatus.RUNNING;
+    }
+
+    /** A known job whose furnace is not visible: another dimension is a blocker, an unloaded chunk is a wait. */
+    private void noteMissing(TaskContext c, Target current) {
+        FurnaceJob job = current.job();
+        if (job.station() == Station.CAMPFIRE) {
+            // A campfire drops its food instead of keeping a result slot; this task only reads furnace results.
+            return;
+        }
+        String pos = coords(current.pos());
+        if (!c.level().dimension().identifier().toString().equals(job.dimension())) {
+            blockedOnce("the " + noun(current) + " at " + pos + " is in another dimension; its job for " + job.output()
+                    + " was not collected");
+            return;
+        }
+        if (!c.level().hasChunkAt(current.pos())) {
+            pendingCooking = true;
+            waitingNote = "the " + noun(current) + " at " + pos + " is out of sight; " + job.output()
+                    + " is not collected yet";
+            return;
+        }
+        blockedOnce(
+                "the " + noun(current) + " at " + pos + " is gone; its job for " + job.output() + " was not collected");
+    }
+
+    /** A known job this task cannot walk to: a named blocker, unless the chunk or the dimension hides it. */
+    private void noteUnreachable(TaskContext c, Target current) {
+        FurnaceJob job = current.job();
+        if (job == null || job.station() == Station.CAMPFIRE) {
+            return;
+        }
+        String pos = coords(current.pos());
+        if (!c.level().dimension().identifier().toString().equals(job.dimension())) {
+            blockedOnce("the " + noun(current) + " at " + pos + " is in another dimension; its job for " + job.output()
+                    + " was not collected");
+            return;
+        }
+        if (!c.level().hasChunkAt(current.pos())) {
+            pendingCooking = true;
+            waitingNote = "the " + noun(current) + " at " + pos + " is out of sight; " + job.output()
+                    + " is not collected yet";
+            return;
+        }
+        blockedOnce("couldn't reach the " + noun(current) + " at " + pos + "; its job for " + job.output()
+                + " was not collected");
+    }
+
+    private static boolean outOfFuel(TaskContext c, BlockPos pos, AbstractFurnaceBlockEntity furnace) {
+        BlockState state = c.level().getBlockState(pos);
+        boolean lit = state.hasProperty(net.minecraft.world.level.block.AbstractFurnaceBlock.LIT)
+                && state.getValue(net.minecraft.world.level.block.AbstractFurnaceBlock.LIT);
+        return !lit && furnace.getItem(1).isEmpty();
+    }
+
+    private void blockedOnce(String reason) {
+        if (blocked == null) {
+            blocked = reason;
+        }
+    }
+
+    private static String noun(Target target) {
+        return target.station() == null ? "furnace" : target.station().noun();
     }
 
     private static void takeFuel(TaskContext c, AbstractFurnaceBlockEntity furnace) {
@@ -262,28 +367,118 @@ public final class CollectSmeltedTask implements Task {
         approach = null;
     }
 
-    private TaskStatus finish() {
-        if (collected.isEmpty()) {
+    private TaskStatus finish(TaskContext c) {
+        if (blocked != null) {
+            String collectedText = collectionSummary();
+            summary = collectedText == null ? blocked : collectedText + "; " + blocked;
+            return TaskStatus.FAILED;
+        }
+        if (pendingCooking) {
+            if (waitLimit <= 0) {
+                waitLimit = waitTicks + pendingCookingTicks(c) + WAIT_GRACE_TICKS;
+            }
+            phase = Phase.WAIT;
+            return TaskStatus.RUNNING;
+        }
+        String collectedText = collectionSummary();
+        if (collectedText == null) {
             summary = "no furnace with finished items nearby";
             return TaskStatus.FAILED;
+        }
+        summary = collectedText;
+        return TaskStatus.SUCCESS;
+    }
+
+    /**
+     * Waits for the loaded furnaces to finish. The result is either every finished item collected, or a failure that
+     * names what blocked it, so a plan never advances on a collection that produced nothing.
+     */
+    private TaskStatus tickWait(TaskContext c) {
+        waitTicks++;
+        if (waitTicks >= waitLimit) {
+            String collectedText = collectionSummary();
+            String pendingText = waitingNote == null ? "the loaded furnaces are still cooking" : waitingNote;
+            summary = collectedText == null ? pendingText + " at the deadline" : collectedText + "; " + pendingText;
+            return TaskStatus.FAILED;
+        }
+        if (waitTicks % WAIT_INTERVAL == 0) {
+            index = 0;
+            phase = Phase.APPROACH;
+            approach = null;
+            pendingCooking = false;
+            waitingNote = null;
+        }
+        return TaskStatus.RUNNING;
+    }
+
+    /** How long the furnaces this task loaded still need, from the items left in their input slots. */
+    private int pendingCookingTicks(TaskContext c) {
+        RecipeIndex index = RecipeIndex.of(c.level());
+        String dimension = c.level().dimension().identifier().toString();
+        int ticks = 0;
+        for (Target each : targets) {
+            FurnaceJob job = each.job();
+            if (job == null || settled.contains(each.pos()) || !dimension.equals(job.dimension())) {
+                continue;
+            }
+            if (!c.level().hasChunkAt(each.pos())
+                    || !(c.level().getBlockEntity(each.pos()) instanceof AbstractFurnaceBlockEntity furnace)) {
+                ticks += Math.max(1, job.loaded()) * UNSEEN_COOK_TICKS;
+                continue;
+            }
+            ItemStack input = furnace.getItem(0);
+            if (!input.isEmpty()) {
+                ticks += input.getCount() * cookTicks(index, job, input);
+            }
+        }
+        return ticks;
+    }
+
+    private static int cookTicks(RecipeIndex index, FurnaceJob job, ItemStack input) {
+        for (Recipe recipe : index.cookingFrom(idOf(input))) {
+            if (recipe.station() == job.station()) {
+                return Math.max(1, recipe.cookTicks());
+            }
+        }
+        return switch (job.station()) {
+            case SMOKER, BLAST_FURNACE -> 100;
+            case CAMPFIRE -> 600;
+            default -> 200;
+        };
+    }
+
+    /** The "collected ..." sentence, or null when this task took nothing. */
+    private String collectionSummary() {
+        if (collected.isEmpty()) {
+            return null;
         }
         StringBuilder text = new StringBuilder("collected ");
         String outputs = collected.entrySet().stream()
                 .map(entry -> entry.getValue() + " " + entry.getKey())
                 .reduce((a, b) -> a + ", " + b)
                 .orElse("0");
-        text.append(outputs).append(" from ").append(collectedStations).append(' ');
+        int stations = collectedPositions.size();
+        text.append(outputs).append(" from ").append(stations).append(' ');
         if (stationsUsed.size() == 1) {
             Station station = stationsUsed.iterator().next();
-            text.append(collectedStations == 1 ? station.noun() : station.noun() + "s");
+            text.append(stations == 1 ? station.noun() : station.noun() + "s");
         } else {
-            text.append(collectedStations == 1 ? "station" : "stations");
+            text.append(stations == 1 ? "station" : "stations");
         }
         for (String note : notes) {
             text.append("; ").append(note);
         }
-        summary = text.toString();
-        return TaskStatus.SUCCESS;
+        return text.toString();
+    }
+
+    @Override
+    public int waitingTicks() {
+        return phase == Phase.WAIT ? waitTicks : -1;
+    }
+
+    @Override
+    public int waitingLimitTicks() {
+        return phase == Phase.WAIT ? waitLimit : 0;
     }
 
     private static Station stationOf(BlockState state) {
@@ -318,6 +513,10 @@ public final class CollectSmeltedTask implements Task {
 
     @Override
     public String describe() {
+        if (phase == Phase.WAIT) {
+            return "waiting for " + targets.size() + " loaded furnace" + (targets.size() == 1 ? "" : "s")
+                    + " to finish";
+        }
         return "collecting from " + targets.size() + " furnace" + (targets.size() == 1 ? "" : "s");
     }
 
