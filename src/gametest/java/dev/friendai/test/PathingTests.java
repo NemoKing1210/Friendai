@@ -1582,6 +1582,38 @@ public class PathingTests {
         });
     }
 
+    @GameTest(structure = ARENA, maxTicks = 1200)
+    public void circleCountsEveryWaypointOnASlabFloor(GameTestHelper h) {
+        int floor = 205;
+        GameTestSupport.platformAt(h, floor, 20);
+        // A slab floor leaves the body half a block lower, so every waypoint cell contains the slab it stands on.
+        // That collision shape is a surface, not an obstruction, and each point must still count as verified.
+        for (int x = 0; x < 20; x++) {
+            for (int z = 0; z < 20; z++) {
+                h.setBlock(new BlockPos(x, floor, z), Blocks.STONE_SLAB);
+            }
+        }
+        CompanionEntity c = ringWalker(h, floor);
+        Vec3 center = orbitCenter(h, floor);
+        OrbitTrace trace = new OrbitTrace(h, c, center);
+        Outcome out = new Outcome();
+        c.executionCoordinator().setEventSink(out);
+        c.executionCoordinator().start(new CircleTask(() -> center, "point", 4.0, 1), "circle");
+
+        TaskTrace.of(h, c.executionCoordinator(), c).succeedWhen(() -> {
+            h.assertTrue(
+                    out.status == TaskStatus.SUCCESS,
+                    "a slab floor is a surface to stand on, not an obstruction: " + out.why());
+            h.assertTrue(
+                    out.summary.contains("all 8 waypoints verified"),
+                    "the slab waypoint must count as reached: " + out.summary);
+            h.assertTrue(
+                    trace.coveredSectors() >= 7, "the body missed most of the ring: sectors=" + trace.coveredSectors());
+            h.assertFalse(c.body().looking(), "settlement must release the look hold");
+            h.assertFalse(c.pathing(), "settlement must release the navigation route");
+        });
+    }
+
     @GameTest(structure = ARENA, maxTicks = 3000)
     public void circleReportsAnObstructedArcAsPartialMovement(GameTestHelper h) {
         int floor = 220;

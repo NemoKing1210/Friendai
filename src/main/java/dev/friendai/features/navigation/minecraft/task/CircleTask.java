@@ -8,7 +8,9 @@ import dev.friendai.task.TaskStatus;
 import dev.friendai.world.movement.MoveHelper;
 import java.util.function.Supplier;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.VoxelShape;
 
 /**
  * Walks a ring around a point or an entity, looking at its centre, for a number of laps.
@@ -176,12 +178,15 @@ public final class CircleTask implements Task {
     }
 
     /**
-     * A point counts only when its own cell is open and the body stands at it. Arrival near a blocked cell is exactly
-     * the phantom progress a moving or vanished centre can produce, so the cell is checked rather than a radius band.
+     * A point counts only when the body can stand in its cell and actually stands at it. A collision shape that does
+     * not reach the body's height is a slab, step, carpet or snow layer to stand on, not an obstruction; a full block,
+     * fence or wall still refuses the point. Arrival near a blocked cell is exactly the phantom progress a moving or
+     * vanished centre can produce, so the cell is checked rather than a radius band.
      */
     private boolean reachedWaypoint(TaskContext c, Vec3 waypoint) {
         BlockPos cell = BlockPos.containing(waypoint.x, waypoint.y, waypoint.z);
-        if (!c.level().getBlockState(cell).getCollisionShape(c.level(), cell).isEmpty()) return false;
+        VoxelShape shape = c.level().getBlockState(cell).getCollisionShape(c.level(), cell);
+        if (!shape.isEmpty() && shape.max(Direction.Axis.Y) >= 1.0) return false;
         double horizontal =
                 Math.hypot(c.companion().getX() - waypoint.x, c.companion().getZ() - waypoint.z);
         return horizontal <= WAYPOINT_SLACK && Math.abs(c.companion().getY() - waypoint.y) <= 1.0;
