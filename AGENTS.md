@@ -555,7 +555,7 @@ Commit and push the branch from the worktree, then `git worktree remove ../Frien
 
 ## Git and repository hygiene
 
-- **Commit your own work as you finish it.** Do not leave a completed task uncommitted waiting for a later request. Stage the files you changed explicitly (`git add <path>...`) and follow the parallel-session rule: never `git add -A`, and leave a file uncommitted when it mixes your edits with someone else's.
+- **Commit every finished task before you report it as done.** Do not leave a completed task uncommitted waiting for a later request, and do not say the work is done while its files sit in the working tree: stage only your own paths (`git add <path>...`), make one coherent conventional commit, and say where it landed in the final message. Never `git add -A`, and leave a file uncommitted when it mixes your edits with someone else's. The two exceptions are a dictated `TODO.md` item that waits for its batch and a claim marker that waits for the task it marks.
 - **Large tasks commit in batches.** When a task is split into subtasks, or executed from a plan with steps, commit after each finished subtask or step instead of one huge commit at the end. Each commit should be one coherent change; bump the version once per task (see "Versioning"), in the commit that carries the change or in a final `chore: bump version to X.Y.Z`.
 - Commit messages: conventional style (`feat:`, `fix:`, `chore:`, `docs:`, optional scope), imperative, English. **No `Co-Authored-By` or other AI attribution lines.** Header ≤ 100 characters, no trailing full stop; the `commit-msg` hook and `commitlint.config.mjs` enforce this.
 - `docs/` (design specs and implementation plans) is **git-ignored on purpose** — never commit it. Read it for context if it exists locally (`docs/superpowers/specs/`, `docs/superpowers/plans/`).
@@ -631,7 +631,7 @@ run `scripts/check-release.sh vX.Y.Z` after `./gradlew assemble`.
 5. Layer boundaries respected (no Minecraft imports in the pure layers).
 6. `mod_version` bumped according to "Versioning" (or a stated reason why no bump is needed).
 7. Anything you could not verify (real provider, real microphone, GUI) is stated plainly rather than implied.
-8. Your changed files are committed (unless the file also holds another session's edits — then say so). For a multi-step task, the commits follow the batches you finished.
+8. **The task is committed.** Your changed files are in git before you report the work as done — a finished task with an uncommitted tree is not done, and "commit later" is not an answer (the only exceptions are a dictated `TODO.md` item waiting for its batch and a claim marker waiting for the task it marks). A file that also holds another session's edits stays uncommitted, and you say so. For a multi-step task, the commits follow the batches you finished.
 9. `test-builds/friendai-<version>.jar` is refreshed (`exportTestJar` runs during `build`/`assemble`) and you tell the maintainer its path and version. When the maintainer will load the build in a launcher profile, it is also deployed with `deployTestJar`/`assemble` and the report quotes the deployed path — a `test-builds/` path alone is not a jar the game can see.
 10. **The capability map stays current.** When a change adds, renames, removes or materially changes something `index.html` shows, update `site/app.js` in the same commit, in English, matching the surrounding entries:
     - a tool or skill — the `CATS` lists, written as `name|description`, with `~` for built-in behaviour;
