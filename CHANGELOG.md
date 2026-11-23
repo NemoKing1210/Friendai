@@ -6,6 +6,14 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.226.5] - 2026-11-23
+
+### Fixed
+
+- "Come to me" no longer sends the companion walking toward your coordinates in the wrong world. If you cross a
+  portal while the order is waiting, it says it cannot cross dimensions and stays put instead of digging or building
+  toward numbers that mean something else here; an ordinary walk in the same world works as before.
+
 ## [0.226.4] - 2026-11-23
 
 ### Fixed

@@ -67,7 +67,6 @@ const RU = {
   "Block-grid A* pathfinding that walks, falls, swims, climbs, digs, pillars and bridges within a per-tick time budget.": "Поиск пути A* по сетке блоков: ходит, падает, плавает, лазает, копает, строит столбы и мосты в рамках бюджета времени на тик.",
   "Follow the owner at a chosen distance.": "Следовать за владельцем на выбранной дистанции.",
   "Hold the current position.": "Стоять на месте.",
-  "Pathfind to coordinates.": "Дойти до координат.",
   "Walk through a lit portal, or build and light one from carried obsidian and flint; it records a return anchor.": "Пройти через зажжённый портал или построить и зажечь его из обсидиана и кремня; он запоминает якорь возврата.",
   "Jump once.": "Прыгнуть один раз.",
   "Auto, walk or run pace.": "Темп: авто, шаг или бег.",
@@ -410,6 +409,9 @@ const RU = {
   "One line per blocker (missing support, an own place, a tree it cannot climb); a repeat is silent.": "Одна строка на помеху (не хватило опоры, своё место, дерево, на которое не забраться); повтор молчит.",
   "Same dimension": "То же измерение",
   "go_to_place never crosses dimensions.": "go_to_place никогда не пересекает измерения.",
+  "Pathfind to coordinates, or to where the owner stands; it never crosses dimensions.": "Идти к координатам или к тому месту, где стоит владелец; измерения никогда не пересекает.",
+  "One world per order": "Один мир на приказ",
+  "A walk keeps the world it was planned in; an owner-targeted walk refuses when the owner has moved to another dimension.": "Прогулка помнит мир, в котором её спланировали; если владелец ушёл в другое измерение, идти к нему она отказывается.",
 
   /* ---- Perception ---- */
   "Perception": "Восприятие",

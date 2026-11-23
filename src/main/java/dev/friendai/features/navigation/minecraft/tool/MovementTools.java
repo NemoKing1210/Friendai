@@ -33,7 +33,7 @@ public final class MovementTools implements FeatureToolContributor {
     private static final String STAY_HINT =
             "- Use stay to wait where you are; it ends early when queued work is ready, and it is not a way to refuse following.";
     private static final String GO_TO_HINT =
-            "- Use go_to for one destination the owner named; it may dig and bridge, and reports a failure when no route exists.";
+            "- Use go_to for one destination the owner named; it may dig and bridge, stays in your dimension, and reports a failure when no route exists.";
     private static final String PORTAL_HINT =
             "- Use travel_through_portal to go to the nether or back to the overworld. It walks into a lit portal within"
                     + " 16 blocks, builds and lights one from 10 obsidian and flint and steel when none is near, and"
@@ -71,7 +71,8 @@ public final class MovementTools implements FeatureToolContributor {
         registry.registerTask(task(
                         "go_to",
                         "Walk to the given coordinates, or to where the owner stands right now with target=owner. To keep "
-                                + "following them, use follow_player instead.",
+                                + "following them, use follow_player instead. It cannot cross dimensions: use "
+                                + "travel_through_portal when the owner is in another world.",
                         SchemaBuilder.object()
                                 .number("x", "Target X coordinate")
                                 .number("y", "Target Y coordinate")
@@ -206,11 +207,16 @@ public final class MovementTools implements FeatureToolContributor {
             if (args.has("x") || args.has("y") || args.has("z")) {
                 throw new IllegalArgumentException("give either target=owner or x,y,z, not both");
             }
-            Vec3 owner = companion
-                    .owner()
-                    .map(player -> player.position())
-                    .orElseThrow(() -> new IllegalArgumentException("the owner is not around"));
-            return new GoToTask(owner, sneak);
+            var owner = companion.owner().orElseThrow(() -> new IllegalArgumentException("the owner is not around"));
+            String here = companion.level().dimension().identifier().toString();
+            String there = owner.level().dimension().identifier().toString();
+            // A queued or planned walk resolves the owner again when it activates: refusing here, before a task
+            // exists, keeps the companion from walking those numbers in whatever world it happens to be in.
+            if (!here.equals(there)) {
+                throw new IllegalArgumentException("the owner is in " + there
+                        + "; go_to cannot cross dimensions. Use travel_through_portal to get to them.");
+            }
+            return new GoToTask(owner.position(), sneak, here);
         }
         return new GoToTask(
                 point(args, companion.level().getMinY(), companion.level().getMaxY()), sneak);

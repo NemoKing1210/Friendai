@@ -1,9 +1,16 @@
 package dev.friendai.test;
 
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.mojang.authlib.GameProfile;
+import dev.friendai.agent.llm.model.ToolCall;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.execution.tool.AccessLevel;
+import dev.friendai.execution.tool.Caller;
+import dev.friendai.execution.tool.ToolExecutor;
+import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.features.mining.minecraft.task.MineBlocksTask;
 import dev.friendai.features.navigation.minecraft.task.ApproachEntityTask;
 import dev.friendai.features.navigation.minecraft.task.CircleTask;
@@ -39,6 +46,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -1166,6 +1174,121 @@ public class PathingTests {
                 }
             }
         });
+    }
+
+    /**
+     * A direct "come to me" while the owner is in another world: coordinates from the nether mean something else
+     * here, so the call is refused and no task or movement starts.
+     */
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 200)
+    public void anOwnerWalkToAnotherDimensionIsRefused(GameTestHelper h) {
+        var nether = h.getLevel().getServer().getLevel(Level.NETHER);
+        if (nether == null) {
+            h.succeed();
+            return;
+        }
+        int floor = 260;
+        GameTestSupport.platformAt(h, floor, 16);
+        var owner = GameTestSupport.onlinePlayer(h, "dim-direct", 13.5, floor + 1, 13.5);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, floor + 1, 2);
+        c.setOwner(owner.id());
+        var tools = GameTestToolRegistry.create(c, () -> 16).bind(c);
+        Vec3 before = c.position();
+        nether.getChunk(0, 0);
+        owner.player().teleportTo(nether, 8.5, 80.0, 8.5, Set.of(), 0.0f, 0.0f, false);
+
+        ToolResult refused = ownerTool(tools, "go_to", "{\"target\":\"owner\"}", owner.id());
+
+        h.assertTrue(refused.error(), "a walk to an owner in another world must be refused: " + refused.content());
+        h.assertTrue(refused.content().contains("cannot cross dimensions"), refused.content());
+        h.assertTrue(c.executionCoordinator().current().isEmpty(), "a refused walk must not start a task");
+        h.assertValueEqual(c.position(), before, "the refusal must not move the companion");
+        h.succeed();
+    }
+
+    /**
+     * The queued form of the same order: the owner is where the plan was accepted, but the job re-resolves the
+     * owner when it activates. By then the owner has crossed over, and the companion must not walk those numbers in
+     * the old world.
+     */
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 400)
+    public void aQueuedOwnerWalkActivatedInAnotherDimensionDoesNotWalk(GameTestHelper h) {
+        var nether = h.getLevel().getServer().getLevel(Level.NETHER);
+        if (nether == null) {
+            h.succeed();
+            return;
+        }
+        int floor = 280;
+        GameTestSupport.platformAt(h, floor, 16);
+        var owner = GameTestSupport.onlinePlayer(h, "dim-queued", 13.5, floor + 1, 13.5);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, floor + 1, 2);
+        c.setOwner(owner.id());
+        var coordinator = c.executionCoordinator();
+        coordinator.suspend();
+        var tools = GameTestToolRegistry.create(c, () -> 16).bind(c);
+        String plan = "{\"goal\":\"come to me\",\"steps\":[{\"tool\":\"go_to\","
+                + "\"args\":\"{\\\"target\\\":\\\"owner\\\"}\"}]}";
+        ToolResult added = ownerTool(tools, "queue_add", plan, owner.id());
+        h.assertTrue(!added.error(), "queue_add failed: " + added.content());
+        Vec3 before = c.position();
+        nether.getChunk(0, 0);
+        owner.player().teleportTo(nether, 8.5, 80.0, 8.5, Set.of(), 0.0f, 0.0f, false);
+        coordinator.resume();
+        int[] ticks = {0};
+        boolean[] walked = {false};
+        h.onEachTick(() -> {
+            ticks[0]++;
+            walked[0] |= coordinator
+                    .current()
+                    .map(task -> task.type().equals("go_to"))
+                    .orElse(false);
+            if (ticks[0] < 120) return;
+            h.assertFalse(walked[0], "the companion walked toward the owner's old coordinates");
+            h.assertTrue(
+                    c.position().distanceTo(before) < 1.5,
+                    "the refusal must not move the companion: " + c.position() + " from " + before);
+            long planId = coordinator.queue().plans().getFirst().id();
+            var job = coordinator.queue().jobsOfPlan(planId).getFirst();
+            h.assertTrue(
+                    job.result().contains("cannot cross dimensions"),
+                    "the failed job must name the dimension mismatch: " + job.result());
+            h.succeed();
+        });
+    }
+
+    /**
+     * A restored walk remembers the world it was planned in. Started anywhere else it fails on its first tick,
+     * before a route exists or the ground is touched.
+     */
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 100)
+    public void aRestoredWalkBoundToAnotherDimensionFailsWithoutMoving(GameTestHelper h) {
+        int floor = 300;
+        GameTestSupport.platformAt(h, floor, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, floor + 1, 2);
+        Vec3 before = c.position();
+        var walk = new GoToTask(h.absoluteVec(new Vec3(13.5, floor + 1, 13.5)), false, "minecraft:the_nether");
+        c.executionCoordinator().start(walk, "go_to");
+        h.succeedWhen(() -> {
+            h.assertTrue(
+                    walk.resultSummary().contains("minecraft:the_nether"),
+                    "the failure must name the walk's world: " + walk.resultSummary());
+            h.assertTrue(
+                    c.executionCoordinator()
+                            .current()
+                            .map(current -> current != walk)
+                            .orElse(true),
+                    "the refused walk must not stay current");
+            h.assertTrue(c.position().distanceTo(before) < 1.0, "a refused walk must not move the companion");
+            h.succeed();
+        });
+    }
+
+    /** A tool call from an owner through the real registry, the way the brain or a local order issues one. */
+    private static ToolResult ownerTool(ToolExecutor tools, String name, String json, UUID caller) {
+        JsonObject args = JsonParser.parseString(json).getAsJsonObject();
+        return tools.execute(
+                new ToolCall("dimension-test", name, args, json, null),
+                new Caller(caller, "dimension-test", AccessLevel.OWNER));
     }
 
     /**

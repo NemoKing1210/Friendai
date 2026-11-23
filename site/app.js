@@ -18,13 +18,13 @@ const CATS = [
   { id: "movement", domain: "hands", name: "Movement", icon: "👟", color: COLORS.grass,
     desc: "Block-grid A* pathfinding that walks, falls, swims, climbs, digs, pillars and bridges within a per-tick time budget.",
     items: [
-      "follow_player|Follow the owner at a chosen distance.", "stay|Hold the current position.", "go_to|Pathfind to coordinates.", "travel_through_portal|Walk through a lit portal, or build and light one from carried obsidian and flint; it records a return anchor.",
+      "follow_player|Follow the owner at a chosen distance.", "stay|Hold the current position.", "go_to|Pathfind to coordinates, or to where the owner stands; it never crosses dimensions.", "travel_through_portal|Walk through a lit portal, or build and light one from carried obsidian and flint; it records a return anchor.",
       "jump|Jump once.", "set_pace|Auto, walk or run pace.", "set_follow_mode|Choose whether it follows when idle.",
       "step|Move by a relative offset.", "back_away|Retreat from a target.", "approach|Walk up to a player, mob or block.",
       "circle|Circle around a point.", "set_follow_distance|How close it stays to the owner.",
       "~A* pathfinder|Incremental, resumable search that spreads work over ticks.", "~Dig, pillar, bridge|Breaks and places blocks when the way is blocked, and walks only a complete stair or bridge: it never stops half way up.",
       "~Verified orbits|A circle reports the waypoints it really reached and names an obstructed arc as partial movement.", "~Bounded bypass|One wider and one narrower arc around a blocked waypoint before it is reported.",
-      "~Stuck recovery|Re-plans when the world disagrees with the path.", "~Movement hand-off|An interrupted walk, jump or swim stops where it is and resumes from that spot." ] },
+      "~Stuck recovery|Re-plans when the world disagrees with the path.", "~Movement hand-off|An interrupted walk, jump or swim stops where it is and resumes from that spot.", "~One world per order|A walk keeps the world it was planned in; an owner-targeted walk refuses when the owner has moved to another dimension." ] },
   { id: "mining", domain: "hands", name: "Mining & Gathering", icon: "⛏️", color: COLORS.iron,
     desc: "Collects raw materials: trees, ores, drops. Tool choice comes from item data components, never hard-coded tiers.",
     items: [

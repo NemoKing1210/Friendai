@@ -632,3 +632,11 @@ These need a live world and two players; the automated suite used a scripted mod
 - [ ] With tool routing off, run the same orders: every tool is offered, so nothing is refused for this reason.
 
 These need a real provider whose calls can drift from the offered schemas; the automated suite used a scripted model.
+
+## Owner-targeted walking across dimensions (TODO 134)
+
+- [ ] Ask "come to me", then step through a portal while the order is still queued behind other work: when it starts, the companion refuses with a reason naming both worlds and stays where it was; nothing is dug or built in the old world.
+- [ ] In the same dimension, ask "come here" from a few blocks away: the companion walks over normally.
+- [ ] Stand in the nether and type "come here": the reply says it cannot cross dimensions and points at the portal trip, and the companion does not walk toward your coordinates.
+
+These need a live world with both dimensions; the automated suite used a teleported test owner.

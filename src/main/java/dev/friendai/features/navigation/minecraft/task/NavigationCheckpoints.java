@@ -30,7 +30,7 @@ public final class NavigationCheckpoints {
 
     public static Optional<Task> goTo(TaskState state, TaskContext context) {
         return GoToTask.Checkpoint.decode(state.data())
-                .map(walk -> new GoToTask(new Vec3(walk.x(), walk.y(), walk.z()), walk.sneaking()));
+                .map(walk -> new GoToTask(new Vec3(walk.x(), walk.y(), walk.z()), walk.sneaking(), walk.dimension()));
     }
 
     public static Optional<Task> jump(TaskState state, TaskContext context) {

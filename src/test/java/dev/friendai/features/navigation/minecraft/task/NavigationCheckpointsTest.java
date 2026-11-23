@@ -1,6 +1,7 @@
 package dev.friendai.features.navigation.minecraft.task;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.friendai.task.Task;
@@ -35,6 +36,26 @@ class NavigationCheckpointsTest {
                 GoToTask.class);
 
         assertEquals("1.000000,64.000000,2.000000,0", restored.saveData());
+        assertNull(restored.dimension(), "a walk saved before dimensions were recorded stays unbound");
+    }
+
+    @Test
+    void aBoundWalkKeepsTheDimensionItWasPlannedIn() {
+        GoToTask walk = new GoToTask(new Vec3(10.0, 70.0, -4.0), false, "minecraft:the_nether");
+
+        GoToTask restored =
+                restore(NavigationCheckpoints.goTo(new TaskState("go_to", walk.saveData()), null), GoToTask.class);
+
+        assertEquals(walk.saveData(), restored.saveData(), "a restored walk must keep its world");
+        assertEquals("minecraft:the_nether", restored.dimension(), "the dimension must survive the checkpoint");
+    }
+
+    @Test
+    void aWalkWithAnUnreadableDimensionIsNotRestored() {
+        assertTrue(NavigationCheckpoints.goTo(new TaskState("go_to", "1,2,3,0,not a dimension"), null)
+                .isEmpty());
+        assertTrue(NavigationCheckpoints.goTo(new TaskState("go_to", "1,2,3,0,minecraft:the_nether,extra"), null)
+                .isEmpty());
     }
 
     @Test
