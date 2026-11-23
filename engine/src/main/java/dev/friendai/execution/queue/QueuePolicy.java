@@ -84,8 +84,7 @@ public final class QueuePolicy {
         for (Job job : jobs) {
             if (job.state() == JobState.FAILED && job.onFailure() == FailurePolicy.ASK)
                 return PlanStatus.NEEDS_DECISION;
-            if (job.state() == JobState.CANCELLED && Job.MISSING_TOOL_RESULT.equals(job.result()))
-                return PlanStatus.NEEDS_DECISION;
+            if (Job.needsDecision(job)) return PlanStatus.NEEDS_DECISION;
             if (!JobQueue.terminal(job)) allTerminal = false;
         }
         if (allTerminal) {

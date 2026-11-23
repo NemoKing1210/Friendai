@@ -158,6 +158,7 @@ public final class TaskPersistenceCoordinator {
         TaskState checkpoint = saved.activeTask();
         Job activeJob = activeJobId == 0 ? null : queue.job(activeJobId).orElse(null);
         String activeOutcome = null;
+        boolean unreadableProgress = false;
         if (activeJobId > 0 && activeJob != null && activeJob.state() == JobState.RUNNING) {
             // A resource search is recoverable: its ledger session keeps the spent budget, and its checkpoint names
             // the exact trip. Marking the live sessions as reload-interrupted lets either path resume them.
@@ -172,23 +173,32 @@ public final class TaskPersistenceCoordinator {
             } else if (checkpoint != null) {
                 boolean searchCheckpoint = checkpoint.type().equals(SearchResourceTask.TYPE);
                 activeTask = registry.restore(checkpoint, companion).orElse(null);
-                if (activeTask == null) rejected.add("active task: checkpoint could not be restored");
-                else if (searchCheckpoint) activeOutcome = "resource search resumed after restart";
+                if (activeTask == null) {
+                    // The save recorded progress that no longer decodes. Repeating the request could apply its
+                    // committed effects twice, so only a search may fall back to its arguments.
+                    unreadableProgress = !registry.recoverableSearch(activeJob);
+                    rejected.add("active task: checkpoint could not be restored");
+                } else if (searchCheckpoint) activeOutcome = "resource search resumed after restart";
             }
             if (activeTask == null
                     && queue.job(activeJobId)
                             .filter(job -> job.state() == JobState.RUNNING)
                             .isPresent()) {
-                var factory = factories.get(activeJobId);
-                if (factory != null) {
-                    try {
-                        activeTask =
-                                factory.create(companion.executionCoordinator().activeTaskContext());
-                        if (registry.recoverableSearch(activeJob))
-                            activeOutcome = "resource search retried after restart";
-                    } catch (RuntimeException invalidTask) {
-                        queue.cancel(activeJobId, "saved task could not be reconstructed");
-                        rejected.add("job #" + activeJobId + ": saved task could not be reconstructed");
+                if (unreadableProgress || registry.commitsWorldEffects(activeJob.tool())) {
+                    queue.markNeedsDecision(activeJobId, Job.UNREADABLE_PROGRESS_RESULT);
+                    rejected.add("job #" + activeJobId + ": saved progress could not be read, needs a decision");
+                } else {
+                    var factory = factories.get(activeJobId);
+                    if (factory != null) {
+                        try {
+                            activeTask = factory.create(
+                                    companion.executionCoordinator().activeTaskContext());
+                            if (registry.recoverableSearch(activeJob))
+                                activeOutcome = "resource search retried after restart";
+                        } catch (RuntimeException invalidTask) {
+                            queue.cancel(activeJobId, "saved task could not be reconstructed");
+                            rejected.add("job #" + activeJobId + ": saved task could not be reconstructed");
+                        }
                     }
                 }
             }
@@ -221,11 +231,16 @@ public final class TaskPersistenceCoordinator {
                     .executionCoordinator()
                     .notice("Saved creative tasks were cancelled after reload; submit them again.");
         for (Job job : companion.executionCoordinator().queue().jobs()) {
-            if (job.state() == JobState.CANCELLED && Job.MISSING_TOOL_RESULT.equals(job.result())) {
+            if (Job.needsDecision(job)) {
                 companion
                         .executionCoordinator()
-                        .notice("Saved queue job #" + job.id() + " needs repair: tool " + job.tool()
-                                + " is unavailable");
+                        .notice(
+                                Job.MISSING_TOOL_RESULT.equals(job.result())
+                                        ? "Saved queue job #" + job.id() + " needs repair: tool " + job.tool()
+                                                + " is unavailable"
+                                        : "Saved queue job #" + job.id()
+                                                + " could not be resumed: the progress it recorded"
+                                                + " is unreadable, so check what it already did before asking again.");
             }
         }
         for (String message : rejected) FriendaiMod.LOGGER.info("Execution restore: {}", message);

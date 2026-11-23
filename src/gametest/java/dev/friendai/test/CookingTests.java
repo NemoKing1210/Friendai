@@ -1012,6 +1012,61 @@ public class CookingTests {
         });
     }
 
+    /** A reload while the batch waits resumes the same station and collects its output instead of loading again. */
+    @GameTest(maxTicks = 1200)
+    public void aWaitingBatchRestoresAndCollectsWithoutLoadingAgain(GameTestHelper h) {
+        deck(h, 16, WAIT_DECK);
+        h.setBlock(4, WAIT_DECK + 1, 2, Blocks.FURNACE);
+        BlockPos pos = pos(h, 4, WAIT_DECK + 1, 2);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, WAIT_DECK + 1, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, pos), "furnace should be visible");
+        c.inventory().addItem(new ItemStack(Items.RAW_COPPER, 2));
+        c.inventory().addItem(new ItemStack(Items.COAL, 1));
+        Result first = new Result();
+        ExecutionCoordinator loading =
+                smelt(c, first, "minecraft:raw_copper", 2, Station.FURNACE, null, false, 60 * 20);
+        String[] saved = {null};
+        ExecutionCoordinator[] restored = {null};
+        Result second = new Result();
+        h.succeedWhen(() -> {
+            if (saved[0] == null) {
+                loading.tick();
+                var furnace = h.getLevel().getBlockEntity(pos)
+                                instanceof net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity loaded
+                        ? loaded
+                        : null;
+                if (furnace != null && furnace.getItem(0).getCount() >= 1) {
+                    // The batch is committed to the station: this is the only durable point of a smelt.
+                    saved[0] = loading.persistenceTask().saveData();
+                    h.assertTrue(saved[0] != null, "a waiting batch must expose a checkpoint");
+                    loading.stop("reload");
+                }
+                return;
+            }
+            if (restored[0] == null) {
+                var furnace = h.getLevel().getBlockEntity(pos)
+                                instanceof net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity loaded
+                        ? loaded
+                        : null;
+                h.assertTrue(furnace != null, "the furnace is still there");
+                restored[0] = new ExecutionCoordinator(c, () -> 300, () -> false);
+                restored[0].setEventSink(second);
+                var task = dev.friendai.features.cooking.minecraft.task.CookingCheckpoints.smelt(
+                                new dev.friendai.task.TaskState("smelt_items", saved[0]),
+                                new TaskContext(c, (net.minecraft.server.level.ServerLevel) c.level()))
+                        .orElseThrow();
+                restored[0].start(task, "smelt_items");
+                return;
+            }
+            restored[0].tick();
+            h.assertTrue(
+                    second.status == TaskStatus.SUCCESS,
+                    "the restored batch must finish: " + second.status + " " + second.summary);
+            h.assertValueEqual(c.inventory().countItem(Items.COPPER_INGOT), 2, "both ingots collected");
+            h.assertValueEqual(c.inventory().countItem(Items.RAW_COPPER), 0, "nothing was loaded twice");
+        });
+    }
+
     @GameTest(maxTicks = 1200)
     public void campfireCooks(GameTestHelper h) {
         deck(h, 16, WAIT_DECK);

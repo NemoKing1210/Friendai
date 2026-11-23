@@ -14,7 +14,7 @@ import net.minecraft.world.item.ItemStack;
 
 /** Moves one bounded item count from one storage container to another, returning leftovers to the source. */
 public final class MoveItemsTask implements Task {
-    private enum Phase {
+    enum Phase {
         TAKE,
         STORE,
         RETURN,
@@ -42,6 +42,35 @@ public final class MoveItemsTask implements Task {
         this.count = count;
         this.from = from;
         this.to = to;
+    }
+
+    /** Rebuilds a transfer whose withdrawal is already committed, so a restart stores it instead of taking again. */
+    private MoveItemsTask(
+            ItemMatcher matcher,
+            int count,
+            BlockPos from,
+            BlockPos to,
+            Phase phase,
+            int moved,
+            int inserted,
+            int leftover) {
+        this(matcher, count, from, to);
+        this.phase = phase;
+        this.moved = moved;
+        this.inserted = inserted;
+        this.leftover = leftover;
+    }
+
+    static MoveItemsTask resumed(
+            ItemMatcher matcher,
+            int count,
+            BlockPos from,
+            BlockPos to,
+            Phase phase,
+            int moved,
+            int inserted,
+            int leftover) {
+        return new MoveItemsTask(matcher, count, from, to, phase, moved, inserted, leftover);
     }
 
     @Override
@@ -113,6 +142,17 @@ public final class MoveItemsTask implements Task {
     @Override
     public String resultSummary() {
         return summary;
+    }
+
+    /**
+     * Durable progress only after the withdrawal committed: before TAKE the request can be repeated from intent
+     * without touching the world, while STORE and RETURN already hold items that a fresh TAKE would withdraw again.
+     */
+    @Override
+    public String saveData() {
+        if (phase != Phase.STORE && phase != Phase.RETURN) return null;
+        return "v1|" + matcher.label() + "|" + count + "|" + from.asLong() + "|" + to.asLong() + "|" + phase.name()
+                + "|" + moved + "|" + inserted + "|" + leftover;
     }
 
     @Override

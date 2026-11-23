@@ -98,8 +98,7 @@ public final class QueueText {
                 .toList();
         int shown = 0;
         for (Job j : jobs) {
-            boolean problem = j.state() == JobState.FAILED
-                    || (j.state() == JobState.CANCELLED && Job.MISSING_TOOL_RESULT.equals(j.result()));
+            boolean problem = j.state() == JobState.FAILED || Job.needsDecision(j);
             if (!includeDone && JobQueue.terminal(j) && !problem) continue;
             if (!problem && shown++ >= limit) continue;
             out.append('\n').append(line(q, j, snapshot.waitingReasons().get(j.id())));

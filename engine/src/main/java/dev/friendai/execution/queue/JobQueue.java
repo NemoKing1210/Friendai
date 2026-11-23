@@ -559,9 +559,18 @@ public final class JobQueue {
     }
 
     public Result markMissingTool(long id) {
+        return markNeedsDecision(id, Job.MISSING_TOOL_RESULT);
+    }
+
+    /**
+     * Stops a job whose saved progress cannot be honoured and leaves the reason on it, so the plan reads as waiting
+     * for the owner instead of silently repeating a request whose effects may already be in the world.
+     */
+    public Result markNeedsDecision(long id, String reason) {
         Job job = jobs.get(id);
         if (job == null) return Result.error("unknown job #" + id);
-        replace(job, JobState.CANCELLED, Job.MISSING_TOOL_RESULT, job.attempts(), 0);
+        replace(job, JobState.CANCELLED, bound(reason), job.attempts(), 0);
+        holds.remove(id);
         return Result.ok("cancelled #" + id);
     }
 

@@ -1,7 +1,11 @@
 package dev.friendai.test;
 
+import com.google.gson.JsonObject;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.execution.queue.QueueSave;
+import dev.friendai.execution.tool.AccessLevel;
+import dev.friendai.execution.tool.Caller;
 import dev.friendai.features.acquisition.minecraft.task.ObtainTask;
 import dev.friendai.features.inventory.minecraft.task.CheckContainerTask;
 import dev.friendai.features.inventory.minecraft.task.MoveItemsTask;
@@ -9,8 +13,10 @@ import dev.friendai.features.inventory.minecraft.task.StoreItemsTask;
 import dev.friendai.features.inventory.minecraft.task.TakeItemsTask;
 import dev.friendai.features.knowledge.ContainerFreshness;
 import dev.friendai.features.knowledge.ResourceKnowledge;
+import dev.friendai.features.memory.minecraft.tool.MemoryAccess;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.execution.TaskEventSink;
+import dev.friendai.server.execution.persistence.SavedExecution;
 import dev.friendai.server.execution.tools.MinecraftObtainSubtaskFactory;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
@@ -1126,6 +1132,162 @@ public class StorageTests {
                     "the summary must name the returned items: " + result.summary);
             h.assertTrue(result.summary.contains("7"), "the summary must name the count: " + result.summary);
         });
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 800)
+    public void restoredMoveItemsStoresWhatWasAlreadyWithdrawnWithoutTakingAgain(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(3, 2, 3, Blocks.CHEST);
+        containerAt(h, 3, 2, 3).setItem(0, new ItemStack(Items.IRON_INGOT, 10));
+        h.setBlock(12, 2, 12, Blocks.CHEST);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 6, 2, 6);
+        c.setOwner(java.util.UUID.randomUUID());
+        // The withdrawal committed before the reload and the five ingots are carried, so the checkpoint says STORE.
+        BlockPos from = h.absolutePos(new BlockPos(3, 2, 3));
+        BlockPos to = h.absolutePos(new BlockPos(12, 2, 12));
+        c.inventory().addItem(new ItemStack(Items.IRON_INGOT, 5));
+        // The owner changed the source by hand before the reload: the restore still delivers what it withdrew.
+        containerAt(h, 3, 2, 3).setItem(0, new ItemStack(Items.DIRT, 2));
+        String saved = "v1|minecraft:iron_ingot|5|" + from.asLong() + "|" + to.asLong() + "|STORE|5|0|5";
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(
+                dev.friendai.features.inventory.minecraft.task.MoveItemsCheckpoints.move(
+                                new dev.friendai.task.TaskState("move_items", saved),
+                                new TaskContext(c, (net.minecraft.server.level.ServerLevel) c.level()))
+                        .orElseThrow(),
+                "move_items");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(
+                    containerAt(h, 3, 2, 3).getItem(0).is(Items.DIRT),
+                    "a manual change to the source must be left as the owner set it");
+            h.assertTrue(containerAt(h, 3, 2, 3).getItem(0).getCount() == 2, "the source must not be taken twice");
+            h.assertTrue(containerAt(h, 12, 2, 12).getItem(0).getCount() == 5, "the withdrawn items must be stored");
+            h.assertTrue(c.inventory().countItem(Items.IRON_INGOT) == 0, "nothing may stay in the bag after storing");
+        });
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 800)
+    public void aReloadedTransferWithoutReadableProgressAsksBeforeRepeating(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(3, 2, 3, Blocks.CHEST);
+        containerAt(h, 3, 2, 3).setItem(0, new ItemStack(Items.IRON_INGOT, 10));
+        h.setBlock(12, 2, 12, Blocks.CHEST);
+        var owner = GameTestSupport.mockPlayerAt(h, 6, 2, 6);
+        CompanionEntity original = h.spawn(FriendaiEntities.COMPANION, 6, 2, 6);
+        original.setOwner(owner.getUUID());
+        JsonObject args = new JsonObject();
+        args.addProperty("item", "minecraft:iron_ingot");
+        args.addProperty("count", 5);
+        var from = h.absolutePos(new BlockPos(3, 2, 3));
+        var to = h.absolutePos(new BlockPos(12, 2, 12));
+        args.addProperty("from_x", from.getX());
+        args.addProperty("from_y", from.getY());
+        args.addProperty("from_z", from.getZ());
+        args.addProperty("to_x", to.getX());
+        args.addProperty("to_y", to.getY());
+        args.addProperty("to_z", to.getZ());
+        var started = GameTestToolRegistry.create(original, () -> 16, MemoryAccess.DISABLED)
+                .bind(original)
+                .execute(
+                        new dev.friendai.agent.llm.model.ToolCall("test", "move_items", args, args.toString(), null),
+                        new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
+        h.assertTrue(!started.error(), started.content());
+        // The first tick runs the transfer; the restart then replays a save whose checkpoint cannot be read.
+        original.executionCoordinator().tick();
+        var state = GameTestSupport.runtime(h);
+        var persistence = state.taskPersistence();
+        String stored = persistence.encode(
+                persistence.capture(original.executionCoordinator()).orElseThrow());
+        var captured = persistence.decode(stored).orElseThrow();
+        long jobId = captured.queue().activeJobId();
+        h.assertTrue(jobId > 0, "the transfer must be the running job");
+        int sourceBefore = containerAt(h, 3, 2, 3).getItem(0).getCount();
+        var unreadable = new dev.friendai.task.TaskState("move_items", "v9|unreadable");
+        original.executionCoordinator().stop("simulated restart");
+        original.discard();
+
+        CompanionEntity readFail = h.spawn(FriendaiEntities.COMPANION, 6, 2, 6);
+        readFail.setOwner(owner.getUUID());
+        var unreadableReport = persistence.restore(
+                readFail,
+                new SavedExecution(
+                        SavedExecution.CURRENT_VERSION,
+                        new QueueSave.Decoded(
+                                persistence.decode(stored).orElseThrow().queue().queue(), jobId),
+                        unreadable));
+        var blocked = readFail.executionCoordinator().queue().job(jobId).orElseThrow();
+        h.assertTrue(
+                blocked.state() == dev.friendai.execution.queue.JobState.CANCELLED,
+                "a transfer whose committed progress is unreadable must not run again");
+        h.assertTrue(
+                dev.friendai.execution.queue.Job.UNREADABLE_PROGRESS_RESULT.equals(blocked.result()),
+                "the blocker must name the unreadable progress: " + blocked.result());
+        h.assertTrue(
+                unreadableReport.rejected().stream().anyMatch(line -> line.contains("needs a decision")),
+                "the restore must report the job waiting for a decision: " + unreadableReport.rejected());
+        h.assertTrue(
+                containerAt(h, 3, 2, 3).getItem(0).getCount() == sourceBefore,
+                "the restored companion must not withdraw the same items twice");
+        readFail.executionCoordinator().tick();
+        h.assertTrue(
+                containerAt(h, 3, 2, 3).getItem(0).getCount() == sourceBefore,
+                "an idle restored queue must leave the source alone");
+
+        // A save written before these tasks had checkpoints: no progress was recorded, so nothing is replayed.
+        CompanionEntity oldSave = h.spawn(FriendaiEntities.COMPANION, 8, 2, 10);
+        oldSave.setOwner(owner.getUUID());
+        persistence.restore(
+                oldSave,
+                new SavedExecution(
+                        SavedExecution.LEGACY_VERSION,
+                        new QueueSave.Decoded(
+                                persistence.decode(stored).orElseThrow().queue().queue(), jobId),
+                        null));
+        var legacyJob = oldSave.executionCoordinator().queue().job(jobId).orElseThrow();
+        h.assertTrue(
+                legacyJob.state() == dev.friendai.execution.queue.JobState.CANCELLED,
+                "a version 1 save must stop the transfer for a decision: " + legacyJob.state());
+        h.assertTrue(
+                dev.friendai.execution.queue.Job.UNREADABLE_PROGRESS_RESULT.equals(legacyJob.result()),
+                "the version 1 save must leave the same blocker: " + legacyJob.result());
+        h.assertTrue(
+                containerAt(h, 3, 2, 3).getItem(0).getCount() == sourceBefore,
+                "the old save must not replay the transfer either");
+        h.succeed();
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 400)
+    public void anInconsistentMoveItemsCheckpointIsRefused(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 6, 2, 6);
+        c.setOwner(java.util.UUID.randomUUID());
+        TaskContext context = new TaskContext(c, (net.minecraft.server.level.ServerLevel) c.level());
+        BlockPos from = h.absolutePos(new BlockPos(3, 2, 3));
+        BlockPos to = h.absolutePos(new BlockPos(12, 2, 12));
+        String prefix = "|" + from.asLong() + "|" + to.asLong() + "|";
+        h.assertTrue(
+                dev.friendai.features.inventory.minecraft.task.MoveItemsCheckpoints.move(
+                                new dev.friendai.task.TaskState(
+                                        "move_items", "v1|minecraft:iron_ingot|5" + prefix + "STORE|5|0|2"),
+                                context)
+                        .isEmpty(),
+                "a transfer whose counts disagree must not restore");
+        h.assertTrue(
+                dev.friendai.features.inventory.minecraft.task.MoveItemsCheckpoints.move(
+                                new dev.friendai.task.TaskState(
+                                        "move_items", "v1|minecraft:iron_ingot|5" + prefix + "TAKE|5|0|5"),
+                                context)
+                        .isEmpty(),
+                "a phase that still has to take must not restore as committed");
+        h.assertTrue(
+                dev.friendai.features.inventory.minecraft.task.MoveItemsCheckpoints.move(
+                                new dev.friendai.task.TaskState("move_items", "garbage"), context)
+                        .isEmpty(),
+                "malformed data must not restore");
+        h.succeed();
     }
 
     @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 800)

@@ -9,6 +9,7 @@ import dev.friendai.features.cooking.minecraft.CookingWait;
 import dev.friendai.features.cooking.minecraft.FuelPolicy;
 import dev.friendai.features.cooking.minecraft.task.CollectSmeltedTask;
 import dev.friendai.features.cooking.minecraft.task.CookFoodTask;
+import dev.friendai.features.cooking.minecraft.task.CookingCheckpoints;
 import dev.friendai.features.cooking.minecraft.task.CraftingTaskFactory;
 import dev.friendai.features.cooking.minecraft.task.SmeltTask;
 import dev.friendai.features.crafting.Station;
@@ -46,31 +47,42 @@ public final class CookingTools implements FeatureToolContributor {
     @Override
     public void register(FeatureToolRegistry registry) {
         registry.registerTask(new TaskToolDefinition(
-                "smelt_items",
-                "Smelt or cook items in a furnace, blast furnace, smoker or campfire, with fuel from the inventory. One call smelts up to 256 items; give count for the whole batch instead of repeating. Short jobs are waited out and collected. A long job is loaded and you are told when it is done; when the next step of a plan needs the result, the job stays until the finished items are collected. Pass wait=false only when the owner wants to leave it cooking, and collect_smelted later. A batch the stations cannot all take is reported as a blocker with the exact quantity not started.",
-                SchemaBuilder.object()
-                        .string("item", "Item id like minecraft:raw_iron, or a tag like #minecraft:iron_ores")
-                        .integer("count", "How many to smelt", 1, MAX_COUNT)
-                        .enumeration(
-                                "station", "Force a station kind", "furnace", "blast_furnace", "smoker", "campfire")
-                        .string("fuel", "Fuel item id or #tag; without it only cheap fuels are burned")
-                        .bool("wait", "true collects the result now, false loads and leaves it cooking")
-                        .enumeration(
-                                "keep_station", "What to do with a station the companion places itself", "keep", "take")
-                        .required("item", "count")
-                        .build(),
-                (c, a) -> new SmeltTask(
-                        itemMatcher(a.get("item").getAsString()),
-                        a.get("count").getAsInt(),
-                        station(a),
-                        fuel(a),
-                        wait(a),
-                        policy(a),
-                        WAIT_LIMIT_TICKS,
-                        craftingTaskFactory),
-                true,
-                TaskToolDefinition.QueueTraits.DEFAULT,
-                metadata("smelt_items")));
+                        "smelt_items",
+                        "Smelt or cook items in a furnace, blast furnace, smoker or campfire, with fuel from the inventory. One call smelts up to 256 items; give count for the whole batch instead of repeating. Short jobs are waited out and collected. A long job is loaded and you are told when it is done; when the next step of a plan needs the result, the job stays until the finished items are collected. Pass wait=false only when the owner wants to leave it cooking, and collect_smelted later. A batch the stations cannot all take is reported as a blocker with the exact quantity not started.",
+                        SchemaBuilder.object()
+                                .string("item", "Item id like minecraft:raw_iron, or a tag like #minecraft:iron_ores")
+                                .integer("count", "How many to smelt", 1, MAX_COUNT)
+                                .enumeration(
+                                        "station",
+                                        "Force a station kind",
+                                        "furnace",
+                                        "blast_furnace",
+                                        "smoker",
+                                        "campfire")
+                                .string("fuel", "Fuel item id or #tag; without it only cheap fuels are burned")
+                                .bool("wait", "true collects the result now, false loads and leaves it cooking")
+                                .enumeration(
+                                        "keep_station",
+                                        "What to do with a station the companion places itself",
+                                        "keep",
+                                        "take")
+                                .required("item", "count")
+                                .build(),
+                        (c, a) -> new SmeltTask(
+                                itemMatcher(a.get("item").getAsString()),
+                                a.get("count").getAsInt(),
+                                station(a),
+                                fuel(a),
+                                wait(a),
+                                policy(a),
+                                WAIT_LIMIT_TICKS,
+                                craftingTaskFactory),
+                        true,
+                        TaskToolDefinition.QueueTraits.DEFAULT,
+                        metadata("smelt_items"))
+                .withCheckpoint(
+                        "smelt_items",
+                        (state, context) -> CookingCheckpoints.smelt(state, context, craftingTaskFactory)));
         registry.registerTask(new TaskToolDefinition(
                 "cook_food",
                 "Cook the raw food the companion carries, using a smoker, campfire or furnace nearby. A long job is loaded and left; when the next step of a plan needs the result, it stays until the cooked food is collected.",

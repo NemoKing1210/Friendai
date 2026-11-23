@@ -12,6 +12,7 @@ import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.features.inventory.minecraft.storage.StorageAccess;
 import dev.friendai.features.inventory.minecraft.task.CheckContainerTask;
 import dev.friendai.features.inventory.minecraft.task.DepositTask;
+import dev.friendai.features.inventory.minecraft.task.MoveItemsCheckpoints;
 import dev.friendai.features.inventory.minecraft.task.MoveItemsTask;
 import dev.friendai.features.inventory.minecraft.task.StoreItemsTask;
 import dev.friendai.features.inventory.minecraft.task.TakeItemsTask;
@@ -115,7 +116,7 @@ public final class StorageTools implements FeatureToolContributor {
                         a.has("place") && !a.get("place").isJsonNull()
                                 ? a.get("place").getAsString()
                                 : null)));
-        registry.registerTask(new TaskToolDefinition(
+        TaskToolDefinition moveItems = new TaskToolDefinition(
                 "move_items",
                 "Move a known quantity of one item from one storage container to another in one call, returning "
                         + "leftovers to the source.",
@@ -145,12 +146,13 @@ public final class StorageTools implements FeatureToolContributor {
                 true,
                 AccessLevel.TRUSTED,
                 TaskToolDefinition.QueueTraits.DEFAULT,
-                false,
+                true,
                 false,
                 metadata("move_items"),
                 null,
                 null,
-                null));
+                null);
+        registry.registerTask(moveItems.withCheckpoint("move_items", MoveItemsCheckpoints::move));
         registry.registerTool(findStoredItem(access), metadata("find_stored_item"));
     }
 

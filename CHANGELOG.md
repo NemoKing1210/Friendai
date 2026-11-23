@@ -6,6 +6,11 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+### Added
+
+- A reloaded batch that is already cooking, or a transfer that already took its items, now carries on from where it
+  stopped instead of starting over, so nothing is loaded into a furnace or withdrawn from a chest twice.
+
 ### Fixed
 
 - Correcting the companion no longer has to wait for an answer you have already replaced: "no, build it out of
@@ -13,6 +18,8 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
   carried out or the correction being answered with facts that no longer apply.
 - A job failing in the background no longer costs you the answer to an unrelated question. The failure is reported
   the next time the companion speaks, rather than replacing a reply about something else with a second model call.
+- When a reload leaves the companion unable to tell what it already did, it now stops that one job and says so,
+  instead of quietly repeating the request and moving your items a second time.
 
 ## [0.226.7] - 2026-11-24
 

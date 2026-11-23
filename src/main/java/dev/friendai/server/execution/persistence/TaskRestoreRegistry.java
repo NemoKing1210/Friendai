@@ -52,6 +52,9 @@ public final class TaskRestoreRegistry {
                     context,
                     dev.friendai.features.construction.minecraft.task.BuildTask.ObtainFactory.UNAVAILABLE));
 
+    /** Contributions that move the owner's items across a commit boundary before they finish. */
+    private static final Set<String> COMMITTING_TOOLS = Set.of("move_items", "smelt_items", "cook_food");
+
     private final Map<String, TaskToolDefinition> taskTools;
     private final Map<String, TaskToolDefinition> planTools;
     private final Map<String, CheckpointRestorer> checkpoints;
@@ -212,6 +215,15 @@ public final class TaskRestoreRegistry {
                 || job.tool().equals("find_target")
                 || job.tool().equals("find_structure")
                 || job.tool().equals("search_structure");
+    }
+
+    /**
+     * True for a contribution that commits world effects before it finishes: a transfer that already withdrew items,
+     * a batch already loaded into a furnace. Such work resumes only from its saved checkpoint; when no usable one
+     * exists the job stops for a decision instead of repeating the request.
+     */
+    public boolean commitsWorldEffects(String tool) {
+        return COMMITTING_TOOLS.contains(tool);
     }
 
     /** An interrupted search is not resumed by guesswork: the job's own explore flag says it may look far away. */

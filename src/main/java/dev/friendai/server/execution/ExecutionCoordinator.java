@@ -1522,6 +1522,12 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         return activeTasks.currentActive();
     }
 
+    /** The task this runner is executing, for tests and diagnostics that inspect its checkpoint. */
+    public Task persistenceTask() {
+        ActiveTask active = activeTask();
+        return active == null ? null : active.task();
+    }
+
     ActiveTask frozenTask() {
         return activeTasks.frozenActive();
     }

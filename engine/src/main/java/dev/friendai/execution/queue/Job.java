@@ -26,6 +26,15 @@ public record Job(
         boolean creativeSensitive,
         LogContext diagnostic) {
     public static final String MISSING_TOOL_RESULT = "tool is no longer available";
+    /** A saved task whose committed progress cannot be read: repeating it could apply its effects twice. */
+    public static final String UNREADABLE_PROGRESS_RESULT = "saved progress could not be read";
+
+    /** True for a cancelled job that records a blocker the owner has to resolve before the work continues. */
+    public static boolean needsDecision(Job job) {
+        return job != null
+                && job.state() == JobState.CANCELLED
+                && (MISSING_TOOL_RESULT.equals(job.result()) || UNREADABLE_PROGRESS_RESULT.equals(job.result()));
+    }
 
     public Job(
             long id,

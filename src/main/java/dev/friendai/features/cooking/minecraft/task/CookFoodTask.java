@@ -10,7 +10,6 @@ import dev.friendai.features.crafting.minecraft.RecipeIndex;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
-import dev.friendai.task.inventory.ItemMatcher;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -100,7 +99,14 @@ public final class CookFoodTask implements Task {
                 }
             }
             current = new SmeltTask(
-                    new SetMatcher(ids), total, null, null, waitRequest, policy, waitLimitTicks, craftingTaskFactory);
+                    new SmeltTask.SetMatcher(ids),
+                    total,
+                    null,
+                    null,
+                    waitRequest,
+                    policy,
+                    waitLimitTicks,
+                    craftingTaskFactory);
             current.start(c);
         } catch (RuntimeException e) {
             failure = "I have no raw food";
@@ -167,15 +173,4 @@ public final class CookFoodTask implements Task {
     }
 
     /** Matches any of the selected raw-food item ids, with a label that reads well in summaries. */
-    private record SetMatcher(Set<String> ids) implements ItemMatcher {
-        @Override
-        public boolean test(ItemStack stack) {
-            return !stack.isEmpty() && ids.contains(idOf(stack));
-        }
-
-        @Override
-        public String label() {
-            return ids.size() == 1 ? ids.iterator().next() : "raw food";
-        }
-    }
 }

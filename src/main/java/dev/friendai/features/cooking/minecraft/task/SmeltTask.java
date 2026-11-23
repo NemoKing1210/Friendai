@@ -73,7 +73,7 @@ public final class SmeltTask implements Task {
         DONE
     }
 
-    private record Target(BlockPos pos, AbstractFurnaceBlockEntity furnace, boolean placedByMe) {}
+    record Target(BlockPos pos, AbstractFurnaceBlockEntity furnace, boolean placedByMe) {}
 
     private final ItemMatcher input;
     private final int count;
@@ -123,6 +123,9 @@ public final class SmeltTask implements Task {
 
     private String unstartedReason;
     private String outputId;
+
+    /** A task rebuilt from its wait checkpoint: its inputs are already in the stations and must not be planned again. */
+    private boolean restored;
     /** The item ids this job's inputs cook into: what a campfire's ground drops must match to count. */
     private final Set<String> expectedOutputs = new LinkedHashSet<>();
 
@@ -206,6 +209,7 @@ public final class SmeltTask implements Task {
 
     @Override
     public void start(TaskContext c) {
+        if (restored) return;
         try {
             plan(c);
         } catch (RuntimeException e) {
@@ -233,6 +237,10 @@ public final class SmeltTask implements Task {
         return status;
     }
 
+    /**
+     * A batch left in a station stays the station's and the watcher's: the restoration point is the wait checkpoint,
+     * not a block the world still holds, so there is nothing to undo on cancellation.
+     */
     @Override
     public void stop(TaskContext c) {
         settle = null;
@@ -319,6 +327,118 @@ public final class SmeltTask implements Task {
         return summary;
     }
 
+    /**
+     * The wait itself is the only durable part of a smelt: the inputs already sit in the stations, so a restart that
+     * repeated the request would either load a second batch or lose the finished one. Everything before WAIT can be
+     * planned again from the world, so nothing is saved then.
+     */
+    @Override
+    public String saveData() {
+        if (!waitMode || phase != Phase.WAIT || targets.isEmpty() || kind == null) return null;
+        StringBuilder text = new StringBuilder("v1");
+        appendField(text, inputIds());
+        appendField(text, String.valueOf(count));
+        appendField(text, String.valueOf(waitRequest.name()));
+        appendField(text, String.valueOf(requested));
+        appendField(text, String.valueOf(loadedCount));
+        appendField(text, String.valueOf(stationsLoaded));
+        appendField(text, String.valueOf(collected));
+        appendField(text, String.valueOf(waitTicks));
+        appendField(text, String.valueOf(unstartedCount));
+        appendField(text, kind == null ? "" : kind.name());
+        appendField(text, policy.name());
+        appendField(text, String.valueOf(waitLimitTicks));
+        appendField(text, fuel == null ? "" : fuel.label());
+        appendField(text, sanitize(unstartedReason));
+        appendField(text, sanitize(fuelNote));
+        appendField(text, outputId == null ? "" : outputId);
+        appendField(text, String.join(";", expectedOutputs));
+        List<String> waiting = new ArrayList<>();
+        for (ItemStack stack : waitingInputs) {
+            waiting.add(idOf(stack) + "," + stack.getCount());
+        }
+        appendField(text, String.join(";", waiting));
+        List<String> stations = new ArrayList<>();
+        for (Target target : targets) {
+            stations.add(target.pos().asLong() + "," + target.placedByMe());
+        }
+        appendField(text, String.join(";", stations));
+        return text.toString();
+    }
+
+    /**
+     * The ids the batch accepts. A single-item matcher saves its own id or tag; a multi-item matcher (cooked food)
+     * saves the ids it actually matched, because it has no single label to parse back.
+     */
+    private String inputIds() {
+        if (input instanceof SetMatcher set) return String.join(",", set.ids());
+        return input.label();
+    }
+
+    private static void appendField(StringBuilder text, String value) {
+        text.append('|').append(value == null ? "" : value);
+    }
+
+    private static String sanitize(String value) {
+        return value == null ? "" : value.replace('|', '/').replace(';', ',');
+    }
+
+    /** Rebuilds a waiting batch whose inputs are already in the saved stations; the caller validated the payload. */
+    record SetMatcher(Set<String> ids) implements ItemMatcher {
+        @Override
+        public boolean test(ItemStack stack) {
+            return !stack.isEmpty() && ids.contains(idOf(stack));
+        }
+
+        @Override
+        public String label() {
+            return ids.size() == 1 ? ids.iterator().next() : "raw food";
+        }
+    }
+
+    static SmeltTask resumed(
+            ItemMatcher input,
+            int count,
+            CookingWait waitRequest,
+            @Nullable ItemMatcher fuel,
+            StationPolicy policy,
+            int waitLimitTicks,
+            CraftingTaskFactory craftingTaskFactory,
+            Station kind,
+            int requested,
+            int loadedCount,
+            int stationsLoaded,
+            int collected,
+            int waitTicks,
+            int unstartedCount,
+            String unstartedReason,
+            String fuelNote,
+            @Nullable String outputId,
+            List<String> expectedOutputs,
+            List<ItemStack> waitingInputs,
+            List<Target> targets) {
+        SmeltTask task =
+                new SmeltTask(input, count, null, fuel, CookingWait.WAIT, policy, waitLimitTicks, craftingTaskFactory);
+        task.restored = true;
+        task.phase = Phase.WAIT;
+        task.waitMode = true;
+        task.kind = kind;
+        task.requested = requested;
+        task.loadedCount = loadedCount;
+        task.stationsLoaded = stationsLoaded;
+        task.collected = collected;
+        task.waitTicks = waitTicks;
+        task.unstartedCount = unstartedCount;
+        task.unstartedReason = unstartedReason;
+        task.fuelNote = fuelNote;
+        task.outputId = outputId;
+        task.expectedOutputs.addAll(expectedOutputs);
+        task.waitingInputs.addAll(waitingInputs);
+        task.targets.addAll(targets);
+        return task;
+    }
+
+    /** The saved station positions, so the restoring decoder can resolve them before building the task. */
     // ---------------------------------------------------------------- planning
 
     private void plan(TaskContext c) {
