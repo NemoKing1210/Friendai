@@ -18,6 +18,8 @@ One invocation of this skill executes **exactly one numbered item**, its sub-ite
 - Never claim two items, never plan or execute two in parallel, never dispatch a subagent per item, and never fold in "a quick one" because it sits in the same file.
 - A bug or idea you notice outside the item goes into the report (or `TODO.md`, when asked), never into this run's code.
 - If the item depends on another open item that is claimed or unshipped, stop and name the dependency instead of doing both.
+- **Definition of ready:** an item is pickable when the behavior that changes and how success will be checked each fit in one sentence. If the item does not say, write those two sentences into its spec first — or ask — instead of inventing acceptance criteria while implementing.
+- **Stale claim:** a `[~]` older than 24 hours whose session is visibly gone may be taken over by saying so in the final message. Never delete or silently rewrite another session's marker.
 
 ## Gate 0 — claim and observe (the first edit)
 
