@@ -22,6 +22,7 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] Ask it to mine 20 stone for tools and watch it leave the pit: it does not pillar up on the stone it just mined — it digs out or says the cobblestone is reserved, and the stone is still in its bag afterwards.
 - [ ] `/friendai summon`, then "Friendai, mine 3 logs" next to trees: reply in chat, logs chopped, drops collected, result reported.
 - [ ] The same in Russian ("Friendai, добудь 3 дерева"): the companion answers in Russian.
+- [ ] With the provider unset or offline, say "стоп" (or "stop") out loud while a job runs: the job ends at once and the reply is the ordinary stop line, with no model request.
 - [ ] "Friendai, chop that tree" next to a tall tree: it is felled from the lowest log up, the logs are collected and the result is reported.
 - [ ] In a forest, ask for a wooden pickaxe: one tree is felled completely before the next is touched, and no half-cut trunk is left behind.
 - [ ] In a forest, ask for a set of stone tools and time the first dig: the companion mines stone instead of first crafting a wooden pickaxe from the scarce logs, and the first dig lands within a few seconds.

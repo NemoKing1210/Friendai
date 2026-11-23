@@ -538,7 +538,8 @@ const RU = {
   "Player": "Игрок",
   "Types in chat or holds push-to-talk.": "Пишет в чат или удерживает push-to-talk.",
   "Voice STT": "Голос → текст",
-  "Local Whisper or a cloud recogniser; the transcript is sent to the server.": "Локальный Whisper или облачный распознаватель; транскрипт уходит на сервер.",
+  "Local Whisper or a cloud recogniser; the transcript is sent to the server, where an exact stop, follow or stay phrase runs at once like a chat order.":
+    "Локальный Whisper или облачный распознаватель; транскрипт уходит на сервер, где точная фраза «стоп», «следуй» или «стой» выполняется сразу, как команда в чате.",
   "ChatRouter": "ChatRouter",
   "Detects whether the companion is addressed.": "Определяет, обращаются ли к компаньону.",
   "Own companion in hearing range, else the nearest other whose owner is online.": "Свой компаньон в зоне слышимости, иначе ближайший другой, чей владелец в сети.",

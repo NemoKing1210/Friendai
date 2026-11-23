@@ -3,6 +3,7 @@ package dev.friendai.server.net;
 import dev.friendai.agent.turn.BrainEvent;
 import dev.friendai.features.conversation.AudienceOrigin;
 import dev.friendai.server.agent.chat.CompanionRouting;
+import dev.friendai.server.agent.chat.LocalOrderExecutor;
 import dev.friendai.server.runtime.ServerRuntime;
 import java.util.Optional;
 import java.util.UUID;
@@ -47,6 +48,12 @@ public final class VoiceTranscriptHandler {
         String name = player.getName().getString();
         // Push-to-talk is private: the transcript line and the reply stay with the player who spoke.
         player.sendSystemMessage(Component.translatable("friendai.voice.chat_line", name, clean), false);
+        // A spoken line gets the same exact-order shortcut as an addressed chat line, so a stop or follow phrase works
+        // at once, without a model and with the provider offline. Anything the grammar does not claim still reaches
+        // the brain exactly as before.
+        if (LocalOrderExecutor.tryRun(runtime, player, owner.get(), clean)) {
+            return;
+        }
         CompanionRouting.deliver(runtime, player, owner.get(), clean, BrainEvent.Source.VOICE, AudienceOrigin.of(true));
     }
 }

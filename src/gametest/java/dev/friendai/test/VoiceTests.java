@@ -6,7 +6,9 @@ import dev.friendai.agent.llm.model.StopReason;
 import dev.friendai.agent.llm.model.ToolSpec;
 import dev.friendai.agent.llm.model.Usage;
 import dev.friendai.agent.turn.LlmGateway;
+import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
+import dev.friendai.server.agent.chat.ChatRouter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -39,8 +41,9 @@ public class VoiceTests {
     public void voiceTranscriptReachesBrain(GameTestHelper h) {
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         Recorder recorder = setUp(h, player);
-        TestMenuRequests.voice(player, "stay");
-        String expected = "[" + player.getName().getString() + " (owner), by voice]: stay";
+        // A line the local-order grammar does not claim, so the test keeps measuring the voice-to-brain path.
+        TestMenuRequests.voice(player, "hello there");
+        String expected = "[" + player.getName().getString() + " (owner), by voice]: hello there";
         h.succeedWhen(() -> {
             h.assertTrue(!recorder.requests.isEmpty(), "no LLM request yet");
             List<Message> first = recorder.requests.get(0);
@@ -48,6 +51,65 @@ public class VoiceTests {
                     first.get(first.size() - 1).text().equals(expected),
                     "message was " + first.get(first.size() - 1).text());
         });
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 200)
+    public void aSpokenStopOrderRunsWithoutAModel(GameTestHelper h) {
+        var owner = online(h, "voice-stop", 71);
+        CompanionEntity companion =
+                CompanionManager.get(h.getLevel().getServer()).summon(owner);
+        Recorder recorder = new Recorder();
+        GameTestSupport.runtime(h).sessions().setGatewayOverride(owner.getUUID(), recorder);
+        ChatRouter.onChat(GameTestSupport.runtime(h), owner, "@ stay");
+        h.assertValueEqual(currentTask(companion), "stay", "the chat order starts the stay");
+        TestMenuRequests.voice(owner, "стоп");
+        h.assertTrue(!"stay".equals(currentTask(companion)), "the spoken stop must end the stay");
+        h.runAfterDelay(10, () -> {
+            h.assertTrue(recorder.requests.isEmpty(), "the spoken order must not reach the model");
+            h.succeed();
+        });
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 200)
+    public void aSpokenQuestionStaysConversation(GameTestHelper h) {
+        var owner = online(h, "voice-question", 73);
+        CompanionManager.get(h.getLevel().getServer()).summon(owner);
+        Recorder recorder = new Recorder();
+        GameTestSupport.runtime(h).sessions().setGatewayOverride(owner.getUUID(), recorder);
+        TestMenuRequests.voice(owner, "why did you stop?");
+        h.succeedWhen(() -> h.assertTrue(!recorder.requests.isEmpty(), "a near-miss question never reached the model"));
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 200)
+    public void aGuestsSpokenOrderIsRefused(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 75, 16);
+        var owner = GameTestSupport.onlinePlayer(h, "voice-owner", 2, 75, 2, true);
+        var guest = GameTestSupport.onlinePlayer(h, "voice-guest", 3, 75, 3, true);
+        CompanionEntity companion =
+                CompanionManager.get(h.getLevel().getServer()).summon(owner.player());
+        Recorder recorder = new Recorder();
+        GameTestSupport.runtime(h).sessions().setGatewayOverride(owner.player().getUUID(), recorder);
+        TestMenuRequests.voice(guest.player(), "остановись");
+        h.assertTrue(
+                companion.executionCoordinator().current().isEmpty(), "a guest's spoken order must not start work");
+        h.assertTrue(
+                guest.drainSystemMessages().stream()
+                        .anyMatch(message -> message.getString().contains("access")),
+                "a guest must be told they have no access");
+        h.succeed();
+    }
+
+    private static ServerPlayer online(GameTestHelper h, String name, int y) {
+        GameTestSupport.platformAt(h, y - 1, 16);
+        return GameTestSupport.onlinePlayer(h, name, 2, y, 2, true).player();
+    }
+
+    private static String currentTask(CompanionEntity companion) {
+        return companion
+                .executionCoordinator()
+                .current()
+                .map(task -> task.type())
+                .orElse("");
     }
 
     @GameTest(maxTicks = 100)

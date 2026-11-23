@@ -6,6 +6,14 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.226.2] - 2026-11-23
+
+### Fixed
+
+- Saying a short order out loud now works the way typing it does. "Stop", "follow me", "stay" or their Russian
+  equivalents spoken through push-to-talk or the wake word take effect at once, without a model request, so they no
+  longer wait for the provider or fail while it is offline. Anything else you say still goes to the model as before.
+
 ## [0.226.1] - 2026-11-23
 
 ### Fixed

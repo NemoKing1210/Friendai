@@ -438,7 +438,7 @@ const FLOW = {
   w: 1160, h: 600,
   nodes: [
     { id: "player", x: 90, y: 300, label: "Player", icon: "🧍", color: COLORS.quartz, kind: "cat", desc: "Types in chat or holds push-to-talk." },
-    { id: "voice", x: 270, y: 120, label: "Voice STT", icon: "🎤", color: COLORS.redstone, kind: "cat", desc: "Local Whisper or a cloud recogniser; the transcript is sent to the server." },
+    { id: "voice", x: 270, y: 120, label: "Voice STT", icon: "🎤", color: COLORS.redstone, kind: "cat", desc: "Local Whisper or a cloud recogniser; the transcript is sent to the server, where an exact stop, follow or stay phrase runs at once like a chat order." },
     { id: "chat", x: 270, y: 300, label: "ChatRouter", icon: "💬", color: COLORS.water, kind: "cat", desc: "Detects whether the companion is addressed." },
     { id: "picker", x: 270, y: 480, label: "Companion picker", icon: "👥", color: COLORS.water, kind: "cat", desc: "Own companion in hearing range, else the nearest other whose owner is online." },
     { id: "brain", x: 500, y: 300, label: "CompanionBrain", icon: "🧠", color: COLORS.amethyst, kind: "hub", desc: "The per-owner agent loop. One principal per turn; late replies are dropped by a generation counter. A blocked job that fails three times without a new fact pauses the turn that carries it and asks the owner, instead of starting unrelated work. Every request is fitted into one conservative token budget, and a committed plan is acknowledged without a second round trip. A recreated companion restores the last few delivered lines of the owner's conversation." },
