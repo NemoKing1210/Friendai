@@ -50,9 +50,10 @@ public final class BoundedRotation {
             membershipChanged = false;
             return List.of();
         }
-        if (membershipChanged || !cached.containsAll(keys) || cached.size() != keys.size()) {
-            cached = new ArrayList<>(keys);
-            cached.sort(Comparator.naturalOrder());
+        List<UUID> sorted = new ArrayList<>(keys);
+        sorted.sort(Comparator.naturalOrder());
+        if (membershipChanged || cachedSize != sorted.size() || !cached.equals(sorted)) {
+            cached = sorted;
             cachedSize = cached.size();
             membershipChanged = false;
             if (cursor != null) {
@@ -63,6 +64,11 @@ public final class BoundedRotation {
                         cursorIndex = index;
                         break;
                     }
+                }
+                if (cursorIndex == UNSET) {
+                    // The stored cursor left the set, so restart from the first current key instead of indexing a
+                    // removed one.
+                    cursor = null;
                 }
             }
         }

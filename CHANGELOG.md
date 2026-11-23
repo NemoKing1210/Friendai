@@ -6,9 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.221.10] - 2026-11-23
+
 ### Changed
 
 - A world with many companions no longer stutters at startup: saved companions are restored a few at a time per tick instead of all at once, and stale test worlds can no longer make a test run look reproducible.
+- Exploring more companions no longer grows the terrain-sampling work each window: at most four companions are sampled per pass in a stable rotation, and each still keeps its own eight-column budget.
 
 ## [0.221.8] - 2026-11-22
 

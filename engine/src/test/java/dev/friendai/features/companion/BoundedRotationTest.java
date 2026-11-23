@@ -80,6 +80,19 @@ class BoundedRotationTest {
     }
 
     @Test
+    void detectsASameSizeSwapWithoutAnExplicitHint() {
+        BoundedRotation rotation = new BoundedRotation(2);
+        UUID first = UUID.fromString("00000000-0000-0000-0000-000000000001");
+        UUID second = UUID.fromString("00000000-0000-0000-0000-000000000002");
+        UUID third = UUID.fromString("00000000-0000-0000-0000-000000000003");
+        assertEquals(List.of(first, second), rotation.next(Set.of(first, second)));
+        assertEquals(
+                List.of(third),
+                rotation.next(Set.of(second, third)),
+                "a same-size input swap must rebuild the order from the current keys");
+    }
+
+    @Test
     void rejectsANonPositiveAllowance() {
         assertThrows(IllegalArgumentException.class, () -> new BoundedRotation(0));
         assertThrows(IllegalArgumentException.class, () -> new BoundedRotation(-1));
