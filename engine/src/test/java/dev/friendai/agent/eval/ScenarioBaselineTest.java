@@ -119,13 +119,17 @@ class ScenarioBaselineTest {
                 + " marker, and false completion claims — a completion marker spoken in a turn whose tool batch"
                 + " contained a refused call, minus lines that name the refusal. The last column is the `84.2`"
                 + " zero-false-confirmation check.\n");
+        report.append("- `mock calls`: tool calls the fixture did not script; the fake answers them with a default"
+                + " success, so the provenance column marks the run unverified for those calls instead of treating"
+                + " them as world evidence.\n");
         report.append("- `unknown`: the metric was not observed, for example payload fields in a run that made no"
                 + " request.\n\n");
         report.append(
                 "| fixture | scenario | autonomy | budget | requests | system chars | history msgs | history chars |"
                         + " tools | tool bytes | ticks | planner/plans | usage | retries/errors/cancelled | timeline |"
-                        + " speech c/n/f | outcome | provenance |\n");
-        report.append("|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|---|---|---|---|---|\n");
+                        + " speech c/n/f | repeats n/r/u | claims | mock calls | outcome | provenance |\n");
+        report.append(
+                "|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|---|---|---|---|---|---|---|---|\n");
         for (Scenario scenario : scenarios) {
             ScenarioRunner.Result first = runBounded(scenario);
             ScenarioRunner.Result second = runBounded(scenario);
@@ -198,7 +202,10 @@ class ScenarioBaselineTest {
                 + result.plansApplied() + " | " + usage(result) + " | " + value(result.retries()) + "/"
                 + value(result.errors()) + "/" + value(result.cancelledRequests()) + " | "
                 + timeline(result.timeline()) + " | " + result.clarifications() + "/" + result.narration() + "/"
-                + result.falseConfirmations() + " | " + outcome(result) + " | " + result.provenance() + " |";
+                + result.falseConfirmations() + " | " + result.necessaryRepeats() + "/" + result.redundantRetries()
+                + "/" + result.unchangedRepeats() + " | "
+                + result.failedActionClaims() + " | " + result.unscriptedToolCalls() + " | " + outcome(result) + " | "
+                + result.provenance() + " |";
     }
 
     /** `event→request / provider / event→tool / event→speech / stop→cancel`, each `-` when it never happened. */

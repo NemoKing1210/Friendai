@@ -1,6 +1,7 @@
 package dev.friendai.testutil;
 
 import com.google.gson.JsonObject;
+import dev.friendai.agent.eval.OutcomeReview;
 import dev.friendai.agent.llm.model.ToolCall;
 import dev.friendai.agent.llm.model.ToolSpec;
 import dev.friendai.execution.tool.AccessLevel;
@@ -19,6 +20,10 @@ public final class FakeToolExecutor implements ToolExecutor {
     public final List<AccessLevel> specAccess = new ArrayList<>();
     public final List<AccessLevel> executeAccess = new ArrayList<>();
     public final List<Caller> executeCallers = new ArrayList<>();
+    public final List<OutcomeReview.Observation> observations = new ArrayList<>();
+    /** Tool calls that had no scripted answer and therefore received the fake default success. */
+    public final List<String> unscripted = new ArrayList<>();
+
     public final List<ToolSpec> available = new ArrayList<>(List.of(staySpec()));
     /** Scripted answers per tool, consumed in order before the default {@code ok <name>}. */
     public final Map<String, Deque<ToolResult>> results = new HashMap<>();
@@ -47,6 +52,13 @@ public final class FakeToolExecutor implements ToolExecutor {
         executeCallers.add(caller);
         executed.add(call.name());
         Deque<ToolResult> scripted = results.get(call.name());
-        return scripted == null || scripted.isEmpty() ? ToolResult.ok("ok " + call.name()) : scripted.removeFirst();
+        boolean unscriptedCall = scripted == null || scripted.isEmpty();
+        if (unscriptedCall) {
+            unscripted.add(call.name());
+        }
+        ToolResult result = unscriptedCall ? ToolResult.ok("ok " + call.name()) : scripted.removeFirst();
+        observations.add(new OutcomeReview.Observation(
+                call.name(), OutcomeReview.targetKey(call.arguments()), !result.error(), result.content()));
+        return result;
     }
 }

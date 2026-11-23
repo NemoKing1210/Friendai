@@ -505,6 +505,8 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 
 - [ ] Run `./gradlew test --tests "*LiveScenarioRunner" -Dfriendai.live=true -Dfriendai.live.config=<path to friendai-server.json>` on the configured provider and read `build/eval/<timestamp>.md`.
 - [ ] Compare the report with the previous one: requests per scenario must not grow, and no scenario may start to fail.
+- [ ] Run `FRIENDAI_LIVE_CONFIG=<path to friendai-server.json> ./gradlew runGameTest -Dfabric-api.gametest.filter='friendai-gametest:live_*'` on the configured provider; read `build/eval/live-<timestamp>.md` and `.jsonl`. Every scenario must have a row, failures must stay visible, the stop scenario must show `late tool call: none`, no new task rows and `logs carried 0` after the production Stop request while the provider reply was late, and the unreachable-stone scenario must show the block untouched with an explicit refusal.
+- [ ] Compare the live rows with the previous run: note the provider/model, seconds, spoken text, tool evidence and outcome-review counts. A pass with a changed scenario or seed is not comparable; record the change.
 
 ## Goals, planner and initiative
 
@@ -554,7 +556,7 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] Ollama: capture one redacted request/reply and done_reason; verify format=json.
 - [ ] In both GUI languages select the planner profile, planner mode and planner retries, save/reload, and confirm the effective model in free-time status and operator debug. With a malformed reply verify one actionable chat line, shift end/backoff, and a bounded redacted operator planner entry. Confirm model-facing logs never expose the raw planner reply.
 
-These live provider and GUI checks were not performed by the automated implementation. Keep API keys and personal prompts out of captured samples; retain only short operator-local excerpts.
+These live provider and GUI checks were not performed by the automated implementation. Keep API keys and personal prompts out of captured samples; retain only short operator-local excerpts. The live report records only provider/model, scenario evidence, spoken text and tool names; inspect a transcript before sharing it.
 
 ## Self-knowledge: transcript, log and memory compaction (TODO 21)
 

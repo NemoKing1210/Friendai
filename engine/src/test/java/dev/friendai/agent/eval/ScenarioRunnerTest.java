@@ -54,4 +54,41 @@ class ScenarioRunnerTest {
         assertFalse(ScenarioRunner.claimsCompletion("The chest was not emptied."));
         assertFalse(ScenarioRunner.claimsCompletion("I am still walking there."));
     }
+
+    @Test
+    void anUnfamiliarDeclarativeLineAfterAFailedTurnIsAnUnsupportedClaim() {
+        ScenarioRunner.Result result = ScenarioRunner.run(scenario("All squared away, boss."));
+
+        assertEquals(1, result.failedActionClaims(), "the turn produced no success but declared the result");
+    }
+
+    @Test
+    void aToolCallWithoutAScriptedAnswerIsMarkedUnverified() {
+        ScenarioRunner.Result scripted = ScenarioRunner.run(scenario("Done: mined three coal."));
+
+        assertEquals(0, scripted.unscriptedToolCalls(), scripted.provenance());
+
+        Scenario unscripted = new Scenario(
+                "unscripted_probe",
+                "owner",
+                "Mine three coal.",
+                null,
+                null,
+                null,
+                List.of(new Scenario.Reply("On it.", List.of("mine_blocks")), new Scenario.Reply("Done.", List.of())),
+                new Scenario.Expectations(null, null, null, null, null, null, null, null, 0, null, null),
+                false,
+                "en",
+                "assistive",
+                null,
+                null,
+                null,
+                null,
+                null,
+                List.of());
+        ScenarioRunner.Result fakeSuccess = ScenarioRunner.run(unscripted);
+
+        assertEquals(1, fakeSuccess.unscriptedToolCalls());
+        assertTrue(fakeSuccess.provenance().contains("unscripted tool call"), fakeSuccess.provenance());
+    }
 }

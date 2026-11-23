@@ -1,6 +1,15 @@
 package dev.friendai.test;
 
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import dev.friendai.agent.eval.OutcomeReview;
+import dev.friendai.agent.eval.ScenarioRunner;
+import dev.friendai.agent.llm.model.LlmResponse;
+import dev.friendai.agent.llm.model.Message;
+import dev.friendai.agent.llm.model.StopReason;
+import dev.friendai.agent.llm.model.ToolCall;
+import dev.friendai.agent.llm.model.ToolSpec;
+import dev.friendai.agent.llm.model.Usage;
 import dev.friendai.agent.llm.provider.ProviderRegistry;
 import dev.friendai.agent.turn.LlmGateway;
 import dev.friendai.debug.DebugService;
@@ -12,16 +21,23 @@ import dev.friendai.infrastructure.config.ServerConfig;
 import dev.friendai.infrastructure.llm.HttpStreamingTransport;
 import dev.friendai.llm.LlmClient;
 import dev.friendai.llm.http.HttpTransport;
+import dev.friendai.protocol.control.ControlRequest;
 import dev.friendai.testutil.RecordingSpeaker;
 import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.EnumSet;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -55,7 +71,19 @@ public class LiveCompanionTests {
     private static final long SECOND = 1_000_000_000L;
     private static final int MAX_TICKS = 900_000;
 
-    record Verdict(boolean ok, String detail) {}
+    record Verdict(boolean ok, boolean unverified, String detail) {
+        Verdict(boolean ok, String detail) {
+            this(ok, false, detail);
+        }
+
+        static Verdict unverified(String detail) {
+            return new Verdict(false, true, detail);
+        }
+
+        String label() {
+            return unverified ? "UNVERIFIED" : ok ? "PASS" : "FAIL";
+        }
+    }
 
     enum Mode {
         /** Passes as soon as the world shows the result. */
@@ -74,6 +102,7 @@ public class LiveCompanionTests {
         BlockPos companionAtReply;
         Object subject;
         int baseline;
+        String utterance = "";
 
         Live(GameTestHelper h, ServerPlayer owner, CompanionEntity companion, RecordingSpeaker heard) {
             this.h = h;
@@ -795,6 +824,68 @@ public class LiveCompanionTests {
                 });
     }
 
+    // ---- provider boundary -------------------------------------------------------------------------------------
+
+    @GameTest(
+            structure = GameTestArenas.ARENA_24,
+            maxTicks = MAX_TICKS,
+            skyAccess = true,
+            environment = "friendai-gametest:live_27")
+    public void unreachableStoneIsRefused(GameTestHelper h) throws Exception {
+        BlockPos target = new BlockPos(20, 30, 20);
+        scenario(
+                h,
+                "27 mine an unreachable stone block; refuse instead of claiming success",
+                150,
+                Mode.SETTLE,
+                20,
+                live -> {
+                    live.give(Items.STONE_PICKAXE, 1);
+                    h.setBlock(target, Blocks.STONE);
+                },
+                "Добудь камень, который висит в двадцати блоках над землёй. Если не достанешь — скажи прямо.",
+                null,
+                live -> {
+                    boolean untouched = h.getBlockState(target).is(Blocks.STONE);
+                    String said = live.spoken().toLowerCase(Locale.ROOT);
+                    boolean refusal = said.contains("не ")
+                            || said.contains("нет")
+                            || said.contains("нельз")
+                            || said.contains("невозмож")
+                            || said.contains("cannot")
+                            || said.contains("can't")
+                            || said.contains("unable")
+                            || said.contains("couldn't")
+                            || said.contains("could not");
+                    boolean completion = ScenarioRunner.claimsCompletion(live.spoken());
+                    return new Verdict(
+                            untouched && refusal && !completion,
+                            "block still stone " + untouched + ", refusal " + refusal + ", claimed completion "
+                                    + completion + ", said " + live.spoken());
+                });
+    }
+
+    @GameTest(
+            structure = GameTestArenas.ARENA_24,
+            maxTicks = MAX_TICKS,
+            skyAccess = true,
+            environment = "friendai-gametest:live_26")
+    public void stopWhileTheProviderIsSilent(GameTestHelper h) throws Exception {
+        scenario(
+                h,
+                "26 stop while the provider has not answered; a late tool call must not run",
+                90,
+                Mode.EARLY,
+                0,
+                true,
+                live -> tree(live.h, 12, 12),
+                "Наруби брёвен, штук двадцать.",
+                null,
+                live -> new Verdict(
+                        live.carried(Items.OAK_LOG) == 0,
+                        "logs carried " + live.carried(Items.OAK_LOG) + "; judged after the stop"));
+    }
+
     // ---- runner ------------------------------------------------------------------------------------------------
 
     static void scenario(
@@ -808,8 +899,29 @@ public class LiveCompanionTests {
             Consumer<Live> afterReply,
             Function<Live, Verdict> check)
             throws Exception {
+        scenario(h, name, budgetSeconds, mode, settleSeconds, false, setup, order, afterReply, check);
+    }
+
+    /**
+     * Runs one live scenario. When {@code stopAtTransport} is set, the first provider call is held at the transport
+     * boundary and the production stop request is sent while it is outstanding; a late tool-call response must then
+     * produce no task, inventory change or speech.
+     */
+    static void scenario(
+            GameTestHelper h,
+            String name,
+            int budgetSeconds,
+            Mode mode,
+            int settleSeconds,
+            boolean stopAtTransport,
+            Consumer<Live> setup,
+            String order,
+            Consumer<Live> afterReply,
+            Function<Live, Verdict> check)
+            throws Exception {
         String configPath = System.getenv("FRIENDAI_LIVE_CONFIG");
         if (configPath == null || configPath.isBlank()) {
+            System.out.println("[SKIP] " + name + " needs FRIENDAI_LIVE_CONFIG");
             h.succeed();
             return;
         }
@@ -822,11 +934,24 @@ public class LiveCompanionTests {
         runtime.applyLoggingLevel("detailed");
         var sessions = runtime.sessions();
         RecordingSpeaker heard = new RecordingSpeaker();
-        sessions.setGatewayOverride(owner.getUUID(), gateway(configPath));
+        LiveGateway liveGateway = new LiveGateway(gateway(configPath));
+        sessions.setGatewayOverride(owner.getUUID(), liveGateway);
         sessions.setSpeakerWrapper(owner.getUUID(), real -> heard);
         CompanionEntity companion = CompanionManager.get(server).summon(owner);
         Live live = new Live(h, owner, companion, heard);
+        long logStart = sessions
+                .debug()
+                .logOf(owner.getUUID())
+                .query(new DebugLog.Query(EnumSet.allOf(LogKind.class), 0, 0, 1, true))
+                .stream()
+                .mapToLong(entry -> entry.id())
+                .max()
+                .orElse(0L);
+        if (stopAtTransport) {
+            liveGateway.holdNext();
+        }
         setup.accept(live);
+        live.utterance = order;
         System.out.println("[SCEN] " + name + " owner=" + owner.getUUID() + " order=" + order);
         long started = System.nanoTime();
         long deadline = started + budgetSeconds * SECOND;
@@ -835,6 +960,12 @@ public class LiveCompanionTests {
         Verdict[] reached = {null};
         int[] tick = {0};
         boolean[] done = {false};
+        boolean[] stopSent = {false};
+        long[] stopAt = {0};
+        String[] inventoryAtStop = {""};
+        int[] spokenAtStop = {0};
+        long[] logAtStop = {0};
+        int[] historyAtStop = {-1};
         h.onEachTick(() -> {
             if (done[0]) return;
             tick[0]++;
@@ -842,6 +973,107 @@ public class LiveCompanionTests {
             if (tick[0] % 3000 == 0) command(server, "time set noon");
             if (tick[0] == 60) TestMenuRequests.voice(owner, order);
             if (tick[0] < 60) return;
+            if (stopAtTransport && !stopSent[0] && liveGateway.heldSeen()) {
+                stopSent[0] = true;
+                stopAt[0] = now;
+                inventoryAtStop[0] = live.inventory();
+                spokenAtStop[0] = heard.said.size();
+                logAtStop[0] = sessions.debug().logOf(owner.getUUID()).lastId();
+                TestMenuRequests.handle(owner, new ControlRequest.Stop());
+                historyAtStop[0] =
+                        sessions.debug().historyOf(owner.getUUID()).recent().size();
+            }
+            if (stopAtTransport && stopSent[0] && !liveGateway.released() && now - stopAt[0] > 5L * SECOND) {
+                liveGateway.release(new LlmResponse(
+                        "On it.",
+                        List.of(new ToolCall(
+                                "late-stop",
+                                "mine_blocks",
+                                com.google.gson.JsonParser.parseString("{\"block\":\"minecraft:stone\",\"count\":1}")
+                                        .getAsJsonObject(),
+                                "{\"block\":\"minecraft:stone\",\"count\":1}",
+                                null)),
+                        StopReason.TOOL_USE,
+                        new Usage(0, 0)));
+            }
+            if (stopAtTransport && stopSent[0] && now - stopAt[0] < 40L * SECOND) {
+                return;
+            }
+            if (stopAtTransport && stopSent[0] && !done[0]) {
+                String workTask = workTask(companion);
+                String after = "inventory " + live.inventory() + ", task " + workTask + ", queued "
+                        + companion.executionCoordinator().queue().jobCount() + ", spoken after stop "
+                        + Math.max(0, heard.said.size() - spokenAtStop[0]);
+                boolean idle = "none".equals(workTask)
+                        && companion.executionCoordinator().queue().jobCount() == 0;
+                boolean unchanged = inventoryAtStop[0].equals(live.inventory());
+                boolean noLateTask = historyAtStop[0] < 0
+                        || sessions.debug().historyOf(owner.getUUID()).recent().size() == historyAtStop[0];
+                List<String> callsAfterStop = sessions
+                        .debug()
+                        .logOf(owner.getUUID())
+                        .query(new DebugLog.Query(
+                                EnumSet.of(LogKind.TOOL_CALL), logAtStop[0], 0, DebugService.LOG_CAPACITY, false))
+                        .stream()
+                        .map(entry -> LiveReport.toolName(entry.text()))
+                        .toList();
+                boolean noLateToolCall = callsAfterStop.isEmpty();
+                List<String> lateTurns = sessions
+                        .debug()
+                        .logOf(owner.getUUID())
+                        .query(new DebugLog.Query(
+                                EnumSet.of(LogKind.ASSISTANT, LogKind.PLANNER, LogKind.ERROR),
+                                logAtStop[0],
+                                0,
+                                DebugService.LOG_CAPACITY,
+                                false))
+                        .stream()
+                        .map(entry -> entry.kind() + ":" + entry.text().replace('\n', ' '))
+                        .toList();
+                // A separate idle/planner event may speak after a stop; only a task, tool call or inventory change
+                // would prove that the held late response leaked into work.
+                boolean quiet = heard.said.size() == spokenAtStop[0];
+                done[0] = true;
+                Verdict result = new Verdict(
+                        idle && unchanged && noLateTask && noLateToolCall && stopSent[0],
+                        "stop to idle " + round((now - stopAt[0]) / (double) SECOND)
+                                + " s; before: inventory " + inventoryAtStop[0] + "; after: " + after
+                                + "; late tool call: " + (noLateToolCall ? "none" : "present")
+                                + "; tool calls after stop: " + callsAfterStop + "; post-stop speech: "
+                                + (quiet ? "none" : "an idle event turn") + "; said " + live.spoken()
+                                + "; new task rows: "
+                                + (historyAtStop[0] < 0
+                                        ? "unknown"
+                                        : sessions.debug()
+                                                        .historyOf(owner.getUUID())
+                                                        .recent()
+                                                        .size()
+                                                - historyAtStop[0]));
+                if (!lateTurns.isEmpty()) {
+                    System.out.println("[LATE] " + lateTurns);
+                }
+                System.out.println("[RESULT] " + result.label() + " | " + name + " | "
+                        + round((now - started) / (double) SECOND) + " s | " + result.detail() + " | owner="
+                        + owner.getUUID() + " | said: " + live.spoken().replace('\n', ' '));
+                LiveReport.append(
+                        name, result, (now - started) / (double) SECOND, live, sessions, configPath, logStart);
+                CompanionManager.get(server).dismiss(owner);
+                h.succeed();
+                return;
+            }
+            // A provider that never answers or errors before the first call is held cannot prove the stop boundary.
+            if (stopAtTransport && !stopSent[0] && now > deadline) {
+                done[0] = true;
+                Verdict result = Verdict.unverified("no provider call was observed before the deadline");
+                System.out.println("[RESULT] " + result.label() + " | " + name + " | "
+                        + round((now - started) / (double) SECOND) + " s | " + result.detail() + " | owner="
+                        + owner.getUUID() + " | said: " + live.spoken().replace('\n', ' '));
+                LiveReport.append(
+                        name, result, (now - started) / (double) SECOND, live, sessions, configPath, logStart);
+                CompanionManager.get(server).dismiss(owner);
+                h.succeed();
+                return;
+            }
             // A turn that only calls a tool says nothing; its end counts as the reply all the same.
             boolean turnEnded =
                     heard.thinkingLog.contains(Boolean.TRUE) && !heard.thinkingLog.get(heard.thinkingLog.size() - 1);
@@ -876,15 +1108,227 @@ public class LiveCompanionTests {
             }
             if (result == null) return;
             done[0] = true;
-            System.out.println("[RESULT] " + (result.ok() ? "PASS" : "FAIL") + " | " + name + " | "
+            System.out.println("[RESULT] " + result.label() + " | " + name + " | "
                     + round((now - started) / (double) SECOND) + " s | " + result.detail() + " | owner="
                     + owner.getUUID() + " | said: " + live.spoken().replace('\n', ' '));
             if (!result.ok()) trace(sessions.debug().logOf(owner.getUUID()));
+            LiveReport.append(name, result, (now - started) / (double) SECOND, live, sessions, configPath, logStart);
             // One companion at a time, as in a singleplayer game: a companion left behind would share the next
             // scenario's sight budget and slow its perception down.
             CompanionManager.get(server).dismiss(owner);
             h.succeed();
         });
+    }
+
+    /** A gateway that can be held at the transport boundary, so a stop is tested against a real outstanding call. */
+    static final class LiveGateway implements LlmGateway {
+        private final LlmGateway delegate;
+        private final CompletableFuture<LlmResponse> held = new CompletableFuture<>();
+        private volatile boolean holdNext;
+        private volatile boolean heldSeen;
+        private volatile boolean released;
+
+        LiveGateway(LlmGateway delegate) {
+            this.delegate = delegate;
+        }
+
+        void holdNext() {
+            holdNext = true;
+        }
+
+        boolean heldSeen() {
+            return heldSeen;
+        }
+
+        void release(LlmResponse response) {
+            released = true;
+            held.complete(response);
+        }
+
+        boolean released() {
+            return released;
+        }
+
+        @Override
+        public CompletableFuture<LlmResponse> complete(String system, List<Message> messages, List<ToolSpec> tools) {
+            if (holdNext) {
+                holdNext = false;
+                heldSeen = true;
+                return held;
+            }
+            return delegate.complete(system, messages, tools);
+        }
+    }
+
+    /**
+     * The active work task, with the ordinary idle stance ({@code follow} or {@code stay}) reported as {@code none}.
+     * A stopped follow may still print its stop summary for a tick; it is stance, not work that could mutate the world.
+     */
+    static String workTask(CompanionEntity companion) {
+        return companion
+                .executionCoordinator()
+                .current()
+                .map(task -> switch (task.type()) {
+                    case "follow", "stay" -> "none";
+                    default -> task.type() + ":" + task.resultSummary();
+                })
+                .orElse("none");
+    }
+
+    /** Append-only evidence: one markdown row and one JSONL object per scenario, including failures. */
+    static final class LiveReport {
+        private static final Gson JSON = new GsonBuilder().disableHtmlEscaping().create();
+        private static Path markdownPath;
+        private static Path jsonPath;
+
+        private LiveReport() {}
+
+        static synchronized void append(
+                String name,
+                Verdict verdict,
+                double elapsedSeconds,
+                Live live,
+                dev.friendai.server.agent.CompanionSessions sessions,
+                String configPath,
+                long logStart) {
+            try {
+                if (markdownPath == null) {
+                    Path dir = reportDirectory();
+                    Files.createDirectories(dir);
+                    String stamp =
+                            DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").format(LocalDateTime.now());
+                    markdownPath = dir.resolve("live-" + stamp + ".md");
+                    jsonPath = dir.resolve("live-" + stamp + ".jsonl");
+                    Files.writeString(
+                            markdownPath,
+                            "# Live evaluation\n\n| scenario | result | seconds | order | evidence | said | tools |"
+                                    + " disposition | repeats n/r/u | claims |\n"
+                                    + "|---|---|---:|---|---|---|---|---|---:|---:|\n");
+                }
+                List<String> tools = sessions
+                        .debug()
+                        .logOf(live.owner.getUUID())
+                        .query(new DebugLog.Query(
+                                EnumSet.of(LogKind.TOOL_CALL), logStart, 0, DebugService.LOG_CAPACITY, false))
+                        .stream()
+                        .map(entry -> toolName(entry.text()))
+                        .limit(20)
+                        .toList();
+                List<OutcomeReview.Observation> observations =
+                        observations(sessions.debug().logOf(live.owner.getUUID()), logStart);
+                String disposition = live.companion
+                        .executionCoordinator()
+                        .current()
+                        .map(task -> task.type() + ":" + task.resultSummary())
+                        .orElse("idle");
+                Map<String, Object> record = new LinkedHashMap<>();
+                record.put("scenario", name);
+                record.put("result", verdict.label());
+                record.put("seconds", Math.round(elapsedSeconds * 10.0) / 10.0);
+                record.put("evidence", verdict.detail());
+                record.put("order", live.utterance);
+                record.put("spoken", live.spoken());
+                record.put("tools", tools);
+                record.put("disposition", disposition);
+                record.put("provider", providerLabel(configPath));
+                OutcomeReview.Review review =
+                        OutcomeReview.review(List.of(new OutcomeReview.Turn(live.heard.said, observations)));
+                Map<String, Object> outcomeReview = new LinkedHashMap<>();
+                outcomeReview.put("repeats", review.repeats());
+                outcomeReview.put("necessary", review.necessaryRepeats());
+                outcomeReview.put("redundant", review.redundantRetries());
+                outcomeReview.put("unchanged", review.unchangedRepeats());
+                outcomeReview.put("failedActionClaims", review.failedActionClaims());
+                record.put("outcomeReview", outcomeReview);
+                Files.writeString(
+                        jsonPath,
+                        JSON.toJson(record) + System.lineSeparator(),
+                        java.nio.charset.StandardCharsets.UTF_8,
+                        java.nio.file.StandardOpenOption.CREATE,
+                        java.nio.file.StandardOpenOption.APPEND);
+                Files.writeString(
+                        markdownPath,
+                        "| " + name + " | " + verdict.label() + " | " + round(elapsedSeconds) + " | "
+                                + live.utterance.replace("|", "/").replace('\n', ' ') + " | "
+                                + verdict.detail().replace("|", "/").replace('\n', ' ') + " | "
+                                + live.spoken().replace("|", "/").replace('\n', ' ') + " | "
+                                + String.join("; ", tools).replace("|", "/").replace('\n', ' ') + " | "
+                                + disposition.replace("|", "/").replace('\n', ' ') + " | "
+                                + review.necessaryRepeats() + "/" + review.redundantRetries() + "/"
+                                + review.unchangedRepeats() + " | " + review.failedActionClaims() + " |\n",
+                        java.nio.charset.StandardCharsets.UTF_8,
+                        java.nio.file.StandardOpenOption.CREATE,
+                        java.nio.file.StandardOpenOption.APPEND);
+            } catch (RuntimeException | java.io.IOException failure) {
+                // A report failure must not turn a world result into a different claim; leave a durable trace.
+                System.out.println("[REPORT-ERROR] " + failure);
+            }
+        }
+
+        /**
+         * Pairs each {@code tool: result} line with the normalized arguments of the call that produced it. The caller
+         * log also writes {@code instructions: …} and {@code provider usage: …} under the result kind; the pure pairing
+         * drops them because they have no pending call. Raw arguments never leave memory.
+         */
+        static List<OutcomeReview.Observation> observations(DebugLog log, long logStart) {
+            return OutcomeReview.pair(log
+                    .query(new DebugLog.Query(
+                            EnumSet.of(LogKind.TOOL_CALL, LogKind.TOOL_RESULT),
+                            logStart,
+                            0,
+                            DebugService.LOG_CAPACITY,
+                            false))
+                    .stream()
+                    .map(entry -> new OutcomeReview.Entry(
+                            entry.kind() == LogKind.TOOL_CALL
+                                    ? OutcomeReview.Entry.Kind.CALL
+                                    : OutcomeReview.Entry.Kind.RESULT,
+                            entry.text()))
+                    .toList());
+        }
+
+        /** The detailed call line is {@code name <json>}; collapse its arguments so field order is not a new target. */
+        static String targetKey(String text) {
+            return OutcomeReview.callTargetKey(toolCall(text));
+        }
+
+        /** The log projection prefixes {@code trace=…}; the tool name follows it. */
+        static String toolName(String text) {
+            String flat = OutcomeReview.logMessage(text);
+            int space = flat.indexOf(' ');
+            return space < 0 ? flat : flat.substring(0, space);
+        }
+
+        /** The call message itself, without the log's identity prefix: {@code tool <json>}. */
+        static String toolCall(String text) {
+            return OutcomeReview.logMessage(text);
+        }
+
+        /** Provider and model only: the endpoint and credential never enter a report. */
+        static String providerLabel(String configPath) {
+            try {
+                ServerConfig config = new Gson()
+                        .fromJson(Files.readString(Path.of(configPath), StandardCharsets.UTF_8), ServerConfig.class);
+                return config.profiles.get(config.activeProfile).provider + " / "
+                        + config.profiles.get(config.activeProfile).model;
+            } catch (RuntimeException | java.io.IOException failure) {
+                return "provider unknown";
+            }
+        }
+
+        /**
+         * The GameTest server runs with {@code build/run/gameTest} as its working directory; the report belongs under
+         * the project's {@code build/eval}, so the host and the report agree on one path.
+         */
+        static Path reportDirectory() {
+            Path cwd = Path.of("").toAbsolutePath();
+            for (Path candidate = cwd; candidate != null; candidate = candidate.getParent()) {
+                if (Files.isDirectory(candidate.resolve("build").resolve("run").resolve("gameTest"))) {
+                    return candidate.resolve("build").resolve("eval");
+                }
+            }
+            return cwd.resolve("build").resolve("eval");
+        }
     }
 
     /**

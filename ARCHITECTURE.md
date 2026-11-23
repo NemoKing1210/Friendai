@@ -511,6 +511,23 @@ agreement is `runGameTest -Dfabric-api.gametest.filter='friendai-gametest:compan
 `memory_menu_tests_*`), duplicate shifts are `FreeTimeServiceTest`, restore rejection is `QueueSaveTest` and
 `active_task_lifecycle_tests_*`, and a real quantity or build is the tool's filtered GameTest.
 
+**The real-server half.** `LiveCompanionTests` and `LiveUnderstandingTests` drive the production server, router,
+planner, tool registry, task runner and configured provider in a disposable world. Opt in with
+`FRIENDAI_LIVE_CONFIG=<server config>`; without it every scenario succeeds without calling a provider and prints a
+`[SKIP] … needs FRIENDAI_LIVE_CONFIG` line instead of writing a report. Each scenario judges a world fact (carried
+items, placed blocks, an entity, owner inventory), not the model's wording. A configured run appends a row to
+`build/eval/live-<timestamp>.md` and an object to `build/eval/live-<timestamp>.jsonl` — pass, fail or unverified — with
+the submitted order, elapsed seconds, the evidence, spoken text, tool names, task disposition and provider/model
+label. The report never includes the key, base URL or prompt body. `LiveGateway` can hold the first provider call at
+the transport boundary; `stopWhileTheProviderIsSilent` sends the production `ControlRequest.Stop`, completes that held
+call late with a tool call, and fails if the companion then starts a work task, changes inventory, adds a task-history
+row or logs a tool call. A separate idle/planner event may speak after the stop; that is not the held reply and is
+reported as such. `unreachableStoneIsRefused` asks for a block twenty blocks up and passes only when the block is
+untouched, the reply refuses in words and no completion is claimed. `OutcomeReview` (test fixtures) is the shared pure
+judge: a repeat at a different target or after changed evidence is necessary, the same failed call at an unchanged
+target is a redundant retry, and a declarative line after a turn with no successful tool result is an unsupported
+completion claim. Naturalness still needs a human read of the transcripts.
+
 **The capability inventory.** `ToolInventoryTest` enumerates registrations before feature and caller filters and writes
 `build/tool-inventory.md`. It records each tool's gate, access level, plan and restore eligibility, checkpoint type,
 schema counts, validated example when present and separate world test references. `ToolCatalogTests` checks the real

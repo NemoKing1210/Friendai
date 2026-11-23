@@ -89,6 +89,11 @@ public final class ScenarioRunner {
             int narration,
             int falseConfirmations,
             int repeatedToolCalls,
+            int necessaryRepeats,
+            int redundantRetries,
+            int unchangedRepeats,
+            int failedActionClaims,
+            int unscriptedToolCalls,
             boolean silent,
             List<String> failures,
             Integer systemChars,
@@ -128,12 +133,16 @@ public final class ScenarioRunner {
 
         /** Where the numbers come from: a scripted fake or a live provider, and whether usage is measured or synthetic. */
         public String provenance() {
+            String unverified = unscriptedToolCalls == 0
+                    ? ""
+                    : "; " + unscriptedToolCalls + " unscripted tool call(s) are fake successes, not world proof";
             if (syntheticUsage) {
                 return usageSources == 0
-                        ? "scripted FakeGateway; usage unknown (synthetic gateway)"
-                        : "scripted FakeGateway; usage synthetic";
+                        ? "scripted FakeGateway; usage unknown (synthetic gateway)" + unverified
+                        : "scripted FakeGateway; usage synthetic" + unverified;
             }
-            return usageSources == 0 ? "live provider; usage unknown" : "live provider; usage provider-reported";
+            return (usageSources == 0 ? "live provider; usage unknown" : "live provider; usage provider-reported")
+                    + unverified;
         }
     }
 
@@ -249,6 +258,7 @@ public final class ScenarioRunner {
         int narration = narration(spoken);
         int falseConfirmations = meter.falseConfirmations;
         int repeated = repeatedToolCalls(called);
+        OutcomeReview.Review review = OutcomeReview.review(meter.turns);
         List<String> failures = judge(
                 s.expect(),
                 requests,
@@ -272,6 +282,11 @@ public final class ScenarioRunner {
                 narration,
                 falseConfirmations,
                 repeated,
+                review.necessaryRepeats(),
+                review.redundantRetries(),
+                review.unchangedRepeats(),
+                review.failedActionClaims(),
+                tools.unscripted.size(),
                 spoken.isEmpty(),
                 failures,
                 sent ? payload.systemChars() : null,
@@ -347,6 +362,9 @@ public final class ScenarioRunner {
         private final long startMs;
         FakeGateway.Payload payload = FakeGateway.Payload.ZERO;
         final List<String> outcomes = new ArrayList<>();
+        final List<OutcomeReview.Turn> turns = new ArrayList<>();
+        private final List<String> turnSpoken = new ArrayList<>();
+        private final List<OutcomeReview.Observation> turnObservations = new ArrayList<>();
         int errors;
         int falseConfirmations;
         private boolean refusedThisTurn;
@@ -385,6 +403,10 @@ public final class ScenarioRunner {
             if (result != null && result.error()) {
                 refusedThisTurn = true;
             }
+            if (call != null && result != null) {
+                turnObservations.add(new OutcomeReview.Observation(
+                        call.name(), OutcomeReview.targetKey(call.arguments()), !result.error(), result.content()));
+            }
         }
 
         @Override
@@ -393,11 +415,19 @@ public final class ScenarioRunner {
             if (refusedThisTurn && claimsCompletion(text)) {
                 falseConfirmations++;
             }
+            if (text != null && !text.isBlank()) {
+                turnSpoken.add(text);
+            }
         }
 
         @Override
         public void onTurnEnd(long turn, String outcome) {
             outcomes.add(outcome);
+            if (!turnSpoken.isEmpty() || !turnObservations.isEmpty()) {
+                turns.add(new OutcomeReview.Turn(turnSpoken, turnObservations));
+            }
+            turnSpoken.clear();
+            turnObservations.clear();
             refusedThisTurn = false;
         }
 
