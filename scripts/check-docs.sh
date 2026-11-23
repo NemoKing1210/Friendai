@@ -3,8 +3,8 @@
 #
 #   scripts/check-docs.sh [file...]
 #
-# Defaults to AGENTS.md, ARCHITECTURE.md, CONTRIBUTING.md, README.md, MANUAL_CHECKLIST.md and the pull
-# request template. Every relative link must point at an existing path, every #anchor must match a
+# Defaults to AGENTS.md, ARCHITECTURE.md, CONTRIBUTING.md, GLOSSARY.md, README.md, MANUAL_CHECKLIST.md and
+# the pull request template. Every relative link must point at an existing path, every #anchor must match a
 # heading of its file (GitHub slug rules: lowercase, punctuation dropped, spaces turned into hyphens),
 # and every table row must have the same number of cells as its header. External links are not
 # fetched: CI has no network dependency, and a moved web page is not this repository's problem.
@@ -14,7 +14,7 @@ root=$(cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$root"
 
 if [ "$#" -eq 0 ]; then
-    set -- AGENTS.md ARCHITECTURE.md CONTRIBUTING.md README.md MANUAL_CHECKLIST.md .github/PULL_REQUEST_TEMPLATE.md
+    set -- AGENTS.md ARCHITECTURE.md CONTRIBUTING.md GLOSSARY.md README.md MANUAL_CHECKLIST.md .github/PULL_REQUEST_TEMPLATE.md
 fi
 
 errors=$(mktemp)

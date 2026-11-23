@@ -101,6 +101,24 @@ across every file. Reference the key with `Component.translatable` or `Component
 A new language is a full `en_us.json` translation plus long-string layout checks (buttons, tabs, tooltips, HUD, toasts
 and the settings screen at the smallest GUI scale); a translated interface does not add a local voice.
 
+### Add a command
+
+1. Add the literal and permissions in `command/FriendaiCommands`.
+2. Return a `UserMessage`/`Component` translation key, never a literal string.
+3. Add keys to every shipped language file; add a GameTest if the command touches the world or permissions.
+
+### Upgrade Minecraft, Fabric or Java
+
+1. Change the versions only in `gradle.properties` and keep `fabric.mod.json` dependency ranges in step; never
+   hard-code a loader or game version in code.
+2. Run `./gradlew genSources` and re-check every name the change moved or removed against the decompiled sources or
+   `javap`. Do not guess a replacement variant.
+3. Boot the game before trusting a compile: `defaultRequire: 1` turns a renamed mixin target into a boot failure. Run
+   one filtered GameTest class per mixin-affected area (targeting, barter, advancements) or a `runClient` smoke session.
+4. Run the unit and GameTest classes for the areas you touched.
+5. Treat it as a breaking change for versioning (while `0.x`, a MINOR bump), add the `CHANGELOG.md` line and update the
+   README's supported version when user-visible.
+
 ## Commits and CI
 
 Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/): `<type>(<optional scope>):

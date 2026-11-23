@@ -4,103 +4,41 @@ Guidance for AI coding agents (and humans) working on **Friendai**: a Fabric mod
 
 The mod is **not client-only**: the server owns the companion entity, the brain, tasks and memory; the client adds rendering, the companion menu, voice input, speech output and the settings screen. Both sides must run the mod (the integrated server in singleplayer counts).
 
-**How to read this file.** A **bold** sentence states a rule or a hard-won fact; the plain text around it explains how to meet it. `MUST`/`SHOULD`/`MAY` keep their usual meaning when used. Where this file and the code disagree, the code wins and the file is fixed in the same change.
+**How to read this file.** A **bold** sentence states a rule or a hard-won fact; the plain text around it explains how to meet it. `MUST`/`SHOULD`/`MAY` keep their usual meaning. Where this file and the code disagree, the code wins and the file is fixed in the same change.
 
-**Which file says what.** `AGENTS.md` is the canonical rulebook for agents; `CONTRIBUTING.md` is a short human-facing summary that must not add rules — when the two disagree, `AGENTS.md` wins and `CONTRIBUTING.md` is fixed; `ARCHITECTURE.md` is the reference half.
+**Which file says what.** `AGENTS.md` is the canonical rulebook for agents; `CONTRIBUTING.md` is a short human-facing summary that must not add rules — when the two disagree, `AGENTS.md` wins and `CONTRIBUTING.md` is fixed; `ARCHITECTURE.md` is the reference half (package map, runtime flows, data, protocol) and `GLOSSARY.md` defines the terms. Conditional procedures live in `.agents/skills/`: they are read only when the task calls for them.
 
 **Changing this guide is its own docs commit.** A rule change needs the maintainer's agreement, a `docs:` commit that says why, and no code riding along; never edit a rule to match a shortcut you just took.
 
-**The guide is checked.** `scripts/check-docs.sh` fails on a relative link to a missing path, on a `#anchor` that no heading in that file produces, and on a table row whose cell count differs from its header's; CI's `Docs links` job runs it and `CI gate` requires that job. Run it after you rename a heading, move a file, add a link or edit a table — a guide that points at a file that no longer exists, or a table whose columns have shifted, misleads every session that loads it.
+**The guide is checked.** `scripts/check-docs.sh` fails on a relative link to a missing path, on a `#anchor` that no heading in that file produces, and on a table row whose cell count differs from its header's; CI's `Docs links` job runs it and `CI gate` requires that job. Run it after you rename a heading, move a file, add a link or edit a table.
 
 **Orientation for a new agent:**
 
 1. Read "Commands" and "Project map" to find your way around.
-2. Read `ARCHITECTURE.md` — the package map, the runtime flows, data, the network protocol — and "Rules that keep it working" here, before changing code.
+2. Read `ARCHITECTURE.md` — the package map, runtime flows, data and the network protocol — and "Rules that keep it working" here, before changing code. Look a term up in `GLOSSARY.md` when it is unfamiliar.
 3. Find the exact entry point in `ARCHITECTURE.md`, "Where to start".
 4. Follow "Testing" and "Definition of done".
 5. If several sessions work in this checkout, read "Parallel sessions" first.
-6. Before starting, check whether the task splits into independent parts and run them in parallel — see "Working with subagents".
+6. Before starting, check whether the task splits into independent parts — see "Working with subagents".
 
-**Taking a task from `TODO.md`?** Read "Working from TODO.md" first: most items need a spec and a plan before any code.
+**Taking a task from `TODO.md`?** Read "Working from TODO.md" and the [`executing-todo-items`](.agents/skills/executing-todo-items/SKILL.md) skill: most items need a spec and a plan before any code.
 
-**Contents:** [Working from TODO.md](#working-from-todomd) · [Commands](#commands) · [Project map](#project-map) · [Rules that keep it working](#rules-that-keep-it-working) · [When to stop and ask](#when-to-stop-and-ask) · [Mixins](#mixins) · [Language and localization](#language-and-localization) · [Formatting](#formatting) · [Testing](#testing) · [Minecraft API notes](#minecraft-api-notes-263) · [Common recipes](#common-recipes) · [Failure modes we have already seen](#failure-modes-we-have-already-seen) · [Debugging with logs](#debugging-with-logs) · [Troubleshooting](#troubleshooting) · [Working with subagents](#working-with-subagents) · [Parallel sessions](#parallel-sessions) · [Git and repository hygiene](#git-and-repository-hygiene) · [Branches and pull requests](#branches-and-pull-requests) · [Versioning](#versioning) · [Changelog](#changelog) · [Definition of done](#definition-of-done) · [Glossary](#glossary)
+**Contents:** [Working from TODO.md](#working-from-todomd) · [Commands](#commands) · [Project map](#project-map) · [Rules that keep it working](#rules-that-keep-it-working) · [When to stop and ask](#when-to-stop-and-ask) · [Mixins](#mixins) · [Language and localization](#language-and-localization) · [Formatting](#formatting) · [Testing](#testing) · [Minecraft API notes](#minecraft-api-notes-263) · [Common recipes](#common-recipes) · [Failure modes we have already seen](#failure-modes-we-have-already-seen) · [Debugging with logs](#debugging-with-logs) · [Troubleshooting](#troubleshooting) · [Working with subagents](#working-with-subagents) · [Parallel sessions](#parallel-sessions) · [Git and repository hygiene](#git-and-repository-hygiene) · [Branches and pull requests](#branches-and-pull-requests) · [Versioning](#versioning) · [Changelog](#changelog) · [Definition of done](#definition-of-done)
 
 ## Working from TODO.md
 
-`TODO.md` at the repo root is the one list of work, open and finished together: a finished item stays where it is, ticked `[x]`, and there is no archive to keep in step. Picking an item from it is a different entry point than "do this now":
+`TODO.md` is the one list of work, open and finished together: a finished item stays where it is, ticked `[x]`, and there is no archive. The full order of operations — gates for a stale premise, regression watch, when to ask, plan, verify, close-out — is in the [`executing-todo-items`](.agents/skills/executing-todo-items/SKILL.md) skill; the contract below is what any session must honour.
 
-1. **Write a specification and then a plan before writing code**, unless the item is trivial (see below). The spec goes to `docs/superpowers/specs/`, the plan to `docs/superpowers/plans/` (both git-ignored); name the `TODO.md` item they belong to.
-2. Implement against that spec and plan, following "Test scope" and "Definition of done" like any other task.
-3. Close the loop: when the item is done, tick it `[x]` and leave it where it is, in the same commit that carries the change. Never renumber an item, finished or open — the maintainer refers to work by number ("do task 2"), so numbers are stable, a finished item keeps its number in the list, and no number is ever reused.
-
-**Judge the item before you claim it.**
-
-- **Check the premise, not only the wording.** Read the code and files the item names before touching anything: the cited `path:line` may have moved, a recent commit or another session may already have delivered the behavior, and the world sometimes proves the item's assumption wrong. The first ten minutes of reading are cheaper than a day of implementing the wrong thing.
-- **Ask what the change does to the product, not only whether it is implementable.** Would it remove working behavior, add a second mechanism beside one that already exists, spend reliability or safety on a feature nobody asked for, or force a rewrite the architecture does not need?
-- **If the item as written would leave the mod worse, do not implement it.** Restore the box to `[ ]`, write one short line under the item — `**Skipped:** <what is wrong> (<evidence: path:line, commit, failing test>)` — and report the item number and the reason in the final message so the maintainer decides. That line, written only after the item is released, is the one text ever added under an item; it is not a claim, and it is not a way to close work quietly. Leave `TODO.md` uncommitted for it, as for a dictated item; the final message is what reaches the maintainer now.
-- **If only part of the item is wrong, say which part** and either implement the safe remainder as a smaller change or propose the corrected scope instead of silently doing something else.
-
-**Pick a whole item, never a slice.**
-
-- When the maintainer asks you to choose work from `TODO.md` ("take the next task", "pick something", "do a task"), choose a top-level item with its own number — `17`, not `17.1`.
-- A sub-item is one slice of its parent: picking it leaves the rest of the parent unattended and that number half-finished, while the parent reads as still open.
-- Once you have claimed the parent, work through its sub-items in order and tick each `[x]` as it lands.
-- If the maintainer names a sub-item ("do 17.1"), that is an explicit order: take that line alone and leave the parent's box as it is (see the claim rule below).
-
-**Offer a choice before you take one.**
-
-- When the maintainer asks you to pick work without naming it, offer instead of grabbing: read `TODO.md` and the open claims, drop anything blocked or already in progress, and answer with two or three candidates in one short table — the number, what the owner gets, the size (small, or spec first), the risk (which areas and files, whether another session is near), and which one you recommend. Work starts when the maintainer answers.
-- Take the item directly when the maintainer named it, said "anything", or only one unclaimed item is left; say in one line which item you took and why that one.
-- **Definition of ready:** an item is pickable when you can state in one sentence each the behavior that changes and how success will be checked. If the item does not say, write those two sentences into its spec first — or ask — instead of inventing acceptance criteria while implementing.
-- An item that depends on another open item is not a smaller slice of it: name the blocker in the offer and let the maintainer order the work, instead of implementing half of both.
-
-**Claim the item before you start it.**
-
-- Several sessions share this checkout, so an unmarked item can be taken twice. As the first edit of the work — before the spec, before any code — change the item's `- [ ]` to `- [~]`.
-- That marker is the whole claim: **never add** a session name, a timestamp or an `**In progress**` line under the item, and do not ask another session to add one.
-- Taking a single sub-item — only when the maintainer names that sub-item, per "Pick a whole item, never a slice" — marks that line the same way (`- [~] **2.3. …`) and leaves the parent's box alone.
-- Check `grep -nE '^\s*- \[~\]' TODO.md` and `git log --oneline -5` before picking, and leave a claimed item to its session.
-
-**The claim is never a commit of its own.**
-
-- Mark the item `[~]` and leave `TODO.md` uncommitted: the marker waits and is committed only once the whole task is finished, together with the task's files (the commit that ticks the item `[x]`; for a task split into several commits, the final one).
-- Do not make a `chore(todo): take task N` commit.
-- The trade-off is real — another checkout cannot see an uncommitted marker — so before you take an item check `grep -nE '^\s*- \[~\]' TODO.md`, `git status` and `git log`, and when two sessions share the file, coordinate instead of trusting the commit history.
-
-When the work ends: tick `[x]` in the commit that carries the change and leave the item where it is. When you stop, abandon or skip it: restore `[ ]`, add the one-line skip note described above, and say why in your final message. Never delete or silently rewrite another session's marker; a `[~]` older than 24 hours whose session is visibly gone may be taken over by saying so.
-
-**When the spec and the plan are not needed.**
-
-- Small, fully understood items go straight to code: a simple bug fix with a clear cause, a text change in the UI, a translation or comment fix, a version bump. The call is the agent's.
-- If you can state the whole change in two sentences and the risk of a wrong direction is low, skip the paperwork.
-- If the item spans several modules, changes an interface, a save format, a config schema or user-visible behavior that needs design, or you are not sure what the fix is, write the spec and the plan first.
-- Unsure whether it is small? Write a one-paragraph spec: the cost is low, a wrong direction is not.
-
-**Plan against the architecture.**
-
-- **Read the flow before the first line of code.** Find the matching runtime flow in `ARCHITECTURE.md` and name the existing types that own each part of the job. The plan lists the files, the call sites, the data and event path, the rule each boundary crossing follows (rules 1–12), and the tests that will prove it.
-- **Extend an established mechanism instead of adding a parallel one.** A skill is a `Task` plus a tool contributed through `FeatureToolContributor`; a restorable task carries a checkpoint decoder; a provider is a preset entry; a structure is a registry entry; persistence uses `OwnerFileStore`/`StoreCodec`; configuration uses `ConfigStores` and an adjacent migration. If the item seems to need a second queue, store, event log, tool registry or turn loop, the plan is wrong — fix that in the plan, before any code.
-- Keep the layer boundary and thread ownership in the plan rather than in a review afterthought: pure policy in `engine/`, Minecraft adapters in the root source sets, world reads on the server thread only.
-
-**Leave the result flexible, reliable and extensible.**
-
-- **Flexible:** decisions live in pure policy or data — registries, tables, presets — not in hard-coded branches scattered through adapters; a new variant is an entry or an implementation, not an `if` in five places.
-- **Reliable:** bounded work per tick, timeouts in ticks, state that can be held and resumed, typed failure results instead of exceptions on the common path, and persistence that versions and protects what it writes.
-- **Extensible:** adding the next skill, provider, structure or setting touches its owning package and the shared registries only; orchestration does not change. A feature's tests cover boundaries, state transitions and failure paths, because that is what keeps it extensible without a rewrite.
-
-**Prove it runs, not only that it compiles.** An item is done when the covering unit group passes and, for a world change, a filtered GameTest class or a real client/server session has been run once — with the real result quoted (see "Testing" and "Definition of done"). Compilation is a gate, not proof of capability, and a test that cannot fail has proven nothing: break the guarded line once and watch the red.
-
-**Better ideas are welcome, within bounds.**
-
-- **Improve the item you are doing.** If planning shows a cleaner way, put it in the spec and plan, implement it as part of the item when it lowers risk or deletes code, and say in the final message what changed from the item's wording and why.
-- **Propose large changes, do not smuggle them in.** A new dependency, a package restructure, a schema redesign, a cross-cutting refactor or a rewrite of a working subsystem is the maintainer's decision; describe it in the final message — with the item it would serve — instead of doing it inside a TODO task.
-- **Never "fix" modules the item does not touch** just because you are in the neighbourhood, and never rewrite the project to make one item easier. An improvement is a smaller diff that does the same job, not a bigger one that renames things.
-
-**Recording an item is not a commit of its own.**
-
-- When the maintainer dictates work into `TODO.md`, write it and leave the file uncommitted — several items usually arrive in one sitting, and one commit per item is noise.
-- Commit `TODO.md` once the batch is done or when the maintainer asks, along with the other files of that commit.
-- This is one of two deliberate exceptions to "commit your own work as you finish it": dictated items wait for the batch, and a claim marker waits for the task it marks.
+1. **Write a specification and then a plan before writing code**, unless the item is trivial. The spec goes to `docs/superpowers/specs/`, the plan to `docs/superpowers/plans/` (both git-ignored); name the `TODO.md` item they belong to. Skip the paperwork only when the whole change fits two sentences and the direction is settled.
+2. **Check the premise before claiming.** Read the code the item names: the cited `path:line` may have moved, another session may already have delivered the behavior, and the item's assumption may be wrong. Ask what the change does to the product, not only whether it is implementable.
+3. **Pick a whole item, never a slice.** When asked to choose work, offer two or three candidates (number, what the owner gets, size, risk, recommendation) and start when the maintainer answers; take the item directly when it was named, when "anything" was said, or when only one unclaimed item is left. A sub-item is taken alone only when the maintainer names it.
+4. **Claim it as the first edit:** change `- [ ]` to `- [~]`, with no session name, timestamp or `**In progress**` line. Check `grep -nE '^\s*- \[~\]' TODO.md`, `git status` and `git log` first. The marker is never a commit of its own; it lands with the finished task, together with `[x]`.
+5. **Never renumber an item**, finished or open: the maintainer refers to work by number.
+6. **If the item as written would leave the mod worse, do not implement it.** Restore `[ ]`, write one line under it — `**Skipped:** <what is wrong> (<evidence: path:line, commit, failing test>)` — keep `TODO.md` uncommitted for it, and report the number and reason.
+7. **Tick `[x]` in the commit that carries the change**, and leave the item where it is. A skipped or abandoned item goes back to `[ ]` with its one-line note.
+8. **Plan against the architecture, then extend an established mechanism instead of adding a parallel one.** Read the matching runtime flow in `ARCHITECTURE.md` before the first line of code and name the existing types that own each part. A skill is a `Task` plus a tool through `FeatureToolContributor`; a restorable task carries a checkpoint decoder; a provider is a preset entry; persistence uses `OwnerFileStore`/`StoreCodec`; configuration uses `ConfigStores` and an adjacent migration. If the item seems to need a second queue, store, event log, tool registry or turn loop, the plan is wrong.
+9. **Leave the result flexible, reliable and extensible.** Decisions live in pure policy or data, not in branches scattered through adapters. Work per tick is bounded, timeouts are in ticks, state can be held and resumed, failures are typed results, and persistence versions and protects what it writes.
+10. **Better ideas are welcome, within bounds.** Improve the item you are doing when it lowers risk or deletes code, and say what changed and why. A new dependency, package restructure, schema redesign, cross-cutting refactor or rewrite is the maintainer's decision — propose it, do not smuggle it in. Never "fix" modules the item does not touch.
 
 ## Commands
 
@@ -112,71 +50,56 @@ JAVA_HOME="/path/to/jdk-25" ./gradlew build
 
 | Command | What it does |
 |---|---|
-| `./gradlew build` | Compile, run unit tests and Fabric GameTests, then package. Use `check --continue` for full local verification when packaging is already covered. |
+| `./gradlew build` | Compile, unit tests, Fabric GameTests, then package. Use `check --continue` for full local verification when packaging is already covered. |
 | `./gradlew test` | Root and engine unit tests (JUnit 5, no Minecraft); root `test` aggregates `:engine:test`. |
 | `./gradlew :engine:test --tests 'dev.friendai.<package>.*'` | Tests only the selected pure engine package. |
 | `./gradlew test --tests '*SomeTest'` | One unit test class; root `test` also aggregates `:engine:test`. |
 | `./gradlew compileGametestJava` | Compiles GameTest sources without booting Minecraft. |
-| `./gradlew runClientGameTest` | Opens an isolated Minecraft client and checks the YACL settings fields, transitions, save/cancel/reset and local HTTP previews in English, then checks that the settings screen and the companion menu fit in all eight shipped languages. Requires a display; does not call paid providers. |
-| `./gradlew runGameTest` | In-game tests only. Boots a Minecraft server and runs the whole suite (several minutes). |
-| `./gradlew runGameTest -Dfabric-api.gametest.filter='friendai-gametest:<class>_tests_*'` | One GameTest class (or one test by its full id) in under a minute. The filter is a single glob with `*` wildcards; it cannot exclude tests or list several patterns. |
-| `./gradlew updatePromptGolden` | Rewrites `engine/src/test/resources/prompt-golden/` from the current `PromptBuilder` output. Run it after a deliberate system-prompt change, review the diff as a prompt diff, and commit the goldens with the change; `PromptGoldenTest` fails with the case name and the first differing lines otherwise. |
+| `./gradlew runClientGameTest` | Isolated client: YACL settings fields, transitions, save/cancel/reset, local HTTP previews, then layout in all eight shipped languages. Needs a display; no paid providers. |
+| `./gradlew runGameTest` | Boots a server and runs the whole GameTest suite (several minutes). |
+| `./gradlew runGameTest -Dfabric-api.gametest.filter='friendai-gametest:<class>_tests_*'` | One GameTest class (or one test id) in under a minute. The filter is a single glob; no negation, no list. |
+| `./gradlew updatePromptGolden` | Rewrites `engine/src/test/resources/prompt-golden/`; review the diff as a prompt diff and commit the goldens. |
 | `./gradlew check` | Unit tests + GameTests + `spotlessCheck`, without packaging. |
-| `./gradlew spotlessApply -PspotlessFiles=<paths>` | Rewrites only the named Java files with the project formatter (Palantir: 4-space indent, 120 columns) and sorts imports. Paths are root-relative; prefix engine paths with `engine/`. The bare `spotlessApply` rewrites the whole tree and is forbidden in a shared checkout. CI runs `spotlessCheck`. |
-| `./gradlew assemble verifyModArtifact` | Compile and package, verify nested engine classes/resources and fixture exclusion; `exportTestJar` refreshes `test-builds/friendai-<version>.jar`. Does not run tests. |
-| `./gradlew exportTestJar` | Refreshes `test-builds/friendai-<version>.jar` without booting the game or running tests; it also runs automatically after `assemble`. **`test-builds/` is a repository-local staging folder: this task copies nothing into a launcher profile's `mods/` folder.** |
-| `./gradlew deployTestJar` | The only task that reaches the game's `mods/` folder: it puts the built jar in `TEST_BUILD_PATH` and deletes older `friendai-*.jar` files there first. It runs on its own and as a finalizer of `assemble`; **`exportTestJar` never triggers it.** The path comes from the process environment or a git-ignored root `.env` (`TEST_BUILD_PATH=C:/path/to/mods`, quotes and an `export ` prefix accepted); without it the task skips silently. Start from `.env.example`. |
-| `./gradlew verifyGametestShards` | Fails when `.github/gametest-shards.json` and the `fabric-gametest` entrypoints disagree — a class missing from every shard, listed twice, or unknown. `CI gate` runs it before any shard starts. |
-| `./gradlew runClient` / `runServer` | Dev client / server. `run/` is git-ignored; the server needs `run/eula.txt` with `eula=true`. |
-| `./gradlew genSources` | Decompiled Minecraft sources, for looking up API names (see "Minecraft API notes"). |
+| `./gradlew spotlessApply -PspotlessFiles=<paths>` | Formats only the named root-relative files (prefix engine paths with `engine/`). A bare `spotlessApply` is forbidden in a shared checkout. |
+| `./gradlew assemble verifyModArtifact` | Compiles every source set, packages, verifies nested engine classes/resources and fixture exclusion. Does not run tests. |
+| `./gradlew exportTestJar` | Refreshes `test-builds/friendai-<version>.jar`; it does **not** reach a launcher profile's `mods/` folder. Runs after `assemble`. |
+| `./gradlew deployTestJar` | The only task that copies the jar into the game's `mods/` folder (`TEST_BUILD_PATH` from the environment or a git-ignored root `.env`; skips silently when unset). Quote its `Deployed …` line. |
+| `./gradlew verifyGametestShards` | Fails when `.github/gametest-shards.json` and the `fabric-gametest` entrypoints disagree. `CI gate` runs it. |
+| `./gradlew runClient` / `runServer` | Dev client / server; `run/` is git-ignored and the server needs `run/eula.txt`. |
+| `./gradlew genSources` | Decompiled Minecraft sources, for looking up API names. |
 
-The first build downloads Minecraft and takes minutes; later builds take seconds.
+The first build downloads Minecraft and takes minutes; later builds take seconds. Details:
 
 - Unit results: `build/test-results/test/*.xml` and `engine/build/test-results/test/*.xml` (one XML per class; sum `tests`/`failures`).
 - GameTest results: console output — `========= N GAME TESTS COMPLETE` and `N required tests failed` (or `All N required tests passed`).
-- Gradle may run `runGameTest` before `test`; if a GameTest fails, run `./gradlew test` separately to get the unit-test count.
-- Only one Gradle run per checkout at a time: parallel builds fight over the Gradle lock and the shared `run/` directory.
-- **A jar the maintainer will load must land in the game's `mods/` folder, and only `deployTestJar` puts it there.** `exportTestJar` writes `test-builds/` and stops, so after `./gradlew exportTestJar` the launcher profile still holds the previous jar and the new build never appears in game. Run `./gradlew deployTestJar` (or `assemble`, whose finalizers are both tasks) whenever the maintainer is going to start the game, and quote the `Deployed <jar> to <path> (removed N older file(s))` line in the report; `TEST_BUILD_PATH` in the root `.env` is what it targets, and the task skips silently when that variable is absent, so say when it skipped instead of reporting a deployed jar you did not see the task copy.
+- Gradle may run `runGameTest` before `test`; if a GameTest fails, run `./gradlew test` separately for the unit count.
+- Only one Gradle run per checkout at a time: parallel builds fight over the lock and the shared `run/` directory.
+- **A jar the maintainer will load must land in the game's `mods/` folder, and only `deployTestJar` puts it there.** `exportTestJar` writes `test-builds/` and stops; run `deployTestJar` (or `assemble`, whose finalizers run both) whenever the maintainer is going to start the game.
 
 ## Project map
 
-### Top level
-
 | Path | What it is |
 |---|---|
-| `engine/src/main/java/dev/friendai/` | Game-independent library: `foundation/` shared contracts; `execution/` queue/tool contracts; `agent/` turn/planning/LLM; `features/` pure policies and models; `infrastructure/` JVM configuration, cloud speech HTTP, appearance HTTP and persistence adapters. Speech policies live under `features/speech/{stt,tts}`; local model files and native synthesis remain under `src/client/java/dev/friendai/client/audio`. No Minecraft, Fabric, optional UI or native audio dependency. |
-| `engine/src/test/java/dev/friendai/` | Pure engine unit tests; `engine/src/testFixtures/java/` holds reusable pure fakes and scenario fixtures. |
-| `src/main/java/dev/friendai/` | Common + server code (the mod's `main` source set), including Minecraft/server adapters. |
+| `engine/src/main/java/dev/friendai/` | Game-independent library: `foundation/`, `execution/`, `agent/`, `features/`, `infrastructure/`. No Minecraft, Fabric, optional UI or native audio imports. |
+| `engine/src/test/`, `engine/src/testFixtures/` | Pure engine tests and reusable pure fakes/fixtures. |
+| `src/main/java/dev/friendai/` | Common + server code, including Minecraft/server adapters. |
 | `src/client/java/dev/friendai/client/` | Client-only code (Loom split source set). |
-| `src/test/java/dev/friendai/` | JUnit 5 tests for root adapters and features; `testutil` holds root-only helpers. |
-| `src/gametest/java/dev/friendai/test/` | Fabric GameTests (a separate mod id, `friendai-gametest`). |
+| `src/test/java/dev/friendai/` | JUnit 5 tests for root adapters; `testutil` holds root-only helpers. |
+| `src/gametest/java/dev/friendai/test/`, `src/gametest/resources/` | Fabric GameTests (mod id `friendai-gametest`), their entrypoints and structures. |
 | `src/main/resources/` | `fabric.mod.json`, `assets/friendai/lang/`, icon, GUI sprites. |
-| `src/gametest/resources/` | GameTest `fabric.mod.json` (entrypoints) and `data/.../structure/*.nbt`. |
-| `build.gradle`, `engine/build.gradle`, `settings.gradle`, `gradle.properties` | Loom + engine setup, dependencies, and all versions including `mod_version`. |
-| `gradle/` | Wrapper. |
-| `.gitattributes`, `.editorconfig` | Line endings and editor defaults: text files are stored and checked out with LF, `*.bat`/`*.cmd` with CRLF, and Markdown keeps trailing spaces. Do not change them to "fix" a Windows checkout; a CRLF rewrite makes the whole tree look modified. |
-| `scripts/` | Maintenance scripts: `check-docs.sh` (guide links, anchors and table shape, run in CI), `check-release.sh` and `release-notes.sh` (release verification and notes), `run-gametest-shard.sh`, `setup-branch-protection.sh`. |
-| `.github/workflows/` | CI: unit tests, GameTests, build, commit lint, release. |
-| `.githooks/` | Local `commit-msg` hook mirroring commitlint. Enable with `git config core.hooksPath .githooks`. |
-| `docs/superpowers/{specs,plans}/` | Local design specs and implementation plans. **Git-ignored**; read for context, never commit. |
-| `architecture/` | Tracked build, dependency and migration inventories/rules. |
-| `test-builds/` | Exported test jars (`friendai-<version>.jar`). Git-ignored. |
-| `.env.example` | Template for the git-ignored root `.env`: every variable the build reads from it (`TEST_BUILD_PATH`, the drop folder for the built jar, with its accepted forms) and the process-only variables (`JAVA_HOME`, `GRADLE_OPTS`) and `-D` switches it does not set. |
-| `run/`, `build/`, `logs/`, `.gradle/`, `config/` | Local runtime/generated files. Git-ignored. |
-| `index.html`, `site/` | The interactive capability map (Minecraft-styled graphs of tools, memory, turn flow, architecture). `site/app.js` holds the data (`CATS`, `FLOW`, `MEM_CARDS`, `ARCH_CARDS`), `site/style.css` the look; graphs are drawn by `vis-network` (pinned CDN version in `index.html`), draggable and with physics. `site/i18n.ru.js` is the Russian translation (a second, deliberate exception to "everything in the repository is English", like `ru_ru.json`). Keep it current: see "Definition of done", item 10. |
-| `AGENTS.md`, `ARCHITECTURE.md` | The two halves of this guide: the rules every session loads, and the reference (packages, flows, persistence, protocol). See "Code map and flows". |
-| `CHANGELOG.md` | The player-facing history of the shipped mod, one section per `mod_version`, newest first, in [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) form. Update it with every shipped change; see "Changelog". |
-| `README.md`, `CONTRIBUTING.md`, `MANUAL_CHECKLIST.md`, `TODO.md`, `commitlint.config.mjs` | User docs, contributor rules, manual test checklist, the backlog with its finished items (see "Working from TODO.md"), commit rules. |
+| `build.gradle`, `engine/build.gradle`, `gradle.properties` | Loom + engine setup, dependencies and all versions including `mod_version`. |
+| `scripts/`, `.github/workflows/`, `.githooks/` | Docs/release/gametest scripts, CI, and the local `commit-msg` hook (enable with `git config core.hooksPath .githooks`). |
+| `docs/superpowers/{specs,plans}/` | Local design specs and plans. **Git-ignored**; read for context, never commit. |
+| `architecture/` | Tracked build, dependency and migration inventories and rules. |
+| `test-builds/`, `run/`, `build/`, `logs/`, `.gradle/`, `config/` | Local artifacts; git-ignored. |
+| `index.html`, `site/` | The capability map: `site/app.js` holds the data, `site/style.css` the look, `site/i18n.ru.js` the Russian text. Keep it current (see Definition of done). |
+| `AGENTS.md`, `ARCHITECTURE.md`, `CONTRIBUTING.md`, `GLOSSARY.md` | Rules, reference, the human summary and the term list. |
 
-### Code map and flows
-
-The rest of the map lives in `ARCHITECTURE.md`: the source sets, the **Where to start** table, the dependency rule, every package with its classes, the runtime flows (one chat turn, the task lifecycle, the menu, configuration, speech in and out), data and persistence, the network protocol and the access rules. Read it before changing a package you have not touched.
-
-Both files are part of the contract: add or move a package that either one names, and update it in the same commit.
+**The rest of the map and every runtime flow live in `ARCHITECTURE.md`:** source sets, the **Where to start** table, the dependency rule, every package, one chat turn, the task lifecycle, the menu, configuration, speech in and out, persistence, the network protocol and access rules. Read it before changing a package you have not touched. Add or move a package either guide names, and update it in the same commit.
 
 ## Rules that keep it working
 
-1. **Threads.** The world is touched only on the server thread. Server-side HTTP (the brain) runs on its own thread and hops back with `server.execute(...)` through `ServerBrainScheduler.execute`. Client speech stays on the client: recognition and synthesis run on worker threads and hop back with `Minecraft.getInstance().execute(...)`, and only the server-side transcript handler uses `server.execute(...)`. A `CompletableFuture` callback never touches entities directly.
+1. **Threads.** The world is touched only on the server thread. Server-side HTTP (the brain) runs on its own thread and hops back with `server.execute(...)` through `ServerBrainScheduler.execute`. Client speech stays on the client: recognition and synthesis run on worker threads and hop back with `Minecraft.getInstance().execute(...)`. A `CompletableFuture` callback never touches entities directly.
 2. **A world skill = a `Tool` + usually a `Task`.** Tools describe the skill to the LLM and validate arguments; tasks do the work over time. Add a skill by writing the task, registering the tool in the matching `*Tools` group called from `FriendaiTools.build`, and adding a GameTest. The core does not change.
 3. **Several tool calls in one response** must run in order, and Anthropic/Gemini must receive all the results in **one** user message (otherwise HTTP 400). Covered by tests; keep them green.
 4. **History trimming** must never leave a tool result or a call without results at the head, and must never drop the turn in progress.
@@ -196,14 +119,14 @@ Most of this guide exists so that an agent can act without interrupting the main
 | Situation | Why it cannot be decided alone |
 |---|---|
 | Rewriting history, force-pushing, deleting a branch or a worktree | Irreversible for every other session sharing this checkout. |
-| Adding a runtime dependency or a build plugin, or bumping Minecraft, Fabric, Java or Loom beyond a patch | Changes every checkout and the shipped jar; the upgrade recipe assumes the maintainer chose the version. |
-| Changing a persisted schema or an owner/world record format so that existing saves stop loading | Players lose data; a migration is a product decision, not an implementation detail. |
-| Renaming or removing a tool, command, config key, translation key or network operation that already ships | Breaks saved plans, user configs or older clients. |
+| Adding a runtime dependency or a build plugin, or bumping Minecraft, Fabric, Java or Loom beyond a patch | Changes every checkout and the shipped jar. |
+| Changing a persisted schema or an owner/world record format so that existing saves stop loading | Players lose data; a migration is a product decision. |
+| Renaming or removing a shipped tool, command, config key, translation key or network operation | Breaks saved plans, user configs or older clients. |
 | Editing a file that holds another session's uncommitted work, or undoing anything you did not write | The other session cannot see that its work was taken. |
 | Skipping a `TODO.md` item as harmful, or implementing a reduced version of it | The skip note and the report are the ask; nobody approved a different scope. |
-| Merging a pull request, manually tagging or publishing a release, enabling auto-merge, publishing elsewhere | Outward-facing and hard to undo; the maintainer's call every time. |
-| Adding a second queue, store, registry, event log or turn loop beside the existing one | An architecture decision belongs to the maintainer; propose it instead of building it. |
-| Anything the permission layer, a sandbox or a hook blocked | A refusal is the answer. Never retry it another way, in another session or through another tool. |
+| Merging a pull request, manually tagging or publishing a release, enabling auto-merge | Outward-facing and hard to undo. |
+| Adding a second queue, store, registry, event log or turn loop beside the existing one | An architecture decision belongs to the maintainer. |
+| Anything the permission layer, a sandbox or a hook blocked | A refusal is the answer. Never retry it another way. |
 
 Everything else — a naming choice, a file layout inside your own package, which test to add — is yours to decide: choose, say what you chose in the report, and keep moving.
 
@@ -214,336 +137,161 @@ The mod ships one mixin set — `friendai.mixins.json`, package `dev.friendai.mi
 - **A mixin is the last resort.** Prefer a Fabric event, a `Mob` goal, entity data or another vanilla hook. When vanilla offers no seam, as with hostile goals that ask for `Player`, the class javadoc says why, next to the code it patches.
 - One file per target class, named `<Target>Mixin`; prefix every injected member with `friendai$`; never `@Overwrite` — inject or redirect and leave the vanilla path intact.
 - `defaultRequire: 1` turns a renamed or removed vanilla method into a boot failure, not a compile error. A mixin change is verified by loading the game (GameTest boot or `runClient`), never by compilation alone, and the behavior it enables needs a GameTest.
-- The authoritative list is `src/main/resources/friendai.mixins.json`; the sources live in `dev.friendai.mixin`. Check all of them before changing entity AI, targeting, barter or advancement behavior, and never trust a count in prose over the JSON. They cover three seams:
-  - mob targeting (`PiglinAiInvoker`, `NearestAttackableTargetGoalMixin`, `TargetGoalAccessor`), which lets vanilla hostile goals treat the companion as a player;
-  - barter (`BehaviorUtilsBarterOutputMixin`, exact vanilla drop UUIDs);
-  - advancements (`PlayerAdvancementsMixin`, feeding the happenings journal because Fabric has no advancement event).
+- The authoritative list is `src/main/resources/friendai.mixins.json`; the sources live in `dev.friendai.mixin`. They cover three seams: mob targeting (`PiglinAiInvoker`, `NearestAttackableTargetGoalMixin`, `TargetGoalAccessor`), barter (`BehaviorUtilsBarterOutputMixin`, exact vanilla drop UUIDs) and advancements (`PlayerAdvancementsMixin`, feeding the happenings journal because Fabric has no advancement event).
 
 ## Language and localization
 
 - **Everything in the repository is English**: code, comments, identifiers, logs, Markdown, commit messages, config defaults, the system prompt, tool descriptions and results, task summaries.
-- **Player-facing text is always a translation key** rendered with `Component.translatable`. `src/main/resources/assets/friendai/lang/en_us.json` is the source of truth; every other file in that directory (`de_de`, `es_es`, `fr_fr`, `pt_br`, `ru_ru`, `uk_ua`, `zh_cn` today) must have exactly the same keys and the same `%s`/`%d` placeholders in the same order. `LangFilesTest` compares every file it finds there and also fails if code references a key (a string literal like `"friendai.something"`) that does not exist. Do not build keys by concatenating a literal that ends in `.` — the test will flag it.
+- **Player-facing text is always a translation key** rendered with `Component.translatable`. `src/main/resources/assets/friendai/lang/en_us.json` is the source of truth; every other file in that directory (`de_de`, `es_es`, `fr_fr`, `pt_br`, `ru_ru`, `uk_ua`, `zh_cn` today) must have exactly the same keys and the same `%s`/`%d` placeholders in the same order. `LangFilesTest` compares every file it finds there and fails on a key referenced in code that does not exist. Do not build keys by concatenating a literal that ends in `.`.
 - Pure-Java layers return `UserMessage`; the Minecraft layer converts it with `Components.of(...)`.
 - Not translated: LLM replies, anything addressed to the LLM, logs, command literals.
-- To add a string, follow "Add a translation key" under Common recipes and run `./gradlew test --tests '*LangFilesTest'` afterwards.
+- To add a string, follow "Add a translation key" under Common recipes and run `./gradlew test --tests '*LangFilesTest'`.
 
 ## Formatting
 
-Java layout is not a matter of taste: `build.gradle` wires [Spotless](https://github.com/diffplug/spotless) to [palantir-java-format](https://github.com/palantir/palantir-java-format) over `src/*/java/**/*.java`, both versions pinned in `gradle.properties`. Palantir is the formatter that matches this repository — 4-space indent and 120-column lines — where google-java-format would re-indent every file to 2 spaces.
+Java layout is not a matter of taste: `build.gradle` wires [Spotless](https://github.com/diffplug/spotless) to [palantir-java-format](https://github.com/palantir/palantir-java-format) over `src/*/java/**/*.java`, both versions pinned in `gradle.properties`. Palantir is the formatter that matches this repository — 4-space indent and 120-column lines.
 
-- **Format after your last edit and before the covering test run, never after it.** Run `./gradlew spotlessApply -PspotlessFiles=<comma-separated root-relative paths>` over the files you changed — the ones `git diff --name-only -- '*.java'` lists plus the files you created. If you edit them again, format again before the commit.
-- **Paths are root-relative; prefix engine paths with `engine/`.** The root task delegates to both projects and each formats only its own selection. It rewrites the files, sorts and prunes imports, trims trailing whitespace and ends each file with a newline. The `Formatting` job in CI runs `spotlessCheck` and fails on any file that differs, so an unformatted file costs a red gate.
-- **Never run a bare `./gradlew spotlessApply` in a shared checkout.** Without `-PspotlessFiles` it rewrites the whole tree, including another session's uncommitted files (see "Parallel sessions"). The bare form is for a checkout you own and for the one-time sweep after a formatter bump; in a shared one, pass your own files, or `./gradlew spotlessCheck -PspotlessFiles=…` to check without writing.
-- The tool owns the layout: never hand-format around it, and do not reflow a file yourself to "fix" its diff.
-- `// spotless:off` and `// spotless:on` around a block that must keep its own layout (an ASCII table, a generated literal, a golden file written out as text), with a reason next to it.
+- **Format after your last edit and before the covering test run, never after it.** Run `./gradlew spotlessApply -PspotlessFiles=<comma-separated root-relative paths>` over the files you changed plus the files you created. If you edit them again, format again before the commit.
+- **Paths are root-relative; prefix engine paths with `engine/`.** The root task delegates to both projects and each formats only its own selection. It rewrites files, sorts and prunes imports, trims trailing whitespace and ends each file with a newline. CI runs `spotlessCheck` and fails on any file that differs.
+- **Never run a bare `./gradlew spotlessApply` in a shared checkout.** It rewrites the whole tree, including another session's uncommitted files. Pass your own files, or use `spotlessCheck -PspotlessFiles=…` to check without writing.
+- The tool owns the layout: never hand-format around it, and do not reflow a file yourself to "fix" its diff. Wrap a block that must keep its own layout in `// spotless:off`/`// spotless:on` with a reason.
 - A new source set is added to the `target` line in `build.gradle`. A formatter bump goes into `gradle.properties` together with the `style:` commit that applies it.
 
 ## Testing
 
-### Test scope: fast feedback and full verification
+The detailed GameTest mechanics — arenas, chunk loading, `TaskTrace`, shard isolation — are in the [`writing-gametests`](.agents/skills/writing-gametests/SKILL.md) skill. The rules below always apply.
 
+### Test scope: fast feedback, full verification
 
-- **During edits, start with the fastest check that can reproduce the problem or verify the change.**
-  - Root unit tests of the area: `./gradlew test --tests 'dev.friendai.<package>.*'` (or a single class). For engine-only code, use `./gradlew :engine:test --tests 'dev.friendai.<package>.*'`.
-  - GameTests of the area, only if the change touches the game layer: one class glob per run, e.g. `./gradlew runGameTest -Dfabric-api.gametest.filter='friendai-gametest:<class>_tests_*'` (`BuildTests` → `build_tests_*`, `FarmingTests` → `farming_tests_*`). Name the class(es) you added or whose behavior you changed; a new skill's GameTest class counts.
-  - Always run `LangFilesTest` when you touched a language file.
-- **Before pushing changes with broad game impact or fixes for recurring failures across classes, batch the fixes and run `./gradlew check --continue` locally.** Use the same check when the maintainer asks for full local verification. Group tasks in one Gradle invocation where possible. After subsequent edits, rerun the checks those edits affect.
-- **Use CI's isolation when diagnosing a shard failure.** Run `scripts/run-gametest-shard.sh --class <class_id>` or its filtered Gradle command. An unfiltered local run shares a server across classes and can reveal different failures.
-- **At merge to `main`** CI (`.github/workflows/ci.yml`) runs all unit tests and GameTests on every pull request, merge-queue entry and push to `main`. The required `CI gate` must pass.
-  - The GameTests run as a matrix of shards, and `scripts/run-gametest-shard.sh` boots **one class per server** inside its shard, so a red run names the failing class and a class that only passes beside a particular neighbour cannot hide. The shard map is `.github/gametest-shards.json`; `./gradlew verifyGametestShards` fails when a registered class is missing, listed twice or unknown, and `CI gate` runs it before any shard starts.
-  - `.github/workflows/nightly.yml` also runs the whole suite in one server, where cross-class state and batch timing can show up.
-- Report which local groups or full suite ran, their actual results, and the status of CI. Triage failures with evidence before widening the change.
+- **During edits, start with the fastest check that can reproduce the problem or verify the change:** the area's root unit tests (`./gradlew test --tests 'dev.friendai.<package>.*'`), its engine equivalent (`./gradlew :engine:test --tests '…'`), or one filtered GameTest class when the game layer changed. Always run `LangFilesTest` when you touched a language file.
+- **Before pushing broad game impact or fixes for recurring failures across classes, batch the fixes and run `./gradlew check --continue` locally.** Group tasks in one Gradle invocation; after later edits, rerun only what those edits affect.
+- **Use CI's isolation when diagnosing a shard failure:** `scripts/run-gametest-shard.sh --class <class_id>`. An unfiltered local run shares a server across classes and can reveal different failures.
+- **At merge to `main`** CI (`.github/workflows/ci.yml`) runs all unit tests and GameTests on every pull request, merge-queue entry and push. The required `CI gate` must pass; `Commit lint gate` checks commits and the PR title.
+- **Report which groups or full suite ran, their actual results, and the status of CI.** Triage failures with evidence before widening the change.
 - **A world change is exercised once before the commit.** Unit tests prove logic, not that a task runs: a change to a `Task`, `ExecutionCoordinator`, the entity, a builder or a menu is run once — a filtered GameTest class, or a real `runClient`/`runServer` session — and the report says what was run. Compiling is not running.
 
 ### Batch the loop: write everything, run once
 
-An agent slows itself down by running Gradle after every edit: a unit run costs tens of seconds, a GameTest boot minutes, the edit itself seconds. The rule:
-
-1. Write the whole slice first: the logic, the tests that pin it, the language keys, the call sites, the doc line.
-2. Run the covering group and read failures before editing again. Broaden verification after the fixes are batched (see "Test scope").
+1. Write the whole slice first: logic, tests that pin it, language keys, call sites, the doc line.
+2. Run the covering group and read failures before editing again. Broaden verification after the fixes are batched.
 3. Fix all of them in one pass, then re-run. Do not restart the loop after each individual fix.
-4. Treat compilation as part of the batch: write against the type system, not against the compiler's first error message.
-5. Format as part of the batch too: one `./gradlew spotlessApply -PspotlessFiles=<your files>` before the single test run, never after it (see "Formatting").
+4. Treat compilation as part of the batch: write against the type system, not the compiler's first error message.
+5. Format as part of the batch: one `spotlessApply -PspotlessFiles=<your files>` before the single test run, never after it.
 
 **Keep the tests honest while batching.**
 
-- **A test that passes on the first run has proven nothing.** A test written next to its implementation is still the specification, but until you know it can fail you know nothing; write it against the current behavior when you can.
-- **Break the guarded line once, inside the same batch.** If you cannot write the test first, change the one line it guards, watch the red, then restore it.
-- **A failure that is not the one you are testing hides the truth.** A missing floor, a GameTest class absent from `fabric-gametest`, a fixture that throws, a test that fails on setup — each one makes a green run meaningless.
-- **TDD, batched.** Write the test before the implementation but do not run it alone after each edit. Reusable pure fakes live in `engine/src/testFixtures/java/dev/friendai/testutil`; root-only helpers stay in `src/test/java/dev/friendai/testutil`. No mocking frameworks.
-- **What a test must prove.** Behavior, boundaries, state transitions, precedence, error paths — nothing else. Do not pin translation wording, do not assert that a helper was called, do not let a fake echo its own input back, and do not re-pin incidental defaults. A test that only proves the code still says what it says is deleted with the change it guards.
-- **Unit fakes you can reuse:** `MockHttpServer` (scripted loopback HTTP, records method/path/headers/body), `FakeGateway` (scripted LLM responses/calls/failures), `FakeToolExecutor` (records specs/executions/access), `ManualScheduler` (virtual clock), `GridCellView` (ASCII grid `CellView` in engine test fixtures, shared with pathing tests), `RecordingSpeaker` (captures speech/errors/thinking).
-- **GameTests share one world and run in parallel.** So: never rely on global state; give each test its own block type (`MineBlocksTests` uses a different log per test) and filter item/entity counts by type; build a floor with `GameTestSupport.platform(h, size)`; use `GameTestSupport.mockPlayerAt(...)` because mock players log in at the world origin, in an unloaded area. Drive an `ExecutionCoordinator` yourself inside `h.succeedWhen(() -> { coordinator.tick(); ... })` for deterministic ticking, and set `@GameTest(maxTicks = ...)` for slow tests.
-- **Reserve the arena and distinguish relative from world coordinates.** Choose the smallest `GameTestArenas` template that contains the fixture and its movement range when they outgrow the default 8×8. Start fixtures at nonnegative relative X and Z. The structure grid spaces neighbours using these dimensions, and the shared floor and wall helpers reject a fixture wider than its template. Use `h.absolutePos(...)` or `h.absoluteVec(...)` before passing a relative position directly to a level or entity API.
-- **Load the chunks the test needs for entities to tick.** Use `GameTestSupport.platform`/`platformAt` to load the floor and its margins. Load extra chunks explicitly if a test needs entities to move farther, and add `GameTestSupport.enclose(h, y, size, height)` when a hurt or fleeing mob could run off the edge.
-- **Scope server-wide changes to a dedicated test environment.** A test that changes server settings across ticks needs its own `friendai-gametest:config` environment resource under `src/gametest/resources/data/friendai-gametest/test_environment/`. Minecraft restores the saved configuration at batch teardown, including after a failure. Assert on a test's own entity, owner or chunk ticket when it uses a shared service.
-- **GameTest runs are expensive; batch them.**
-  - Every `runGameTest` boots a Minecraft server, so do not repeat a filtered boot per test. While debugging one test, filter it: `./gradlew runGameTest -Dfabric-api.gametest.filter=friendai-gametest:<test_name>`; `build.gradle` forwards the property to the GameTest server.
-  - The value is one glob where `*` matches any text (`friendai-gametest:hunger_tests_*` runs the whole `HungerTests` class, 24 tests in about 50 s including the boot); there is no negation and no pattern list, so "everything except X" is not expressible.
-  - Run the affected class first. Use "Test scope" to decide when to verify the full suite locally.
-  - If a full run shows a failure in an unrelated, timing-sensitive test (the shared world makes a few rotate), re-run only that test filtered for a clean signal instead of repeating the whole suite.
-- **A hanging task test must say what it was doing.**
-  - Drive the tick loop through `TaskTrace.of(h, runner, companion).succeedWhen(() -> { … })` instead of a bare `h.succeedWhen(...)`: it records one line per tick (position, active task with its `debugStatus()`, queued jobs, sight backlog and how much the companion currently sees).
-  - It prints the last twelve ticks every six hundred failed ticks, at most twice; a task that fails and leaves the coordinator idle prints its last sixty ticks right then, and an unexpected exception does the same.
-  - A green test prints nothing; a flaky one leaves the whole timeline in `build/gametest-shards/<class>.log`, which CI uploads when a shard fails. Do not add ad-hoc `System.out.println` probes to product code for a test.
-- **New GameTest class?** Add it to the `fabric-gametest` entrypoint list in `src/gametest/resources/fabric.mod.json`, or it will not run, **and** add it to exactly one shard in `.github/gametest-shards.json`; `verifyGametestShards` (part of `CI gate`) fails a class that is registered but in no shard.
-- Per-owner test hooks exist on `CompanionSessions` (`setGatewayOverride`, `setSpeakerWrapper`) so tests can script the LLM without touching the network.
-- `MANUAL_CHECKLIST.md` lists what automation cannot cover (real providers, voice, LAN, both UI languages). Do not tick an item you did not perform.
+- **A test that passes on the first run has proven nothing.** Write it against the current behavior when you can; otherwise change the one guarded line, watch the red, then restore it.
+- **A failure that is not the one you are testing hides the truth.** A missing floor, an unregistered GameTest class, a throwing fixture — each makes a green run meaningless.
+- **TDD, batched.** Write the test before the implementation, but do not run it alone after each edit. Reusable pure fakes live in `engine/src/testFixtures/java/dev/friendai/testutil`; root-only helpers stay in `src/test/java/dev/friendai/testutil`. No mocking frameworks.
+- **What a test must prove:** behavior, boundaries, state transitions, precedence, error paths — nothing else. Do not pin translation wording, assert that a helper was called, echo a fake's own input, or re-pin incidental defaults. A test that only proves the code still says what it says is deleted with the change it guards.
+- **Reusable fakes:** `MockHttpServer`, `FakeGateway`, `FakeToolExecutor`, `ManualScheduler`, `GridCellView`, `RecordingSpeaker`.
+
+### GameTest rules
+
+- **GameTests share one world and run in parallel.** Never rely on global state; give each test its own block type and filter counts by type. Use `GameTestSupport.platform(...)`/`mockPlayerAt(...)`/`enclose(...)`, load the chunks a moving entity needs, and drive an `ExecutionCoordinator` yourself in `h.succeedWhen(() -> { coordinator.tick(); ... })`.
+- **Scope server-wide changes to a dedicated test environment** under `src/gametest/resources/data/friendai-gametest/test_environment/`; assert on the test's own entity, owner or chunk ticket.
+- **Drive hanging tasks through `TaskTrace`**, not bare `succeedWhen`, and never add `System.out.println` probes to product code.
+- **Register a new GameTest class** in the `fabric-gametest` entrypoints and in exactly one shard of `.github/gametest-shards.json`; `verifyGametestShards` fails a miss. Batch boots and filter flaky tests.
+- `CompanionSessions.setGatewayOverride`/`setSpeakerWrapper` script the LLM without the network. `MANUAL_CHECKLIST.md` lists what automation cannot cover; do not tick an item you did not perform.
 
 ### CI checks and red runs
 
-- **The required checks are `CI gate` and `Commit lint gate`.** `CI gate` runs the unit suites, the GameTest shards, `spotlessCheck`, packaging, `verifyGametestShards` and the `Docs links` job; `Commit lint gate` checks the commits and the PR title. Nothing merges on a red or pending gate.
-- **The guides are checked too.** `Docs links` runs `scripts/check-docs.sh`: a relative link to a missing path, a `#anchor` no heading produces, or a table row with the wrong cell count fails the job — fix the link, the heading or the table, never the check. `Workflow lint` also runs `shellcheck` over `scripts/*.sh`.
-- **A red GameTest shard names its class.** The suite runs as a matrix of shards and `scripts/run-gametest-shard.sh` boots one class per server, so the job name tells you which class to reproduce locally with that class's glob. The shard map is `.github/gametest-shards.json`.
-- **The log is an artifact.** A failing shard uploads `build/gametest-shards/<class>.log`, which holds the `TaskTrace` timeline of a flaky or hanging test. Read it before changing code.
-- **Nightly and unfiltered local runs cover cross-class interactions.** Inspect shared-world state and timing when a failure appears only in one of those runs.
-- **Triage before rerunning.** Reproduce with the covering group, fix what is yours, and report what is not with the evidence (`git status`, the failing class, the log line). Re-run only the affected job; never merge around a red gate.
+- **The required checks are `CI gate` and `Commit lint gate`.** `CI gate` runs the unit suites, GameTest shards, `spotlessCheck`, packaging, `verifyGametestShards` and `Docs links`. Nothing merges on a red or pending gate.
+- **The guides are checked too.** `Docs links` runs `scripts/check-docs.sh`; a broken relative link, a bad `#anchor` or a wrong table cell count fails it. `Workflow lint` runs `shellcheck` over `scripts/*.sh`.
+- **A red GameTest shard names its class.** Reproduce it with that class's glob described above; read the uploaded `build/gametest-shards/<class>.log` before changing code.
+- **Nightly and unfiltered local runs cover cross-class interactions.** Inspect shared-world state and timing when a failure appears only there.
+- **Triage before rerunning.** Fix what is yours and report what is not with evidence; never merge around a red gate.
 
 ## Minecraft API notes (26.3)
 
 26.x is unobfuscated: **Mojang names**, no Yarn. Names differ from older versions you may remember, so look them up instead of guessing:
 
-- Decompiled sources: after `./gradlew genSources`, find `*-sources.jar` under `.gradle/loom-cache/minecraftMaven/net/minecraft/` (`minecraft-common-*` and `minecraft-clientOnly-*`). Extract them somewhere outside the repo and `grep`. Without sources, `javap -p -c -cp <minecraft.jar> <class>` still works because the jar keeps its names.
+- Decompiled sources: after `./gradlew genSources`, find `*-sources.jar` under `.gradle/loom-cache/minecraftMaven/net/minecraft/` (`minecraft-common-*` and `minecraft-clientOnly-*`). Extract them outside the repo and `grep`. Without sources, `javap -p -c -cp <minecraft.jar> <class>` still works because the jar keeps its names.
 - Fabric API / YACL / Mod Menu jars live in the Gradle cache; inspect with `javap -cp <jar> <class>`.
-- Names removed or moved in 26.x (do not use the old ones): `SavedData`/`SavedDataType` are in `net.minecraft.world.level.saveddata`; `level.getSharedSpawnPos()` → `level.getRespawnData().pos()`; `dimensionType().bedWorks()` → `level.environmentAttributes().getDimensionValue(EnvironmentAttributes.BED_RULE)` (`BedRule`); `level.getDayTime()` is gone (use `level.isDarkOutside()` for night, or the world clock via `level.getDefaultClockTime()`).
+- Names removed or moved in 26.x: `SavedData`/`SavedDataType` are in `net.minecraft.world.level.saveddata`; `level.getSharedSpawnPos()` → `level.getRespawnData().pos()`; `dimensionType().bedWorks()` → `level.environmentAttributes().getDimensionValue(EnvironmentAttributes.BED_RULE)` (`BedRule`); `level.getDayTime()` is gone (use `level.isDarkOutside()` or the world clock via `level.getDefaultClockTime()`).
 - Things that tripped us before: `Identifier` (not `ResourceLocation`); entity save/load uses `ValueOutput`/`ValueInput`; `Entity.snapTo`; the current screen is `minecraft.gui.screen()`, toasts are `minecraft.gui.toastManager()`, open a screen with `setScreenAndShow`; `Mob.swing(hand, SwingAnimation.DEFAULT)`; `EntityRenderers.register`; HUD via `HudElementRegistry`; keybinds via `KeyMappingHelper` and `KeyMapping.Category.register(Identifier)`; command permissions via `Commands.hasPermission(Commands.LEVEL_GAMEMASTERS)`.
 - Item behavior lives in data components: `DataComponents.TOOL` (mining rules and speeds), `ATTRIBUTE_MODIFIERS` (damage/speed), `EQUIPPABLE`, `WEAPON`, `FOOD`. Do not hard-code tool tiers; ask the stack.
 - YACL and Mod Menu are **optional** dependencies. Code that touches them lives in `client/config` and must only be loaded when `yet_another_config_lib_v3` is present.
 
 ## Common recipes
 
-### Add a skill
+The step-by-step versions are in `CONTRIBUTING.md`; these are the invariants.
 
-1. Put a Minecraft task adapter in `src/main/java/dev/friendai/features/<area>/minecraft/task/`; keep reusable policies and models in `engine/src/main/java/dev/friendai/features/<area>/` without Minecraft imports.
-2. Add its tool to the area-owned `*Tools` contributor using `TaskToolDefinition` and `FeatureToolRegistry`. Validate arguments with `SchemaBuilder`, set access and queue traits deliberately, and add it to the catalog metadata. `FriendaiTools.build` composes the contributors; do not add a second central task factory.
-3. If the task should be restorable, mark the definition restorable and contribute its bounded checkpoint decoder beside it with `.withCheckpoint(<stable task type>, <CheckpointRestorer>)` in the owning feature; `TaskRestoreRegistry` composes the contributed decoders and rejects a duplicate key, so adding a restorable task never edits orchestration.
-4. Add player-facing strings to every shipped language file and a GameTest in `src/gametest`; register its class in `src/gametest/resources/fabric.mod.json`.
-5. Bump `mod_version` for a shipped behavior change. Start with the covering unit tests and filtered GameTest class, then follow "Test scope". `assemble verifyModArtifact` refreshes `test-builds/friendai-<version>.jar`.
-
-### Add a config option
-
-1. Add the field and default to `engine/.../infrastructure/config/ServerConfig` or `ClientConfig`; enforce valid ranges in that config's validation path.
-2. For a persisted config schema change, bump its version and add an explicit adjacent transition in `ConfigStores`, with tests for existing user values and defaults for new fields. `ConfigMigration` requires a complete reviewed chain from every supported older schema to the current one; the chain and its tests are the source of truth, so do not copy schema numbers into prose. Validate before writing, preserve unknown fields, create a unique byte-exact versioned backup and replace atomically. Failed upgrades/backups remain read-only and retry on reload. Unknown, missing and future versions stay untouched; server startup uses in-memory defaults for unsupported versions. These migrations apply only to configuration, not owner/world records.
-3. Expose editable settings in `src/client/java/dev/friendai/client/config/` when appropriate; keep YACL and Mod Menu optional.
-4. Add label/tooltip keys to every shipped language file and focused validation, migration, unsupported-version and failed-write tests under `engine/src/test` or `src/test`.
-
-### Add an LLM provider or protocol
-
-1. Add pure wire logic under `engine/.../agent/llm/protocol/` and keep shared message rules in `ProtocolSupport`; provider presets and routing live under `engine/.../agent/llm/provider/`.
-2. Register protocols and presets in `ProviderRegistry.withBuiltins`; preserve key redaction and endpoint precedence.
-3. Cover routing and wire behavior with unit tests (`ProviderRegistryTest`, protocol tests, `MockHttpServer`); update the README provider table when user-visible.
-
-### Add a command
-
-1. Add the literal and permissions in `command/FriendaiCommands`.
-2. Return a `UserMessage`/`Component` translation key, never a literal string.
-3. Add keys to every shipped language file; add a GameTest if the command touches the world or permissions.
-
-### Add a translation key
-
-1. Add it to `en_us.json`, then the same key to every shipped locale file with identical placeholders in the same order.
-2. Reference it via `Component.translatable` or `Components.of(new UserMessage(...))`.
-3. Run `LangFilesTest`; it fails on missing, extra or placeholder-mismatched keys.
-
-### Add a client payload
-
-1. Put wire values, bounds and codecs in the pure `engine/.../protocol/` package; keep Fabric wrappers in `src/main/java/dev/friendai/transport/payload/`.
-2. Register wrappers in `FriendaiNetworking`, gate client-to-server work through the negotiated session in `ServerProtocolConnections`, and hop world access onto the server thread. Client receivers must hop to the client thread and reject stale connection sessions.
-3. Check `ClientPlayNetworking.canSend` before client sends and `ServerPlayNetworking.canSend` before server sends. Enforce access and filter sensitive data on the server.
-
-### Change persistence
-
-1. Start from the existing owner repository and `OwnerFileStore`/`StoreCodec` boundaries; persist owner-scoped memory, profile, goals, free time, places, placement, knowledge, trading and instruction-skill records independently.
-2. Bound and version the codec. Older and future formats are unsupported and stay untouched; do not add migrations or old-format readers. Corrupt and oversized files remain protected from accidental overwrite. Keep atomic replace and backup recovery behavior.
-3. Add codec/repository round-trip, unsupported-version and failure-path tests; for entity/world state, add a save/reload GameTest. Update the persistence table in `ARCHITECTURE.md` in the same change.
-
-### Upgrade Minecraft, Fabric or Java
-
-1. Change the versions only in `gradle.properties` (Loom, Minecraft, Fabric API, Java) and keep `fabric.mod.json`'s dependency ranges in step; never hard-code a loader or game version in code.
-2. Run `./gradlew genSources` and re-check every name the change moved or removed against the decompiled sources or `javap` (see "Minecraft API notes"). Do not guess a replacement variant.
-3. Boot the game before trusting a compile. `defaultRequire: 1` turns a renamed mixin target into a boot failure: run one filtered GameTest class per mixin-affected area (targeting, barter, advancements) or a `runClient` smoke session.
-4. Run the unit and GameTest classes for the areas you touched. Follow "Test scope" for full local verification and report the actual results.
-5. Treat it as a breaking change for versioning (while `0.x`, a MINOR bump), add the `CHANGELOG.md` line, and update the README's supported version when it is user-visible.
+- **Add a skill:** task adapter in `src/main/java/dev/friendai/features/<area>/minecraft/task/`, pure policy in `engine/.../features/<area>/`; register the tool in the area's `*Tools` contributor via `TaskToolDefinition`/`FeatureToolRegistry`; if restorable, contribute a checkpoint decoder with `.withCheckpoint(...)`; add language entries and a GameTest; bump `mod_version`.
+- **Add a config option:** field and default in engine `ServerConfig`/`ClientConfig` with validation; a persisted-shape change bumps the schema and adds an explicit adjacent `ConfigStores` transition with tests; expose it in `client/config`; add label/tooltip keys to every locale.
+- **Add an LLM provider or protocol:** pure wire logic in `engine/.../agent/llm/protocol/`, presets and routing in `agent/llm/provider/`, registered in `ProviderRegistry.withBuiltins`; keep key redaction and endpoint precedence; update the README provider table when user-visible.
+- **Add a command:** literal and permissions in `command/FriendaiCommands`; return a `UserMessage`/`Component` key; translate it; add a GameTest when it touches the world or permissions.
+- **Add a translation key:** `en_us.json` first, then every shipped locale with identical placeholders; reference it with `Component.translatable` or `Components.of(new UserMessage(...))`; run `LangFilesTest`.
+- **Add a client payload:** wire values and codecs in engine `protocol/`, Fabric wrappers in `transport/payload/`, registered in `FriendaiNetworking`; gate work through `ServerProtocolConnections`; hop to the correct thread; check `canSend`; enforce access and redaction on the server.
+- **Change persistence:** start from `OwnerFileStore`/`StoreCodec`; bound and version the codec; older and future formats stay untouched; keep atomic replace, backup recovery and protection from overwrite; add round-trip/unsupported/failure tests; update the persistence table in `ARCHITECTURE.md`.
+- **Upgrade Minecraft, Fabric or Java:** change versions only in `gradle.properties` and keep `fabric.mod.json` ranges in step; run `genSources` and re-check every moved name; boot the game for every mixin-affected area; run the covering tests; treat it as breaking (a MINOR bump while `0.x`).
 
 ## Failure modes we have already seen
 
-Each line is a rule stated above, in the shape it has actually failed in this repository. Read the list before the first edit of a task and again when a build or a review surprises you.
-
-- **Guessed a Minecraft or Fabric name.** The fix is never a variant that happens to compile: look the name up with `javap` or the decompiled sources.
-- **Trusted the compiler for a mixin.** `defaultRequire: 1` fails at boot, not at compile time; boot the game.
-- **Repeated full runs for a known failure.** Reproduce it with the smallest relevant group and batch the fixes before broadening verification.
-- **Built a second mechanism.** A parallel queue, store, registry or turn loop beside the one the architecture already has; extend the existing one and delete the draft.
+- **Guessed a Minecraft or Fabric name.** Look it up with `javap` or the decompiled sources; never accept a variant that happens to compile.
+- **Trusted the compiler for a mixin.** `defaultRequire: 1` fails at boot; load the game.
+- **Repeated full runs for a known failure.** Reproduce with the smallest group and batch the fixes.
+- **Built a second mechanism.** A parallel queue, store, registry or turn loop beside the existing one.
 - **Staged everything.** `git add -A` swept another session's files into a commit; name your paths.
-- **Let a test pass on the first run.** Nothing proved it can fail; break the guarded line once and watch the red.
-- **Left debug output behind.** A `System.out.println` in product code, a commented-out block, an unused field; self-review the diff before the commit.
-- **Edited the guide to match the shortcut.** The rule bent to the code instead of the code to the rule; rule changes need the maintainer and their own `docs:` commit.
-- **Added an attribution line.** `Co-Authored-By` and generated-with footers are forbidden here, whatever a template suggests.
-- **Treated a foreign error as yours.** A file you never touched fails to compile because another session is mid-edit; check `git status`, report it, do not patch it.
-- **Committed local state.** `docs/`, `run/`, `test-builds/`, `build/` or a downloaded model; they are git-ignored for a reason.
-- **Reported a test jar the game could not see.** `exportTestJar` writes `test-builds/` only; the profile's `mods/` folder keeps the previous jar until `deployTestJar` (or `assemble`) runs. Deploy it and quote the `Deployed …` line.
-- **Closed a TODO item quietly.** A skipped item needs its one-line `**Skipped:**` note and a report, not a silent `[x]`.
+- **Let a test pass on the first run.** Break the guarded line once and watch the red.
+- **Left debug output behind.** A `System.out.println` in product code, a commented-out block, an unused field.
+- **Edited the guide to match the shortcut.** The rule bent to the code instead of the code to the rule.
+- **Added an attribution line.** `Co-Authored-By` and generated-with footers are forbidden here.
+- **Treated a foreign error as yours.** A file you never touched fails because another session is mid-edit; check `git status`, report it, do not patch it.
+- **Committed local state.** `docs/`, `run/`, `test-builds/`, `build/` or a downloaded model.
+- **Reported a test jar the game could not see.** `exportTestJar` writes `test-builds/` only; `deployTestJar` is what reaches `mods/`.
+- **Closed a TODO item quietly.** A skipped item needs its one-line `**Skipped:**` note and a report.
 
 ## Debugging with logs
 
-The mod writes a durable, structured log of what the brain and the task queue did. It is the fastest answer to "why did the companion do that?"; the plain SLF4J lines in `logs/latest.log` stay the second choice.
+Every world owns `<world>/friendai/logs/` with `server/<date>/boot-<boot>.jsonl` and `owners/<uuid>/<date>/session-*.jsonl`; the client tree and world index stay in `<gameDir>/logs/friendai/`. Records are JSONL; follow `cause` back to the turn or task that started a failure.
 
-**Where the files are.** Every world owns its server-side tree at `<world>/friendai/logs/`; the client tree and the world index stay in `<gameDir>/logs/friendai/`. Two worlds on one instance never share a directory, so a companion can only ever search the world it lives in:
-
-| Path | Content |
-|---|---|
-| `<world>/friendai/logs/server/<date>/boot-<boot>.jsonl` | server lifecycle and every `warn`/`error` from `friendai*` loggers |
-| `<world>/friendai/logs/owners/<uuid>/<date>/session-<time>-<boot>.jsonl` | one owner's brain, tool, task and queue records |
-| `<world>/friendai/logs/diagnostics/diagnose-<UTC>/` | `/friendai diagnose` bundles: `summary.txt`, `log.txt`, `tasks.json`, `queue.txt`, `chat.txt` |
-| `<gameDir>/logs/friendai/client/<date>/client-<boot>.jsonl` | client-side `CLIENT` and `SPEECH` records, which outlive one world |
-| `<gameDir>/logs/friendai/index.jsonl` | one line per world load and close: time, world, path, `boot`, versions |
-| `<gameDir>/logs/friendai/server/`, `owners/` | files written before 0.203.0: never read and never pruned, safe to delete |
-| `README.md` | generated one-page schema, event table and `jq`/`grep` recipes |
-
-**Typical locations.** The server tree is inside the save: `<gameDir>/saves/<world>/friendai/logs` in singleplayer and `<server directory>/<level-name>/friendai/logs` on a dedicated server. The shared root `<gameDir>/logs/friendai` holds the client records, the world index and the pre-0.203.0 trees, where `gameDir` is the instance directory the launcher uses; a modpack may point it anywhere, so `/friendai logs path` and the **Open log folder** button are authoritative:
-
-- Windows, official launcher: `%APPDATA%\.minecraft\logs\friendai`.
-- Windows, per-instance launchers: `%APPDATA%\ModrinthApp\profiles\<profile>\logs\friendai`, `%APPDATA%\PrismLauncher\instances\<instance>\logs\friendai`, `%APPDATA%\MultiMC\instances\<instance>\logs\friendai`, `C:\Users\<you>\curseforge\minecraft\Instances\<instance>\logs\friendai`.
-- macOS, official launcher: `~/Library/Application Support/minecraft/logs/friendai`.
-- macOS, per-instance launchers: `~/Library/Application Support/PrismLauncher/instances/<instance>/logs/friendai`, `~/Library/Application Support/multimc/instances/<instance>/logs/friendai`.
-- Dedicated server: `<server directory>/logs/friendai`, for example `C:\servers\minecraft\logs\friendai` on Windows or `/srv/minecraft/logs/friendai` on Linux. The client buttons open the client's folder, never the server's.
-
-**What a line is.** JSONL: one object per line, with a header (`"kind":"header"`) as line 1. The fields that matter when debugging are `seq`, `timeMillis`, `level`, `category`, `event`, `turn`/`plan`/`job`/`task`/`toolCall`, `cause`, `durationMs`, `msg`, `data` and `error`. The header names the world the file belongs to. `cause` is the `seq` of the record that caused this one, so an error is followed backwards to the turn or task that started it. A `.md` digest beside a closed file renders the same chain as prose; it is generated and safe to delete.
-
-**Detail levels.** `off` writes no files; `normal` (default) records metadata only; `detailed` adds prompt, reply and tool-result bodies after redaction; `trace` currently records the same content as `detailed`; bounded per-step tracing is deferred. Configured API keys become `***` before any sink, on both the pipeline and the log4j bridge. `normal` is what a dedicated server runs: do not raise it to `detailed` on a server carrying other people's chat without their knowledge.
-
-**Task state records.** `task.phase` records entering a declared wait; `task.progress` records running progress, leaving a wait and periodic state samples. `phase` is the derived `progress`/`waiting` label; `detail` is the full task status (or its description when blank). `waitingTicks`, `waitingLimitTicks` and `stamp` retain the task's wait duration, declared deadline and material-progress signal. `reason=running` accompanies a phase/progress observation, `reason=waiting` a declared wait, and `reason=sample` an ordinary unchanged-work snapshot; a healthy follower inside its radius declares a wait, so it is never reported as stalled. The progress watchdog records `reason=stalled` in `task.snapshot` before it stops the task. A terminal task also records `firstProgressTicks` and `longestNoProgressTicks`, and `task.cancel` carries the activation's elapsed time in `durationMs`. Material progress repeats at most every 100 active ticks; unchanged or waiting work samples every 200 active ticks. Phase changes are immediate. Held and frozen time does not advance these intervals, and detail is read only when a record is due. `task.snapshot` is reserved for the pre-stall state captured before stop clears it. A `clock.gap` captures the current activation (otherwise frozen), its full status and execution parent before work resumes; idle gaps remain detached. Its reason stays `unknown`: elapsed wall time alone does not establish a pause.
-
-**How to use it when something breaks.**
-
-1. Find the failing line, from inside the world's tree: `grep -h '"level":"error"' owners/<uuid>/*/*.jsonl | tail` (or filter on `"category":"task"` for task churn).
-2. Read its chain: take the `seq`, then `jq -c 'select(.seq==<seq> or .cause==<seq>)' owners/<uuid>/*/*.jsonl` until `cause` is 0. The digest's `## Errors and chains` section already draws this tree.
-3. Correlate: `turn` groups one chat turn, `task`/`job`/`plan` group execution, and `toolCall` joins a call to its result.
-4. Widen only when needed: `/friendai diagnose [chat] [player]` adds versions, masked config, queue, task history and, with `chat`, the transcript.
-5. In game: the operator **Log tab** tails the ring live (Pause freezes it), the **Logs** settings category opens the folder, and the companion itself answers "what happened?" through `read_log` (ring) and `logs_search` (files).
-
-**Finding the newest Modrinth session on Windows.** Replace `<profile>`, `<world>` and `<uuid>` with the profile folder, the save directory and the owner UUID. Keep the path quoted because profile names often contain spaces. The `.md` file is the readable digest; open the matching `.jsonl` when you need the original structured records. `/friendai logs path` prints the exact world tree when the launcher keeps saves elsewhere:
-
-```powershell
-$ownerLogs = Join-Path $env:APPDATA 'ModrinthApp\profiles\<profile>\saves\<world>\friendai\logs\owners\<uuid>'
-Get-ChildItem $ownerLogs -Recurse -File -Include *.md,*.jsonl |
-    Sort-Object LastWriteTime -Descending |
-    Select-Object -First 10 FullName, LastWriteTime, Length
-Get-Content (Get-ChildItem $ownerLogs -Recurse -File -Filter *.md |
-    Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName)
-```
-
-For the active profile's exact path, run `/friendai logs path` in game or press **Copy log path**; Modrinth profiles need not be stored under the default `.minecraft` directory.
-
-**Commands.** `/friendai logs path` prints the current world's folder — the owner gets their own subtree inside it, an operator the world's tree. The client buttons open that world folder in singleplayer and the client's own tree in the menu or on a remote server. `/friendai logs level <off|normal|detailed|trace>` applies live, `/friendai logs prune` runs retention now, `/friendai logs export` writes the diagnostic bundle.
-
-**Bounds.** A file rotates at `maxFileBytes` (8 MiB default) into `-2`, `-3` parts; retention keeps `maxTotalBytes`, `retentionDays` and `maxSessionsPerOwner` (50 MiB, 7 days, 20 sessions per world by default); the writer drops records rather than block the server and writes one `log.dropped` line; a torn last line after a crash is skipped by readers. `LoggingTests` covers writing, retention, `off` and redaction: `runGameTest -Dfabric-api.gametest.filter='friendai-gametest:logging_tests_*'`.
-
-**Never paste a bundle or a `detailed` file into an issue unread**: it can contain coordinates, inventory facts and, at `detailed`, prompt and reply text.
+- `/friendai logs path` prints the exact world folder; `/friendai logs level …`, `logs prune` and `logs export` apply live.
+- `normal` records metadata only and is the dedicated-server default; `detailed` adds prompt/reply/tool bodies after redaction. Do not raise the level on a server carrying other people's chat without their knowledge.
+- **Never paste a bundle or a `detailed` file into an issue unread** — it can contain coordinates, inventory facts and prompt/reply text.
+- The full path table, retention bounds, event table and `jq`/PowerShell recipes are in `README.md`, "Logs".
 
 ## Troubleshooting
 
 | Symptom | Likely cause / fix |
 |---|---|
-| `Dependency requires at least JVM runtime version 25` | Gradle is on an older JDK. Set `JAVA_HOME` to a JDK 25 for the command. |
-| Windows `Процесс не может получить доступ к файлу` (quoted OS message), world lock, or Gradle lock timeout | Another session is running `runGameTest`/`runClient` or a build. Wait and retry; never delete lock files or kill other Java processes. |
-| Compile error in a file you did not touch | Another session's work in progress. Check `git status`/`git diff` for that file and report it instead of patching. |
-| GameTest fails only in the full run | Shared world or timing. Re-run that test filtered; if it passes alone, note it as flaky rather than changing unrelated code. |
+| `Dependency requires at least JVM runtime version 25` | Gradle is on an older JDK. Set `JAVA_HOME` to a JDK 25. |
+| Windows file lock or Gradle lock timeout | Another session is running `runGameTest`/`runClient` or a build. Wait; never delete lock files or kill Java processes. |
+| Compile error in a file you did not touch | Another session's work in progress. Check `git status`/`git diff` and report it. |
+| GameTest fails only in the full run | Shared world or timing. Re-run that test filtered; note it as flaky rather than changing unrelated code. |
 | A mob freezes, a fight never lands a second hit, a companion stops arriving | The entity left the force-loaded chunks; use `GameTestSupport.platform`/`platformAt`/`enclose`. |
-| `LangFilesTest` fails | Key missing in one language, placeholder mismatch, or a key built by concatenation. |
-| `spotlessCheck` fails on files you did not touch | Another session's uncommitted work. Format and commit only your own files; do not rewrite theirs. |
-| A Minecraft/Fabric name does not compile | Look it up in decompiled sources or with `javap`; do not guess a variant. |
-| A GameTest class does not run | It is missing from the `fabric-gametest` entrypoints in `src/gametest/resources/fabric.mod.json`. |
-| `./gradlew build` stops in `runGameTest` | Fix the GameTest first; `test` may not have run. Run `./gradlew test` for the unit count. |
+| `LangFilesTest` fails | Missing key, placeholder mismatch, or a key built by concatenation. |
+| `spotlessCheck` fails on files you did not touch | Another session's uncommitted work. Format and commit only your own files. |
+| A Minecraft/Fabric name does not compile | Look it up in decompiled sources or `javap`; do not guess. |
+| A GameTest class does not run | It is missing from `fabric-gametest` entrypoints or from a shard. |
 | The settings screen is missing | YACL is not installed; the mod still works through the config files. |
 
 ## Working with subagents
 
-Use the delegation tool your environment provides (`task`, `Task`/`Agent`, `subagent`, `@mention`, "spawn agents", etc.). The rules below are tool-independent; the adapter notes at the end only name the tools.
+**Delegating is the default for work that splits into independent parts.** Split by ownership before the first child starts: each child owns a file set, module or review dimension, and two children never write the same file. Fix the shared interface yourself, launch all independent children in one batch, read their diffs, resolve conflicts and run the covering build/test once in the main session. The full brief template, isolation rules and adapter notes are in the [`delegating-work`](.agents/skills/delegating-work/SKILL.md) skill.
 
-**Delegating is the default for work that splits.**
-
-- A task with independent parts should not be executed serially. Look for the split before you start typing: wide searches, separate modules or files, a set of review passes, a batch of tests or translations — anything that can run at the same time instead of one after another.
-- That is the largest wall-clock saving available to an agent — one round of latency instead of four — and it keeps the main context small, because each child returns a conclusion rather than the files it read.
-- If you cannot yet name the parts, spend a minute finding them; if you can, delegate them in one batch.
-
-**You are the orchestrator.** Split the work, write the briefs, fix the shared contracts, integrate the results, and own the final verification. Subagents do bounded pieces; the decisions stay with you.
-
-**Children run on a cheap model.** A subagent does bounded, mechanical work — a search, a slice of a diff, a review pass — so it runs on the default or the cheapest model that can do the job. Never hand a child an expensive model: no `astra` (or anything in that price class) as a `model`/`model_profile` argument, no `.codex/agents/*.toml` pinned to one, and no copying a pricey session model into a child. If a piece of work seems to need the expensive model, the brief is wrong: split it smaller or do that piece yourself. Say which model a child ran on when a delegation's cost matters.
-
-### When to delegate
-
-- The task splits into 2+ independent parts (separate modules or files, parallel searches, comparing several options, writing tests, reviewing). Launch them **in parallel in one step**, not one after another, if the tool allows it.
-- Heavy reading goes to a subagent: wide code searches, tracing a call path through many files, reading logs or decompiled Minecraft sources. Ask for a short summary with `path:line` references so your own context stays small.
-- Review changes with parallel reviewer subagents (e.g. one for the thread and layer rules, one for tests and localization), when the tool supports it.
-- A feature that touches many feature packages at once: one child per package, all launched together, after the interface they share is fixed.
-
-### How to split the work
-
-Good parallelism is decided before the first child starts, by the file sets:
-
-- **Split by ownership, not by step.** Each child owns a set of files, a module or one review dimension. Two children never write the same file: if two pieces must touch one file, either run them one after the other or keep that file in the main session.
-- **Fix the contract first.** When children implement parts of one feature, the main session writes the interface, the shared types and the file layout before launching them; the children then fill in only their own files. An unclear split produces conflicting edits, a clear one produces parallel files.
-- **Read-only work runs beside everything.** Searches, call-path tracing, log and source reading and independent review passes change nothing, so they can overlap with writers without isolation.
-- **Launch the batch, integrate once.** Start every independent child in a single step so they actually overlap, then read the diffs, resolve conflicts yourself and run the covering build/test pass once, in the main session.
-- **Keep design in the main session.** Architecture choices, interfaces and anything that needs the whole conversation stay with you; children get bounded, mechanical pieces a short brief can describe.
-
-### When NOT to delegate
-
-- Steps depend on each other's output, the task is small (a few tool calls), or the decision needs one continuous context. Delegating then only adds tokens and latency.
-- The brief would be longer than the work: if describing the piece takes more effort than doing it, do it yourself.
-- If your environment has no subagents, do not invent them. Do the work yourself, but still split it into independent steps and read only what you need.
-
-### Writing a brief
-
-A subagent does not see this conversation. Make each brief self-contained:
-
-- **Goal** and why it matters, in one or two sentences.
-- **Paths** to read and, for writers, the exact files it may change.
-- **Constraints**: the relevant rules from this file (layer boundaries, threading, English only, no commits unless asked), and what is out of scope.
-- **Result format**: e.g. "reply with a summary under 200 words plus `path:line` list".
-- **Done when**: a checkable criterion (a test passes, a symbol is found, a list is complete).
-
-### Isolation
-
-- Subagents that edit code must own disjoint files. Fix the split before launching. If two parts must touch the same file, run them one after another.
-- Prefer a separate branch or worktree for parallel writers if the tool offers it.
-- Only one agent should run `./gradlew` in a given checkout at a time: parallel builds fight over the Gradle lock and the shared run directory. Give builders their own worktree, or run the build yourself after integrating.
-
-### After they finish
-
-- Subagent reports are claims, not proof. Read the diff yourself before saying the work is done, run `./gradlew assemble verifyModArtifact` plus the covering test group (see "Test scope" and "Definition of done"), and never pass a child's report on as your own verification.
-- Resolve conflicting edits yourself. Do not ask a subagent to settle a conflict between subagents.
-
-### Examples
-
-- Research. Before: read `PromptBuilder`, `CompanionBrain` and `ToolRegistry` one by one in the main session. After: three read-only subagents, one per area, each returns the key types and call sites in a few lines.
-- New skill. Before: write the task, then the tool, then the GameTest, then the language entries in sequence. After: after you fix the interface, run the task + tool, the GameTest, and the `en_us.json`/locale entries in parallel on disjoint files; then integrate and build.
-- Review. Before: one pass over the whole diff. After: parallel reviewers for layer/thread rules, test coverage, and localization; you merge the findings.
-
-### Adapter notes
-
-- **oh-my-pi (`omp`)**: tool `task` (parallel, optionally worktree-isolated); `wait` collects background results; `/review` spawns reviewers. Custom agents: `.omp/agents/*.md` (project) or `~/.omp/agent/agents/*.md`; `.claude/agents` is not read. Bundled: `scout` (read-only), `reviewer`, `task`.
-- **Claude Code**: tool `Agent` (formerly `Task`). Custom agents: `.claude/agents/*.md` with YAML frontmatter (`name`, `description`, `tools`, `model`; `isolation: worktree` for an isolated checkout). Default cap is 20 concurrent subagents.
-- **Codex CLI**: enabled by default; ask for it explicitly ("spawn agents for X, Y, Z in parallel"). Custom agents: TOML in `.codex/agents/` (`name`, `description`, `developer_instructions`). Cap: `agents.max_concurrent_threads_per_session`. Prefer parallelism for read-heavy work; be careful with concurrent writes. If Codex children would inherit the session's model, that is exactly the case the cheap-model rule above forbids: pass the cheap model explicitly and keep the TOMLs free of `model` pins — a session running `astra` spawns cheap children or none.
-- **opencode**: `Task` tool and `@name` mentions. Built-in subagents: `general`, `explore`, `scout`. Custom agents: `.opencode/agents/*.md` with `mode: subagent`. Not an import: opencode does not expand `@file` in `AGENTS.md`.
-- **pi**: no built-in subagents; they come from an installed extension (typically `.pi/agents/*.md` definitions, which may need project trust). Check which extension is loaded before relying on delegation.
+- **You are the orchestrator.** Split the work, write self-contained briefs, fix the shared contracts, integrate and own final verification. A child does not see this conversation.
+- **Read-only work runs beside everything.** Searches, call-path tracing, log reading and independent review passes change nothing and may overlap with writers.
+- **Do not delegate dependent steps, tiny tasks or design decisions.** If describing the piece takes longer than doing it, do it yourself.
+- **Children run on a cheap model.** Never hand a child an expensive model; if a piece seems to need one, split it smaller or do it yourself. Say which model a child ran on when cost matters.
+- **Subagent reports are claims, not proof.** Read the diff yourself and run `./gradlew assemble verifyModArtifact` plus the covering test group.
+- **Only one agent runs Gradle in a checkout at a time.** Give writers their own worktree, or run the build yourself after integrating.
 
 ## Parallel sessions
 
-The maintainer often runs several agent sessions on this repository at once, usually in the same checkout. Files can change under you at any time, and a dirty `git status` is normal, not an error.
+The maintainer often runs several agent sessions on this repository at once, usually in the same checkout. Files can change under you at any time, and a dirty `git status` is normal.
 
-- **Assume other changes are someone else's work.** Uncommitted modifications, untracked files and new directories you did not create may belong to another live session. Do not revert, delete, stash, reformat or "clean up" them.
-- **Never run `git checkout -- <path>`, `git restore`, `git reset --hard`, `git stash` or `git clean`** to get a tidy tree. If a file blocks you, work around it or report it.
-- **Re-read before you edit.** Another session may have changed the file since you last read it. Make small, targeted edits instead of rewriting whole files, and re-check the file after a failed edit.
-- **Stay in your lane.** Touch only the files your task needs. Spot a problem elsewhere? Mention it in your final message instead of fixing it.
-- **Commit only your own files**, naming them explicitly (`git add <path>...`). Never use `git add -A` or `git commit -a`. If a file holds both your edits and someone else's, say so and leave it uncommitted.
-- **Failures outside your change may not be yours.** A build or test error in code you did not touch is often another session's work in progress. Check `git status` and `git diff` for that file first; if it is not yours, report it rather than patching it, and re-run later.
-- **One Gradle run at a time per checkout** (see "Working with subagents"). If a build fails on a lock or the `run/` directory, wait and retry; do not delete lock files or kill other Java processes.
-- **Claim your `TODO.md` item first.** See "Working from TODO.md": flip `- [ ]` to `- [~]` and leave it uncommitted — no session line, and no separate claim commit. It lands with the task's files when the task is done.
-- **Prefer a worktree** for work that edits many files or runs long builds, so you do not collide with other sessions. Do not delete or rewrite other sessions' worktrees or branches.
-- In the final message, list the files you changed and mention any foreign changes you noticed, so the maintainer can reconcile them.
+- **Assume other changes are someone else's work.** Do not revert, delete, stash, reformat or "clean up" uncommitted modifications, untracked files or directories you did not create.
+- **Never run `git checkout -- <path>`, `git restore`, `git reset --hard`, `git stash` or `git clean`** to get a tidy tree. Work around a blocking file or report it.
+- **Re-read before you edit.** Make small, targeted edits instead of rewriting whole files, and re-check the file after a failed edit.
+- **Stay in your lane.** Touch only the files your task needs; mention problems elsewhere in the final message.
+- **Commit only your own files**, naming them explicitly (`git add <path>...`). Never `git add -A` or `git commit -a`. A file that mixes your edits with someone else's stays uncommitted and is named in the report.
+- **Failures outside your change may not be yours.** Check `git status`/`git diff` before patching; if it is not yours, report it and re-run later.
+- **One Gradle run at a time per checkout.** Wait and retry on a lock; never delete locks or kill Java processes.
+- **Claim your `TODO.md` item first** with `[~]`, uncommitted; it lands with the task.
+- **Prefer a worktree** for work that edits many files or runs long builds. A worktree has its own lock and `run/` directory.
 
-**Worktree recipe for a parallel writer.** A worktree has its own checkout, Gradle lock and `run/` directory, so a long build there cannot block the main checkout:
+**Worktree recipe for a parallel writer:**
 
 ```bash
 git worktree add ../Friendai-<task> -b <type>/<slug> main
@@ -551,96 +299,77 @@ cd ../Friendai-<task>
 JAVA_HOME="<jdk-25>" ./gradlew test --tests 'dev.friendai.<package>.*'
 ```
 
-Commit and push the branch from the worktree, then `git worktree remove ../Friendai-<task>` after it merges. `git worktree list` shows which worktree owns which branch; never remove or rewrite another session's worktree.
+Commit and push from the worktree, then `git worktree remove ../Friendai-<task>` after it merges. `git worktree list` shows which worktree owns which branch; never remove or rewrite another session's worktree.
 
 ## Git and repository hygiene
 
-- **Commit every finished task before you report it as done.** Do not leave a completed task uncommitted waiting for a later request, and do not say the work is done while its files sit in the working tree: stage only your own paths (`git add <path>...`), make one coherent conventional commit, and say where it landed in the final message. Never `git add -A`, and leave a file uncommitted when it mixes your edits with someone else's. The two exceptions are a dictated `TODO.md` item that waits for its batch and a claim marker that waits for the task it marks.
-- **Large tasks commit in batches.** When a task is split into subtasks, or executed from a plan with steps, commit after each finished subtask or step instead of one huge commit at the end. Each commit should be one coherent change; bump the version once per task (see "Versioning"), in the commit that carries the change or in a final `chore: bump version to X.Y.Z`.
+- **Commit every finished task before you report it as done.** Do not leave a completed task uncommitted waiting for a later request, and do not say the work is done while its files sit in the working tree: stage only your own paths (`git add <path>...`), make one coherent conventional commit, and say where it landed. Never `git add -A`, and leave a file uncommitted when it mixes your edits with someone else's. The two exceptions are a dictated `TODO.md` item that waits for its batch and a claim marker that waits for the task it marks.
+- **Large tasks commit in batches.** Commit after each finished subtask or plan step instead of one huge commit; bump the version once per task (see "Versioning").
 - Commit messages: conventional style (`feat:`, `fix:`, `chore:`, `docs:`, optional scope), imperative, English. **No `Co-Authored-By` or other AI attribution lines.** Header ≤ 100 characters, no trailing full stop; the `commit-msg` hook and `commitlint.config.mjs` enforce this.
-- `docs/` (design specs and implementation plans) is **git-ignored on purpose** — never commit it. Read it for context if it exists locally (`docs/superpowers/specs/`, `docs/superpowers/plans/`).
-- Never commit generated or local files: `run/`, `logs/`, `build/`, `.gradle/`, game configs, worlds, downloaded whisper models. `.gitignore` anchors these to the repo root; keep new entries anchored (`/config/`, not `config/`) so they cannot swallow source packages such as `src/**/config/`.
+- `docs/` (design specs and plans) is **git-ignored on purpose** — never commit it.
+- Never commit generated or local files: `run/`, `logs/`, `build/`, `.gradle/`, game configs, worlds, downloaded models. `.gitignore` entries stay anchored (`/config/`, not `config/`) so they cannot swallow source packages such as `src/**/config/`.
 - Do not rewrite history, force-push or delete branches without being asked.
 - Config files at runtime: `config/friendai-server.json`, `config/friendai-client.json`; whisper models in `<gameDir>/friendai/models/`.
 
 ### Self-review before you commit
 
-- Read your own diff (`git diff` and `git diff --cached`) file by file, as if reviewing someone else's change; that is where stray edits, debug code and half-finished refactors show up.
-- Remove debug prints, commented-out code, stray `TODO`/`FIXME`, unused imports and fields, and any `System.out.println` added while investigating.
+- Read your own diff (`git diff` and `git diff --cached`) file by file, as if reviewing someone else's change.
+- Remove debug prints, commented-out code, stray `TODO`/`FIXME`, unused imports and fields.
 - Re-check rules 1–12 where the change touches them: server-thread access, layer imports, key handling, synced client data and per-tick cost.
-- Read every new user-facing string in every shipped language and every new log line for secrets; a key, an endpoint with a token or a full exception message belongs in neither.
-- Confirm the index holds only your files (`git status`); never stage another session's work to make a commit complete.
+- Read every new user-facing string in every language and every new log line for secrets.
+- Confirm the index holds only your files (`git status`); never stage another session's work.
 
 ## Branches and pull requests
 
-- **One branch per task, cut from an up-to-date `main`.** Name it `<type>/<slug>`, using the conventional commit type and, for a `TODO.md` item, its number: `feat/37-retry-last`, `fix/compact-null-companion`, `docs/agents-parallelism`. Do not mix unrelated work in one branch.
-- **Code and resource changes land through a pull request.** Push the branch and open a PR with a conventional title (`feat(menu): retry the last job after it fails`). Its body states what changed, why, the tests you ran with their real result, the version and the test-jar path, and what you could not verify. No AI-attribution lines.
-- **A red check is triaged, not bypassed.** Fix it, or report it as unrelated with evidence; never merge on a red or pending `CI gate`, and never enable auto-merge on your own.
-- **Do not merge a pull request unless the maintainer asked for that specific merge.** Do not force-push a branch with an open PR; add commits instead, so review comments stay attached.
-- **A docs-only or one-line chore may go straight to `main` when the maintainer asks for it.** Anything that changes the shipped jar takes the branch path.
-- Delete a merged branch only when the maintainer asks; never delete another session's branch.
+- **One branch per task, cut from an up-to-date `main`.** Name it `<type>/<slug>`, using the conventional commit type and, for a `TODO.md` item, its number: `feat/37-retry-last`. Do not mix unrelated work.
+- **Code and resource changes land through a pull request.** Push the branch and open a PR with a conventional title. Its body states what changed, why, the tests you ran with their real result, the version and the test-jar path, and what you could not verify.
+- **A red check is triaged, not bypassed.** Fix it or report it as unrelated with evidence; never merge on a red or pending `CI gate`, and never enable auto-merge on your own.
+- **Do not merge a pull request unless the maintainer asked for that specific merge.** Do not force-push a branch with an open PR; add commits instead.
+- **A docs-only or one-line chore may go straight to `main` when the maintainer asks.** Anything that changes the shipped jar takes the branch path.
+- Delete a merged branch only when asked; never delete another session's branch.
 
 ## Versioning
 
-The single source of truth is `mod_version` in `gradle.properties` ([Semantic Versioning](https://semver.org/): `MAJOR.MINOR.PATCH`). The jar name, `fabric.mod.json` and release tags all derive from it; a release tag `vX.Y.Z` must equal it (the release workflow checks).
-
-Bump it as part of any change that alters the shipped mod, by the size of the change:
+The single source of truth is `mod_version` in `gradle.properties` ([Semantic Versioning](https://semver.org/)). The jar name, `fabric.mod.json` and release tags derive from it; a release tag `vX.Y.Z` must equal it.
 
 | Change | Bump | Examples |
 |---|---|---|
 | Bug fix, small tweak, translation fix, dependency patch | **PATCH** (`0.1.0` → `0.1.1`) | `fix:` commits, `perf:` with no API change |
 | New feature or skill, new setting, new provider preset, user-visible improvement | **MINOR** (`0.1.1` → `0.2.0`), PATCH resets to 0 | `feat:` commits |
-| Breaking change: config format change that needs a migration, removed or renamed command/tool/setting, save-data incompatibility, Minecraft or Java version bump | **MAJOR** after 1.0; while `0.x`, bump **MINOR** instead (see below); lower parts reset to 0 | `feat!:` / `BREAKING CHANGE:` commits |
-| No effect on the shipped jar | **no bump** | `docs`, `ci`, `test`, `style`, `chore`, `build` (tooling only), pure `refactor` |
+| Breaking change: config format change that needs a migration, removed or renamed command/tool/setting, save-data incompatibility, Minecraft or Java version bump | **MINOR** while `0.x`; **MAJOR** after 1.0 | `feat!:` / `BREAKING CHANGE:` commits |
+| No effect on the shipped jar | **no bump** | `docs`, `ci`, `test`, `style`, pure `chore`/`build`/`refactor` |
 
-- While the major version is `0` (pre-1.0), breaking changes bump MINOR instead of MAJOR. Moving to `1.0.0` is the maintainer's decision; never do it on your own.
-- One bump per task/PR, sized by the largest change in it, not one per commit. Put it in the same commit as the change, or in a final `chore: bump version to X.Y.Z` commit.
-- Changing a persisted schema: bump its format version and the mod version. Configuration upgrades require an explicit tested `ConfigStores` transition and a backup; unsupported config versions and older owner/world record formats remain untouched.
+- While the major version is `0`, breaking changes bump MINOR instead of MAJOR. Moving to `1.0.0` is the maintainer's decision.
+- One bump per task/PR, sized by the largest change in it. Put it in the same commit as the change, or in a final `chore: bump version to X.Y.Z` commit.
+- Changing a persisted schema: bump its format version and the mod version, add the tested `ConfigStores` transition and a backup. Unsupported config versions and older owner/world record formats stay untouched.
 - A version bump merged to `main` authorizes the CI release for that version. Agents need separate maintainer authorization for manual tags or releases.
-- When unsure between two sizes, pick the larger one and say why in the final message.
+- When unsure between two sizes, pick the larger one and say why.
 
-**Release checklist (maintainer).** Merge the `mod_version` bump and a nonempty `CHANGELOG.md` section for that version
-into `main` together. After `CI gate` passes on that push, CI calls `.github/workflows/release.yml` with the built jar.
-It verifies the jar against `mod_version`, pins `vX.Y.Z` to the tested commit, and publishes the jar, its SHA-256
-sidecar and the version's changelog notes to GitHub Releases. A conflicting tag stops the run. A published release
-for the same tag is left intact. Retry a transient failure from its original CI run. If the changelog needs a
-correction, merge it with a new version bump or manually tag the corrected commit after its CI passes.
-
-The release workflow also accepts existing tags pushed by the maintainer and manual dispatches with an existing tag.
-Explicit publication requires a successful `CI gate` from a `main` push for the tagged commit. A manual dispatch with
-`dry_run: true` builds, verifies and uploads the release files as a workflow artifact. For a local artifact check,
-run `scripts/check-release.sh vX.Y.Z` after `./gradlew assemble`.
+**Release checklist (maintainer).** Merge the `mod_version` bump and a nonempty `CHANGELOG.md` section for that version into `main` together. After `CI gate` passes, `.github/workflows/release.yml` verifies the jar against `mod_version`, pins `vX.Y.Z` to the tested commit, and publishes the jar, its SHA-256 sidecar and the version's notes. A conflicting tag stops the run. Retry a transient failure from its original CI run. For a local artifact check, run `scripts/check-release.sh vX.Y.Z` after `./gradlew assemble`.
 
 ## Changelog
 
-`CHANGELOG.md` is the player-facing history of the shipped mod: what an owner reads to decide whether a newer jar is worth installing. It follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), newest version first, and each heading names the `mod_version` it belongs to.
+`CHANGELOG.md` is the player-facing history of the shipped mod, newest version first, in [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) form.
 
-- **An entry lands with the change.** A change that alters the shipped mod adds its line under `## [Unreleased]` in the same commit, or under the current version heading once that version's bump has landed. A change with no effect on the shipped jar — `docs`, `ci`, `test`, `style`, pure `chore`/`build`/`refactor` — gets no line.
-- **Map the commit type to a category.** `feat` → **Added**; a changed behavior, setting, command or tool → **Changed**; something withdrawn → **Removed** or **Deprecated**; `fix` → **Fixed**; `perf` and other user-visible improvements → **Changed**; a security or data-safety fix → **Security**. Add a category only when it has a line, in the standard order (Added, Changed, Deprecated, Removed, Fixed, Security).
-- **Write for a player, not for git.** One line says what the owner can now do, or which bug no longer happens; name the tool, command, key or config option by its player-facing name. No class names, package paths, test names, commit hashes, or "refactor"/"cleanup"/"bump" entries. English only.
-- **One block per version, not per commit.** "Versioning" already allows one `mod_version` bump per task, so the task's lines form one block. When the bump lands, retitle the collected `Unreleased` block `## [X.Y.Z] - YYYY-MM-DD` — the version `mod_version` now holds, the date of the bump — and put a fresh empty `## [Unreleased]` above it. A change that is one commit may write its line directly under the new version heading instead.
-- **A tagged version is history.** Never rewrite, reorder or delete a section whose `vX.Y.Z` tag exists; correct a plain factual error only, and say so. The current `mod_version` section may still take a correction before it is tagged.
-- **Do not invent history.** The file starts at 0.87.0; earlier versions predate it and stay in `git log`. A backfilled section needs the version that `gradle.properties` held at that commit, not a guess.
+- **An entry lands with the change** under `## [Unreleased]`, or under the current version heading once its bump has landed. Internal-only changes (`docs`, `ci`, `test`, `style`, pure `chore`/`build`/`refactor`) get no line.
+- **Map the commit type to a category:** `feat` → Added; changed behavior/setting/command/tool → Changed; withdrawn → Removed/Deprecated; `fix` → Fixed; `perf` and user-visible improvements → Changed; data-safety fix → Security. Add a category only when it has a line.
+- **Write for a player.** One line says what the owner can now do or which bug no longer happens; name tools/commands/settings by their player-facing name. No class names, paths, test names, hashes or "refactor"/"cleanup"/"bump".
+- **One block per version.** When the bump lands, retitle the `Unreleased` block `## [X.Y.Z] - YYYY-MM-DD` and put a fresh `Unreleased` above it.
+- **A tagged version is history.** Never rewrite, reorder or delete a tagged section; correct a plain factual error only. Do not invent history: the file starts at 0.87.0.
 
 ## Definition of done
 
-1. **Code must compile before it is committed.** Tests are optional for a commit, compilation is not: run `./gradlew assemble verifyModArtifact` (compiles every source set, packages and inspects the mod jar) and read its result, with `JAVA_HOME` pointing at JDK 25. Never commit code that was not compiled, and never rely on "the API probably has that method" for Minecraft names; look them up (see "Minecraft API notes (26.3)"). A commit that breaks the build blocks every other session. A docs-only change (Markdown, `site/` text) needs neither the build nor the tests. Formatting is part of this gate (see "Formatting").
-2. Commit coherent changes after verification at the scope in "Testing". Report actual unit-test counts and GameTest results.
-3. New player-facing strings exist in every shipped language file, not only `en_us.json`.
-4. New behavior has a test that pins it and would fail without the change (see "Batch the loop" for how to prove that inside one run); bugs get a regression test.
-5. Layer boundaries respected (no Minecraft imports in the pure layers).
-6. `mod_version` bumped according to "Versioning" (or a stated reason why no bump is needed).
-7. Anything you could not verify (real provider, real microphone, GUI) is stated plainly rather than implied.
-8. **The task is committed.** Your changed files are in git before you report the work as done — a finished task with an uncommitted tree is not done, and "commit later" is not an answer (the only exceptions are a dictated `TODO.md` item waiting for its batch and a claim marker waiting for the task it marks). A file that also holds another session's edits stays uncommitted, and you say so. For a multi-step task, the commits follow the batches you finished.
-9. `test-builds/friendai-<version>.jar` is refreshed (`exportTestJar` runs during `build`/`assemble`) and you tell the maintainer its path and version. When the maintainer will load the build in a launcher profile, it is also deployed with `deployTestJar`/`assemble` and the report quotes the deployed path — a `test-builds/` path alone is not a jar the game can see.
-10. **The capability map stays current.** When a change adds, renames, removes or materially changes something `index.html` shows, update `site/app.js` in the same commit, in English, matching the surrounding entries:
-    - a tool or skill — the `CATS` lists, written as `name|description`, with `~` for built-in behaviour;
-    - the turn flow (`FLOW`);
-    - stored data and persistence (`MEM_CARDS`);
-    - the layers, packages and rules (`ARCH_CARDS`, `ARCH_FLOW`).
-
-    Add the Russian text for every new or changed string to `site/i18n.ru.js` (keys are the exact English strings; a missing key falls back to English, so nothing breaks, but the Russian view then shows English). A new category also needs a domain and a colour from `COLORS`. Open the page once in a browser and check that the affected graph still renders without overlaps. If nothing it shows changed, no edit is needed.
-11. **The changelog line is in.** A change that alters the shipped mod has its `CHANGELOG.md` line under `Unreleased` or the new version heading, in the same commit as the version bump; an internal-only change needs none (see "Changelog").
+1. **Code must compile before it is committed.** Tests are optional for a commit, compilation is not: run `./gradlew assemble verifyModArtifact` with `JAVA_HOME` on JDK 25 and read its result. A docs-only change needs neither the build nor the tests. Formatting is part of this gate.
+2. Commit coherent changes after verification at the scope in "Testing"; report actual unit-test counts and GameTest results.
+3. New player-facing strings exist in every shipped language file.
+4. New behavior has a test that pins it and would fail without the change; bugs get a regression test.
+5. Layer boundaries are respected (no Minecraft imports in the pure layers).
+6. `mod_version` is bumped according to "Versioning", or the report states why no bump is needed.
+7. Anything you could not verify (real provider, real microphone, GUI) is stated plainly.
+8. **The task is committed.** Your changed files are in git before you report the work as done. A file that also holds another session's edits stays uncommitted, and you say so. For a multi-step task, the commits follow the batches you finished.
+9. `test-builds/friendai-<version>.jar` is refreshed, and you give its path and version. When the maintainer will load the build, it is also deployed with `deployTestJar`/`assemble` and the report quotes the deployed path.
+10. **The capability map stays current.** When a change adds, renames, removes or materially changes something `index.html` shows, update `site/app.js` in the same commit, matching the surrounding entries: tools/skills in `CATS` (`name|description`), the turn flow (`FLOW`), stored data (`MEM_CARDS`), layers/packages/rules (`ARCH_CARDS`, `ARCH_FLOW`). Add the Russian text to `site/i18n.ru.js` (keys are the exact English strings). Open the page once and check that the affected graph renders without overlaps. If nothing it shows changed, no edit is needed.
+11. **The changelog line is in.** A change that alters the shipped mod has its `CHANGELOG.md` line under `Unreleased` or the new version heading, in the same commit as the version bump.
 
 **The task report.** Close every task with this report, in this order, each line carrying only what a reviewer needs:
 
@@ -662,38 +391,16 @@ A docs-only or `ci:` change says so instead of inventing a version and a jar lin
 | A package, class, flow or persistence record | `ARCHITECTURE.md` — its package map, runtime flow or persistence table |
 | A tool, skill, turn-flow step, stored data or layer rule | `site/app.js`, plus `site/i18n.ru.js` for every new or changed string |
 | Player-facing text | `en_us.json`, and every file in `assets/friendai/lang/` mirrors it |
-| Shipped behavior, feature or fix | `CHANGELOG.md` under `Unreleased` (see "Changelog") |
+| Shipped behavior, feature or fix | `CHANGELOG.md` under `Unreleased` |
 | A provider, config key, command or player-visible limit | `README.md` when user-visible |
 | A new GameTest class | `src/gametest/resources/fabric.mod.json` and one shard in `.github/gametest-shards.json` |
 | A config schema or owner/world format | its version, a `ConfigStores` transition or codec change, tests, and the persistence table in `ARCHITECTURE.md` |
-| Behavior automation cannot check (a real provider, a microphone, GUI layout, LAN, a second UI language) | a line in `MANUAL_CHECKLIST.md` saying what to try and what to expect |
-| Any change to the shipped jar | refresh `test-builds/friendai-<version>.jar` (`assemble` or `exportTestJar`) and name its path in the report; when the maintainer will launch the game, also run `deployTestJar` (or `assemble`) so the jar actually reaches `TEST_BUILD_PATH` |
+| Behavior automation cannot check | a line in `MANUAL_CHECKLIST.md` saying what to try and what to expect |
+| Any change to the shipped jar | refresh `test-builds/friendai-<version>.jar`, and `deployTestJar` when the maintainer will launch the game |
 | A rule or workflow in `AGENTS.md` | `CONTRIBUTING.md` only where it repeats the old rule — it must not gain a rule the canonical file does not have |
 
 If a row does not apply, nothing is needed; do not add a line that only says the code changed.
 
 ## Glossary
 
-The glossary is a quick reference for the words used above; `ARCHITECTURE.md` is canonical for class names, flows and behavior, and a definition here never overrides it.
-
-- **Companion** — the NPC entity (`CompanionEntity`), one per owner, carrying the inventory and hunger.
-- **Owner / trusted / guest** — the player who summoned the companion, a player the owner trusts, and anyone else who talks to it.
-- **Brain** — `CompanionBrain`, the per-owner agent loop that turns messages into LLM requests and tool calls.
-- **Turn** — one user message plus the tool calls and final reply that answer it.
-- **Goal** — one objective on the owner's `GoalBoard`, with criteria, queue-plan IDs, lessons and a replan budget; goals live in an owner file, so they outlive the entity.
-- **Shift (free time)** — one autonomous block of the companion's free time, planned by `ShiftPolicy`, budgeted per hour and closed with an outcome and a lesson.
-- **Skill** — a player-facing ability exposed to the LLM as a `Tool`, usually implemented by a `Task`.
-- **Instruction skill** — bounded plain-text procedural guidance stored in `skill/`, selected per turn; it advises but never executes or changes tool permissions.
-- **Description** — the companion summary/details plus the owner’s explicit language/address profile in memory format 4.
-- **Tool** — the LLM-facing definition (schema, access level, executor) registered in `FriendaiTools`.
-- **Task** — long-running world work driven tick by tick by `ExecutionCoordinator`.
-- **Reflex** — work ticked before the task runner every server tick (combat, fire, self-care, recovery); it may hold the runner for a few ticks.
-- **Hold** — a scoped suspension of the task runner (`HoldReason`) that keeps the active task and resumes it; the owner's pause is its own hold.
-- **Checkpoint / restore** — a bounded, versioned `TaskState` saved with the execution document and rebuilt by `TaskRestoreRegistry` on load; unsupported or unauthorized work is rejected, not run.
-- **Plan** — an ordered list of tasks (`run_plan` / `SequenceTask`).
-- **Blueprint** — a saved or generated block layout that `BuildTask` places.
-- **Station** — a crafting/cooking block the companion uses; a `StationLease` remembers one it placed.
-- **Perception** — the surroundings and owner focus rendered into prompt text.
-- **Snapshot** — the menu state built by `SnapshotBuilder` and sent to the client.
-- **Owner store** — one versioned JSON file per owner under `<world>/friendai/…`, written by `OwnerFileStore` with debounced, atomic replacement and a `.bak` on corruption.
-- **Provider / preset / route / protocol** — where an LLM request goes and how it is encoded (engine `agent/llm/provider` and `agent/llm/protocol`; root `llm/http/HttpTransport` implements the engine `JsonHttpTransport` port).
+The terms — companion, owner/trusted/guest, brain, turn, goal, shift, skill, instruction skill, description, tool, task, reflex, hold, checkpoint/restore, plan, blueprint, station, perception, snapshot, owner store, provider/preset/route/protocol — are defined in [`GLOSSARY.md`](GLOSSARY.md).
