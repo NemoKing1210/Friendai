@@ -386,6 +386,32 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
                         ? "queue job #" + job.id() + " " + job.tool()
                         : "queue plan " + goal + " (" + job.tool() + ")");
     }
+
+    /**
+     * The action the running job's own plan would start next if the job succeeded, or empty when nothing follows
+     * it. A structured plan is walked from its committed cursor against the current facts; a flat plan uses the
+     * dependency it declared ({@code after}). The queue, the cursor and its facts are only read: evaluating control
+     * flow here never advances the plan. A task can use this to tell whether the plan behind it needs its result,
+     * which is the existing dependency path and not a second one.
+     */
+    public Optional<QueuedStep> followingPlannedAction() {
+        ActiveTask active = activeTask();
+        if (active == null || active.jobId() <= 0 || active.planId() <= 0) return Optional.empty();
+        PlanRecord plan = queueDriver.queue().plan(active.planId()).orElse(null);
+        if (plan == null) return Optional.empty();
+        if (plan.definition() != null && plan.cursor() != null) {
+            PlanInterpreter.Transition transition = PlanInterpreter.advance(
+                    plan.definition(), plan.cursor(), planFacts(plan), new PlanInterpreter.ActionResult.Succeeded());
+            return transition.event() instanceof PlanInterpreter.Event.EmitAction emit
+                    ? Optional.of(emit.step())
+                    : Optional.empty();
+        }
+        return queueDriver.queue().jobsOfPlan(active.planId()).stream()
+                .filter(job -> !JobQueue.terminal(job) && job.after().contains(active.jobId()))
+                .min(java.util.Comparator.comparingLong(Job::order))
+                .map(QueueDriver::step);
+    }
+
     /**
      * True while a task that is neither the default activity, free time's nor a movement order runs: owner work comes
      * first. A movement order ("wait here", "come here") says where to be, not what to do, so free time keeps its

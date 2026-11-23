@@ -419,6 +419,49 @@ public class PlanTests {
         });
     }
 
+    /**
+     * A long batch followed by a craft step keeps the smelt at the furnace: the plan must not hand the craft zero
+     * finished items just because the batch outlasted the short wait. Seven raw iron take longer than the 60 s limit,
+     * so only the dependent step can keep the task waiting.
+     */
+    @GameTest(maxTicks = 2600)
+    public void planSmeltThenCraftWaitsForOutput(GameTestHelper h) {
+        int deck = 108;
+        for (int x = 0; x < 16; x++) {
+            for (int z = 0; z < 16; z++) {
+                h.setBlock(x, deck, z, Blocks.STONE);
+                for (int y = deck + 1; y <= deck + 5; y++) {
+                    h.setBlock(x, y, z, Blocks.AIR);
+                }
+            }
+        }
+        h.setBlock(4, deck + 1, 2, Blocks.BLAST_FURNACE);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, deck + 1, 2);
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(4, deck + 1, 2))),
+                "blast furnace should be directly visible");
+        c.inventory().addItem(new ItemStack(Items.RAW_IRON, 7));
+        c.inventory().addItem(new ItemStack(Items.COAL));
+        Result result = new Result();
+        c.executionCoordinator().setEventSink(result);
+        ToolExecutor tools = ownerTools(c);
+        String json = "{\"goal\":\"smelt and craft\",\"steps\":["
+                + "{\"tool\":\"smelt_items\",\"args\":\"{\\\"item\\\":\\\"minecraft:raw_iron\\\","
+                + "\\\"count\\\":7,\\\"station\\\":\\\"blast_furnace\\\"}\"},"
+                + "{\"tool\":\"craft_item\",\"args\":\"{\\\"item\\\":\\\"minecraft:iron_nugget\\\","
+                + "\\\"count\\\":9}\"}]}";
+        ToolResult started = addPlan(
+                tools,
+                c,
+                new ToolCall("1", "queue_add", JsonParser.parseString(json).getAsJsonObject(), json, null));
+        h.assertTrue(!started.error(), "start failed: " + started.content());
+        h.succeedWhen(() -> {
+            c.executionCoordinator().tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertValueEqual(c.inventory().countItem(Items.IRON_NUGGET), 9, "iron nuggets");
+        });
+    }
+
     @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 800)
     public void planTakeThenPlace(GameTestHelper h) {
         GameTestSupport.platform(h, 16);

@@ -43,8 +43,8 @@ const CATS = [
   { id: "crafting", domain: "hands", name: "Crafting & Cooking", icon: "🔨", color: COLORS.copper,
     desc: "Recursive crafting plans (depth up to 5), furnace jobs and enchanting-station work through real menus.",
     items: [
-      "craft_item|Craft an item, placing a table if needed.", "get_recipe|Look up how something is made.", "smelt_items|Smelt up to 256 items in one call with fuel.",
-      "cook_food|Cook raw food.", "collect_smelted|Pick up finished furnace output.", "enchant_item|Enchant an item and report the levels required and spent.",
+      "craft_item|Craft an item, placing a table if needed.", "get_recipe|Look up how something is made.", "smelt_items|Smelt up to 256 items in one call; a long batch stays until its output is collected when the next plan step needs it.",
+      "cook_food|Cook raw food.", "collect_smelted|Wait for and pick up the output of furnaces it loaded, or name the blocker.", "enchant_item|Enchant an item and report the levels required and spent.",
       "anvil_item|Repair or combine at an anvil and report its cost.", "grindstone_item|Strip enchantments and report the XP collected.",
       "brew_potion|Brew potions and report what was used, carried or left in the stand.", "plan_brew|Show the brewing steps without doing them.",
       "~Craft planner|Turns a goal item into ordered steps.", "~Station leases|Remembers a table it placed for 600 ticks." ] },

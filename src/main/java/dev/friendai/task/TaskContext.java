@@ -114,6 +114,15 @@ public record TaskContext(
         return serverSettings.tasks();
     }
 
+    /**
+     * The action the running plan starts after this task, when one is already decided. A task whose result the plan
+     * consumes can use it to wait for its own outcome instead of letting the next action start empty; a direct task
+     * outside a plan has none.
+     */
+    public java.util.Optional<dev.friendai.execution.queue.QueuedStep> followingPlannedAction() {
+        return execution == null ? java.util.Optional.empty() : execution.followingPlannedAction();
+    }
+
     /** The material the remaining queued work still needs; a pillar, bridge or platform must not spend it. */
     public dev.friendai.foundation.spatial.MaterialReserve materialReserve() {
         return companion.materialReserve();

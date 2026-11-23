@@ -3,6 +3,7 @@ package dev.friendai.features.cooking.minecraft.task;
 import dev.friendai.debug.DebugAction;
 import dev.friendai.debug.DebugTarget;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.features.cooking.minecraft.CookingWait;
 import dev.friendai.features.cooking.minecraft.FuelPolicy;
 import dev.friendai.features.cooking.minecraft.FurnaceJob;
 import dev.friendai.features.cooking.minecraft.FurnaceSlots;
@@ -77,7 +78,7 @@ public final class SmeltTask implements Task {
     private final int count;
     private final @Nullable Station forced;
     private final @Nullable ItemMatcher fuel;
-    private final boolean forceWait;
+    private final CookingWait waitRequest;
     private final StationPolicy policy;
     private final int waitLimitTicks;
 
@@ -114,6 +115,12 @@ public final class SmeltTask implements Task {
 
     private int loadedCount;
     private int stationsLoaded;
+    /** The requested count, captured before loading consumes the selected stacks. */
+    private int requested;
+    /** Selected inputs that neither started nor wait for a free station: they stay in the inventory. */
+    private int unstartedCount;
+
+    private String unstartedReason;
     private String outputId;
     private final Set<String> fuelsUsed = new LinkedHashSet<>();
     private final List<ItemStack> waitingInputs = new ArrayList<>();
@@ -127,7 +134,15 @@ public final class SmeltTask implements Task {
             boolean forceWait,
             StationPolicy policy,
             int waitLimitTicks) {
-        this(input, count, forced, fuel, forceWait, policy, waitLimitTicks, CraftingTaskFactory.UNAVAILABLE);
+        this(
+                input,
+                count,
+                forced,
+                fuel,
+                forceWait ? CookingWait.WAIT : CookingWait.AUTO,
+                policy,
+                waitLimitTicks,
+                CraftingTaskFactory.UNAVAILABLE);
     }
 
     public SmeltTask(
@@ -136,6 +151,26 @@ public final class SmeltTask implements Task {
             @Nullable Station forced,
             @Nullable ItemMatcher fuel,
             boolean forceWait,
+            StationPolicy policy,
+            int waitLimitTicks,
+            CraftingTaskFactory craftingTaskFactory) {
+        this(
+                input,
+                count,
+                forced,
+                fuel,
+                forceWait ? CookingWait.WAIT : CookingWait.AUTO,
+                policy,
+                waitLimitTicks,
+                craftingTaskFactory);
+    }
+
+    public SmeltTask(
+            ItemMatcher input,
+            int count,
+            @Nullable Station forced,
+            @Nullable ItemMatcher fuel,
+            CookingWait wait,
             StationPolicy policy,
             int waitLimitTicks,
             CraftingTaskFactory craftingTaskFactory) {
@@ -149,7 +184,7 @@ public final class SmeltTask implements Task {
         this.count = count;
         this.forced = forced;
         this.fuel = fuel;
-        this.forceWait = forceWait;
+        this.waitRequest = wait == null ? CookingWait.AUTO : wait;
         this.policy = policy == null ? StationPolicy.AUTO : policy;
         this.waitLimitTicks = Math.max(1, waitLimitTicks);
         this.craftingTaskFactory = craftingTaskFactory == null ? CraftingTaskFactory.UNAVAILABLE : craftingTaskFactory;
@@ -215,13 +250,22 @@ public final class SmeltTask implements Task {
 
     @Override
     public int waitingLimitTicks() {
-        return waitLimitTicks;
+        return waitMode && phase == Phase.WAIT ? waitDeadline() : 0;
+    }
+
+    /**
+     * The deadline of the current wait, from the whole batch rather than the part already loaded: the share that
+     * still waits for a free station needs its own cooking time, and a large batch is allowed to use all of it.
+     */
+    private int waitDeadline() {
+        int stations = Math.max(1, Math.min(targets.size(), MAX_FURNACES));
+        return estimate(kind, Math.max(1, requested), stations) * 3 / 2 + 600;
     }
 
     @Override
     public String describe() {
         if (waitMode && phase == Phase.WAIT) {
-            return "waiting for " + targets.size() + " " + plural(targets.size()) + ": " + collected + "/" + total()
+            return "waiting for " + targets.size() + " " + plural(targets.size()) + ": " + collected + "/" + requested
                     + " done";
         }
         return "smelting " + count + " " + input.label();
@@ -280,6 +324,7 @@ public final class SmeltTask implements Task {
             failure = "I don't have " + input.label();
             return;
         }
+        requested = total();
         String firstId = idOf(selected.get(0));
         if (index.cookingFrom(firstId).isEmpty()) {
             failure = firstId + " can't be smelted or cooked";
@@ -316,7 +361,8 @@ public final class SmeltTask implements Task {
         List<BlockPos> free = freeStations(c, kind);
         int stations = free.isEmpty() ? 1 : Math.min(free.size(), MAX_FURNACES);
         int estimate = estimate(kind, total(), stations);
-        boolean longJob = !forceWait && estimate > waitLimitTicks;
+        boolean resultNeeded = waitRequest == CookingWait.AUTO && planNeedsOutcome(c);
+        boolean longJob = waitRequest != CookingWait.WAIT && estimate > waitLimitTicks;
         if (kind == Station.CAMPFIRE && longJob) {
             if (forced != null) {
                 failure = "that would take too long on a campfire; ask me to wait or give me a furnace";
@@ -334,7 +380,8 @@ public final class SmeltTask implements Task {
             stations = free.isEmpty() ? 1 : Math.min(free.size(), MAX_FURNACES);
             estimate = estimate(kind, total(), stations);
         }
-        waitMode = forceWait || estimate <= waitLimitTicks;
+        waitMode = waitRequest == CookingWait.WAIT
+                || waitRequest == CookingWait.AUTO && (estimate <= waitLimitTicks || resultNeeded);
 
         if (free.isEmpty()) {
             String stationItem = index.stationItem(kind);
@@ -353,6 +400,17 @@ public final class SmeltTask implements Task {
         }
         pendingStations.addAll(free);
         phase = Phase.APPROACH_STATION;
+    }
+
+    /**
+     * True when the plan around this task starts another action after it, so that action consumes the finished
+     * items. A step that collects the output itself is the plan's own way to get them, so it is not a request for
+     * this task to wait.
+     */
+    private static boolean planNeedsOutcome(TaskContext c) {
+        return c.followingPlannedAction()
+                .map(next -> !next.tool().equals("collect_smelted"))
+                .orElse(false);
     }
 
     private Station chooseKind(TaskContext c) {
@@ -675,10 +733,11 @@ public final class SmeltTask implements Task {
             return TaskStatus.FAILED;
         }
         List<ItemStack> remainingInputs = new ArrayList<>(selected);
-        int perStation = (total() + targets.size() - 1) / targets.size();
+        int perStation = (requested + targets.size() - 1) / targets.size();
         int loadedTotal = 0;
         int stationsLoaded = 0;
         List<ItemStack> waiting = new ArrayList<>();
+        String reason = null;
         for (Target target : targets) {
             List<ItemStack> share = takeUpTo(remainingInputs, perStation);
             if (share.isEmpty()) {
@@ -691,6 +750,9 @@ public final class SmeltTask implements Task {
                 }
                 loadedTotal += loaded;
                 stationsLoaded++;
+                if (loaded < totalOf(share) && reason == null) {
+                    reason = "a campfire holds four items at a time";
+                }
                 continue;
             }
             List<ItemStack> queue = new ArrayList<>(share);
@@ -700,16 +762,23 @@ public final class SmeltTask implements Task {
             }
             if (loadedHere <= 0) {
                 remainingInputs.addAll(0, queue);
+                if (reason == null) reason = "no room in the " + kind.noun();
                 continue;
-            }
-            if (waitMode) {
-                waiting.addAll(queue);
             }
             loadedTotal += loadedHere;
             stationsLoaded++;
             if (!waitMode) {
                 addJob(c, target, share.get(0), loadedHere);
+                remainingInputs.addAll(0, queue);
+                if (!queue.isEmpty() && reason == null) reason = "no room in the " + kind.noun();
+            } else {
+                waiting.addAll(queue);
             }
+        }
+        if (waitMode) {
+            // A station change or a full result slot leaves the rest for the next round instead of dropping it.
+            waiting.addAll(remainingInputs);
+            remainingInputs.clear();
         }
         if (loadedTotal == 0) {
             summary = "couldn't load any " + kind.noun() + " with " + input.label();
@@ -719,6 +788,8 @@ public final class SmeltTask implements Task {
         this.stationsLoaded = stationsLoaded;
         this.waitingInputs.clear();
         this.waitingInputs.addAll(waiting);
+        this.unstartedCount = Math.max(0, requested - loadedTotal - totalOf(waiting));
+        this.unstartedReason = reason;
         if (waitMode) {
             phase = Phase.WAIT;
             waitTicks = 0;
@@ -726,6 +797,14 @@ public final class SmeltTask implements Task {
             return TaskStatus.RUNNING;
         }
         return finishLoadAndLeave(loadedTotal, stationsLoaded);
+    }
+
+    private static int totalOf(List<ItemStack> stacks) {
+        int total = 0;
+        for (ItemStack stack : stacks) {
+            total += stack.getCount();
+        }
+        return total;
     }
 
     /**
@@ -801,6 +880,12 @@ public final class SmeltTask implements Task {
     }
 
     private TaskStatus finishLoadAndLeave(int loadedTotal, int stations) {
+        if (unstartedCount > 0) {
+            // A background load still has to start everything it was asked to load; only the collection is deferred.
+            summary = partialSummary("loaded");
+            phase = Phase.DONE;
+            return TaskStatus.FAILED;
+        }
         int estimate = estimate(kind, loadedTotal, stations);
         StringBuilder text = new StringBuilder("loaded ")
                 .append(stations)
@@ -821,11 +906,66 @@ public final class SmeltTask implements Task {
         return TaskStatus.SUCCESS;
     }
 
+    /** Reports what started, what waits for a station and what stayed behind, so a partial admission is visible. */
+    private String partialSummary(String verb) {
+        StringBuilder text = new StringBuilder(verb)
+                .append(' ')
+                .append(loadedCount)
+                .append(" of ")
+                .append(requested)
+                .append(' ')
+                .append(input.label())
+                .append(" in ")
+                .append(stationsLoaded)
+                .append(' ')
+                .append(plural(stationsLoaded))
+                .append("; ")
+                .append(unstartedCount)
+                .append(' ')
+                .append(input.label())
+                .append(" not started");
+        if (unstartedReason != null) {
+            text.append(": ").append(unstartedReason);
+        }
+        if (fuelNote != null) {
+            text.append("; ").append(fuelNote);
+        }
+        return text.toString();
+    }
+
+    /** The wait-mode counterpart: what was collected before the blocker and what never started. */
+    private String waitPartialSummary() {
+        StringBuilder text = new StringBuilder("smelted ")
+                .append(loadedCount)
+                .append(' ')
+                .append(input.label())
+                .append(" into ")
+                .append(collected)
+                .append(' ')
+                .append(outputName())
+                .append(" in ")
+                .append(stationsLoaded)
+                .append(' ')
+                .append(plural(stationsLoaded))
+                .append("; ")
+                .append(unstartedCount)
+                .append(' ')
+                .append(input.label())
+                .append(" not started");
+        if (unstartedReason != null) {
+            text.append(": ").append(unstartedReason);
+        }
+        if (fuelNote != null) {
+            text.append("; ").append(fuelNote);
+        }
+        return text.toString();
+    }
+
     private static final int WAIT_INTERVAL = 20;
 
     private TaskStatus tickWait(TaskContext c) {
         waitTicks++;
-        int deadline = estimate(kind, loadedCount, stationsLoaded) * 3 / 2 + 600;
+        int deadline = waitDeadline();
         if (waitTicks > deadline) {
             summary = "the " + kind.noun() + " took too long; " + collected + " " + outputName() + " collected so far";
             return TaskStatus.FAILED;
@@ -910,6 +1050,12 @@ public final class SmeltTask implements Task {
         }
         if (allDone && !waitingInputs.isEmpty()) {
             allDone = false;
+        }
+        if (allDone && unstartedCount > 0) {
+            // The loaded share finished, but part of the request never started: that is a blocker, not success.
+            summary = waitPartialSummary();
+            phase = Phase.DONE;
+            return TaskStatus.FAILED;
         }
         if (allDone) {
             takeBackFuel(c);
