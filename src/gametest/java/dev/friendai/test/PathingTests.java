@@ -6,6 +6,7 @@ import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.features.mining.minecraft.task.MineBlocksTask;
 import dev.friendai.features.navigation.minecraft.task.ApproachEntityTask;
+import dev.friendai.features.navigation.minecraft.task.CircleTask;
 import dev.friendai.features.navigation.minecraft.task.FollowTask;
 import dev.friendai.features.navigation.minecraft.task.GoToTask;
 import dev.friendai.features.navigation.minecraft.task.TravelThroughPortalTask;
@@ -123,6 +124,43 @@ public class PathingTests {
     private static void walkTo(CompanionEntity c, GameTestHelper h, Outcome out, double x, double y, double z) {
         c.executionCoordinator().setEventSink(out);
         c.executionCoordinator().start(new GoToTask(h.absoluteVec(new Vec3(x, y, z))), "go_to");
+    }
+
+    /** One orbit fixture's recorded trajectory: the relative points walked and which eighth of the ring was entered. */
+    private static final class OrbitTrace {
+        final boolean[] sectors = new boolean[8];
+        final List<double[]> path = new ArrayList<>();
+        double farthest;
+
+        OrbitTrace(GameTestHelper h, CompanionEntity companion, Vec3 center) {
+            h.onEachTick(() -> {
+                if (companion.isRemoved()) return;
+                double dx = companion.getX() - center.x;
+                double dz = companion.getZ() - center.z;
+                double distance = Math.hypot(dx, dz);
+                farthest = Math.max(farthest, distance);
+                path.add(new double[] {dx, dz});
+                if (distance < 0.5) return;
+                int sector = (int) Math.floor(((Math.atan2(dz, dx) + 2 * Math.PI) % (2 * Math.PI)) / (2 * Math.PI / 8));
+                sectors[sector] = true;
+            });
+        }
+
+        int coveredSectors() {
+            int covered = 0;
+            for (boolean sector : sectors) {
+                if (sector) covered++;
+            }
+            return covered;
+        }
+    }
+
+    private static Vec3 orbitCenter(GameTestHelper h, int floor) {
+        return h.absoluteVec(new Vec3(10.5, floor + 1, 10.5));
+    }
+
+    private static CompanionEntity ringWalker(GameTestHelper h, int floor) {
+        return h.spawn(FriendaiEntities.COMPANION, 14.5f, floor + 1, 10.5f);
     }
 
     private static void assertBlock(
@@ -1514,6 +1552,183 @@ public class PathingTests {
                 h.assertTrue(distance <= 0.1, "reported arrival " + distance + " blocks from the point");
             }
             h.assertTrue(state == MoveHelper.State.ARRIVED, "still centering: " + state + " distance " + distance);
+        });
+    }
+
+    @GameTest(structure = ARENA, maxTicks = 1200)
+    public void circleWalksAnOpenRingAndReleasesItsRoute(GameTestHelper h) {
+        int floor = 210;
+        GameTestSupport.platformAt(h, floor, 20);
+        CompanionEntity c = ringWalker(h, floor);
+        Vec3 center = orbitCenter(h, floor);
+        OrbitTrace trace = new OrbitTrace(h, c, center);
+        Outcome out = new Outcome();
+        c.executionCoordinator().setEventSink(out);
+        c.executionCoordinator().start(new CircleTask(() -> center, "point", 4.0, 1), "circle");
+
+        TaskTrace.of(h, c.executionCoordinator(), c).succeedWhen(() -> {
+            h.assertTrue(
+                    out.status == TaskStatus.SUCCESS,
+                    "an open ring must complete: " + out.why() + "; trace sectors=" + trace.coveredSectors());
+            h.assertTrue(
+                    out.summary.contains("all 8 waypoints verified"),
+                    "the result must report verified coverage: " + out.summary);
+            h.assertTrue(
+                    trace.coveredSectors() >= 7, "the body missed most of the ring: sectors=" + trace.coveredSectors());
+            h.assertTrue(trace.path.size() > 100, "the fixture must record the trajectory");
+            h.assertTrue(trace.farthest <= 7.0, "the body wandered off the ring: " + trace.farthest);
+            h.assertFalse(c.body().looking(), "settlement must release the look hold");
+            h.assertFalse(c.pathing(), "settlement must release the navigation route");
+        });
+    }
+
+    @GameTest(structure = ARENA, maxTicks = 3000)
+    public void circleReportsAnObstructedArcAsPartialMovement(GameTestHelper h) {
+        int floor = 220;
+        GameTestSupport.platformAt(h, floor, 20);
+        // A solid block covers the north-east waypoint and both its wider and narrower bypass points, while the start
+        // point and every other waypoint stay walkable.
+        for (int x = 12; x <= 15; x++) {
+            for (int z = 12; z <= 15; z++) {
+                for (int y = floor + 1; y <= floor + 3; y++) {
+                    h.setBlock(new BlockPos(x, y, z), Blocks.BEDROCK);
+                }
+            }
+        }
+        CompanionEntity c = ringWalker(h, floor);
+        Vec3 center = orbitCenter(h, floor);
+        OrbitTrace trace = new OrbitTrace(h, c, center);
+        Outcome out = new Outcome();
+        c.executionCoordinator().setEventSink(out);
+        c.executionCoordinator().start(new CircleTask(() -> center, "point", 4.0, 1), "circle");
+
+        TaskTrace.of(h, c.executionCoordinator(), c).succeedWhen(() -> {
+            h.assertTrue(out.status == TaskStatus.FAILED, "an obstructed ring must not claim a lap: " + out.why());
+            h.assertTrue(out.summary.startsWith("covered "), "the result must name its coverage: " + out.summary);
+            h.assertTrue(out.summary.contains("of 8"), "the result must name the requested waypoints: " + out.summary);
+            h.assertTrue(
+                    out.summary.contains("stopped: one waypoint could not be reached safely"),
+                    "the result must name the precise blocker: " + out.summary);
+            h.assertTrue(
+                    trace.coveredSectors() >= 5,
+                    "the rest of the ring should still be walked for the report: sectors=" + trace.coveredSectors());
+            h.assertTrue(trace.path.size() > 100, "the fixture must record the trajectory");
+            h.assertTrue(trace.farthest <= 8.0, "the body wandered off the ring: " + trace.farthest);
+            h.assertFalse(c.body().looking(), "settlement must release the look hold");
+            h.assertFalse(c.pathing(), "settlement must release the navigation route");
+        });
+    }
+
+    @GameTest(structure = ARENA, maxTicks = 2400)
+    public void circleFinishesItsLastLapAfterAMissOnAnEarlierLap(GameTestHelper h) {
+        int floor = 240;
+        GameTestSupport.platformAt(h, floor, 20);
+        // The only blocked waypoint is the first point of lap two (south-east at angle zero), so lap one is verified
+        // and the result must still be partial instead of reporting two complete laps.
+        for (int x = 13; x <= 16; x++) {
+            for (int z = 9; z <= 12; z++) {
+                for (int y = floor + 1; y <= floor + 3; y++) {
+                    h.setBlock(new BlockPos(x, y, z), Blocks.BEDROCK);
+                }
+            }
+        }
+        CompanionEntity c = ringWalker(h, floor);
+        Vec3 center = orbitCenter(h, floor);
+        Outcome out = new Outcome();
+        c.executionCoordinator().setEventSink(out);
+        c.executionCoordinator().start(new CircleTask(() -> center, "point", 4.0, 2), "circle");
+
+        TaskTrace.of(h, c.executionCoordinator(), c).succeedWhen(() -> {
+            h.assertTrue(out.status == TaskStatus.FAILED, "a miss on lap two must not claim two laps: " + out.why());
+            h.assertTrue(out.summary.startsWith("covered "), "the result must name its coverage: " + out.summary);
+            h.assertTrue(
+                    !out.summary.contains("all 16 waypoints verified"), "a phantom lap was reported: " + out.summary);
+            h.assertFalse(c.body().looking(), "settlement must release the look hold");
+            h.assertFalse(c.pathing(), "settlement must release the navigation route");
+        });
+    }
+
+    @GameTest(structure = ARENA, maxTicks = 1200)
+    public void circleStopsCleanlyWhenTheCentreVanishes(GameTestHelper h) {
+        int floor = 230;
+        GameTestSupport.platformAt(h, floor, 20);
+        CompanionEntity c = ringWalker(h, floor);
+        Vec3 center = orbitCenter(h, floor);
+        int[] ticks = {0};
+        Outcome out = new Outcome();
+        c.executionCoordinator().setEventSink(out);
+        c.executionCoordinator()
+                .start(new CircleTask(() -> ++ticks[0] > 20 ? null : center, "point", 4.0, 1), "circle");
+
+        TaskTrace.of(h, c.executionCoordinator(), c).succeedWhen(() -> {
+            h.assertTrue(out.status == TaskStatus.FAILED, "a vanished centre must fail: " + out.why());
+            h.assertTrue(out.summary.contains("the point is gone"), "the result must name the cause: " + out.summary);
+            h.assertTrue(out.summary.startsWith("covered "), "the result must keep the partial form: " + out.summary);
+            h.assertFalse(c.body().looking(), "settlement must release the look hold");
+            h.assertFalse(c.pathing(), "settlement must release the navigation route");
+        });
+    }
+
+    @GameTest(structure = ARENA, maxTicks = 2400)
+    public void circleFollowsASlowlyMovingCentreToAVerifiedLap(GameTestHelper h) {
+        int floor = 235;
+        GameTestSupport.platformAt(h, floor, 20);
+        CompanionEntity c = ringWalker(h, floor);
+        Vec3 center = orbitCenter(h, floor);
+        int[] ticks = {0};
+        Outcome out = new Outcome();
+        c.executionCoordinator().setEventSink(out);
+        c.executionCoordinator()
+                .start(
+                        new CircleTask(
+                                () -> {
+                                    double drift = Math.sin(ticks[0]++ * 0.02) * 1.2;
+                                    return center.add(drift, 0.0, 0.0);
+                                },
+                                "point",
+                                4.0,
+                                1),
+                        "circle");
+
+        TaskTrace.of(h, c.executionCoordinator(), c).succeedWhen(() -> {
+            h.assertTrue(out.status == TaskStatus.SUCCESS, "a slowly walking centre is still circled: " + out.why());
+            h.assertTrue(
+                    out.summary.contains("all 8 waypoints verified"),
+                    "the moving ring must be verified point by point: " + out.summary);
+            h.assertFalse(c.body().looking(), "settlement must release the look hold");
+            h.assertFalse(c.pathing(), "settlement must release the navigation route");
+        });
+    }
+
+    @GameTest(structure = ARENA, maxTicks = 2400)
+    public void circleDoesNotCreditAPhantomLapAroundAJumpingCentre(GameTestHelper h) {
+        int floor = 250;
+        GameTestSupport.platformAt(h, floor, 20);
+        CompanionEntity c = ringWalker(h, floor);
+        Vec3 center = orbitCenter(h, floor);
+        int[] ticks = {0};
+        Outcome out = new Outcome();
+        c.executionCoordinator().setEventSink(out);
+        c.executionCoordinator()
+                .start(
+                        new CircleTask(
+                                () -> {
+                                    int step = ticks[0]++ / 5;
+                                    return center.add((step % 3) * 8.0, 0.0, 0.0);
+                                },
+                                "point",
+                                4.0,
+                                1),
+                        "circle");
+
+        TaskTrace.of(h, c.executionCoordinator(), c).succeedWhen(() -> {
+            h.assertTrue(
+                    out.status == TaskStatus.FAILED, "a jumping centre must not yield a verified lap: " + out.why());
+            h.assertTrue(out.summary.startsWith("covered "), "the result must name its coverage: " + out.summary);
+            h.assertFalse(
+                    out.summary.contains("all 8 waypoints verified"), "a phantom lap was reported: " + out.summary);
+            h.assertFalse(c.body().looking(), "settlement must release the look hold");
+            h.assertFalse(c.pathing(), "settlement must release the navigation route");
         });
     }
 

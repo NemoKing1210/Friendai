@@ -6,6 +6,14 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.223.0] - 2026-11-23
+
+### Changed
+
+- A circle around a point or a mob now reports the waypoints it really reached. A blocked arc gets one wider and one
+  narrower safe bypass and, when those fail, the result says how much of the requested orbit was covered instead of
+  claiming a complete lap.
+
 ## [0.222.0] - 2026-11-23
 
 ### Changed

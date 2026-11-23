@@ -79,6 +79,12 @@ const RU = {
   "How close it stays to the owner.": "Как близко держаться к владельцу.",
   "A* pathfinder": "Поиск пути A*",
   "Incremental, resumable search that spreads work over ticks.": "Пошаговый поиск с возобновлением, распределяет работу по тикам.",
+  "Verified orbits": "Проверенные обходы",
+  "A circle reports the waypoints it really reached and names an obstructed arc as partial movement.":
+    "Обход сообщает, до каких точек оно действительно дошло, и называет закрытую дугу частичным выполнением.",
+  "Bounded bypass": "Ограниченный обход",
+  "One wider and one narrower arc around a blocked waypoint before it is reported.":
+    "Одна более широкая и одна более узкая дуга вокруг закрытой точки до того, как она будет отмечена.",
   "Dig, pillar, bridge": "Копать, столбить, мостить",
   "Breaks and places blocks when the way is blocked.": "Ломает и ставит блоки, если путь перекрыт.",
   "Breaks and places blocks when the way is blocked, and walks only a complete stair or bridge: it never stops half way up.":
