@@ -10,9 +10,12 @@ import dev.friendai.execution.log.TaskLogEvent;
 import dev.friendai.execution.queue.FailurePolicy;
 import dev.friendai.execution.queue.Guard;
 import dev.friendai.execution.queue.GuardAction;
+import dev.friendai.execution.queue.HoldKey;
 import dev.friendai.execution.queue.Job;
 import dev.friendai.execution.queue.JobQueue;
 import dev.friendai.execution.queue.JobState;
+import dev.friendai.execution.queue.PlanDefinition;
+import dev.friendai.execution.queue.PlanNode;
 import dev.friendai.execution.queue.PlanOptions;
 import dev.friendai.execution.queue.QueueHold;
 import dev.friendai.execution.queue.QueueLimits;
@@ -507,7 +510,7 @@ public class ActiveTaskLifecycleTests {
                 List.of(dependent),
                 List.of(context -> new WaitTask(1)),
                 PlanOptions.DEFAULT,
-                id -> runner.queue().setHold(id, QueueHold.pause("test setup")));
+                id -> runner.queue().setHold(HoldKey.plan(id), QueueHold.pause("test setup")));
         long jobId = runner.queue().jobsOfPlan(planId).getFirst().id();
         var inserted = runner.queue().insertPrerequisite(jobId, dependent);
         h.assertTrue(inserted.ok(), inserted.text());
@@ -517,7 +520,7 @@ public class ActiveTaskLifecycleTests {
                 .max()
                 .orElseThrow();
         runner.registerFactory(remedy, context -> new WaitTask(1));
-        runner.queue().release(planId);
+        runner.queue().release(HoldKey.plan(planId));
         h.succeedWhen(() -> {
             runner.tick();
             if (order.size() < 2) return;
@@ -543,7 +546,9 @@ public class ActiveTaskLifecycleTests {
                 List.of(context -> new WaitTask(20)),
                 PlanOptions.DEFAULT,
                 id -> runner.queue()
-                        .setHold(id, QueueHold.defer("later", runner.queue().clock() + 5, null)));
+                        .setHold(
+                                HoldKey.plan(id),
+                                QueueHold.defer("later", runner.queue().clock() + 5, null)));
         int[] tick = {0};
         h.succeedWhen(() -> {
             tick[0]++;
@@ -583,6 +588,65 @@ public class ActiveTaskLifecycleTests {
         });
     }
 
+    @GameTest(maxTicks = 60)
+    public void aPlanHoldAndAJobHoldWithTheSameNumberDoNotReachEachOther(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 300, () -> false);
+        QueuedStep wait = new QueuedStep(
+                "wait", new JsonObject(), null, List.of(), GuardAction.WAIT, FailurePolicy.ASK, 1, List.of());
+        long[] ids = {0, 0};
+        long planId = runner.enqueuePlan(
+                "held plan",
+                new PlanDefinition(List.of(new PlanNode.Action(wait))),
+                PlanOptions.DEFAULT,
+                java.util.Map.of("wait", (context, step) -> new WaitTask(20)),
+                id -> {
+                    ids[0] = id;
+                    Job direct = runner.queue().addDirect(wait);
+                    ids[1] = direct.id();
+                    runner.registerFactory(direct.id(), context -> new WaitTask(20));
+                    runner.queue().setHold(HoldKey.plan(id), QueueHold.pause("plan held"));
+                    runner.queue().setHold(HoldKey.job(direct.id()), QueueHold.pause("job held"));
+                });
+        long directId = ids[1];
+        h.assertValueEqual(directId, planId, "a plan and an unrelated direct job share the number");
+        runner.tick();
+        h.assertTrue(runner.current().isEmpty(), "both are held");
+
+        runner.queue().release(HoldKey.job(directId));
+        runner.wakeQueue();
+        h.succeedWhen(() -> {
+            runner.tick();
+            if (runner.current().isEmpty()) return;
+            h.assertValueEqual(
+                    runner.queue().active().map(Job::id).orElse(0L),
+                    directId,
+                    "the resumed job runs, not the held plan");
+            h.assertTrue(
+                    runner.queue().hold(HoldKey.plan(planId)).isPresent(), "the plan hold survives the job resume");
+            h.assertTrue(runner.queue().jobsOfPlan(planId).isEmpty(), "the held plan emitted no step");
+
+            // Reload: each hold keeps its own scope, and resuming one leaves the other where it was.
+            QueueSave.Decoded saved = new QueueSave.Decoded(
+                    runner.queue(), runner.queue().active().map(Job::id).orElse(0L));
+            runner.stop("simulated restart");
+            CompanionEntity reloaded = h.spawn(FriendaiEntities.COMPANION, 5, 2, 5);
+            ExecutionCoordinator again = new ExecutionCoordinator(reloaded, () -> 300, () -> false);
+            again.installRestoredState(
+                    saved, java.util.Map.of(directId, context -> new WaitTask(20)), java.util.Map.of(), null);
+            h.assertTrue(again.queue().hold(HoldKey.plan(planId)).isPresent(), "the plan hold survives the reload");
+            h.assertTrue(again.queue().hold(HoldKey.job(directId)).isEmpty(), "the resumed job was not re-held");
+            again.queue().release(HoldKey.plan(planId));
+            again.wakeQueue();
+            for (int i = 0; i < 5 && again.current().isEmpty(); i++) again.tick();
+            h.assertTrue(!again.queue().jobsOfPlan(planId).isEmpty(), "the resumed plan emits its step after reload");
+            again.stop("test cleanup");
+            runner.stop("test cleanup");
+            h.succeed();
+        });
+    }
+
     @GameTest(maxTicks = 40)
     public void aPausedPlanWaitsForResume(GameTestHelper h) {
         GameTestSupport.platform(h, 8);
@@ -595,10 +659,10 @@ public class ActiveTaskLifecycleTests {
                 List.of(wait),
                 List.of(context -> new WaitTask(20)),
                 PlanOptions.DEFAULT,
-                id -> runner.queue().setHold(id, QueueHold.pause("owner")));
+                id -> runner.queue().setHold(HoldKey.plan(id), QueueHold.pause("owner")));
         runner.tick();
         h.assertTrue(runner.current().isEmpty(), "a paused plan must not start");
-        runner.queue().release(planId);
+        runner.queue().release(HoldKey.plan(planId));
         runner.wakeQueue();
         runner.tick();
         h.assertTrue(runner.current().isPresent(), "a resumed plan starts");
@@ -794,7 +858,7 @@ public class ActiveTaskLifecycleTests {
                                 "stay", new JsonObject(), null, List.of(), GuardAction.WAIT, null, 1, List.of())),
                 List.of(context -> new WaitTask(10), context -> new StayTask()),
                 PlanOptions.DEFAULT,
-                id -> planRunner.queue().setHold(id, QueueHold.pause("test")));
+                id -> planRunner.queue().setHold(HoldKey.plan(id), QueueHold.pause("test")));
 
         planRunner.cancelPlan(planId, "owner cancelled plan");
 
@@ -1033,7 +1097,7 @@ public class ActiveTaskLifecycleTests {
                                 List.of())),
                 List.of(context -> new StayTask(), context -> new WaitTask(200)),
                 PlanOptions.DEFAULT,
-                id -> runner.queue().setHold(id, QueueHold.pause("test setup")));
+                id -> runner.queue().setHold(HoldKey.plan(id), QueueHold.pause("test setup")));
         List<Job> jobs = runner.queue().jobsOfPlan(planId);
         long firstId = jobs.get(0).id();
         long secondId = jobs.get(1).id();
@@ -1042,7 +1106,7 @@ public class ActiveTaskLifecycleTests {
         h.assertValueEqual(runner.queue().job(firstId).orElseThrow().state(), JobState.SKIPPED, "the skipped step");
         h.assertValueEqual(runner.queue().job(secondId).orElseThrow().state(), JobState.PENDING, "the next step");
 
-        runner.queue().release(planId);
+        runner.queue().release(HoldKey.plan(planId));
         runner.wakeQueue();
         h.succeedWhen(() -> {
             runner.tick();

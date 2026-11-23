@@ -4,6 +4,7 @@ import com.google.gson.JsonObject;
 import dev.friendai.debug.DebugAccess;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.CompanionRenamer;
+import dev.friendai.execution.queue.HoldKey;
 import dev.friendai.execution.queue.QueueHold;
 import dev.friendai.features.memory.MemoryMenuActions;
 import dev.friendai.features.memory.MenuStatus;
@@ -162,11 +163,12 @@ public final class CompanionRequestHandler {
                 long id = edit.planId() > 0 ? edit.planId() : edit.jobId();
                 boolean plan = edit.planId() > 0;
                 if (plan ? q.plan(id).isEmpty() : q.job(id).isEmpty()) return;
+                HoldKey key = plan ? HoldKey.plan(id) : HoldKey.job(id);
                 String by = "owner";
                 switch (edit.action()) {
-                    case "resume" -> q.release(id);
-                    case "pause" -> q.setHold(id, QueueHold.pause(by));
-                    case "defer" -> q.setHold(id, QueueHold.defer(by, q.clock() + Math.max(1, edit.delay()), null));
+                    case "resume" -> q.release(key);
+                    case "pause" -> q.setHold(key, QueueHold.pause(by));
+                    case "defer" -> q.setHold(key, QueueHold.defer(by, q.clock() + Math.max(1, edit.delay()), null));
                     default -> {
                         return;
                     }

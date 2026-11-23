@@ -10,6 +10,7 @@ import dev.friendai.agent.tools.ToolMeta;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.queue.FailurePolicy;
 import dev.friendai.execution.queue.Guard;
+import dev.friendai.execution.queue.HoldKey;
 import dev.friendai.execution.queue.Job;
 import dev.friendai.execution.queue.JobQueue;
 import dev.friendai.execution.queue.JobState;
@@ -846,6 +847,7 @@ public final class QueueTools implements FeatureToolContributor {
                         return error("name exactly one of job or plan");
                     }
                     long id = plan != null ? plan : job;
+                    HoldKey key = plan != null ? HoldKey.plan(id) : HoldKey.job(id);
                     if (plan != null) {
                         if (q.plan(id).isEmpty()) return error("unknown plan #" + id);
                     } else {
@@ -857,14 +859,14 @@ public final class QueueTools implements FeatureToolContributor {
                     String actor = caller.access().name().toLowerCase(java.util.Locale.ROOT);
                     String heldBy = reason.isBlank() ? actor : actor + ": " + reason;
                     if (action.equals("resume")) {
-                        q.release(id);
+                        q.release(key);
                         runner.wakeQueue();
-                        return ToolResult.ok("resumed " + (plan != null ? "plan" : "job") + " #" + id);
+                        return ToolResult.ok("resumed " + key.describe());
                     }
                     if (action.equals("pause")) {
-                        q.setHold(id, QueueHold.pause(heldBy));
+                        q.setHold(key, QueueHold.pause(heldBy));
                         runner.wakeQueue();
-                        return ToolResult.ok("paused " + (plan != null ? "plan" : "job") + " #" + id);
+                        return ToolResult.ok("paused " + key.describe());
                     }
                     long delay = args.has("delay") ? args.get("delay").getAsLong() : 0;
                     if (delay < 0 || delay > QueueHold.MAX_DELAY_TICKS) {
@@ -879,9 +881,9 @@ public final class QueueTools implements FeatureToolContributor {
                     if (delay == 0 && until == null) {
                         return error("defer needs a delay or an until condition");
                     }
-                    q.setHold(id, QueueHold.defer(heldBy, q.clock() + delay, until));
+                    q.setHold(key, QueueHold.defer(heldBy, q.clock() + delay, until));
                     runner.wakeQueue();
-                    return ToolResult.ok("deferred " + (plan != null ? "plan" : "job") + " #" + id);
+                    return ToolResult.ok("deferred " + key.describe());
                 }
                 case "optimize" -> {
                     Long plan = args.has("plan") ? args.get("plan").getAsLong() : null;

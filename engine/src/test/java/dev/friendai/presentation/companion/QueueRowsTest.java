@@ -8,8 +8,12 @@ import dev.friendai.execution.queue.FailurePolicy;
 import dev.friendai.execution.queue.Guard;
 import dev.friendai.execution.queue.GuardAction;
 import dev.friendai.execution.queue.GuardFacts;
+import dev.friendai.execution.queue.HoldKey;
 import dev.friendai.execution.queue.JobQueue;
+import dev.friendai.execution.queue.PlanDefinition;
+import dev.friendai.execution.queue.PlanNode;
 import dev.friendai.execution.queue.PlanOptions;
+import dev.friendai.execution.queue.QueueHold;
 import dev.friendai.execution.queue.QueueLimits;
 import dev.friendai.execution.queue.QueuedStep;
 import java.util.List;
@@ -93,6 +97,24 @@ class QueueRowsTest {
             q.addDirect(step("stay", List.of(), List.of()));
         }
         assertEquals(QueueRows.MAX_ROWS, QueueRows.build(q, FACTS, null).size());
+    }
+
+    @Test
+    void aConditionalPlanRowNamesItsOwnHoldAndNotAJobNumber() {
+        JobQueue q = new JobQueue(QueueLimits.DEFAULTS);
+        q.addStructuredPlan(
+                new PlanDefinition(List.of(new PlanNode.Action(step("go_to", List.of(), List.of())))),
+                PlanOptions.DEFAULT);
+        q.addDirect(step("stay", List.of(), List.of()));
+        q.setHold(HoldKey.plan(1), QueueHold.pause("owner"));
+
+        List<QueueRow> rows = QueueRows.build(q, FACTS, null);
+
+        QueueRow planRow =
+                rows.stream().filter(r -> r.planId() == 1).findFirst().orElseThrow();
+        assertTrue(planRow.note().contains("paused (owner)"), planRow.note());
+        QueueRow jobRow = rows.stream().filter(r -> r.id() == 1).findFirst().orElseThrow();
+        assertEquals("ready", jobRow.state(), "the job numbered like the plan is not held");
     }
 
     /** A direct job whose first attempt failed and whose retry budget still has room. */

@@ -1,6 +1,7 @@
 package dev.friendai.presentation.companion;
 
 import dev.friendai.execution.queue.GuardFacts;
+import dev.friendai.execution.queue.HoldKey;
 import dev.friendai.execution.queue.Job;
 import dev.friendai.execution.queue.JobQueue;
 import dev.friendai.execution.queue.JobState;
@@ -77,6 +78,10 @@ public final class QueueRows {
             if (rows.size() >= MAX_ROWS) break;
             if (plan.cursor() == null || !queue.jobsOfPlan(plan.id()).isEmpty()) continue;
             PlanStatus status = statuses.get(plan.id());
+            String note = queue.hold(HoldKey.plan(plan.id()))
+                    .map(hold -> hold.describe(queue.clock()))
+                    .orElse("");
+            String progress = QueueText.planProgress(plan);
             rows.add(new QueueRow(
                     0,
                     plan.id(),
@@ -85,7 +90,7 @@ public final class QueueRows {
                     "Conditional plan",
                     "",
                     "active",
-                    QueueText.truncate(QueueText.planProgress(plan), MAX_NOTE),
+                    QueueText.truncate(append(progress, note), MAX_NOTE),
                     List.of(),
                     0,
                     0,

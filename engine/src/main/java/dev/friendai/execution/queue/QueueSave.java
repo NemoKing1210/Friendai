@@ -4,9 +4,12 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /** Bounded queue snapshot codec. The enclosing execution document owns format versioning. */
 public final class QueueSave {
@@ -79,10 +82,11 @@ public final class QueueSave {
         }
         root.add("archives", archives);
         JsonArray holds = new JsonArray();
-        for (Map.Entry<Long, QueueHold> entry : queue.holds().entrySet()) {
+        for (Map.Entry<HoldKey, QueueHold> entry : queue.holds().entrySet()) {
             QueueHold hold = entry.getValue();
             JsonObject o = new JsonObject();
-            o.addProperty("id", entry.getKey());
+            o.addProperty("scope", entry.getKey().scope().name());
+            o.addProperty("id", entry.getKey().id());
             o.addProperty("kind", hold.kind().name());
             o.addProperty("reason", bounded(hold.reason(), QueueHold.MAX_REASON));
             o.addProperty("remaining", Math.min(hold.remaining(queue.clock()), QueueHold.MAX_DELAY_TICKS));
@@ -165,7 +169,12 @@ public final class QueueSave {
                     || jobs.stream().anyMatch(j -> j.args().toString().length() > limits.maxArgsChars()))
                 return Optional.empty();
             long clock = root.get("clock").getAsLong();
-            Map<Long, QueueHold> holds = new java.util.LinkedHashMap<>();
+            Set<Long> planIds = new HashSet<>();
+            for (PlanRecord plan : plans) planIds.add(plan.id());
+            Set<Long> jobIds = new HashSet<>();
+            for (Job job : jobs) jobIds.add(job.id());
+            Map<HoldKey, QueueHold> holds = new LinkedHashMap<>();
+            List<String> holdNotices = new ArrayList<>();
             if (root.has("holds")) {
                 for (var e : root.getAsJsonArray("holds")) {
                     JsonObject h = e.getAsJsonObject();
@@ -174,13 +183,28 @@ public final class QueueSave {
                     Guard until = h.has("until")
                             ? Guard.parse(h.getAsJsonObject("until")).orElseThrow()
                             : null;
-                    holds.put(
-                            id,
-                            new QueueHold(
-                                    QueueHold.Kind.valueOf(h.get("kind").getAsString()),
-                                    field(h, "reason"),
-                                    clock + Math.min(remaining, QueueHold.MAX_DELAY_TICKS),
-                                    until));
+                    QueueHold hold = new QueueHold(
+                            QueueHold.Kind.valueOf(h.get("kind").getAsString()),
+                            field(h, "reason"),
+                            clock + Math.min(remaining, QueueHold.MAX_DELAY_TICKS),
+                            until);
+                    if (h.has("scope")) {
+                        HoldKey key =
+                                new HoldKey(HoldKey.Scope.valueOf(h.get("scope").getAsString()), id);
+                        if (key.isPlan() ? planIds.contains(id) : jobIds.contains(id)) holds.put(key, hold);
+                        continue;
+                    }
+                    // A hold saved before holds carried a scope names a bare number. Attribute it to the one target
+                    // that number can mean; when both a plan and a job carry it, keep both held and say so, because
+                    // guessing would either resume paused work or stall unrelated work.
+                    boolean plan = planIds.contains(id);
+                    boolean job = jobIds.contains(id);
+                    if (plan) holds.put(HoldKey.plan(id), hold);
+                    if (job) holds.put(HoldKey.job(id), hold);
+                    if (plan && job)
+                        holdNotices.add("saved hold on #" + id + " could not be attributed after reload; plan #" + id
+                                + " and job #" + id
+                                + " both carry it, so resume the one you meant");
                 }
             }
             if (holds.size() > JobQueue.MAX_HOLDS) return Optional.empty();
@@ -202,6 +226,7 @@ public final class QueueSave {
                     jobs,
                     archives,
                     holds);
+            for (String notice : holdNotices) q.addHoldNotice(notice);
             return Optional.of(new Decoded(q, active));
         } catch (RuntimeException ignored) {
             return Optional.empty();

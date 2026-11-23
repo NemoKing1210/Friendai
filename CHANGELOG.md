@@ -13,6 +13,10 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ### Fixed
 
+- Pausing or resuming one piece of work no longer takes hold of another that happens to carry the same number. A plan
+  and an unrelated single job can now be paused, deferred, resumed and finished independently, and that stays true after
+  a reload, where an older save that could mean either one keeps both held and says which numbers it could not tell
+  apart.
 - Correcting the companion no longer has to wait for an answer you have already replaced: "no, build it out of
   stone" drops the reply still being written and starts again from the correction, instead of the old plan being
   carried out or the correction being answered with facts that no longer apply.

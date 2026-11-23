@@ -230,6 +230,10 @@ public final class TaskPersistenceCoordinator {
             companion
                     .executionCoordinator()
                     .notice("Saved creative tasks were cancelled after reload; submit them again.");
+        for (String notice : companion.executionCoordinator().queue().holdNotices()) {
+            companion.executionCoordinator().notice(notice);
+            rejected.add(notice);
+        }
         for (Job job : companion.executionCoordinator().queue().jobs()) {
             if (Job.needsDecision(job)) {
                 companion

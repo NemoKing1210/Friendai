@@ -88,7 +88,7 @@ public final class QueueText {
                     .append(truncate(plan.goal(), 80))
                     .append("\": ")
                     .append(planProgress(plan));
-            q.hold(plan.id())
+            q.hold(HoldKey.plan(plan.id()))
                     .ifPresent(hold ->
                             out.append(" [").append(hold.describe(q.clock())).append(']'));
             out.append("\ntree: ").append(planTree(plan));
@@ -334,8 +334,9 @@ public final class QueueText {
     }
 
     private static String line(JobQueue q, Job j, String reason) {
-        QueueHold hold = j.planId() == 0 ? null : q.hold(j.planId()).orElse(null);
-        if (hold == null) hold = q.hold(j.id()).orElse(null);
+        QueueHold hold =
+                j.planId() == 0 ? null : q.hold(HoldKey.plan(j.planId())).orElse(null);
+        if (hold == null) hold = q.hold(HoldKey.job(j.id())).orElse(null);
         String suffix = hold != null
                 ? ": " + truncate(hold.describe(q.clock()), MAX_SUMMARY_REASON)
                 : reason == null
