@@ -430,6 +430,7 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] A roof-only preview of a half-built house: the outline covers only the roof, and the material line bills only the roof blocks that are still missing.
 - [ ] Preview a house with "clear_site": false on grass: the preview lists the dirt as "the site isn't clear", and the same call without it says "to clear".
 - [ ] Preview a site, walk ten blocks away, then say "build what you showed me": the build starts at the previewed site, not where the companion stands now.
+- [ ] Stop a house halfway, then ask for it again with the roof only: it finishes the roof and leaves the walls and floor as they are. Repeat the original request with `"clear_site": false` over grass: it reports the dirt instead of clearing it. Ask it to turn the same half-built house: it refuses and names the facing already built.
 - [ ] "Save this design": save_blueprint, then list_blueprints shows it and a build_structure by name builds it again.
 - [ ] "Build this village house here": list_blueprints with a query finds the template id, then build_structure with "structure" builds the vanilla house.
 - [ ] A tall tower (8+ blocks): it is built using scaffolding, and the dirt/cobblestone pillars are removed afterwards.

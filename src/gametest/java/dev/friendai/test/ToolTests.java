@@ -12,6 +12,13 @@ import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolExecutor;
 import dev.friendai.execution.tool.ToolResult;
+import dev.friendai.features.construction.blueprint.Blueprint;
+import dev.friendai.features.construction.blueprint.BlueprintParser;
+import dev.friendai.features.construction.blueprint.ParseResult;
+import dev.friendai.features.construction.blueprint.PartKind;
+import dev.friendai.features.construction.minecraft.build.BlueprintResolver;
+import dev.friendai.features.construction.minecraft.build.BlueprintStore;
+import dev.friendai.features.construction.minecraft.task.BuildTask;
 import dev.friendai.features.cooking.minecraft.FurnaceJob;
 import dev.friendai.features.crafting.Station;
 import dev.friendai.features.memory.CompanionName;
@@ -1022,8 +1029,84 @@ public class ToolTests {
         return args;
     }
 
+    private static Blueprint parseBlueprint(String json) {
+        ParseResult result = BlueprintParser.parse(json, BlueprintResolver.knownState());
+        if (result.blueprint().isEmpty()) {
+            throw new IllegalArgumentException("could not parse: " + result.errors());
+        }
+        return result.blueprint().get();
+    }
+
+    /** Every cell the blueprint would place at this origin, rotated 0°. */
+    private static List<BlockPos> cellsOf(Blueprint blueprint, BlockPos origin) {
+        List<BlockPos> cells = new java.util.ArrayList<>();
+        for (var spec : blueprint.blocks()) {
+            cells.add(origin.offset(spec.x(), spec.y(), spec.z()));
+        }
+        return cells;
+    }
+
+    /** The record a build leaves behind: its site, options, parts and the cells it still has to place. */
+    private static void saveResumeRecord(
+            GameTestHelper h,
+            Blueprint blueprint,
+            BlockPos origin,
+            boolean clearSite,
+            Set<PartKind> parts,
+            List<BlockPos> remaining,
+            String id) {
+        BlueprintStore.forLevel(h.getLevel())
+                .saveInProgress(
+                        id,
+                        blueprint,
+                        origin,
+                        net.minecraft.world.level.block.Rotation.NONE,
+                        clearSite,
+                        false,
+                        List.of(),
+                        parts,
+                        remaining,
+                        "",
+                        h.getLevel().dimension().identifier().toString());
+    }
+
+    /** The terminal status and summary of the task the entity's coordinator ran. */
+    private static final class TaskOutcome implements dev.friendai.server.execution.TaskEventSink {
+        dev.friendai.task.TaskStatus status;
+        String summary = "";
+
+        @Override
+        public void onFinished(int id, String toolName, dev.friendai.task.TaskStatus status, String summary) {
+            this.status = status;
+            this.summary = summary == null ? "" : summary;
+        }
+
+        @Override
+        public void onCancelled(int id, String toolName, String reason) {}
+    }
+
     private static final String PLATFORM_3 =
             "{\"type\":\"platform\",\"width\":3,\"depth\":3,\"block\":\"minecraft:stone\"}";
+    /** A three-cell pad with a name of its own, so its resume records cannot match another test's blueprint. */
+    private static final String PAD_127 = """
+            {"name":"pad127",
+             "palette":{"S":"minecraft:stone"},
+             "ops":[{"op":"box","from":[0,0,0],"to":[2,0,0],"block":"S"}]}
+            """;
+    /** HOUSE_5 under another name, so its resume records stay this test's own. */
+    private static final String HUT_127 = """
+            {"name":"hut127",
+             "palette":{"C":"minecraft:cobblestone","P":"minecraft:oak_planks","R":"minecraft:oak_slab"},
+             "ops":[{"op":"box","from":[0,0,0],"to":[4,0,4],"block":"C"},
+                    {"op":"walls","from":[0,1,0],"to":[4,2,4],"block":"P"},
+                    {"op":"roof","from":[0,3,0],"to":[4,3,4],"style":"flat","block":"R"}]}
+            """;
+
+    private static final String PAD_127_ID = "127a127a127a127a127a127a127a127a";
+    private static final String PAD_127_FRESH_ID = "127b127b127b127b127b127b127b127b";
+    private static final String PAD_127_PREVIEW_ID = "127c127c127c127c127c127c127c127c";
+    private static final String HUT_127_ID = "127d127d127d127d127d127d127d127d";
+
     private static final String HOUSE_5 = """
             {"name":"hut",
              "palette":{"C":"minecraft:cobblestone","P":"minecraft:oak_planks","R":"minecraft:oak_slab"},
@@ -1356,6 +1439,143 @@ public class ToolTests {
         h.assertTrue(r.content().contains("the preview was in minecraft:the_nether"), "content was " + r.content());
         h.assertTrue(c.executionCoordinator().current().isEmpty(), "no task may start");
         h.succeed();
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 800)
+    public void buildResumesAnUnfinishedBuild(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.STONE, 9));
+        Blueprint pad = parseBlueprint(PAD_127);
+        BlockPos origin = h.absolutePos(new BlockPos(5, 2, 5));
+        h.setBlock(5, 2, 5, Blocks.STONE);
+        saveResumeRecord(
+                h, pad, origin, true, Set.of(), List.of(origin.offset(1, 0, 0), origin.offset(2, 0, 0)), PAD_127_ID);
+        ToolResult r = runArgs(tools(c), "build_structure", blueprintArgs(PAD_127, origin));
+        h.assertTrue(!r.error() && r.content().startsWith("task #"), "result was " + r.content());
+        BuildTask task = (BuildTask) c.executionCoordinator().current().orElseThrow();
+        h.assertTrue(task.saveData().startsWith(PAD_127_ID), "the build must resume its record: " + task.saveData());
+        h.succeedWhen(() -> {
+            for (int x = 5; x <= 7; x++) {
+                h.assertTrue(
+                        h.getBlockState(new BlockPos(x, 2, 5)).is(Blocks.STONE),
+                        "missing the resumed cell at " + x + ",2,5: " + h.getBlockState(new BlockPos(x, 2, 5)));
+            }
+        });
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 400)
+    public void buildRevisionAppliesClearSiteToAResumedBuild(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.STONE, 9));
+        TaskOutcome outcome = new TaskOutcome();
+        c.executionCoordinator().setEventSink(outcome);
+        Blueprint pad = parseBlueprint(PAD_127);
+        BlockPos origin = h.absolutePos(new BlockPos(5, 2, 5));
+        h.setBlock(6, 2, 5, Blocks.DIRT);
+        // The record allowed clearing; the new call refuses it, and that must reach the resumed build.
+        saveResumeRecord(h, pad, origin, true, Set.of(), cellsOf(pad, origin), PAD_127_ID);
+        JsonObject args = blueprintArgs(PAD_127, origin);
+        args.addProperty("clear_site", false);
+        ToolResult r = runArgs(tools(c), "build_structure", args);
+        h.assertTrue(!r.error() && r.content().startsWith("task #"), "result was " + r.content());
+        h.succeedWhen(() -> {
+            h.assertTrue(outcome.status != null, "the refused build must report");
+            h.assertTrue(outcome.status == dev.friendai.task.TaskStatus.FAILED, "summary was " + outcome.summary);
+            h.assertTrue(
+                    outcome.summary.contains("the site isn't clear: minecraft:dirt"), "summary was " + outcome.summary);
+            h.assertTrue(h.getBlockState(new BlockPos(6, 2, 5)).is(Blocks.DIRT), "the dirt must stay");
+            h.assertTrue(h.getBlockState(new BlockPos(5, 2, 5)).isAir(), "nothing may be built");
+        });
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 1600)
+    public void buildRevisionNarrowsTheRemainingParts(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        // Only the floor is carried: a build of every part would stop for planks and place nothing.
+        c.inventory().addItem(new ItemStack(Items.COBBLESTONE, 25));
+        TaskOutcome outcome = new TaskOutcome();
+        c.executionCoordinator().setEventSink(outcome);
+        Blueprint hut = parseBlueprint(HUT_127);
+        BlockPos origin = h.absolutePos(new BlockPos(3, 2, 3));
+        saveResumeRecord(h, hut, origin, true, Set.of(), cellsOf(hut, origin), HUT_127_ID);
+        JsonObject args = blueprintArgs(HUT_127, origin);
+        args.add("parts", JsonParser.parseString("[\"floor\"]"));
+        ToolResult r = runArgs(tools(c), "build_structure", args);
+        h.assertTrue(!r.error() && r.content().startsWith("task #"), "result was " + r.content());
+        h.succeedWhen(() -> {
+            h.assertTrue(outcome.status != null, "the revised build must report");
+            h.assertTrue(outcome.status == dev.friendai.task.TaskStatus.SUCCESS, "summary was " + outcome.summary);
+            for (int x = 3; x <= 7; x++) {
+                for (int z = 3; z <= 7; z++) {
+                    h.assertTrue(
+                            h.getBlockState(new BlockPos(x, 2, z)).is(Blocks.COBBLESTONE),
+                            "missing the floor at " + x + ",2," + z + ": " + h.getBlockState(new BlockPos(x, 2, z)));
+                }
+            }
+            h.assertTrue(h.getBlockState(new BlockPos(4, 3, 3)).isAir(), "the walls were not selected");
+            h.assertTrue(h.getBlockState(new BlockPos(4, 5, 4)).isAir(), "the roof was not selected");
+        });
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 400)
+    public void buildRevisionRefusesANewFacingAfterProgress(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.STONE, 18));
+        Blueprint pad = parseBlueprint(PAD_127);
+        BlockPos started = h.absolutePos(new BlockPos(4, 2, 5));
+        h.setBlock(4, 2, 5, Blocks.STONE);
+        saveResumeRecord(
+                h, pad, started, true, Set.of(), List.of(started.offset(1, 0, 0), started.offset(2, 0, 0)), PAD_127_ID);
+        JsonObject turning = blueprintArgs(PAD_127, started);
+        turning.addProperty("facing", "east");
+        ToolResult refused = runArgs(tools(c), "build_structure", turning);
+        h.assertTrue(refused.error(), "turning a started build must be refused: " + refused.content());
+        h.assertTrue(refused.content().contains("already has blocks facing south"), "content was " + refused.content());
+        h.assertTrue(c.executionCoordinator().current().isEmpty(), "no task may start");
+        // Nothing placed yet: the same call may turn the record and continue with the new facing.
+        BlockPos fresh = h.absolutePos(new BlockPos(9, 2, 9));
+        saveResumeRecord(h, pad, fresh, true, Set.of(), cellsOf(pad, fresh), PAD_127_FRESH_ID);
+        JsonObject freshTurning = blueprintArgs(PAD_127, fresh);
+        freshTurning.addProperty("facing", "east");
+        ToolResult startedTask = runArgs(tools(c), "build_structure", freshTurning);
+        h.assertTrue(
+                !startedTask.error() && startedTask.content().startsWith("task #"),
+                "result was " + startedTask.content());
+        BuildTask task = (BuildTask) c.executionCoordinator().current().orElseThrow();
+        h.assertTrue(task.saveData().contains(",east,"), "the untouched record turns: " + task.saveData());
+        h.succeed();
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 400)
+    public void previewBuildAppliesThePreviewedRevision(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.STONE, 9));
+        TaskOutcome outcome = new TaskOutcome();
+        c.executionCoordinator().setEventSink(outcome);
+        Blueprint pad = parseBlueprint(PAD_127);
+        BlockPos origin = h.absolutePos(new BlockPos(5, 2, 5));
+        h.setBlock(6, 2, 5, Blocks.DIRT);
+        saveResumeRecord(h, pad, origin, true, Set.of(), cellsOf(pad, origin), PAD_127_PREVIEW_ID);
+        JsonObject args = blueprintArgs(PAD_127, origin);
+        args.addProperty("clear_site", false);
+        ToolResult preview = runArgs(tools(c), "preview_structure", args);
+        h.assertTrue(!preview.error(), "preview: " + preview.content());
+        h.assertTrue(
+                preview.content().contains("the site isn't clear: minecraft:dirt"), "content was " + preview.content());
+        ToolResult built = run(tools(c), "build_structure", "{\"use_preview\":true}");
+        h.assertTrue(!built.error() && built.content().startsWith("task #"), "result was " + built.content());
+        h.succeedWhen(() -> {
+            h.assertTrue(outcome.status != null, "the previewed build must report");
+            h.assertTrue(outcome.status == dev.friendai.task.TaskStatus.FAILED, "summary was " + outcome.summary);
+            h.assertTrue(outcome.summary.contains("minecraft:dirt"), "summary was " + outcome.summary);
+            h.assertTrue(h.getBlockState(new BlockPos(6, 2, 5)).is(Blocks.DIRT), "the dirt must stay");
+            h.assertTrue(h.getBlockState(new BlockPos(5, 2, 5)).isAir(), "nothing may be built");
+        });
     }
 
     @GameTest(structure = GameTestArenas.ARENA_16)

@@ -125,8 +125,8 @@ const RU = {
   "Clear vegetation, snow and stray blocks, up to 256 cells per call.": "Убирает растительность, снег и лишние блоки — до 256 клеток за вызов.",
   "Show a ghost preview of exactly the build and options you will authorize.":
     "Показать призрачный предпросмотр ровно той постройки и настроек, которые вы одобрите.",
-  "Build from a generated or saved layout, or build exactly the last preview with use_preview.":
-    "Построить по сгенерированной или сохранённой схеме либо построить ровно последний предпросмотр через use_preview.",
+  "Build from a generated or saved layout, build exactly the last preview with use_preview, or resume a started build with revised options.":
+    "Построить по сгенерированной или сохранённой схеме, построить ровно последний предпросмотр через use_preview или продолжить начатую постройку с изменёнными настройками.",
   "Store a layout as JSON.": "Сохранить схему как JSON.",
   "List saved blueprints.": "Список сохранённых чертежей.",
   "Explain the blueprint format.": "Объяснить формат чертежа.",

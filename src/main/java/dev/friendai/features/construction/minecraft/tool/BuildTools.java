@@ -6,6 +6,7 @@ import dev.friendai.agent.tools.ToolGroup;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.tool.SchemaBuilder;
 import dev.friendai.execution.tool.ToolResult;
+import dev.friendai.features.construction.blueprint.BlockSpec;
 import dev.friendai.features.construction.blueprint.Blueprint;
 import dev.friendai.features.construction.blueprint.BlueprintParser;
 import dev.friendai.features.construction.blueprint.ParseResult;
@@ -34,6 +35,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.level.block.Rotation;
 
 /** Building: blueprint help, previews, builds and the blueprint store. */
 final class BuildTools {
@@ -79,7 +81,10 @@ final class BuildTools {
             parts options as build_structure: it describes exactly the build those options would make.
             build_structure takes clear_site (default true), gather (default false, obtain missing materials with
             obtain_item instead of failing) and parts (floor, walls, roof, entrance, window; omit it to build
-            everything). build_structure with use_preview=true builds exactly the last preview's site and options.
+            everything). Calling it again for a half-built structure resumes that build; an option given then
+            applies to the rest of the work, an omitted one keeps the saved value, and a facing the build already
+            used cannot be turned.
+            build_structure with use_preview=true builds exactly the last preview's site and options.
             Errors name the place and the reason, for example:
             palette: key "CC" must be one character, ops[1]: 'to' is below 'from', unknown block minecraft:oak_plank.
             """;
@@ -122,16 +127,12 @@ final class BuildTools {
                     Optional<BlueprintStore.InProgress> resumable = BlueprintStore.forLevel(level)
                             .findResumable(blueprint, c.ownerUuid(), dimension, requested);
                     if (resumable.isPresent()) {
-                        BlueprintStore.InProgress record = resumable.get();
-                        return BuildTask.resume(
-                                record.blueprint(),
-                                record.origin(),
-                                record.rotation(),
-                                record.clearSite(),
-                                record.gather(),
-                                record.scaffold(),
-                                record.id(),
-                                record.parts(),
+                        return resumed(
+                                resumable.get(),
+                                rotationOption(a),
+                                clearSiteOption(a),
+                                gatherOption(a),
+                                partsOption(a),
                                 obtainFactory);
                     }
                     Placement.PlacedBlueprint placed = Placement.of(blueprint, requested, facing(a), c);
@@ -182,7 +183,14 @@ final class BuildTools {
                 .integer("x", "Origin X; give all of x, y, z or none for 3 blocks in front of the owner")
                 .integer("y", "Origin Y")
                 .integer("z", "Origin Z")
-                .enumeration("facing", "The direction the structure's front faces", "north", "south", "east", "west");
+                .enumeration(
+                        "facing",
+                        "The direction the structure's front faces; on a resumed build the facing already built"
+                                + " with cannot be turned",
+                        "north",
+                        "south",
+                        "east",
+                        "west");
     }
 
     private static JsonObject buildSchema() {
@@ -197,11 +205,17 @@ final class BuildTools {
     /** The options a preview and a build share: the same values describe and execute one intent. */
     private static SchemaBuilder optionSchema() {
         return sourceSchema()
-                .bool("clear_site", "Break natural ground on the site (default true)")
-                .bool("gather", "Obtain missing materials with obtain_item instead of failing (default false)")
+                .bool(
+                        "clear_site",
+                        "Break natural ground on the site (default true); on a resumed build it applies from now on")
+                .bool(
+                        "gather",
+                        "Obtain missing materials with obtain_item instead of failing (default false); on a resumed"
+                                + " build it applies to the rest")
                 .array(
                         "parts",
-                        "Build only these parts: floor, walls, roof, entrance, window; omit for everything",
+                        "Build only these parts: floor, walls, roof, entrance, window; omit for everything; on a"
+                                + " resumed build the selection replaces the saved one",
                         partSchema(),
                         0,
                         5);
@@ -352,16 +366,13 @@ final class BuildTools {
         Optional<BlueprintStore.InProgress> resumable = BlueprintStore.forLevel(level)
                 .findResumable(intent.blueprint(), companion.ownerUuid(), dimension, intent.origin());
         if (resumable.isPresent()) {
-            BlueprintStore.InProgress record = resumable.get();
-            return BuildTask.resume(
-                    record.blueprint(),
-                    record.origin(),
-                    record.rotation(),
-                    record.clearSite(),
-                    record.gather(),
-                    record.scaffold(),
-                    record.id(),
-                    record.parts(),
+            // The preview authorized this exact intent, so its options replace whatever the record held.
+            return resumed(
+                    resumable.get(),
+                    intent.rotation(),
+                    intent.clearSite(),
+                    intent.gather(),
+                    intent.parts(),
                     obtainFactory);
         }
         return new BuildTask(
@@ -372,6 +383,58 @@ final class BuildTools {
                 intent.gather(),
                 obtainFactory,
                 intent.parts());
+    }
+
+    /**
+     * Resumes a record with the options this call names: a value given here replaces the saved one for the rest of
+     * the work, an omitted one keeps it, so repeating the call continues exactly as before. A new facing turns the
+     * whole footprint, so it is only accepted while the record shows no progress.
+     */
+    private static BuildTask resumed(
+            BlueprintStore.InProgress record,
+            Rotation rotation,
+            Boolean clearSite,
+            Boolean gather,
+            Set<PartKind> parts,
+            BuildTask.ObtainFactory obtainFactory) {
+        Rotation effective = rotation == null ? record.rotation() : rotation;
+        if (effective != record.rotation() && started(record)) {
+            throw new IllegalArgumentException("the build at " + coords(record.origin()) + " already has blocks facing "
+                    + Placement.facingFor(record.rotation()).getSerializedName()
+                    + "; finish it or start a new build elsewhere instead of turning it");
+        }
+        return BuildTask.resume(
+                record.blueprint(),
+                record.origin(),
+                effective,
+                clearSite == null ? record.clearSite() : clearSite,
+                gather == null ? record.gather() : gather,
+                record.scaffold(),
+                record.id(),
+                parts == null ? record.parts() : parts,
+                obtainFactory);
+    }
+
+    /**
+     * Whether the record's build changed the world: it placed a scaffold, or fewer cells are left to place than the
+     * plan needs. A record whose remaining cells are unknown (an older file) counts as started.
+     */
+    private static boolean started(BlueprintStore.InProgress record) {
+        if (!record.scaffold().isEmpty()) {
+            return true;
+        }
+        Placement.StateCache cache = new Placement.StateCache();
+        int planned = 0;
+        for (BlockSpec spec : record.blueprint().blocks()) {
+            try {
+                if (!cache.parse(spec.state()).isAir()) {
+                    planned++;
+                }
+            } catch (IllegalArgumentException e) {
+                return true;
+            }
+        }
+        return record.remaining().size() < planned;
     }
 
     private static String materialsText(
@@ -520,6 +583,27 @@ final class BuildTools {
 
     private static boolean clearSite(JsonObject args) {
         return !present(args, "clear_site") || args.get("clear_site").getAsBoolean();
+    }
+
+    /** Whether clearing was requested, or null when the call left it out. */
+    private static Boolean clearSiteOption(JsonObject args) {
+        return present(args, "clear_site") ? args.get("clear_site").getAsBoolean() : null;
+    }
+
+    /** Whether obtaining was requested, or null when the call left it out. */
+    private static Boolean gatherOption(JsonObject args) {
+        return present(args, "gather") ? args.get("gather").getAsBoolean() : null;
+    }
+
+    /** The selected parts, or null when the call left them out; an empty array selects every part. */
+    private static Set<PartKind> partsOption(JsonObject args) {
+        return present(args, "parts") ? parts(args) : null;
+    }
+
+    /** The facing as a rotation, or null when the call left it out. */
+    private static Rotation rotationOption(JsonObject args) {
+        Direction direction = facing(args);
+        return direction == null ? null : Placement.rotationFor(direction);
     }
 
     private static Set<PartKind> parts(JsonObject args) {

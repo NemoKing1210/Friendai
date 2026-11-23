@@ -6,6 +6,17 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.225.0] - 2026-11-23
+
+### Changed
+
+- Asking for a half-built structure again now carries the new instructions instead of ignoring them. Options given on
+  the resumed build — clearing the site, gathering missing materials, the parts to build — apply to the rest of the
+  work, while an option left out keeps the saved value, so repeating the call simply continues. A different `facing`
+  is refused once the build has already placed something, and says how to start a new one instead of turning it.
+- Building the last preview of an interrupted structure now follows the previewed options rather than the ones the
+  interrupted run started with.
+
 ## [0.224.0] - 2026-11-23
 
 ### Added
