@@ -49,6 +49,14 @@ public final class QueueRows {
             } else if (job.state() == JobState.RUNNING && runningDescription != null && !runningDescription.isBlank()) {
                 note = runningDescription;
             }
+            if (job.state() == JobState.RUNNING) {
+                // A running step the owner has paused is parked at its tick boundary, and the row says so.
+                note = append(
+                        note,
+                        QueuePolicy.blockingHold(queue, job, facts)
+                                .map(hold -> hold.describe(queue.clock()))
+                                .orElse(""));
+            }
             String goal = job.planId() == 0
                     ? ""
                     : queue.plan(job.planId()).map(p -> p.goal()).orElse("");

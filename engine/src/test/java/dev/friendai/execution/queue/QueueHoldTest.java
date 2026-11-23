@@ -200,6 +200,55 @@ class QueueHoldTest {
         assertTrue(queue.hold(HoldKey.job(second)).isEmpty(), "and the holds of the jobs it cancels");
     }
 
+    @Test
+    void aHeldJobIsNotSkippedByAnUnmetGuardAndADeferralKeepsItsDisposition() {
+        JobQueue queue = new JobQueue(QueueLimits.DEFAULTS);
+        Job job = queue.addDirect(new QueuedStep(
+                "mine_blocks",
+                new JsonObject(),
+                null,
+                List.of(new Guard.HasItem("minecraft:iron_pickaxe", 1)),
+                GuardAction.SKIP,
+                FailurePolicy.ASK,
+                1,
+                List.of()));
+        Facts facts = new Facts();
+        assertTrue(QueuePolicy.blockingHold(queue, job, facts).isEmpty(), "no hold yet");
+
+        queue.setHold(HoldKey.job(job.id()), QueueHold.defer("later", queue.clock() + 5, null));
+        assertTrue(QueuePolicy.held(queue, job, facts), "a live deferral stops the job");
+        assertTrue(QueuePolicy.blockingHold(queue, job, facts)
+                .orElseThrow()
+                .describe(queue.clock())
+                .contains("deferred"));
+        for (int i = 0; i < 5; i++) queue.advanceClock();
+        assertFalse(QueuePolicy.held(queue, job, facts), "the wake tick ends the deferral on its own");
+        assertTrue(QueuePolicy.blockingHold(queue, job, facts).isEmpty());
+    }
+
+    @Test
+    void aPlanHoldBlocksItsOwnCursorBeforeAnyJobExists() {
+        JobQueue queue = new JobQueue(QueueLimits.DEFAULTS);
+        long planId = queue.addStructuredPlan(
+                new PlanDefinition(List.of(new PlanNode.Action(new QueuedStep(
+                        "go_to",
+                        new JsonObject(),
+                        null,
+                        List.of(),
+                        GuardAction.WAIT,
+                        FailurePolicy.ASK,
+                        1,
+                        List.of())))),
+                PlanOptions.DEFAULT);
+        Facts facts = new Facts();
+        assertFalse(QueuePolicy.planHeld(queue, planId, facts));
+
+        queue.setHold(HoldKey.plan(planId), QueueHold.pause("owner"));
+        assertTrue(QueuePolicy.planHeld(queue, planId, facts), "a paused plan emits no action");
+        queue.release(HoldKey.plan(planId));
+        assertFalse(QueuePolicy.planHeld(queue, planId, facts));
+    }
+
     /** A plan whose two steps depend on nothing, so either can be ready on its own. */
     private static JobQueue queueWithTwoIndependentJobs() {
         JobQueue queue = new JobQueue(QueueLimits.DEFAULTS);

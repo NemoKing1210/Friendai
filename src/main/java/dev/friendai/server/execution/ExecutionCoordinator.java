@@ -413,6 +413,30 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     public String currentToolName() {
         return activeTask() == null ? "" : activeTask().toolName();
     }
+
+    /**
+     * Whether the owner's local hold currently stops this activation's queued job, read through the same policy the
+     * scheduler uses. Cheap when no hold exists: the map is usually empty.
+     */
+    private boolean heldByOwner(ActiveTask task) {
+        if (task == null || task.jobId() <= 0) return false;
+        JobQueue queue = queueDriver.queue();
+        if (!queue.hasHolds()) return false;
+        Job job = queue.job(task.jobId()).orElse(null);
+        return job != null && QueuePolicy.held(queue, job, facts());
+    }
+
+    /** Whether this job is the action currently changing the world, so a pause on it needs an explicit boundary. */
+    public boolean runningJobIs(long jobId) {
+        ActiveTask active = activeTask();
+        return active != null && active.jobId() == jobId && jobId > 0;
+    }
+
+    /** Whether any action of this plan is running right now. */
+    public boolean runningJobIsInPlan(long planId) {
+        ActiveTask active = activeTask();
+        return active != null && active.planId() == planId && planId > 0;
+    }
     /** Active queue intent, including its durable plan goal when this task belongs to a plan. */
     public Optional<String> currentQueueIntent() {
         if (activeTask() == null || activeTask().jobId() <= 0) return Optional.empty();
@@ -894,7 +918,10 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
             queueDriver.refreshFacts(companion);
         }
         if (activeTask() == null) {
-            if (!pollQueue()) startDefault();
+            if (frozenTask() != null) {
+                if (heldByOwner(frozenTask())) pollQueue();
+                else resumeFrozen();
+            } else if (!pollQueue()) startDefault();
             return;
         }
         if ((activeTask().defaultActivity() || movementOrder(activeTask())) && pollQueue()) return;
@@ -905,6 +932,15 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
                     .plan(active.planId())
                     .filter(p -> p.cursor() != null)
                     .ifPresent(this::planFacts);
+        // A pause or deferral of the work that is already running stops it at its next tick boundary, so no further
+        // placement, withdrawal or block change happens under a hold the owner has already asked for.
+        if (heldByOwner(active)) {
+            activeTasks.freezeCurrent();
+            activeTasks.recordHoldTick();
+            companion.withdrawMovement();
+            resumeFrozen();
+            return;
+        }
         if (active.creativeSensitive()
                 && companion.creativeMode()
                 && !CreativeModeService.isActionAuthorized(
@@ -1280,14 +1316,24 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         ActiveTask old = frozenTask();
         Job frozenJob =
                 old == null ? null : queueDriver.queue().job(old.jobId()).orElse(null);
-        if (old != null && frozenJob != null && frozenJob.state() == JobState.RUNNING && stillAuthorized(frozenJob)) {
+        if (old != null && frozenJob != null && frozenJob.state() == JobState.RUNNING) {
+            if (!stillAuthorized(frozenJob)) {
+                // Revoked work is settled here rather than resumed: a preempting task must not hand the grant back.
+                mutations.cancelJob(old.jobId(), REVOKED);
+                startNextOrDefault();
+                return;
+            }
+            if (QueuePolicy.held(queueDriver.queue(), frozenJob, facts())) {
+                // The owner parked this action; it keeps its place until the hold is released, and unrelated ready
+                // work may use the body meanwhile.
+                activeTasks.recordHoldTick();
+                if (activeTask() == null) startNextQueued();
+                return;
+            }
             activeTasks.takeFrozen();
             activeTasks.resumeFrozen(old);
         } else {
-            // Revoked work is settled here rather than resumed: a preempting task must not hand the grant back.
-            if (old != null && frozenJob != null && frozenJob.state() == JobState.RUNNING)
-                mutations.cancelJob(old.jobId(), REVOKED);
-            else if (old != null) stopFrozen("frozen task is no longer queued");
+            if (old != null) stopFrozen("frozen task is no longer queued");
             startNextOrDefault();
         }
     }

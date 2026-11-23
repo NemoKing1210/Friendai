@@ -13,6 +13,10 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ### Fixed
 
+- Pausing a plan or a single step now stops the action that is already under way at the next tick, so the companion
+  no longer says it paused and then places another block or moves another stack. Other ready work can go ahead while
+  the paused action keeps its place, and it continues from where it stopped when you resume it. A deferred conditional
+  step is now neither done nor skipped until its delay and condition have passed.
 - Pausing or resuming one piece of work no longer takes hold of another that happens to carry the same number. A plan
   and an unrelated single job can now be paused, deferred, resumed and finished independently, and that stays true after
   a reload, where an older save that could mean either one keeps both held and says which numbers it could not tell

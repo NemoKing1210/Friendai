@@ -130,6 +130,71 @@ public final class QueueTests {
                 false);
     }
 
+    @GameTest(maxTicks = 200)
+    public void queueEditPauseStopsTheRunningStepAndResumeContinuesIt(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        UUID owner = UUID.randomUUID();
+        companion.setOwner(owner);
+        Caller ownerCaller = new Caller(owner, "queue-test", AccessLevel.OWNER);
+        ToolExecutor tools = GameTestToolRegistry.create(companion, () -> 32).bind(companion);
+        var coordinator = companion.executionCoordinator();
+        int[] ticks = {0};
+        long plan = coordinator.enqueuePlan(
+                "held through the tool",
+                List.of(new QueuedStep(
+                        "stay", new JsonObject(), null, List.of(), GuardAction.WAIT, FailurePolicy.ASK, 1, List.of())),
+                List.of(context -> new Task() {
+                    @Override
+                    public String type() {
+                        return "stay";
+                    }
+
+                    @Override
+                    public void start(TaskContext context) {}
+
+                    @Override
+                    public TaskStatus tick(TaskContext context) {
+                        ticks[0]++;
+                        return TaskStatus.RUNNING;
+                    }
+
+                    @Override
+                    public void stop(TaskContext context) {}
+
+                    @Override
+                    public String describe() {
+                        return "stay";
+                    }
+
+                    @Override
+                    public String resultSummary() {
+                        return "";
+                    }
+                }),
+                PlanOptions.DEFAULT);
+        long job = coordinator.queue().jobsOfPlan(plan).getFirst().id();
+        coordinator.tick();
+        h.assertTrue(coordinator.runningJobIs(job), "the queued step starts");
+        int before = ticks[0];
+
+        ToolResult paused = run(tools, "queue_edit", "{\"action\":\"pause\",\"plan\":" + plan + "}", ownerCaller);
+        h.assertTrue(!paused.error(), "pause failed: " + paused.content());
+        h.assertTrue(
+                paused.content().contains("stops at its next tick"),
+                "the acknowledgement names the boundary: " + paused.content());
+        coordinator.tick();
+        coordinator.tick();
+        h.assertValueEqual(ticks[0], before, "no further work happens under the pause");
+
+        ToolResult resumed = run(tools, "queue_edit", "{\"action\":\"resume\",\"plan\":" + plan + "}", ownerCaller);
+        h.assertTrue(!resumed.error(), "resume failed: " + resumed.content());
+        for (int i = 0; i < 4 && ticks[0] == before; i++) coordinator.tick();
+        h.assertTrue(ticks[0] > before, "resuming continues the same step");
+        coordinator.stop("test over");
+        h.succeed();
+    }
+
     private static ToolResult run(ToolExecutor tools, String name, String json) {
         JsonObject args = JsonParser.parseString(json).getAsJsonObject();
         return tools.execute(new ToolCall("queue-test", name, args, json, null));

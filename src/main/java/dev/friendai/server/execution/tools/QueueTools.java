@@ -866,7 +866,11 @@ public final class QueueTools implements FeatureToolContributor {
                     if (action.equals("pause")) {
                         q.setHold(key, QueueHold.pause(heldBy));
                         runner.wakeQueue();
-                        return ToolResult.ok("paused " + key.describe());
+                        // The acknowledgement names the boundary: an action already running stops at its next
+                        // tick, before it changes the world again.
+                        boolean midAction = plan == null ? runner.runningJobIs(id) : runner.runningJobIsInPlan(id);
+                        return ToolResult.ok("paused " + key.describe()
+                                + (midAction ? "; the action in progress stops at its next tick" : ""));
                     }
                     long delay = args.has("delay") ? args.get("delay").getAsLong() : 0;
                     if (delay < 0 || delay > QueueHold.MAX_DELAY_TICKS) {

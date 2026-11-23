@@ -299,6 +299,11 @@ public final class QueueDriver {
         for (Job job : queue.jobs()) {
             if (job.state() != dev.friendai.execution.queue.JobState.PENDING
                     || job.onUnmet() != dev.friendai.execution.queue.GuardAction.SKIP) continue;
+            // A held job is neither run nor skipped: its guard is only evaluated once the owner lets it go, its
+            // dependencies are done and any retry backoff has elapsed.
+            if (QueuePolicy.held(queue, job, facts)
+                    || !QueuePolicy.dependenciesDone(queue, job)
+                    || job.retryAtTick() > queue.clock()) continue;
             for (var guard : job.guards()) if (!guard.holds(facts)) return job;
         }
         return null;
@@ -319,10 +324,14 @@ public final class QueueDriver {
 
     public Optional<PlanRecord> nextStructuredPlan() {
         PlanRecord selected = null;
+        boolean anyHolds = queue.hasHolds();
+        GuardFacts facts = anyHolds ? coordinator.facts() : null;
         for (PlanRecord plan : queue.plans()) {
             if (plan.cursor() == null
                     || !plan.cursor().pendingActionPath().isEmpty()
                     || plan.cursor().stack().isEmpty()) continue;
+            // A held structured plan emits no action; its interpreter only moves once the hold lets it.
+            if (anyHolds && QueuePolicy.planHeld(queue, plan.id(), facts)) continue;
             if (selected == null
                     || plan.priority() > selected.priority()
                     || plan.priority() == selected.priority() && plan.addedTick() < selected.addedTick()) {
@@ -481,7 +490,8 @@ public final class QueueDriver {
             Job gating = queue.jobsOfPlan(plan.id()).stream()
                     .filter(j -> j.state() == JobState.PENDING
                             && j.retryAtTick() <= queue.clock()
-                            && QueuePolicy.dependenciesDone(queue, j))
+                            && QueuePolicy.dependenciesDone(queue, j)
+                            && !QueuePolicy.held(queue, j, facts))
                     .findFirst()
                     .orElse(null);
             if (gating == null) continue;

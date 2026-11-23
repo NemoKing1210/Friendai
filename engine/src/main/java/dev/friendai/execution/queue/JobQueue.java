@@ -105,6 +105,11 @@ public final class JobQueue {
         return Map.copyOf(holds);
     }
 
+    /** Whether any local hold exists, so a per-tick caller can skip the lookup entirely when none does. */
+    public boolean hasHolds() {
+        return !holds.isEmpty();
+    }
+
     /**
      * Reload notes about saved holds that a bare id could not attribute to one target, recorded by the codec. The
      * restore path shows them to the owner once, so an ambiguity is never silent.

@@ -22,12 +22,36 @@ public final class QueuePolicy {
     private static boolean ready(JobQueue queue, Job job, GuardFacts facts, Map<Long, PlanStatus> statuses) {
         if (job.state() != JobState.PENDING) return false;
         if (job.planId() != 0 && statuses.get(job.planId()) == PlanStatus.NEEDS_DECISION) return false;
-        if (!holdPasses(queue, job.planId() == 0 ? null : HoldKey.plan(job.planId()), facts)) return false;
-        if (!holdPasses(queue, HoldKey.job(job.id()), facts)) return false;
+        if (held(queue, job, facts)) return false;
         if (job.retryAtTick() > queue.clock()) return false;
         if (!dependenciesDone(queue, job)) return false;
         for (Guard guard : job.guards()) if (!guard.holds(facts)) return false;
         return true;
+    }
+
+    /**
+     * The local hold that currently stops this job: its plan's hold first, then its own. A pause always stops it; a
+     * deferral stops it until its wake tick and condition pass. Readiness, guard skipping and an already-running
+     * action share this one disposition, so none of them acts while the owner has the work held.
+     */
+    public static Optional<QueueHold> blockingHold(JobQueue queue, Job job, GuardFacts facts) {
+        if (job.planId() != 0) {
+            QueueHold planHold = queue.hold(HoldKey.plan(job.planId())).orElse(null);
+            if (planHold != null && !planHold.satisfied(queue.clock(), facts)) return Optional.of(planHold);
+        }
+        QueueHold jobHold = queue.hold(HoldKey.job(job.id())).orElse(null);
+        if (jobHold != null && !jobHold.satisfied(queue.clock(), facts)) return Optional.of(jobHold);
+        return Optional.empty();
+    }
+
+    /** Whether a plan's own hold currently stops it, for work that has no materialized job yet. */
+    public static boolean planHeld(JobQueue queue, long planId, GuardFacts facts) {
+        QueueHold hold = queue.hold(HoldKey.plan(planId)).orElse(null);
+        return hold != null && !hold.satisfied(queue.clock(), facts);
+    }
+
+    public static boolean held(JobQueue queue, Job job, GuardFacts facts) {
+        return blockingHold(queue, job, facts).isPresent();
     }
 
     public static boolean dependenciesDone(JobQueue queue, Job job) {
@@ -110,9 +134,10 @@ public final class QueuePolicy {
         QueueHold planHold = job.planId() == 0
                 ? null
                 : queue.hold(HoldKey.plan(job.planId())).orElse(null);
-        if (planHold != null) return "plan " + planHold.describe(queue.clock());
+        if (planHold != null && !planHold.satisfied(queue.clock(), facts))
+            return "plan " + planHold.describe(queue.clock());
         QueueHold jobHold = queue.hold(HoldKey.job(job.id())).orElse(null);
-        if (jobHold != null) return jobHold.describe(queue.clock());
+        if (jobHold != null && !jobHold.satisfied(queue.clock(), facts)) return jobHold.describe(queue.clock());
         if (job.retryAtTick() > queue.clock()) return "retries in " + (job.retryAtTick() - queue.clock()) + " ticks";
         for (long id : job.after()) {
             Job other = queue.job(id).orElse(null);
@@ -124,12 +149,6 @@ public final class QueuePolicy {
                 .findFirst()
                 .map(g -> "waits for " + g.describe())
                 .orElse("pending");
-    }
-
-    private static boolean holdPasses(JobQueue queue, HoldKey key, GuardFacts facts) {
-        if (key == null) return true;
-        QueueHold hold = queue.hold(key).orElse(null);
-        return hold == null || hold.satisfied(queue.clock(), facts);
     }
 
     private static String stateWord(Job job) {

@@ -6,10 +6,16 @@ import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.execution.queue.FailurePolicy;
 import dev.friendai.execution.queue.GuardAction;
+import dev.friendai.execution.queue.HoldKey;
 import dev.friendai.execution.queue.Job;
 import dev.friendai.execution.queue.JobQueue;
+import dev.friendai.execution.queue.PlanDefinition;
+import dev.friendai.execution.queue.PlanNode;
+import dev.friendai.execution.queue.PlanOptions;
+import dev.friendai.execution.queue.QueueHold;
 import dev.friendai.execution.queue.QueueLimits;
 import dev.friendai.execution.queue.QueueSave;
+import dev.friendai.execution.queue.QueueText;
 import dev.friendai.execution.queue.QueuedStep;
 import dev.friendai.features.interaction.minecraft.task.WaitTask;
 import dev.friendai.features.navigation.minecraft.task.GoToTask;
@@ -17,6 +23,7 @@ import dev.friendai.features.navigation.minecraft.task.StayTask;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.task.queue.CompanionGuardFacts;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -316,6 +323,191 @@ public class PauseWorkTests {
         combat.close();
         h.assertValueEqual(coordinator.holdReason(), "", "releasing everything clears the reason");
         h.succeed();
+    }
+
+    @GameTest(maxTicks = 200)
+    public void pausingTheRunningActionStopsItAtItsNextTickAndAnotherPlanProceeds(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 700, 8);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 702, 2);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 702, 2);
+        companion.setOwner(owner.getUUID());
+        var coordinator = companion.executionCoordinator();
+        int[] building = {0};
+        int[] other = {0};
+        long plan = coordinator
+                .queue()
+                .addPlan(
+                        "build",
+                        List.of(new QueuedStep(
+                                "stay",
+                                new JsonObject(),
+                                null,
+                                List.of(),
+                                GuardAction.WAIT,
+                                FailurePolicy.ASK,
+                                1,
+                                List.of())),
+                        PlanOptions.DEFAULT)
+                .planId();
+        long job = coordinator.queue().jobsOfPlan(plan).getFirst().id();
+        coordinator.registerFactory(job, context -> countingTask("stay", building));
+        coordinator.wakeQueue();
+        coordinator.tick();
+        h.assertTrue(coordinator.runningJobIs(job), "the plan's action starts");
+        int before = building[0];
+
+        coordinator.queue().setHold(HoldKey.plan(plan), QueueHold.pause("owner"));
+        coordinator.tick();
+        coordinator.tick();
+        h.assertValueEqual(building[0], before, "a paused action stops at its tick boundary");
+        h.assertTrue(
+                coordinator.queue().job(job).orElseThrow().state() == dev.friendai.execution.queue.JobState.RUNNING,
+                "the paused action keeps its place in the plan");
+        h.assertTrue(
+                QueueText.show(coordinator.queue(), new CompanionGuardFacts(companion), null, 10, false)
+                        .contains("paused (owner)"),
+                "the queue text says why it stands still");
+
+        // Another plan with its own hold-free work runs while the paused plan keeps its place.
+        long otherPlan = coordinator
+                .queue()
+                .addPlan(
+                        "tidy",
+                        List.of(new QueuedStep(
+                                "tidy",
+                                new JsonObject(),
+                                null,
+                                List.of(),
+                                GuardAction.WAIT,
+                                FailurePolicy.ASK,
+                                1,
+                                List.of())),
+                        PlanOptions.DEFAULT)
+                .planId();
+        long otherJob = coordinator.queue().jobsOfPlan(otherPlan).getFirst().id();
+        coordinator.registerFactory(otherJob, context -> finishingTask("tidy", other));
+        coordinator.wakeQueue();
+        for (int i = 0; i < 5 && other[0] == 0; i++) coordinator.tick();
+        h.assertTrue(other[0] > 0, "an unrelated ready plan proceeds while the held one waits");
+        h.assertValueEqual(building[0], before, "the held action stays stopped");
+
+        coordinator.queue().release(HoldKey.plan(plan));
+        coordinator.wakeQueue();
+        for (int i = 0; i < 6 && building[0] == before; i++) coordinator.tick();
+        h.assertTrue(building[0] > before, "releasing the hold resumes the same action");
+        coordinator.stop("test over");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 200)
+    public void aDeferredConditionalActionIsNeitherRunNorSkippedBeforeItsWake(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 900, 8);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 902, 2);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 902, 2);
+        companion.setOwner(owner.getUUID());
+        var coordinator = companion.executionCoordinator();
+        int[] runs = {0};
+        long plan = coordinator.enqueuePlan(
+                "guarded",
+                new PlanDefinition(List.of(new PlanNode.Action(new QueuedStep(
+                        "skip_me",
+                        new JsonObject(),
+                        null,
+                        List.of(new dev.friendai.execution.queue.Guard.HasItem("minecraft:diamond", 1)),
+                        GuardAction.SKIP,
+                        FailurePolicy.ASK,
+                        1,
+                        List.of())))),
+                PlanOptions.DEFAULT,
+                Map.of("skip_me", (context, step) -> countingTask("skip_me", runs)));
+        long job = coordinator.queue().jobsOfPlan(plan).getFirst().id();
+        coordinator
+                .queue()
+                .setHold(
+                        HoldKey.job(job),
+                        QueueHold.defer("later", coordinator.queue().clock() + 30, null));
+        coordinator.wakeQueue();
+        for (int i = 0; i < 10; i++) coordinator.tick();
+        h.assertValueEqual(
+                coordinator.queue().job(job).orElseThrow().state(),
+                dev.friendai.execution.queue.JobState.PENDING,
+                "a deferred action is not skipped by its guard before its wake");
+        h.assertValueEqual(runs[0], 0, "and it did not run either");
+        h.assertTrue(coordinator.queue().plan(plan).isPresent(), "the plan still stands");
+
+        for (int i = 0; i < 40; i++) coordinator.tick();
+        // Past its wake the action is evaluated: it runs, is skipped, or the skip finished the whole plan.
+        h.assertTrue(
+                runs[0] > 0
+                        || coordinator.queue().job(job).map(Job::state).orElse(null)
+                                == dev.friendai.execution.queue.JobState.SKIPPED
+                        || coordinator.queue().jobsOfPlan(plan).isEmpty(),
+                "once its wake passes the action is evaluated: "
+                        + coordinator.queue().jobs());
+        h.succeed();
+    }
+
+    /** Counts its ticks and finishes after the first one, so a preempting job hands the body back. */
+    private static Task finishingTask(String type, int[] ticks) {
+        return new Task() {
+            @Override
+            public String type() {
+                return type;
+            }
+
+            @Override
+            public void start(TaskContext context) {}
+
+            @Override
+            public TaskStatus tick(TaskContext context) {
+                ticks[0]++;
+                return TaskStatus.SUCCESS;
+            }
+
+            @Override
+            public void stop(TaskContext context) {}
+
+            @Override
+            public String describe() {
+                return type;
+            }
+
+            @Override
+            public String resultSummary() {
+                return "done";
+            }
+        };
+    }
+
+    private static Task countingTask(String type, int[] ticks) {
+        return new Task() {
+            @Override
+            public String type() {
+                return type;
+            }
+
+            @Override
+            public void start(TaskContext context) {}
+
+            @Override
+            public TaskStatus tick(TaskContext context) {
+                ticks[0]++;
+                return TaskStatus.RUNNING;
+            }
+
+            @Override
+            public void stop(TaskContext context) {}
+
+            @Override
+            public String describe() {
+                return type;
+            }
+
+            @Override
+            public String resultSummary() {
+                return "";
+            }
+        };
     }
 
     /** A restored task that records whether anything ever started it. */
