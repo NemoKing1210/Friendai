@@ -41,7 +41,10 @@ public final class QueueRows {
             if (job.state() == JobState.PENDING) {
                 boolean ready = readyIds.contains(job.id());
                 state = ready ? "ready" : "blocked";
-                note = ready ? "" : snapshot.waitingReasons().getOrDefault(job.id(), "");
+                // A job that already failed keeps that failure beside the reason it waits now: the countdown alone
+                // says when the next attempt comes, never what went wrong, and it is gone once the retry is ready.
+                String wait = ready ? "" : snapshot.waitingReasons().getOrDefault(job.id(), "");
+                note = append(wait, lastAttempt(job));
             } else if (job.state() == JobState.RUNNING && runningDescription != null && !runningDescription.isBlank()) {
                 note = runningDescription;
             }
@@ -89,5 +92,21 @@ public final class QueueRows {
                     plan.priority()));
         }
         return rows;
+    }
+
+    /** The stored failure of the last attempt, as one line the row can wrap; empty for a job that never ran. */
+    private static String lastAttempt(Job job) {
+        if (job.attempts() <= 0) return "";
+        String result = oneLine(job.result());
+        return result.isEmpty() ? "" : "last attempt: " + result;
+    }
+
+    private static String append(String first, String second) {
+        if (first == null || first.isBlank()) return second;
+        return second.isEmpty() ? first : first + "; " + second;
+    }
+
+    private static String oneLine(String text) {
+        return text == null ? "" : text.replaceAll("\\s+", " ").trim();
     }
 }

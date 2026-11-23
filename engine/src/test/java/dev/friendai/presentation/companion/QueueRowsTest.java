@@ -94,4 +94,56 @@ class QueueRowsTest {
         }
         assertEquals(QueueRows.MAX_ROWS, QueueRows.build(q, FACTS, null).size());
     }
+
+    /** A direct job whose first attempt failed and whose retry budget still has room. */
+    private static JobQueue failedOnce(String reason) {
+        JobQueue q = new JobQueue(QueueLimits.DEFAULTS);
+        long id = q.addDirect(new QueuedStep(
+                        "move_items",
+                        new JsonObject(),
+                        null,
+                        List.of(),
+                        GuardAction.WAIT,
+                        FailurePolicy.ASK,
+                        3,
+                        List.of()))
+                .id();
+        q.markRunning(id);
+        q.fail(id, reason);
+        return q;
+    }
+
+    private static QueueRow only(JobQueue q) {
+        List<QueueRow> rows = QueueRows.build(q, FACTS, null);
+        assertEquals(1, rows.size(), "one job, one row");
+        return rows.getFirst();
+    }
+
+    @Test
+    void aBackoffRowKeepsItsLastFailure() {
+        QueueRow row = only(failedOnce("destination chest is full"));
+        assertEquals("blocked", row.state());
+        assertTrue(row.note().contains("retries in"), row.note());
+        assertTrue(row.note().contains("last attempt: destination chest is full"), row.note());
+    }
+
+    @Test
+    void aReadyRetryStillNamesTheLastFailure() {
+        JobQueue q = failedOnce("destination chest is full");
+        long deadline = q.jobs().getFirst().retryAtTick();
+        while (q.clock() < deadline) q.advanceClock();
+        QueueRow row = only(q);
+        assertEquals("ready", row.state());
+        assertEquals("last attempt: destination chest is full", row.note());
+    }
+
+    @Test
+    void aFreshBlockedRowExplainsOnlyItsWait() {
+        JobQueue q = new JobQueue(QueueLimits.DEFAULTS);
+        q.addDirect(step("mine_blocks", List.of(new Guard.HasItem("minecraft:stone", 3)), List.of()));
+        QueueRow row = only(q);
+        assertEquals("blocked", row.state());
+        assertTrue(row.note().contains("waits for"), row.note());
+        assertTrue(!row.note().contains("last attempt"), row.note());
+    }
 }

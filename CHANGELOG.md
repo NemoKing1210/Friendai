@@ -6,6 +6,13 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.226.3] - 2026-11-23
+
+### Fixed
+
+- The Tasks tab now says what went wrong when a queued step is waiting for another attempt: beside the countdown the
+  row keeps the reason the last attempt failed, and that reason stays visible once the retry is ready to run again.
+
 ## [0.226.2] - 2026-11-23
 
 ### Fixed
