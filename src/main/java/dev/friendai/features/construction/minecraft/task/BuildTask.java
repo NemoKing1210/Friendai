@@ -708,7 +708,11 @@ public final class BuildTask implements Task {
             lease.place(c.companion().hands(), spot.get().against(), spot.get().face());
             BlockState after = c.level().getBlockState(spec.pos());
             if (after.getBlock() == spec.wanted().getBlock()) {
-                Parts.reconcile(c.level(), spec.pos(), spec.wanted());
+                Parts.Outcome repaired = Parts.reconcile(c.level(), spec.pos(), spec.wanted(), Parts.guarding(c));
+                if (!repaired.done()) {
+                    ownPlaced.addAll(repaired.changed());
+                    return fail(c, repaired.refused().reason(), false);
+                }
                 ownPlaced.add(spec.pos());
                 foundationCount++;
                 foundationIndex++;
@@ -780,13 +784,26 @@ public final class BuildTask implements Task {
                 continue;
             }
             if (world.equals(wanted.wanted())) {
+                // An equal cell is not a finished pair: a resumed or interrupted build can hold one half only.
+                if (Parts.isPair(wanted.wanted()) && !Parts.isComplete(level, currentPos, wanted.wanted())) {
+                    Parts.Outcome repaired = Parts.reconcile(level, currentPos, wanted.wanted(), Parts.guarding(c));
+                    ownPlaced.addAll(repaired.changed());
+                    if (!repaired.done()) {
+                        return fail(c, repaired.refused().reason(), false);
+                    }
+                    ownPlaced.add(currentPos);
+                }
                 clearCurrent(c);
                 advance(c);
                 continue;
             }
             // Our own block in another state: fixing the state is cheaper and safer than breaking our own work.
             if (ownsCell(currentPos) && world.getBlock() == wanted.wanted().getBlock()) {
-                Parts.reconcile(level, currentPos, wanted.wanted());
+                Parts.Outcome repaired = Parts.reconcile(level, currentPos, wanted.wanted(), Parts.guarding(c));
+                ownPlaced.addAll(repaired.changed());
+                if (!repaired.done()) {
+                    return fail(c, repaired.refused().reason(), false);
+                }
                 ownPlaced.add(currentPos);
                 placedCount++;
                 clearCurrent(c);
@@ -940,7 +957,11 @@ public final class BuildTask implements Task {
             lease.place(c.companion().hands(), spot.get().against(), spot.get().face());
             BlockState after = level.getBlockState(currentPos);
             if (after.getBlock() == wanted.wanted().getBlock()) {
-                Parts.reconcile(level, currentPos, wanted.wanted());
+                Parts.Outcome repaired = Parts.reconcile(level, currentPos, wanted.wanted(), Parts.guarding(c));
+                ownPlaced.addAll(repaired.changed());
+                if (!repaired.done()) {
+                    return fail(c, repaired.refused().reason(), false);
+                }
                 ownPlaced.add(currentPos);
                 placedCount++;
                 passProgress = true;
@@ -1409,6 +1430,10 @@ public final class BuildTask implements Task {
     }
 
     private TaskStatus finish(TaskContext c) {
+        PlacementRefusal incomplete = incompletePair(c);
+        if (incomplete != null) {
+            return fail(c, incomplete, false);
+        }
         String selected = parts.isEmpty() || structure == null ? "" : " (" + structure.describe(parts) + ")";
         summary = BuildReport.finished(
                 blueprint.name(),
@@ -1420,6 +1445,31 @@ public final class BuildTask implements Task {
                 foundationCount,
                 selfRecoveries);
         return complete(c, TaskStatus.SUCCESS);
+    }
+
+    /**
+     * The first pair the world does not hold complete, so a door missing its upper half or a bed missing its partner
+     * can never be reported as a finished placement. Read-only; only the cells this run built or adopted are asked.
+     */
+    private PlacementRefusal incompletePair(TaskContext c) {
+        if (placed == null) {
+            return null;
+        }
+        for (Placement.PlacedSpec spec : placed.specs()) {
+            BlockState wanted = spec.wanted();
+            if (!Parts.isPair(wanted) || !Parts.isPairSource(wanted)) {
+                continue;
+            }
+            BlockPos pos = spec.pos();
+            if (!Parts.isComplete(c.level(), pos, wanted)) {
+                return new PlacementRefusal.Rejected(
+                        toPos(pos),
+                        describeState(wanted),
+                        describeState(c.level().getBlockState(pos)),
+                        0);
+            }
+        }
+        return null;
     }
 
     /**

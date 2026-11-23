@@ -2551,7 +2551,9 @@ public class BuildTests {
         BlockPos lower = h.absolutePos(new BlockPos(4, 3, 4));
         level.setBlock(lower, state("minecraft:oak_door[facing=south,half=lower]"), Block.UPDATE_NONE);
         level.setBlock(lower.above(), state("minecraft:oak_door[facing=south,half=upper]"), Block.UPDATE_NONE);
-        Parts.reconcile(level, lower, state("minecraft:oak_door[facing=north,half=lower]"));
+        Parts.Outcome outcome = Parts.reconcile(
+                level, lower, state("minecraft:oak_door[facing=north,half=lower]"), Parts.CellGuard.ALLOW);
+        h.assertTrue(outcome.done(), "the door pair must be repaired: " + outcome);
         h.assertBlockState(new BlockPos(4, 3, 4), state("minecraft:oak_door[facing=north,half=lower]"));
         h.assertBlockState(new BlockPos(4, 4, 4), state("minecraft:oak_door[facing=north,half=upper]"));
         h.succeed();
@@ -2564,11 +2566,222 @@ public class BuildTests {
         BlockPos foot = h.absolutePos(new BlockPos(4, 3, 4));
         level.setBlock(foot, state("minecraft:red_bed[facing=south,part=foot]"), Block.UPDATE_NONE);
         level.setBlock(foot.south(), state("minecraft:red_bed[facing=south,part=head]"), Block.UPDATE_NONE);
-        Parts.reconcile(level, foot, state("minecraft:red_bed[facing=west,part=foot]"));
+        Parts.Outcome outcome =
+                Parts.reconcile(level, foot, state("minecraft:red_bed[facing=west,part=foot]"), Parts.CellGuard.ALLOW);
+        h.assertTrue(outcome.done(), "the bed pair must be repaired: " + outcome);
         h.assertBlockState(new BlockPos(4, 3, 4), state("minecraft:red_bed[facing=west,part=foot]"));
         h.assertBlockState(new BlockPos(3, 3, 4), state("minecraft:red_bed[facing=west,part=head]"));
         h.assertBlockState(new BlockPos(4, 3, 5), Blocks.AIR.defaultBlockState());
         h.succeed();
+    }
+
+    /**
+     * A same-colour bed beside the one being repaired belongs to someone else. Its head must stay, even though it is
+     * the only adjacent red-bed head — the old neighbour scan removed it.
+     */
+    @GameTest(structure = GameTestArenas.ARENA_16)
+    public void adjacentBedKeepsItsOwnHalf(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerLevel level = h.getLevel();
+        BlockPos foot = h.absolutePos(new BlockPos(4, 3, 4));
+        BlockPos neighbourFoot = h.absolutePos(new BlockPos(3, 3, 3));
+        BlockPos neighbourHead = h.absolutePos(new BlockPos(3, 3, 4));
+        h.setBlock(new BlockPos(4, 2, 4), Blocks.STONE);
+        h.setBlock(new BlockPos(4, 2, 5), Blocks.STONE);
+        h.setBlock(new BlockPos(3, 2, 3), Blocks.STONE);
+        h.setBlock(new BlockPos(3, 2, 4), Blocks.STONE);
+        level.setBlock(foot, state("minecraft:red_bed[facing=south,part=foot]"), Block.UPDATE_NONE);
+        level.setBlock(neighbourFoot, state("minecraft:red_bed[facing=south,part=foot]"), Block.UPDATE_NONE);
+        level.setBlock(neighbourHead, state("minecraft:red_bed[facing=south,part=head]"), Block.UPDATE_NONE);
+
+        Parts.Outcome outcome =
+                Parts.reconcile(level, foot, state("minecraft:red_bed[facing=south,part=foot]"), Parts.CellGuard.ALLOW);
+        h.assertTrue(outcome.done(), "the intended bed must be completed: " + outcome);
+        h.assertBlockState(new BlockPos(4, 3, 4), state("minecraft:red_bed[facing=south,part=foot]"));
+        h.assertBlockState(new BlockPos(4, 3, 5), state("minecraft:red_bed[facing=south,part=head]"));
+        h.assertBlockState(new BlockPos(3, 3, 3), state("minecraft:red_bed[facing=south,part=foot]"));
+        h.assertBlockState(new BlockPos(3, 3, 4), state("minecraft:red_bed[facing=south,part=head]"));
+
+        // Reconciling an already correct pair changes nothing.
+        Parts.Outcome again =
+                Parts.reconcile(level, foot, state("minecraft:red_bed[facing=south,part=foot]"), Parts.CellGuard.ALLOW);
+        h.assertTrue(again.done(), "the second pass must agree: " + again);
+        h.assertTrue(again.changed().isEmpty(), "the second pass changed " + again.changed());
+        h.succeed();
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16)
+    public void blockedBedPartnerRefusesWithoutChangingTheBed(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerLevel level = h.getLevel();
+        BlockPos foot = h.absolutePos(new BlockPos(4, 3, 4));
+        BlockPos head = h.absolutePos(new BlockPos(4, 3, 5));
+        BlockPos wantedHead = h.absolutePos(new BlockPos(3, 3, 4));
+        h.setBlock(new BlockPos(4, 2, 4), Blocks.STONE);
+        h.setBlock(new BlockPos(4, 2, 5), Blocks.STONE);
+        h.setBlock(new BlockPos(3, 2, 4), Blocks.STONE);
+        level.setBlock(foot, state("minecraft:red_bed[facing=south,part=foot]"), Block.UPDATE_NONE);
+        level.setBlock(head, state("minecraft:red_bed[facing=south,part=head]"), Block.UPDATE_NONE);
+        // The blueprint wants the bed turned west, but the cell that would hold its head is taken.
+        h.setBlock(new BlockPos(3, 3, 4), Blocks.STONE);
+
+        Parts.Outcome outcome =
+                Parts.reconcile(level, foot, state("minecraft:red_bed[facing=west,part=foot]"), Parts.CellGuard.ALLOW);
+        h.assertFalse(outcome.done(), "a blocked partner must not report success: " + outcome);
+        h.assertTrue(
+                outcome.refused().reason() instanceof PlacementRefusal.ForeignBlock,
+                "the cause was " + outcome.refused().reason());
+        h.assertTrue(outcome.changed().isEmpty(), "nothing may change: " + outcome.changed());
+        h.assertBlockState(new BlockPos(4, 3, 4), state("minecraft:red_bed[facing=south,part=foot]"));
+        h.assertBlockState(new BlockPos(4, 3, 5), state("minecraft:red_bed[facing=south,part=head]"));
+        h.assertBlockState(new BlockPos(3, 3, 4), Blocks.STONE.defaultBlockState());
+        h.succeed();
+    }
+
+    /** The partner goes through the same protection boundary as every other placement. */
+    @GameTest(structure = GameTestArenas.ARENA_16)
+    public void protectedBedPartnerRefusesThroughTheHands(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerLevel level = h.getLevel();
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.setOwner(UUID.randomUUID());
+        BlockPos foot = h.absolutePos(new BlockPos(4, 3, 4));
+        BlockPos head = h.absolutePos(new BlockPos(4, 3, 5));
+        BlockPos wantedHead = h.absolutePos(new BlockPos(3, 3, 4));
+        h.setBlock(new BlockPos(4, 2, 4), Blocks.STONE);
+        h.setBlock(new BlockPos(4, 2, 5), Blocks.STONE);
+        h.setBlock(new BlockPos(3, 2, 4), Blocks.STONE);
+        level.setBlock(foot, state("minecraft:red_bed[facing=south,part=foot]"), Block.UPDATE_NONE);
+        level.setBlock(head, state("minecraft:red_bed[facing=south,part=head]"), Block.UPDATE_NONE);
+        companion.hands().overrideProtection(wantedHead::equals);
+
+        Parts.Outcome outcome = Parts.reconcile(
+                level,
+                foot,
+                state("minecraft:red_bed[facing=west,part=foot]"),
+                Parts.guarding(new TaskContext(companion, level)));
+        h.assertFalse(outcome.done(), "a protected partner must not report success: " + outcome);
+        h.assertTrue(
+                outcome.refused().reason() instanceof PlacementRefusal.Protected,
+                "the cause was " + outcome.refused().reason());
+        h.assertBlockState(new BlockPos(4, 3, 4), state("minecraft:red_bed[facing=south,part=foot]"));
+        h.assertBlockState(new BlockPos(4, 3, 5), state("minecraft:red_bed[facing=south,part=head]"));
+        h.assertBlockState(new BlockPos(3, 3, 4), Blocks.AIR.defaultBlockState());
+        h.succeed();
+    }
+
+    /**
+     * A lower half that already matches the blueprint is not a finished door when its upper half is missing. The build
+     * has to repair and verify the pair before it may report success.
+     */
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 2000)
+    public void doorWithMissingUpperIsRepairedBeforeSuccess(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.inventory().addItem(new ItemStack(Items.COBBLESTONE, 4));
+        h.setBlock(new BlockPos(4, 3, 4), state("minecraft:oak_door[facing=north,half=lower]"));
+        Blueprint blueprint = parse("""
+                {
+                  "palette": { "C": "minecraft:cobblestone" },
+                  "ops": [
+                    { "op": "box", "from": [0,0,0], "to": [0,0,0], "block": "C" },
+                    { "op": "door", "at": [0,1,0], "facing": "north", "block": "minecraft:oak_door" }
+                  ]
+                }
+                """);
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(companion, result);
+        runner.start(build(blueprint, h, 4, 2, 4, Direction.SOUTH), "build_structure");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status != null, "still running");
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + ": " + result.summary);
+            h.assertBlockState(new BlockPos(4, 3, 4), state("minecraft:oak_door[facing=north,half=lower]"));
+            h.assertBlockState(new BlockPos(4, 4, 4), state("minecraft:oak_door[facing=north,half=upper]"));
+        });
+    }
+
+    /** A door whose upper half is blocked is a failed placement, not a finished one. */
+    @GameTest(structure = GameTestArenas.ARENA_16)
+    public void doorWithBlockedUpperRefuses(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerLevel level = h.getLevel();
+        BlockPos lower = h.absolutePos(new BlockPos(4, 3, 4));
+        h.setBlock(new BlockPos(4, 4, 4), Blocks.STONE);
+        level.setBlock(lower, state("minecraft:oak_door[facing=north,half=lower]"), Block.UPDATE_NONE);
+
+        Parts.Outcome outcome = Parts.reconcile(
+                level, lower, state("minecraft:oak_door[facing=north,half=lower]"), Parts.CellGuard.ALLOW);
+        h.assertFalse(outcome.done(), "a blocked upper half must not report success: " + outcome);
+        h.assertTrue(
+                outcome.refused().reason() instanceof PlacementRefusal.ForeignBlock,
+                "the cause was " + outcome.refused().reason());
+        h.assertTrue(outcome.changed().isEmpty(), "nothing may change: " + outcome.changed());
+        h.assertBlockState(new BlockPos(4, 3, 4), state("minecraft:oak_door[facing=north,half=lower]"));
+        h.assertBlockState(new BlockPos(4, 4, 4), Blocks.STONE.defaultBlockState());
+        h.succeed();
+    }
+
+    /**
+     * A rotated bed whose foot survived a reload but whose head did not is repaired from the checkpoint, and only
+     * then counted as a complete placement.
+     */
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 4000)
+    public void bedIsCompletedAfterReload(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.inventory().addItem(new ItemStack(Items.COBBLESTONE, 8));
+        Blueprint blueprint = parse("""
+                {
+                  "palette": { "C": "minecraft:cobblestone" },
+                  "ops": [
+                    { "op": "box", "from": [0,0,0], "to": [0,0,1], "block": "C" },
+                    { "op": "box", "from": [0,1,0], "to": [0,1,0], "block": "minecraft:red_bed[facing=south,part=foot]" },
+                    { "op": "box", "from": [0,1,1], "to": [0,1,1], "block": "minecraft:red_bed[facing=south,part=head]" }
+                  ]
+                }
+                """);
+        // The blueprint is built facing west, so the pair rotates: its foot stays on the min corner and its head moves
+        // from z+1 to z-1. A foot that already matches the blueprint survives the reload; the head does not, so the
+        // cell is not "already done" just because its own state is right.
+        h.setBlock(new BlockPos(4, 3, 4), state("minecraft:red_bed[facing=west,part=foot]"));
+        h.setBlock(new BlockPos(4, 2, 4), Blocks.COBBLESTONE);
+        h.setBlock(new BlockPos(4, 2, 5), Blocks.COBBLESTONE);
+        Result first = new Result();
+        ExecutionCoordinator runner = runner(companion, first);
+        BuildTask task = new BuildTask(
+                blueprint, h.absolutePos(new BlockPos(4, 2, 4)), Placement.rotationFor(Direction.WEST), true);
+        runner.start(task, "build_structure");
+        String[] saved = {null};
+        Result restored = new Result();
+        ExecutionCoordinator[] restarted = {null};
+        h.succeedWhen(() -> {
+            if (saved[0] == null) {
+                runner.tick();
+                if (!Files.exists(store(h).inProgressFile(buildId(task.saveData())))) {
+                    return;
+                }
+                saved[0] = task.saveData();
+                runner.stop("test");
+                BuildTask resumed = (BuildTask)
+                        TaskRestoreRegistry.restoreCheckpoint(new TaskState("build_structure", saved[0]), h.getLevel())
+                                .orElseThrow();
+                restarted[0] = runner(companion, restored);
+                restarted[0].start(resumed, "build_structure");
+                return;
+            }
+            restarted[0].tick();
+            h.assertTrue(restored.status != null, "still running");
+            h.assertTrue(restored.status == TaskStatus.SUCCESS, "status " + restored.status + ": " + restored.summary);
+            h.assertBlockState(new BlockPos(4, 3, 4), state("minecraft:red_bed[facing=west,part=foot]"));
+            h.assertBlockState(new BlockPos(4, 3, 3), state("minecraft:red_bed[facing=west,part=head]"));
+            h.assertBlockState(new BlockPos(4, 2, 4), Blocks.COBBLESTONE.defaultBlockState());
+            h.assertBlockState(new BlockPos(4, 2, 3), Blocks.COBBLESTONE.defaultBlockState());
+            h.assertBlockState(new BlockPos(4, 3, 5), Blocks.AIR.defaultBlockState());
+            h.assertTrue(
+                    !Files.exists(store(h).inProgressFile(buildId(saved[0]))),
+                    "the in-progress file must be gone after the build");
+        });
     }
 
     @GameTest(structure = GameTestArenas.ARENA_16)
