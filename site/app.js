@@ -24,7 +24,7 @@ const CATS = [
       "circle|Circle around a point.", "set_follow_distance|How close it stays to the owner.",
       "~A* pathfinder|Incremental, resumable search that spreads work over ticks.", "~Dig, pillar, bridge|Breaks and places blocks when the way is blocked, and walks only a complete stair or bridge: it never stops half way up.",
       "~Verified orbits|A circle reports the waypoints it really reached and names an obstructed arc as partial movement.", "~Bounded bypass|One wider and one narrower arc around a blocked waypoint before it is reported.",
-      "~Stuck recovery|Re-plans when the world disagrees with the path." ] },
+      "~Stuck recovery|Re-plans when the world disagrees with the path.", "~Movement hand-off|An interrupted walk, jump or swim stops where it is and resumes from that spot." ] },
   { id: "mining", domain: "hands", name: "Mining & Gathering", icon: "⛏️", color: COLORS.iron,
     desc: "Collects raw materials: trees, ores, drops. Tool choice comes from item data components, never hard-coded tiers.",
     items: [
@@ -348,6 +348,7 @@ const CODE = {
   "~Verified orbits": ["engine/src/main/java/dev/friendai/foundation/movement/OrbitCoverage.java", "src/main/java/dev/friendai/features/navigation/minecraft/task/CircleTask.java"],
   "~Bounded bypass": ["engine/src/main/java/dev/friendai/foundation/movement/OrbitCoverage.java", "src/main/java/dev/friendai/features/navigation/minecraft/task/CircleTask.java"],
   "~Stuck recovery": ["src/main/java/dev/friendai/world/movement/PathExecutor.java"],
+  "~Movement hand-off": ["src/main/java/dev/friendai/entity/CompanionEntity.java", "src/main/java/dev/friendai/server/execution/ExecutionCoordinator.java"],
   "~Vein follower": ["engine/src/main/java/dev/friendai/features/mining/ClusterFill.java", "src/main/java/dev/friendai/features/mining/minecraft/task/MineBlockAtTask.java"],
   "~Tool selection": ["src/main/java/dev/friendai/world/block/MiningToolView.java"],
   "~Safe digging": ["engine/src/main/java/dev/friendai/features/mining/MiningSafety.java"],

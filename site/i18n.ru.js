@@ -91,6 +91,9 @@ const RU = {
     "Ломает и ставит блоки, когда путь перекрыт, и проходит только целиком построенную лестницу или мост: на полпути оно не останавливается.",
   "Stuck recovery": "Выход из застревания",
   "Re-plans when the world disagrees with the path.": "Перепланирует, если мир не совпал с маршрутом.",
+  "Movement hand-off": "Передача движения",
+  "An interrupted walk, jump or swim stops where it is and resumes from that spot.":
+    "Прерванная ходьба, прыжок или заплыв останавливается на месте и продолжается оттуда же.",
 
   /* ---- Mining ---- */
   "Mining & Gathering": "Добыча и сбор",

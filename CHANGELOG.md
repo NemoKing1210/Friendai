@@ -6,6 +6,17 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.226.1] - 2026-11-23
+
+### Fixed
+
+- A companion interrupted in the middle of a walk, jump or swim now stops where it is. When an urgent order replaces
+  queued work, when a fight, a meal or a self-care moment takes over, or when you open its inventory, it no longer
+  finishes the step it had already started and does not slide on afterwards; a fall or a float at the surface still
+  finishes.
+- The interrupted work resumes from the place the companion actually stands, so a walk, a climb or a swim picks up
+  where it was left rather than where it would have been.
+
 ## [0.226.0] - 2026-11-23
 
 ### Fixed

@@ -232,15 +232,12 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     }
 
     /**
-     * Suspending stops the ticks, not the body: the move control keeps its last wanted point, so a body already
-     * walking would finish that step while nobody is watching it. Halt it where it stands and let the task pick up
-     * from there when the hold is released.
+     * Suspending stops the ticks, not the body: a vanilla path keeps ticking in the mob's own AI step, the move control
+     * keeps its last wanted point and the walking inputs keep momentum, so a body already walking would finish that
+     * step while nobody is watching it. Halt it where it stands and let the task pick up from there.
      */
     private void holdBody() {
-        companion.getNavigation().stop();
-        companion.getMoveControl().setWantedPosition(companion.getX(), companion.getY(), companion.getZ(), 0.0);
-        companion.setDeltaMovement(0.0, companion.getDeltaMovement().y, 0.0);
-        companion.setPathing(false);
+        companion.withdrawMovement();
     }
 
     /**
@@ -317,7 +314,12 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     }
 
     public ExecutionHold acquireHold(HoldReason reason) {
-        return holds.acquire(reason);
+        boolean first = !holds.held();
+        ExecutionHold hold = holds.acquire(reason);
+        // The holder takes the body over; a path left running would keep walking under it. Only the first hold does
+        // this, so a second holder does not cancel what the first one just authorized.
+        if (first) companion.withdrawMovement();
+        return hold;
     }
 
     public boolean held() {
@@ -687,8 +689,12 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         CreativeActionContext actionContext = actionContext(caller, creativeSensitive);
         requireCreativeAuthorization(actionContext == null ? null : actionContext.principal(), creativeSensitive);
         ActiveTask current = activeTask();
-        if (current != null && current.jobId() > 0 && !current.interrupt()) activeTasks.freezeCurrent();
-        else if (current != null && current.defaultActivity()) clearCurrentSilently();
+        if (current != null && current.jobId() > 0 && !current.interrupt()) {
+            activeTasks.freezeCurrent();
+            // A frozen task keeps its own route and move-control command; the new task owns the body from its first
+            // tick, so the old one must stop driving it here rather than when it is resumed.
+            companion.withdrawMovement();
+        } else if (current != null && current.defaultActivity()) clearCurrentSilently();
         else if (current != null) cancelCurrent("replaced by a new task");
         return begin(task, toolName, task.emitsEvents(), false, caller, actionContext, creativeSensitive);
     }
@@ -711,8 +717,10 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         ActiveTask current = activeTask();
         if (current != null && current.interrupt()) {
             cancelCurrent("replaced by urgent task");
-        } else if (current != null && current.jobId() > 0) activeTasks.freezeCurrent();
-        else if (current != null && current.defaultActivity()) clearCurrentSilently();
+        } else if (current != null && current.jobId() > 0) {
+            activeTasks.freezeCurrent();
+            companion.withdrawMovement();
+        } else if (current != null && current.defaultActivity()) clearCurrentSilently();
         else if (current != null) cancelCurrent("interrupted by urgent task");
         begin(task, toolName, task.emitsEvents(), true, caller, actionContext, creativeSensitive);
     }

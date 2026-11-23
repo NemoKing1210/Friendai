@@ -1355,11 +1355,24 @@ public class CompanionEntity extends PathfinderMob {
         return inventory;
     }
 
-    /** A window showing the inventory opened: the first one stops the companion so its items are not moving. */
+    /**
+     * Withdraws every locomotion command the body may still hold: a vanilla path that ticks inside the mob's own AI
+     * step, the move control's last wanted point, the walking inputs and horizontal momentum. Vertical motion is left
+     * alone, so a fall or a surface float is not cancelled. Whoever takes over the body issues its own command.
+     */
+    public void withdrawMovement() {
+        getNavigation().stop();
+        getMoveControl().setWait();
+        setZza(0.0f);
+        setXxa(0.0f);
+        setDeltaMovement(0.0, getDeltaMovement().y, 0.0);
+        setPathing(false);
+    }
+
+    /** A window showing the inventory opened: the first one holds the companion so its items are not moving. */
     public void addInventoryViewer() {
         if (inventoryViewers++ == 0) {
             inventoryHold = executionCoordinator.acquireHold(HoldReason.INVENTORY);
-            getNavigation().stop();
         }
     }
 

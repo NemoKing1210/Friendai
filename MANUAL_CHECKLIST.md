@@ -102,6 +102,7 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] Pause from the menu's Control tab: a running job stops, the button reads Resume, and Resume continues the same job.
 - [ ] Pause, quit to the title and rejoin: the button still reads Resume and no new work starts until it is pressed.
 - [ ] The Control tab names the hold while nothing runs: "Paused by you" after the menu pause, "Owner away" for a companion whose owner is not in the game, and "In combat" while it fights. Releasing the hold removes the row.
+- [ ] Send it on a long walk and interrupt it mid-route with an urgent order (or let a mob attack it): the companion stops where it stands instead of sliding on, and when the urgent work ends it continues the walk from that spot and reaches the destination once.
 - [ ] `/friendai pause` and the menu button agree in both directions.
 
 ## Companion feeling tab
@@ -323,6 +324,7 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 ## Companion inventory window
 
 - [ ] Shift+right-click the companion as its owner: a 184x254 window opens with six equipment slots, its 27 inventory slots and your own inventory; the companion stops where it is.
+- [ ] Open the window while it is walking or swimming: the body stops at once and does not slide on, and after you close the window it carries on from there.
 - [ ] Take items and put them back; shift-click both ways; a helmet only fits the head slot and the hands take anything.
 - [ ] Another player shift+right-clicks the companion: only the action-bar line "Only the owner can open the companion's inventory." appears and no window opens.
 - [ ] Walk more than 8 blocks away with the window open: it closes, and the companion carries on with what it was doing.
