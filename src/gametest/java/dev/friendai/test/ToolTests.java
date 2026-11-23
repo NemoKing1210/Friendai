@@ -1013,8 +1013,24 @@ public class ToolTests {
         return args;
     }
 
+    private static JsonObject blueprintArgs(String blueprint, BlockPos at) {
+        JsonObject args = new JsonObject();
+        args.addProperty("blueprint", blueprint);
+        args.addProperty("x", at.getX());
+        args.addProperty("y", at.getY());
+        args.addProperty("z", at.getZ());
+        return args;
+    }
+
     private static final String PLATFORM_3 =
             "{\"type\":\"platform\",\"width\":3,\"depth\":3,\"block\":\"minecraft:stone\"}";
+    private static final String HOUSE_5 = """
+            {"name":"hut",
+             "palette":{"C":"minecraft:cobblestone","P":"minecraft:oak_planks","R":"minecraft:oak_slab"},
+             "ops":[{"op":"box","from":[0,0,0],"to":[4,0,4],"block":"C"},
+                    {"op":"walls","from":[0,1,0],"to":[4,2,4],"block":"P"},
+                    {"op":"roof","from":[0,3,0],"to":[4,3,4],"style":"flat","block":"R"}]}
+            """;
 
     @GameTest
     public void helpMentionsOpsAndGenerators(GameTestHelper h) {
@@ -1038,6 +1054,72 @@ public class ToolTests {
         h.assertTrue(r.content().contains("blocks to place"), "content was " + r.content());
         h.assertTrue(r.content().contains("materials:"), "content was " + r.content());
         h.assertTrue(r.content().contains("site: clear"), "content was " + r.content());
+        h.succeed();
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16)
+    public void previewBillsOnlyMissingBlocks(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.STONE, 9));
+        BlockPos at = h.absolutePos(new BlockPos(4, 2, 4));
+        h.setBlock(4, 2, 4, Blocks.STONE);
+        ToolResult r = runArgs(tools(c), "preview_structure", buildArgs(PLATFORM_3, at));
+        h.assertTrue(!r.error(), "error: " + r.content());
+        h.assertTrue(r.content().contains("8 blocks to place"), "content was " + r.content());
+        h.assertTrue(r.content().contains("1 already placed"), "content was " + r.content());
+        h.assertTrue(r.content().contains("materials: 8 × minecraft:stone"), "content was " + r.content());
+        h.succeed();
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16)
+    public void previewDescribesOnlyTheSelectedParts(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        BlockPos at = h.absolutePos(new BlockPos(2, 2, 2));
+        JsonObject args = blueprintArgs(HOUSE_5, at);
+        args.add("parts", JsonParser.parseString("[\"roof\"]"));
+        ToolResult r = runArgs(tools(c), "preview_structure", args);
+        h.assertTrue(!r.error(), "error: " + r.content());
+        h.assertTrue(r.content().contains("25 blocks to place"), "content was " + r.content());
+        h.assertTrue(r.content().contains("parts: roof 25"), "content was " + r.content());
+        h.assertTrue(r.content().contains("25 × minecraft:oak_slab"), "content was " + r.content());
+        h.assertFalse(r.content().contains("minecraft:oak_planks"), "walls were not selected: " + r.content());
+        h.assertFalse(r.content().contains("minecraft:cobblestone"), "the floor was not selected: " + r.content());
+        h.succeed();
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16)
+    public void previewWithoutClearingReportsTheRefusal(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        BlockPos at = h.absolutePos(new BlockPos(4, 2, 4));
+        h.setBlock(4, 2, 4, Blocks.DIRT);
+        JsonObject kept = buildArgs(PLATFORM_3, at);
+        kept.addProperty("clear_site", false);
+        ToolResult refused = runArgs(tools(c), "preview_structure", kept);
+        h.assertTrue(!refused.error(), "error: " + refused.content());
+        h.assertTrue(
+                refused.content().contains("the site isn't clear: minecraft:dirt"), "content was " + refused.content());
+        h.assertFalse(refused.content().contains("site: clear"), "content was " + refused.content());
+        ToolResult clearing = runArgs(tools(c), "preview_structure", buildArgs(PLATFORM_3, at));
+        h.assertTrue(!clearing.error(), "error: " + clearing.content());
+        h.assertTrue(clearing.content().contains("1 to clear"), "content was " + clearing.content());
+        h.assertTrue(clearing.content().contains("site: clear"), "content was " + clearing.content());
+        h.succeed();
+    }
+
+    @GameTest
+    public void previewPartsThatMatchNothingFails(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        BlockPos at = h.absolutePos(new BlockPos(4, 2, 4));
+        JsonObject args = buildArgs(PLATFORM_3, at);
+        args.add("parts", JsonParser.parseString("[\"roof\"]"));
+        ToolResult r = runArgs(tools(c), "preview_structure", args);
+        h.assertTrue(r.error(), "should be an error: " + r.content());
+        h.assertTrue(
+                r.content().contains("the blueprint has no roof; omit parts to build all of it"),
+                "content was " + r.content());
         h.succeed();
     }
 
@@ -1198,6 +1280,81 @@ public class ToolTests {
         h.assertTrue(
                 c.executionCoordinator().current().get().type().equals("build_structure"),
                 "build task should be current");
+        h.succeed();
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16)
+    public void buildUsesThePreviewedSite(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.inventory().addItem(new ItemStack(Items.STONE, 9));
+        // No origin: the site is picked in front of the companion, and the preview must pin it.
+        JsonObject args = new JsonObject();
+        args.addProperty("generator", PLATFORM_3);
+        ToolResult preview = runArgs(tools(c), "preview_structure", args);
+        h.assertTrue(!preview.error(), "preview: " + preview.content());
+        int start = preview.content().indexOf(" at ") + 4;
+        String site = preview.content().substring(start, preview.content().indexOf(" facing", start));
+        // The companion walks before ordering the build; the preview must still pin the site it showed.
+        c.snapTo(c.getX() + 6.5, c.getY(), c.getZ() + 6.5, 0, 0);
+        ToolResult built = run(tools(c), "build_structure", "{\"use_preview\":true}");
+        h.assertTrue(!built.error() && built.content().startsWith("task #"), "result was " + built.content());
+        var task = c.executionCoordinator().current().orElseThrow();
+        h.assertTrue(
+                task.describe().contains("at " + site),
+                "the build must start at the previewed site " + site + ": " + task.describe());
+        h.succeed();
+    }
+
+    @GameTest
+    public void buildUsePreviewRefusesExtraArguments(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        BlockPos at = h.absolutePos(new BlockPos(4, 2, 4));
+        JsonObject args = buildArgs(PLATFORM_3, at);
+        args.addProperty("use_preview", true);
+        ToolResult r = runArgs(tools(c), "build_structure", args);
+        h.assertTrue(r.error(), "should be an error: " + r.content());
+        h.assertTrue(
+                r.content().contains("preview_structure with the new options first"), "content was " + r.content());
+        h.assertTrue(c.executionCoordinator().current().isEmpty(), "no task may start");
+        h.succeed();
+    }
+
+    @GameTest
+    public void buildUsePreviewWithoutAPreviewRefuses(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ToolResult r = run(tools(c), "build_structure", "{\"use_preview\":true}");
+        h.assertTrue(r.error(), "should be an error: " + r.content());
+        h.assertTrue(r.content().contains("no preview to build"), "content was " + r.content());
+        h.assertTrue(c.executionCoordinator().current().isEmpty(), "no task may start");
+        h.succeed();
+    }
+
+    @GameTest
+    public void buildUsePreviewRefusesAnotherDimension(GameTestHelper h) {
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        BlockPos at = h.absolutePos(new BlockPos(4, 2, 4));
+        c.rememberPreview(new dev.friendai.features.construction.minecraft.build.PreviewIntent(
+                new dev.friendai.features.construction.blueprint.Blueprint(
+                        "platform",
+                        3,
+                        1,
+                        3,
+                        List.of(
+                                new dev.friendai.features.construction.blueprint.BlockSpec(0, 0, 0, "minecraft:stone"),
+                                new dev.friendai.features.construction.blueprint.BlockSpec(1, 0, 0, "minecraft:stone"),
+                                new dev.friendai.features.construction.blueprint.BlockSpec(
+                                        2, 0, 0, "minecraft:stone"))),
+                at,
+                net.minecraft.world.level.block.Rotation.NONE,
+                true,
+                false,
+                Set.of(),
+                "minecraft:the_nether"));
+        ToolResult r = run(tools(c), "build_structure", "{\"use_preview\":true}");
+        h.assertTrue(r.error(), "should be an error: " + r.content());
+        h.assertTrue(r.content().contains("the preview was in minecraft:the_nether"), "content was " + r.content());
+        h.assertTrue(c.executionCoordinator().current().isEmpty(), "no task may start");
         h.succeed();
     }
 

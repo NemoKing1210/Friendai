@@ -15,6 +15,7 @@ import dev.friendai.features.construction.minecraft.build.BlueprintResolver;
 import dev.friendai.features.construction.minecraft.build.BlueprintStore;
 import dev.friendai.features.construction.minecraft.build.Materials;
 import dev.friendai.features.construction.minecraft.build.Placement;
+import dev.friendai.features.construction.minecraft.build.PreviewIntent;
 import dev.friendai.features.construction.minecraft.build.PreviewOutline;
 import dev.friendai.features.construction.minecraft.build.Site;
 import dev.friendai.features.construction.minecraft.task.BuildTask;
@@ -74,9 +75,11 @@ final class BuildTools {
             - fence: width 3..32, depth 3..32, block (fence id), gate (gate id), gate_side.
             - platform: width 1..32, depth 1..32, block.
             - bridge: length 3..32, width 1..5, block, railing (fence id, optional).
-            preview_structure shows the size, materials and site problems. build_structure takes clear_site
-            (default true), gather (default false, obtain missing materials with obtain_item instead of failing)
-            and parts (floor, walls, roof, entrance, window; omit it to build everything).
+            preview_structure shows the size, materials and site problems, and takes the same clear_site, gather and
+            parts options as build_structure: it describes exactly the build those options would make.
+            build_structure takes clear_site (default true), gather (default false, obtain missing materials with
+            obtain_item instead of failing) and parts (floor, walls, roof, entrance, window; omit it to build
+            everything). build_structure with use_preview=true builds exactly the last preview's site and options.
             Errors name the place and the reason, for example:
             palette: key "CC" must be one character, ops[1]: 'to' is below 'from', unknown block minecraft:oak_plank.
             """;
@@ -94,8 +97,9 @@ final class BuildTools {
                 registry,
                 ToolGroup.BLUEPRINT,
                 "preview_structure",
-                "Check a structure before building it: size, materials, site problems, and an outline for the owner.",
-                sourceSchema().build(),
+                "Check a structure before building it: size, materials, site problems, and an outline for the owner."
+                        + " Takes the same clear_site, gather and parts options as build_structure.",
+                previewSchema(),
                 (companion, args) -> preview(placedService, companion, args));
         ConstructionToolSupport.registerTask(
                 registry,
@@ -105,6 +109,9 @@ final class BuildTools {
                 buildSchema(),
                 (c, a) -> {
                     ServerLevel level = (ServerLevel) c.level();
+                    if (usePreview(a)) {
+                        return fromPreview(c, level, a, obtainFactory);
+                    }
                     ParseResult parsed = BlueprintResolver.resolve(a, level, author(c));
                     if (parsed.blueprint().isEmpty()) {
                         throw new IllegalArgumentException(String.join("; ", parsed.errors()));
@@ -179,6 +186,16 @@ final class BuildTools {
     }
 
     private static JsonObject buildSchema() {
+        return optionSchema()
+                .bool(
+                        "use_preview",
+                        "Build exactly the structure and site preview_structure showed, ignoring x/y/z,"
+                                + " facing and the other options (give use_preview alone)")
+                .build();
+    }
+
+    /** The options a preview and a build share: the same values describe and execute one intent. */
+    private static SchemaBuilder optionSchema() {
         return sourceSchema()
                 .bool("clear_site", "Break natural ground on the site (default true)")
                 .bool("gather", "Obtain missing materials with obtain_item instead of failing (default false)")
@@ -187,8 +204,11 @@ final class BuildTools {
                         "Build only these parts: floor, walls, roof, entrance, window; omit for everything",
                         partSchema(),
                         0,
-                        5)
-                .build();
+                        5);
+    }
+
+    private static JsonObject previewSchema() {
+        return optionSchema().build();
     }
 
     /** One part name; the tool validates it against {@link PartKind}. */
@@ -204,50 +224,154 @@ final class BuildTools {
         }
         Blueprint blueprint = parsed.blueprint().get();
         Placement.PlacedBlueprint placed;
+        Placement.PlacedBlueprint scoped;
         Site.SiteReport site;
+        List<Placement.PlacedSpec> remaining;
         Map<Item, Integer> needed;
+        StructureParts structure;
+        Set<PartKind> parts;
+        boolean clearSite;
+        boolean gather;
         try {
+            // The preview describes the same plan the build executes: same options, same footprint, same site pass.
+            parts = parts(args);
+            clearSite = clearSite(args);
+            gather = gather(args);
+            structure = StructureParts.analyse(blueprint);
+            Blueprint buildPlan = parts.isEmpty()
+                    ? blueprint
+                    : new Blueprint(
+                            blueprint.name(),
+                            blueprint.width(),
+                            blueprint.height(),
+                            blueprint.depth(),
+                            structure.cells(parts));
+            if (!parts.isEmpty() && buildPlan.blocks().isEmpty()) {
+                return ToolResult.error(
+                        "the blueprint has no " + StructureParts.names(parts) + "; omit parts to build all of it");
+            }
             placed = Placement.of(blueprint, origin(args), facing(args), companion);
-            java.util.Set<BlockPos> owned = Site.ownedByCompanion(companion, placed, placedService);
-            site = Site.check(level, placed, companion, true, owned::contains);
-            needed = Materials.needed(placed.specs(), site.foundation());
+            scoped = Placement.at(buildPlan, placed.origin(), placed.rotation(), new Placement.StateCache());
+            Set<BlockPos> owned = Site.ownedByCompanion(companion, scoped, placedService);
+            Site.Staged staged = new Site.Staged(level, scoped, companion, clearSite, owned::contains);
+            staged.step(Integer.MAX_VALUE);
+            site = staged.report();
+            remaining = staged.remaining();
+            needed = Materials.needed(remaining, site.foundation());
+            companion.setLastPreview(blueprint);
+            companion.rememberPreview(new PreviewIntent(
+                    blueprint,
+                    placed.origin(),
+                    placed.rotation(),
+                    clearSite,
+                    gather,
+                    parts,
+                    level.dimension().identifier().toString()));
+            companion
+                    .owner()
+                    .ifPresent(owner -> companion.showOutline(new PreviewOutline(owner.getUUID(), scoped, buildPlan)));
         } catch (IllegalArgumentException e) {
             return ToolResult.error(e.getMessage());
         }
-        companion.setLastPreview(blueprint);
-        companion
-                .owner()
-                .ifPresent(owner -> companion.showOutline(new PreviewOutline(owner.getUUID(), placed, blueprint)));
         return ToolResult.ok(previewText(
                 blueprint,
+                structure,
                 placed,
                 site,
+                remaining,
                 needed,
                 Materials.have(companion, level),
                 Materials.carried(companion),
+                parts,
+                clearSite,
+                gather,
                 parsed.notes()));
     }
 
     private static String previewText(
             Blueprint blueprint,
+            StructureParts structure,
             Placement.PlacedBlueprint placed,
             Site.SiteReport site,
+            List<Placement.PlacedSpec> remaining,
             Map<Item, Integer> needed,
             Map<Item, Integer> have,
             Map<Item, Integer> carried,
+            Set<PartKind> parts,
+            boolean clearSite,
+            boolean gather,
             List<String> notes) {
-        long blocks =
-                placed.specs().stream().filter(spec -> !spec.wanted().isAir()).count();
+        long planned = blocksToPlace(placed.specs());
+        long blocks = blocksToPlace(remaining);
+        long done = planned - blocks;
         return blueprint.name() + " " + blueprint.width() + "×" + blueprint.height() + "×" + blueprint.depth()
                 + " at " + coords(placed.origin())
                 + " facing " + Placement.facingFor(placed.rotation()).getSerializedName()
-                + ": " + blocks + " blocks to place, "
-                + site.toClear().size() + " to clear, "
+                + ": " + blocks + " blocks to place"
+                + (done > 0 ? ", " + done + " already placed" : "")
+                + ", " + site.toClear().size() + " to clear, "
                 + site.foundation().size() + " foundation; materials: "
                 + materialsText(needed, have, carried)
                 + "; site: " + (site.problems().isEmpty() ? "clear" : String.join("; ", site.problems()))
-                + "; parts: " + StructureParts.analyse(blueprint).describe()
-                + (notes.isEmpty() ? "" : "; " + String.join("; ", notes));
+                + "; parts: " + structure.describe(parts)
+                + (clearSite ? "" : "; clear site off")
+                + (gather ? "; gather missing materials" : "")
+                + (notes.isEmpty() ? "" : "; " + String.join("; ", notes))
+                + "; build it as shown with build_structure use_preview=true";
+    }
+
+    private static long blocksToPlace(List<Placement.PlacedSpec> specs) {
+        return specs.stream().filter(spec -> !spec.wanted().isAir()).count();
+    }
+
+    private static boolean usePreview(JsonObject args) {
+        return present(args, "use_preview") && args.get("use_preview").getAsBoolean();
+    }
+
+    /**
+     * Builds exactly what {@code preview_structure} showed: its site, rotation, parts, clearing and gathering rules.
+     * Any other argument would make the build differ from what the owner saw, so it is refused; the model previews
+     * again instead.
+     */
+    private static BuildTask fromPreview(
+            CompanionEntity companion, ServerLevel level, JsonObject args, BuildTask.ObtainFactory obtainFactory) {
+        for (String key : args.keySet()) {
+            if (!key.equals("use_preview")) {
+                throw new IllegalArgumentException("use_preview builds exactly the last preview; call preview_structure"
+                        + " with the new options first");
+            }
+        }
+        PreviewIntent intent = companion
+                .previewIntent()
+                .orElseThrow(() -> new IllegalArgumentException("no preview to build: call preview_structure first"));
+        String dimension = level.dimension().identifier().toString();
+        if (!intent.dimension().equals(dimension)) {
+            throw new IllegalArgumentException(
+                    "the preview was in " + intent.dimension() + "; call preview_structure here to see that site");
+        }
+        Optional<BlueprintStore.InProgress> resumable = BlueprintStore.forLevel(level)
+                .findResumable(intent.blueprint(), companion.ownerUuid(), dimension, intent.origin());
+        if (resumable.isPresent()) {
+            BlueprintStore.InProgress record = resumable.get();
+            return BuildTask.resume(
+                    record.blueprint(),
+                    record.origin(),
+                    record.rotation(),
+                    record.clearSite(),
+                    record.gather(),
+                    record.scaffold(),
+                    record.id(),
+                    record.parts(),
+                    obtainFactory);
+        }
+        return new BuildTask(
+                intent.blueprint(),
+                intent.origin(),
+                intent.rotation(),
+                intent.clearSite(),
+                intent.gather(),
+                obtainFactory,
+                intent.parts());
     }
 
     private static String materialsText(

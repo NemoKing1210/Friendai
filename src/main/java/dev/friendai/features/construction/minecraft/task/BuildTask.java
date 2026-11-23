@@ -381,17 +381,7 @@ public final class BuildTask implements Task {
     }
 
     private static String partNames(Set<PartKind> parts) {
-        StringBuilder names = new StringBuilder();
-        for (PartKind kind : PartKind.values()) {
-            if (!parts.contains(kind)) {
-                continue;
-            }
-            if (names.length() > 0) {
-                names.append('/');
-            }
-            names.append(kind.id());
-        }
-        return names.toString();
+        return StructureParts.names(parts);
     }
 
     /** A fresh file id: a UUID without dashes, so it is a legal, unique file name. */

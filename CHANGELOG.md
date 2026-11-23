@@ -6,6 +6,15 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.224.0] - 2026-11-23
+
+### Added
+
+- A structure preview now describes exactly the build it is asking the owner to approve. `preview_structure` takes
+  the same clearing, gathering and parts options as `build_structure`, bills only the blocks that are still missing,
+  and shows the outline of the selected parts. The new `build_structure` option `use_preview=true` builds that previewed
+  site and those options, even if the companion has walked elsewhere in between.
+
 ## [0.223.2] - 2026-11-23
 
 ### Fixed

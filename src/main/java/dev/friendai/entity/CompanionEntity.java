@@ -207,6 +207,7 @@ public class CompanionEntity extends PathfinderMob {
     private final StationLease stationLease = new StationLease();
     private transient CompanionHands hands;
     private transient Blueprint lastPreview;
+    private transient dev.friendai.features.construction.minecraft.build.PreviewIntent previewIntent;
     private transient PreviewOutline previewOutline;
     private transient AABB pathBounds;
     /** Ticks left in which the path executor is known to be driving the companion. Not saved. */
@@ -470,6 +471,18 @@ public class CompanionEntity extends PathfinderMob {
 
     public void setLastPreview(Blueprint blueprint) {
         this.lastPreview = blueprint;
+    }
+
+    /**
+     * The structure and site {@code preview_structure} showed last, for {@code build_structure use_preview=true}.
+     * In memory only: it belongs to the conversation, like the outline.
+     */
+    public Optional<dev.friendai.features.construction.minecraft.build.PreviewIntent> previewIntent() {
+        return Optional.ofNullable(previewIntent);
+    }
+
+    public void rememberPreview(dev.friendai.features.construction.minecraft.build.PreviewIntent intent) {
+        this.previewIntent = intent;
     }
     /**
      * Test hook: confines pathing to a box, so a GameTest cannot dig or build into a neighbour's structure. Not

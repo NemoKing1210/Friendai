@@ -125,6 +125,21 @@ public final class StructureParts {
         return describe(Set.of());
     }
 
+    /** The selected part ids in declaration order, for a refusal such as "the blueprint has no floor/roof". */
+    public static String names(Set<PartKind> selected) {
+        StringBuilder names = new StringBuilder();
+        for (PartKind kind : PartKind.values()) {
+            if (!selected.contains(kind)) {
+                continue;
+            }
+            if (names.length() > 0) {
+                names.append('/');
+            }
+            names.append(kind.id());
+        }
+        return names.toString();
+    }
+
     /** The selected parts' counts; an empty selection describes every part. */
     public String describe(Set<PartKind> selected) {
         boolean all = selected == null || selected.isEmpty();

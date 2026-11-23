@@ -156,4 +156,11 @@ class StructurePartsTest {
         assertTrue(parts.cells(Set.of(PartKind.INTERIOR)).isEmpty(), "the interior is empty space");
         assertTrue(parts.describe(Set.of(PartKind.ROOF)).contains("roof"));
     }
+
+    @Test
+    void namesListTheSelectionInDeclarationOrder() {
+        assertEquals("floor/roof", StructureParts.names(Set.of(PartKind.ROOF, PartKind.FLOOR)));
+        assertEquals("walls", StructureParts.names(Set.of(PartKind.WALLS)));
+        assertEquals("", StructureParts.names(Set.of()), "an empty selection names nothing");
+    }
 }

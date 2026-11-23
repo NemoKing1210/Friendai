@@ -123,8 +123,10 @@ const RU = {
   "Use a block or wait for a powered button to release.": "Взаимодействовать с блоком или дождаться отпускания нажатой кнопки.",
   "Place torches to stop mob spawns.": "Расставить факелы, чтобы не спавнились мобы.",
   "Clear vegetation, snow and stray blocks, up to 256 cells per call.": "Убирает растительность, снег и лишние блоки — до 256 клеток за вызов.",
-  "Show a ghost preview.": "Показать призрачный предпросмотр.",
-  "Build from a generated or saved layout.": "Построить по сгенерированной или сохранённой схеме.",
+  "Show a ghost preview of exactly the build and options you will authorize.":
+    "Показать призрачный предпросмотр ровно той постройки и настроек, которые вы одобрите.",
+  "Build from a generated or saved layout, or build exactly the last preview with use_preview.":
+    "Построить по сгенерированной или сохранённой схеме либо построить ровно последний предпросмотр через use_preview.",
   "Store a layout as JSON.": "Сохранить схему как JSON.",
   "List saved blueprints.": "Список сохранённых чертежей.",
   "Explain the blueprint format.": "Объяснить формат чертежа.",
