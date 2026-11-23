@@ -5,9 +5,9 @@ package dev.friendai.features.social;
  * debug log to answer whether the companion is silent or noisy. Pure, so it needs no Minecraft and costs an int per
  * event. One instance belongs to one owner and is reset when its window is written out.
  *
- * <p>Five counters describe what the companion did (ordinary, urgent, held and dropped lines, owner messages) and a
- * sixth counts what it had to work with: the happenings the server saw for that owner, so silence can be read as
- * either nothing happening or something happening and not being told.
+ * <p>Five counters describe what the companion did (ordinary, urgent, held and dropped lines, owner messages) and
+ * two more count what it had to work with: guest messages and the happenings the server saw for that owner, so
+ * silence can be read as either nothing happening or something happening and not being told.
  */
 public final class SocialActivity {
     private int ordinaryLines;
@@ -15,6 +15,7 @@ public final class SocialActivity {
     private int heldLines;
     private int droppedLines;
     private int ownerMessages;
+    private int guestMessages;
     private int events;
 
     /** A line reached the brain: urgent when it carried a happening, ordinary when it opened a subject instead. */
@@ -41,6 +42,11 @@ public final class SocialActivity {
         ownerMessages++;
     }
 
+    /** Someone other than the owner spoke to the companion; this must not move the owner's cadence. */
+    public void guestSpoke() {
+        guestMessages++;
+    }
+
     /** The server saw a happening for this owner: one journal entry's worth, whatever the companion then says. */
     public void event() {
         events++;
@@ -59,7 +65,8 @@ public final class SocialActivity {
     /** One stable line for the debug log: every counter named, no ratio and no invented number. */
     public String summary() {
         return "social activity: " + ordinaryLines + " ordinary, " + urgentLines + " urgent, " + heldLines + " held, "
-                + droppedLines + " dropped lines; " + ownerMessages + " owner messages; " + events + " events seen";
+                + droppedLines + " dropped lines; " + ownerMessages + " owner messages, " + guestMessages
+                + " guest messages; " + events + " events seen";
     }
 
     /** Starts a fresh window: every counter returns to zero. */
@@ -69,6 +76,7 @@ public final class SocialActivity {
         heldLines = 0;
         droppedLines = 0;
         ownerMessages = 0;
+        guestMessages = 0;
         events = 0;
     }
 }

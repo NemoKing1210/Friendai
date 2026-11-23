@@ -240,6 +240,8 @@
   "friendai.voice.error.unknown_model": "Le modèle vocal sélectionné n'est pas disponible dans cette version. Choisissez-en un autre dans Réglages → Voix.",
   "friendai.voice.error.overflow": "Le micro a envoyé l'audio plus vite qu'il ne pouvait être reconnu. Réessayez.",
   "friendai.voice.hud.recording": "Enregistrement…",
+  "friendai.voice.hud.recording_private": "Enregistrement privé…",
+  "friendai.voice.hud.recording_private.partial": "Privé : %s",
   "friendai.voice.hud.transcribing": "Transcription…",
   "friendai.voice.hud.listening": "Écoute du mot d'activation…",
 

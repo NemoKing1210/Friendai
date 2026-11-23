@@ -17,6 +17,7 @@ import dev.friendai.agent.llm.model.Role;
 import dev.friendai.agent.llm.model.ToolSpec;
 import dev.friendai.execution.TaskWorkResult;
 import dev.friendai.execution.tool.AccessLevel;
+import dev.friendai.features.conversation.Audience;
 import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.testutil.FakeGateway;
 import dev.friendai.testutil.FakeToolExecutor;
@@ -464,12 +465,31 @@ class CompanionBrainTest {
         gateway.enqueue(text("Hi"));
         brain.post(said("hi"));
         assertEquals(List.of("Hi"), speaker.said);
+        assertEquals(List.of(Audience.PUBLIC), speaker.audiences, "typed chat is a public line");
         assertEquals(List.of(true, false), speaker.thinkingLog);
         brain.post(said("again"));
         gateway.enqueue(text("Again"));
         List<Message> second = gateway.requests.get(gateway.requests.size() - 1).messages();
         assertEquals("[Steve (owner)]: hi", second.get(0).text());
         assertEquals(Role.ASSISTANT, second.get(1).role());
+    }
+
+    @Test
+    void aVoiceReplyStaysPrivateToTheSpeaker() {
+        gateway.enqueue(text("Only you"));
+        brain.post(new BrainEvent.PlayerSaid(OWNER, "Steve", "hello", BrainEvent.Source.VOICE));
+
+        assertEquals(List.of("Only you"), speaker.said);
+        assertEquals(List.of(Audience.PRIVATE), speaker.audiences);
+        assertEquals(List.of(OWNER), speaker.addressees);
+    }
+
+    @Test
+    void anEventOnlyTurnSpeaksNearby() {
+        gateway.enqueue(text("Done"));
+        brain.post(new BrainEvent.TaskFinished(1, "stay", true, "ok"));
+
+        assertEquals(List.of(Audience.NEARBY), speaker.audiences);
     }
 
     @Test

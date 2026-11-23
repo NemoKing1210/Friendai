@@ -214,6 +214,7 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] `/friendai trusted` and the trust messages read correctly in English and Russian.
 - [ ] Restart the server: the trusted list survives (`<world>/friendai/memory/<uuid>.json`).
 - [ ] A guest spamming the companion is throttled; the owner is not.
+- [ ] Three players, one companion: the owner types a chat reply and both guests see the chat line, the nearby guest hears the speech and the distant one does not; the owner then talks by push-to-talk and neither guest receives the transcript, the reply or any speech; a nearby guest speaks while the owner stays silent and the `social activity:` line counts a guest message without an owner message.
 - [ ] Dedicated server: edit `config/friendai-server.json`, run `/friendai reload` as an operator, behaviour changes.
 - [ ] The settings screen on a client connected to a dedicated server shows "These settings are configured on the server."
 

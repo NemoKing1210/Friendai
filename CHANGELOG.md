@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+### Added
+
+- A reply now reaches the players the conversation is meant for: typed chat is public, push-to-talk and its
+  reply stay private to the speaker, and anything the companion starts is heard nearby. The recording HUD says
+  that push-to-talk is private.
+
 ## [0.222.0] - 2026-11-23
 
 ### Changed

@@ -1,5 +1,6 @@
 package dev.friendai.agent.turn;
 
+import dev.friendai.features.conversation.Audience;
 import dev.friendai.foundation.text.UserMessage;
 import java.util.UUID;
 import java.util.function.BooleanSupplier;
@@ -32,6 +33,20 @@ public final class OwnerPresentSpeaker implements Speaker {
     }
 
     @Override
+    public void say(String text, Audience audience, UUID addressee) {
+        if (ownerOnline.getAsBoolean()) {
+            inner.say(text, audience, addressee);
+        }
+    }
+
+    @Override
+    public void sayChat(String text, Audience audience, UUID addressee) {
+        if (ownerOnline.getAsBoolean()) {
+            inner.sayChat(text, audience, addressee);
+        }
+    }
+
+    @Override
     public void streamSentence(
             long streamId, long sessionId, long sequence, String text, boolean last, UUID addressee) {
         if (ownerOnline.getAsBoolean()) {
@@ -40,9 +55,30 @@ public final class OwnerPresentSpeaker implements Speaker {
     }
 
     @Override
+    public void streamSentence(
+            long streamId,
+            long sessionId,
+            long sequence,
+            String text,
+            boolean last,
+            Audience audience,
+            UUID addressee) {
+        if (ownerOnline.getAsBoolean()) {
+            inner.streamSentence(streamId, sessionId, sequence, text, last, audience, addressee);
+        }
+    }
+
+    @Override
     public void say(UserMessage message) {
         if (ownerOnline.getAsBoolean()) {
             inner.say(message);
+        }
+    }
+
+    @Override
+    public void say(UserMessage message, Audience audience, UUID addressee) {
+        if (ownerOnline.getAsBoolean()) {
+            inner.say(message, audience, addressee);
         }
     }
 

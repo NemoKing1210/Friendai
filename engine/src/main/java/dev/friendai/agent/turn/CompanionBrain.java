@@ -33,6 +33,7 @@ import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolExecutor;
 import dev.friendai.execution.tool.ToolResult;
+import dev.friendai.features.conversation.Audience;
 import dev.friendai.features.trading.TradingTurnPort;
 import dev.friendai.foundation.text.UserMessage;
 import java.util.ArrayDeque;
@@ -152,6 +153,8 @@ public final class CompanionBrain {
     private TurnKind turnKind = TurnKind.PLAYER;
     private boolean playerOnlyBatch = true;
     private long turnSeq;
+    /** Who the current player line was meant for; event-only turns speak nearby. */
+    private Audience turnAudience = Audience.NEARBY;
     /** The event that opened the running turn, so a silent answer can be replaced by a line the mod knows. */
     private BrainEvent turnEvent;
 
@@ -689,10 +692,12 @@ public final class CompanionBrain {
         });
         String name = "";
         turnPlayerTexts.clear();
+        turnAudience = Audience.NEARBY;
         for (BrainEvent event : batch) {
             if (event instanceof BrainEvent.PlayerSaid said) {
                 name = said.playerName();
                 turnPlayerTexts.add(said.text());
+                turnAudience = said.audience();
                 if (said.playerUuid().equals(access.owner())) {
                     lastOwnerText = said.text();
                     lastOwnerAtMillis = scheduler.nowMillis();
@@ -1170,7 +1175,8 @@ public final class CompanionBrain {
             return;
         }
         try {
-            speaker.streamSentence(speechStream, speechStream, earlySequence, text, last, turnCaller.uuid());
+            speaker.streamSentence(
+                    speechStream, speechStream, earlySequence, text, last, turnAudience, turnCaller.uuid());
             earlySequence++;
         } catch (RuntimeException e) {
             streamSpeechFailed = true;
@@ -1182,7 +1188,8 @@ public final class CompanionBrain {
     /** The one empty {@code last} frame that lets the client finish an interrupted stream; never throws. */
     private void closeStreamQuietly() {
         try {
-            speaker.streamSentence(speechStream, speechStream, earlySequence, "", true, turnCaller.uuid());
+            speaker.streamSentence(
+                    speechStream, speechStream, earlySequence, "", true, turnAudience, turnCaller.uuid());
         } catch (RuntimeException e) {
             LOGGER.warn("Could not close an interrupted speech stream", e);
         }
@@ -1203,10 +1210,10 @@ public final class CompanionBrain {
      */
     private void deliverSpeech(String spoken, String raw) {
         if (!streamedTurn) {
-            speakSafely("reply", () -> speaker.say(spoken, turnCaller.uuid()));
+            speakSafely("reply", () -> speaker.say(spoken, turnAudience, turnCaller.uuid()));
             return;
         }
-        speakSafely("reply", () -> speaker.say(spoken));
+        speakSafely("reply", () -> speaker.sayChat(spoken, turnAudience, turnCaller.uuid()));
         if (speechPolicy != null) {
             if (!earlyIncomplete) {
                 offerEarly(speechPolicy.finish(earlyText.isBlank() ? raw : "", guardParity(raw)));
@@ -1368,7 +1375,9 @@ public final class CompanionBrain {
                 && decision.mode() != TurnMode.CHAT) {
             // The plan is committed and carries its own work, so a second request would only restate the same fact.
             // The owner hears the acknowledgement now and the task events report the outcome.
-            speakSafely("plan queued", () -> speaker.say(UserMessage.of("friendai.agent.plan_queued")));
+            speakSafely(
+                    "plan queued",
+                    () -> speaker.say(UserMessage.of("friendai.agent.plan_queued"), turnAudience, turnCaller.uuid()));
             long delivered = turnSeq;
             observe(o -> o.onTurnEnd(delivered, "delivered"));
             endTurn();
@@ -1531,6 +1540,7 @@ public final class CompanionBrain {
         if (spoken != null || !(turnEvent instanceof BrainEvent.GoalTick tick)) {
             return;
         }
+        // The blocker names the owner's own goal, so it stays owner-only even when the turn was not private.
         speakSafely("blocked goal", () -> speaker.say(UserMessage.of("friendai.companion.goal_blocked", tick.goal())));
         observe(o -> o.onTurnEnd(turnSeq, "delivered"));
     }
@@ -1562,6 +1572,7 @@ public final class CompanionBrain {
         if (detail.isBlank()) {
             return;
         }
+        // The recovered detail belongs to the owner's work; never hand it to another player's screen.
         speakSafely(
                 "paused recovery", () -> speaker.say(UserMessage.of("friendai.companion.recovery_blocked", detail)));
         observe(o -> o.onTurnEnd(turnSeq, "delivered"));

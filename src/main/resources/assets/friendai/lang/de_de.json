@@ -240,6 +240,8 @@
   "friendai.voice.error.unknown_model": "Das ausgewählte Sprachmodell ist in diesem Build nicht verfügbar. Wähle in Einstellungen → Stimme ein anderes.",
   "friendai.voice.error.overflow": "Das Mikrofon lieferte Audio schneller, als es erkannt werden konnte. Versuche es erneut.",
   "friendai.voice.hud.recording": "Aufnahme läuft…",
+  "friendai.voice.hud.recording_private": "Private Aufnahme läuft…",
+  "friendai.voice.hud.recording_private.partial": "Privat: %s",
   "friendai.voice.hud.transcribing": "Wird transkribiert…",
   "friendai.voice.hud.listening": "Warte auf das Wachwort…",
 

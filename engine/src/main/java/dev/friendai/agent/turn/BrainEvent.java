@@ -3,6 +3,8 @@ package dev.friendai.agent.turn;
 import dev.friendai.execution.TaskDisposition;
 import dev.friendai.execution.TaskWorkResult;
 import dev.friendai.execution.tool.AccessLevel;
+import dev.friendai.features.conversation.Audience;
+import dev.friendai.features.conversation.AudienceOrigin;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -58,7 +60,17 @@ public sealed interface BrainEvent {
         }
     }
 
-    record PlayerSaid(UUID playerUuid, String playerName, String text, Source source) implements BrainEvent {
+    record PlayerSaid(UUID playerUuid, String playerName, String text, Source source, Audience audience)
+            implements BrainEvent {
+        public PlayerSaid {
+            audience = audience == null ? AudienceOrigin.of(source == Source.VOICE) : audience;
+        }
+
+        /** Keeps the historical constructors working: typed chat is public and voice is private. */
+        public PlayerSaid(UUID playerUuid, String playerName, String text, Source source) {
+            this(playerUuid, playerName, text, source, AudienceOrigin.of(source == Source.VOICE));
+        }
+
         @Override
         public String toPromptLine() {
             String who = source == Source.VOICE ? playerName + ", by voice" : playerName;

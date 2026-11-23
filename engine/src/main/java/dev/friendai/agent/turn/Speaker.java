@@ -1,5 +1,6 @@
 package dev.friendai.agent.turn;
 
+import dev.friendai.features.conversation.Audience;
 import dev.friendai.foundation.text.UserMessage;
 import java.util.UUID;
 
@@ -17,17 +18,47 @@ public interface Speaker {
     }
 
     /**
+     * The same reply, tagged with who is meant to hear it. The addressee is the player the turn answers; it
+     * matters only for {@link Audience#PRIVATE}.
+     */
+    default void say(String text, Audience audience, UUID addressee) {
+        say(text, addressee);
+    }
+
+    /** The chat line alone: a streamed turn has already spoken its sentences through {@link #streamSentence}. */
+    default void sayChat(String text, Audience audience, UUID addressee) {
+        say(text, audience, addressee);
+    }
+
+    /**
      * One ordered sentence of a streamed reply. The default speaker has no stream transport and ignores it; a
      * speaker that sends speech separately from chat uses {@code streamId/sessionId/sequence} for ordering.
      */
     default void streamSentence(
             long streamId, long sessionId, long sequence, String text, boolean last, UUID addressee) {}
 
+    /** One ordered sentence with its intended audience. */
+    default void streamSentence(
+            long streamId,
+            long sessionId,
+            long sequence,
+            String text,
+            boolean last,
+            Audience audience,
+            UUID addressee) {
+        streamSentence(streamId, sessionId, sequence, text, last, addressee);
+    }
+
     /**
      * A line the mod composed itself, as a translation key with arguments, spoken like a reply. It exists so a
      * turn that the model ends silently can still tell the owner what happened.
      */
     void say(UserMessage message);
+
+    /** The same composed line, delivered to the audience the turn belongs to. */
+    default void say(UserMessage message, Audience audience, UUID addressee) {
+        say(message);
+    }
 
     void thinking(boolean on);
 

@@ -45,13 +45,27 @@ public final class CompanionRouting {
     /** Remembers that the sender spoke and posts the line to the owner's brain. */
     public static void deliver(
             ServerRuntime runtime, ServerPlayer sender, UUID owner, String text, BrainEvent.Source source) {
+        deliver(runtime, sender, owner, text, source, AudienceOrigin.of(source == BrainEvent.Source.VOICE));
+    }
+
+    /** Remembers the sender's line and posts it with the audience its input channel asks for. */
+    public static void deliver(
+            ServerRuntime runtime,
+            ServerPlayer sender,
+            UUID owner,
+            String text,
+            BrainEvent.Source source,
+            Audience audience) {
         String name = sender.getName().getString();
         runtime.memory().book(owner).touch(sender.getUUID(), name, System.currentTimeMillis());
-        runtime.socialDirector().ownerSpoke(owner, runtime.server().overworld().getGameTime());
         if (sender.getUUID().equals(owner)) {
+            runtime.socialDirector()
+                    .ownerSpoke(owner, runtime.server().overworld().getGameTime());
             // The owner's own words may move the face; a guest line never does.
             runtime.companions().find(owner).ifPresent(companion -> companion.moodCue(text));
+        } else {
+            runtime.socialDirector().guestSpoke(owner);
         }
-        runtime.sessions().post(owner, new BrainEvent.PlayerSaid(sender.getUUID(), name, text, source));
+        runtime.sessions().post(owner, new BrainEvent.PlayerSaid(sender.getUUID(), name, text, source, audience));
     }
 }

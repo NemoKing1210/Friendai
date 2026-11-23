@@ -134,7 +134,7 @@ const CATS = [
   { id: "chat", domain: "senses", name: "Chat & Addressing", icon: "💬", color: COLORS.water,
     desc: "Decides who is being spoken to and which companion hears it.",
     items: [
-      "~Address detection|Name or direct address.", "~Companion picker|Own within hearing range, else nearest other.", "~Reply splitter|Splits long replies into lines.",
+      "~Address detection|Name or direct address.", "~Chosen audience|Typed chat is public in chat and spoken nearby; push-to-talk is private to the speaker; a companion-initiated line is public chat spoken nearby.", "~Companion picker|Own within hearing range, else nearest other.", "~Reply splitter|Splits long replies into lines.",
       "~Trust confirmations|Owner confirms yes or no in chat.", "~/friendai commands|summon, dismiss, stop, trust, memory, skills, reload.", "~English and Russian|Interface and intent vocabularies." ] },
   { id: "voicein", domain: "senses", name: "Voice Input", icon: "🎤", color: COLORS.redstone,
     desc: "Push-to-talk speech recognition. Local audio never leaves the machine unless you pick a cloud provider.",
@@ -443,7 +443,7 @@ const FLOW = {
     { id: "prompt", x: 730, y: 110, label: "PromptBuilder", icon: "📜", color: COLORS.gold, kind: "cat", desc: "Identity, memory, perception, skills and mission, cut to a character budget." },
     { id: "llm", x: 730, y: 300, label: "LLM gateway", icon: "☁️", color: COLORS.water, kind: "cat", desc: "OpenAI chat and responses, Anthropic, Gemini, Ollama. Retries only retryable errors; the configured timeout covers streamed replies; keys stay in headers." },
     { id: "tools", x: 730, y: 500, label: "ToolRegistry", icon: "🧰", color: COLORS.iron, kind: "cat", desc: "Validates arguments and access. Never throws: bad input becomes an error result." },
-    { id: "speaker", x: 990, y: 110, label: "Speaker", icon: "🗣️", color: COLORS.gold, kind: "cat", desc: "Posts the chat line and sends the speech packet to the client for TTS." },
+    { id: "speaker", x: 990, y: 110, label: "Speaker", icon: "🗣️", color: COLORS.gold, kind: "cat", desc: "Posts the chat line and sends the speech packet to the audience the turn chose: everyone for typed chat, nearby for speech, the speaker alone for push-to-talk." },
     { id: "tasks", x: 990, y: 300, label: "Task queue", icon: "⏱️", color: COLORS.copper, kind: "cat", desc: "TaskRunner ticks one task at a time; guards, retries and plans live here." },
     { id: "world", x: 1010, y: 500, label: "Minecraft world", icon: "🌍", color: COLORS.grass, kind: "hub", desc: "Changes happen only on the server thread, through the fake player." }
   ],
@@ -557,7 +557,7 @@ const DOC = {
     graph: { w: 1200, h: 460, nodes: [
       { id: "engine", x: 110, y: 230, label: "Engine unit tests", icon: "🧪", color: COLORS.amethyst, kind: "hub", desc: "`engine/src/test`: queue, planner, policies, LLM protocols, config migration. No Minecraft, no Fabric." },
       { id: "root", x: 410, y: 230, label: "Root unit tests", icon: "🧱", color: COLORS.grass, kind: "hub", desc: "`src/test`: server adapters, tools and features, run without booting a game." },
-      { id: "game", x: 710, y: 230, label: "GameTests", icon: "🌍", color: COLORS.copper, kind: "hub", desc: "111 classes in the separate `friendai-gametest` mod, in one shared world, six CI shards." },
+      { id: "game", x: 710, y: 230, label: "GameTests", icon: "🌍", color: COLORS.copper, kind: "hub", desc: "115 classes in the separate `friendai-gametest` mod, in one shared world, six CI shards." },
       { id: "client", x: 1010, y: 350, label: "Client UI test", icon: "🖥️", color: COLORS.water, kind: "cat", desc: "`runClientGameTest` checks eight locales, integrated and dedicated connections, skins and voice reconnect. A second mode disables YACL and Mod Menu." },
       { id: "gate", x: 1010, y: 90, label: "CI gate", icon: "🚦", color: COLORS.gold, kind: "cat", desc: "The required check: unit suites, server and client GameTests, formatting, packaging, shard map and docs links." }
     ], edges: [
@@ -578,7 +578,7 @@ const DOC = {
       { title: "GameTests", sub: "A separate mod, one shared world, six CI shards", color: COLORS.copper,
         hub: { label: "GameTests", icon: "🌍", color: COLORS.copper, desc: "In-game tests that drive the real server thread, entity, tasks and world." },
         items: [
-          "~Separate mod|`friendai-gametest` registers 111 classes in `src/gametest/resources/fabric.mod.json`.",
+          "~Separate mod|`friendai-gametest` registers 115 classes in `src/gametest/resources/fabric.mod.json`.",
           "~Shards|`.github/gametest-shards.json` splits them into six CI shards, one class per server boot.",
           "~Shard check|`verifyGametestShards` fails a class that is missing, listed twice or unknown.",
           "~Shared world|Each test owns its block type and arena; counts are filtered by type.",
@@ -1181,7 +1181,7 @@ const toolCount = (c) => c.items.filter((s) => !s.startsWith("~")).length;
 function buildStats() {
   const tools = new Set();
   CATS.forEach((c) => c.items.forEach((s) => { if (!s.startsWith("~")) tools.add(parseItem(s).label); }));
-  const stats = [[tools.size, "tools"], [CATS.length, "categories"], ["111", "GameTest classes"], ["6", "CI shards"], ["5", "LLM protocols"], ["3", "access levels"]];
+  const stats = [[tools.size, "tools"], [CATS.length, "categories"], ["115", "GameTest classes"], ["6", "CI shards"], ["5", "LLM protocols"], ["3", "access levels"]];
   const box = $("#stats");
   box.textContent = "";
   stats.forEach(([v, l]) => {

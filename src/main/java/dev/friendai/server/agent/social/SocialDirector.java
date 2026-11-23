@@ -97,6 +97,14 @@ public final class SocialDirector {
         }
     }
 
+    /**
+     * Someone other than the owner spoke. The line is counted for the window, but it must not reset the owner's
+     * cadence: the owner has been silent, so the companion may still open a line when the context allows it.
+     */
+    public void guestSpoke(UUID owner) {
+        activityOf(owner).guestSpoke();
+    }
+
     /** A delivered companion line starts the same quiet window without counting as an owner answer. */
     public void companionSpoke(UUID owner, long gameTime) {
         cadence.computeIfAbsent(owner, ignored -> new ConversationCadence()).companionSpoke((int) gameTime);

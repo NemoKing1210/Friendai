@@ -16,6 +16,7 @@ import dev.friendai.agent.llm.stream.SpeechStreamBuffer;
 import dev.friendai.agent.llm.stream.StreamDelta;
 import dev.friendai.agent.llm.stream.StreamingLlmGateway;
 import dev.friendai.execution.tool.ToolResult;
+import dev.friendai.features.conversation.Audience;
 import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.testutil.FakeGateway;
 import dev.friendai.testutil.FakeToolExecutor;
@@ -284,6 +285,10 @@ class CompanionBrainStreamTest {
                 "Hello. There.",
                 speaker.streamed.stream().map(RecordingSpeaker.Streamed::text).reduce("", String::concat));
         assertTrue(speaker.streamed.getLast().last());
+        assertTrue(
+                speaker.streamed.stream().allMatch(frame -> frame.audience() == Audience.PUBLIC),
+                "the brain streams the turn's public intent and the speaker decides how it sounds: "
+                        + speaker.streamed);
     }
 
     @Test

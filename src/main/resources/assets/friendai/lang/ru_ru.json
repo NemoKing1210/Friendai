@@ -240,6 +240,8 @@
   "friendai.voice.error.unknown_model": "Выбранная модель распознавания недоступна в этой сборке. Выберите другую в «Настройки → Голос».",
   "friendai.voice.error.overflow": "Микрофон передавал звук быстрее, чем его успевали распознать. Попробуйте ещё раз.",
   "friendai.voice.hud.recording": "Запись…",
+  "friendai.voice.hud.recording_private": "Личная запись…",
+  "friendai.voice.hud.recording_private.partial": "Лично: %s",
   "friendai.voice.hud.transcribing": "Распознаю…",
   "friendai.voice.hud.listening": "Слушаю слово активации…",
 
