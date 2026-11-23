@@ -7,7 +7,7 @@
     {"tool": "obtain_items", "content": "mined 6 minecraft:cobblestone, crafted 4 minecraft:stick and 2 sets of stone tools"}
   ],
   "replies": [
-    {"text": "", "tools": ["set_goal", "mine_blocks"]},
+    {"text": "", "tools": ["set_goal", "mine_blocks"], "unlocks": ["obtain"]},
     {"text": "", "tools": ["obtain_items"]},
     {"text": "The forest gave me enough stone for two sets of tools.", "tools": []}
   ],

@@ -529,7 +529,7 @@ const ARCH_CARDS = [
     hub: { label: "Rules", icon: "📜", color: COLORS.gold, desc: "Violating any of these breaks the mod in subtle ways." },
     color: COLORS.gold, items: [
       "~Server thread only|World access never leaves it.", "~Late replies dropped|Generation counter after stop or logout.", "~Bad tool args|Become an error result, never an exception.",
-      "~Ordered tool calls|Anthropic and Gemini get one merged result message.", "~Repeated failures|An identical failing call runs once more, then reuses its recorded error.", "~Keys never leak|Not in logs, URLs, toasts or toString.", "~Layer boundary|Pure code never imports Minecraft.",
+      "~Ordered tool calls|Anthropic and Gemini get one merged result message.", "~Only offered tools|A call to a schema this request did not carry is refused without effect; request_tools unlocks a hidden group for the next request.", "~Repeated failures|An identical failing call runs once more, then reuses its recorded error.", "~Keys never leak|Not in logs, URLs, toasts or toString.", "~Layer boundary|Pure code never imports Minecraft.",
       "~Cheap per tick|Bounded work, resumable state." ] }
 ];
 

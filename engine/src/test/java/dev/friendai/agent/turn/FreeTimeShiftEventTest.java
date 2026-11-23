@@ -57,7 +57,7 @@ class FreeTimeShiftEventTest {
     @Test
     void theShiftTurnRunsChooseActivityAsTheOwner() {
         FakeGateway gateway = new FakeGateway();
-        FakeToolExecutor tools = new FakeToolExecutor();
+        FakeToolExecutor tools = new FakeToolExecutor().offers("choose_activity");
         ManualScheduler scheduler = new ManualScheduler();
         CompanionBrain brain = new CompanionBrain(
                 () -> new Persona("Friendai", "friendly", "auto"),

@@ -84,10 +84,14 @@ public record Scenario(
         return promptBudget == null ? AgentSettings.DEFAULTS.promptBudget() : promptBudget;
     }
 
-    /** One scripted model response: optional text plus tool calls by name. */
-    public record Reply(String text, List<String> tools, long delayMs) {
+    /**
+     * One scripted model response: optional text plus tool calls by name. {@code unlocks} names tool groups the
+     * scripted model opens with {@code request_tools} before its other calls, so a fixture can model discovery.
+     */
+    public record Reply(String text, List<String> tools, List<String> unlocks, long delayMs) {
         public Reply {
             tools = tools == null ? List.of() : List.copyOf(tools);
+            unlocks = unlocks == null ? List.of() : List.copyOf(unlocks);
             if (delayMs < 0L) {
                 throw new IllegalArgumentException("delayMs must not be negative");
             }
@@ -95,7 +99,11 @@ public record Scenario(
 
         /** An immediate reply, the shape every fixture written before provider delay used. */
         public Reply(String text, List<String> tools) {
-            this(text, tools, 0L);
+            this(text, tools, List.of(), 0L);
+        }
+
+        public Reply(String text, List<String> tools, long delayMs) {
+            this(text, tools, List.of(), delayMs);
         }
     }
 

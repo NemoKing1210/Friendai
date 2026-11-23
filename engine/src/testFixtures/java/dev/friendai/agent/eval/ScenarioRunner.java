@@ -191,6 +191,9 @@ public final class ScenarioRunner {
             }
         }
         FakeToolExecutor tools = new FakeToolExecutor();
+        // A provider can only call a schema its request carried, so the fixture's registry offers exactly the tools
+        // the scenario scripts; routing still decides which of them a given request may send.
+        tools.offers(scriptedTools(s).toArray(String[]::new));
         for (Scenario.ToolScript scripted : s.toolResults()) {
             if (scripted.tool().isBlank()) {
                 continue;
@@ -459,9 +462,39 @@ public final class ScenarioRunner {
         }
     }
 
+    /**
+     * Every tool name the fixture scripts — in a reply, a tool result or a planned step — in a stable order. A tool
+     * the script never uses is not registered, which mirrors a real registry and keeps routing meaningful here.
+     */
+    private static List<String> scriptedTools(Scenario s) {
+        List<String> names = new ArrayList<>();
+        for (Scenario.Reply reply : s.replies() == null ? List.<Scenario.Reply>of() : s.replies()) {
+            names.addAll(reply.tools());
+            if (!reply.unlocks().isEmpty()) names.add("request_tools");
+        }
+        for (Scenario.ToolScript scripted : s.toolResults()) {
+            if (!scripted.tool().isBlank()) names.add(scripted.tool());
+        }
+        for (Scenario.Plan plan : s.plans()) {
+            for (JsonElement step : plan.steps()) {
+                if (step.isJsonObject()
+                        && step.getAsJsonObject().get("tool") != null
+                        && step.getAsJsonObject().get("tool").isJsonPrimitive()) {
+                    names.add(step.getAsJsonObject().get("tool").getAsString());
+                }
+            }
+        }
+        return names.stream().distinct().toList();
+    }
+
     /** Builds the gateway response for one scripted reply, numbering the tool calls so ids stay unique. */
     private static LlmResponse responseFor(Scenario.Reply reply, AtomicInteger ids) {
         List<ToolCall> calls = new ArrayList<>();
+        for (String group : reply.unlocks()) {
+            JsonObject args = new JsonObject();
+            args.addProperty("group", group);
+            calls.add(new ToolCall("c" + (ids.incrementAndGet()), "request_tools", args, args.toString(), null));
+        }
         for (String tool : reply.tools() == null ? List.<String>of() : reply.tools()) {
             calls.add(FakeGateway.call("c" + (ids.incrementAndGet()), tool));
         }

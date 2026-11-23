@@ -6,6 +6,15 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.226.4] - 2026-11-23
+
+### Fixed
+
+- The companion can no longer start work it was not offered for that request. A tool call that arrived from earlier
+  conversation or from another turn is refused with an explanation and nothing happens, instead of a walk, a
+  build, a trade or a saved skill starting out of context; when the tool exists but its group was hidden, the reply
+  says which group to ask for first.
+
 ## [0.226.3] - 2026-11-23
 
 ### Fixed

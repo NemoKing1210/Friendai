@@ -30,6 +30,20 @@ public final class FakeToolExecutor implements ToolExecutor {
 
     public boolean failSpecs;
 
+    /**
+     * Lists a minimal schema for each named tool, as a real registry lists what a caller may use. A call to a tool
+     * whose schema this does not include is refused by the brain before it reaches {@link #execute}.
+     */
+    public FakeToolExecutor offers(String... names) {
+        for (String name : names) {
+            JsonObject schema = new JsonObject();
+            schema.addProperty("type", "object");
+            schema.add("properties", new JsonObject());
+            available.add(new ToolSpec(name, name, schema));
+        }
+        return this;
+    }
+
     private static ToolSpec staySpec() {
         JsonObject schema = new JsonObject();
         schema.addProperty("type", "object");

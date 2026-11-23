@@ -63,6 +63,8 @@ import org.slf4j.LoggerFactory;
 public final class CompanionBrain {
     private static final Logger LOGGER = LoggerFactory.getLogger("friendai/brain");
     private static final String REQUEST_TOOLS = "request_tools";
+    /** The one tool whose schema a request carries only while a taught run is being recorded. */
+    private static final String MANAGE_SKILL = "manage_skill";
     /** Free time's director tool: once it succeeds, the turn is over. */
     static final String CHOOSE_ACTIVITY = "choose_activity";
     /** The marker the failure handler puts in an event when no replans are left. */
@@ -165,7 +167,10 @@ public final class CompanionBrain {
     private final Deque<SpokenLine> recentSpeech = new ArrayDeque<>();
 
     private Set<String> turnToolNames = Set.of();
-    /** The tools whose schemas the latest request carried; a call outside it was written from memory. */
+    /**
+     * The tools whose schemas the latest request actually carried, after routing, the teaching filter and the token
+     * budget. A call outside this set was written from memory or from another turn and is refused without effect.
+     */
     private Set<String> offeredTools = Set.of();
 
     private final TurnRouter router = new TurnRouter(IntentVocabulary.load());
@@ -804,6 +809,7 @@ public final class CompanionBrain {
         turnSpeechAllowed = CompanionSpeechPolicy.maySpeak(batch, !turnPlayerTexts.isEmpty());
         visibleGroups.clear();
         visibleGroups.addAll(decision.groups());
+        offeredTools = Set.of();
         thinking = true;
         speakSafely("thinking", () -> speaker.thinking(true));
         String lines = batch.stream().map(event -> event.toPromptLine(level)).collect(Collectors.joining("\n"));
@@ -1037,7 +1043,7 @@ public final class CompanionBrain {
         CompletableFuture<LlmResponse> future;
         try {
             List<ToolSpec> specs = tools.specs(turnCaller.access()).stream()
-                    .filter(spec -> !spec.name().equals("manage_skill") || teachingContext != null)
+                    .filter(spec -> !spec.name().equals(MANAGE_SKILL) || teachingContext != null)
                     .toList();
             Set<ToolGroup> groups = agentSettings.get().toolRouting() ? visibleGroups : EnumSet.allOf(ToolGroup.class);
             // A spent incident is answered in words: the failure line already names the blocker and the decision
@@ -1049,7 +1055,6 @@ public final class CompanionBrain {
             turnToolNames = wordsOnly
                     ? java.util.Set.of()
                     : specs.stream().map(ToolSpec::name).collect(Collectors.toUnmodifiableSet());
-            offeredTools = sent.stream().map(ToolSpec::name).collect(Collectors.toUnmodifiableSet());
             String system = buildSystemPrompt(plannerNote);
             plannerNote = "";
             LlmGateway active = gateway.get();
@@ -1077,6 +1082,9 @@ public final class CompanionBrain {
             String prompt = fit.system();
             java.util.List<dev.friendai.agent.llm.model.Message> fittedHistory = fit.history();
             List<ToolSpec> fittedTools = fit.tools();
+            // The set that actually reaches the provider is the whole vocabulary of the coming step: a call to a
+            // schema the budget had to drop is as unavailable as one routing never sent.
+            offeredTools = fittedTools.stream().map(ToolSpec::name).collect(Collectors.toUnmodifiableSet());
             observe(o -> o.onRequest(prompt, fittedHistory, fittedTools));
             RequestTelemetry telemetry = telemetryFor(gen);
             requestIdForGeneration = telemetry.requestId();
@@ -1309,34 +1317,34 @@ public final class CompanionBrain {
         for (ToolCall call : calls) {
             ToolResult result;
             observe(o -> o.onToolCall(call));
-            Optional<ToolGroup> revealed = revealHiddenGroup(call.name());
-            noteAttempt(call.name());
-            Optional<ToolResult> reused = repeatedCalls.blocked(call);
-            if (reused.isPresent()) {
-                result = reused.get();
-                LOGGER.debug("Reused the recorded failure of an identical {} call", call.name());
+            if (!offeredTools.contains(call.name())) {
+                // The request did not carry this schema, so the call was written from memory or from another turn.
+                // Refusing it without running anything keeps the provider's id and order while nothing changes.
+                result = notOffered(call.name());
+                LOGGER.debug("Refused an unoffered {} call", call.name());
             } else {
-                try {
-                    if ("trade_item".equals(call.name())
-                            && (decision.mode() == TurnMode.CHAT
-                                    || !decision.groups().contains(ToolGroup.TRADING))) {
-                        result = ToolResult.error("trading is not available for this request");
-                    } else {
-                        result = REQUEST_TOOLS.equals(call.name())
-                                ? requestTools(call)
-                                : tools.execute(call, turnCaller);
+                Optional<ToolResult> reused = repeatedCalls.blocked(call);
+                if (reused.isPresent()) {
+                    result = reused.get();
+                    LOGGER.debug("Reused the recorded failure of an identical {} call", call.name());
+                } else {
+                    noteAttempt(call.name());
+                    try {
+                        if ("trade_item".equals(call.name())
+                                && (decision.mode() == TurnMode.CHAT
+                                        || !decision.groups().contains(ToolGroup.TRADING))) {
+                            result = ToolResult.error("trading is not available for this request");
+                        } else {
+                            result = REQUEST_TOOLS.equals(call.name())
+                                    ? requestTools(call)
+                                    : tools.execute(call, turnCaller);
+                        }
+                    } catch (RuntimeException e) {
+                        LOGGER.warn("Tool {} threw", call.name(), e);
+                        result = ToolResult.error("Tool " + call.name() + " failed: " + e.getMessage());
                     }
-                } catch (RuntimeException e) {
-                    LOGGER.warn("Tool {} threw", call.name(), e);
-                    result = ToolResult.error("Tool " + call.name() + " failed: " + e.getMessage());
+                    repeatedCalls.record(call, result);
                 }
-                repeatedCalls.record(call, result);
-            }
-            if (result.error() && revealed.isPresent()) {
-                result = ToolResult.error(result.content() + " The "
-                        + revealed.get().name().toLowerCase(java.util.Locale.ROOT)
-                        + " tools were not loaded when you made this call; they are loaded now, so read the schema of "
-                        + call.name() + " and call it again.");
             }
             ToolResult finalResult = result;
             observe(o -> o.onToolResult(call, finalResult));
@@ -1448,20 +1456,31 @@ public final class CompanionBrain {
     }
 
     /**
-     * Shows the group of a tool the model called although routing had hidden it. Such a call is written from memory,
-     * without a schema, which is where a refused argument comes from; with the group visible for the rest of the turn
-     * the next request carries the schema, so the model can repeat the call correctly instead of guessing again.
+     * The refusal for a call whose schema the request did not carry. It names the one way back when there is one: a
+     * group that routing hid can be unlocked by name with {@code request_tools}, and the next request then carries
+     * that schema. A teaching-only tool outside a taught run, or a schema the token budget had to drop, is simply
+     * unavailable for this request.
      */
-    private Optional<ToolGroup> revealHiddenGroup(String tool) {
-        if (socialTurn || offeredTools.contains(tool) || !agentSettings.get().toolRouting()) {
-            return Optional.empty();
+    private ToolResult notOffered(String tool) {
+        if ("trade_item".equals(tool) && decision.mode() == TurnMode.CHAT) {
+            return ToolResult.error("trading is not available for this request");
         }
-        Optional<ToolGroup> group =
-                catalog.meta(tool).filter(meta -> !meta.core()).map(dev.friendai.agent.tools.ToolMeta::group);
-        if (group.isEmpty() || !visibleGroups.add(group.get())) {
-            return Optional.empty();
+        String refusal = "The tool " + tool + " was not offered in this request, so nothing was done.";
+        Optional<dev.friendai.agent.tools.ToolMeta> meta = catalog.meta(tool);
+        if (meta.isEmpty()) {
+            return ToolResult.error(refusal);
         }
-        return group;
+        if (MANAGE_SKILL.equals(tool)) {
+            return ToolResult.error(refusal + " It is offered only while a skill is being taught.");
+        }
+        if (meta.get().core()
+                || !agentSettings.get().toolRouting()
+                || visibleGroups.contains(meta.get().group())) {
+            return ToolResult.error(refusal);
+        }
+        String name = meta.get().group().name().toLowerCase(java.util.Locale.ROOT);
+        return ToolResult.error(refusal + " Call request_tools with group \"" + name
+                + "\" to load that group, then read the schema of " + tool + " and call it again.");
     }
 
     /** Unlocks a tool group for the rest of the turn; an unknown group is an error listing the valid ones. */

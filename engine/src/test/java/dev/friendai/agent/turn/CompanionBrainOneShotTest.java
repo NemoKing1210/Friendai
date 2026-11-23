@@ -37,7 +37,7 @@ class CompanionBrainOneShotTest {
     @BeforeEach
     void setUp() {
         gateway = new FakeGateway();
-        tools = new FakeToolExecutor();
+        tools = new FakeToolExecutor().offers("queue_add", "queue_edit", "plan_patch", "stay");
         speaker = new RecordingSpeaker();
         brain = new CompanionBrain(
                 () -> new Persona("Friendai", "friendly", "auto"),

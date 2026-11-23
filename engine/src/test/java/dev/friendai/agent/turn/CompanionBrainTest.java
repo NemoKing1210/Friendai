@@ -254,56 +254,97 @@ class CompanionBrainTest {
         assertFalse(toolNames(gateway.requests.get(1)).contains("mine_blocks"));
     }
 
-    @Test
-    void hiddenButRegisteredToolStillExecutes() {
-        routedToolbox(true);
-        gateway.enqueue(calls("", call("m1", "mine_blocks")));
-        gateway.enqueue(text("Done."));
-        brain.post(said("where are you?"));
-        assertEquals(List.of("mine_blocks"), tools.executed);
+    /** The ordered tool results a request carried, newest request last. */
+    private static List<Message> toolResults(FakeGateway.Request request) {
+        return request.messages().stream().filter(m -> m.role() == Role.TOOL).toList();
+    }
+
+    /** The one tool result a request carried for this provider call id. */
+    private static Message toolResult(FakeGateway.Request request, String id) {
+        return toolResults(request).stream()
+                .filter(m -> id.equals(m.toolCallId()))
+                .findFirst()
+                .orElseThrow();
     }
 
     @Test
-    void aRefusedHiddenToolCallBringsItsSchemaForTheRetry() {
+    void aHiddenToolCallIsRefusedWithoutEffect() {
         routedToolbox(true);
-        tools.results
-                .computeIfAbsent("mine_blocks", name -> new java.util.ArrayDeque<>())
-                .add(dev.friendai.execution.tool.ToolResult.error(
-                        "Invalid arguments for mine_blocks: missing required argument 'block'"));
         gateway.enqueue(calls("", call("m1", "mine_blocks")));
-        gateway.enqueue(calls("", call("m2", "mine_blocks")));
-        gateway.enqueue(text("Mining."));
+        gateway.enqueue(text("I did not mine anything."));
 
         brain.post(said("where are you?"));
 
         assertFalse(toolNames(gateway.requests.get(0)).contains("mine_blocks"), "the chat turn starts without it");
-        assertTrue(toolNames(gateway.requests.get(1)).contains("mine_blocks"), "the retry sees the schema");
-        Message refused = gateway.requests.get(1).messages().stream()
-                .filter(m -> m.role() == Role.TOOL)
-                .findFirst()
-                .orElseThrow();
-        assertTrue(refused.text().contains("missing required argument 'block'"), refused.text());
-        assertTrue(refused.text().contains("gathering tools were not loaded"), refused.text());
-        assertEquals(List.of("mine_blocks", "mine_blocks"), tools.executed);
+        assertTrue(tools.executed.isEmpty(), "a call the request never offered must not run: " + tools.executed);
+        Message refused = toolResults(gateway.requests.get(1)).getFirst();
+        assertEquals("m1", refused.toolCallId(), "the refusal keeps the provider's id");
+        assertTrue(refused.text().contains("not offered"), refused.text());
+        assertTrue(refused.text().contains("request_tools"), "the model is told how to unlock it: " + refused.text());
+        assertFalse(
+                toolNames(gateway.requests.get(1)).contains("mine_blocks"),
+                "a guessed call does not reveal its own schema");
     }
 
     @Test
-    void aHiddenToolThatSucceedsKeepsItsResultAndStaysVisibleForTheTurn() {
+    void aTeachingOnlyToolIsRefusedOutsideATeachingTurn() {
         routedToolbox(true);
-        gateway.enqueue(calls("", call("m1", "mine_blocks")));
-        gateway.enqueue(text("Mining."));
-        gateway.enqueue(text("Right here."));
+        tools.available.add(spec("manage_skill"));
+        gateway.enqueue(calls("", call("s1", "manage_skill")));
+        gateway.enqueue(text("Nothing was saved."));
+
+        brain.post(said("mine some stone"));
+
+        assertFalse(toolNames(gateway.requests.get(0)).contains("manage_skill"), "no teaching context, no schema");
+        assertTrue(tools.executed.isEmpty(), tools.executed.toString());
+        Message refused = toolResults(gateway.requests.get(1)).getFirst();
+        assertTrue(refused.text().contains("not offered"), refused.text());
+        assertFalse(
+                refused.text().contains("request_tools"),
+                "a teaching turn is not unlocked by a group: " + refused.text());
+    }
+
+    @Test
+    void aMixedBatchKeepsOrderAndIdsAndRunsOnlyTheOfferedCalls() {
+        routedToolbox(true);
+        gateway.enqueue(calls("", call("a", "mine_blocks"), call("b", "stop"), call("c", "mine_blocks")));
+        gateway.enqueue(text("Standing by."));
 
         brain.post(said("where are you?"));
-        brain.post(said("where are you now?"));
 
-        Message result = gateway.requests.get(1).messages().stream()
-                .filter(m -> m.role() == Role.TOOL)
-                .findFirst()
-                .orElseThrow();
-        assertEquals("ok mine_blocks", result.text());
-        assertTrue(toolNames(gateway.requests.get(1)).contains("mine_blocks"));
-        assertFalse(toolNames(gateway.requests.get(2)).contains("mine_blocks"), "the next turn is routed afresh");
+        assertEquals(List.of("stop"), tools.executed, "only the offered call runs");
+        List<Message> results = toolResults(gateway.requests.get(1));
+        assertEquals(
+                List.of("a", "b", "c"),
+                results.stream().map(Message::toolCallId).toList());
+        assertTrue(results.get(0).text().contains("not offered"), results.get(0).text());
+        assertEquals("ok stop", results.get(1).text());
+        assertTrue(results.get(2).text().contains("not offered"), results.get(2).text());
+    }
+
+    @Test
+    void routingOffRunsEveryCallBecauseEverySchemaWasOffered() {
+        routedToolbox(false);
+        gateway.enqueue(calls("", call("m1", "mine_blocks")));
+        gateway.enqueue(text("Done."));
+
+        brain.post(said("where are you?"));
+
+        assertEquals(List.of("mine_blocks"), tools.executed);
+        assertEquals("ok mine_blocks", toolResult(gateway.requests.get(1), "m1").text());
+    }
+
+    @Test
+    void requestToolsMakesTheNextCallEligible() {
+        routedToolbox(true);
+        gateway.enqueue(calls("", requestTools("r1", "gathering")));
+        gateway.enqueue(calls("", call("m1", "mine_blocks")));
+        gateway.enqueue(text("Mined."));
+
+        brain.post(said("where are you?"));
+
+        assertEquals(List.of("mine_blocks"), tools.executed, "the discovered tool runs on the next step");
+        assertEquals("ok mine_blocks", toolResult(gateway.requests.get(2), "m1").text());
     }
 
     @Test
@@ -519,6 +560,7 @@ class CompanionBrainTest {
 
     @Test
     void executesAllToolCallsInOrder() {
+        tools.available.addAll(List.of(spec("first"), spec("second")));
         gateway.enqueue(calls("", call("a", "first"), call("b", "second")));
         gateway.enqueue(text("ok"));
         brain.post(said("go"));
@@ -785,6 +827,7 @@ class CompanionBrainTest {
     void toolsKeepTheScopeCreatedForTheirOwnOwnerTurn() {
         brain.setTradingTurnPort(
                 (caller, playerInitiated) -> caller.withTradingScope(playerInitiated ? UUID.randomUUID() : null));
+        tools.available.addAll(List.of(spec("first"), spec("second")));
         gateway.enqueue(calls("", call("a", "first")));
         gateway.enqueue(text("first done"));
         gateway.enqueue(calls("", call("b", "second")));

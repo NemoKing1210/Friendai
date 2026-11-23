@@ -120,7 +120,7 @@ class CompanionBrainPlannerTest {
     @BeforeEach
     void setUp() {
         gateway = new FakeGateway();
-        tools = new FakeToolExecutor();
+        tools = new FakeToolExecutor().offers("queue_add", "set_goal", "mine_blocks", "stay");
         speaker = new RecordingSpeaker();
         port = new FakePort();
         brain = new CompanionBrain(

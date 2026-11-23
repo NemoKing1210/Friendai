@@ -624,3 +624,11 @@ These need a real provider and a long session; the automated suite used scripted
 - [ ] Load a second world in singleplayer: the first world's conversation is not mentioned there.
 
 These need a live world and two players; the automated suite used a scripted model and a live transcript book.
+
+## Tool calls limited to the offered schemas (TODO 139)
+
+- [ ] With tool routing on (`toolRouting: true`), ask a casual question and let the model drift on a real provider: any action it calls that this chat request did not offer is refused with an explanation and nothing in the world or the queue changes; the companion answers in words instead of claiming it acted.
+- [ ] Ask "make me and yourself stone tools" and watch which tool the model reaches for: if it calls `obtain_items` while that group was hidden, the refusal names the group, the next step unlocks it with `request_tools`, and the follow-up call runs.
+- [ ] With tool routing off, run the same orders: every tool is offered, so nothing is refused for this reason.
+
+These need a real provider whose calls can drift from the offered schemas; the automated suite used a scripted model.

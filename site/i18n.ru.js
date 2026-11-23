@@ -632,6 +632,8 @@ const RU = {
   "Become an error result, never an exception.": "Становятся результатом-ошибкой, а не исключением.",
   "Ordered tool calls": "Упорядоченные вызовы",
   "Anthropic and Gemini get one merged result message.": "Anthropic и Gemini получают одно объединённое сообщение с результатами.",
+  "Only offered tools": "Только предложенные инструменты",
+  "A call to a schema this request did not carry is refused without effect; request_tools unlocks a hidden group for the next request.": "Вызов схемы, которой не было в этом запросе, отклоняется без последствий; request_tools открывает скрытую группу для следующего запроса.",
   "Repeated failures": "Повторные неудачи",
   "An identical failing call runs once more, then reuses its recorded error.": "Идентичный неудачный вызов выполняется ещё раз, затем переиспользует записанную ошибку.",
   "Keys never leak": "Ключи не утекают",

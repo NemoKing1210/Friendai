@@ -300,7 +300,7 @@ class CompanionBrainStreamTest {
         gateway.steps.add(new Step(
                 List.of(new StreamDelta.Text("I could not queue it."), new StreamDelta.Done()),
                 reply("I could not queue it.")));
-        FakeToolExecutor tools = new FakeToolExecutor();
+        FakeToolExecutor tools = new FakeToolExecutor().offers("queue_add");
         tools.results.put("queue_add", new ArrayDeque<>(List.of(ToolResult.error("unknown tool 'teleport'"))));
         RecordingSpeaker speaker = new RecordingSpeaker();
 
@@ -473,7 +473,7 @@ class CompanionBrainStreamTest {
         gateway.steps.add(new Step(
                 List.of(new StreamDelta.Text("Done.")),
                 new LlmResponse("Done.", List.of(), StopReason.END, new Usage(1, 1))));
-        FakeToolExecutor tools = new FakeToolExecutor();
+        FakeToolExecutor tools = new FakeToolExecutor().offers("mine");
         RecordingSpeaker speaker = new RecordingSpeaker();
 
         brain(gateway, tools, speaker)
