@@ -2420,4 +2420,37 @@ public class ObtainTests {
             h.assertValueEqual(c.inventory().countItem(Items.WOODEN_PICKAXE), 1, "pickaxes");
         });
     }
+
+    /**
+     * Two cakes need six buckets of milk but only three buckets: each cake hands its three buckets back before the
+     * companion fills them again, so the order completes without a fourth bucket.
+     */
+    @GameTest(maxTicks = 9600, structure = GameTestArenas.ARENA_16)
+    public void obtainTwoCakesReusesTheCarriedBuckets(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(12, 2, 12, Blocks.CRAFTING_TABLE);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        h.spawn(net.minecraft.world.entity.EntityTypes.COW, 4, 2, 4);
+        h.spawn(net.minecraft.world.entity.EntityTypes.COW, 5, 2, 5);
+        h.spawn(net.minecraft.world.entity.EntityTypes.COW, 6, 2, 6);
+        h.spawn(net.minecraft.world.entity.EntityTypes.COW, 7, 2, 7);
+        h.spawn(net.minecraft.world.entity.EntityTypes.COW, 8, 2, 8);
+        h.spawn(net.minecraft.world.entity.EntityTypes.COW, 9, 2, 9);
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(12, 2, 12))),
+                "crafting table should be visible");
+        c.inventory().addItem(new ItemStack(Items.BUCKET, 3));
+        c.inventory().addItem(new ItemStack(Items.SUGAR, 4));
+        c.inventory().addItem(new ItemStack(Items.EGG, 2));
+        c.inventory().addItem(new ItemStack(Items.WHEAT, 6));
+        Result result = new Result();
+        ExecutionCoordinator runner = obtain(c, result, obtainTask("minecraft:cake", 2, false, false));
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertValueEqual(c.inventory().countItem(Items.CAKE), 2, "cakes");
+            h.assertValueEqual(c.inventory().countItem(Items.BUCKET), 3, "the same three buckets came back");
+            h.assertValueEqual(c.inventory().countItem(Items.MILK_BUCKET), 0, "no milk left over");
+        });
+    }
 }

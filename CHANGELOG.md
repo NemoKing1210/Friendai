@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.233.13] - 2026-11-24
+
+### Fixed
+
+- A baking order that needs several cakes now reuses the same buckets: the companion refills the buckets the previous cake handed back instead of collecting a separate set for every cake, and the buckets end up in its bag when the order is done.
+
 ## [0.233.12] - 2026-11-24
 
 ### Fixed

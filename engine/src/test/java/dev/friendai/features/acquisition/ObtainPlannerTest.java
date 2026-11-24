@@ -1063,4 +1063,105 @@ class ObtainPlannerTest {
                 craftCount(shortByOne, STONE_PICKAXE) > 0,
                 "the reserve is part of the tool need: " + shortByOne.steps());
     }
+
+    /**
+     * A cake returns its three buckets, so a second cake refills the same three instead of needing three more: the
+     * plan buys nothing extra, and the milk for the second cake comes after the first craft that hands the buckets
+     * back.
+     */
+    @Test
+    void aReturnedContainerIsReusedByTheNextCraft() {
+        Ingredient milk = Ingredient.of("minecraft:milk_bucket");
+        FakeRecipeBook book = book().add(new Recipe(
+                "test:cake",
+                "minecraft:cake",
+                1,
+                List.of(
+                        milk,
+                        milk,
+                        milk,
+                        Ingredient.of("minecraft:sugar"),
+                        Ingredient.of("minecraft:egg"),
+                        Ingredient.of("minecraft:wheat")),
+                List.of("minecraft:bucket", "minecraft:bucket", "minecraft:bucket", "", "", ""),
+                Station.CRAFTING_TABLE,
+                0));
+
+        ObtainPlan plan = ObtainPlanner.plan(
+                "minecraft:cake",
+                2,
+                Map.of("minecraft:bucket", 3, "minecraft:sugar", 2, "minecraft:egg", 2, "minecraft:wheat", 6),
+                book,
+                FakeSourceBook.vanillaLike(),
+                world(Map.of(), Map.of("minecraft:cow", 6), Map.of(), false));
+
+        assertTrue(plan.ok(), plan.missing().toString());
+        int cakes = 0;
+        int milked = 0;
+        java.util.List<Integer> milkSteps = new java.util.ArrayList<>();
+        java.util.List<Integer> cakeSteps = new java.util.ArrayList<>();
+        for (int i = 0; i < plan.steps().size(); i++) {
+            ObtainStep step = plan.steps().get(i);
+            if (step instanceof ObtainStep.Craft craft && craft.item().equals("minecraft:cake")) {
+                cakes += craft.count();
+                cakeSteps.add(i);
+            }
+            if (step instanceof ObtainStep.Milk milkStep) {
+                milked += milkStep.count();
+                milkSteps.add(i);
+            }
+        }
+        assertEquals(2, cakes, plan.steps().toString());
+        assertEquals(6, milked, plan.steps().toString());
+        assertEquals(2, milkSteps.size(), "the milk is split around the first cake: " + plan.steps());
+        assertTrue(
+                milkSteps.get(0) < cakeSteps.get(0) && cakeSteps.get(0) < milkSteps.get(1),
+                "the buckets return before the second milking: " + plan.steps());
+    }
+
+    /**
+     * A save between two crafts replans from the live bag, where the first craft already handed its buckets back.
+     * The resumed order milks into those same buckets and never asks for another one.
+     */
+    @Test
+    void anOrderInterruptedBetweenCraftsReplansFromTheReturnedContainers() {
+        Ingredient milk = Ingredient.of("minecraft:milk_bucket");
+        FakeRecipeBook book = book().add(new Recipe(
+                "test:cake",
+                "minecraft:cake",
+                1,
+                List.of(
+                        milk,
+                        milk,
+                        milk,
+                        Ingredient.of("minecraft:sugar"),
+                        Ingredient.of("minecraft:egg"),
+                        Ingredient.of("minecraft:wheat")),
+                List.of("minecraft:bucket", "minecraft:bucket", "minecraft:bucket", "", "", ""),
+                Station.CRAFTING_TABLE,
+                0));
+
+        ObtainPlan resumed = ObtainPlanner.plan(
+                "minecraft:cake",
+                1,
+                Map.of("minecraft:bucket", 3, "minecraft:sugar", 1, "minecraft:egg", 1, "minecraft:wheat", 3),
+                book,
+                FakeSourceBook.vanillaLike(),
+                world(Map.of(), Map.of("minecraft:cow", 3), Map.of(), false));
+
+        assertTrue(resumed.ok(), resumed.missing().toString());
+        assertTrue(
+                resumed.steps().stream().noneMatch(step -> switch (step) {
+                    case ObtainStep.Take take -> take.item().equals("minecraft:bucket");
+                    case ObtainStep.Craft craft -> craft.item().equals("minecraft:bucket");
+                    default -> false;
+                }),
+                "the resumed order refills the carried buckets: " + resumed.steps());
+        assertEquals(
+                1,
+                resumed.steps().stream()
+                        .filter(step -> step instanceof ObtainStep.Milk)
+                        .count(),
+                resumed.steps().toString());
+    }
 }

@@ -15,12 +15,15 @@ import java.util.Set;
 import java.util.WeakHashMap;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.TagKey;
 import net.minecraft.util.context.ContextMap;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.ItemStackTemplate;
 import net.minecraft.world.item.crafting.AbstractCookingRecipe;
+import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.RecipeManager;
 import net.minecraft.world.item.crafting.RecipeType;
@@ -186,7 +189,8 @@ public final class RecipeIndex implements RecipeBook {
         }
         String id = pureId(holder);
         String output = BuiltInRegistries.ITEM.getKey(result.getItem()).toString();
-        Recipe recipe = new Recipe(id, output, result.getCount(), ingredients, station, cookTicks);
+        Recipe recipe = new Recipe(
+                id, output, result.getCount(), ingredients, remainders(holder, ingredients), station, cookTicks);
         byOutput.computeIfAbsent(output, key -> new ArrayList<>()).add(recipe);
         if (cookingByInput != null) {
             for (Ingredient ingredient : ingredients) {
@@ -260,6 +264,48 @@ public final class RecipeIndex implements RecipeBook {
         return holder.unwrapKey()
                 .map(key -> key.identifier().toString())
                 .orElseGet(() -> BuiltInRegistries.ITEM.getKey(holder.value()).toString());
+    }
+
+    /**
+     * What each slot hands back after one craft, in slot order (a milk bucket leaves an empty bucket), or an
+     * empty list when nothing comes back. A slot whose accepted items disagree, or return a stack of more than
+     * one, records nothing: the planner only assumes a return it can rely on.
+     */
+    private static List<String> remainders(RecipeHolder<?> holder, List<Ingredient> ingredients) {
+        // Only crafting recipes return items: a cooking recipe consumes its input outright.
+        if (!(holder.value() instanceof CraftingRecipe)) {
+            return List.of();
+        }
+        List<String> remainders = new ArrayList<>(ingredients.size());
+        boolean any = false;
+        for (Ingredient ingredient : ingredients) {
+            String agreed = null;
+            boolean uniform = true;
+            for (String id : ingredient.items()) {
+                String returned = remainderOf(id);
+                if (agreed == null) {
+                    agreed = returned;
+                } else if (!agreed.equals(returned)) {
+                    uniform = false;
+                    break;
+                }
+            }
+            String slot = uniform && agreed != null ? agreed : "";
+            remainders.add(slot);
+            any |= !slot.isEmpty();
+        }
+        return any ? remainders : List.of();
+    }
+
+    /** The item this id returns after a craft, or an empty string when it returns nothing predictable. */
+    private static String remainderOf(String itemId) {
+        Identifier key = Identifier.tryParse(itemId);
+        Item item = key == null ? null : BuiltInRegistries.ITEM.getValue(key);
+        ItemStackTemplate template = item == null ? null : item.getCraftingRemainder();
+        if (template == null || template.count() != 1) {
+            return "";
+        }
+        return BuiltInRegistries.ITEM.getKey(template.item().value()).toString();
     }
 
     private static ItemStack result(RecipeHolder<?> holder, ContextMap context) {

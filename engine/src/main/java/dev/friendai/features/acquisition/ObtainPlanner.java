@@ -273,7 +273,7 @@ public final class ObtainPlanner {
         }
 
         void add(String item, int qty) {
-            if (qty > 0) {
+            if (qty > 0 && !item.isEmpty()) {
                 items.merge(item, qty, Integer::sum);
             }
         }
@@ -1016,7 +1016,15 @@ public final class ObtainPlanner {
             @Override
             public Candidate take(Search search, Sim sim, int want, int depth, Set<String> path, boolean emitCraft) {
                 int times = (want + recipe.outputCount() - 1) / recipe.outputCount();
+                // A recipe that hands a slot back between crafts (a bucket after each cake) can reuse it, so its
+                // crafts are separate steps: the returned item exists before the next craft's ingredients are
+                // obtained, and the plan buys the container once instead of once per craft.
+                boolean splits = times > 1 && recipe.returnsAnything();
                 Attempt attempt = new Attempt();
+                // A split batch emits its crafts among the ingredient steps, so the station they need comes first.
+                if (splits && !ensureStation(recipe.station(), depth, path, sim, attempt, allowExplore)) {
+                    return null;
+                }
                 Map<Ingredient, Integer> slots = new LinkedHashMap<>();
                 for (Ingredient ingredient : recipe.ingredients()) {
                     slots.merge(ingredient, 1, Integer::sum);
@@ -1028,15 +1036,21 @@ public final class ObtainPlanner {
                             return null;
                         }
                     }
-                }
-                if (!ensureStation(recipe.station(), depth, path, sim, attempt, allowExplore)) {
-                    return null;
+                    for (String returned : recipe.remainders()) {
+                        sim.add(returned, 1);
+                    }
+                    if (emitCraft && splits) {
+                        attempt.add(new ObtainStep.Craft(recipe.output(), recipe.outputCount()));
+                    }
                 }
                 int leftover = times * recipe.outputCount() - want;
+                if (!splits && !ensureStation(recipe.station(), depth, path, sim, attempt, allowExplore)) {
+                    return null;
+                }
                 if (leftover > 0) {
                     sim.add(recipe.output(), leftover);
                 }
-                if (emitCraft) {
+                if (emitCraft && !splits) {
                     attempt.add(new ObtainStep.Craft(recipe.output(), want));
                 }
                 attempt.cost += 2 * times;
