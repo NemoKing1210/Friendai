@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.233.6] - 2026-11-24
+
+### Fixed
+
+- A repair the companion was still preparing no longer applies after you reorder or reprioritise the queued work, or after an edit changes who has to do it: the stale repair is dropped and the companion plans again against what is queued now.
+
 ## [0.233.5] - 2026-11-24
 
 ### Fixed

@@ -7,9 +7,11 @@ import java.util.Comparator;
 import java.util.HexFormat;
 
 /**
- * A short, deterministic token for one plan's current work: the jobs, their order, tools, arguments and live state.
- * It is a stale-read check, not authority or persistence; a planner that computed a patch against an older token must
- * be refused rather than applied to a changed plan.
+ * A short, deterministic token for one plan's current work: the jobs, their execution order, priority, requester,
+ * tools, arguments and live state. It is a stale-read check, not authority or persistence; a planner that computed a
+ * patch against an older token must be refused rather than applied to a changed plan. The token therefore covers the
+ * edits that change what the work means without changing a single argument: a move, a priority change and a different
+ * principal are each a different plan.
  */
 public final class PlanFingerprint {
     public static final int LENGTH = 16;
@@ -34,6 +36,12 @@ public final class PlanFingerprint {
                         .append(job.state())
                         .append('|')
                         .append(job.attempts())
+                        .append('|')
+                        .append(job.order())
+                        .append('|')
+                        .append(job.priority())
+                        .append('|')
+                        .append(job.principal())
                         .append('|')
                         .append(job.args())
                         .append('|')

@@ -909,3 +909,12 @@ The automated suite pins the text split and the layout arithmetic; the click, th
       count, and the order resumes with the same remaining budget.
 - [ ] Change the task timeout setting while the world is closed, reload and resume: the restored task keeps the
       timeout it started under, while the next task uses the new setting.
+
+## A delayed plan repair notices a reordered or reassigned step (TODO 168)
+
+- [ ] With a slow provider, ask for a repair of a blocked plan, then before the reply arrives reorder its queued
+      steps (or raise one step's priority): the reply is refused with "the plan changed" and the companion plans
+      again instead of applying the old repair.
+- [ ] Repeat while an authorised edit moves one pending step to another requester with the same arguments: the old
+      repair is refused, and a fresh one runs as the step's current requester.
+- [ ] Reorder a completely different plan while a repair is being prepared: the repair still applies.
