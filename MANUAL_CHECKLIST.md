@@ -750,3 +750,9 @@ The automated suite pins the text split and the layout arithmetic; the click, th
 - [ ] Ask for something that needs an item the companion does not carry, with automatic repair consent (a plan that places planks): the companion fetches it once, then the original step runs in its place, and nothing is fetched a second time.
 - [ ] Make the fetch impossible (no source within reach): the plan says it waits for that step and which one failed, and unrelated work still runs.
 - [ ] Save and quit while the fetch is queued, then reload: the step still waits for its fetch, and a successful fetch after the reload starts it once.
+
+## A skipped step in a longer order (TODO 149)
+
+- [ ] Queue an order whose first step gathers something unavailable (or right-click Skip on it) followed by a step that needs that same item: the first is reported as left out with its reason, the later step stays queued and says what it is still waiting for, and nothing is started to fake the missing item.
+- [ ] Queue the same order with a later step that only had to come after the first: it runs normally, and the finished report lists the skipped step separately from what the other steps did.
+- [ ] Skip a step, then read the plan in the queue list and again after a reload: both show the same "omitted" line, and a step that never ran is not listed among the results.

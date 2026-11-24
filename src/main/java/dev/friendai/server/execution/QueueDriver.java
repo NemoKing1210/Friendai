@@ -167,7 +167,7 @@ public final class QueueDriver {
     JobQueue.Result skipJob(long id) {
         Job job = queue.job(id).orElse(null);
         if (job == null) return JobQueue.Result.error("unknown job #" + id);
-        JobQueue.Result result = queue.skip(id);
+        JobQueue.Result result = queue.skip(id, Job.SKIP_OWNER);
         if (!result.ok()) return result;
         if (job.planId() == 0) {
             remove(job.id());
@@ -436,7 +436,7 @@ public final class QueueDriver {
     void skipUnmet(GuardFacts facts) {
         Job job;
         while ((job = nextGuardSkip(facts)) != null) {
-            queue.skip(job.id());
+            queue.skip(job.id(), Job.SKIP_CONDITION);
             if (isStructuredPlan(job.planId()))
                 advanceStructuredPlan(job.planId(), new PlanInterpreter.ActionResult.Succeeded());
             else if (job.planId() > 0 && queue.planStatus(job.planId()) != PlanStatus.ACTIVE)
@@ -461,7 +461,15 @@ public final class QueueDriver {
         if (plan == null) return;
         FailurePolicy policy = queue.job(jobId).map(Job::onFailure).orElse(plan.onFailure());
         switch (policy) {
-            case SKIP -> advanceStructuredPlan(planId, new PlanInterpreter.ActionResult.Succeeded());
+            case SKIP -> {
+                // The plan continues past this step, so its row records an omission rather than leaving a cancelled
+                // action that the archive would report as unfinished work. A row its own retry policy already skipped
+                // keeps the failure text it settled with.
+                queue.job(jobId)
+                        .filter(job -> job.state() != JobState.SKIPPED)
+                        .ifPresent(job -> queue.skip(jobId, reason));
+                advanceStructuredPlan(planId, new PlanInterpreter.ActionResult.Succeeded());
+            }
             case STOP_PLAN -> {
                 queue.cancelPlan(planId);
                 finishPlan(planId, reason, disposition);

@@ -1036,11 +1036,24 @@ public final class JobQueue {
     }
 
     public Result skip(long id) {
+        return skip(id, Job.SKIP_OWNER);
+    }
+
+    /**
+     * Leaves a step out, recording why. A step whose attempts ran out under `on_failure=skip` is settled by
+     * {@link #fail} instead and keeps its failure text as the result.
+     */
+    public Result skip(long id, String reason) {
         Job j = jobs.get(id);
         if (j == null) return Result.error("unknown job #" + id);
         if (j.state() != JobState.PENDING && j.state() != JobState.FAILED && j.state() != JobState.CANCELLED)
             return Result.error("job cannot be skipped");
-        replace(j, JobState.SKIPPED, "skipped", j.attempts(), 0);
+        // A row that already failed keeps the failure it settled with: moving past it does not make the reason go
+        // away, and that reason is what a dependent and the final report have to judge.
+        String result = j.state() == JobState.FAILED && !j.result().isBlank()
+                ? j.result()
+                : bound(reason == null ? Job.SKIP_OWNER : reason);
+        replace(j, JobState.SKIPPED, result, j.attempts(), 0);
         return Result.ok("skipped #" + id);
     }
 

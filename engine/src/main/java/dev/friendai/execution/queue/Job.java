@@ -35,6 +35,28 @@ public record Job(
     public static final String MISSING_TOOL_RESULT = "tool is no longer available";
     /** A saved task whose committed progress cannot be read: repeating it could apply its effects twice. */
     public static final String UNREADABLE_PROGRESS_RESULT = "saved progress could not be read";
+    /** A step the owner chose not to run; it is not the same as a step the plan did not need. */
+    public static final String SKIP_OWNER = "skipped by the owner";
+    /** A step whose guard was confirmed unmet, so the plan never needed it. */
+    public static final String SKIP_CONDITION = "condition not met";
+
+    /** Why a step was left out, kept apart because the three mean different things to a dependent and a report. */
+    public enum Omission {
+        /** The owner skipped it by hand. */
+        OWNER,
+        /** Its guard was confirmed unmet, so the plan did not need it. */
+        NOT_APPLICABLE,
+        /** It failed and its own policy let the plan continue past it; the row keeps the failure. */
+        CONTINUED
+    }
+
+    /** The omission this skipped job records, or null for a job that is not skipped. */
+    public static Omission omission(Job job) {
+        if (job == null || job.state() != JobState.SKIPPED) return null;
+        if (SKIP_OWNER.equals(job.result())) return Omission.OWNER;
+        if (SKIP_CONDITION.equals(job.result())) return Omission.NOT_APPLICABLE;
+        return Omission.CONTINUED;
+    }
 
     /** True for a cancelled job that records a blocker the owner has to resolve before the work continues. */
     public static boolean needsDecision(Job job) {

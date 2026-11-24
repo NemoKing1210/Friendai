@@ -58,14 +58,63 @@ public final class QueueText {
         return room + "; …";
     }
 
-    /** The plan summary a finished plan reports, with its steps' own results appended once. */
+    /**
+     * The steps a plan left out, with why, as {@code #id tool: reason}: a step the owner skipped, one whose condition
+     * was not met, or one that failed and whose own policy let the plan continue. Verified work stays in
+     * {@link #planResults}; this is its other half, so an omitted delivery is never reported as one that happened.
+     */
+    public static String planOmissions(JobQueue q, long planId, int maxChars) {
+        List<Job> jobs = new ArrayList<>(q.jobsOfPlan(planId));
+        jobs.sort(Comparator.comparingLong(Job::id));
+        StringBuilder out = new StringBuilder();
+        int entries = 0;
+        boolean dropped = false;
+        for (Job job : jobs) {
+            Job.Omission omission = Job.omission(job);
+            if (omission == null) continue;
+            if (entries == MAX_RESULT_ENTRIES) {
+                dropped = true;
+                break;
+            }
+            if (!out.isEmpty()) out.append("; ");
+            out.append('#')
+                    .append(job.id())
+                    .append(' ')
+                    .append(job.tool())
+                    .append(": ")
+                    .append(omissionText(job, omission));
+            entries++;
+        }
+        if (out.isEmpty()) return "";
+        if (!dropped) return truncate(out.toString(), maxChars);
+        String room = truncate(out.toString(), Math.max(0, maxChars - "; …".length()));
+        return room + "; …";
+    }
+
+    /** Why one skipped step was left out, in the words the queue already records. */
+    private static String omissionText(Job job, Job.Omission omission) {
+        return switch (omission) {
+            case OWNER -> Job.SKIP_OWNER;
+            case NOT_APPLICABLE -> Job.SKIP_CONDITION;
+            case CONTINUED -> job.result().isBlank() ? "failed and was passed over" : "failed: " + job.result();
+        };
+    }
+
+    /** The plan summary a finished plan reports, with its steps' own results and its omissions appended once. */
     public static String finishedSummary(JobQueue q, long planId, String summary) {
         String base = summary == null ? "" : summary;
         String results = planResults(q, planId, MAX_PLAN_RESULTS);
-        if (results.isEmpty()) return base;
-        if (base.isEmpty()) return results;
-        if (base.contains(results)) return base;
-        return base + "; " + results;
+        String omissions = planOmissions(q, planId, MAX_PLAN_RESULTS / 2);
+        StringBuilder out = new StringBuilder(base);
+        if (!results.isEmpty() && !out.toString().contains(results)) {
+            if (!out.isEmpty()) out.append("; ");
+            out.append(results);
+        }
+        if (!omissions.isEmpty() && !out.toString().contains(omissions)) {
+            if (!out.isEmpty()) out.append("; ");
+            out.append("omitted ").append(omissions);
+        }
+        return out.toString();
     }
 
     /** The first condition, from the plan's saved cursor, that asks for a fact the snapshot cannot read yet. */
@@ -99,7 +148,9 @@ public final class QueueText {
             if (facts != null) {
                 // A conditional plan with no emitted job says why it is still waiting: a fact it cannot read yet.
                 PlanInterpreter.undecided(plan.definition(), plan.cursor(), facts)
-                        .ifPresent(reason -> out.append(" [cannot tell yet whether ").append(reason).append(']'));
+                        .ifPresent(reason -> out.append(" [cannot tell yet whether ")
+                                .append(reason)
+                                .append(']'));
             }
             out.append("\ntree: ").append(planTree(plan));
         }
@@ -340,6 +391,16 @@ public final class QueueText {
                         .append(j.tool())
                         .append(": ")
                         .append(truncate(j.result(), MAX_RESULT)));
+        jobs.stream()
+                .filter(j -> Job.omission(j) != null)
+                .findFirst()
+                .ifPresent(j -> out.append("; omitted #")
+                        .append(j.id())
+                        .append(' ')
+                        .append(j.tool())
+                        .append(" (")
+                        .append(omissionText(j, Job.omission(j)))
+                        .append(')'));
         return out.toString();
     }
 

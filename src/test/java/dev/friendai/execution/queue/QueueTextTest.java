@@ -144,6 +144,39 @@ class QueueTextTest {
     }
 
     @Test
+    void omittedStepsAreReportedApartFromVerifiedResults() {
+        JobQueue q = new JobQueue(QueueLimits.DEFAULTS);
+        var added = q.addPlan(
+                "partial",
+                List.of(step("give_items", "{}"), step("mine_blocks", "{}"), step("place_block", "{}")),
+                new PlanOptions(0, FailurePolicy.SKIP, 0));
+        long gave = added.jobIds().get(0),
+                failed = added.jobIds().get(1),
+                skipped = added.jobIds().get(2);
+        q.markRunning(gave);
+        q.finish(gave, "gave 1 minecraft:stone_pickaxe");
+        q.markRunning(failed);
+        q.fail(failed, "no reachable ore");
+        assertTrue(q.skip(skipped, Job.SKIP_CONDITION).ok());
+
+        String results = QueueText.planResults(q, added.planId(), 600);
+        assertEquals("#1 give_items: gave 1 minecraft:stone_pickaxe", results);
+        assertFalse(results.contains("no reachable ore"), results);
+        assertEquals(
+                "#2 mine_blocks: failed: no reachable ore; #3 place_block: condition not met",
+                QueueText.planOmissions(q, added.planId(), 600));
+        assertTrue(
+                QueueText.planSummary(q, added.planId()).contains("omitted #2 mine_blocks (failed: no reachable ore)"),
+                QueueText.planSummary(q, added.planId()));
+
+        String summary = QueueText.finishedSummary(q, added.planId(), "conditional plan completed");
+        assertTrue(summary.contains("gave 1 minecraft:stone_pickaxe"), summary);
+        assertTrue(summary.contains("omitted #2 mine_blocks: failed: no reachable ore"), summary);
+        assertTrue(summary.contains("#3 place_block: condition not met"), summary);
+        assertEquals(summary, QueueText.finishedSummary(q, added.planId(), summary));
+    }
+
+    @Test
     void finishedSummaryDoesNotAppendTheSameDetailTwice() {
         JobQueue q = new JobQueue(QueueLimits.DEFAULTS);
         var added = q.addPlan("twice", List.of(step("give_items", "{}")), PlanOptions.DEFAULT);

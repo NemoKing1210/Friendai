@@ -97,7 +97,11 @@ public final class QueuePolicy {
 
     public static boolean dependenciesDone(JobQueue queue, Job job) {
         for (long dependency : job.after()) {
-            if (queue.job(dependency).filter(j -> j.state() == JobState.DONE).isEmpty()) return false;
+            Job other = queue.job(dependency).orElse(null);
+            if (other == null) return false;
+            // A skipped step has been decided, so its ordering no longer blocks; an effect it was meant to produce is
+            // re-verified by the dependent's own guard. A failed or cancelled step still blocks.
+            if (other.state() != JobState.DONE && other.state() != JobState.SKIPPED) return false;
         }
         return true;
     }
@@ -162,8 +166,12 @@ public final class QueuePolicy {
             if (job.state() != JobState.PENDING) continue;
             for (long dependency : job.after()) {
                 Job other = queue.job(dependency).orElse(null);
-                if (other == null || (JobQueue.terminal(other) && other.state() != JobState.DONE))
-                    return PlanStatus.NEEDS_DECISION;
+                // A skipped step is a decision, not a missing one; only a failure, a cancellation or a lost row
+                // leaves the dependent unable to say why it waits.
+                if (other == null
+                        || (JobQueue.terminal(other)
+                                && other.state() != JobState.DONE
+                                && other.state() != JobState.SKIPPED)) return PlanStatus.NEEDS_DECISION;
             }
         }
         return PlanStatus.ACTIVE;
@@ -196,12 +204,13 @@ public final class QueuePolicy {
                 .orElse("pending");
     }
 
-    /** The dependency that stops this job, or null when every one of them is done. */
+    /** The dependency that stops this job, or null when every one of them has been decided in its favour. */
     private static String dependencyReason(JobQueue queue, Job job) {
         for (long id : job.after()) {
             Job other = queue.job(id).orElse(null);
-            if (other == null || other.state() != JobState.DONE)
-                return "depends on #" + id + ", which " + (other == null ? "is missing" : stateWord(other));
+            if (other == null) return "depends on #" + id + ", which is missing";
+            if (other.state() != JobState.DONE && other.state() != JobState.SKIPPED)
+                return "depends on #" + id + ", which " + stateWord(other);
         }
         return null;
     }

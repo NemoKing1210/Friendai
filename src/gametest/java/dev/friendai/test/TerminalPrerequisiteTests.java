@@ -13,6 +13,7 @@ import dev.friendai.execution.queue.Job;
 import dev.friendai.execution.queue.PlanDefinition;
 import dev.friendai.execution.queue.PlanNode;
 import dev.friendai.execution.queue.PlanOptions;
+import dev.friendai.execution.queue.QueueText;
 import dev.friendai.execution.queue.QueuedStep;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
@@ -21,6 +22,7 @@ import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
+import dev.friendai.task.queue.CompanionGuardFacts;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -115,6 +117,88 @@ public final class TerminalPrerequisiteTests {
         h.assertValueEqual(started, List.of("first", "second"), "the dependent ran once the answer existed");
         h.assertTrue(runner.queue().plan(second).isEmpty(), "the dependent finished too");
         h.succeed();
+    }
+
+    /** A task that reports one failure and never runs again, so an `on_failure=skip` step settles as skipped. */
+    private static Task failingTask(String reason) {
+        return new Task() {
+            @Override
+            public String type() {
+                return "gather";
+            }
+
+            @Override
+            public void start(TaskContext context) {}
+
+            @Override
+            public TaskStatus tick(TaskContext context) {
+                return TaskStatus.FAILED;
+            }
+
+            @Override
+            public void stop(TaskContext context) {}
+
+            @Override
+            public String describe() {
+                return "gather";
+            }
+
+            @Override
+            public String resultSummary() {
+                return reason;
+            }
+        };
+    }
+
+    @GameTest(maxTicks = 200)
+    public void anOrderedStepRunsPastItsSkippedPrerequisiteWhileAnEffectGuardKeepsWaiting(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ExecutionCoordinator runner = companion.executionCoordinator();
+        List<String> started = new ArrayList<>();
+        QueuedStep failing = new QueuedStep(
+                "gather", new JsonObject(), null, List.of(), GuardAction.WAIT, FailurePolicy.SKIP, 1, List.of());
+        QueuedStep ordered = new QueuedStep(
+                "tidy", new JsonObject(), null, List.of(), GuardAction.WAIT, FailurePolicy.ASK, 1, List.of(1));
+        QueuedStep needsOutput = new QueuedStep(
+                "place",
+                new JsonObject(),
+                null,
+                List.of(new Guard.HasItem("minecraft:oak_planks", 4)),
+                GuardAction.WAIT,
+                FailurePolicy.ASK,
+                1,
+                List.of(1));
+        var added =
+                runner.queue().addPlan("stock the site", List.of(failing, ordered, needsOutput), PlanOptions.DEFAULT);
+        long gather = added.jobIds().get(0),
+                tidy = added.jobIds().get(1),
+                place = added.jobIds().get(2);
+        runner.registerFactory(gather, context -> failingTask("no oak in reach"));
+        runner.registerFactory(tidy, context -> {
+            started.add("tidy");
+            return quickTask();
+        });
+        runner.registerFactory(place, context -> {
+            started.add("place");
+            return quickTask();
+        });
+
+        h.succeedWhen(() -> {
+            runner.tick();
+            Job skipped = runner.queue().job(gather).orElse(null);
+            h.assertTrue(
+                    skipped != null
+                            && skipped.state() == dev.friendai.execution.queue.JobState.SKIPPED
+                            && started.contains("tidy"),
+                    "waiting for the order-only step after its skipped prerequisite: " + started);
+            h.assertValueEqual(skipped.result(), "no oak in reach", "the reason it was passed over is kept");
+            h.assertTrue(!started.contains("place"), "the step needing the missing output did not run: " + started);
+            h.assertTrue(runner.queue().plan(added.planId()).isPresent(), "the blocked step still waits");
+            String shown = QueueText.show(runner.queue(), new CompanionGuardFacts(companion), null, 10, false);
+            h.assertTrue(shown.contains("minecraft:oak_planks"), "the blocked step names its need: " + shown);
+            h.assertFalse(shown.contains("decision"), "a skip is a decision, not an open question: " + shown);
+        });
     }
 
     @GameTest(maxTicks = 200)

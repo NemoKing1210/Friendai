@@ -268,6 +268,48 @@ public final class ConditionalPlansTests {
         });
     }
 
+    @GameTest(maxTicks = 100)
+    public void aStructuredPlanReportsVerifiedWorkAndTheStepItOmitted(GameTestHelper h) {
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ExecutionCoordinator runner = companion.executionCoordinator();
+        QueuedStep optional = new QueuedStep(
+                "optional_step", new JsonObject(), null, List.of(), GuardAction.WAIT, FailurePolicy.SKIP, 1, List.of());
+        QueuedStep required = new QueuedStep(
+                "required_step", new JsonObject(), null, List.of(), GuardAction.WAIT, FailurePolicy.ASK, 1, List.of());
+        runner.enqueuePlan(
+                "one optional one required",
+                new PlanDefinition(List.of(new PlanNode.Action(optional), new PlanNode.Action(required))),
+                PlanOptions.DEFAULT,
+                Map.of(
+                        "optional_step", (context, when) -> failingTask("no ore nearby"),
+                        "required_step", (context, when) -> resultTask("required_step", "delivered 4 oak planks")));
+
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertValueEqual(runner.queue().planCount(), 0, "waiting for the plan to finish");
+            var archive = runner.queue().archives().getLast();
+            h.assertTrue(archive.success(), "the required work completed: " + archive.summary());
+            h.assertTrue(
+                    archive.summary().contains("delivered 4 oak planks"),
+                    "the verified work is reported: " + archive.summary());
+            h.assertTrue(
+                    archive.summary().contains("omitted #"),
+                    "the step the plan continued past is reported too: " + archive.summary());
+            h.assertTrue(
+                    archive.summary().contains("no ore nearby"),
+                    "with the reason it was passed over: " + archive.summary());
+            h.assertFalse(
+                    archive.summary().contains("optional_step: delivered"),
+                    "the omitted step is not credited with work: " + archive.summary());
+
+            QueueSave.Decoded saved = QueueSave.decode(QueueSave.encode(runner.queue(), 0), QueueLimits.DEFAULTS)
+                    .orElseThrow();
+            var reloaded = saved.queue().archives().getLast();
+            h.assertValueEqual(reloaded.summary(), archive.summary(), "the report survives a reload");
+            h.assertTrue(reloaded.success(), "and so does the outcome");
+        });
+    }
+
     @GameTest
     public void aCompletingPlanCarriesItsStepResults(GameTestHelper h) {
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
@@ -755,6 +797,68 @@ public final class ConditionalPlansTests {
             @Override
             public String resultSummary() {
                 return "done";
+            }
+        };
+    }
+
+    /** Reports one failure and stops, so an `on_failure=skip` action settles as a continued omission. */
+    private static Task failingTask(String reason) {
+        return new Task() {
+            @Override
+            public String type() {
+                return "optional_step";
+            }
+
+            @Override
+            public void start(TaskContext context) {}
+
+            @Override
+            public TaskStatus tick(TaskContext context) {
+                return TaskStatus.FAILED;
+            }
+
+            @Override
+            public void stop(TaskContext context) {}
+
+            @Override
+            public String describe() {
+                return "optional step";
+            }
+
+            @Override
+            public String resultSummary() {
+                return reason;
+            }
+        };
+    }
+
+    /** Succeeds immediately and reports what it actually did, so the archive has verified work to carry. */
+    private static Task resultTask(String type, String result) {
+        return new Task() {
+            @Override
+            public String type() {
+                return type;
+            }
+
+            @Override
+            public void start(TaskContext context) {}
+
+            @Override
+            public TaskStatus tick(TaskContext context) {
+                return TaskStatus.SUCCESS;
+            }
+
+            @Override
+            public void stop(TaskContext context) {}
+
+            @Override
+            public String describe() {
+                return type;
+            }
+
+            @Override
+            public String resultSummary() {
+                return result;
             }
         };
     }

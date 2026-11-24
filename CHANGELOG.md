@@ -6,6 +6,15 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.230.4] - 2026-11-24
+
+### Fixed
+
+- An order whose optional step could not be done now carries on with the rest instead of stopping to ask: a step you
+  skip, one whose condition turned out not to apply, and one that failed because the order allowed it are each
+  reported as left out, with the reason, next to what the other steps actually did. A later step that needs the thing
+  the left-out step was supposed to produce still waits and says what it is waiting for.
+
 ## [0.230.3] - 2026-11-24
 
 ### Fixed
