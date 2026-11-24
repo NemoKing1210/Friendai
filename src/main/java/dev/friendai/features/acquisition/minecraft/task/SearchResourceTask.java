@@ -50,6 +50,12 @@ public final class SearchResourceTask implements Task {
     private SearchHint hint;
     private EscortPolicy escort;
     private String summary = "search has not started";
+    /**
+     * What the source resolution could not cover, kept so a failed result says the list may be incomplete rather than
+     * reading as an exhaustive "not here".
+     */
+    private String coverageNote = "";
+
     private UUID ownerId;
     private int radius;
     private boolean ownerWasNear;
@@ -151,6 +157,7 @@ public final class SearchResourceTask implements Task {
                 return;
             }
             target = resolved.kind();
+            coverageNote = resolved.note();
         }
         String dimension = context.level().dimension().identifier().toString();
         ResourceSearchProfile profile = profile(target, dimension);
@@ -315,6 +322,9 @@ public final class SearchResourceTask implements Task {
                 || (ownerOnline && ownerDistance <= escort.config().sightRadius());
         TaskStatus status = driver.tick(context);
         summary = driver.resultSummary();
+        if (status == TaskStatus.FAILED && !coverageNote.isEmpty()) {
+            summary = summary + " (" + coverageNote + ")";
+        }
         if (status == TaskStatus.SUCCESS && target instanceof TargetKind.Structure structure && !rememberedStructure) {
             rememberedStructure = true;
             remember(structure, context);

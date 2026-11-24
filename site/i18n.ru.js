@@ -255,7 +255,7 @@ const RU = {
     "Показать план, не выполняя его, в том же радиусе поиска, с которым пойдёт поставленная работа; поиск, который ещё нельзя проверить, так и помечается.",
   "Explore to find a resource when nothing is visible or remembered; read-only questions use find_blocks or known_resources.": "Отправиться на поиск ресурса, когда рядом ничего не видно и не запомнено; для вопроса без похода есть find_blocks и known_resources.",
   "What it already knows about.": "Что ему уже известно.",
-  "Show up to three remembered resource sites with their age and uncertainty.": "Показать до трёх запомненных мест с ресурсами, их возраст и неопределённость.",
+  "Show up to three remembered resource sites with their age and uncertainty, and say whether the source list is complete or was cut by the recipe depth or work limit.": "Показать до трёх запомненных мест с ресурсами, их возраст и неопределённость, а также сказать, полон ли список источников или его обрезал предел глубины рецептов либо предел работы.",
   "Prioritizes verified approaches, usable tools and lower estimated trip cost.": "Сначала выбирает проверенный подход, подходящий инструмент и меньшую расчётную стоимость пути.",
   "Checks a route and support reserve before automatic descent.": "Проверяет путь и запас опорных блоков перед автоматическим спуском.",
   "Reports carried, delivered and remaining item counts separately.": "Отдельно сообщает, сколько предметов осталось у компаньона, передано владельцу и не хватает.",

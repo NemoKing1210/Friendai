@@ -34,14 +34,30 @@ import net.minecraft.world.phys.AABB;
  * class owns the reads.
  */
 public final class SearchTargets {
-    /** A resolved kind, or a sentence the model can act on. */
-    public record Resolution(TargetKind kind, String error) {
+    /**
+     * A resolved kind, or a sentence the model can act on. {@code note} carries a caveat about the resolution — a
+     * partial source list, for instance — and is empty when the resolution is exhaustive.
+     */
+    public record Resolution(TargetKind kind, String error, String note) {
+        public Resolution {
+            error = error == null ? "" : error;
+            note = note == null ? "" : note;
+        }
+
+        public Resolution(TargetKind kind, String error) {
+            this(kind, error, "");
+        }
+
         public boolean ok() {
             return kind != null;
         }
 
         static Resolution ok(TargetKind kind) {
             return new Resolution(kind, "");
+        }
+
+        static Resolution ok(TargetKind kind, String note) {
+            return new Resolution(kind, "", note);
         }
 
         static Resolution fail(String error) {
@@ -75,7 +91,8 @@ public final class SearchTargets {
         if (profile.strategies().isEmpty()) {
             return Resolution.fail("no search strategy for " + resolved.family() + " in " + dimension);
         }
-        return Resolution.ok(new TargetKind.BlockFamily(resolved.family(), resolved.blockIds(), profile));
+        String note = resolved.partial() ? "the source list is partial: " + resolved.reason() : "";
+        return Resolution.ok(new TargetKind.BlockFamily(resolved.family(), resolved.blockIds(), profile), note);
     }
 
     private static Resolution resolveStructure(TaskContext context, String target, String dimension) {

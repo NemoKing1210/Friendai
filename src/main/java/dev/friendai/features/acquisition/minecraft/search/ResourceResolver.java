@@ -1,10 +1,8 @@
 package dev.friendai.features.acquisition.minecraft.search;
 
-import dev.friendai.features.acquisition.Source;
-import dev.friendai.features.crafting.Station;
+import dev.friendai.features.acquisition.RecipeChain;
 import dev.friendai.features.crafting.minecraft.RecipeIndex;
 import dev.friendai.features.knowledge.search.ResourceFamily;
-import java.util.ArrayDeque;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -18,15 +16,36 @@ import net.minecraft.world.level.block.Block;
 public final class ResourceResolver {
     private ResourceResolver() {}
 
-    public record Resolution(Set<String> blockIds, String family, boolean executable, String reason) {
+    /**
+     * The blocks that can supply the resource, and how thoroughly the recipe walk covered it. A partial result keeps
+     * the blocks found so far; its reason names the bound that cut the walk.
+     */
+    public record Resolution(
+            Set<String> blockIds, String family, boolean executable, String reason, RecipeChain.Coverage coverage) {
         public Resolution {
             blockIds = Set.copyOf(blockIds);
             if (family == null || family.isBlank()) throw new IllegalArgumentException("family must not be blank");
             if (reason == null) reason = "";
+            if (coverage == null) {
+                coverage = executable ? RecipeChain.Coverage.COMPLETE : RecipeChain.Coverage.UNSUPPORTED;
+            }
+        }
+
+        public Resolution(Set<String> blockIds, String family, boolean executable, String reason) {
+            this(blockIds, family, executable, reason, null);
+        }
+
+        public boolean partial() {
+            return coverage == RecipeChain.Coverage.PARTIAL;
         }
     }
 
     public static Resolution resolve(ServerLevel level, String resource) {
+        return resolve(level, resource, RecipeChain.Policy.DEFAULT);
+    }
+
+    /** Resolves with an explicit walk policy; the default is what a resource lookup uses. */
+    public static Resolution resolve(ServerLevel level, String resource, RecipeChain.Policy policy) {
         if (resource == null || resource.isBlank())
             return new Resolution(Set.of(), "unknown", false, "resource is blank");
         String text = resource.strip();
@@ -36,7 +55,7 @@ public final class ResourceResolver {
         if (BuiltInRegistries.BLOCK.containsKey(id)) {
             String blockId = id.toString();
             if (crafted(level, blockId)) {
-                return resolveItem(level, blockId);
+                return resolveItem(level, blockId, policy);
             }
             return new Resolution(
                     Set.of(blockId), ResourceFamily.ofBlocks(Set.of(blockId)).orElse(blockId), true, "block id");
@@ -44,7 +63,7 @@ public final class ResourceResolver {
         if (!BuiltInRegistries.ITEM.containsKey(id)) {
             return new Resolution(Set.of(), id.toString(), false, "unknown block tag, block id or item id");
         }
-        return resolveItem(level, id.toString());
+        return resolveItem(level, id.toString(), policy);
     }
 
     private static Resolution resolveBlockTag(String text) {
@@ -64,49 +83,23 @@ public final class ResourceResolver {
                 blocks.isEmpty() ? "block tag has no registered members" : "block tag");
     }
 
-    private static Resolution resolveItem(ServerLevel level, String itemId) {
-        var drops = DropIndex.of(level);
-        var recipes = RecipeIndex.of(level);
-        Set<String> blocks = new LinkedHashSet<>();
-        Set<String> visited = new LinkedHashSet<>();
-        ArrayDeque<ItemDepth> pending = new ArrayDeque<>();
-        pending.add(new ItemDepth(itemId, 0));
-        boolean smelting = false;
-        while (!pending.isEmpty()) {
-            ItemDepth current = pending.removeFirst();
-            if (!visited.add(current.id()) || current.depth() > 5) continue;
-            boolean crafted = crafted(level, current.id());
-            for (Source source : drops.sourcesOf(current.id())) {
-                if (source instanceof Source.Mine mine) {
-                    // A placed block of a crafted item is not the source of the item: follow the recipe instead.
-                    if (!crafted || !mine.block().equals(current.id())) blocks.add(mine.block());
-                }
-                if (source instanceof Source.Harvest harvest) blocks.add(harvest.crop());
-            }
-            for (var recipe : recipes.producing(current.id())) {
-                if (recipe.station() == Station.FURNACE
-                        || recipe.station() == Station.SMOKER
-                        || recipe.station() == Station.BLAST_FURNACE
-                        || recipe.station() == Station.CAMPFIRE) smelting = true;
-                if (current.depth() < 5) {
-                    recipe.ingredients()
-                            .forEach(ingredient -> ingredient
-                                    .items()
-                                    .forEach(id -> pending.addLast(new ItemDepth(id, current.depth() + 1))));
-                }
-            }
+    private static Resolution resolveItem(ServerLevel level, String itemId, RecipeChain.Policy policy) {
+        RecipeChain.Result chain = RecipeChain.resolve(itemId, RecipeIndex.of(level), DropIndex.of(level), policy);
+        String reason;
+        if (!chain.executable()) {
+            reason = "no block source is indexed for this item";
+        } else if (chain.coverage() == RecipeChain.Coverage.PARTIAL) {
+            reason = "source chain resolved partially: " + chain.limit() + " cut the search short, so a deeper source "
+                    + "may exist";
+        } else {
+            reason = chain.smelting() ? "source chain includes smelting" : "source chain resolved";
         }
-        String reason = blocks.isEmpty()
-                ? "no block source is indexed for this item"
-                : smelting ? "source chain includes smelting" : "source chain resolved";
-        String family = ResourceFamily.ofBlocks(blocks).orElse(itemId);
-        return new Resolution(blocks, family, !blocks.isEmpty(), reason);
+        String family = ResourceFamily.ofBlocks(chain.blockIds()).orElse(itemId);
+        return new Resolution(chain.blockIds(), family, chain.executable(), reason, chain.coverage());
     }
 
     private static boolean crafted(ServerLevel level, String itemId) {
         return RecipeIndex.of(level).producing(itemId).stream()
                 .anyMatch(recipe -> !recipe.station().isCooking());
     }
-
-    private record ItemDepth(String id, int depth) {}
 }

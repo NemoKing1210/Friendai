@@ -813,3 +813,10 @@ The automated suite pins the text split and the layout arithmetic; the click, th
       search scope with its radius and time budget, and a step it has not located yet is marked as such.
 - [ ] As a trusted player, ask for the same plan with an expedition: the companion refuses in one line and offers the
       local search instead; the queued work afterwards uses the same scope the preview showed.
+
+## A bounded recipe source list (TODO 158)
+
+- [ ] Add a datapack recipe that reaches a valuable block through a chain more than five recipes deep, then ask
+      where the outer item comes from: the answer lists the shallow source it verified and says the list is partial.
+- [ ] Start a search for that item and let it fail: the reported result mentions the incomplete source list, and a
+      deeper walk after raising the reach finds the deep source.

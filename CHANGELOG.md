@@ -6,6 +6,13 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.232.4] - 2026-11-24
+
+### Fixed
+
+- Asking where a resource comes from now says when its recipe chain was too deep to finish: the answer keeps the sources it did verify and warns that others may exist, instead of reading as if nothing else could provide it.
+- A resource search that ends without a find now mentions that its source list was incomplete, so "can't get it here" no longer stands in for "I stopped looking".
+
 ## [0.232.3] - 2026-11-24
 
 ### Fixed

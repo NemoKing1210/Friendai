@@ -7,10 +7,15 @@ import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolRegistry;
+import dev.friendai.features.acquisition.RecipeChain;
 import dev.friendai.features.acquisition.minecraft.search.ResourceResolver;
+import dev.friendai.features.acquisition.minecraft.search.SearchTargets;
 import dev.friendai.features.knowledge.ResourceObservation;
+import dev.friendai.features.knowledge.search.TargetKind;
 import dev.friendai.features.memory.minecraft.tool.MemoryAccess;
 import dev.friendai.foundation.spatial.Pos;
+import dev.friendai.task.TaskContext;
+import java.util.Set;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -50,7 +55,8 @@ public final class ResourceToolsTests {
                 rawIron.blockIds().contains("minecraft:deepslate_iron_ore"),
                 "raw iron should resolve to deepslate iron ore");
         var ingot = ResourceResolver.resolve(h.getLevel(), "minecraft:iron_ingot");
-        h.assertTrue(ingot.reason().contains("smelting"), "iron ingot should explain smelting source");
+        h.assertTrue(
+                ingot.reason().contains("smelting"), "iron ingot should explain smelting source: " + ingot.reason());
 
         var logs = ResourceResolver.resolve(h.getLevel(), "#minecraft:logs");
         h.assertTrue(logs.executable(), logs.reason());
@@ -211,6 +217,52 @@ public final class ResourceToolsTests {
         var resolution = ResourceResolver.resolve(h.getLevel(), "minecraft:debug_stick");
         h.assertTrue(
                 !resolution.executable(), "an item without a block source must not be executable as a resource visit");
+        h.succeed();
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 60)
+    public void resourceCoverageNamesTheRecipeChainItCouldNotFinish(GameTestHelper h) {
+        GameTestSupport.platform(h, 12);
+        var owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.setOwner(owner.getUUID());
+        var level = h.getLevel();
+
+        // knowledge_book := coal | barrier <- structure_void <- jigsaw <- light <- structure_block <- diamond
+        var bounded = ResourceResolver.resolve(level, "minecraft:knowledge_book");
+        h.assertTrue(bounded.coverage() == RecipeChain.Coverage.PARTIAL, bounded.coverage() + ": " + bounded.reason());
+        h.assertTrue(bounded.executable(), "the shallow source is still usable: " + bounded.reason());
+        h.assertTrue(
+                bounded.blockIds().contains("minecraft:coal_ore"),
+                bounded.blockIds().toString());
+        h.assertTrue(
+                !bounded.blockIds().contains("minecraft:diamond_ore"),
+                "the deep branch must be cut, not quietly ignored: " + bounded.blockIds());
+        h.assertTrue(bounded.reason().contains("partially"), bounded.reason());
+
+        var wider = ResourceResolver.resolve(level, "minecraft:knowledge_book", new RecipeChain.Policy(8, 512));
+        h.assertTrue(wider.coverage() == RecipeChain.Coverage.COMPLETE, wider.coverage() + ": " + wider.reason());
+        h.assertTrue(
+                wider.blockIds().containsAll(Set.of("minecraft:coal_ore", "minecraft:diamond_ore")),
+                "a deeper walk must find the deeper source: " + wider.blockIds());
+
+        var target = SearchTargets.resolve(new TaskContext(companion, level), "resource", "minecraft:knowledge_book");
+        h.assertTrue(target.ok(), target.error());
+        h.assertTrue(target.note().contains("partial"), target.note());
+        h.assertTrue(
+                target.kind() instanceof TargetKind.BlockFamily family
+                        && family.blockIds().equals(bounded.blockIds()),
+                "the search must look for the sources the lookup could verify");
+
+        JsonObject args = new JsonObject();
+        args.addProperty("resource", "minecraft:knowledge_book");
+        var result = GameTestToolRegistry.create(companion, () -> 16, MemoryAccess.DISABLED)
+                .bind(companion)
+                .execute(
+                        new ToolCall("test", "known_resources", args, args.toString(), null),
+                        new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.TRUSTED));
+        h.assertTrue(!result.error(), result.content());
+        h.assertTrue(result.content().contains("\"coverage\":\"partial\""), result.content());
         h.succeed();
     }
 

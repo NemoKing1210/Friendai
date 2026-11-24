@@ -395,6 +395,7 @@ public final class ResourceTools implements FeatureToolContributor {
         response.addProperty("resource", resource);
         response.addProperty("scope", level.dimension().identifier().toString());
         response.addProperty("executable", resolution.executable());
+        response.addProperty("coverage", resolution.coverage().name().toLowerCase(java.util.Locale.ROOT));
         response.addProperty("reason", resolution.reason());
         response.addProperty("summary", ResourceKnowledgeText.summary(results, 600));
         JsonArray sites = new JsonArray();
