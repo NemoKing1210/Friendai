@@ -1087,7 +1087,10 @@ public final class CompanionBrain {
         Optional<PlannerInput> input;
         long troubledPlan = subject instanceof PlanSubject.TroubledPlan trouble ? trouble.planId() : 0L;
         try {
-            Optional<PlannerPort.Refusal> refusal = plannerPort.preflight(subject, turnCaller);
+            // What the player pointed at with this line is evidence a reference can be resolved from, exactly like
+            // the dialogue and the remembered facts; the port decides whether the line needs it.
+            UtteranceReferent pointed = turnReferent.orElse(null);
+            Optional<PlannerPort.Refusal> refusal = plannerPort.preflight(subject, turnCaller, pointed);
             if (refusal.isPresent()) {
                 PlannerPort.Refusal rejected = refusal.get();
                 observe(o -> o.onPlannerAttempt(new PlannerAttempt(subject, 1, "fallback", rejected.code(), 0L, 0L)));
@@ -1096,7 +1099,7 @@ public final class CompanionBrain {
                 requestStep(gen);
                 return;
             }
-            input = plannerPort.inputFor(subject, turnCaller, failure);
+            input = plannerPort.inputFor(subject, turnCaller, failure, pointed);
         } catch (RuntimeException e) {
             LOGGER.warn("Planner input failed", e);
             input = Optional.empty();

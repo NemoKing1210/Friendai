@@ -23,6 +23,10 @@ import java.util.function.UnaryOperator;
  * @param normalizers the documented argument aliases of those tools, keyed by tool name; a missing name means none.
  *     A normalizer executes in the planner's completion callback, off the server thread, so it must be pure and
  *     thread-safe.
+ * @param dialogue the delivered lines of the conversation with this requester, oldest first, each prefixed with its
+ *     speaker, so a follow-up such as "the second one" can be resolved; never a tool call or a tool result
+ * @param remembered the durable-memory block this requester may read, as the reply prompt builds it; empty when
+ *     memory is off, nothing is relevant, or the caller may see nothing
  */
 public record PlannerInput(
         Goal goal,
@@ -40,7 +44,48 @@ public record PlannerInput(
         long targetPlanId,
         String targetFingerprint,
         String pendingNodePath,
-        Map<String, UnaryOperator<JsonObject>> normalizers) {
+        Map<String, UnaryOperator<JsonObject>> normalizers,
+        List<String> dialogue,
+        String remembered) {
+    /** The shape without dialogue or memory evidence, preserving callers added before them. */
+    public PlannerInput(
+            Goal goal,
+            String world,
+            String toolDigest,
+            String knowledge,
+            Optional<String> queueState,
+            List<String> lessons,
+            String failure,
+            Map<String, JsonObject> schemas,
+            Set<String> allTools,
+            List<String> verified,
+            List<dev.friendai.agent.prompt.PromptSection> instructions,
+            int promptBudget,
+            long targetPlanId,
+            String targetFingerprint,
+            String pendingNodePath,
+            Map<String, UnaryOperator<JsonObject>> normalizers) {
+        this(
+                goal,
+                world,
+                toolDigest,
+                knowledge,
+                queueState,
+                lessons,
+                failure,
+                schemas,
+                allTools,
+                verified,
+                instructions,
+                promptBudget,
+                targetPlanId,
+                targetFingerprint,
+                pendingNodePath,
+                normalizers,
+                List.of(),
+                "");
+    }
+
     /** The shape without per-tool argument aliases, preserving callers added before them. */
     public PlannerInput(
             Goal goal,
@@ -215,7 +260,9 @@ public record PlannerInput(
                 targetPlanId,
                 targetFingerprint,
                 pendingNodePath,
-                normalizers);
+                normalizers,
+                dialogue,
+                remembered);
     }
 
     public PlannerInput {
@@ -230,6 +277,31 @@ public record PlannerInput(
         allTools = allTools == null ? Set.of() : Set.copyOf(allTools);
         verified = verified == null ? List.of() : List.copyOf(verified);
         normalizers = normalizers == null ? Map.of() : Map.copyOf(normalizers);
+        dialogue = dialogue == null ? List.of() : List.copyOf(dialogue);
+        remembered = remembered == null ? "" : remembered;
+    }
+
+    /** The same input with the conversation and durable-memory blocks the planner may ground a reference in. */
+    public PlannerInput withEvidence(List<String> dialogue, String remembered) {
+        return new PlannerInput(
+                goal,
+                world,
+                toolDigest,
+                knowledge,
+                queueState,
+                lessons,
+                failure,
+                schemas,
+                allTools,
+                verified,
+                instructions,
+                promptBudget,
+                targetPlanId,
+                targetFingerprint,
+                pendingNodePath,
+                normalizers,
+                dialogue,
+                remembered);
     }
 
     /** A prompt-only input, for tests and callers that never parse a reply. */

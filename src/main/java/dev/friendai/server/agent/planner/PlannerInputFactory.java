@@ -14,6 +14,7 @@ import dev.friendai.agent.plan.PlannerObjective;
 import dev.friendai.agent.plan.PlannerScope;
 import dev.friendai.agent.plan.PlannerToolDigest;
 import dev.friendai.agent.tools.ToolGroup;
+import dev.friendai.agent.turn.UtteranceReferent;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.queue.Job;
 import dev.friendai.execution.queue.JobQueue;
@@ -26,6 +27,7 @@ import dev.friendai.features.places.PlaceText;
 import dev.friendai.foundation.places.Place;
 import dev.friendai.infrastructure.config.ServerConfig;
 import dev.friendai.server.agent.CompanionPerception;
+import dev.friendai.server.agent.CompanionSession;
 import dev.friendai.server.agent.FreeTimeDriver;
 import dev.friendai.server.agent.perception.PerceptionContext;
 import dev.friendai.server.execution.tools.TaskToolDefinition;
@@ -57,6 +59,8 @@ public final class PlannerInputFactory {
     private final Supplier<ServerConfig> config;
     private final Supplier<List<String>> verifiedFacts;
     private final Supplier<FreeTimeService> freeTime;
+    /** Conversation and durable-memory evidence for one consultation, built by the same session that feeds the reply. */
+    private final CompanionSession.DialogueEvidence evidence;
 
     public PlannerInputFactory(
             CompanionEntity companion,
@@ -67,6 +71,28 @@ public final class PlannerInputFactory {
             Supplier<ServerConfig> config,
             Supplier<List<String>> verifiedFacts,
             Supplier<FreeTimeService> freeTime) {
+        this(
+                companion,
+                perception,
+                planTools,
+                places,
+                goals,
+                config,
+                verifiedFacts,
+                freeTime,
+                CompanionSession.DialogueEvidence.NONE);
+    }
+
+    public PlannerInputFactory(
+            CompanionEntity companion,
+            Supplier<PerceptionContext> perception,
+            Map<String, TaskToolDefinition> planTools,
+            Supplier<List<Place>> places,
+            Supplier<GoalBoard> goals,
+            Supplier<ServerConfig> config,
+            Supplier<List<String>> verifiedFacts,
+            Supplier<FreeTimeService> freeTime,
+            CompanionSession.DialogueEvidence evidence) {
         this.companion = companion;
         this.perception = perception;
         this.planTools = planTools;
@@ -75,6 +101,7 @@ public final class PlannerInputFactory {
         this.config = config;
         this.verifiedFacts = verifiedFacts;
         this.freeTime = freeTime;
+        this.evidence = evidence == null ? CompanionSession.DialogueEvidence.NONE : evidence;
     }
 
     /** Tools a subject must never plan with; only a free-time shift has any. */
@@ -84,20 +111,30 @@ public final class PlannerInputFactory {
 
     /** The input for one subject, or empty when its prerequisite is gone. */
     public Optional<PlannerInput> build(PlanSubject subject, Caller caller, String failure) {
+        return build(subject, caller, failure, null);
+    }
+
+    /**
+     * The input for one subject with what the player pointed at, when the turn captured it. The pointed target is
+     * current observation: it grounds "this block" or "there" in the same world block the reply prompt sees.
+     */
+    public Optional<PlannerInput> build(
+            PlanSubject subject, Caller caller, String failure, UtteranceReferent referent) {
         if (subject == null || caller == null) return Optional.empty();
         String reason = failure == null ? "" : failure;
-        if (subject instanceof PlanSubject.OwnerOrder order) return order(order, caller, reason);
+        if (subject instanceof PlanSubject.OwnerOrder order) return order(order, caller, reason, referent);
         if (subject instanceof PlanSubject.ActiveGoal goal) {
-            return goalObjective(subject, goal.goalId(), goal.unmet(), caller, reason);
+            return goalObjective(subject, goal.goalId(), goal.unmet(), caller, reason, referent);
         }
-        if (subject instanceof PlanSubject.TroubledPlan trouble) return plan(trouble, caller, reason);
-        if (subject instanceof PlanSubject.FreeTimeShift shift) return shift(shift, caller, reason);
+        if (subject instanceof PlanSubject.TroubledPlan trouble) return plan(trouble, caller, reason, referent);
+        if (subject instanceof PlanSubject.FreeTimeShift shift) return shift(shift, caller, reason, referent);
         return Optional.empty();
     }
 
-    private Optional<PlannerInput> order(PlanSubject.OwnerOrder subject, Caller caller, String failure) {
+    private Optional<PlannerInput> order(
+            PlanSubject.OwnerOrder subject, Caller caller, String failure, UtteranceReferent referent) {
         if (subject.text().isBlank()) return Optional.empty();
-        return Optional.of(base(subject, PlannerObjective.forOrder(subject.text()), caller, failure, 0L, ""));
+        return Optional.of(base(subject, PlannerObjective.forOrder(subject.text()), caller, failure, 0L, "", referent));
     }
 
     /**
@@ -105,29 +142,43 @@ public final class PlannerInputFactory {
      * names a goal whose plan is absent or has no queued work.
      */
     private Optional<PlannerInput> goalObjective(
-            PlanSubject subject, long goalId, List<String> unmet, Caller caller, String failure) {
+            PlanSubject subject,
+            long goalId,
+            List<String> unmet,
+            Caller caller,
+            String failure,
+            UtteranceReferent referent) {
         Goal goal = findGoal(goalId);
         if (goal == null || goal.status() != GoalStatus.ACTIVE) return Optional.empty();
-        return Optional.of(base(subject, PlannerObjective.forGoal(goal, unmet), caller, failure, 0L, ""));
+        return Optional.of(base(subject, PlannerObjective.forGoal(goal, unmet), caller, failure, 0L, "", referent));
     }
 
-    private Optional<PlannerInput> plan(PlanSubject.TroubledPlan subject, Caller caller, String failure) {
+    private Optional<PlannerInput> plan(
+            PlanSubject.TroubledPlan subject, Caller caller, String failure, UtteranceReferent referent) {
         PlanRecord plan = queue().plan(subject.planId()).orElse(null);
         if (plan == null) return Optional.empty();
         String reason = failure.isBlank() ? subject.failure() : failure;
         String pending = plan.cursor() == null ? "" : plan.cursor().pendingActionPath();
         return Optional.of(base(
-                subject, PlannerObjective.forPlan(plan, linkedGoal(plan.id())), caller, reason, plan.id(), pending));
+                subject,
+                PlannerObjective.forPlan(plan, linkedGoal(plan.id())),
+                caller,
+                reason,
+                plan.id(),
+                pending,
+                referent));
     }
 
-    private Optional<PlannerInput> shift(PlanSubject.FreeTimeShift subject, Caller caller, String failure) {
+    private Optional<PlannerInput> shift(
+            PlanSubject.FreeTimeShift subject, Caller caller, String failure, UtteranceReferent referent) {
         FreeTimeService service = freeTime == null ? null : freeTime.get();
         UUID owner = companion.ownerUuid();
         if (service == null || owner == null) return Optional.empty();
         FreeTime state = service.state(owner);
         Shift shift = state == null ? null : state.shift();
         if (shift == null || shift.id() != subject.shiftId()) return Optional.empty();
-        return Optional.of(base(subject, PlannerObjective.forShift(shift, lessons(state)), caller, failure, 0L, ""));
+        return Optional.of(
+                base(subject, PlannerObjective.forShift(shift, lessons(state)), caller, failure, 0L, "", referent));
     }
 
     private Optional<Goal> linkedGoal(long planId) {
@@ -148,7 +199,8 @@ public final class PlannerInputFactory {
             Caller caller,
             String failure,
             long targetPlanId,
-            String pendingNodePath) {
+            String pendingNodePath,
+            UtteranceReferent referent) {
         ServerConfig settings = config.get();
         boolean shift = subject instanceof PlanSubject.FreeTimeShift;
         Set<String> denied = denied(subject);
@@ -185,11 +237,20 @@ public final class PlannerInputFactory {
         String queue = QueueText.show(queue(), facts, null, 20, false);
         List<Place> known =
                 settings.places.enabled && caller.access().allows(AccessLevel.TRUSTED) ? places.get() : List.of();
+        // A follow-up that points back at the conversation or at what the companion remembers needs both blocks; they
+        // come from the session that already builds them for the reply prompt, so the planner can ground a reference
+        // without ever seeing more than the model would.
+        CompanionSession.Dialogue dialogue;
+        try {
+            dialogue = evidence.forCaller(caller, subject instanceof PlanSubject.OwnerOrder order ? order.text() : "");
+        } catch (RuntimeException unavailable) {
+            dialogue = CompanionSession.Dialogue.of(List.of(), "");
+        }
         // allTools is the parser's "known" list and stays the full usable set, while schemas is what this occasion may
         // actually use: a real tool outside a repair's scope is then reported as unusable, not as unknown.
         return new PlannerInput(
                 objective,
-                new CompanionPerception(companion, perception).describe(caller),
+                new CompanionPerception(companion, perception).describe(caller, Optional.ofNullable(referent)),
                 PlannerToolDigest.build(described),
                 PlaceText.planner(known, settings.places.plannerLimit),
                 Optional.of(queue),
@@ -203,7 +264,9 @@ public final class PlannerInputFactory {
                 targetPlanId,
                 targetPlanId == 0 ? "" : PlanFingerprint.of(queue(), targetPlanId),
                 pendingNodePath,
-                normalizers);
+                normalizers,
+                dialogue.dialogue(),
+                dialogue.remembered());
     }
 
     private JobQueue queue() {

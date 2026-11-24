@@ -6,6 +6,14 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.231.0] - 2026-11-24
+
+### Added
+
+- A follow-up like "build the second one over there" now reaches the planner with the conversation you had and what the companion remembers, plus the block you were looking at, so it builds the variant you discussed in the place you meant instead of guessing.
+- When nothing in the conversation, the companion's memory or what you are looking at settles what a follow-up refers to, the companion asks you one short question and queues nothing, rather than starting work on a target it invented.
+
+
 ## [0.230.5] - 2026-11-24
 
 ### Fixed

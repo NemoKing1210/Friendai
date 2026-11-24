@@ -80,6 +80,7 @@ class PlannerPromptTest {
         assertTrue(system.contains("do not repeat an approach that failed"));
         assertTrue(system.contains("\"type\":\"not\",\"condition\":{\"type\":\"has_item\""));
         assertTrue(system.contains("Never use a block or item id for near."));
+        assertTrue(system.contains("answer with a short question for the player"), system);
         assertTrue(system.contains("Enum values are closed"));
         assertTrue(system.contains("slot is mainhand, offhand, head, chest, legs or feet"));
         assertTrue(system.contains("local or expedition"));
@@ -193,5 +194,30 @@ class PlannerPromptTest {
                 PlannerInput.promptOnly(goal(), "Position: 1 2 3", "- jump {}", "", Optional.empty(), List.of(), ""),
                 text -> text);
         assertFalse(user.contains("Already verified"), user);
+    }
+
+    @Test
+    void dialogueAndRememberedFactsAreShownInOrderWhenTheyExist() {
+        PlannerInput in = PlannerInput.promptOnly(
+                        goal(), "Position: 1 2 3", "- jump {}", "", Optional.empty(), List.of(), "")
+                .withEvidence(List.of("Owner: build a tower of oak", "Companion: the first is done"), "material: oak");
+
+        String user = PlannerPrompt.user(in, text -> text);
+
+        assertTrue(user.contains("Dialogue so far, oldest first:"), user);
+        int first = user.indexOf("- Owner: build a tower of oak");
+        int second = user.indexOf("- Companion: the first is done");
+        assertTrue(first >= 0 && second > first, user);
+        assertTrue(user.contains("What you remember about the owner and this world:\nmaterial: oak"), user);
+    }
+
+    @Test
+    void anEmptyEvidenceSetAddsNoEmptySections() {
+        String user = PlannerPrompt.user(
+                PlannerInput.promptOnly(goal(), "Position: 1 2 3", "- jump {}", "", Optional.empty(), List.of(), "")
+                        .withEvidence(List.of(), "  "),
+                text -> text);
+        assertFalse(user.contains("Dialogue so far"), user);
+        assertFalse(user.contains("What you remember"), user);
     }
 }

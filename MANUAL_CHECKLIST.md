@@ -769,3 +769,16 @@ The automated suite pins the text split and the layout arithmetic; the click, th
   stops at its next tick boundary, nothing is mined or picked up afterwards, and the queue no longer lists it.
 - [ ] With a plan paused while the companion is already fetching for it, resume the plan: the same fetching task
   continues instead of being queued a second time, and the blocked step then runs.
+
+## A follow-up that points at the conversation (TODO 151)
+
+- [ ] Say "show me two designs for a small house" and answer with a description of each, then ask for "the second one,
+      over there" while looking at the spot: the companion builds the variant you discussed, at the block you are
+      looking at, and uses the material you said earlier without asking again.
+- [ ] Start a fresh conversation (or clear the transcript) and immediately say "build the second version over there"
+      with nothing else in view: the companion asks one short question about which one and where, and nothing is
+      queued or built before you answer.
+- [ ] Let a trusted player give the same unresolved follow-up: they get the question, not the owner's remembered
+      designs, and the reply does not repeat anything from the owner's private facts.
+- [ ] Ask the follow-up, then while the reply is still coming, clear the companion menu's transcript history and send
+      another line: the queued work follows the newer line, not the cleared one.

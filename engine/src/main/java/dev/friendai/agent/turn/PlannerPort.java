@@ -23,6 +23,14 @@ public interface PlannerPort {
         return Optional.empty();
     }
 
+    /**
+     * The same check for a turn that captured what the player pointed at. A port that needs the pointed target to
+     * know whether a reference can be resolved overrides this; the rest keep the plain behaviour.
+     */
+    default Optional<Refusal> preflight(PlanSubject subject, Caller caller, UtteranceReferent referent) {
+        return preflight(subject, caller);
+    }
+
     PlannerPort NONE = new PlannerPort() {
         @Override
         public Optional<PlannerInput> inputFor(PlanSubject subject, Caller caller, String failure) {
@@ -54,6 +62,15 @@ public interface PlannerPort {
      * that already ended.
      */
     Optional<PlannerInput> inputFor(PlanSubject subject, Caller caller, String failure);
+
+    /**
+     * The same input for a turn that captured what the player pointed at, so the planner sees it as current
+     * observation. Ports that cannot use it keep the plain behaviour.
+     */
+    default Optional<PlannerInput> inputFor(
+            PlanSubject subject, Caller caller, String failure, UtteranceReferent referent) {
+        return inputFor(subject, caller, failure);
+    }
 
     CompletableFuture<PlanProposal> propose(PlannerInput input);
 

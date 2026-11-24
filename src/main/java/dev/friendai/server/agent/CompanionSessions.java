@@ -9,6 +9,7 @@ import dev.friendai.agent.goal.GoalBoard;
 import dev.friendai.agent.goal.GoalService;
 import dev.friendai.agent.goal.GoalStatus;
 import dev.friendai.agent.llm.model.Message;
+import dev.friendai.agent.llm.model.Role;
 import dev.friendai.agent.llm.model.ToolCall;
 import dev.friendai.agent.llm.model.ToolSpec;
 import dev.friendai.agent.prompt.ContinuityPrompt;
@@ -1090,6 +1091,59 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                 toolCatalog);
         brain.setTradingTurnPort(session.tradingAuthority());
         brain.setRecentConversationSource((caller, limit) -> recentConversation(owner, caller, limit));
+        // The planner grounds a follow-up in the same delivered lines and the same visible facts the reply prompt
+        // uses, so "the second one" or "there" is resolved from evidence instead of guessed. A guest sees their own
+        // lines and their own facts only; a trusted player never sees the owner's private block.
+        session.dialogueEvidence((caller, playerText) -> {
+            List<Message> rows =
+                    recentConversation(owner, caller, dev.friendai.agent.turn.RecentConversationSource.BUDGET_MESSAGES);
+            // The line being planned is already the order itself; leaving its own echo in the dialogue would let a
+            // reference "resolve" from the sentence that makes it, so the current line is never evidence.
+            if (!rows.isEmpty()
+                    && playerText != null
+                    && !playerText.isBlank()
+                    && rows.get(rows.size() - 1).role() == Role.USER
+                    && playerText
+                            .strip()
+                            .equals(rows.get(rows.size() - 1).text().strip())) {
+                rows = rows.subList(0, rows.size() - 1);
+            }
+            List<String> spoken = new ArrayList<>();
+            for (Message message : rows) {
+                String prefix = message.role() == Role.USER
+                        ? (caller == null || owner.equals(caller.uuid()) ? "Owner: " : "Player: ")
+                        : "Companion: ";
+                spoken.add(prefix + message.text());
+            }
+            String remembered = "";
+            boolean memoryGrounds = false;
+            if (config.memory.enabled) {
+                MemoryBook book = memory.book(owner);
+                String selected = MemoryRetrieval.prompt(
+                        book,
+                        owner,
+                        caller,
+                        playerText,
+                        config.memory.retrievalSettings(),
+                        retrievalCache,
+                        gateways.redactor());
+                // Only a retrieval hit says memory speaks to this line. The render fallback below keeps the prompt
+                // whole, but a merely nonempty block (a language fact, say) grounds no reference.
+                memoryGrounds = !selected.isEmpty();
+                remembered = selected;
+                if (remembered.isEmpty()) {
+                    remembered = MemoryPromptRenderer.render(
+                            book,
+                            owner,
+                            caller,
+                            config.memory.limits(),
+                            config.memory.compactAtPercent,
+                            gateways.redactor());
+                }
+                if (MemoryPromptRenderer.NOTHING_REMEMBERED.equals(remembered)) remembered = "";
+            }
+            return CompanionSession.Dialogue.of(spoken, remembered, memoryGrounds);
+        });
         brain.setTradingPromptSource((caller, request) -> {
             if (caller.access() != AccessLevel.OWNER
                     || !owner.equals(caller.uuid())

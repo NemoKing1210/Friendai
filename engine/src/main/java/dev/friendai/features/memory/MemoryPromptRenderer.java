@@ -15,6 +15,8 @@ import java.util.UUID;
  */
 public final class MemoryPromptRenderer {
     private static final String HEADER = "Memory (ids in brackets; forget takes the id):";
+    /** The block a book with nothing readable renders; a caller that needs "is there any memory?" checks this. */
+    public static final String NOTHING_REMEMBERED = "Memory: nothing remembered yet.";
 
     private MemoryPromptRenderer() {}
 
@@ -49,7 +51,7 @@ public final class MemoryPromptRenderer {
             case GUEST -> addPlayerSection(parts, book, owner, caller.uuid(), ownerLabel, redactor);
         }
         if (parts.isEmpty()) {
-            return "Memory: nothing remembered yet.";
+            return NOTHING_REMEMBERED;
         }
         String counts = MemoryAudit.counts(book, owner, caller, limits, compactAtPercent);
         return HEADER + "\n" + counts + "\n" + String.join("\n", parts);

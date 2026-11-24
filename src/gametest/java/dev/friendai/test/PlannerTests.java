@@ -193,6 +193,69 @@ public class PlannerTests {
         });
     }
 
+    /**
+     * A first line that points at something the conversation never established ("the second version", "over
+     * there") is answered with a question, not planned: no planner request is spent, nothing is queued and the
+     * world is untouched. Once the transcript holds a delivered exchange, a line of the same shape is planned with
+     * that dialogue as the evidence that resolves it.
+     */
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 600)
+    public void an_order_whose_reference_nothing_grounds_is_questioned_not_planned(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
+        var server = h.getLevel().getServer();
+        ServerRuntime state = GameTestSupport.runtime(server);
+        CompanionSessions brains = state.sessions();
+        AtomicInteger asked = new AtomicInteger();
+        brains.setPlannerOverride(player.getUUID(), jumpPlanner(asked));
+        java.util.List<String> prompts = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+        brains.setGatewayOverride(player.getUUID(), (system, messages, tools) -> {
+            prompts.add(system);
+            return CompletableFuture.completedFuture(
+                    new LlmResponse("Which one do you mean?", List.of(), StopReason.END, new Usage(0, 0)));
+        });
+        CompanionEntity c = CompanionManager.get(server).summon(player);
+        var queue = c.executionCoordinator().queue();
+        int[] ticks = {0};
+        String[] phase = {"cold"};
+        brains.post(
+                player.getUUID(),
+                new BrainEvent.PlayerSaid(
+                        player.getUUID(),
+                        "Steve",
+                        "build the second version over there and bring me 16 oak planks",
+                        BrainEvent.Source.CHAT));
+        h.succeedWhen(() -> {
+            ticks[0]++;
+            if (phase[0].equals("cold")) {
+                h.assertTrue(
+                        prompts.stream().anyMatch(system -> system.contains("Ask the player one short question")),
+                        "the refusal reaches the model as a question to ask: " + prompts);
+                h.assertTrue(asked.get() == 0, "no planner request was spent, asked=" + asked.get());
+                h.assertTrue(queue.plans().isEmpty() && queue.jobs().isEmpty(), "nothing was queued");
+                h.assertTrue(queue.archives().isEmpty(), "nothing ran");
+                h.assertTrue(state.goals().board(player.getUUID()).primary().isEmpty(), "no goal was set");
+                var session = brains.find(player.getUUID()).orElse(null);
+                if (session != null && session.isThinking()) {
+                    h.assertTrue(false, "waiting for the question turn to settle");
+                }
+                phase[0] = "warm";
+                brains.post(
+                        player.getUUID(),
+                        new BrainEvent.PlayerSaid(
+                                player.getUUID(),
+                                "Steve",
+                                "the second one, same spot, and bring 8 oak planks",
+                                BrainEvent.Source.CHAT));
+                return;
+            }
+            h.assertTrue(asked.get() == 1, "the delivered dialogue now grounds the reference, asked=" + asked.get());
+            h.assertTrue(
+                    !queue.plans().isEmpty() || !queue.archives().isEmpty(),
+                    "the intended plan was queued: plans=" + queue.plans());
+        });
+    }
+
     @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 400)
     public void active_goal_planner_links_the_exact_goal(GameTestHelper h) {
         activeGoalPlan(h, false);

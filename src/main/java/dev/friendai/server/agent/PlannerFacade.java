@@ -98,7 +98,8 @@ final class PlannerFacade {
                 () -> goals.board(owner),
                 config,
                 session::verifiedFacts,
-                () -> freeTimeService);
+                () -> freeTimeService,
+                (caller, text) -> session.dialogueFor(caller, text));
     }
 
     /** Asks the owner's planner (or its test override) for a plan; may complete on any thread. */
@@ -196,6 +197,24 @@ final class PlannerFacade {
 
         @Override
         public Optional<PlannerPort.Refusal> preflight(dev.friendai.agent.plan.PlanSubject subject, Caller caller) {
+            return preflight(subject, caller, null);
+        }
+
+        @Override
+        public Optional<PlannerPort.Refusal> preflight(
+                dev.friendai.agent.plan.PlanSubject subject,
+                Caller caller,
+                dev.friendai.agent.turn.UtteranceReferent referent) {
+            if (subject instanceof dev.friendai.agent.plan.PlanSubject.OwnerOrder order
+                    && unresolvedReference(order, caller, referent)) {
+                debugLog(owner, "planner skipped: the order points at something no evidence resolves");
+                return Optional.of(new PlannerPort.Refusal(
+                        "unresolved-referent",
+                        "This order points at something the conversation does not establish (for example \"the "
+                                + "second one\" or \"there\"), and that cannot be guessed. Ask the player one short "
+                                + "question naming what is missing — which design, which place, which one — and queue "
+                                + "nothing until they answer."));
+            }
             if (subject instanceof dev.friendai.agent.plan.PlanSubject.TroubledPlan trouble) {
                 // Preflight the targeted frame with the same rule the patch itself enforces: a proposal that could not
                 // be applied must not cost a provider call or a replan attempt. The failure is still reported to the
@@ -228,13 +247,46 @@ final class PlannerFacade {
         @Override
         public Optional<PlannerInput> inputFor(
                 dev.friendai.agent.plan.PlanSubject subject, Caller caller, String failure) {
-            Optional<PlannerInput> input = factory.build(subject, consultCaller(subject, caller), failure);
+            return inputFor(subject, caller, failure, null);
+        }
+
+        @Override
+        public Optional<PlannerInput> inputFor(
+                dev.friendai.agent.plan.PlanSubject subject,
+                Caller caller,
+                String failure,
+                dev.friendai.agent.turn.UtteranceReferent referent) {
+            Optional<PlannerInput> input = factory.build(subject, consultCaller(subject, caller), failure, referent);
             if (input.isPresent()
                     && subject instanceof dev.friendai.agent.plan.PlanSubject.TroubledPlan trouble
                     && !hasLinkedGoal(trouble.planId())) {
                 session.planReplans().attempt(trouble.planId());
             }
             return input;
+        }
+
+        /**
+         * Whether the order depends on a reference nothing grounds. The dialogue and the remembered facts come from
+         * the same session blocks the reply prompt uses, so a reference is resolvable only from evidence the model
+         * would have had; a known place, or the block the player pointed at, grounds it too. Asking is the only
+         * honest answer when none of those exists, and no provider call is spent finding that out.
+         */
+        private boolean unresolvedReference(
+                dev.friendai.agent.plan.PlanSubject.OwnerOrder order,
+                Caller caller,
+                dev.friendai.agent.turn.UtteranceReferent referent) {
+            boolean hasPlaces = config.get().places.enabled
+                    && caller.access().allows(AccessLevel.TRUSTED)
+                    && !places.book(owner).all().isEmpty();
+            CompanionSession.Dialogue evidence = session.dialogueFor(caller, order.text());
+            return dev.friendai.agent.plan.PlanReferencePolicy.unresolved(
+                    order.text(),
+                    !evidence.dialogue().isEmpty(),
+                    // Only a retrieval hit proves memory speaks to this line; a block that merely exists (the
+                    // learned language, a player's nickname) settles nothing about "the second version".
+                    evidence.memoryGrounds(),
+                    hasPlaces,
+                    referent != null);
         }
 
         /**

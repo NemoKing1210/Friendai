@@ -6,6 +6,7 @@ import dev.friendai.agent.turn.LlmGateway;
 import dev.friendai.agent.turn.SkillTurnSession;
 import dev.friendai.agent.turn.Speaker;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.execution.tool.Caller;
 import dev.friendai.features.memory.MemoryBook;
 import dev.friendai.foundation.teaching.TeachingContext;
 import java.util.ArrayDeque;
@@ -120,6 +121,52 @@ public final class CompanionSession {
     /** The last verified outcome facts, newest first: the planner must not re-prove them. */
     List<String> verifiedFacts() {
         return List.copyOf(verifiedFacts);
+    }
+
+    /**
+     * The conversation evidence a planner may ground a reference in, asked for one principal and one line. Both
+     * blocks come from the session that already builds them for the reply prompt, so the planner never sees more
+     * than the model would.
+     */
+    @FunctionalInterface
+    public interface DialogueEvidence {
+        DialogueEvidence NONE = (caller, text) -> Dialogue.of(List.of(), "");
+
+        Dialogue forCaller(Caller caller, String playerText);
+    }
+
+    /** The evidence builder this session was created with; replaced when a companion binds its memory source. */
+    private DialogueEvidence dialogueEvidence = DialogueEvidence.NONE;
+
+    void dialogueEvidence(DialogueEvidence evidence) {
+        this.dialogueEvidence = evidence == null ? DialogueEvidence.NONE : evidence;
+    }
+
+    public Dialogue dialogueFor(Caller caller, String playerText) {
+        return dialogueEvidence.forCaller(caller, playerText);
+    }
+
+    /**
+     * What one planner call may use to resolve a reference.
+     *
+     * @param dialogue delivered lines with this requester, oldest first, each prefixed by its speaker
+     * @param remembered the durable-memory block for this requester
+     * @param memoryGrounds whether the retrieval found remembered facts that match what was just said; the block
+     *     itself always carries the full fallback, so only a match proves memory speaks to this line
+     */
+    public record Dialogue(List<String> dialogue, String remembered, boolean memoryGrounds) {
+        public Dialogue {
+            dialogue = dialogue == null ? List.of() : List.copyOf(dialogue);
+            remembered = remembered == null ? "" : remembered;
+        }
+
+        public static Dialogue of(List<String> dialogue, String remembered) {
+            return new Dialogue(dialogue, remembered, false);
+        }
+
+        public static Dialogue of(List<String> dialogue, String remembered, boolean memoryGrounds) {
+            return new Dialogue(dialogue, remembered, memoryGrounds);
+        }
     }
 
     void noteVerified(java.util.Collection<String> facts) {

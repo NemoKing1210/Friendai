@@ -29,6 +29,7 @@ public final class PlannerPrompt {
                 + "- When an action needs a carried item, state it with a has_item condition or guard instead of inventing a gathering chain; a missing guarded item can be repaired once.\n"
                 + "- If a failure is described, plan only the work that remains and fix its cause first.\n"
                 + "- Remembered resource locations are historical evidence, not guaranteed supply.\n"
+                + "- A reference in the goal (an ordinal, \"that design\", \"there\") is resolved only from the dialogue, the remembered facts and the current observation. Use the evidence that is listed; if it does not settle the reference, answer with a short question for the player instead of inventing a target.\n"
                 + "- Never invent tools, items or coordinates that the inputs do not support.";
     }
 
@@ -64,6 +65,17 @@ public final class PlannerPrompt {
             }
         }
         out.append("World:\n").append(in.world()).append('\n');
+        if (!in.dialogue().isEmpty()) {
+            out.append("Dialogue so far, oldest first:\n");
+            for (String line : in.dialogue()) {
+                out.append("- ").append(line).append('\n');
+            }
+        }
+        if (!in.remembered().isBlank()) {
+            out.append("What you remember about the owner and this world:\n")
+                    .append(in.remembered())
+                    .append('\n');
+        }
         if (!in.verified().isEmpty()) {
             out.append("Already verified by earlier tasks:\n");
             for (int i = 0; i < Math.min(8, in.verified().size()); i++) {
