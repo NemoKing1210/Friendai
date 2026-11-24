@@ -78,10 +78,12 @@ import dev.friendai.server.agent.tools.FriendaiTools;
 import dev.friendai.server.agent.tools.GoalToolAccess;
 import dev.friendai.server.agent.tools.ToolDependencies;
 import dev.friendai.server.configuration.ServerSettings;
+import dev.friendai.server.execution.ExecutionCoordinator.RepairPlan;
 import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.server.execution.persistence.TaskRestoreRegistry;
 import dev.friendai.server.execution.tools.QueueToolAccess;
 import dev.friendai.server.execution.tools.TaskToolDefinition;
+import dev.friendai.server.execution.tools.TaskToolRuntime;
 import dev.friendai.server.instructions.SkillService;
 import dev.friendai.task.TaskStatus;
 import java.util.ArrayList;
@@ -1197,10 +1199,15 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
         companion.executionCoordinator().setCommitsWorldEffects(retryRegistry::commitsWorldEffects);
         // A crash summary can reach a prompt or the owner, so it is masked with the same configured secrets.
         companion.executionCoordinator().setRedactor(gateways.redactor());
-        companion.executionCoordinator().setRepairFactory((context, args) -> {
+        companion.executionCoordinator().setRepairFactory((principal, args) -> {
             var definition = taskTools.get("obtain_item");
-            if (definition == null) throw new IllegalStateException("obtain_item is unavailable");
-            return definition.factory().create(context.companion(), args.deepCopy());
+            if (definition == null) return Optional.empty();
+            // Plan repair consent is permission to try a remedy inside the requester's own authority, never a way to
+            // borrow the companion's: the registered definition's minimum access is checked against the requester's
+            // live trust when the remedy is admitted and again when it activates, so a guest or a revoked trusted
+            // player starts no gathering work.
+            return Optional.of(new RepairPlan(
+                    TaskToolRuntime.principalStepFactory(definition, principal, args), definition.creativeSensitive()));
         });
         companion.executionCoordinator().setEventSink(new TaskEventSink() {
             @Override

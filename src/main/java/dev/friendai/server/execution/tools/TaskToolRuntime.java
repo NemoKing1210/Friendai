@@ -176,6 +176,33 @@ public final class TaskToolRuntime {
         };
     }
 
+    /**
+     * A queued step's factory for one principal and one set of arguments, resolved through the tool's own
+     * caller-aware admission. Automatic work that the companion inserts for itself (an idle repair, for example) uses
+     * this instead of the plain factory where the tool declares a minimum access: the requester is resolved from
+     * current trust data when the task is built and its access is re-checked before activation, exactly as for a job
+     * the owner queued by hand.
+     */
+    public static StepFactory principalStepFactory(TaskToolDefinition definition, UUID principal, JsonObject args) {
+        Objects.requireNonNull(definition, "task tool definition");
+        JsonObject fixedArgs = args == null ? new JsonObject() : args.deepCopy();
+        return new StepFactory() {
+            @Override
+            public Task create(TaskContext context) {
+                Caller caller = context.currentCaller(principal).withTradingScope(QueueTradeScope.read(fixedArgs));
+                return TaskToolRuntime.create(definition, context.companion(), caller, fixedArgs.deepCopy());
+            }
+
+            @Override
+            public boolean authorized(TaskContext context) {
+                // A caller without a UUID is an in-process owner-rights run (a manual tool call, a test): there is no
+                // owner or trust record that could have changed since the call passed the tool's own access gate.
+                if (principal == null) return true;
+                return context.currentCaller(principal).access().allows(definition.minAccess());
+            }
+        };
+    }
+
     /** A queued factory that re-checks the requester's current access when the job finally activates. */
     private static StepFactory guarded(
             QueueToolAccess access, TaskToolDefinition definition, UUID principal, JsonObject args) {

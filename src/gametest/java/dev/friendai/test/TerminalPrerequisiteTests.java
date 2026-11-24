@@ -9,10 +9,13 @@ import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.execution.queue.FailurePolicy;
 import dev.friendai.execution.queue.Guard;
 import dev.friendai.execution.queue.GuardAction;
+import dev.friendai.execution.queue.HoldKey;
 import dev.friendai.execution.queue.Job;
+import dev.friendai.execution.queue.JobState;
 import dev.friendai.execution.queue.PlanDefinition;
 import dev.friendai.execution.queue.PlanNode;
 import dev.friendai.execution.queue.PlanOptions;
+import dev.friendai.execution.queue.QueueHold;
 import dev.friendai.execution.queue.QueueText;
 import dev.friendai.execution.queue.QueuedStep;
 import dev.friendai.execution.tool.AccessLevel;
@@ -188,9 +191,7 @@ public final class TerminalPrerequisiteTests {
             runner.tick();
             Job skipped = runner.queue().job(gather).orElse(null);
             h.assertTrue(
-                    skipped != null
-                            && skipped.state() == dev.friendai.execution.queue.JobState.SKIPPED
-                            && started.contains("tidy"),
+                    skipped != null && skipped.state() == JobState.SKIPPED && started.contains("tidy"),
                     "waiting for the order-only step after its skipped prerequisite: " + started);
             h.assertValueEqual(skipped.result(), "no oak in reach", "the reason it was passed over is kept");
             h.assertTrue(!started.contains("place"), "the step needing the missing output did not run: " + started);
@@ -366,7 +367,8 @@ public final class TerminalPrerequisiteTests {
         GameTestSupport.platform(h, 8);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 300, () -> false);
-        runner.setRepairFactory((context, args) -> deliveringPlanks(context.companion()));
+        runner.setRepairFactory((principal, args) -> java.util.Optional.of(
+                new ExecutionCoordinator.RepairPlan(context -> deliveringPlanks(context.companion()), false)));
         JsonObject args = new JsonObject();
         args.addProperty("block", "minecraft:oak_planks");
         QueuedStep blocked = new QueuedStep(
@@ -406,5 +408,143 @@ public final class TerminalPrerequisiteTests {
             h.assertTrue(remedyId > 0 && runner.queue().job(remedyId).isEmpty(), "the finished remedy leaves");
             h.assertTrue(runner.queue().plan(planId).isEmpty(), "the plan finished");
         });
+    }
+
+    /** A guarded step that waits for one item, as the queue sees it. */
+    private static QueuedStep planksStep(java.util.UUID principal) {
+        JsonObject args = new JsonObject();
+        args.addProperty("block", "minecraft:oak_planks");
+        return new QueuedStep(
+                "place_block",
+                args,
+                null,
+                List.of(new Guard.HasItem("minecraft:oak_planks", 4)),
+                GuardAction.WAIT,
+                FailurePolicy.ASK,
+                1,
+                List.of(),
+                principal,
+                false);
+    }
+
+    @GameTest(maxTicks = 200)
+    public void aRevokedRequesterGetsNoGatheringWhileTheOwnersPlanStillDoes(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        var online = GameTestSupport.onlinePlayer(
+                h, "repair-owner-" + java.util.UUID.randomUUID().toString().substring(0, 8), 2, 2, 2);
+        ServerPlayer player = online.player();
+        var server = h.getLevel().getServer();
+        CompanionEntity companion = CompanionManager.get(server).summon(player);
+        // The production session installs the repair seam on the companion's coordinator.
+        GameTestSupport.runtime(server).sessions().currentPrompt(player.getUUID());
+        ExecutionCoordinator runner = companion.executionCoordinator();
+        java.util.UUID revoked = java.util.UUID.randomUUID();
+        long guestPlan = runner.enqueuePlan(
+                "the revoked plan", List.of(planksStep(revoked)), List.of(context -> quickTask()), PlanOptions.DEFAULT);
+        long ownerPlan = runner.enqueuePlan(
+                "the owner plan",
+                List.of(planksStep(player.getUUID())),
+                List.of(context -> quickTask()),
+                PlanOptions.DEFAULT);
+
+        for (int i = 0; i < 20; i++) runner.tick();
+
+        List<Job> remedies = runner.queue().jobs().stream()
+                .filter(job -> job.planId() == 0 && job.tool().equals("obtain_item"))
+                .toList();
+        h.assertTrue(runner.idleRepairAttempts() > 0, "the idle repair check ran");
+        h.assertValueEqual(runner.idleRepairInserted(), 1, "only the requester who may still use the tool is served");
+        h.assertTrue(
+                remedies.stream().noneMatch(job -> revoked.equals(job.principal())),
+                "no gathering on behalf of the revoked player: " + remedies);
+        h.assertTrue(
+                remedies.stream().anyMatch(job -> player.getUUID().equals(job.principal())),
+                "the owner's blocked step got its remedy: " + remedies);
+        h.assertTrue(
+                runner.queue().jobsOfPlan(guestPlan).stream().allMatch(job -> job.state() == JobState.PENDING),
+                "the revoked plan's step stayed waiting untouched");
+        h.assertTrue(!runner.queue().plan(ownerPlan).isEmpty(), "the owner plan continues");
+        h.succeed();
+    }
+
+    /** A remedy that counts the ticks it actually runs, so a hold stopping it is visible from outside. */
+    private static Task countingRemedy(int[] ticks) {
+        return new Task() {
+            @Override
+            public String type() {
+                return "remedy";
+            }
+
+            @Override
+            public void start(TaskContext context) {}
+
+            @Override
+            public TaskStatus tick(TaskContext context) {
+                ticks[0]++;
+                return TaskStatus.RUNNING;
+            }
+
+            @Override
+            public void stop(TaskContext context) {}
+
+            @Override
+            public String describe() {
+                return "gathering planks";
+            }
+
+            @Override
+            public String resultSummary() {
+                return "gathering";
+            }
+        };
+    }
+
+    @GameTest(maxTicks = 200)
+    public void aRemedyFollowsItsBlockedStepsHoldAndStopsWhenTheStepGoes(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 300, () -> false);
+        int[] remedyTicks = {0};
+        runner.setRepairFactory((principal, args) -> java.util.Optional.of(
+                new ExecutionCoordinator.RepairPlan(context -> countingRemedy(remedyTicks), false)));
+        long planId = runner.enqueuePlan(
+                "place planks", List.of(planksStep(null)), List.of(context -> quickTask()), PlanOptions.DEFAULT);
+        long blockedJob = runner.queue().jobsOfPlan(planId).getFirst().id();
+        long remedyId = 0;
+        for (int i = 0; i < 5 && remedyId == 0; i++) {
+            runner.tick();
+            remedyId = runner.queue().jobs().stream()
+                    .filter(job -> job.planId() == 0 && job.tool().equals("obtain_item"))
+                    .mapToLong(Job::id)
+                    .findFirst()
+                    .orElse(0);
+        }
+        h.assertTrue(remedyId > 0, "the blocked step got a remedy");
+        for (int i = 0; i < 2; i++) runner.tick();
+        h.assertTrue(remedyTicks[0] > 0, "the remedy is running: " + remedyTicks[0]);
+
+        runner.queue().setHold(HoldKey.plan(planId), QueueHold.pause("paused by the owner"));
+        runner.tick();
+        int atHold = remedyTicks[0];
+
+        h.assertTrue(runner.queue().job(remedyId).isPresent(), "the remedy is kept, not thrown away");
+        for (int i = 0; i < 5; i++) runner.tick();
+        h.assertValueEqual(remedyTicks[0], atHold, "its task froze at the hold boundary");
+        h.assertValueEqual(runner.idleRepairInserted(), 1, "a held plan starts no second remedy");
+
+        runner.queue().release(HoldKey.plan(planId));
+        for (int i = 0; i < 3; i++) runner.tick();
+
+        h.assertTrue(
+                remedyTicks[0] > atHold,
+                "the released remedy resumes rather than being recreated: " + remedyTicks[0] + " vs " + atHold);
+        h.assertValueEqual(runner.idleRepairInserted(), 1, "and it is not inserted twice");
+
+        runner.cancelPlan(planId, "cancelled by the owner");
+        runner.tick();
+
+        h.assertTrue(runner.queue().job(blockedJob).isEmpty(), "the cancelled step is archived with its plan");
+        h.assertTrue(runner.queue().job(remedyId).isEmpty(), "the remedy left with the step that needed it");
+        h.succeed();
     }
 }

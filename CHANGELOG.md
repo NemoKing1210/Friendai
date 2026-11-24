@@ -6,6 +6,16 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.230.5] - 2026-11-24
+
+### Fixed
+
+- A paused order no longer makes the companion fetch things on the side: while the plan or the step is held, no
+  gathering is started for it, and fetching already under way pauses with it and resumes from the same place.
+- A player whose trust was withdrawn no longer gets gathering or container access started for their order; the step
+  simply waits, and an order the owner can still run is served normally.
+- Cancelling a step now also stops the fetching started for it instead of letting it finish in the background.
+
 ## [0.230.4] - 2026-11-24
 
 ### Fixed

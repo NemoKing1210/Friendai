@@ -8,6 +8,8 @@ import dev.friendai.execution.TaskWorkResult;
 import dev.friendai.execution.log.TaskLogEvent;
 import dev.friendai.execution.log.TaskLogEvents;
 import dev.friendai.execution.queue.GuardFacts;
+import dev.friendai.execution.queue.HoldKey;
+import dev.friendai.execution.queue.IdleRepairPolicy;
 import dev.friendai.execution.queue.Job;
 import dev.friendai.execution.queue.JobQueue;
 import dev.friendai.execution.queue.JobState;
@@ -17,6 +19,7 @@ import dev.friendai.execution.queue.PlanNode;
 import dev.friendai.execution.queue.PlanOptions;
 import dev.friendai.execution.queue.PlanRecord;
 import dev.friendai.execution.queue.PlanStatus;
+import dev.friendai.execution.queue.QueueHold;
 import dev.friendai.execution.queue.QueuePolicy;
 import dev.friendai.execution.queue.QueueSave;
 import dev.friendai.execution.queue.QueueText;
@@ -83,7 +86,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
 
     private final TaskEventDispatcher events = new TaskEventDispatcher();
 
-    private java.util.function.BiFunction<TaskContext, JsonObject, Task> repairFactory;
+    private RepairSteps repairFactory;
     /** Rebuilds a task from the checkpoint its failed attempt saved, so a retry continues instead of repeating. */
     private CheckpointRestorer retryRestore;
     /** Whether a tool commits world effects before it finishes; the retry policy asks this about a crashed attempt. */
@@ -94,6 +97,14 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     private dev.friendai.task.structure.StructureBuilder structureBuilder =
             new dev.friendai.features.construction.minecraft.build.ConstructionStructureBuilder();
     private final java.util.Set<String> repairRequests = new java.util.HashSet<>();
+    /** Each live automatic remedy and the blocked step it exists for; bounded so a long run cannot grow it. */
+    private final java.util.LinkedHashMap<Long, RepairTarget> repairs = new java.util.LinkedHashMap<>();
+
+    /** Enough for every job a default queue can hold; beyond that the oldest entry is dropped, not the work. */
+    private static final int MAX_TRACKED_REPAIRS = 64;
+
+    private static final dev.friendai.execution.queue.ToolRepairRule REPAIR_TOOLS =
+            dev.friendai.execution.queue.ToolRepairRule.vanillaPickaxes();
     private int idleRepairAttempts;
     private int idleRepairInserted;
 
@@ -195,7 +206,24 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         return companion;
     }
 
-    public void setRepairFactory(java.util.function.BiFunction<TaskContext, JsonObject, Task> factory) {
+    /** The task factory of the tool that can supply a missing fact, and the creative authority it declares. */
+    public record RepairPlan(StepFactory factory, boolean creativeSensitive) {
+        public RepairPlan {
+            if (factory == null) throw new IllegalArgumentException("a repair needs a step factory");
+        }
+    }
+
+    /**
+     * How a pending job's unmet, repairable fact becomes a task: the admission gate and the task factory of the tool
+     * that can supply it, scoped to the blocked job's requester. A runner without one starts no automatic repair.
+     */
+    @FunctionalInterface
+    public interface RepairSteps {
+        /** The task to insert, or empty when the requester may not use the repair tool at all. */
+        Optional<RepairPlan> forCaller(java.util.UUID principal, JsonObject args);
+    }
+
+    public void setRepairFactory(RepairSteps factory) {
         this.repairFactory = factory;
     }
 
@@ -1026,6 +1054,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         if (activeTask() != null && activeTask().defaultActivity() && !mayFollowOwner.getAsBoolean())
             clearCurrentSilently();
         queueDriver.advanceClock();
+        reconcileRepairs();
         expireDeadlines();
         boolean hasStructuredPlan = false;
         for (PlanRecord plan : queueDriver.queue().plans())
@@ -1624,50 +1653,180 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     private boolean tryIdleRepair() {
         if (repairFactory == null) return false;
         idleRepairAttempts++;
-        var jobs = queueDriver.queue().jobs();
+        var queue = queueDriver.queue();
+        var jobs = queue.jobs();
         java.util.Set<Long> consent = new java.util.HashSet<>();
         for (Job job : jobs) {
             if (job.planId() > 0) {
-                queueDriver
-                        .queue()
-                        .plan(job.planId())
-                        .filter(plan -> plan.autoRepair())
-                        .ifPresent(plan -> consent.add(plan.id()));
+                queue.plan(job.planId()).filter(plan -> plan.autoRepair()).ifPresent(plan -> consent.add(plan.id()));
             }
         }
-        var selected = dev.friendai.execution.queue.IdleRepairPolicy.select(
-                jobs,
+        // Consent is permission to try a remedy within the requester's existing authority: a plan owned by a player
+        // who may no longer use the repair tool gets no gathering work started on their behalf, and its blocked step
+        // is skipped rather than hiding an eligible one further down the queue.
+        java.util.Map<Long, Optional<RepairPlan>> admitted = new java.util.HashMap<>();
+        var selected = IdleRepairPolicy.select(
+                queue,
                 facts(),
-                java.util.Set.of("obtain_item"),
+                java.util.Set.of(IdleRepairPolicy.REMEDY_TOOL),
                 consent,
-                dev.friendai.execution.queue.ToolRepairRule.vanillaPickaxes());
+                REPAIR_TOOLS,
+                repair -> repair.prerequisite() instanceof dev.friendai.execution.queue.PlanRepair.Item candidate
+                        && admitted.computeIfAbsent(
+                                        repair.blocked().id(),
+                                        ignored -> Optional.ofNullable(admit(repair.blocked(), argsFor(candidate))))
+                                .isPresent());
         if (selected.isEmpty()) return false;
         var repair = selected.get();
         if (!(repair.prerequisite() instanceof dev.friendai.execution.queue.PlanRepair.Item item)) return false;
-        if (!repairRequests.add(repair.blocked().id() + ":" + item.item())) return false;
-        JsonObject args = new JsonObject();
-        args.addProperty("item", item.item());
-        args.addProperty("count", item.count());
+        Job blocked = repair.blocked();
+        RepairPlan plan = admitted.get(blocked.id()).orElseThrow();
+        JsonObject args = argsFor(item);
+        String key = blocked.id() + ":" + item.item();
+        if (repairRequests.size() >= MAX_TRACKED_REPAIRS) pruneRepairRequests(facts());
+        if (!repairRequests.add(key)) return false;
         var step = new dev.friendai.execution.queue.QueuedStep(
-                "obtain_item",
+                dev.friendai.execution.queue.IdleRepairPolicy.REMEDY_TOOL,
                 args,
-                repair.blocked().priority(),
+                blocked.priority(),
                 java.util.List.of(),
                 dev.friendai.execution.queue.GuardAction.WAIT,
                 dev.friendai.execution.queue.FailurePolicy.ASK,
                 1,
-                java.util.List.of());
-        var result = queueDriver.queue().insertPrerequisite(repair.blocked().id(), step);
-        if (!result.ok()) return false;
-        long id = queueDriver.queue().jobs().stream()
-                .filter(job -> job.planId() == 0 && job.tool().equals("obtain_item"))
-                .mapToLong(Job::id)
-                .max()
-                .orElse(-1);
-        if (id < 0) return false;
-        queueDriver.addFactory(id, context -> repairFactory.apply(context, args));
+                java.util.List.of(),
+                blocked.principal(),
+                plan.creativeSensitive());
+        var result = queue.insertPrerequisite(blocked.id(), step);
+        if (!result.ok()) {
+            repairRequests.remove(key);
+            return false;
+        }
+        long id = queue.jobs().stream().mapToLong(Job::id).max().orElse(-1);
+        if (id < 0) {
+            repairRequests.remove(key);
+            return false;
+        }
+        queueDriver.addFactory(id, plan.factory());
+        repairs.put(id, new RepairTarget(blocked.id(), item.item(), false));
+        if (repairs.size() > MAX_TRACKED_REPAIRS) {
+            var oldest = repairs.keySet().iterator();
+            if (oldest.hasNext()) {
+                oldest.next();
+                oldest.remove();
+            }
+        }
         idleRepairInserted++;
         return true;
+    }
+
+    private static JsonObject argsFor(dev.friendai.execution.queue.PlanRepair.Item item) {
+        JsonObject args = new JsonObject();
+        args.addProperty("item", item.item());
+        args.addProperty("count", item.count());
+        return args;
+    }
+
+    /**
+     * Builds the remedy through the registered tool admission and the activation gates a queued step passes, or
+     * returns null when the requester may no longer run it.
+     */
+    private RepairPlan admit(Job blocked, JsonObject args) {
+        if (repairFactory == null) return null;
+        var admitted = repairFactory.forCaller(blocked.principal(), args.deepCopy());
+        if (admitted.isEmpty()) return null;
+        RepairPlan plan = admitted.get();
+        // The same gates a step the owner queued passes: current access, then the creative grant it declares.
+        CreativeActionContext actionContext = actionContext(blocked.principal(), plan.creativeSensitive());
+        if (!plan.factory().authorized(queueTaskContext(actionContext))) return null;
+        try {
+            requireCreativeAuthorization(blocked.principal(), plan.creativeSensitive());
+        } catch (RuntimeException refused) {
+            return null;
+        }
+        return plan;
+    }
+
+    /** One automatic remedy, the blocked step it exists for, and whether its hold was mirrored onto the remedy. */
+    private record RepairTarget(long blocked, String item, boolean inheritedHold) {}
+
+    /** The once-per-blocked-fact memory is bounded; a stale entry is dropped when its step moved on. */
+    private void pruneRepairRequests(GuardFacts facts) {
+        repairRequests.removeIf(key -> {
+            int colon = key.indexOf(':');
+            if (colon <= 0) return true;
+            Job blocked = queueDriver
+                    .queue()
+                    .job(Long.parseLong(key.substring(0, colon)))
+                    .orElse(null);
+            return blocked == null
+                    || blocked.state() != JobState.PENDING
+                    || !stillNeeds(blocked, key.substring(colon + 1), facts);
+        });
+    }
+
+    /**
+     * Keeps a remedy tied to the step that needs it. When that step is gone or settled the remedy is cancelled through
+     * the ordinary job path, so a running task stops at its own boundary. When the owner holds the step, the same hold
+     * is mirrored onto the remedy: the gathering work freezes at the boundary a hand-queued step would and resumes on
+     * release, instead of carrying on for a plan the owner paused.
+     */
+    private void reconcileRepairs() {
+        if (repairs.isEmpty()) return;
+        GuardFacts facts = null;
+        java.util.List<Long> cancel = new java.util.ArrayList<>();
+        java.util.List<String> reasons = new java.util.ArrayList<>();
+        var iterator = repairs.entrySet().iterator();
+        while (iterator.hasNext()) {
+            var entry = iterator.next();
+            long remedyId = entry.getKey();
+            Job remedy = queueDriver.queue().job(remedyId).orElse(null);
+            if (remedy == null || JobQueue.terminal(remedy)) {
+                iterator.remove();
+                continue;
+            }
+            RepairTarget target = entry.getValue();
+            Job blocked = queueDriver.queue().job(target.blocked()).orElse(null);
+            if (blocked == null || blocked.state() != JobState.PENDING) {
+                cancel.add(remedyId);
+                reasons.add("the step it was fetching for is no longer waiting");
+                repairRequests.remove(target.blocked() + ":" + target.item());
+                iterator.remove();
+                continue;
+            }
+            if (facts == null) facts = facts();
+            QueueHold hold = QueuePolicy.blockingHold(queueDriver.queue(), blocked, facts)
+                    .orElse(null);
+            if (hold != null
+                    && !hold.equals(
+                            queueDriver.queue().hold(HoldKey.job(remedyId)).orElse(null))) {
+                try {
+                    queueDriver.queue().setHold(HoldKey.job(remedyId), hold);
+                    entry.setValue(new RepairTarget(target.blocked(), target.item(), true));
+                } catch (IllegalArgumentException tooManyHolds) {
+                    // The hold table is full: stop the remedy rather than let it run for held work.
+                    cancel.add(remedyId);
+                    reasons.add("the step it was fetching for is held");
+                    repairRequests.remove(target.blocked() + ":" + target.item());
+                    iterator.remove();
+                }
+            } else if (hold == null && target.inheritedHold()) {
+                queueDriver.queue().release(HoldKey.job(remedyId));
+                entry.setValue(new RepairTarget(target.blocked(), target.item(), false));
+            }
+        }
+        for (int i = 0; i < cancel.size(); i++) cancelJob(cancel.get(i), reasons.get(i));
+    }
+
+    /** Whether this job still has the guard a remedy for {@code item} would satisfy. */
+    private static boolean stillNeeds(Job job, String item, GuardFacts facts) {
+        for (var guard : job.guards()) {
+            if (guard instanceof dev.friendai.execution.queue.Guard.HasItem has && item.equals(has.item()))
+                return has.evaluate(facts) == dev.friendai.execution.queue.Guard.Truth.FALSE;
+            if (guard instanceof dev.friendai.execution.queue.Guard.ToolAtLeast tool
+                    && item.equals(REPAIR_TOOLS.itemFor(tool.block()).orElse(null)))
+                return tool.evaluate(facts) == dev.friendai.execution.queue.Guard.Truth.FALSE;
+        }
+        return false;
     }
 
     void startDefault() {

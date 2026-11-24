@@ -10,96 +10,240 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class IdleRepairPolicyTest {
-    private static Job job(long id, String tool, Guard guard, JobState state, long planId) {
-        return new Job(
-                id,
-                planId,
-                tool,
-                new JsonObject(),
-                0,
-                false,
-                id,
-                state,
-                guard == null ? List.of() : List.of(guard),
-                GuardAction.WAIT,
-                FailurePolicy.ASK,
-                1,
-                0,
-                List.of(),
-                "",
-                0);
+    private static final GuardFacts FACTS = new FakeGuardFacts(Map.of(), 0, 1f, 0, Map.of(), "minecraft:overworld");
+
+    private static QueuedStep step(String tool, Guard... guards) {
+        return new QueuedStep(
+                tool, new JsonObject(), null, List.of(guards), GuardAction.WAIT, FailurePolicy.ASK, 1, List.of());
+    }
+
+    private static QueuedStep remedy(String item) {
+        JsonObject args = new JsonObject();
+        args.addProperty("item", item);
+        args.addProperty("count", 4);
+        return new QueuedStep("obtain_item", args, null, List.of(), GuardAction.WAIT, FailurePolicy.ASK, 1, List.of());
+    }
+
+    private static Set<Long> consent(JobQueue q) {
+        return Set.of(q.plans().getFirst().id());
     }
 
     @Test
     void aMissingGuardedItemSelectsOneBoundedRepair() {
-        Job blocked = job(2, "place_block", new Guard.HasItem("minecraft:oak_planks", 4), JobState.PENDING, 7);
-        var repair = IdleRepairPolicy.select(List.of(blocked), FACTS, Set.of("obtain_item"), Set.of(7L))
+        JobQueue q = new JobQueue(QueueLimits.DEFAULTS);
+        var added = q.addPlan(
+                "place planks",
+                List.of(step("place_block", new Guard.HasItem("minecraft:oak_planks", 4))),
+                PlanOptions.DEFAULT);
+
+        var repair = IdleRepairPolicy.select(q, FACTS, Set.of("obtain_item"), consent(q))
                 .orElseThrow();
-        assertEquals(2, repair.blocked().id());
+
+        assertEquals(added.jobIds().getFirst(), repair.blocked().id());
         assertEquals("obtain_item", repair.remedyTool());
         assertEquals("4 minecraft:oak_planks", repair.prerequisite().describe());
     }
 
     @Test
     void aToolGuardSelectsTheMappedPickaxe() {
-        Job blocked = job(2, "mine_blocks", new Guard.ToolAtLeast("minecraft:iron_ore"), JobState.PENDING, 7);
+        JobQueue q = new JobQueue(QueueLimits.DEFAULTS);
+        q.addPlan(
+                "mine ore",
+                List.of(step("mine_blocks", new Guard.ToolAtLeast("minecraft:iron_ore"))),
+                PlanOptions.DEFAULT);
+
         var repair = IdleRepairPolicy.select(
-                        List.of(blocked),
-                        withoutTool(),
-                        Set.of("obtain_item"),
-                        Set.of(7L),
-                        ToolRepairRule.vanillaPickaxes())
+                        q, withoutTool(), Set.of("obtain_item"), consent(q), ToolRepairRule.vanillaPickaxes())
                 .orElseThrow();
+
         assertEquals("1 minecraft:stone_pickaxe", repair.prerequisite().describe());
     }
 
     @Test
     void anExistingRemedyIsNotDuplicated() {
-        Job blocked = job(2, "place_block", new Guard.HasItem("minecraft:oak_planks", 4), JobState.PENDING, 7);
-        JsonObject remedyArgs = new JsonObject();
-        remedyArgs.addProperty("item", "minecraft:oak_planks");
-        Job remedy = new Job(
-                3,
-                0,
-                "obtain_item",
-                remedyArgs,
-                0,
-                false,
-                3,
-                JobState.PENDING,
-                List.of(),
-                GuardAction.WAIT,
-                FailurePolicy.ASK,
-                1,
-                0,
-                List.of(),
-                "",
-                0);
-        assertTrue(IdleRepairPolicy.select(List.of(blocked, remedy), FACTS, Set.of("obtain_item"), Set.of(7L))
+        JobQueue q = new JobQueue(QueueLimits.DEFAULTS);
+        q.addDirect(remedy("minecraft:oak_planks"));
+        q.addPlan(
+                "place planks",
+                List.of(step("place_block", new Guard.HasItem("minecraft:oak_planks", 4))),
+                PlanOptions.DEFAULT);
+
+        assertTrue(IdleRepairPolicy.select(q, FACTS, Set.of("obtain_item"), consent(q))
                 .isEmpty());
     }
 
     @Test
     void runningJobsAndPlansWithoutConsentAreIgnored() {
-        Job running = job(1, "place_block", new Guard.HasItem("minecraft:oak_planks", 4), JobState.RUNNING, 7);
-        Job noConsent = job(2, "place_block", new Guard.HasItem("minecraft:oak_planks", 4), JobState.PENDING, 8);
-        assertTrue(IdleRepairPolicy.select(List.of(running, noConsent), FACTS, Set.of("obtain_item"), Set.of(7L))
+        JobQueue q = new JobQueue(QueueLimits.DEFAULTS);
+        var busy = q.addPlan(
+                "busy",
+                List.of(step("place_block", new Guard.HasItem("minecraft:oak_planks", 4))),
+                PlanOptions.DEFAULT);
+        q.markRunning(busy.jobIds().getFirst());
+        q.addPlan(
+                "no consent",
+                List.of(step("place_block", new Guard.HasItem("minecraft:oak_planks", 4))),
+                PlanOptions.DEFAULT);
+
+        assertTrue(IdleRepairPolicy.select(q, FACTS, Set.of("obtain_item"), Set.of(busy.planId()))
                 .isEmpty());
     }
 
     @Test
     void theHighestPriorityBlockedJobWinsDeterministically() {
-        Job low = job(5, "place_block", new Guard.HasItem("minecraft:dirt", 1), JobState.PENDING, 7);
-        Job high = job(9, "place_block", new Guard.HasItem("minecraft:stone", 2), JobState.PENDING, 7);
-        var repair = IdleRepairPolicy.select(List.of(low, high), FACTS, Set.of("obtain_item"), Set.of(7L))
+        JobQueue q = new JobQueue(QueueLimits.DEFAULTS);
+        QueuedStep low = new QueuedStep(
+                "place_block",
+                new JsonObject(),
+                1,
+                List.of(new Guard.HasItem("minecraft:dirt", 1)),
+                GuardAction.WAIT,
+                FailurePolicy.ASK,
+                1,
+                List.of());
+        QueuedStep high = new QueuedStep(
+                "place_block",
+                new JsonObject(),
+                9,
+                List.of(new Guard.HasItem("minecraft:stone", 2)),
+                GuardAction.WAIT,
+                FailurePolicy.ASK,
+                1,
+                List.of());
+        var added = q.addPlan("mixed", List.of(low, high), PlanOptions.DEFAULT);
+
+        var repair = IdleRepairPolicy.select(q, FACTS, Set.of("obtain_item"), consent(q))
                 .orElseThrow();
-        assertEquals(5, repair.blocked().id());
+
+        assertEquals(added.jobIds().get(1), repair.blocked().id());
     }
 
-    /** No carried items and no stations: a definite missing for has_item. */
-    private static final GuardFacts FACTS = new FakeGuardFacts(Map.of(), 0, 1f, 0, Map.of(), "minecraft:overworld");
+    @Test
+    void aJobAlreadyWaitingOnItsRemedyIsNotRepairedAgain() {
+        JobQueue q = new JobQueue(QueueLimits.DEFAULTS);
+        long blocked = q.addPlan(
+                        "place planks",
+                        List.of(step("place_block", new Guard.HasItem("minecraft:oak_planks", 4))),
+                        PlanOptions.DEFAULT)
+                .jobIds()
+                .getFirst();
+        assertTrue(q.insertPrerequisite(blocked, remedy("minecraft:oak_planks")).ok());
 
-    /** The same pass, with the tool check confirmed unmet rather than unknown: the only state a repair may act on. */
+        assertTrue(IdleRepairPolicy.select(q, FACTS, Set.of("obtain_item"), consent(q))
+                .isEmpty());
+    }
+
+    @Test
+    void aFailedRemedyStaysAsTheOwnerVisibleBlockerInsteadOfRepeating() {
+        JobQueue q = new JobQueue(QueueLimits.DEFAULTS);
+        long blocked = q.addPlan(
+                        "place planks",
+                        List.of(step("place_block", new Guard.HasItem("minecraft:oak_planks", 4))),
+                        PlanOptions.DEFAULT)
+                .jobIds()
+                .getFirst();
+        assertTrue(q.insertPrerequisite(blocked, remedy("minecraft:oak_planks")).ok());
+        long remedy = q.jobs().stream()
+                .filter(job -> job.planId() == 0 && job.tool().equals("obtain_item"))
+                .mapToLong(Job::id)
+                .findFirst()
+                .orElseThrow();
+        q.fail(remedy, "nothing nearby");
+
+        assertTrue(IdleRepairPolicy.select(q, FACTS, Set.of("obtain_item"), consent(q))
+                .isEmpty());
+    }
+
+    @Test
+    void aHeldJobIsNotRepaired() {
+        JobQueue q = new JobQueue(QueueLimits.DEFAULTS);
+        var added = q.addPlan(
+                "place planks",
+                List.of(step("place_block", new Guard.HasItem("minecraft:oak_planks", 4))),
+                PlanOptions.DEFAULT);
+        q.setHold(HoldKey.plan(added.planId()), QueueHold.pause("paused by the owner"));
+
+        assertTrue(IdleRepairPolicy.select(q, FACTS, Set.of("obtain_item"), consent(q))
+                .isEmpty());
+    }
+
+    @Test
+    void aJobWaitingOutItsRetryDelayIsNotRepaired() {
+        JobQueue q = new JobQueue(QueueLimits.DEFAULTS);
+        QueuedStep retrying = new QueuedStep(
+                "place_block",
+                new JsonObject(),
+                null,
+                List.of(new Guard.HasItem("minecraft:oak_planks", 4)),
+                GuardAction.WAIT,
+                FailurePolicy.ASK,
+                2,
+                List.of());
+        long blocked = q.addPlan("place planks", List.of(retrying), PlanOptions.DEFAULT)
+                .jobIds()
+                .getFirst();
+        q.markRunning(blocked);
+        q.fail(blocked, "no room");
+
+        assertTrue(IdleRepairPolicy.select(q, FACTS, Set.of("obtain_item"), consent(q))
+                .isEmpty());
+    }
+
+    @Test
+    void aSecondUnmetGuardKeepsTheStepWaitingInsteadOfGatheringForNothing() {
+        JobQueue q = new JobQueue(QueueLimits.DEFAULTS);
+        q.addPlan(
+                "wait for dawn",
+                List.of(step("place_block", new Guard.TimeElapsed(100), new Guard.HasItem("minecraft:oak_planks", 4))),
+                PlanOptions.DEFAULT);
+
+        assertTrue(IdleRepairPolicy.select(q, FACTS, Set.of("obtain_item"), consent(q))
+                .isEmpty());
+    }
+
+    @Test
+    void aPlanWaitingForTheOwnerIsNotRepaired() {
+        JobQueue q = new JobQueue(QueueLimits.DEFAULTS);
+        var added = q.addPlan(
+                "two steps",
+                List.of(step("give_items"), step("place_block", new Guard.HasItem("minecraft:oak_planks", 4))),
+                PlanOptions.DEFAULT);
+        long first = added.jobIds().getFirst();
+        q.markRunning(first);
+        q.fail(first, "owner is away");
+
+        assertEquals(PlanStatus.NEEDS_DECISION, QueuePolicy.planStatus(q, added.planId()));
+        assertTrue(IdleRepairPolicy.select(q, FACTS, Set.of("obtain_item"), consent(q))
+                .isEmpty());
+    }
+
+    @Test
+    void aRefusedRepairDoesNotHideTheNextEligibleOne() {
+        JobQueue q = new JobQueue(QueueLimits.DEFAULTS);
+        var refused = q.addPlan(
+                "the revoked plan",
+                List.of(step("place_block", new Guard.HasItem("minecraft:dirt", 4))),
+                PlanOptions.DEFAULT);
+        var allowed = q.addPlan(
+                "the owner plan",
+                List.of(step("place_block", new Guard.HasItem("minecraft:oak_planks", 4))),
+                PlanOptions.DEFAULT);
+
+        var repair = IdleRepairPolicy.select(
+                        q,
+                        FACTS,
+                        Set.of("obtain_item"),
+                        Set.of(refused.planId(), allowed.planId()),
+                        null,
+                        candidate ->
+                                candidate.blocked().id() == allowed.jobIds().getFirst())
+                .orElseThrow();
+
+        assertEquals(allowed.jobIds().getFirst(), repair.blocked().id());
+        assertEquals("4 minecraft:oak_planks", repair.prerequisite().describe());
+        assertTrue(refused.jobIds().getFirst() != repair.blocked().id(), "the refused step was skipped");
+    }
+
     private static GuardFacts withoutTool() {
         return new GuardFacts() {
             public int countItems(String idOrTag) {
@@ -130,49 +274,5 @@ class IdleRepairPolicyTest {
                 return false;
             }
         };
-    }
-
-    @Test
-    void aJobAlreadyWaitingOnItsRemedyIsNotRepairedAgain() {
-        Job blocked = job(2, "place_block", new Guard.HasItem("minecraft:oak_planks", 4), JobState.PENDING, 7);
-        JsonObject remedyArgs = new JsonObject();
-        remedyArgs.addProperty("item", "minecraft:oak_planks");
-        Job remedy = new Job(
-                3,
-                0,
-                "obtain_item",
-                remedyArgs,
-                0,
-                false,
-                3,
-                JobState.FAILED,
-                List.of(),
-                GuardAction.WAIT,
-                FailurePolicy.ASK,
-                1,
-                1,
-                List.of(),
-                "nothing nearby",
-                0);
-        Job waiting = new Job(
-                2,
-                7,
-                "place_block",
-                new JsonObject(),
-                0,
-                false,
-                2,
-                JobState.PENDING,
-                List.of(new Guard.HasItem("minecraft:oak_planks", 4)),
-                GuardAction.WAIT,
-                FailurePolicy.ASK,
-                1,
-                0,
-                List.of(3L),
-                "",
-                0);
-
-        assertTrue(IdleRepairPolicy.select(List.of(waiting, remedy), FACTS, Set.of("obtain_item"), Set.of(7L))
-                .isEmpty());
     }
 }

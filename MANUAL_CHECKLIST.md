@@ -756,3 +756,16 @@ The automated suite pins the text split and the layout arithmetic; the click, th
 - [ ] Queue an order whose first step gathers something unavailable (or right-click Skip on it) followed by a step that needs that same item: the first is reported as left out with its reason, the later step stays queued and says what it is still waiting for, and nothing is started to fake the missing item.
 - [ ] Queue the same order with a later step that only had to come after the first: it runs normally, and the finished report lists the skipped step separately from what the other steps did.
 - [ ] Skip a step, then read the plan in the queue list and again after a reload: both show the same "omitted" line, and a step that never ran is not listed among the results.
+
+## Automatic fetching for a blocked step (TODO 150)
+
+- [ ] Queue a plan with repair consent whose step needs an item the companion lacks, then pause the plan from the
+  companion menu before the fetching starts: no gathering starts, the plan shows as paused, and the step does not
+  quietly fetch on the side.
+- [ ] Let a trusted player queue a plan that needs an item, then revoke that player's trust while the companion is
+  idle: no gathering or container access starts on their behalf, the step stays waiting, and the queue does not blame
+  the owner's own orders.
+- [ ] Let the companion start fetching for a blocked step, then cancel the blocked step (or its plan): the fetching
+  stops at its next tick boundary, nothing is mined or picked up afterwards, and the queue no longer lists it.
+- [ ] With a plan paused while the companion is already fetching for it, resume the plan: the same fetching task
+  continues instead of being queued a second time, and the blocked step then runs.

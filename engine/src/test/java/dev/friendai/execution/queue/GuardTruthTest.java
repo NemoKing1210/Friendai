@@ -314,14 +314,13 @@ class GuardTruthTest {
                 FailurePolicy.ASK,
                 1,
                 List.of()));
-        List<Job> jobs = List.copyOf(queue.jobs());
         assertTrue(
-                IdleRepairPolicy.select(jobs, facts, Set.of("obtain_item"), Set.of(), ToolRepairRule.vanillaPickaxes())
+                IdleRepairPolicy.select(queue, facts, Set.of("obtain_item"), Set.of(), ToolRepairRule.vanillaPickaxes())
                         .isEmpty(),
                 "an unreadable tool check is not a missing tool");
         facts.canHarvest = false;
         assertTrue(
-                IdleRepairPolicy.select(jobs, facts, Set.of("obtain_item"), Set.of(), ToolRepairRule.vanillaPickaxes())
+                IdleRepairPolicy.select(queue, facts, Set.of("obtain_item"), Set.of(), ToolRepairRule.vanillaPickaxes())
                         .isPresent(),
                 "a confirmed missing tool is repaired");
     }

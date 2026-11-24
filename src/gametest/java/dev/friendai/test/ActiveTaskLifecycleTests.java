@@ -942,7 +942,8 @@ public class ActiveTaskLifecycleTests {
         GameTestSupport.platform(h, 8);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 300, () -> false);
-        runner.setRepairFactory((context, args) -> new NoopTask());
+        runner.setRepairFactory((principal, args) ->
+                java.util.Optional.of(new ExecutionCoordinator.RepairPlan(context -> new NoopTask(), false)));
         QueuedStep blocked = new QueuedStep(
                 "mine_blocks",
                 new JsonObject(),
@@ -1048,7 +1049,8 @@ public class ActiveTaskLifecycleTests {
         GameTestSupport.platform(h, 8);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
         ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 300, () -> false);
-        runner.setRepairFactory((context, args) -> new NoopTask());
+        runner.setRepairFactory((principal, args) ->
+                java.util.Optional.of(new ExecutionCoordinator.RepairPlan(context -> new NoopTask(), false)));
         JsonObject args = new JsonObject();
         args.addProperty("block", "minecraft:oak_planks");
         QueuedStep blocked = new QueuedStep(
