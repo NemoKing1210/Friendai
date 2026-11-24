@@ -1097,6 +1097,7 @@
   "friendai.menu.feeling.empty": "Ainda não há nada para mostrar.",
   "friendai.menu.goal.hint": "Objetivo ativo",
   "friendai.menu.goal.update": "Atualizar objetivo",
+  "friendai.menu.goal.refused": "Meta não salva: a meta mudou ou não existe mais.",
   "friendai.command.pause.on": "Parado: o companheiro deixa de começar trabalho até você retomar.",
   "friendai.command.pause.off": "O companheiro pode trabalhar de novo.",
   "friendai.command.pause.none": "Você não tem um companheiro para parar.",

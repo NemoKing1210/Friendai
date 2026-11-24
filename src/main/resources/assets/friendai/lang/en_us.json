@@ -1097,6 +1097,7 @@
   "friendai.menu.feeling.empty": "Nothing to show yet.",
   "friendai.menu.goal.hint": "Active goal",
   "friendai.menu.goal.update": "Update goal",
+  "friendai.menu.goal.refused": "Goal not saved: the goal changed or no longer exists.",
   "friendai.command.pause.on": "Hold still: the companion stops starting work until you resume.",
   "friendai.command.pause.off": "The companion may work again.",
   "friendai.command.pause.none": "You have no companion to hold.",

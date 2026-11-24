@@ -150,15 +150,21 @@ public final class CompanionRequestHandler {
         } else if (request instanceof ControlRequest.SetPaused paused) {
             companions.find(owner).ifPresent(c -> c.executionCoordinator().setManualPause(paused.paused()));
         } else if (request instanceof ControlRequest.UpdateGoal edit) {
-            // The owner owns their goals: the id is checked by the board, and a blank text is refused there too.
-            runtime.goals()
-                    .board(owner)
-                    .update(
+            // The owner owns their goals, and the same mutation the model's tools use persists the edit: a refused
+            // one leaves the board and the file untouched and is named back to the panel's owner.
+            var goals = runtime.goals();
+            var result = edit.text().isBlank()
+                    ? dev.friendai.agent.goal.GoalResult.<dev.friendai.agent.goal.Goal>fail("blank text")
+                    : goals.update(
+                            owner,
                             edit.goalId(),
-                            edit.text().isBlank() ? java.util.Optional.empty() : java.util.Optional.of(edit.text()),
+                            java.util.Optional.of(edit.text()),
                             java.util.Optional.empty(),
                             java.util.Optional.empty(),
                             java.util.Optional.empty());
+            if (!result.ok()) {
+                player.sendSystemMessage(Component.translatable("friendai.menu.goal.refused"));
+            }
         } else if (request instanceof ControlRequest.QueueEdit edit) {
             companions.find(owner).ifPresent(c -> {
                 var q = c.executionCoordinator().queue();

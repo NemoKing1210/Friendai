@@ -157,7 +157,8 @@ public final class GoalTools implements FeatureToolContributor {
                     if (!due.ok()) {
                         return ToolResult.error(due.error());
                     }
-                    GoalResult<Goal> result = board.update(
+                    GoalResult<Goal> result = goals.update(
+                            owner,
                             args.get("id").getAsLong(),
                             args.has("text") ? Optional.of(args.get("text").getAsString()) : Optional.empty(),
                             criteria,
@@ -283,7 +284,10 @@ public final class GoalTools implements FeatureToolContributor {
         }
         GoalService goals = access.goals(level);
         ToolResult result = action.run(owner, goals, goals.board(owner));
-        goals.save(owner);
+        // A refused action changed nothing: the write is requested only for the work that really landed.
+        if (!result.error()) {
+            goals.save(owner);
+        }
         return result;
     }
 

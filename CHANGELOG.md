@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.233.12] - 2026-11-24
+
+### Fixed
+
+- A goal you rename in the companion panel now survives a restart even if nothing else happens before you quit; an edit that is refused because the goal changed or the text was empty is reported and leaves the stored goal as it was.
+
 ## [0.233.11] - 2026-11-24
 
 ### Fixed

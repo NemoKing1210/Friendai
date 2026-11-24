@@ -8,6 +8,7 @@ import dev.friendai.entity.CompanionManager;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolResult;
+import dev.friendai.protocol.control.ControlRequest;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
@@ -492,5 +493,38 @@ public class GoalTests {
                 refused.content().contains("handed over"),
                 "the refusal names the missing delivery: " + refused.content());
         h.succeed();
+    }
+
+    /**
+     * The panel's goal box and the model's {@code update_goal} are one mutation path: a saved edit is scheduled for
+     * the owner record, and a refused one (a goal that is gone, or a blank text) writes nothing.
+     */
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 200)
+    public void a_panel_goal_edit_is_written_to_the_owner_record(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
+        var server = h.getLevel().getServer();
+        CompanionEntity c = CompanionManager.get(server).summon(player);
+        h.assertFalse(
+                call(c, owner(player), "set_goal", "{\"text\":\"gather 12 logs\"}")
+                        .error(),
+                "set_goal works");
+        var state = GameTestSupport.runtime(server);
+        var board = state.goals().board(player.getUUID());
+        long goalId = board.primary().orElseThrow().id();
+        state.goalStore().flushAll();
+        h.succeedWhen(() -> {
+            h.assertFalse(state.goalStore().status(player.getUUID()).dirty(), "the set_goal write landed");
+            TestMenuRequests.handle(player, new ControlRequest.UpdateGoal(goalId + 1, "gone"));
+            TestMenuRequests.handle(player, new ControlRequest.UpdateGoal(goalId, "  "));
+            h.assertFalse(
+                    state.goalStore().status(player.getUUID()).dirty(), "a refused panel edit schedules no write");
+            TestMenuRequests.handle(player, new ControlRequest.UpdateGoal(goalId, "gather 12 oak logs"));
+            h.assertValueEqual(
+                    board.primary().orElseThrow().text(), "gather 12 oak logs", "the panel edit reached the board");
+            h.assertTrue(
+                    state.goalStore().status(player.getUUID()).dirty(),
+                    "the accepted panel edit is scheduled for the owner record");
+        });
     }
 }

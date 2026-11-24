@@ -1097,6 +1097,7 @@
   "friendai.menu.feeling.empty": "Rien à montrer pour l'instant.",
   "friendai.menu.goal.hint": "Objectif actif",
   "friendai.menu.goal.update": "Mettre à jour l'objectif",
+  "friendai.menu.goal.refused": "Objectif non enregistré : l'objectif a changé ou n'existe plus.",
   "friendai.command.pause.on": "Immobile : le compagnon ne commence plus de travail jusqu'à la reprise.",
   "friendai.command.pause.off": "Le compagnon peut travailler de nouveau.",
   "friendai.command.pause.none": "Vous n'avez pas de compagnon à retenir.",

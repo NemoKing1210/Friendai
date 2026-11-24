@@ -1094,6 +1094,7 @@
   "friendai.menu.feeling.empty": "Поки немає чого показати.",
   "friendai.menu.goal.hint": "Поточна мета",
   "friendai.menu.goal.update": "Оновити мету",
+  "friendai.menu.goal.refused": "Ціль не збережено: вона змінилася або більше не існує.",
   "friendai.command.pause.on": "Стояти: помічник не починає нової роботи, поки ви не продовжите.",
   "friendai.command.pause.off": "Помічник знову може працювати.",
   "friendai.command.pause.none": "У вас немає помічника, якого можна зупинити.",

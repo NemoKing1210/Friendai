@@ -1094,6 +1094,7 @@
   "friendai.menu.feeling.empty": "目前还没有可显示的内容。",
   "friendai.menu.goal.hint": "当前目标",
   "friendai.menu.goal.update": "更新目标",
+  "friendai.menu.goal.refused": "目标未保存：目标已更改或不再存在。",
   "friendai.command.pause.on": "停下：在你恢复之前，同伴不会开始新的工作。",
   "friendai.command.pause.off": "同伴可以继续工作了。",
   "friendai.command.pause.none": "你还没有可以停下的同伴。",
