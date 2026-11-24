@@ -145,7 +145,7 @@ public final class QueueTools implements FeatureToolContributor {
         registry.registerTool(
                 callerTool(
                         "queue_edit",
-                        "Move, reprioritize, update, replace, retry, skip or cancel queued work. Update changes arguments only on a pending job; a failed job can be retried or replaced in place, keeping the rest of the plan. Check queue_show before adding work; do not queue a duplicate while a plan is active or waiting for a decision.",
+                        "Move, reprioritize, update, replace, retry, skip or cancel queued work. Update changes arguments only on a pending job; a failed job can be retried or replaced in place, keeping the rest of the plan. An update reaches the step that is already admitted: a later repeat iteration runs the plan as it was written. Check queue_show before adding work; do not queue a duplicate while a plan is active or waiting for a decision.",
                         SchemaBuilder.object()
                                 .enumeration(
                                         "action",

@@ -778,7 +778,43 @@ public final class JobQueue {
                         job.diagnostic(),
                         job.queuedTick(),
                         job.queuedDistance()));
+        syncPendingAction(id, args, principal, creativeSensitive);
         return Result.ok("updated #" + id);
+    }
+
+    /**
+     * Keeps a structured plan's cursor with the job it is waiting on: the cursor holds its own copy of the emitted
+     * action, which a save compares against the linked job and which would be re-emitted if the job went missing.
+     * Only the action's arguments and requester follow the edit; the plan's shape and progress do not.
+     */
+    private void syncPendingAction(long jobId, JsonObject args, java.util.UUID principal, boolean creativeSensitive) {
+        PlanRecord plan = plans.get(jobs.get(jobId).planId());
+        if (plan == null || plan.cursor() == null || plan.cursor().pendingJobId() != jobId) return;
+        QueuedStep pending = plan.cursor().pendingAction();
+        if (pending == null) return;
+        QueuedStep updated = new QueuedStep(
+                pending.tool(),
+                args,
+                pending.priority(),
+                pending.guards(),
+                pending.onUnmet(),
+                pending.onFailure(),
+                pending.maxAttempts(),
+                pending.afterSteps(),
+                principal,
+                creativeSensitive);
+        PlanCursor cursor = plan.cursor();
+        plans.put(
+                plan.id(),
+                plan.withCursor(new PlanCursor(
+                        cursor.stack(),
+                        cursor.selectedBranches(),
+                        cursor.repeatIterations(),
+                        cursor.startTick(),
+                        cursor.startDistance(),
+                        cursor.pendingActionPath(),
+                        updated,
+                        jobId)));
     }
 
     public Result merge(long firstId, long secondId, JsonObject args) {

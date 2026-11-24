@@ -6,6 +6,13 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.233.3] - 2026-11-24
+
+### Fixed
+
+- Changing the arguments of a step a plan is waiting on no longer risks the whole queue after a reload: the edited step and the plan's own saved progress now stay in step, so the edit runs once, the plan's finished steps stay finished and unrelated queued work comes back.
+- A world saved by an older version with that inconsistency now loads instead of losing its queue, and if one plan's saved step cannot be matched to its job at all, only that plan is stopped with a visible reason while the rest of the queue keeps working.
+
 ## [0.233.2] - 2026-11-24
 
 ### Fixed

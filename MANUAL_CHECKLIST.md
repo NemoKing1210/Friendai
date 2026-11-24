@@ -876,3 +876,12 @@ The automated suite pins the text split and the layout arithmetic; the click, th
       companion answers in that language again and the language fact is back without a new session.
 - [ ] Switch languages for real (three messages in a row in the other language): the companion follows the switch.
 - [ ] Set a companion language explicitly in the settings and confirm learned-language changes never override it.
+
+## An edited waiting step survives a reload (TODO 165)
+
+- [ ] Queue a plan with a condition that does not hold yet (for example hauling items the companion does not have),
+      use `queue_edit action=update` to change that waiting step's arguments, save and quit, then reload: the
+      edited step runs once with the new arguments, the steps before it stay finished, and an unrelated queued job
+      is still there.
+- [ ] Repeat the edit twice before saving: one job keeps the last arguments.
+- [ ] Confirm `queue_edit action=update` is refused with its reason on a step that already finished.

@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -115,6 +116,7 @@ public final class QueueSave {
             if (planRows == null || jobRows == null || archiveRows == null) return Optional.empty();
             List<JsonObject> planObjects = new ArrayList<>();
             for (var e : planRows) planObjects.add(e.getAsJsonObject());
+            Set<Long> blockedPlans = new LinkedHashSet<>();
             List<Job> jobs = new ArrayList<>();
             for (var e : jobRows) {
                 JsonObject j = e.getAsJsonObject();
@@ -141,18 +143,49 @@ public final class QueueSave {
                         cursor,
                         !p.has("autoRepair") || p.get("autoRepair").getAsBoolean()));
             }
-            for (PlanRecord plan : plans)
-                if (plan.cursor() != null && !plan.cursor().pendingActionPath().isEmpty()) {
-                    Job linked = jobs.stream()
-                            .filter(job -> job.id() == plan.cursor().pendingJobId() && job.planId() == plan.id())
-                            .findFirst()
-                            .orElse(null);
-                    if (linked == null
-                            || !linked.tool()
-                                    .equals(plan.cursor().pendingAction().tool())
-                            || !linked.args()
-                                    .equals(plan.cursor().pendingAction().args())) return Optional.empty();
+            for (int planIndex = 0; planIndex < plans.size(); planIndex++) {
+                PlanRecord plan = plans.get(planIndex);
+                PlanCursor cursor = plan.cursor();
+                if (cursor == null || cursor.pendingActionPath().isEmpty()) continue;
+                Job linked = jobs.stream()
+                        .filter(job -> job.id() == cursor.pendingJobId() && job.planId() == plan.id())
+                        .findFirst()
+                        .orElse(null);
+                if (linked == null) return Optional.empty();
+                QueuedStep pending = cursor.pendingAction();
+                if (!linked.tool().equals(pending.tool())) {
+                    // The continuation no longer describes the job it points at; no supported edit path produces
+                    // this, so the plan is poisoned while every other queued job stays loadable.
+                    blockedPlans.add(plan.id());
+                    continue;
                 }
+                if (!linked.args().equals(pending.args())) {
+                    // A save written before an edit reached its waiting step carries the job's live arguments and the
+                    // cursor's original ones; the admitted job is authoritative, so the queue loads instead of being
+                    // dropped whole. The same rule applies to the requester it recorded.
+                    plans.set(
+                            planIndex,
+                            plan.withCursor(new PlanCursor(
+                                    cursor.stack(),
+                                    cursor.selectedBranches(),
+                                    cursor.repeatIterations(),
+                                    cursor.startTick(),
+                                    cursor.startDistance(),
+                                    cursor.pendingActionPath(),
+                                    new QueuedStep(
+                                            pending.tool(),
+                                            linked.args(),
+                                            pending.priority(),
+                                            pending.guards(),
+                                            pending.onUnmet(),
+                                            pending.onFailure(),
+                                            pending.maxAttempts(),
+                                            pending.afterSteps(),
+                                            linked.principal(),
+                                            linked.creativeSensitive()),
+                                    cursor.pendingJobId())));
+                }
+            }
             List<PlanArchive> archives = new ArrayList<>();
             for (var e : archiveRows) {
                 JsonObject a = e.getAsJsonObject();
@@ -231,6 +264,15 @@ public final class QueueSave {
                     archives,
                     holds,
                     root.has("travelled") ? root.get("travelled").getAsLong() : 0);
+            for (long planId : blockedPlans) {
+                // Only the poisoned plan and its own steps are withdrawn; every other job and plan stays.
+                q.cancelPlan(planId);
+                q.archivePlan(planId, false, "saved continuation did not match its job");
+                holdNotices.add("saved plan #" + planId
+                        + " could not be continued: its saved step no longer matched the job it pointed at;"
+                        + " other queued work was kept");
+            }
+            if (active != 0 && q.job(active).isEmpty()) active = 0;
             for (String notice : holdNotices) q.addHoldNotice(notice);
             return Optional.of(new Decoded(q, active));
         } catch (RuntimeException ignored) {
