@@ -504,6 +504,112 @@ public class HungerTests {
         });
     }
 
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 3600)
+    public void getFoodLeavesCommittedIngredientsForAQueuedOrder(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 110, 16);
+        h.setBlock(8, 110, 4, Blocks.FURNACE);
+        h.setBlock(8, 110, 8, Blocks.CHEST);
+        Container chest = containerAt(h, 8, 110, 8);
+        chest.setItem(0, new ItemStack(Items.BREAD, 3));
+        chest.setChanged();
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 111, 2);
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(8, 110, 4))),
+                "furnace should be directly visible");
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(8, 110, 8))),
+                "bread chest should be directly visible");
+        c.inventory().addItem(new ItemStack(Items.BEEF, 1));
+        c.inventory().addItem(new ItemStack(Items.COAL, 1));
+        // A long wait keeps the queue busy, so the order stays pending with its materials committed.
+        c.executionCoordinator()
+                .enqueue(
+                        new QueuedStep(
+                                "wait",
+                                new com.google.gson.JsonObject(),
+                                null,
+                                List.of(),
+                                GuardAction.WAIT,
+                                FailurePolicy.ASK,
+                                1,
+                                List.of()),
+                        ctx -> new dev.friendai.features.interaction.minecraft.task.WaitTask(6000));
+        c.executionCoordinator()
+                .enqueue(
+                        new QueuedStep(
+                                "obtain_item",
+                                com.google.gson.JsonParser.parseString(
+                                                "{\"item\":\"minecraft:cooked_beef\",\"count\":1}")
+                                        .getAsJsonObject(),
+                                null,
+                                List.of(),
+                                GuardAction.WAIT,
+                                FailurePolicy.ASK,
+                                1,
+                                List.of()),
+                        ctx -> new dev.friendai.features.interaction.minecraft.task.WaitTask(6000));
+        FoodListener n = new FoodListener(c);
+        c.executionCoordinator().setEventSink(n);
+        c.executionCoordinator().start(new GetFoodTask(1), "get_food");
+        h.succeedWhen(() -> {
+            h.assertTrue(
+                    n.status == TaskStatus.SUCCESS, "not finished: " + n.status + " " + n.summary + " " + n.events);
+            h.assertValueEqual(c.inventory().countItem(Items.BREAD), 1, "bread taken from the chest instead");
+            h.assertValueEqual(countIn(chest, Items.BREAD), 2, "the rest of the bread stays in the chest");
+            h.assertValueEqual(c.inventory().countItem(Items.COOKED_BEEF), 0, "the committed beef must not be cooked");
+            h.assertValueEqual(c.inventory().countItem(Items.BEEF), 1, "the beef the queued order committed must stay");
+        });
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 2400)
+    public void getFoodUsesCommittedStockWhenNothingElseExists(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 116, 16);
+        h.setBlock(8, 116, 3, Blocks.FURNACE);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 117, 2);
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(8, 116, 3))),
+                "furnace should be directly visible");
+        c.inventory().addItem(new ItemStack(Items.BEEF, 1));
+        c.inventory().addItem(new ItemStack(Items.COAL, 1));
+        // A long wait keeps the queue busy, so the order stays pending with its materials committed.
+        c.executionCoordinator()
+                .enqueue(
+                        new QueuedStep(
+                                "wait",
+                                new com.google.gson.JsonObject(),
+                                null,
+                                List.of(),
+                                GuardAction.WAIT,
+                                FailurePolicy.ASK,
+                                1,
+                                List.of()),
+                        ctx -> new dev.friendai.features.interaction.minecraft.task.WaitTask(6000));
+        c.executionCoordinator()
+                .enqueue(
+                        new QueuedStep(
+                                "obtain_item",
+                                com.google.gson.JsonParser.parseString(
+                                                "{\"item\":\"minecraft:cooked_beef\",\"count\":1}")
+                                        .getAsJsonObject(),
+                                null,
+                                List.of(),
+                                GuardAction.WAIT,
+                                FailurePolicy.ASK,
+                                1,
+                                List.of()),
+                        ctx -> new dev.friendai.features.interaction.minecraft.task.WaitTask(6000));
+        FoodListener n = new FoodListener(c);
+        c.executionCoordinator().setEventSink(n);
+        c.executionCoordinator().start(new GetFoodTask(1), "get_food");
+        h.succeedWhen(() -> {
+            h.assertTrue(
+                    n.status == TaskStatus.SUCCESS, "not finished: " + n.status + " " + n.summary + " " + n.events);
+            h.assertValueEqual(c.inventory().countItem(Items.COOKED_BEEF), 1, "the companion still fed itself");
+            h.assertTrue(
+                    n.summary.contains("set aside for queued work"), "the override must be reported: " + n.summary);
+        });
+    }
+
     @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 200)
     public void getFoodNothing(GameTestHelper h) {
         GameTestSupport.platformAt(h, 26, 16);

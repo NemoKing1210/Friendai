@@ -989,11 +989,16 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
             }
             remaining.add(new QueuedStep(job.tool(), job.args(), null, null, null, null, 1, null));
         }
+        boolean hasLevel = companion.level() instanceof ServerLevel;
         java.util.Map<String, Integer> planNeeds = dev.friendai.execution.queue.PlanMaterials.needs(
                 remaining,
-                companion.level() instanceof ServerLevel level
-                        ? dev.friendai.world.movement.PlanMaterialSource.forLevel(level)
+                hasLevel
+                        ? dev.friendai.world.movement.PlanMaterialSource.forLevel((ServerLevel) companion.level())
                         : null);
+        // A step that names bread will bake it from wheat: the ingredients it consumes are committed too, so a
+        // reflex or another task cannot spend them before the step runs. One recipe level; the named output is
+        // already in the plan share above.
+        planNeeds = withIngredients(planNeeds, remaining, hasLevel ? (ServerLevel) companion.level() : null);
         java.util.Map<String, Integer> taskNeeds = java.util.Map.of();
         java.util.Map<String, Integer> travelNeeds = java.util.Map.of();
         ActiveTask active = activeTask();
@@ -1012,6 +1017,47 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         java.util.Map<String, Integer> travelWithDrops = withDrops(source, composed.travelAsMap());
         return dev.friendai.foundation.spatial.MaterialReserve.compose(
                 workWithDrops, java.util.Map.of(), travelWithDrops);
+    }
+
+    /** Adds the carried ingredients the remaining steps will consume to the plan's own named needs. */
+    private java.util.Map<String, Integer> withIngredients(
+            java.util.Map<String, Integer> planNeeds, java.util.List<QueuedStep> remaining, ServerLevel level) {
+        if (level == null || remaining.isEmpty()) {
+            return planNeeds;
+        }
+        java.util.Set<String> carried = new java.util.HashSet<>();
+        for (int slot = 0; slot < companion.inventory().getContainerSize(); slot++) {
+            var stack = companion.inventory().getItem(slot);
+            if (!stack.isEmpty()) {
+                carried.add(net.minecraft.core.registries.BuiltInRegistries.ITEM
+                        .getKey(stack.getItem())
+                        .toString());
+            }
+        }
+        if (!companion.getMainHandItem().isEmpty()) {
+            carried.add(net.minecraft.core.registries.BuiltInRegistries.ITEM
+                    .getKey(companion.getMainHandItem().getItem())
+                    .toString());
+        }
+        if (carried.isEmpty()) {
+            return planNeeds;
+        }
+        java.util.Map<String, Integer> ingredients;
+        try {
+            ingredients = dev.friendai.features.crafting.PlanIngredients.committed(
+                    remaining, dev.friendai.features.crafting.minecraft.RecipeIndex.of(level), carried);
+        } catch (RuntimeException unavailable) {
+            // A reserve is an optimisation of safety, not a gate: a recipe index that cannot be read leaves the
+            // named needs as they are rather than failing the tick.
+            return planNeeds;
+        }
+        if (ingredients.isEmpty()) {
+            return planNeeds;
+        }
+        java.util.Map<String, Integer> merged = new java.util.LinkedHashMap<>(planNeeds);
+        ingredients.forEach((id, count) -> merged.merge(
+                id, count, (named, ingredient) -> (int) Math.min(Integer.MAX_VALUE, (long) named + ingredient)));
+        return merged;
     }
 
     private static java.util.Map<String, Integer> withDrops(

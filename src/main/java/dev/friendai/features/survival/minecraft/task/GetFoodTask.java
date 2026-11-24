@@ -102,6 +102,14 @@ public final class GetFoodTask implements Task {
     private Option currentOption;
     private Option lastFailedOption;
     private String summary = "";
+    /** Set when the quest fed itself from stock a queued order had committed: nothing else was available. */
+    private boolean usedCommittedStock;
+
+    private String committedNote = "";
+
+    /** Whether the option being run was chosen only because nothing else was available. */
+    private boolean spendingCommitments;
+
     private int ticks;
     private int stepsRun;
     private int readyAtStart;
@@ -133,6 +141,9 @@ public final class GetFoodTask implements Task {
         currentOption = null;
         lastFailedOption = null;
         summary = "";
+        usedCommittedStock = false;
+        committedNote = "";
+        spendingCommitments = false;
         ticks = 0;
         stepsRun = 0;
         readyAtStart = 0;
@@ -195,24 +206,62 @@ public final class GetFoodTask implements Task {
     }
 
     private Option chooseOption(TaskContext c) {
+        spendingCommitments = false;
+        Option preferred = pick(c, true);
+        if (preferred != null) {
+            return preferred;
+        }
+        // Hunger outranks a queued order: when the only food left is stock the order has committed, the quest
+        // eats it and records that it did, so the order's resume and its measured remainder account for it.
+        Option emergency = pick(c, false);
+        if (emergency != null) {
+            spendingCommitments = true;
+            usedCommittedStock = true;
+            committedNote = committedItems(c, emergency);
+        }
+        return emergency;
+    }
+
+    private Option pick(TaskContext c, boolean respectCommitments) {
         for (Option option : Option.values()) {
-            if (!skipped.contains(option) && available(c, option)) {
+            if (!skipped.contains(option) && available(c, option, respectCommitments)) {
                 return option;
             }
         }
         return null;
     }
 
-    private boolean available(TaskContext c, Option option) {
+    private boolean available(TaskContext c, Option option, boolean respectCommitments) {
         CompanionEntity companion = c.companion();
         return switch (option) {
-            case COOKING -> hasRawFood(companion) && hasAllowedFuel(c);
+            case COOKING -> hasRawFood(c, respectCommitments) && hasAllowedFuel(c);
             case CHEST -> ContainerAccess.nearest(c, CONTAINER_RADIUS).isPresent();
-            case BAKING -> wheatCount(companion) >= WHEAT_PER_BREAD;
+            case BAKING -> (respectCommitments ? wheatAvailable(c) : wheatCount(companion)) >= WHEAT_PER_BREAD;
             case HARVESTING -> nearestMatureCrop(c).isPresent();
             case HUNTING -> nearestHuntable(c.level(), companion) != null;
             case FISHING -> hasFishingRod(companion) && hasOpenWater(c.level(), companion.blockPosition());
         };
+    }
+
+    /** What the emergency fallback spent, by item id, for the quest's own summary. */
+    private static String committedItems(TaskContext c, Option option) {
+        if (option == Option.BAKING) {
+            return "minecraft:wheat";
+        }
+        if (option != Option.COOKING) {
+            return "";
+        }
+        LinkedHashSet<String> ids = new LinkedHashSet<>();
+        CompanionEntity companion = c.companion();
+        for (int slot = 0; slot < companion.inventory().getContainerSize(); slot++) {
+            ItemStack stack = companion.inventory().getItem(slot);
+            if (!stack.isEmpty()
+                    && RAW_FOOD.contains(stack.getItem())
+                    && c.materialReserve().workReserved(idOf(stack)) > 0) {
+                ids.add(idOf(stack));
+            }
+        }
+        return String.join(", ", ids);
     }
 
     private Task subtask(TaskContext c, Option option) {
@@ -224,7 +273,8 @@ public final class GetFoodTask implements Task {
             case COOKING -> foodTasks.cook(remaining);
             case CHEST -> new TakeFoodFromChestTask(remaining);
             case BAKING -> {
-                int loaves = Math.min(remaining, wheatCount(companion) / WHEAT_PER_BREAD);
+                int wheat = spendingCommitments ? wheatCount(companion) : wheatAvailable(c);
+                int loaves = Math.min(remaining, wheat / WHEAT_PER_BREAD);
                 yield loaves <= 0 ? null : foodTasks.bakeBread(loaves);
             }
             case HARVESTING ->
@@ -243,10 +293,17 @@ public final class GetFoodTask implements Task {
         };
     }
 
-    private boolean hasRawFood(CompanionEntity companion) {
+    /**
+     * A raw item the quest may cook. An item the queued work has committed to — the beef a paused order is about
+     * to cook — is left alone while any other option exists, so the order is not short of what it gathered.
+     */
+    private static boolean hasRawFood(TaskContext c, boolean respectCommitments) {
+        CompanionEntity companion = c.companion();
         for (int slot = 0; slot < companion.inventory().getContainerSize(); slot++) {
             ItemStack stack = companion.inventory().getItem(slot);
-            if (!stack.isEmpty() && RAW_FOOD.contains(stack.getItem())) {
+            if (!stack.isEmpty()
+                    && RAW_FOOD.contains(stack.getItem())
+                    && (!respectCommitments || uncommitted(c, stack) > 0)) {
                 return true;
             }
         }
@@ -435,6 +492,16 @@ public final class GetFoodTask implements Task {
         return level.getFluidState(pos).isSource() && level.getFluidState(pos).is(FluidTags.WATER);
     }
 
+    /** The wheat the quest may bake with: carried wheat minus what the queued work has committed. */
+    private static int wheatAvailable(TaskContext c) {
+        return Math.max(0, wheatCount(c.companion()) - c.materialReserve().workReserved("minecraft:wheat"));
+    }
+
+    /** How many items of this stack are not set aside for planned work. */
+    private static int uncommitted(TaskContext c, ItemStack stack) {
+        return stack.getCount() - c.materialReserve().workReserved(idOf(stack));
+    }
+
     private static int wheatCount(CompanionEntity companion) {
         int total = 0;
         for (int slot = 0; slot < companion.inventory().getContainerSize(); slot++) {
@@ -484,6 +551,11 @@ public final class GetFoodTask implements Task {
             kinds.add(idOf(companion.getMainHandItem()));
         }
         summary = kinds.isEmpty() ? "got " + gained + " food" : "got " + gained + " food: " + String.join(", ", kinds);
+        if (usedCommittedStock) {
+            summary += committedNote.isEmpty()
+                    ? " (nothing else was edible; I used stock set aside for queued work)"
+                    : " (nothing else was edible; I used " + committedNote + " set aside for queued work)";
+        }
         return TaskStatus.SUCCESS;
     }
 

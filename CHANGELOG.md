@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.233.8] - 2026-11-24
+
+### Fixed
+
+- When hunger interrupts an order, the companion no longer eats the raw food or wheat that order still needs: it finds another meal while one exists, and when none does it feeds itself and says that it used stock set aside for the queued work.
+
 ## [0.233.7] - 2026-11-24
 
 ### Fixed
