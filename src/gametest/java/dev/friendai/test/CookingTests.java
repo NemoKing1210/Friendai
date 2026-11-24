@@ -1215,6 +1215,8 @@ public class CookingTests {
     private static final int REPLACED_DECK = 72;
     private static final int UNEXPECTED_DECK = 137;
     private static final int PARTIAL_LOAD_DECK = 106;
+    private static final int OTHER_RESULT_DECK = 152;
+    private static final int REQUESTED_RESULT_DECK = 169;
 
     private static void deck(GameTestHelper h, int size, int y) {
         for (int x = 0; x < size; x++) {
@@ -1264,6 +1266,20 @@ public class CookingTests {
             boolean forceWait,
             int waitLimitTicks,
             CraftingTaskFactory craftingTaskFactory) {
+        return smelt(c, result, item, count, forced, fuel, forceWait, waitLimitTicks, craftingTaskFactory, null);
+    }
+
+    private static ExecutionCoordinator smelt(
+            CompanionEntity c,
+            Result result,
+            String item,
+            int count,
+            Station forced,
+            String fuel,
+            boolean forceWait,
+            int waitLimitTicks,
+            CraftingTaskFactory craftingTaskFactory,
+            String expectedOutput) {
         ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 300, () -> false);
         runner.setEventSink(result);
         ItemMatcher input = ItemMatcher.parse(item).orElseThrow();
@@ -1277,7 +1293,8 @@ public class CookingTests {
                         forceWait,
                         StationPolicy.AUTO,
                         waitLimitTicks,
-                        craftingTaskFactory),
+                        craftingTaskFactory,
+                        expectedOutput),
                 "smelt_items");
         return runner;
     }
@@ -1314,6 +1331,75 @@ public class CookingTests {
             }
             h.assertValueEqual(loaded, 2, "raw gold in the furnaces");
             h.assertValueEqual(c.furnaceJobs().all().size(), 2, "jobs");
+        });
+    }
+
+    /**
+     * A station whose live recipe would turn the input into another item never receives it: the plan asked for
+     * {@code iron_ingot}, and cooking the gold would spend the input on the wrong result.
+     */
+    @GameTest(maxTicks = 200)
+    public void aStationWithAnotherResultLeavesTheInputAlone(GameTestHelper h) {
+        deck(h, 16, OTHER_RESULT_DECK);
+        var furnace = furnaceAt(h, 4, OTHER_RESULT_DECK + 1, 2);
+        BlockPos station = pos(h, 4, OTHER_RESULT_DECK + 1, 2);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, OTHER_RESULT_DECK + 1, 4);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, station), "furnace should be visible");
+        c.inventory().addItem(new ItemStack(Items.RAW_GOLD, 2));
+        c.inventory().addItem(new ItemStack(Items.COAL, 2));
+        Result result = new Result();
+        ExecutionCoordinator runner = smelt(
+                c,
+                result,
+                "minecraft:raw_gold",
+                2,
+                Station.FURNACE,
+                null,
+                false,
+                20,
+                CraftingTaskFactory.UNAVAILABLE,
+                "minecraft:iron_ingot");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.FAILED, "not failed: " + result.status + " " + result.summary);
+            h.assertValueEqual(
+                    result.summary,
+                    "minecraft:raw_gold would cook into minecraft:gold_ingot here, not minecraft:iron_ingot",
+                    "summary");
+            h.assertValueEqual(furnace.getItem(0).getCount(), 0, "nothing may be loaded");
+            h.assertValueEqual(c.inventory().countItem(Items.RAW_GOLD), 2, "the input stays in the bag");
+            h.assertValueEqual(c.furnaceJobs().all().size(), 0, "no job may be created");
+        });
+    }
+
+    /** The recipe the plan chose still loads the station and keeps the input it spent. */
+    @GameTest(maxTicks = 400)
+    public void theRequestedResultStillLoads(GameTestHelper h) {
+        deck(h, 16, REQUESTED_RESULT_DECK);
+        var furnace = furnaceAt(h, 4, REQUESTED_RESULT_DECK + 1, 2);
+        BlockPos station = pos(h, 4, REQUESTED_RESULT_DECK + 1, 2);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, REQUESTED_RESULT_DECK + 1, 4);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, station), "furnace should be visible");
+        c.inventory().addItem(new ItemStack(Items.RAW_GOLD, 2));
+        c.inventory().addItem(new ItemStack(Items.COAL, 2));
+        Result result = new Result();
+        ExecutionCoordinator runner = smelt(
+                c,
+                result,
+                "minecraft:raw_gold",
+                2,
+                Station.FURNACE,
+                null,
+                false,
+                20,
+                CraftingTaskFactory.UNAVAILABLE,
+                "minecraft:gold_ingot");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertValueEqual(furnace.getItem(0).getCount(), 2, "the batch was loaded");
+            h.assertValueEqual(c.inventory().countItem(Items.RAW_GOLD), 0, "the bag gave up the input");
+            h.assertValueEqual(c.furnaceJobs().all().size(), 1, "one job");
         });
     }
 

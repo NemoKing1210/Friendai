@@ -82,6 +82,12 @@ public final class SmeltTask implements Task {
     private final CookingWait waitRequest;
     private final StationPolicy policy;
     private final int waitLimitTicks;
+    /**
+     * What the caller needs this to produce, or null when any result of the input is fine. Checked against the
+     * selected station's own recipe before anything is loaded, so a station that would turn the input into another
+     * item never consumes it.
+     */
+    private final @Nullable String expectedOutput;
 
     private RecipeIndex index;
     private String failure;
@@ -172,6 +178,29 @@ public final class SmeltTask implements Task {
                 craftingTaskFactory);
     }
 
+    /** The same task, refusing a station whose recipe would produce something other than {@code expectedOutput}. */
+    public SmeltTask(
+            ItemMatcher input,
+            int count,
+            @Nullable Station forced,
+            @Nullable ItemMatcher fuel,
+            boolean forceWait,
+            StationPolicy policy,
+            int waitLimitTicks,
+            CraftingTaskFactory craftingTaskFactory,
+            @Nullable String expectedOutput) {
+        this(
+                input,
+                count,
+                forced,
+                fuel,
+                forceWait ? CookingWait.WAIT : CookingWait.AUTO,
+                policy,
+                waitLimitTicks,
+                craftingTaskFactory,
+                expectedOutput);
+    }
+
     public SmeltTask(
             ItemMatcher input,
             int count,
@@ -181,6 +210,20 @@ public final class SmeltTask implements Task {
             StationPolicy policy,
             int waitLimitTicks,
             CraftingTaskFactory craftingTaskFactory) {
+        this(input, count, forced, fuel, wait, policy, waitLimitTicks, craftingTaskFactory, null);
+    }
+
+    /** The same task, refusing a station whose recipe would produce something other than {@code expectedOutput}. */
+    public SmeltTask(
+            ItemMatcher input,
+            int count,
+            @Nullable Station forced,
+            @Nullable ItemMatcher fuel,
+            CookingWait wait,
+            StationPolicy policy,
+            int waitLimitTicks,
+            CraftingTaskFactory craftingTaskFactory,
+            @Nullable String expectedOutput) {
         if (input == null) {
             throw new IllegalArgumentException("smelt input must not be empty");
         }
@@ -195,6 +238,7 @@ public final class SmeltTask implements Task {
         this.policy = policy == null ? StationPolicy.AUTO : policy;
         this.waitLimitTicks = Math.max(1, waitLimitTicks);
         this.craftingTaskFactory = craftingTaskFactory == null ? CraftingTaskFactory.UNAVAILABLE : craftingTaskFactory;
+        this.expectedOutput = expectedOutput == null || expectedOutput.isBlank() ? null : expectedOutput.strip();
     }
 
     @Override
@@ -512,6 +556,12 @@ public final class SmeltTask implements Task {
             if (cooked != null) {
                 expectedOutputs.add(cooked.output());
             }
+        }
+        if (expectedOutput != null && (!expectedOutputs.isEmpty() && !expectedOutputs.contains(expectedOutput))) {
+            // Nothing is loaded yet: refuse rather than spend the input on the wrong result.
+            failure = input.label() + " would cook into " + String.join(", ", expectedOutputs) + " here, not "
+                    + expectedOutput;
+            return;
         }
 
         if (free.isEmpty()) {

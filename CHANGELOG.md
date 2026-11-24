@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.233.10] - 2026-11-24
+
+### Fixed
+
+- A cooking order no longer spends its ingredients on the wrong dish when the selected furnace, smoker or campfire would turn them into something other than what was asked for: the companion leaves the ingredients in the bag and reports what that station would have made instead.
+
 ## [0.233.9] - 2026-11-24
 
 ### Fixed

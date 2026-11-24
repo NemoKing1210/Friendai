@@ -59,7 +59,8 @@ public final class MinecraftObtainSubtaskFactory
                         true,
                         StationPolicy.AUTO,
                         SMELT_WAIT_TICKS,
-                        this);
+                        this,
+                        smelt.output());
             case ObtainStep.Mine mine ->
                 !context.companion().creativeMode() && isTreeLog(mine.block())
                         ? new FellLogsTask(blockMatcher(mine.block()), mine.count(), MINING_RADIUS, true)

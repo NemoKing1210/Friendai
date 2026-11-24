@@ -75,6 +75,8 @@ public final class CookingCheckpoints {
             String unstartedReason = parts[14].isEmpty() ? null : parts[14];
             String fuelNote = parts[15].isEmpty() ? null : parts[15];
             String outputId = parts[16].isEmpty() ? null : parts[16];
+            // A waiting batch has already chosen its station and loaded its inputs, so the result is fixed by what
+            // is in the furnace; the expected output only guides planning and is not restored.
             if (input.isEmpty()
                     || (parts[13].isEmpty() != fuel.isEmpty())
                     || waitRequest != CookingWait.WAIT
