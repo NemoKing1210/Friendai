@@ -23,6 +23,7 @@ import java.util.List;
  * @param goalId the active goal's id, or zero
  * @param unmet the active goal's unmet criteria, never null
  * @param shiftId the free-time shift's id, or zero
+ * @param proposeOnly the owner asked to see the plan without starting it, so a proposal is delivered, not queued
  */
 public record PlanSignals(
         TurnMode mode,
@@ -40,7 +41,8 @@ public record PlanSignals(
         String failure,
         long goalId,
         List<String> unmet,
-        long shiftId) {
+        long shiftId,
+        boolean proposeOnly) {
     public PlanSignals {
         playerText = playerText == null ? "" : playerText;
         failure = failure == null ? "" : failure;
@@ -69,6 +71,7 @@ public record PlanSignals(
                 "",
                 0,
                 List.of(),
-                shiftId);
+                shiftId,
+                false);
     }
 }

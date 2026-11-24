@@ -8,6 +8,9 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ### Added
 
+- You can ask to see a plan before any work starts ("make a plan for a house, do nothing yet"): the companion shows
+  the steps it would take, starts nothing, and waits. Say go ahead and that plan is queued as it was shown; say
+  anything else and it is dropped. A plan shown this way cannot be replaced by the model talking itself into work.
 - Spoken commands now tell you what happened to them: a green "Sent to your companion" confirmation when the line
   reaches it, and a specific notice when it does not — the command was too long, the companion could not take it that
   fast, you have no companion nearby, it is too far away, or there is no connection to the server. A spoken command

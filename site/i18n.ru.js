@@ -336,6 +336,8 @@ const RU = {
   "End it.": "Закончить его.",
   "Pick what to do in free time.": "Выбрать занятие на свободное время.",
   "LLM planner": "Планировщик LLM",
+  "Plan first, then approve": "Сначала план, потом согласие",
+  "Ask for a plan without starting it: the steps are shown, nothing is queued, and only an exact go-ahead starts the plan that was shown.": "Попросите план, не начиная работу: шаги показываются, ничего не ставится в очередь, и только точное «давай» запускает показанный план.",
   "Preliminary planning for complex orders; recovery for troubled plans, unmet goals and free time.": "Предварительное планирование сложных приказов; восстановление сорванных планов, недостигнутых целей и свободного времени.",
   "Conditional plans": "Условные планы",
   "If, repeat and guards over world facts.": "Условия, повторы и охранные условия по фактам мира.",

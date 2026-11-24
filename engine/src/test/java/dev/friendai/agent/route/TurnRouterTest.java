@@ -42,6 +42,41 @@ class TurnRouterTest {
     }
 
     @Test
+    void aRequestToSeeThePlanFirstIsAProposalNotARecoveryOrAChat() {
+        RouteDecision en = player("Make a plan to build a house. Do nothing yet.", false);
+        assertEquals(TurnMode.ACTION, en.mode());
+        assertTrue(en.planning().required());
+        assertTrue(en.planning().proposeOnly(), "the owner asked to see the plan before any work");
+        assertEquals("plan-proposal", en.planning().reason());
+        assertTrue(en.planning().subject() instanceof PlanSubject.OwnerOrder);
+
+        // "Make a plan to build a house. Do nothing yet." in Russian.
+        RouteDecision ru = player("Составь план, как построить дом. Пока ничего не делай.", false);
+        assertEquals(TurnMode.ACTION, ru.mode());
+        assertTrue(ru.planning().proposeOnly());
+        assertTrue(ru.planning().subject() instanceof PlanSubject.OwnerOrder);
+    }
+
+    @Test
+    void anOrderThatIncludesPlanningAndWorkStartsTheWork() {
+        RouteDecision d = player("Plan it and build it: a house, then bring iron", false);
+
+        assertTrue(d.planning().required());
+        assertFalse(d.planning().proposeOnly(), "planning and work in one order executes it");
+        assertEquals("explicit-plan-request", d.planning().reason());
+    }
+
+    @Test
+    void onlyAnUnambiguousApprovalCountsAsOne() {
+        assertTrue(router.isPlanApproval("go ahead"));
+        assertTrue(router.isPlanApproval("Yes, please."));
+        // "Go ahead" in Russian.
+        assertTrue(router.isPlanApproval("Давай."));
+        assertFalse(router.isPlanApproval("go ahead, but use stone instead"), "a condition changes the request");
+        assertFalse(router.isPlanApproval("actually, wait"));
+    }
+
+    @Test
     void twoObjectivesWithoutGoalRouteToGoalWithPlanner() {
         RouteDecision en = player("build a house and bring iron", false);
         assertEquals(TurnMode.GOAL, en.mode());

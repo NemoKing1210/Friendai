@@ -275,6 +275,26 @@ final class PlannerFacade {
                             goalSnapshot));
         }
 
+        /**
+         * Checks a plan the owner asked to see without queueing it. The shipped {@code plan_validate} tool is the
+         * same parser and allowlist {@code queue_add} uses, so a presented plan is the plan that would be queued; a
+         * repair is checked against its own queue frame when the owner approves it.
+         */
+        @Override
+        public ToolResult validate(Caller caller, dev.friendai.agent.plan.PlanSubject subject, PlanProposal proposal) {
+            if (!(subject instanceof dev.friendai.agent.plan.PlanSubject.OwnerOrder)) {
+                return ToolResult.ok("");
+            }
+            JsonObject args = new JsonObject();
+            args.add("steps", proposal.stepsJson());
+            ToolResult result = tools.bind(companion)
+                    .execute(
+                            new ToolCall("planner", "plan_validate", args, args.toString(), null),
+                            consultCaller(subject, caller));
+            debugLog(owner, result.error() ? "planner disposition=proposal refused" : "planner disposition=proposed");
+            return result;
+        }
+
         @Override
         public ToolResult apply(Caller caller, dev.friendai.agent.plan.PlanSubject subject, PlanProposal proposal) {
             if (proposal.targetPlanId() > 0 && !proposal.targetFingerprint().isBlank()) {

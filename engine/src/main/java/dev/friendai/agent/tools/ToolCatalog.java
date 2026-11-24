@@ -95,6 +95,14 @@ public final class ToolCatalog {
         return ToolGroup.values();
     }
 
+    /**
+     * The groups a turn may use when it must look but must not act: a plan presented for approval, where any queued
+     * work, goal change or world change would break the owner's "show me first".
+     */
+    public static Set<ToolGroup> readOnlyGroups() {
+        return EnumSet.of(ToolGroup.INFO, ToolGroup.MEMORY, ToolGroup.INVENTORY, ToolGroup.BODY);
+    }
+
     /** Shared prerequisites for a repair: travel, inspect, clear space and obtain missing materials or equipment. */
     public static Set<ToolGroup> recoveryGroups() {
         return EnumSet.of(

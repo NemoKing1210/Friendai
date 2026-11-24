@@ -135,6 +135,64 @@ public class PlannerTests {
         });
     }
 
+    /**
+     * The owner asks to see a plan first. The planner's valid proposal reaches the owner as a proposal and leaves the
+     * queue, the goals and the world untouched; the next line approves it, and only then is it queued.
+     */
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 600)
+    public void a_requested_proposal_starts_nothing_until_the_owner_approves_it(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
+        var server = h.getLevel().getServer();
+        ServerRuntime state = GameTestSupport.runtime(server);
+        CompanionSessions brains = state.sessions();
+        AtomicInteger asked = new AtomicInteger();
+        brains.setPlannerOverride(player.getUUID(), jumpPlanner(asked));
+        java.util.List<String> prompts = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+        brains.setGatewayOverride(player.getUUID(), (system, messages, tools) -> {
+            prompts.add(system);
+            return CompletableFuture.completedFuture(
+                    new LlmResponse("[silent]", List.of(), StopReason.END, new Usage(0, 0)));
+        });
+        CompanionEntity c = CompanionManager.get(server).summon(player);
+        long[] ticks = {0};
+        String[] phase = {"propose"};
+        brains.post(
+                player.getUUID(),
+                new BrainEvent.PlayerSaid(
+                        player.getUUID(),
+                        "Steve",
+                        "Make a plan to build a house. Do nothing yet.",
+                        BrainEvent.Source.CHAT));
+        h.succeedWhen(() -> {
+            ticks[0]++;
+            var queue = c.executionCoordinator().queue();
+            var board = state.goals().board(player.getUUID());
+            if (phase[0].equals("propose")) {
+                h.assertTrue(asked.get() == 1, "the planner is asked once, asked=" + asked.get());
+                h.assertTrue(
+                        prompts.stream().anyMatch(system -> system.contains("NOT queued")),
+                        "the owner is shown a proposal, not a queued plan: " + prompts);
+                h.assertTrue(queue.plans().isEmpty() && queue.jobs().isEmpty(), "nothing was queued");
+                h.assertTrue(queue.archives().isEmpty(), "nothing ran and finished");
+                h.assertTrue(board.primary().isEmpty(), "no goal was set");
+                if (ticks[0] < 20) {
+                    // Let the proposal turn end before approving it, so the approval is its own turn.
+                    h.assertTrue(false, "watching the proposal turn settle");
+                }
+                phase[0] = "approve";
+                brains.post(
+                        player.getUUID(),
+                        new BrainEvent.PlayerSaid(player.getUUID(), "Steve", "go ahead", BrainEvent.Source.CHAT));
+                return;
+            }
+            var plan = queue.plans().stream().findFirst().orElse(null);
+            h.assertTrue(
+                    plan != null || !queue.archives().isEmpty(),
+                    "the approved plan is queued or already ran: plans=" + queue.plans());
+        });
+    }
+
     @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 400)
     public void active_goal_planner_links_the_exact_goal(GameTestHelper h) {
         activeGoalPlan(h, false);

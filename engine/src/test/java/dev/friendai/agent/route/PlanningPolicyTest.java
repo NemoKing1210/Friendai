@@ -2,6 +2,7 @@ package dev.friendai.agent.route;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.friendai.agent.plan.PlanSubject;
 import java.util.List;
@@ -29,7 +30,8 @@ class PlanningPolicyTest {
                 "",
                 5L,
                 List.of(),
-                0L);
+                0L,
+                false);
     }
 
     private static PlanSignals guest(PlanSignals signals) {
@@ -49,7 +51,8 @@ class PlanningPolicyTest {
                 signals.failure(),
                 signals.goalId(),
                 signals.unmet(),
-                signals.shiftId());
+                signals.shiftId(),
+                signals.proposeOnly());
     }
 
     private static PlanSignals troubled(long planId, boolean budgetSpent) {
@@ -69,7 +72,8 @@ class PlanningPolicyTest {
                 "boom",
                 0L,
                 List.of(),
-                0L);
+                0L,
+                false);
     }
 
     private static PlanSignals ownerLineAndTrouble(String text) {
@@ -89,7 +93,8 @@ class PlanningPolicyTest {
                 "boom",
                 0L,
                 List.of(),
-                0L);
+                0L,
+                false);
     }
 
     private static PlanSignals goalTickWithoutQueuedWork(boolean unmet) {
@@ -109,7 +114,8 @@ class PlanningPolicyTest {
                 "",
                 3L,
                 List.of("2 logs missing"),
-                0L);
+                0L,
+                false);
     }
 
     private static PlanSignals budgetSpentTrouble() {
@@ -133,7 +139,36 @@ class PlanningPolicyTest {
                 "",
                 0L,
                 List.of(),
-                shiftId);
+                shiftId,
+                false);
+    }
+
+    @Test
+    void aProposalSubjectIsPlannedEvenWhenNothingElseWouldJustifyIt() {
+        PlanSignals quiet = new PlanSignals(
+                TurnMode.ACTION,
+                "a house",
+                0,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                true,
+                false,
+                0L,
+                "",
+                0L,
+                List.of(),
+                0L,
+                true);
+
+        PlanningDecision decision = policy.beforeTurn(quiet);
+
+        assertEquals(PlanNeed.REQUIRED, decision.need());
+        assertTrue(decision.proposeOnly());
+        assertEquals("plan-proposal", decision.reason());
     }
 
     @Test

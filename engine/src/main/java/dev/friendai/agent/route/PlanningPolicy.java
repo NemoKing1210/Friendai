@@ -14,6 +14,7 @@ public final class PlanningPolicy {
     static final String NO_OCCASION = "no-plan-occasion";
     static final String OWNER_LINE_FIRST = "owner-line-first";
     static final String EXPLICIT_PLAN_REQUEST = "explicit-plan-request";
+    static final String PLAN_PROPOSAL = "plan-proposal";
     static final String SEVERAL_KINDS = "several-kinds";
     static final String COMPLEX_ORDER = "complex-order";
     static final String PLAN_TROUBLE = "plan-trouble";
@@ -51,7 +52,8 @@ public final class PlanningPolicy {
             String reason = signals.mode() == TurnMode.RECOVERY && troubled(signals)
                     ? OWNER_LINE_FIRST
                     : ownerLineReason(signals);
-            return new PlanningDecision(PlanNeed.REQUIRED, new PlanSubject.OwnerOrder(signals.playerText()), reason);
+            return new PlanningDecision(
+                    PlanNeed.REQUIRED, new PlanSubject.OwnerOrder(signals.playerText()), reason, signals.proposeOnly());
         }
         if (signals.mode() == TurnMode.RECOVERY && troubled(signals)) {
             return new PlanningDecision(
@@ -101,12 +103,14 @@ public final class PlanningPolicy {
         return orderMode
                 && signals.ownerCaller()
                 && !signals.playerText().isBlank()
-                && (signals.explicitPlanRequest()
+                && (signals.proposeOnly()
+                        || signals.explicitPlanRequest()
                         || signals.distinctKindsOfWork() >= TurnRouter.GOAL_SCORE
                         || signals.complexMarker());
     }
 
     private static String ownerLineReason(PlanSignals signals) {
+        if (signals.proposeOnly()) return PLAN_PROPOSAL;
         if (signals.explicitPlanRequest()) return EXPLICIT_PLAN_REQUEST;
         if (signals.distinctKindsOfWork() >= TurnRouter.GOAL_SCORE) return SEVERAL_KINDS;
         return COMPLEX_ORDER;

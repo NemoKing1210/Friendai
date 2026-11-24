@@ -66,6 +66,14 @@ public interface PlannerPort {
     }
 
     /**
+     * Checks a proposal without queuing anything, for a turn that only shows the plan to the owner. Ports without a
+     * separate validator keep the permissive default; the queueing call re-checks everything at approval time.
+     */
+    default ToolResult validate(Caller caller, PlanSubject subject, PlanProposal proposal) {
+        return ToolResult.ok("");
+    }
+
+    /**
      * Queues the proposal with the caller's access. A subject that targets a queued plan repairs that plan; every
      * other subject enqueues a new plan and never touches the goal's own. Never throws for a bad plan: the result
      * carries the error.

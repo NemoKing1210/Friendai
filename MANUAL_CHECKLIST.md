@@ -710,3 +710,12 @@ The automated suite used freshly recorded and legacy-format observations in a fi
 - [ ] Stop the server (or leave the world) while a command is being recognized: the HUD says it was not sent instead of showing it as accepted.
 
 The automated client suite drove the same paths with fixture audio on a loopback dedicated server; oversized, rate-limited, dismissed-companion, out-of-order recognition, a settings change and a reconnect ran there, while microphone input, the queue-full notice and the HUD wording need a real device.
+
+## Plan shown before work (TODO 138)
+
+- [ ] With a real provider, ask "Составь план, как построить дом. Пока ничего не делай": the companion lists the steps and says nothing has been started; `queue_show` and the goal board stay empty, and the companion does not move, mine or place anything.
+- [ ] Approve it in a separate message ("давай"), and check that the queued plan is the one shown and that it starts once; the approval turn must not plan the order again.
+- [ ] Ask for a plan, then change the request before approving: the shown plan is dropped and the new request is handled on its own; approving an old plan is impossible.
+- [ ] Ask for a plan with the provider unreachable: the companion says no plan could be drafted and stays put, exactly as a failed planning turn behaves.
+- [ ] Say "Составь план и построй дом" in one line: the plan is queued and the work starts, as before.
+

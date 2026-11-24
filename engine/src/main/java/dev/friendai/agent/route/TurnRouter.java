@@ -38,6 +38,11 @@ public final class TurnRouter {
         return vocabulary.marksCorrection(playerText);
     }
 
+    /** True when the line is an unambiguous approval of the plan the owner was just shown. */
+    public boolean isPlanApproval(String playerText) {
+        return vocabulary.isPlanApproval(playerText);
+    }
+
     /** True only when the text contains a recognized trading action verb, not merely a trading topic. */
     public boolean explicitlyRequestsTrading(String playerText) {
         if (playerText == null || playerText.isBlank()) return false;
@@ -62,11 +67,14 @@ public final class TurnRouter {
         int kinds = kinds(vocabulary.verbGroupsPerWord(tokens));
         boolean complex = vocabulary.hasComplexMarker(lower);
         boolean planRequest = vocabulary.hasPlanRequest(lower);
+        // The owner asked to see the plan before any work: the plan is drafted for them, never queued behind
+        // their back. The question branches below must not turn that request into chatter.
+        boolean proposeOnly = vocabulary.hasPlanProposalRequest(lower);
         if (s.planBlockedOrFailed()) {
             return new RouteDecision(
                     TurnMode.RECOVERY,
                     all(),
-                    plan(mode, TurnMode.RECOVERY, s, text, kinds, complex, planRequest),
+                    plan(mode, TurnMode.RECOVERY, s, text, kinds, complex, planRequest, proposeOnly),
                     "a plan failed or needs a decision");
         }
         if (s.turn() == TurnKind.EVENT || lower.isEmpty()) {
@@ -74,7 +82,7 @@ public final class TurnRouter {
             return new RouteDecision(
                     turnMode,
                     all(),
-                    plan(mode, turnMode, s, text, 0, false, false),
+                    plan(mode, turnMode, s, text, 0, false, false, proposeOnly),
                     s.turn() == TurnKind.EVENT ? "no player message" : "empty player message");
         }
         if (vocabulary.isConversation(tokens)) {
@@ -88,12 +96,21 @@ public final class TurnRouter {
         verbs.values().forEach(groups::addAll);
         groups.addAll(vocabulary.topicGroupsIn(tokens));
 
+        if (proposeOnly) {
+            groups.add(ToolGroup.MOVEMENT);
+            groups.add(ToolGroup.INFO);
+            return new RouteDecision(
+                    TurnMode.ACTION,
+                    groups.isEmpty() ? all() : groups,
+                    plan(mode, TurnMode.ACTION, s, text, kinds, complex, planRequest, proposeOnly),
+                    "a request for a plan without starting work");
+        }
         boolean question = lower.endsWith("?") || vocabulary.startsWithQuestionMarker(lower, tokens);
         if (question && vocabulary.isAdviceQuestion(lower)) {
             return new RouteDecision(
                     TurnMode.CHAT,
                     EnumSet.of(ToolGroup.INFO, ToolGroup.MEMORY, ToolGroup.INVENTORY),
-                    plan(mode, TurnMode.CHAT, s, text, 0, false, false),
+                    plan(mode, TurnMode.CHAT, s, text, 0, false, false, false),
                     "a shopping advice question, not an order");
         }
         if (question && groups.contains(ToolGroup.TRADING) && vocabulary.startsWithQuestionMarker(lower, tokens)) {
@@ -102,7 +119,7 @@ public final class TurnRouter {
             return new RouteDecision(
                     TurnMode.CHAT,
                     chatGroups,
-                    plan(mode, TurnMode.CHAT, s, text, 0, false, false),
+                    plan(mode, TurnMode.CHAT, s, text, 0, false, false, false),
                     "a question about remembered market facts, not an order");
         }
         if (question && verbs.isEmpty()) {
@@ -111,7 +128,7 @@ public final class TurnRouter {
             return new RouteDecision(
                     TurnMode.CHAT,
                     chatGroups,
-                    plan(mode, TurnMode.CHAT, s, text, 0, false, false),
+                    plan(mode, TurnMode.CHAT, s, text, 0, false, false, false),
                     "a question with no action in it");
         }
         int score = kinds + (complex ? 1 : 0) + (planRequest ? 1 : 0);
@@ -121,14 +138,14 @@ public final class TurnRouter {
             return new RouteDecision(
                     TurnMode.GOAL,
                     groups.isEmpty() ? all() : groups,
-                    plan(mode, TurnMode.GOAL, s, text, kinds, complex, planRequest),
+                    plan(mode, TurnMode.GOAL, s, text, kinds, complex, planRequest, proposeOnly),
                     "several kinds of work (score " + score + ")");
         }
         if (groups.isEmpty()) {
             return new RouteDecision(
                     TurnMode.ACTION,
                     all(),
-                    plan(mode, TurnMode.ACTION, s, text, kinds, complex, planRequest),
+                    plan(mode, TurnMode.ACTION, s, text, kinds, complex, planRequest, proposeOnly),
                     "no recognized words");
         }
         // Movement and the read-only info tools (find_trees, find_blocks, player_view) help every action.
@@ -137,7 +154,7 @@ public final class TurnRouter {
         return new RouteDecision(
                 TurnMode.ACTION,
                 groups,
-                plan(mode, TurnMode.ACTION, s, text, kinds, complex, planRequest),
+                plan(mode, TurnMode.ACTION, s, text, kinds, complex, planRequest, proposeOnly),
                 "matched " + groups);
     }
 
@@ -148,12 +165,20 @@ public final class TurnRouter {
             String text,
             int kinds,
             boolean complex,
-            boolean planRequest) {
-        return planningPolicy.beforeTurn(planSignals(mode, s, text, kinds, complex, planRequest), plannerMode);
+            boolean planRequest,
+            boolean proposeOnly) {
+        return planningPolicy.beforeTurn(
+                planSignals(mode, s, text, kinds, complex, planRequest, proposeOnly), plannerMode);
     }
 
     private static PlanSignals planSignals(
-            TurnMode mode, RouteSignals s, String text, int kinds, boolean complex, boolean planRequest) {
+            TurnMode mode,
+            RouteSignals s,
+            String text,
+            int kinds,
+            boolean complex,
+            boolean planRequest,
+            boolean proposeOnly) {
         return new PlanSignals(
                 mode,
                 text,
@@ -170,7 +195,8 @@ public final class TurnRouter {
                 s.failure(),
                 s.goalId(),
                 s.unmet(),
-                s.shiftId());
+                s.shiftId(),
+                proposeOnly);
     }
 
     private static Set<ToolGroup> all() {

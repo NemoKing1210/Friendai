@@ -65,6 +65,11 @@ public final class CompanionBrain {
     private static final String REQUEST_TOOLS = "request_tools";
     /** The one tool whose schema a request carries only while a taught run is being recorded. */
     private static final String MANAGE_SKILL = "manage_skill";
+    /**
+     * The core tools a proposal turn keeps: core schemas are offered whatever the groups say, so the ones that can
+     * change the queue or the goal are dropped by name. A new core tool is not offered until it is listed here.
+     */
+    private static final Set<String> PROPOSAL_CORE_TOOLS = Set.of("queue_show", "plan_help", "plan_validate");
     /** Free time's director tool: once it succeeds, the turn is over. */
     static final String CHOOSE_ACTIVITY = "choose_activity";
     /** The marker the failure handler puts in an event when no replans are left. */
@@ -191,6 +196,12 @@ public final class CompanionBrain {
     private final ToolCatalog catalog;
     /** The tool groups this turn may use; widened by request_tools, reset at every turn start. */
     private final Set<ToolGroup> visibleGroups = EnumSet.allOf(ToolGroup.class);
+    /** One plan per principal that was shown for approval and not started yet. */
+    private final Map<UUID, PendingPlan> pendingPlans = new HashMap<>();
+    /** True while this turn only presents a plan: no work, queue change or goal change may start. */
+    private boolean proposalTurn;
+
+    private record PendingPlan(PlanSubject.OwnerOrder order, PlanProposal proposal) {}
 
     private RouteDecision decision =
             new RouteDecision(TurnMode.ACTION, EnumSet.allOf(ToolGroup.class), PlanningDecision.none("none"), "none");
@@ -436,6 +447,7 @@ public final class CompanionBrain {
         turnPlanIds.clear();
         turnGoalIds.clear();
         incidents.cancelled();
+        pendingPlans.clear();
         recoveryTurn = false;
         streamInFlight = false;
         if (thinking) {
@@ -562,6 +574,28 @@ public final class CompanionBrain {
         this.tradingPromptSource = source == null ? (caller, text) -> "" : source;
     }
 
+    /**
+     * Drops the core schemas a proposal turn must not carry. Core tools ignore the group filter, so the queue and goal
+     * tools would otherwise reach a turn whose whole point is that nothing starts.
+     */
+    private List<ToolSpec> proposalTools(List<ToolSpec> offered) {
+        if (!proposalTurn) return offered;
+        return offered.stream()
+                .filter(spec ->
+                        !catalog.meta(spec.name()).map(meta -> meta.core()).orElse(false)
+                                || PROPOSAL_CORE_TOOLS.contains(spec.name()))
+                .toList();
+    }
+
+    /**
+     * The groups this request may offer. A proposal turn is the one case where routing cannot widen them: the owner
+     * asked to see a plan before anything runs, so only observation is available whatever the settings say.
+     */
+    private Set<ToolGroup> promptGroups() {
+        if (proposalTurn) return ToolCatalog.readOnlyGroups();
+        return agentSettings.get().toolRouting() ? visibleGroups : EnumSet.allOf(ToolGroup.class);
+    }
+
     /** The system prompt the next request would carry. */
     public String currentSystemPrompt() {
         return buildSystemPrompt(plannerNote);
@@ -576,9 +610,7 @@ public final class CompanionBrain {
                 turnKind,
                 goalSource.view(turnCaller),
                 agentSettings.get().promptBudget(),
-                catalog.hints(
-                        agentSettings.get().toolRouting() ? visibleGroups : EnumSet.allOf(ToolGroup.class),
-                        decision.mode() == TurnMode.CHAT),
+                catalog.hints(promptGroups(), decision.mode() == TurnMode.CHAT),
                 placeSource.describe(turnCaller),
                 placedSource.describe(turnCaller),
                 note,
@@ -845,6 +877,20 @@ public final class CompanionBrain {
                         && decision.mode() != TurnMode.CHAT
                         && decision.groups().contains(ToolGroup.TRADING)
                         && router.explicitlyRequestsTrading(String.join("\n", turnPlayerTexts)));
+        proposalTurn = decision.planning().proposeOnly();
+        String approvalNote = "";
+        if (turnKind == TurnKind.PLAYER && !turnPlayerTexts.isEmpty()) {
+            PendingPlan pending = pendingPlans.remove(turnCaller.uuid());
+            if (pending != null) {
+                if (router.isPlanApproval(String.join("\n", turnPlayerTexts))) {
+                    approvalNote = approvePlan(pending);
+                } else {
+                    // The request moved on, so the plan drafted for the old one may not run.
+                    observe(o -> o.onPlannerAttempt(
+                            new PlannerAttempt(pending.order(), 1, "fallback", "proposal-replaced", 0L, 0L)));
+                }
+            }
+        }
         skillFreeTimeTurn = batch.stream()
                 .anyMatch(e -> e instanceof BrainEvent.FreeTimeShift
                         || (e instanceof BrainEvent.SkillOutcome outcome
@@ -892,7 +938,12 @@ public final class CompanionBrain {
         }
         memory.add(Message.user(lines));
         step = 0;
-        plannerNote = "";
+        plannerNote = approvalNote;
+        if (!approvalNote.isEmpty()) {
+            // The owner approved the plan they were shown; it is queued and nothing else may replace it this turn.
+            requestStep(generation);
+            return;
+        }
         if (recoveryPaused) {
             // No repair is safe any more: asking the planner again would spend another request on the same block.
             observe(o -> o.onPlannerAttempt(new PlannerAttempt(null, 1, "fallback", "recovery-spent", 0L, 0L)));
@@ -910,15 +961,39 @@ public final class CompanionBrain {
             requestStep(generation);
         } else if (planning.subject() instanceof PlanSubject.TroubledPlan trouble) {
             if (ownsTroubledPlan && !lines.contains(BUDGET_SPENT)) {
-                plan(generation, trouble, lines);
+                plan(generation, trouble, lines, false);
             } else {
                 requestStep(generation);
             }
         } else if (planning.subject() instanceof PlanSubject.FreeTimeShift) {
             requestStep(generation);
         } else {
-            plan(generation, planning.subject(), "");
+            plan(generation, planning.subject(), "", planning.proposeOnly());
         }
+    }
+
+    /**
+     * Queues the plan the owner just approved and returns the note the model answers from. The proposal may have
+     * gone stale while it waited — the queue, the goal or the principal's access can change — so the queueing call
+     * is the final check and a refusal is reported instead of started work.
+     */
+    private String approvePlan(PendingPlan pending) {
+        ToolResult applied;
+        try {
+            applied = plannerPort.apply(turnCaller, pending.order(), pending.proposal());
+        } catch (RuntimeException e) {
+            LOGGER.warn("Could not queue the approved plan", e);
+            applied = ToolResult.error("could not queue the plan");
+        }
+        if (applied.error()) {
+            observe(o -> o.onPlannerAttempt(new PlannerAttempt(pending.order(), 1, "fallback", "rejected", 0L, 0L)));
+            return "The owner approved the plan you proposed, but it could not be queued (" + applied.content()
+                    + "); read the queue, then tell them what is blocking it.";
+        }
+        long planId = planIdIn(applied.content());
+        observe(o -> o.onPlannerAttempt(new PlannerAttempt(pending.order(), 1, "delivered", "", 0L, planId)));
+        return "The owner approved the plan you proposed (" + applied.content()
+                + "); it is queued and will run. Tell them it has started, and do not queue another plan.";
     }
 
     /** A known task outcome carries its own tool context; unrecognized events keep the router's full fallback. */
@@ -1007,7 +1082,7 @@ public final class CompanionBrain {
      * the model once, in the Mission block of the next request. A stop, dismissal or logout meanwhile bumps the
      * generation, so a late proposal is dropped without touching the queue (rule 5).
      */
-    private void plan(int gen, PlanSubject subject, String failure) {
+    private void plan(int gen, PlanSubject subject, String failure, boolean proposeOnly) {
         Optional<PlannerInput> input;
         long troubledPlan = subject instanceof PlanSubject.TroubledPlan trouble ? trouble.planId() : 0L;
         try {
@@ -1067,6 +1142,8 @@ public final class CompanionBrain {
                 observe(o -> o.onPlannerAttempt(new PlannerAttempt(subject, 1, "fallback", reason, durationMs, 0L)));
                 noPlannerProgress(troubledPlan);
                 plannerNote = "no plan was drafted (" + code + "); plan the next step yourself";
+            } else if (proposeOnly && subject instanceof PlanSubject.OwnerOrder order) {
+                deliverProposal(subject, order, proposal, durationMs);
             } else {
                 ToolResult applied;
                 try {
@@ -1098,6 +1175,36 @@ public final class CompanionBrain {
         }));
     }
 
+    /**
+     * A proposal the owner asked to see: validated like a queued plan but not queued, kept for their approval and
+     * shown to the model once. The turn carries only read-only tools, so neither the model nor a fallback reply can
+     * start the work the owner asked it to hold.
+     */
+    private void deliverProposal(
+            PlanSubject subject, PlanSubject.OwnerOrder order, PlanProposal proposal, long durationMs) {
+        ToolResult valid;
+        try {
+            valid = plannerPort.validate(turnCaller, subject, proposal);
+        } catch (RuntimeException e) {
+            LOGGER.warn("Could not validate the proposed plan", e);
+            valid = ToolResult.error("the plan could not be checked");
+        }
+        if (valid.error()) {
+            observe(o -> o.onPlannerAttempt(new PlannerAttempt(subject, 1, "fallback", "rejected", durationMs, 0L)));
+            plannerNote = "the plan you drafted did not pass validation (" + valid.content()
+                    + "); tell the owner what is wrong with it and what you would change";
+            return;
+        }
+        pendingPlans.put(turnCaller.uuid(), new PendingPlan(order, proposal));
+        observe(o -> o.onPlannerAttempt(new PlannerAttempt(subject, 1, "delivered", "", durationMs, 0L)));
+        plannerNote = "A plan was drafted but NOT queued, because the owner asked to see it first: "
+                + proposal.stepsJson()
+                + (proposal.rationale().isBlank() ? "" : "; rationale: " + proposal.rationale())
+                + (proposal.expectedOutcome().isBlank() ? "" : "; expected: " + proposal.expectedOutcome())
+                + ". Present it to the owner as a short numbered list of steps and say that nothing has been started."
+                + " Do not queue, run or start anything, and do not change the goal; they will approve it or change it.";
+    }
+
     /** A consultation that produced no plan is a spent remedy on the plan it was meant to repair. */
     private void noPlannerProgress(long planId) {
         if (planId > 0) {
@@ -1126,12 +1233,13 @@ public final class CompanionBrain {
             List<ToolSpec> specs = tools.specs(turnCaller.access()).stream()
                     .filter(spec -> !spec.name().equals(MANAGE_SKILL) || teachingContext != null)
                     .toList();
-            Set<ToolGroup> groups = agentSettings.get().toolRouting() ? visibleGroups : EnumSet.allOf(ToolGroup.class);
+            Set<ToolGroup> groups = promptGroups();
             // A spent incident is answered in words: the failure line already names the blocker and the decision
             // the owner has to make, and another task would only restart the chain.
             boolean wordsOnly = socialTurn || (recoveryTurn && incidents.paused());
-            List<ToolSpec> sent =
-                    wordsOnly ? List.of() : catalog.filter(specs, groups, decision.mode() == TurnMode.CHAT);
+            List<ToolSpec> sent = wordsOnly
+                    ? List.of()
+                    : proposalTools(catalog.filter(specs, groups, decision.mode() == TurnMode.CHAT));
             // ReplyGuard sanitizes internal names across the full registry, even when routing hid a schema.
             turnToolNames = wordsOnly
                     ? java.util.Set.of()
@@ -1547,6 +1655,9 @@ public final class CompanionBrain {
             return ToolResult.error("trading is not available for this request");
         }
         String refusal = "The tool " + tool + " was not offered in this request, so nothing was done.";
+        if (proposalTurn) {
+            return ToolResult.error(refusal + " This turn only presents a plan to the owner, so no work may start.");
+        }
         Optional<dev.friendai.agent.tools.ToolMeta> meta = catalog.meta(tool);
         if (meta.isEmpty()) {
             return ToolResult.error(refusal);
@@ -1571,6 +1682,10 @@ public final class CompanionBrain {
                         && call.arguments().get("group").isJsonPrimitive()
                 ? call.arguments().get("group").getAsString()
                 : "";
+        if (proposalTurn) {
+            return ToolResult.error(
+                    "This turn only presents a plan to the owner, so no work may start. Answer with the plan and wait.");
+        }
         Optional<ToolGroup> group = ToolGroup.parse(wanted).filter(g -> g != ToolGroup.CORE);
         if (group.isEmpty()) {
             String valid = java.util.Arrays.stream(ToolGroup.values())

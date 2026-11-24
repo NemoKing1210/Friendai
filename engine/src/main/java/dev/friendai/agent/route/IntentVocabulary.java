@@ -28,6 +28,8 @@ public final class IntentVocabulary {
     private final Map<String, Set<ToolGroup>> topicWords;
     private final List<String> complexMarkers;
     private final List<String> planMarkers;
+    private final List<String> planProposalMarkers;
+    private final List<String> planApprovalMarkers;
     private final List<String> conversationMarkers;
     private final List<String> statementNegations;
 
@@ -38,6 +40,8 @@ public final class IntentVocabulary {
             Map<String, Set<ToolGroup>> topicWords,
             List<String> complexMarkers,
             List<String> planMarkers,
+            List<String> planProposalMarkers,
+            List<String> planApprovalMarkers,
             List<String> conversationMarkers,
             List<String> statementNegations) {
         this.questionMarkers = questionMarkers;
@@ -46,6 +50,8 @@ public final class IntentVocabulary {
         this.topicWords = topicWords;
         this.complexMarkers = complexMarkers;
         this.planMarkers = planMarkers;
+        this.planProposalMarkers = List.copyOf(planProposalMarkers);
+        this.planApprovalMarkers = List.copyOf(planApprovalMarkers);
         this.conversationMarkers = List.copyOf(conversationMarkers);
         this.statementNegations = List.copyOf(statementNegations);
     }
@@ -58,6 +64,8 @@ public final class IntentVocabulary {
         Map<String, Set<ToolGroup>> topics = new LinkedHashMap<>();
         List<String> complex = new ArrayList<>();
         List<String> plans = new ArrayList<>();
+        List<String> planProposals = new ArrayList<>();
+        List<String> planApprovals = new ArrayList<>();
         List<String> conversation = new ArrayList<>();
         List<String> negations = new ArrayList<>();
         for (String file : List.of("/agent/intents_en.json", "/agent/intents_ru.json")) {
@@ -68,10 +76,22 @@ public final class IntentVocabulary {
             groups(json, "topic_words", topics);
             strings(json, "complex_markers", complex);
             strings(json, "plan_request_markers", plans);
+            strings(json, "plan_proposal_markers", planProposals);
+            strings(json, "plan_approval_markers", planApprovals);
             strings(json, "conversation_markers", conversation);
             strings(json, "statement_negations", negations);
         }
-        return new IntentVocabulary(questions, adviceQuestions, verbs, topics, complex, plans, conversation, negations);
+        return new IntentVocabulary(
+                questions,
+                adviceQuestions,
+                verbs,
+                topics,
+                complex,
+                plans,
+                planProposals,
+                planApprovals,
+                conversation,
+                negations);
     }
 
     /** Exact whole-utterance matches only: a greeting beside an order must never hide that order's tools. */
@@ -149,6 +169,28 @@ public final class IntentVocabulary {
 
     public boolean hasPlanRequest(String lowerText) {
         return containsWords(planMarkers, lowerText);
+    }
+
+    /**
+     * True when the owner asks to see a plan before any work starts: "show me the plan", "just the plan", "do
+     * nothing yet". The wording is what withholds execution; the plan request itself is {@link #hasPlanRequest}.
+     */
+    public boolean hasPlanProposalRequest(String lowerText) {
+        return containsWords(planProposalMarkers, lowerText);
+    }
+
+    /**
+     * True only for an unambiguous approval of the plan just shown: the whole message is an approval phrase such as
+     * "go ahead", "do it" or "давай". An approval beside new conditions is a changed request, not consent, so it is
+     * never read as one.
+     */
+    public boolean isPlanApproval(String text) {
+        if (text == null || text.isBlank()) return false;
+        String lower = text.length() > TurnRouter.MAX_TEXT
+                ? text.substring(0, TurnRouter.MAX_TEXT).toLowerCase(java.util.Locale.ROOT)
+                : text.toLowerCase(java.util.Locale.ROOT);
+        String words = String.join(" ", words(lower));
+        return planApprovalMarkers.contains(words);
     }
 
     /**
