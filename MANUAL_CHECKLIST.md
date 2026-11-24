@@ -723,3 +723,11 @@ The automated client suite drove the same paths with fixture audio on a loopback
 - [ ] Ask for a plan with the provider unreachable: the companion says no plan could be drafted and stays put, exactly as a failed planning turn behaves.
 - [ ] Say "Составь план и построй дом" in one line: the plan is queued and the work starts, as before.
 
+## Task history detail (TODO 144)
+
+- [ ] Open the companion menu, Tasks tab, with a row whose task stopped (for example after a full inventory): the row shows its plain sentence; clicking or pressing Enter on it opens the rest of the report right below it, with "Blocker", "Reason" and "Next" lines first and a "less" marker at the end.
+- [ ] Narrow the game window or raise the GUI scale so the text wraps: the open row stays readable, the collapsed list stays the same height, and a truncated receipt ends with "..." instead of running off the panel.
+- [ ] Let a task time out (walk out of reach with a long order): its badge says "Timed out" and the row opens like any other.
+- [ ] Switch the language to Russian and English: the labels and the "more"/"less" markers are translated, and the task's own sentence stays in the language the model wrote it in.
+
+The automated suite pins the text split and the layout arithmetic; the click, the wrapping and the keyboard focus need a real window.
