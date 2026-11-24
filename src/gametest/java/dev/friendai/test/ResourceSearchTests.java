@@ -257,6 +257,76 @@ public final class ResourceSearchTests {
         h.succeed();
     }
 
+    /**
+     * The session can refuse a candidate the planner offered: the remaining budget must cover the walk out and the
+     * walk back. A refused frontier must not start its leg, move the companion or take the leg's chunk lease.
+     */
+    @GameTest(
+            structure = GameTestArenas.ARENA_16,
+            maxTicks = 200,
+            environment = "friendai-gametest:search_budget_refusal")
+    public void aRefusedFrontierNeverStartsItsLeg(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        var owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.setOwner(owner.getUUID());
+        var state = GameTestSupport.runtime(h.getLevel().getServer());
+        var config = state.config();
+        config.tasks.resources.allowExpeditions = true;
+        config.companion.chunkLoading.enabled = true;
+        state.applyConfig(config);
+
+        String dimension = h.getLevel().dimension().identifier().toString();
+        BlockPos start = companion.blockPosition();
+        Pos origin = new Pos(start.getX(), start.getY(), start.getZ());
+        var profile = new ResourceSearchProfile(
+                "minecraft:coal_ore",
+                Set.of(dimension),
+                OptionalInt.empty(),
+                Set.of(ResourceSearchProfile.Strategy.SURFACE));
+        var target = new TargetKind.BlockFamily("minecraft:coal_ore", Set.of("minecraft:coal_ore"), profile);
+        // 100 ticks leaves the nearest 16-block candidate inside the planner's own budget filter, while the session
+        // still refuses it: walking there and back would cost more than what is left.
+        var session = new SearchSession(
+                UUID.randomUUID(),
+                dimension,
+                "minecraft:coal_ore",
+                origin,
+                new SearchSession.Limits(32, 128, 100, 24),
+                h.getLevel().getServer().overworld().getGameTime());
+        var horizon = state.chunkLoader().expeditionHorizon();
+        var driver = new ResourceSearchDriver(
+                session, target, profile, 32, true, ResourceSearchProfile.Strategy.SURFACE, null, null, null);
+        TaskContext context = new TaskContext(companion, h.getLevel());
+        driver.start(context);
+        boolean[] refused = {false};
+        String[] prematureDispatch = {null};
+        h.succeedWhen(() -> {
+            TaskStatus status = driver.tick(context);
+            h.assertTrue(
+                    !horizon.holdsLease(owner.getUUID()),
+                    "a refused frontier must not take its chunk lease: " + driver.resultSummary());
+            h.assertTrue(
+                    companion.blockPosition().distManhattan(start) < 4,
+                    "a refused frontier must not move the companion: " + driver.resultSummary());
+            if (!refused[0] && session.snapshot().phase() == SearchSession.Phase.RETURN) {
+                refused[0] = true;
+                var base = driver.debugWorkSets().getFirst().cells().getFirst();
+                if (base.x() != origin.x() || base.y() != origin.y() || base.z() != origin.z()) {
+                    prematureDispatch[0] = "the driver named a frontier the session refused: " + base;
+                } else if (status == TaskStatus.RUNNING) {
+                    prematureDispatch[0] = "the refusal did not take effect on the tick it arrived";
+                }
+            }
+            h.assertTrue(
+                    refused[0],
+                    "the session must refuse a leg its remaining budget cannot cover: " + driver.resultSummary());
+            h.assertTrue(prematureDispatch[0] == null, prematureDispatch[0] + " (" + driver.resultSummary() + ")");
+            h.assertTrue(status == TaskStatus.FAILED, "status " + status + " " + driver.resultSummary());
+            h.assertTrue(driver.resultSummary().contains("budget"), driver.resultSummary());
+        });
+    }
+
     @GameTest(
             structure = GameTestArenas.ARENA_16,
             maxTicks = 160,

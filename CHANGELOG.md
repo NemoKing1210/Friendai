@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.233.14] - 2026-11-24
+
+### Fixed
+
+- The companion no longer walks off on a search leg its remaining time or range cannot pay for and then turns around halfway: a destination the search refuses is not dispatched, so the trip either picks a nearer spot or heads home and says why.
+
 ## [0.233.13] - 2026-11-24
 
 ### Fixed

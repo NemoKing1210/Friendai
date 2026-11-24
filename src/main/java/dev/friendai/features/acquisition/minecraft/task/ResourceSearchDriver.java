@@ -248,27 +248,29 @@ public final class ResourceSearchDriver implements Task {
                         ResourceSearchProfile.Strategy.CAVE,
                         1,
                         Math.max(1, Math.round(distance(origin, interior) * 2)));
-                if (!resumed) {
-                    session.advance(new SearchSession.Input(
-                            logicalTick(context),
+                if (!resumed && !approveFrontier(context, origin, caveEntrance.dimension(), activeFrontier)) {
+                    // The session refused the entrance (outside the radius or unaffordable): walking to it
+                    // anyway would start a leg the budget was never meant to cover.
+                    activeFrontier = null;
+                    if (session.snapshot().phase() == SearchSession.Phase.RETURN) {
+                        returnFailureReason =
+                                "the search budget cannot cover the approach to the observed cave entrance";
+                        returning = true;
+                        summary = diagnostic(returnFailureReason);
+                        return;
+                    } else {
+                        startupFailure = "the observed cave entrance is outside the search radius";
+                        session.interrupt();
+                    }
+                } else {
+                    journey = new ResourceJourney(
+                            context,
                             caveEntrance.dimension(),
-                            origin,
-                            true,
-                            false,
-                            SearchSession.LegOutcome.NONE,
-                            activeFrontier,
-                            0,
-                            0,
-                            0,
-                            activeFrontier.estimatedTravelTicks()));
+                            interior,
+                            session,
+                            context.ownerKnowledge().trails(),
+                            expedition);
                 }
-                journey = new ResourceJourney(
-                        context,
-                        caveEntrance.dimension(),
-                        interior,
-                        session,
-                        context.ownerKnowledge().trails(),
-                        expedition);
             }
         } else if (selectedStrategy == ResourceSearchProfile.Strategy.MINE) {
             int remainingExcavation = Math.max(
@@ -279,20 +281,19 @@ public final class ResourceSearchDriver implements Task {
                 startupFailure = "search excavation budget is already spent";
                 session.interrupt();
             } else {
-                if (!resumed) {
-                    SearchPlanner.Frontier initial = frontier(origin.x(), origin.y(), origin.z());
-                    session.advance(new SearchSession.Input(
-                            logicalTick(context),
-                            context.level().dimension().identifier().toString(),
-                            origin,
-                            true,
-                            false,
-                            SearchSession.LegOutcome.NONE,
-                            initial,
-                            0,
-                            0,
-                            0,
-                            0));
+                if (!resumed
+                        && !approveFrontier(
+                                context,
+                                origin,
+                                context.level().dimension().identifier().toString(),
+                                frontier(origin.x(), origin.y(), origin.z()),
+                                0)) {
+                    // A leg starting where the companion already stands is refused only when the session has no
+                    // budget left: go home through the ordinary return path instead of excavating on credit.
+                    returnFailureReason = "the search budget cannot cover the excavation leg";
+                    returning = true;
+                    summary = diagnostic(returnFailureReason);
+                    return;
                 }
                 Set<String> blockIds = target instanceof TargetKind.BlockFamily family ? family.blockIds() : Set.of();
                 String block = blockIds.stream().sorted().findFirst().orElse(target.label());
@@ -613,30 +614,76 @@ public final class ResourceSearchDriver implements Task {
                 journey = returnJourney(context);
                 return TaskStatus.RUNNING;
             }
-            SearchPlanner.Frontier frontier = ranked.get(0).frontier();
-            explainChoice(context, ranked, now);
-            session.advance(new SearchSession.Input(
-                    now,
-                    context.level().dimension().identifier().toString(),
-                    position,
-                    true,
-                    false,
-                    SearchSession.LegOutcome.NONE,
-                    frontier,
-                    0,
-                    0,
-                    0,
-                    frontier.estimatedTravelTicks()));
+            String dimension = context.level().dimension().identifier().toString();
+            SearchPlanner.Ranked approved = null;
+            for (SearchPlanner.Ranked candidate : ranked) {
+                if (approveFrontier(context, position, dimension, candidate.frontier())) {
+                    approved = candidate;
+                    break;
+                }
+                if (session.snapshot().phase() == SearchSession.Phase.RETURN) {
+                    // The session chose home over this leg; every later candidate is heavier, so none can win.
+                    break;
+                }
+            }
+            if (approved == null) {
+                if (session.snapshot().phase() == SearchSession.Phase.RETURN) {
+                    if (returnFailureReason.isBlank()) {
+                        returnFailureReason = "the search budget cannot cover another leg within the radius";
+                    }
+                    returning = true;
+                    summary = diagnostic(returnFailureReason + "; returning");
+                    if (distance(current(context), origin) <= 2) return finishReturn(context);
+                    journey = returnJourney(context);
+                    return TaskStatus.RUNNING;
+                }
+                summary = diagnostic(
+                        "no local frontier inside the search radius remains after " + inspected + " viewpoints");
+                session.advance(input(context, null, SearchSession.LegOutcome.NONE, false, 0));
+                if (distance(current(context), origin) <= 2) return fail(context, summary);
+                returning = true;
+                journey = returnJourney(context);
+                return TaskStatus.RUNNING;
+            }
+            SearchPlanner.Frontier frontier = approved.frontier();
+            explainChoice(context, approved, ranked, now);
             activeFrontier = frontier;
             journey = new ResourceJourney(
                     context,
-                    context.level().dimension().identifier().toString(),
+                    dimension,
                     frontier.position(),
                     session,
                     context.ownerKnowledge().trails(),
                     expedition);
         }
         return TaskStatus.RUNNING;
+    }
+
+    /**
+     * Asks the session to approve one outbound frontier and starts nothing by itself: true only when the returned
+     * decision names that frontier. A refusal leaves the session in its own next phase, so the caller decides
+     * whether to try a nearer candidate or go home.
+     */
+    private boolean approveFrontier(
+            TaskContext context, Pos position, String dimension, SearchPlanner.Frontier frontier) {
+        return approveFrontier(context, position, dimension, frontier, frontier.estimatedTravelTicks());
+    }
+
+    private boolean approveFrontier(
+            TaskContext context, Pos position, String dimension, SearchPlanner.Frontier frontier, long returnEstimate) {
+        SearchSession.Decision decision = session.advance(new SearchSession.Input(
+                logicalTick(context),
+                dimension,
+                position,
+                true,
+                false,
+                SearchSession.LegOutcome.NONE,
+                frontier,
+                0,
+                0,
+                0,
+                returnEstimate));
+        return decision.frontier().isPresent();
     }
 
     private SearchPlanner.Request plannerRequest(TaskContext context, long now) {
@@ -659,7 +706,8 @@ public final class ResourceSearchDriver implements Task {
                 Optional.ofNullable(live).filter(value -> !value.expired(now)));
     }
 
-    private void explainChoice(TaskContext context, List<SearchPlanner.Ranked> ranked, long now) {
+    private void explainChoice(
+            TaskContext context, SearchPlanner.Ranked chosen, List<SearchPlanner.Ranked> ranked, long now) {
         SearchHint live = hint;
         var owner = context.companion().ownerUuid();
         if (owner != null) {
@@ -669,9 +717,12 @@ public final class ResourceSearchDriver implements Task {
             context.debug("search hint: " + live.describe(now));
             hintLogged = true;
         }
-        StringBuilder line = new StringBuilder("search chose ").append(describe(ranked.get(0)));
-        for (int i = 1; i < Math.min(4, ranked.size()); i++) {
-            line.append("; rejected ").append(describe(ranked.get(i)));
+        StringBuilder line = new StringBuilder("search chose ").append(describe(chosen));
+        int rejected = 0;
+        for (SearchPlanner.Ranked candidate : ranked) {
+            if (candidate == chosen || rejected >= 3) continue;
+            line.append("; rejected ").append(describe(candidate));
+            rejected++;
         }
         context.debug(line.toString());
     }
