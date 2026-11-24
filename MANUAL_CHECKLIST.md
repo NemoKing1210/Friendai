@@ -820,3 +820,13 @@ The automated suite pins the text split and the layout arithmetic; the click, th
       where the outer item comes from: the answer lists the shallow source it verified and says the list is partial.
 - [ ] Start a search for that item and let it fail: the reported result mentions the incomplete source list, and a
       deeper walk after raising the reach finds the deep source.
+
+## Verified receipts stay with their own work (TODO 159)
+
+- [ ] Give the companion an order to fetch and hand you four stone pickaxes, take them, then order the same four
+      again: the second planner request does not quote the first delivery as stock, and its plan still arranges the
+      pickaxes. Read the request body in the debug log for the "Already verified by earlier tasks" block.
+- [ ] Abandon that order halfway, then let the companion repair the same plan: the repair request still cites the
+      partial delivery it verified, and a new order for something unrelated cites nothing.
+- [ ] Ask a trusted player to do the same: the trusted planner request may cite the receipt; a guest's request never
+      does.

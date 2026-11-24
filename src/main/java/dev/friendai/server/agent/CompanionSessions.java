@@ -935,14 +935,17 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
             return "";
         }
         MemoryBook book = memory.book(owner);
+        var primary = goals.board(owner).primary();
         return ContinuityPrompt.render(
                 book.journal(owner),
-                goals.board(owner)
-                        .primary()
-                        .map(dev.friendai.agent.goal.Goal::text)
-                        .orElse(""),
+                primary.map(dev.friendai.agent.goal.Goal::text).orElse(""),
                 config.places.enabled ? places.book(owner).all() : List.of(),
-                session.verifiedFacts(),
+                // The last line only quotes work the active goal itself verified; another order's delivery would
+                // read as stock this one may count on.
+                session.verifiedFacts(
+                        primary.map(dev.friendai.agent.goal.Goal::id).orElse(0L),
+                        primary.map(dev.friendai.agent.goal.Goal::planId).orElse(0L),
+                        server.getTickCount()),
                 config.memory.enabled ? book.facts(Subject.player(owner)) : List.of());
     }
 

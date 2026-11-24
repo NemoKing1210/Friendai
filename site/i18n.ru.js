@@ -365,6 +365,7 @@ const RU = {
   "Conversation transcript": "Запись разговоров",
   "Both sides of every chat, redacted, capped by count and age; a recreated companion restores the last few delivered lines.": "Обе стороны каждого разговора, секреты скрыты, ограничено по числу и возрасту; пересозданный компаньон восстанавливает последние произнесённые реплики.",
   "One primary and three background goals, lessons, replan budget, and the owner order each one answers.": "Одна главная и три фоновые цели, уроки, бюджет перепланирования и исходный приказ владельца для каждой.",
+  "Verified receipts|Bounded per-item proofs of finished work, tagged with their goal and plan; a handover stays history, while a carried count is rechecked against the inventory before a plan cites it.": "Подтверждённые квитанции|Ограниченные доказательства по каждому предмету о выполненной работе, помеченные своей целью и планом; передача остаётся историей, а подсчёт на руках заново сверяется с инвентарём, прежде чем план на него сошлётся.",
   "Delivery receipts|The bounded hand-over ledger records what left the companion, the stock the owner already had, and what they later picked up.": "Квитанции передач|Ограниченный журнал передач хранит, что ушло от компаньона, какой запас уже был у владельца и что он потом подобрал.",
   "Store a fact.": "Запомнить факт.",
   "List the owner's skills with ids, versions and on/off state.":

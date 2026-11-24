@@ -7,6 +7,7 @@ import dev.friendai.agent.recover.RecoveryAdvisor;
 import dev.friendai.agent.verify.Fact;
 import dev.friendai.agent.verify.Outcome;
 import dev.friendai.agent.verify.OutcomeChecker;
+import dev.friendai.agent.verify.VerifiedEvidence;
 import dev.friendai.agent.verify.WorldSnapshot;
 import dev.friendai.debug.DebugService;
 import dev.friendai.entity.CompanionEntity;
@@ -137,13 +138,13 @@ final class SessionEvents {
             if (before == null) before = after;
             var board = goals.board(owner);
             // The goal that owns this plan is what the task was for: its criteria are the proof to check.
-            List<dev.friendai.agent.goal.Criterion> criteria = planId == 0
-                    ? List.of()
+            var owning = planId == 0
+                    ? null
                     : board.all().stream()
                             .filter(goal -> goal.planId() == planId)
                             .findFirst()
-                            .map(dev.friendai.agent.goal.Goal::criteria)
-                            .orElse(List.of());
+                            .orElse(null);
+            List<dev.friendai.agent.goal.Criterion> criteria = owning == null ? List.of() : owning.criteria();
             var outcome = OutcomeChecker.check(
                     before,
                     after,
@@ -154,13 +155,18 @@ final class SessionEvents {
                     false);
             emitOutcomeCheck(
                     outcome, disposition == TaskDisposition.SUCCESS, criteria.isEmpty(), execution, planId, 0, tool);
-            session.noteVerified(outcome.facts().stream().map(Fact::text).toList());
-            if (planId != 0) {
+            // One receipt per verified item, tagged with the goal and plan it proves, so a later planner call for
+            // other work cannot inherit it. A delivery is history; a stock count must still be checked against the
+            // live inventory when the planner asks.
+            long now = companion.level().getGameTime();
+            long owningGoal = owning == null ? 0L : owning.id();
+            for (VerifiedEvidence receipt :
+                    VerifiedEvidence.fromWorkResult(workResult.orElse(null), owningGoal, planId, now)) {
+                session.noteVerified(receipt);
+            }
+            if (owning != null) {
                 // Only the goal that owns this plan inherited this task, so only it may cite these facts.
-                board.all().stream()
-                        .filter(goal -> goal.planId() == planId)
-                        .findFirst()
-                        .ifPresent(goal -> goalOutcomes.noteFacts(owner, goal.id(), outcome.facts()));
+                goalOutcomes.noteFacts(owner, owning.id(), outcome.facts());
             }
             String factsLine = outcome.factsLine();
             if (!outcome.unmetCriteria().isEmpty()) {

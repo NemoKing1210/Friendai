@@ -6,6 +6,14 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.232.5] - 2026-11-24
+
+### Fixed
+
+- When the companion plans follow-up work, it now only counts what the same goal or the same job actually proved, so a delivery made for one request no longer reads as stock another request can rely on.
+- A count of items the companion was merely carrying is checked against what it really has now: gone items are not quoted, and a partly used stack is reported with what remains.
+- A trusted helper's plan may cite that work, while a guest's never does.
+
 ## [0.232.4] - 2026-11-24
 
 ### Fixed

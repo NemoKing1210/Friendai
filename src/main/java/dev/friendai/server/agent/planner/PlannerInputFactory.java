@@ -57,10 +57,23 @@ public final class PlannerInputFactory {
     private final Supplier<List<Place>> places;
     private final Supplier<GoalBoard> goals;
     private final Supplier<ServerConfig> config;
-    private final Supplier<List<String>> verifiedFacts;
+    /**
+     * The verified receipts of one objective: goal id, plan id and the current tick in, the facts that prove them out.
+     * A receipt for other work is never offered to the planner.
+     */
+    private final VerifiedFacts verifiedFacts;
+
     private final Supplier<FreeTimeService> freeTime;
     /** Conversation and durable-memory evidence for one consultation, built by the same session that feeds the reply. */
     private final CompanionSession.DialogueEvidence evidence;
+
+    /** The verified facts one planner objective may cite, asked for that objective's own goal and plan. */
+    @FunctionalInterface
+    public interface VerifiedFacts {
+        VerifiedFacts NONE = (goalId, planId, now) -> List.of();
+
+        List<String> forObjective(long goalId, long planId, long now);
+    }
 
     public PlannerInputFactory(
             CompanionEntity companion,
@@ -69,7 +82,7 @@ public final class PlannerInputFactory {
             Supplier<List<Place>> places,
             Supplier<GoalBoard> goals,
             Supplier<ServerConfig> config,
-            Supplier<List<String>> verifiedFacts,
+            VerifiedFacts verifiedFacts,
             Supplier<FreeTimeService> freeTime) {
         this(
                 companion,
@@ -90,7 +103,7 @@ public final class PlannerInputFactory {
             Supplier<List<Place>> places,
             Supplier<GoalBoard> goals,
             Supplier<ServerConfig> config,
-            Supplier<List<String>> verifiedFacts,
+            VerifiedFacts verifiedFacts,
             Supplier<FreeTimeService> freeTime,
             CompanionSession.DialogueEvidence evidence) {
         this.companion = companion;
@@ -99,7 +112,7 @@ public final class PlannerInputFactory {
         this.places = places;
         this.goals = goals;
         this.config = config;
-        this.verifiedFacts = verifiedFacts;
+        this.verifiedFacts = verifiedFacts == null ? VerifiedFacts.NONE : verifiedFacts;
         this.freeTime = freeTime;
         this.evidence = evidence == null ? CompanionSession.DialogueEvidence.NONE : evidence;
     }
@@ -258,7 +271,7 @@ public final class PlannerInputFactory {
                 failure,
                 schemas,
                 visible.keySet(),
-                shift ? List.of() : verifiedFacts.get(),
+                shift ? List.of() : verifiedFor(subject, caller, targetPlanId),
                 List.of(),
                 0,
                 targetPlanId,
@@ -271,6 +284,28 @@ public final class PlannerInputFactory {
 
     private JobQueue queue() {
         return companion.executionCoordinator().queue();
+    }
+
+    /**
+     * The receipts one objective may cite: those of the goal it serves or the plan it repairs. An order the owner just
+     * gave names no goal yet, so it inherits nothing and must arrange its own evidence. A caller below trusted sees
+     * nothing either, because the receipts describe what the owner asked the companion to do.
+     */
+    private List<String> verifiedFor(PlanSubject subject, Caller caller, long targetPlanId) {
+        if (!caller.access().allows(AccessLevel.TRUSTED)) {
+            return List.of();
+        }
+        long goalId = 0;
+        long planId = targetPlanId;
+        if (subject instanceof PlanSubject.ActiveGoal goal) {
+            goalId = goal.goalId();
+        } else if (subject instanceof PlanSubject.TroubledPlan troubled) {
+            planId = troubled.planId();
+        }
+        if (goalId == 0 && planId == 0) {
+            return List.of();
+        }
+        return verifiedFacts.forObjective(goalId, planId, companion.level().getGameTime());
     }
 
     /** The lessons a free-time shift starts from: its own, plus the newest failure worth avoiding. */

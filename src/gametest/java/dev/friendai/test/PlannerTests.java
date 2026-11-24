@@ -23,6 +23,8 @@ import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 
 public class PlannerTests {
     /**
@@ -319,6 +321,144 @@ public class PlannerTests {
                         "the linked plan actually succeeds");
             }
         });
+    }
+
+    /**
+     * A receipt proves the goal and plan that earned it. The actual planner requests show a delivery to the same
+     * goal's new plan and to the repair of that plan, show nothing to an owner order, another plan's repair or a
+     * guest, and recheck a stock receipt against what the companion really carries.
+     */
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 200)
+    public void a_planner_input_offers_only_the_receipts_of_its_own_work(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer ownerPlayer = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
+        var server = h.getLevel().getServer();
+        ServerRuntime state = GameTestSupport.runtime(server);
+        CompanionEntity c = CompanionManager.get(server).summon(ownerPlayer);
+        c.inventory().clearContent();
+        Caller owner = new Caller(ownerPlayer.getUUID(), "Steve", AccessLevel.OWNER);
+        h.assertFalse(call(c, owner, "set_goal", "{\"text\":\"make sticks\"}").error(), "goal set");
+        long goalId = state.goals()
+                .board(ownerPlayer.getUUID())
+                .primary()
+                .orElseThrow()
+                .id();
+        h.assertFalse(
+                call(c, owner, "queue_add", GameTestToolRegistry.forPrimaryGoal(c, FLAT_FAILING_PLAN))
+                        .error(),
+                "the goal's plan is queued");
+        long goalPlanId = state.goals()
+                .board(ownerPlayer.getUUID())
+                .primary()
+                .orElseThrow()
+                .planId();
+        h.assertFalse(call(c, owner, "queue_add", FLAT_FAILING_PLAN).error(), "an unowned plan is queued");
+        long otherPlanId = c.executionCoordinator().queue().plans().stream()
+                .mapToLong(dev.friendai.execution.queue.PlanRecord::id)
+                .filter(id -> id != goalPlanId)
+                .max()
+                .orElseThrow();
+
+        long now = server.getTickCount();
+        List<dev.friendai.agent.verify.VerifiedEvidence> receipts = new java.util.ArrayList<>(List.of(
+                new dev.friendai.agent.verify.VerifiedEvidence(
+                        dev.friendai.agent.verify.VerifiedEvidence.Kind.DELIVERED,
+                        "minecraft:stick",
+                        4,
+                        4,
+                        goalId,
+                        goalPlanId,
+                        now),
+                new dev.friendai.agent.verify.VerifiedEvidence(
+                        dev.friendai.agent.verify.VerifiedEvidence.Kind.CARRIED,
+                        "minecraft:stick",
+                        4,
+                        4,
+                        goalId,
+                        goalPlanId,
+                        now)));
+        java.util.function.ToIntFunction<String> held = itemId -> {
+            int count = 0;
+            for (int slot = 0; slot < c.inventory().getContainerSize(); slot++) {
+                ItemStack stack = c.inventory().getItem(slot);
+                if (!stack.isEmpty()
+                        && net.minecraft.core.registries.BuiltInRegistries.ITEM
+                                .getKey(stack.getItem())
+                                .toString()
+                                .equals(itemId)) {
+                    count += stack.getCount();
+                }
+            }
+            return count;
+        };
+        var factory = new dev.friendai.server.agent.planner.PlannerInputFactory(
+                c,
+                () -> new dev.friendai.server.agent.perception.PerceptionContext(
+                        state.resourceCandidates(), state.settings(), state.freeTime()),
+                java.util.Map.of(),
+                List::of,
+                () -> state.goals().board(ownerPlayer.getUUID()),
+                () -> state.config(),
+                (requestedGoal, requestedPlan, at) -> dev.friendai.agent.verify.VerifiedEvidence.forObjective(
+                        receipts, requestedGoal, requestedPlan, at, held::applyAsInt),
+                () -> state.freeTime());
+
+        var goalInput = factory.build(
+                        new dev.friendai.agent.plan.PlanSubject.ActiveGoal(goalId, List.of("craft sticks")), owner, "")
+                .orElseThrow();
+        h.assertTrue(
+                goalInput.verified().contains("handed_over 4/4 minecraft:stick"),
+                "the goal's own new plan cites its verified craft: " + goalInput.verified());
+        h.assertFalse(
+                goalInput.verified().stream().anyMatch(line -> line.startsWith("carried")),
+                "a stock receipt nothing backs is not offered: " + goalInput.verified());
+        var repairInput = factory.build(
+                        new dev.friendai.agent.plan.PlanSubject.TroubledPlan(goalPlanId, "boom"), owner, "")
+                .orElseThrow();
+        h.assertTrue(
+                repairInput.verified().contains("handed_over 4/4 minecraft:stick"),
+                "a repair of the same plan keeps its own receipt: " + repairInput.verified());
+        var orderInput = factory.build(new dev.friendai.agent.plan.PlanSubject.OwnerOrder("dig a hole"), owner, "")
+                .orElseThrow();
+        h.assertTrue(orderInput.verified().isEmpty(), "an owner order inherited a receipt: " + orderInput.verified());
+        var otherRepair = factory.build(
+                        new dev.friendai.agent.plan.PlanSubject.TroubledPlan(otherPlanId, "boom"), owner, "")
+                .orElseThrow();
+        h.assertTrue(
+                otherRepair.verified().isEmpty(),
+                "another plan inherited the goal's receipt: " + otherRepair.verified());
+        var guestInput = factory.build(
+                        new dev.friendai.agent.plan.PlanSubject.ActiveGoal(goalId, List.of("craft sticks")),
+                        new Caller(ownerPlayer.getUUID(), "Alex", AccessLevel.GUEST),
+                        "")
+                .orElseThrow();
+        h.assertTrue(
+                guestInput.verified().isEmpty(), "a guest inherited the owner's receipt: " + guestInput.verified());
+        var trustedInput = factory.build(
+                        new dev.friendai.agent.plan.PlanSubject.ActiveGoal(goalId, List.of("craft sticks")),
+                        new Caller(ownerPlayer.getUUID(), "Alex", AccessLevel.TRUSTED),
+                        "")
+                .orElseThrow();
+        h.assertTrue(
+                trustedInput.verified().contains("handed_over 4/4 minecraft:stick"),
+                "a trusted caller may see what the companion was asked to do: " + trustedInput.verified());
+        // The stock receipt becomes proof only while the companion really carries it, and is re-rendered with what
+        // remains once the sticks are partly used.
+        c.inventory().addItem(new ItemStack(Items.STICK, 4));
+        var stocked = factory.build(
+                        new dev.friendai.agent.plan.PlanSubject.ActiveGoal(goalId, List.of("craft sticks")), owner, "")
+                .orElseThrow();
+        h.assertTrue(
+                stocked.verified().contains("carried 4/4 minecraft:stick"),
+                "a held receipt is offered with the live count: " + stocked.verified());
+        c.inventory().setItem(0, new ItemStack(Items.STICK, 1));
+        var used = factory.build(
+                        new dev.friendai.agent.plan.PlanSubject.ActiveGoal(goalId, List.of("craft sticks")), owner, "")
+                .orElseThrow();
+        h.assertTrue(
+                used.verified().contains("carried 1/4 minecraft:stick"),
+                "a partly used receipt offers what remains: " + used.verified());
+        h.succeed();
     }
 
     /**

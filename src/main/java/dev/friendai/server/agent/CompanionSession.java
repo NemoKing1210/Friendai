@@ -10,12 +10,21 @@ import dev.friendai.execution.tool.Caller;
 import dev.friendai.features.memory.MemoryBook;
 import dev.friendai.foundation.teaching.TeachingContext;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.UnaryOperator;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.tags.TagKey;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 
 /** Mutable agent state bound to one owner; entity changes invalidate the brain before rebinding. */
 public final class CompanionSession {
@@ -26,7 +35,12 @@ public final class CompanionSession {
     /** Runtime-only replan budget for plans that have no goal to carry one. */
     private final dev.friendai.agent.plan.ReplanBudget planReplans = new dev.friendai.agent.plan.ReplanBudget();
 
-    private final ArrayDeque<String> verifiedFacts = new ArrayDeque<>();
+    /**
+     * Verified outcome receipts, newest first, each with the goal and plan it proves. An unowned receipt is not kept:
+     * a fact nobody can attribute is not evidence for anybody's plan.
+     */
+    private final ArrayDeque<dev.friendai.agent.verify.VerifiedEvidence> verifiedFacts = new ArrayDeque<>();
+
     private CompanionEntity companion;
     private CompanionBrain brain;
     private LlmGateway gatewayOverride;
@@ -118,9 +132,44 @@ public final class CompanionSession {
         return planReplans;
     }
 
-    /** The last verified outcome facts, newest first: the planner must not re-prove them. */
-    List<String> verifiedFacts() {
-        return List.copyOf(verifiedFacts);
+    /** The receipts that prove something for one goal or one plan, newest first; empty for an unowned objective. */
+    List<String> verifiedFacts(long goalId, long planId, long now) {
+        if (verifiedFacts.isEmpty()) return List.of();
+        return dev.friendai.agent.verify.VerifiedEvidence.forObjective(
+                List.copyOf(verifiedFacts), goalId, planId, now, liveStock());
+    }
+
+    /**
+     * What the companion carries now, so a receipt for stock it no longer holds is not offered as proof. The counts
+     * are read once per planner call; a detached session cannot see inventory and so drops every stock receipt.
+     */
+    private dev.friendai.agent.verify.VerifiedEvidence.LiveStock liveStock() {
+        CompanionEntity entity = companion;
+        if (entity == null) return itemId -> -1;
+        var inventory = entity.inventory();
+        Map<String, Integer> counts = new HashMap<>();
+        List<ItemStack> stacks = new ArrayList<>(inventory.getContainerSize());
+        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
+            ItemStack stack = inventory.getItem(slot);
+            if (stack.isEmpty()) continue;
+            stacks.add(stack);
+            counts.merge(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString(), stack.getCount(), Integer::sum);
+        }
+        return itemId -> {
+            if (!itemId.startsWith("#")) return counts.getOrDefault(itemId, 0);
+            Identifier id;
+            try {
+                id = Identifier.parse(itemId.substring(1));
+            } catch (RuntimeException notAnId) {
+                return -1;
+            }
+            TagKey<Item> tag = TagKey.create(Registries.ITEM, id);
+            int count = 0;
+            for (ItemStack stack : stacks) {
+                if (stack.is(tag)) count += stack.getCount();
+            }
+            return count;
+        };
     }
 
     /**
@@ -169,11 +218,10 @@ public final class CompanionSession {
         }
     }
 
-    void noteVerified(java.util.Collection<String> facts) {
-        for (String fact : facts) {
-            verifiedFacts.addFirst(fact);
-        }
-        while (verifiedFacts.size() > 8) {
+    void noteVerified(dev.friendai.agent.verify.VerifiedEvidence receipt) {
+        if (receipt == null || (receipt.goalId() <= 0 && receipt.planId() <= 0)) return;
+        verifiedFacts.addFirst(receipt);
+        while (verifiedFacts.size() > dev.friendai.agent.verify.VerifiedEvidence.MAX_ITEMS) {
             verifiedFacts.removeLast();
         }
     }
