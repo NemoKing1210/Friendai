@@ -437,6 +437,19 @@ final class PlannerFacade {
                                 .isPresent()) {
                     return ToolResult.error("the goal changed since the proposal; re-plan it");
                 }
+                // The world moves while the provider answers: the owner may finish part or all of the work the
+                // planner was told about. Queueing steps drafted for a state that is gone would repeat it, so the
+                // unmet criteria are re-evaluated from fresh facts and a changed set goes back for a new proposal.
+                var facts = new dev.friendai.task.queue.CompanionGuardFacts(companion);
+                facts.refresh();
+                List<String> unmetNow = board.unmet(requested.goalId(), facts).stream()
+                        .map(dev.friendai.agent.goal.Criterion::text)
+                        .toList();
+                if (!unmetNow.equals(requested.unmet())) {
+                    return unmetNow.isEmpty()
+                            ? ToolResult.error("the goal's criteria are already met; nothing to queue")
+                            : ToolResult.error("the goal's unmet work changed since the proposal; re-plan it");
+                }
             }
             String goalText = objectiveText(subject, board);
             if (goalText == null) {

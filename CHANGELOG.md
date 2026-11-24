@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.233.11] - 2026-11-24
+
+### Fixed
+
+- A plan the companion is still drafting for an active goal no longer queues work you already finished: when you gather part or all of what the goal asked for before the draft arrives, the companion rechecks the goal and either carries on with a fresh plan or reports that nothing is left to do, instead of repeating the work.
+
 ## [0.233.10] - 2026-11-24
 
 ### Fixed

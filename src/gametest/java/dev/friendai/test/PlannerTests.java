@@ -273,6 +273,87 @@ public class PlannerTests {
         activeGoalPlan(h, true);
     }
 
+    /** The owner finishes the goal's only criterion while the provider is still answering. */
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 400)
+    public void a_delayed_goal_plan_is_refused_when_its_work_is_done(GameTestHelper h) {
+        delayedGoalPlan(h, List.of("carry bread"), c -> c.inventory().addItem(new ItemStack(Items.BREAD, 1)), false);
+    }
+
+    /** The owner does half of the drafted work: the plan was drawn for both criteria, so it goes back for a new one. */
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 400)
+    public void a_delayed_goal_plan_is_refused_when_some_of_its_work_is_done(GameTestHelper h) {
+        delayedGoalPlan(
+                h,
+                List.of("carry bread", "carry a stick"),
+                c -> c.inventory().addItem(new ItemStack(Items.BREAD, 1)),
+                false);
+    }
+
+    /** A change that touches nothing the goal checks leaves the drafted plan usable. */
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 400)
+    public void an_unrelated_change_keeps_a_delayed_goal_plan_usable(GameTestHelper h) {
+        delayedGoalPlan(h, List.of("carry bread"), c -> c.inventory().addItem(new ItemStack(Items.DIRT, 1)), true);
+    }
+
+    /**
+     * Plans a goal whose criteria name carried items, with the provider answering after the owner's change. Whatever
+     * the change did to the criteria, the queue and the goal link must agree with whether the proposal was still
+     * current when it arrived.
+     */
+    private static void delayedGoalPlan(
+            GameTestHelper h,
+            List<String> criteriaTexts,
+            java.util.function.Consumer<CompanionEntity> whileWaiting,
+            boolean planIsQueued) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
+        var server = h.getLevel().getServer();
+        var state = GameTestSupport.runtime(server);
+        var owner = player.getUUID();
+        var board = state.goals().board(owner);
+        List<dev.friendai.agent.goal.Criterion> criteria = criteriaTexts.stream()
+                .map(text -> new dev.friendai.agent.goal.Criterion(
+                        text,
+                        java.util.Optional.of(new dev.friendai.execution.queue.Guard.HasItem(
+                                text.equals("carry bread") ? "minecraft:bread" : "minecraft:stick", 1))))
+                .toList();
+        var goal = board.set("Bring me things", criteria, false, h.getLevel().getGameTime())
+                .value();
+        var companion = CompanionManager.get(server).summon(player);
+        var replied = new AtomicInteger();
+        state.sessions().setPlannerOverride(owner, input -> {
+            var pending = new CompletableFuture<PlanProposal>();
+            h.runAfterDelay(1, () -> {
+                whileWaiting.accept(companion);
+                pending.complete(jumpProposal());
+            });
+            return pending;
+        });
+        state.sessions().setGatewayOverride(owner, (system, messages, tools) -> {
+            replied.incrementAndGet();
+            return CompletableFuture.completedFuture(
+                    new LlmResponse("[silent]", List.of(), StopReason.END, new Usage(0, 0)));
+        });
+        state.sessions().post(owner, new BrainEvent.GoalTick(goal.text(), criteriaTexts));
+        h.succeedWhen(() -> {
+            h.assertTrue(replied.get() > 0, "the turn settled");
+            var queue = companion.executionCoordinator().queue();
+            long planId = board.primary().orElseThrow().planId();
+            if (planIsQueued) {
+                h.assertTrue(
+                        planId > 0
+                                && (queue.plan(planId).isPresent()
+                                        || queue.archives().stream().anyMatch(a -> a.id() == planId)),
+                        "the current plan is linked: " + planId);
+            } else {
+                h.assertTrue(planId == 0, "the goal stays unlinked: " + planId);
+                h.assertTrue(
+                        queue.jobs().isEmpty() && queue.plans().isEmpty(),
+                        "stale work never starts: jobs=" + queue.jobs() + " plans=" + queue.plans());
+            }
+        });
+    }
+
     private static void activeGoalPlan(GameTestHelper h, boolean replace) {
         GameTestSupport.platform(h, 16);
         ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
