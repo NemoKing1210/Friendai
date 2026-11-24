@@ -118,8 +118,9 @@ public final class StorageTools implements FeatureToolContributor {
                                 : null)));
         TaskToolDefinition moveItems = new TaskToolDefinition(
                 "move_items",
-                "Move a known quantity of one item from one storage container to another in one call, returning "
-                        + "leftovers to the source.",
+                "Move a known quantity of one item from one storage container to another in one call. Only the items "
+                        + "withdrawn from the source reach the target; anything the target cannot hold goes back to "
+                        + "the source and the result says how much did and did not arrive.",
                 SchemaBuilder.object()
                         .string("item", "Item id like minecraft:iron_ingot, or a tag like #minecraft:planks")
                         .integer("count", "How many items to move", 1, 2304)

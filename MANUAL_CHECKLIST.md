@@ -674,3 +674,9 @@ These need a live world with two dimensions; the automated suite used a fixed pl
 - [ ] Queue a `distance_travelled` order, walk part of the way, let the game save and reload: the companion needs only the distance that is left.
 - [ ] Walk through a nether portal with the same order queued: entering the other world is not counted as walking, and the order still needs the blocks you asked for.
 - [ ] Pause the plan for a minute: on resume the pause is not counted as travel and the panel shows the remaining distance, not a completed one.
+
+## Container-to-container transfers (TODO 123)
+
+- [ ] Ask for `#minecraft:planks` to be moved between two chests while the companion carries its own oak planks: the birch (or whatever the source held) reaches the target, the carried oak stays in the bag, and the answer names how many were moved.
+- [ ] Fill the target down to one free slot, then move a larger count: the call reports a failure naming how many arrived, how many went back to the source and how many are still carried, and both chests account for every item.
+- [ ] Restart the game between opening the source and reaching the target: after the reload the withdrawn items — and only those — reach the target, and the source is not taken from twice.

@@ -1135,6 +1135,174 @@ public class StorageTests {
     }
 
     @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 800)
+    public void aTaggedTransferMovesTheWithdrawnPlanksAndKeepsTheCompanionsOwn(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(3, 2, 3, Blocks.CHEST);
+        containerAt(h, 3, 2, 3).setItem(0, new ItemStack(Items.BIRCH_PLANKS, 6));
+        h.setBlock(12, 2, 12, Blocks.CHEST);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 6, 2, 6);
+        c.setOwner(java.util.UUID.randomUUID());
+        c.inventory().addItem(new ItemStack(Items.OAK_PLANKS, 4));
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(
+                new MoveItemsTask(
+                        matcher("#minecraft:planks"),
+                        3,
+                        h.absolutePos(new BlockPos(3, 2, 3)),
+                        h.absolutePos(new BlockPos(12, 2, 12))),
+                "move_items");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertValueEqual(containerAt(h, 12, 2, 12).countItem(Items.BIRCH_PLANKS), 3, "the withdrawn birch");
+            h.assertValueEqual(containerAt(h, 12, 2, 12).countItem(Items.OAK_PLANKS), 0, "the target must hold no oak");
+            h.assertValueEqual(c.inventory().countItem(Items.OAK_PLANKS), 4, "the companion's own oak stays carried");
+            h.assertValueEqual(c.inventory().countItem(Items.BIRCH_PLANKS), 0, "the withdrawal must be delivered");
+            h.assertValueEqual(containerAt(h, 3, 2, 3).countItem(Items.BIRCH_PLANKS), 3, "the source keeps the rest");
+        });
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 800)
+    public void aPartialDestinationFailsAndNamesWhereEveryItemWent(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(3, 2, 3, Blocks.CHEST);
+        containerAt(h, 3, 2, 3).setItem(0, new ItemStack(Items.IRON_INGOT, 35));
+        containerAt(h, 3, 2, 3).setItem(1, new ItemStack(Items.IRON_INGOT, 35));
+        h.setBlock(12, 2, 12, Blocks.CHEST);
+        fill(containerAt(h, 12, 2, 12), Items.DIRT, 26);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 6, 2, 6);
+        c.setOwner(java.util.UUID.randomUUID());
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(
+                new MoveItemsTask(
+                        matcher("minecraft:iron_ingot"),
+                        70,
+                        h.absolutePos(new BlockPos(3, 2, 3)),
+                        h.absolutePos(new BlockPos(12, 2, 12))),
+                "move_items");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.FAILED, "not failed: " + result.status + " " + result.summary);
+            h.assertValueEqual(containerAt(h, 12, 2, 12).countItem(Items.IRON_INGOT), 64, "the one free slot");
+            h.assertValueEqual(containerAt(h, 3, 2, 3).countItem(Items.IRON_INGOT), 6, "the source gets the rest back");
+            h.assertValueEqual(c.inventory().countItem(Items.IRON_INGOT), 0, "nothing may stay unaccounted");
+            h.assertTrue(
+                    result.summary.contains("only 64 of 70"),
+                    "the summary must name the delivered count: " + result.summary);
+            h.assertTrue(
+                    result.summary.contains("6 went back to the source"),
+                    "the summary must name the returned count: " + result.summary);
+        });
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 800)
+    public void aSourceWithFewerItemsStillSucceedsAndSaysHowManyItHad(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(3, 2, 3, Blocks.CHEST);
+        containerAt(h, 3, 2, 3).setItem(0, new ItemStack(Items.IRON_INGOT, 3));
+        h.setBlock(12, 2, 12, Blocks.CHEST);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 6, 2, 6);
+        c.setOwner(java.util.UUID.randomUUID());
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(
+                new MoveItemsTask(
+                        matcher("minecraft:iron_ingot"),
+                        5,
+                        h.absolutePos(new BlockPos(3, 2, 3)),
+                        h.absolutePos(new BlockPos(12, 2, 12))),
+                "move_items");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertValueEqual(containerAt(h, 12, 2, 12).countItem(Items.IRON_INGOT), 3, "everything the source had");
+            h.assertValueEqual(containerAt(h, 3, 2, 3).countItem(Items.IRON_INGOT), 0, "the source is emptied");
+            h.assertTrue(
+                    result.summary.contains("the source had only 3 of 5"),
+                    "the summary must say how many it had: " + result.summary);
+        });
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 800)
+    public void aRestoredTransferDepositsTheWithdrawnPlanksNotTheCompanionsOwn(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(3, 2, 3, Blocks.CHEST);
+        containerAt(h, 3, 2, 3).setItem(0, new ItemStack(Items.BIRCH_PLANKS, 6));
+        h.setBlock(12, 2, 12, Blocks.CHEST);
+        var owner = java.util.UUID.randomUUID();
+        BlockPos from = h.absolutePos(new BlockPos(3, 2, 3));
+        BlockPos to = h.absolutePos(new BlockPos(12, 2, 12));
+        CompanionEntity original = h.spawn(FriendaiEntities.COMPANION, 6, 2, 6);
+        original.setOwner(owner);
+        original.inventory().addItem(new ItemStack(Items.OAK_PLANKS, 4));
+        MoveItemsTask transfer = new MoveItemsTask(matcher("#minecraft:planks"), 3, from, to);
+        ExecutionCoordinator runner = runner(original, new Result());
+        runner.start(transfer, "move_items");
+        String[] saved = new String[1];
+        Result result = new Result();
+        CompanionEntity[] restored = new CompanionEntity[1];
+        ExecutionCoordinator[] again = new ExecutionCoordinator[1];
+        h.startSequence()
+                .thenWaitUntil(() -> {
+                    runner.tick();
+                    h.assertValueEqual(
+                            original.inventory().countItem(Items.BIRCH_PLANKS),
+                            3,
+                            "the withdrawal must put the birch in the bag");
+                })
+                .thenExecute(() -> {
+                    saved[0] = transfer.saveData();
+                    h.assertTrue(
+                            saved[0] != null && saved[0].startsWith("v2|"),
+                            "the checkpoint must carry the receipts: " + saved[0]);
+                    TaskContext context =
+                            new TaskContext(original, (net.minecraft.server.level.ServerLevel) original.level());
+                    h.assertTrue(
+                            dev.friendai.features.inventory.minecraft.task.MoveItemsCheckpoints.move(
+                                            new dev.friendai.task.TaskState(
+                                                    "move_items", saved[0].replace("|STORE|3|", "|STORE|4|")),
+                                            context)
+                                    .isEmpty(),
+                            "a checkpoint whose receipts do not sum to the withdrawal must be refused");
+                    runner.stop("simulated restart");
+                    original.discard();
+                    // The reload carries what was withdrawn, so the restore deposits the birch and leaves the oak
+                    // alone.
+                    restored[0] = h.spawn(FriendaiEntities.COMPANION, 6, 2, 6);
+                    restored[0].setOwner(owner);
+                    restored[0].inventory().addItem(new ItemStack(Items.OAK_PLANKS, 4));
+                    restored[0].inventory().addItem(new ItemStack(Items.BIRCH_PLANKS, 3));
+                    again[0] = runner(restored[0], result);
+                    again[0].start(
+                            dev.friendai.features.inventory.minecraft.task.MoveItemsCheckpoints.move(
+                                            new dev.friendai.task.TaskState("move_items", saved[0]),
+                                            new TaskContext(restored[0], (net.minecraft.server.level.ServerLevel)
+                                                    restored[0].level()))
+                                    .orElseThrow(),
+                            "move_items");
+                })
+                .thenWaitUntil(() -> {
+                    again[0].tick();
+                    h.assertTrue(
+                            result.status == TaskStatus.SUCCESS,
+                            "not finished: " + result.status + " " + result.summary);
+                    h.assertValueEqual(
+                            containerAt(h, 12, 2, 12).countItem(Items.BIRCH_PLANKS), 3, "the withdrawn birch");
+                    h.assertValueEqual(
+                            containerAt(h, 12, 2, 12).countItem(Items.OAK_PLANKS), 0, "the target must hold no oak");
+                    h.assertValueEqual(
+                            restored[0].inventory().countItem(Items.OAK_PLANKS), 4, "the companion's own oak stays");
+                    h.assertValueEqual(
+                            restored[0].inventory().countItem(Items.BIRCH_PLANKS), 0, "the withdrawal is delivered");
+                    h.assertValueEqual(
+                            containerAt(h, 3, 2, 3).countItem(Items.BIRCH_PLANKS), 3, "no second withdrawal");
+                })
+                .thenSucceed();
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 800)
     public void restoredMoveItemsStoresWhatWasAlreadyWithdrawnWithoutTakingAgain(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         h.setBlock(3, 2, 3, Blocks.CHEST);

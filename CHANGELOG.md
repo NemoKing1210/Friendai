@@ -13,6 +13,10 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ### Fixed
 
+- Moving items between two containers now delivers exactly the stacks it took out: a tag such as `#minecraft:planks`
+  moves the source's birch while the companion's own oak stays in its bag, a target that can hold only part of the
+  move returns the rest to the source and reports how much arrived, and after a reload the withdrawn items — not
+  whatever the bag happens to match — are the ones deposited.
 - A condition about elapsed time or walked distance now measures that plan's or that step's own progress:
   an order given in a long-played world no longer counts the world's age, two queued plans keep separate
   clocks, walking through a portal is not counted as travel, and after a reload a partly walked route needs only

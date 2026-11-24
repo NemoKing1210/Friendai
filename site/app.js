@@ -77,7 +77,7 @@ const CATS = [
       "get_inventory|List carried items, equipment and experience.", "show_inventory|Open the inventory view.", "equip_item|Equip gear.", "give_items|Hand items to a player; strict orders can reserve the companion's share and wait for a safe handover.",
       "drop_items|Drop items.", "throw_item|Throw an item.", "store_items|Store up to two stacks in one call.", "take_items|Take items out of a container.",
       "check_container|Look inside a container.", "check_containers|Look through the nearby chests not opened in the last five minutes.", "deposit_items|Deposit into the nearest storage.",
-      "find_stored_item|Report where you last saw an item in a recorded container.", "move_items|Move a known quantity between two containers in one call.",
+      "find_stored_item|Report where you last saw an item in a recorded container.", "move_items|Move a known quantity between two containers in one call, delivering only what it withdrew.",
       "~Equipment picker|Armor and weapon loadout.", "~Owner-only window|Within 8 blocks, same dimension." ] },
   { id: "acquire", domain: "hands", name: "Resource Acquisition", icon: "🧭", color: COLORS.diamond,
     desc: "Ask for an item and it works out how: inventory, chests, craft, smelt, mine, hunt, harvest, shear, milk or explore.",
