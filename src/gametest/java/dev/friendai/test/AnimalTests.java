@@ -180,6 +180,43 @@ public class AnimalTests {
         });
     }
 
+    /** An order for white wool walks past the nearer black sheep to a white one. */
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 900)
+    public void aWhiteShearOrderSkipsTheNearerBlackSheep(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        Sheep black = h.spawn(EntityTypes.SHEEP, 4, 2, 4);
+        black.setColor(net.minecraft.world.item.DyeColor.BLACK);
+        h.spawn(EntityTypes.SHEEP, 10, 2, 10);
+        c.inventory().addItem(new ItemStack(Items.SHEARS));
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(new ShearTask(EntityTypes.SHEEP, 1, "white"), "shear");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(black.readyForShearing(), "the black sheep was left alone: " + result.summary);
+            h.assertTrue(result.summary.contains("minecraft:white_wool"), "white wool collected: " + result.summary);
+        });
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16)
+    public void aWhiteShearOrderWithOnlyBlackSheepFails(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        Sheep black = h.spawn(EntityTypes.SHEEP, 4, 2, 4);
+        black.setColor(net.minecraft.world.item.DyeColor.BLACK);
+        c.inventory().addItem(new ItemStack(Items.SHEARS));
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(new ShearTask(EntityTypes.SHEEP, 1, "white"), "shear");
+        runner.tick();
+        h.assertValueEqual(result.status, TaskStatus.FAILED, "status");
+        h.assertTrue(result.summary.contains("no minecraft:sheep ready to shear"), "summary was " + result.summary);
+        h.assertTrue(black.readyForShearing(), "the black sheep was not shorn");
+        h.succeed();
+    }
+
     @GameTest(structure = GameTestArenas.ARENA_16)
     public void shearWithoutShears(GameTestHelper h) {
         GameTestSupport.platform(h, 16);

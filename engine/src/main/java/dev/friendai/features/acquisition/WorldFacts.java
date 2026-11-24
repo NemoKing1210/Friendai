@@ -21,7 +21,8 @@ public record WorldFacts(
         Set<Long> excludedSiteIds,
         Map<String, Integer> attemptedSources,
         Map<String, Integer> toolBlocks,
-        Map<String, Integer> fuelBurnTicks) {
+        Map<String, Integer> fuelBurnTicks,
+        Map<String, Integer> shearableNearby) {
     public WorldFacts(
             Map<String, Integer> blocksNearby,
             Map<String, Integer> mobsNearby,
@@ -47,6 +48,7 @@ public record WorldFacts(
                 excludedSiteIds,
                 attemptedSources,
                 Map.of(),
+                Map.of(),
                 Map.of());
     }
 
@@ -69,6 +71,7 @@ public record WorldFacts(
                 List.of(),
                 Set.of(),
                 Set.of(),
+                Map.of(),
                 Map.of(),
                 Map.of(),
                 Map.of());
@@ -94,6 +97,7 @@ public record WorldFacts(
                 resourceCandidates,
                 Set.of(),
                 Set.of(),
+                Map.of(),
                 Map.of(),
                 Map.of(),
                 Map.of());
@@ -123,6 +127,7 @@ public record WorldFacts(
                 excludedSiteIds,
                 Map.of(),
                 Map.of(),
+                Map.of(),
                 Map.of());
     }
 
@@ -139,6 +144,7 @@ public record WorldFacts(
         attemptedSources = copy(attemptedSources);
         toolBlocks = copy(toolBlocks);
         fuelBurnTicks = copy(fuelBurnTicks);
+        shearableNearby = copy(shearableNearby);
     }
 
     public static WorldFacts empty() {
@@ -160,7 +166,8 @@ public record WorldFacts(
                 excludedSiteIds,
                 sources,
                 toolBlocks,
-                fuelBurnTicks);
+                fuelBurnTicks,
+                shearableNearby);
     }
 
     /**
@@ -181,7 +188,8 @@ public record WorldFacts(
                 excludedSiteIds,
                 attemptedSources,
                 blocks,
-                fuelBurnTicks);
+                fuelBurnTicks,
+                shearableNearby);
     }
 
     /**
@@ -202,7 +210,27 @@ public record WorldFacts(
                 excludedSiteIds,
                 attemptedSources,
                 toolBlocks,
-                ticks);
+                ticks,
+                shearableNearby);
+    }
+
+    /** The same scan facts with the shearable animals seen, keyed by {@code entity type|variant}. */
+    public WorldFacts withShearableNearby(Map<String, Integer> sheep) {
+        return new WorldFacts(
+                blocksNearby,
+                mobsNearby,
+                containerItems,
+                matureCrops,
+                stationsNearby,
+                exploreAllowed,
+                dimensionHasOre,
+                resourceCandidates,
+                verifiedSiteIds,
+                excludedSiteIds,
+                attemptedSources,
+                toolBlocks,
+                fuelBurnTicks,
+                sheep);
     }
 
     private static Map<String, Integer> copy(Map<String, Integer> source) {

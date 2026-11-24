@@ -21,10 +21,13 @@ public record ToolNeed(ToolKind kind, Tier tier) {
         if (carried == null) {
             return false;
         }
-        if (kind == ToolKind.HAND || tier == Tier.NONE) {
+        if (kind == ToolKind.HAND) {
             return true;
         }
-        return carried.kind == kind && carried.tier.compareTo(tier) >= 0;
+        if (carried.kind != kind) {
+            return false;
+        }
+        return tier == Tier.NONE || carried.tier.compareTo(tier) >= 0;
     }
 
     /** The vanilla item id for this need, or null for a hand need. */

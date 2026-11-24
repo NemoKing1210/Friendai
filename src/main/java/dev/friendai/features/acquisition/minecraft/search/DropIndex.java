@@ -196,8 +196,11 @@ public final class DropIndex implements SourceBook {
             sources.computeIfAbsent(crop.getValue(), key -> new ArrayList<>())
                     .add(new Source.Harvest(crop.getKey(), 1.0));
         }
-        sources.computeIfAbsent("minecraft:white_wool", key -> new ArrayList<>())
-                .add(new Source.Shear("minecraft:sheep", 1.0));
+        // A sheep gives the wool of the colour it wears, so every colour is its own shear source.
+        for (net.minecraft.world.item.DyeColor color : net.minecraft.world.item.DyeColor.values()) {
+            sources.computeIfAbsent("minecraft:" + color.getName() + "_wool", key -> new ArrayList<>())
+                    .add(new Source.Shear("minecraft:sheep", 1.0, color.getName()));
+        }
         sources.computeIfAbsent("minecraft:milk_bucket", key -> new ArrayList<>())
                 .add(new Source.Milk("minecraft:cow"));
         sources.computeIfAbsent("minecraft:milk_bucket", key -> new ArrayList<>())

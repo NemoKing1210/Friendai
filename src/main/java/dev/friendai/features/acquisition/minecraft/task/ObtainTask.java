@@ -659,7 +659,8 @@ public final class ObtainTask implements Task {
                                 item,
                                 shear.count(),
                                 source -> source instanceof Source.Shear candidate
-                                        && candidate.mob().equals(shear.mob()),
+                                        && candidate.mob().equals(shear.mob())
+                                        && java.util.Objects.equals(candidate.variant(), shear.variant()),
                                 source -> ((Source.Shear) source).perAnimal()));
             case ObtainStep.Milk milk -> {
                 produced.put("minecraft:milk_bucket", milk.count());
@@ -875,7 +876,8 @@ public final class ObtainTask implements Task {
                 "visit:" + visit.siteId() + ":" + visit.dimension() + ":" + visit.block();
             case ObtainStep.Hunt hunt -> "hunt:" + hunt.mob();
             case ObtainStep.Harvest harvest -> "harvest:" + harvest.crop();
-            case ObtainStep.Shear shear -> "shear:" + shear.mob();
+            case ObtainStep.Shear shear ->
+                "shear:" + shear.mob() + (shear.variant() == null ? "" : "/" + shear.variant());
             case ObtainStep.Milk ignored -> "milk";
             case ObtainStep.Explore explore -> "explore:" + explore.block();
             case ObtainStep.Trade trade -> "trade:" + trade.trader() + ":" + trade.offerRef();

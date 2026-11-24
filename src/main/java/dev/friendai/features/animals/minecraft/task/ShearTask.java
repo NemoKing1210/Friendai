@@ -32,6 +32,8 @@ public final class ShearTask implements Task {
     private final EntityType<?> type;
     private final int count;
     private final String id;
+    /** The wool colour an acquisition asked for, or null for any ready animal of the type. */
+    private final String variant;
     private final Set<UUID> unreachable = new HashSet<>();
     private final Map<String, Integer> gained = new LinkedHashMap<>();
     private Vec3 origin;
@@ -48,8 +50,17 @@ public final class ShearTask implements Task {
     private Map<Item, Integer> settleBefore;
 
     public ShearTask(EntityType<?> type, int count) {
+        this(type, count, null);
+    }
+
+    /**
+     * Shears only animals whose fleece is {@code variant} (a wool colour name, such as {@code white}), so an order for
+     * white wool never spends the trip on a black sheep.
+     */
+    public ShearTask(EntityType<?> type, int count, String variant) {
         this.type = type;
         this.count = count;
+        this.variant = variant == null || variant.isBlank() ? null : variant;
         this.id = BuiltInRegistries.ENTITY_TYPE.getKey(type).toString();
     }
 
@@ -156,11 +167,20 @@ public final class ShearTask implements Task {
             if (unreachable.contains(animal.getUUID())) {
                 continue;
             }
-            if (animal instanceof Shearable shearable && shearable.readyForShearing()) {
+            if (animal instanceof Shearable shearable && shearable.readyForShearing() && supplies(animal)) {
                 return animal;
             }
         }
         return null;
+    }
+
+    /** Whether this animal's fleece is the colour the order asked for. */
+    private boolean supplies(Animal animal) {
+        if (variant == null) {
+            return true;
+        }
+        return animal instanceof net.minecraft.world.entity.animal.sheep.Sheep sheep
+                && sheep.getColor().getSerializedName().equals(variant);
     }
 
     private TaskStatus finish() {

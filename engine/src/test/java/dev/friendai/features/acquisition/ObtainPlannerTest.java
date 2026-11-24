@@ -47,6 +47,8 @@ class ObtainPlannerTest {
                         List.of(cobblestone, cobblestone, cobblestone, stick, stick),
                         Station.CRAFTING_TABLE))
                 .add(new Recipe(
+                        "minecraft:shears", "minecraft:shears", 1, List.of(ironIngot, ironIngot), Station.INVENTORY))
+                .add(new Recipe(
                         "test:furnace",
                         "minecraft:furnace",
                         1,
@@ -981,6 +983,84 @@ class ObtainPlannerTest {
                         step instanceof ObtainStep.Craft craft && craft.item().equals(item))
                 .mapToInt(step -> ((ObtainStep.Craft) step).count())
                 .sum();
+    }
+
+    private static final String WHITE_WOOL = "minecraft:white_wool";
+
+    private static WorldFacts woolWorld(int whiteSheep, int blackSheep, boolean shears) {
+        Map<String, Integer> mobs = new java.util.LinkedHashMap<>();
+        mobs.put("minecraft:sheep", whiteSheep + blackSheep);
+        Map<String, Integer> shearable = new java.util.LinkedHashMap<>();
+        if (whiteSheep > 0) shearable.put("minecraft:sheep|white", whiteSheep);
+        if (blackSheep > 0) shearable.put("minecraft:sheep|black", blackSheep);
+        Map<String, Integer> inventory = shears
+                ? Map.of("minecraft:shears", 1)
+                : Map.of("minecraft:iron_ingot", 2, "minecraft:oak_planks", 3, STICK, 2);
+        return new WorldFacts(
+                        Map.of(OAK_LOG, 6),
+                        mobs,
+                        Map.of(),
+                        Map.of(),
+                        Set.of(Station.CRAFTING_TABLE.noun()),
+                        false,
+                        true)
+                .withShearableNearby(shearable);
+    }
+
+    @Test
+    void aWhiteWoolOrderShearsOnlyWhiteSheep() {
+        ObtainPlan plan = plan(WHITE_WOOL, 2, Map.of("minecraft:shears", 1), woolWorld(3, 9, true));
+
+        assertTrue(plan.ok(), plan.missing().toString());
+        assertEquals(
+                List.of(new ObtainStep.Shear("minecraft:sheep", 2, "white")), plan.steps(), plan.steps().toString());
+    }
+
+    @Test
+    void blackSheepAreNotSupplyForWhiteWool() {
+        ObtainPlan plan = plan(WHITE_WOOL, 2, Map.of("minecraft:shears", 1), woolWorld(0, 9, true));
+
+        assertFalse(plan.ok(), plan.steps().toString());
+        assertTrue(plan.missing().containsKey(WHITE_WOOL), plan.missing().toString());
+    }
+
+    @Test
+    void aShearingOrderObtainsItsShearsFirst() {
+        WorldFacts facts = woolWorld(2, 0, false);
+        ObtainPlan plan = plan(WHITE_WOOL, 2, Map.of("minecraft:iron_ingot", 2, "minecraft:oak_planks", 3, STICK, 2), facts);
+
+        assertTrue(plan.ok(), plan.missing().toString());
+        assertTrue(hasCraft(plan, "minecraft:shears"), plan.steps().toString());
+        assertTrue(
+                indexOf(plan, step -> step instanceof ObtainStep.Craft made && made.item().equals("minecraft:shears"))
+                        < indexOf(plan, step -> step instanceof ObtainStep.Shear),
+                "the shears come before the sheep: " + plan.steps());
+    }
+
+    @Test
+    void aShearingOrderWithNoWayToGetShearsReportsThePrerequisite() {
+        ObtainPlan plan = plan(WHITE_WOOL, 2, Map.of(), woolWorld(2, 0, false));
+
+        assertFalse(plan.ok(), plan.steps().toString());
+        assertTrue(plan.missing().containsKey(WHITE_WOOL), plan.missing().toString());
+    }
+
+    @Test
+    void aShornFlockIsNotSupply() {
+        // The visible mob count still names two sheep, but the scan saw neither as ready to shear.
+        WorldFacts facts = new WorldFacts(
+                        Map.of(OAK_LOG, 6),
+                        Map.of("minecraft:sheep", 2),
+                        Map.of(),
+                        Map.of(),
+                        Set.of(),
+                        false,
+                        true)
+                .withShearableNearby(Map.of());
+        ObtainPlan plan = plan(WHITE_WOOL, 1, Map.of("minecraft:shears", 1), facts);
+
+        assertFalse(plan.ok(), plan.steps().toString());
+        assertTrue(plan.missing().containsKey(WHITE_WOOL), plan.missing().toString());
     }
 
     @Test

@@ -85,7 +85,7 @@ public final class MinecraftObtainSubtaskFactory
                         .orElse(context.companion().blockPosition());
                 yield new FarmTask(center, FARM_RADIUS, null, false).harvesting(harvest.crop(), harvest.count());
             }
-            case ObtainStep.Shear shear -> new ShearTask(entityType(shear.mob()), shear.count());
+            case ObtainStep.Shear shear -> new ShearTask(entityType(shear.mob()), shear.count(), shear.variant());
             case ObtainStep.Milk milk -> new MilkTask(milk.count(), null);
             case ObtainStep.Explore explore ->
                 options.caller() == null

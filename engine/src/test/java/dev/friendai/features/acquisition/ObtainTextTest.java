@@ -142,6 +142,9 @@ class ObtainTextTest {
         assertFalse(stone.satisfiedBy(new ToolNeed(ToolKind.AXE, Tier.DIAMOND)));
         assertTrue(new ToolNeed(ToolKind.HAND, Tier.NONE).satisfiedBy(new ToolNeed(ToolKind.PICKAXE, Tier.DIAMOND)));
         assertTrue(new ToolNeed(ToolKind.HAND, Tier.NONE).satisfiedBy(new ToolNeed(ToolKind.HAND, Tier.NONE)));
-        assertTrue(new ToolNeed(ToolKind.PICKAXE, Tier.NONE).satisfiedBy(new ToolNeed(ToolKind.AXE, Tier.WOOD)));
+        assertFalse(new ToolNeed(ToolKind.PICKAXE, Tier.NONE).satisfiedBy(new ToolNeed(ToolKind.AXE, Tier.WOOD)));
+        assertTrue(new ToolNeed(ToolKind.PICKAXE, Tier.NONE).satisfiedBy(new ToolNeed(ToolKind.PICKAXE, Tier.WOOD)));
+        assertFalse(new ToolNeed(ToolKind.SHEARS, Tier.NONE).satisfiedBy(new ToolNeed(ToolKind.HAND, Tier.NONE)));
+        assertTrue(new ToolNeed(ToolKind.SHEARS, Tier.NONE).satisfiedBy(new ToolNeed(ToolKind.SHEARS, Tier.NONE)));
     }
 }

@@ -10,6 +10,7 @@ import dev.friendai.features.knowledge.ResourceKnowledge;
 import dev.friendai.perception.resource.ResourceCandidates;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.interact.ContainerAccess;
+import dev.friendai.world.targeting.Threats;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
@@ -18,6 +19,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.animal.Animal;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
@@ -102,6 +104,7 @@ public final class WorldScan {
                         verifiedSiteIds,
                         excludedSiteIds,
                         Map.of())
+                .withShearableNearby(countShearable(level, companion, MOB_RADIUS))
                 .withToolBlocks(carriedToolBlocks(companion))
                 .withFuelBurnTicks(
                         dev.friendai.features.cooking.minecraft.FuelPolicy.burnTable(level, companion.blockPosition()));
@@ -155,6 +158,42 @@ public final class WorldScan {
                             .getType()
                     != HitResult.Type.MISS) continue;
             counts.merge(BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString(), 1, Integer::sum);
+        }
+        return counts;
+    }
+
+    /**
+     * Shearable animals the companion can see or reach, keyed by {@code entity type|variant}: a sheep contributes its
+     * wool colour, and a shorn or unreachable one contributes nothing. Without this the planner counted every nearby
+     * sheep, so a black flock made white wool look obtainable.
+     */
+    private static Map<String, Integer> countShearable(ServerLevel level, CompanionEntity companion, int radius) {
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        for (Animal animal : level.getEntitiesOfClass(
+                Animal.class,
+                new AABB(companion.blockPosition()).inflate(radius),
+                animal -> animal.isAlive()
+                        && !animal.isRemoved()
+                        && animal instanceof net.minecraft.world.entity.Shearable
+                        && !Threats.isProtected(animal, companion))) {
+            if (!((net.minecraft.world.entity.Shearable) animal).readyForShearing()) {
+                continue;
+            }
+            Vec3 eye = companion.getEyePosition();
+            Vec3 target = animal.getBoundingBox().getCenter();
+            if (eye.distanceToSqr(target) > (double) radius * radius) {
+                continue;
+            }
+            if (level.clip(new ClipContext(eye, target, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, companion))
+                            .getType()
+                    != HitResult.Type.MISS) {
+                continue;
+            }
+            String type = BuiltInRegistries.ENTITY_TYPE.getKey(animal.getType()).toString();
+            String variant = animal instanceof net.minecraft.world.entity.animal.sheep.Sheep sheep
+                    ? sheep.getColor().getName()
+                    : "";
+            counts.merge(type + "|" + variant, 1, Integer::sum);
         }
         return counts;
     }

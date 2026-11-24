@@ -60,6 +60,7 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.ProblemReporter;
 import net.minecraft.world.Container;
+import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.Item;
@@ -958,6 +959,31 @@ public class ObtainTests {
             h.assertTrue(
                     pickaxes(companion) <= 2,
                     "the spare is enough: no third pickaxe may be made, have " + pickaxes(companion));
+        });
+    }
+
+    /**
+     * The done-when of the wool work: white wool comes from the farther white sheep, and the nearer black sheep is
+     * not shorn for an order it cannot fill.
+     */
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 2400)
+    public void aWhiteWoolOrderShearsTheFartherWhiteSheep(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        var black = h.spawn(EntityTypes.SHEEP, 4, 2, 4);
+        black.setColor(net.minecraft.world.item.DyeColor.BLACK);
+        h.spawn(EntityTypes.SHEEP, 10, 2, 10);
+        c.inventory().addItem(new ItemStack(Items.SHEARS));
+        Result result = new Result();
+        ExecutionCoordinator runner = obtain(c, result, obtainTask("minecraft:white_wool", 1, false, false));
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status != null, "obtain should finish");
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
+            h.assertTrue(
+                    c.inventory().countItem(Items.WOOL.pick(net.minecraft.world.item.DyeColor.WHITE)) >= 1,
+                    "white wool: " + c.inventory().countItem(Items.WOOL.pick(net.minecraft.world.item.DyeColor.WHITE)));
+            h.assertTrue(black.readyForShearing(), "the nearer black sheep was not shorn: " + result.summary);
         });
     }
 

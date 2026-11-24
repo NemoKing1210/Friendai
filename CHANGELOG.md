@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.233.17] - 2026-11-24
+
+### Fixed
+
+- A wool order now shears the sheep that can supply it: a request for white wool skips a nearer black or already shorn sheep, and the companion makes or asks for shears instead of walking to the flock empty-handed.
+
 ## [0.233.16] - 2026-11-24
 
 ### Fixed

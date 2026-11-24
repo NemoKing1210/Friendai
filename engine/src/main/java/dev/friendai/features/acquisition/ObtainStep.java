@@ -61,12 +61,20 @@ public sealed interface ObtainStep {
         }
     }
 
-    /** Shear {@code count} animals. */
-    record Shear(String mob, int count) implements ObtainStep {
+    /**
+     * Shear {@code count} animals of one type; {@code variant} accepts only that kind (a sheep's wool colour), or
+     * every ready animal of the type when null.
+     */
+    record Shear(String mob, int count, String variant) implements ObtainStep {
         public Shear {
             if (count <= 0) {
                 throw new IllegalArgumentException("shear count must be positive");
             }
+            variant = variant == null || variant.isBlank() ? null : variant;
+        }
+
+        public Shear(String mob, int count) {
+            this(mob, count, null);
         }
     }
 

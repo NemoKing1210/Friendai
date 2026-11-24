@@ -11,6 +11,7 @@ import dev.friendai.features.trading.TradePlanner;
 import dev.friendai.features.trading.TradeQuery;
 import dev.friendai.features.trading.TraderRecord;
 import dev.friendai.foundation.item.OreDepths;
+import dev.friendai.foundation.item.Tier;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -176,7 +177,7 @@ public final class ObtainPlanner {
             return a.crop().equals(b.crop());
         }
         if (left instanceof ObtainStep.Shear a && right instanceof ObtainStep.Shear b) {
-            return a.mob().equals(b.mob());
+            return a.mob().equals(b.mob()) && java.util.Objects.equals(a.variant(), b.variant());
         }
         return left instanceof ObtainStep.Milk && right instanceof ObtainStep.Milk;
     }
@@ -201,7 +202,7 @@ public final class ObtainPlanner {
             return new ObtainStep.Harvest(a.count() + b.count(), a.crop());
         }
         if (left instanceof ObtainStep.Shear a && right instanceof ObtainStep.Shear b) {
-            return new ObtainStep.Shear(a.mob(), a.count() + b.count());
+            return new ObtainStep.Shear(a.mob(), a.count() + b.count(), a.variant());
         }
         return new ObtainStep.Milk(((ObtainStep.Milk) left).count() + ((ObtainStep.Milk) right).count());
     }
@@ -504,7 +505,7 @@ public final class ObtainPlanner {
                     }
                     case Source.Hunt hunt -> providers.add(new HuntProvider(hunt));
                     case Source.Harvest harvest -> providers.add(new HarvestProvider(harvest));
-                    case Source.Shear shear -> providers.add(new ShearProvider(shear));
+                    case Source.Shear shear -> providers.add(new ShearProvider(shear, allowExplore));
                     case Source.Milk milk -> providers.add(new MilkProvider(item, milk, allowExplore));
                 }
             }
@@ -1275,27 +1276,59 @@ public final class ObtainPlanner {
             }
         }
 
+        /**
+         * Shearing animals that can supply the item. A scanned animal carries its variant (a sheep's wool colour), so
+         * an order for white wool counts only white sheep: a nearer black sheep, or one already shorn, is not supply.
+         * The shears are a tool like any other, obtained through the same chain when the companion lacks them.
+         */
         private final class ShearProvider implements Provider {
             private final Source.Shear source;
+            private final boolean allowExplore;
 
-            ShearProvider(Source.Shear source) {
+            ShearProvider(Source.Shear source, boolean allowExplore) {
                 this.source = source;
+                this.allowExplore = allowExplore;
             }
 
             @Override
             public int capacity(Sim sim, int want) {
-                int mobs = world.mobsNearby().getOrDefault(source.mob(), 0);
-                if (mobs <= 0) {
+                int animals = shearable();
+                if (animals <= 0) {
                     return 0;
                 }
-                return Math.min(want, Math.max(1, (int) Math.floor(mobs * source.perAnimal())));
+                return Math.min(want, Math.max(1, (int) Math.floor(animals * source.perAnimal())));
+            }
+
+            /** Animals of this type with the source's variant, or every scanned animal when the scan knew no variant. */
+            private int shearable() {
+                int typed = world.mobsNearby().getOrDefault(source.mob(), 0);
+                if (typed <= 0) {
+                    return 0;
+                }
+                int matching = 0;
+                for (Map.Entry<String, Integer> entry : world.shearableNearby().entrySet()) {
+                    String[] parts = entry.getKey().split("\\|", 2);
+                    if (!parts[0].equals(source.mob())) {
+                        continue;
+                    }
+                    String variant = parts.length > 1 ? parts[1] : "";
+                    if (source.variant() == null || source.variant().equals(variant)) {
+                        matching += entry.getValue();
+                    }
+                }
+                return matching;
             }
 
             @Override
             public Candidate take(Search search, Sim sim, int want, int depth, Set<String> path, boolean emitCraft) {
                 int animals = Math.max(1, (int) Math.ceil(want / source.perAnimal()));
                 Attempt attempt = new Attempt();
-                attempt.add(new ObtainStep.Shear(source.mob(), animals));
+                ToolNeed shears = new ToolNeed(ToolKind.SHEARS, Tier.NONE);
+                if (!ensureTool(shears, animals, depth, path, sim, attempt, allowExplore)) {
+                    if (attempt.conditional) return new Candidate(this, attempt, sim, 0);
+                    return null;
+                }
+                attempt.add(new ObtainStep.Shear(source.mob(), animals, source.variant()));
                 attempt.cost += 4 * animals;
                 return new Candidate(this, attempt, sim, want);
             }

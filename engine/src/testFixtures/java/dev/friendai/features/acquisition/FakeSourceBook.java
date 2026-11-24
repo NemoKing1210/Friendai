@@ -29,7 +29,7 @@ final class FakeSourceBook implements SourceBook {
                 .add("minecraft:leather", new Source.Hunt("minecraft:cow", 1.0))
                 .add("minecraft:beef", new Source.Hunt("minecraft:cow", 1.0))
                 .add("minecraft:wheat", new Source.Harvest("minecraft:wheat", 1.0))
-                .add("minecraft:white_wool", new Source.Shear("minecraft:sheep", 1.0))
+                .add("minecraft:white_wool", new Source.Shear("minecraft:sheep", 1.0, "white"))
                 .add("minecraft:milk_bucket", new Source.Milk("minecraft:cow"))
                 .tool(new ToolNeed(ToolKind.PICKAXE, Tier.WOOD), "minecraft:wooden_pickaxe")
                 .tool(new ToolNeed(ToolKind.PICKAXE, Tier.STONE), "minecraft:stone_pickaxe")

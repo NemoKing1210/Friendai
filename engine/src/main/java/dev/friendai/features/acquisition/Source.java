@@ -29,12 +29,20 @@ public sealed interface Source {
         }
     }
 
-    /** Shearing an animal. */
-    record Shear(String mob, double perAnimal) implements Source {
+    /**
+     * Shearing an animal. {@code variant} narrows which animals supply the item — a sheep's wool colour — and null
+     * accepts any shearable animal of the type.
+     */
+    record Shear(String mob, double perAnimal, String variant) implements Source {
         public Shear {
             if (perAnimal <= 0) {
                 throw new IllegalArgumentException("shear yield must be positive: " + mob);
             }
+            variant = variant == null || variant.isBlank() ? null : variant;
+        }
+
+        public Shear(String mob, double perAnimal) {
+            this(mob, perAnimal, null);
         }
     }
 
