@@ -1,6 +1,7 @@
 package dev.friendai.foundation.text;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Optional;
@@ -61,5 +62,36 @@ class LanguageMemoryTest {
         LanguageMemory memory = LanguageMemory.startingAt("  ");
         assertTrue(memory.language().isEmpty());
         assertEquals(Optional.of("German"), memory.observe(sample("German")));
+    }
+
+    @Test
+    void syncingToAForgottenLanguageLetsTheNextSampleBeLearnedAtOnce() {
+        LanguageMemory memory = LanguageMemory.startingAt("English");
+        assertTrue(memory.syncTo(null));
+        assertEquals(Optional.empty(), memory.language());
+        assertEquals(Optional.of("English"), memory.observe(sample("English")));
+    }
+
+    @Test
+    void syncingToAnEditedLanguageDropsTheHalfBuiltSwitch() {
+        LanguageMemory memory = LanguageMemory.startingAt("English");
+        memory.observe(sample("Russian"));
+        memory.observe(sample("Russian"));
+
+        assertTrue(memory.syncTo("German"));
+        assertEquals(Optional.of("German"), memory.language());
+        assertTrue(memory.observe(sample("Russian")).isEmpty());
+        assertTrue(memory.observe(sample("Russian")).isEmpty());
+        assertEquals(Optional.of("Russian"), memory.observe(sample("Russian")));
+    }
+
+    @Test
+    void aCaseOnlyDifferenceIsNotAChangeAndKeepsThePendingStreak() {
+        LanguageMemory memory = LanguageMemory.startingAt("English");
+        memory.observe(sample("Russian"));
+        assertFalse(memory.syncTo("english"));
+        assertEquals(Optional.of("English"), memory.language());
+        assertTrue(memory.observe(sample("Russian")).isEmpty());
+        assertEquals(Optional.of("Russian"), memory.observe(sample("Russian")));
     }
 }

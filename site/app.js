@@ -488,7 +488,7 @@ const MEM_CARDS = [
   { title: "The memory book", sub: "What it remembers and who may see it",
     hub: { label: "Memory", icon: "🧠", color: COLORS.amethyst, desc: "Rights are checked per subject on every read, write and forget." },
     color: COLORS.amethyst, items: [
-      "~Facts|Per subject, five categories.", "~Player records|Trust level per player.", "~Learned language|First confident sample, switches after three.",
+      "~Facts|Per subject, five categories.", "~Player records|Trust level per player.", "~Learned language|First confident sample, switches after three; once you forget it, the next message counts as a fresh first sample.",
       "~Food rules|Allow and forbid lists.", "~Guest privacy|A guest sees only facts about themself.", "~Trust confirmation|Owner confirms changes." ] },
   { title: "Goals & free time", sub: "What it does when nobody gives orders",
     hub: { label: "Autonomy", icon: "🎯", color: COLORS.nether, desc: "Owner work, an active owner goal and the quiet period after you speak always come first." },

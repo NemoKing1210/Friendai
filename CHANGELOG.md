@@ -6,6 +6,13 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.233.2] - 2026-11-24
+
+### Fixed
+
+- Forgetting the companion's learned language in the memory menu now really forgets it: the next message you write in that language is learned again immediately instead of being ignored for the rest of the session.
+- A language changed outside the conversation, such as by clearing the companion's memory or editing the saved record, is honoured from your next message on, and a real language switch still needs three messages in a row.
+
 ## [0.233.1] - 2026-11-24
 
 ### Fixed

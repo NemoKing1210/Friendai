@@ -23,6 +23,9 @@ public final class OwnerProfileObserver {
     /** Ensures the owner record and observes one owner's message. */
     public void observe(String playerName, String text, boolean memoryEnabled, MemoryLimits limits, long nowMillis) {
         book.ensurePlayer(owner, playerName);
+        // The record is authoritative: a language forgotten through the menu, a cleared book or an edited fact must
+        // not stay suppressed by the tracker that still remembers the old value.
+        language.syncTo(book.ownerLanguage(owner).orElse(null));
         language.observe(LanguageDetector.detect(text)).ifPresent(next -> book.setOwnerLanguage(owner, next));
         if (!memoryEnabled) {
             return;

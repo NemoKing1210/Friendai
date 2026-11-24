@@ -725,7 +725,7 @@ const RU = {
   "Player records": "Записи об игроках",
   "Trust level per player.": "Уровень доверия для каждого игрока.",
   "Learned language": "Выученный язык",
-  "First confident sample, switches after three.": "Первый уверенный образец; смена после трёх подряд.",
+  "First confident sample, switches after three; once you forget it, the next message counts as a fresh first sample.": "Первый уверенный образец; смена после трёх подряд; после забывания языка следующее сообщение считается новым первым образцом.",
   "Food rules": "Правила питания",
   "Allow and forbid lists.": "Списки разрешённого и запрещённого.",
   "Guest privacy": "Приватность гостей",

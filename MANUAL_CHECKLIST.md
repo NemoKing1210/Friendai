@@ -868,3 +868,11 @@ The automated suite pins the text split and the layout arithmetic; the click, th
       that the transcript file under `<world>/friendai/transcript/` no longer holds it after the next save.
 - [ ] Shorten the retention setting while a world is running, then read the recent chat and open the panel: the
       now-out-of-window lines are gone; the lines inside the new window keep their numbering.
+
+## A forgotten language is learned again at once (TODO 164)
+
+- [ ] Talk to the companion in one language until it answers in that language, then clear the owner's memory in
+      the Memory tab (or remove the "Writes in ..." fact) and write one more message in the same language: the
+      companion answers in that language again and the language fact is back without a new session.
+- [ ] Switch languages for real (three messages in a row in the other language): the companion follows the switch.
+- [ ] Set a companion language explicitly in the settings and confirm learned-language changes never override it.

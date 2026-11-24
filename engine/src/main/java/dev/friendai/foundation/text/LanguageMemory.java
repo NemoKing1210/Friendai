@@ -32,6 +32,28 @@ public final class LanguageMemory {
     }
 
     /**
+     * Adopts the language the owner's record holds, so the tracker never keeps a value the book has since forgotten
+     * or edited: forgetting a language means the next confident sample is stored at once, and an external change wins
+     * over a half-built switch.
+     *
+     * @return whether the tracker's language changed
+     */
+    public boolean syncTo(String stored) {
+        String next = normalize(stored);
+        if (sameLanguage(next, language)) {
+            return false;
+        }
+        language = next;
+        pending = null;
+        pendingCount = 0;
+        return true;
+    }
+
+    private static boolean sameLanguage(String a, String b) {
+        return a == null ? b == null : b != null && a.equalsIgnoreCase(b);
+    }
+
+    /**
      * Feeds one detected sample.
      *
      * @return the language that just became the stored one, or empty when nothing changed

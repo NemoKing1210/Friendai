@@ -64,4 +64,57 @@ class OwnerProfileObserverTest {
         assertTrue(book.facts(Subject.player(OWNER)).stream()
                 .noneMatch(f -> f.text().equals("Writes in Russian.")));
     }
+
+    @Test
+    void aClearedMemoryRelearnsTheLanguageFromTheNextMessage() {
+        MemoryBook book = new MemoryBook();
+        book.ensurePlayer(OWNER, "Alice");
+        book.setOwnerLanguage(OWNER, "English");
+        OwnerProfileObserver observer = new OwnerProfileObserver(OWNER, book);
+
+        book.clearFacts(Subject.player(OWNER));
+        assertTrue(book.ownerLanguage(OWNER).isEmpty());
+
+        observer.observe("Alice", "Please bring me some food.", true, LIMITS, 100);
+
+        assertEquals(Optional.of("English"), book.ownerLanguage(OWNER));
+        assertTrue(book.facts(Subject.player(OWNER)).stream()
+                .anyMatch(f -> f.text().equals("Writes in English.")));
+    }
+
+    @Test
+    void clearingEverythingAlsoLetsTheNextMessageRelearnTheLanguage() {
+        MemoryBook book = new MemoryBook();
+        book.ensurePlayer(OWNER, "Alice");
+        book.setOwnerLanguage(OWNER, "English");
+        OwnerProfileObserver observer = new OwnerProfileObserver(OWNER, book);
+
+        book.clearAllFacts();
+        assertTrue(book.ownerLanguage(OWNER).isEmpty());
+
+        observer.observe("Alice", "Please bring me some food.", true, LIMITS, 100);
+
+        assertEquals(Optional.of("English"), book.ownerLanguage(OWNER));
+    }
+
+    @Test
+    void removingTheLanguageFactForgetsItAndTheNextMessageRestoresIt() {
+        MemoryBook book = new MemoryBook();
+        OwnerProfileObserver observer = new OwnerProfileObserver(OWNER, book);
+        observer.observe("Alice", "Please bring me some food.", true, LIMITS, 100);
+        int factId = book.facts(Subject.player(OWNER)).stream()
+                .filter(f -> f.text().equals("Writes in English."))
+                .findFirst()
+                .orElseThrow()
+                .id();
+
+        book.removeFact(factId);
+        assertTrue(book.ownerLanguage(OWNER).isEmpty());
+
+        observer.observe("Alice", "Please bring me some food.", true, LIMITS, 200);
+
+        assertEquals(Optional.of("English"), book.ownerLanguage(OWNER));
+        assertTrue(book.facts(Subject.player(OWNER)).stream()
+                .anyMatch(f -> f.text().equals("Writes in English.")));
+    }
 }
