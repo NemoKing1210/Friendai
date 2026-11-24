@@ -680,3 +680,9 @@ These need a live world with two dimensions; the automated suite used a fixed pl
 - [ ] Ask for `#minecraft:planks` to be moved between two chests while the companion carries its own oak planks: the birch (or whatever the source held) reaches the target, the carried oak stays in the bag, and the answer names how many were moved.
 - [ ] Fill the target down to one free slot, then move a larger count: the call reports a failure naming how many arrived, how many went back to the source and how many are still carried, and both chests account for every item.
 - [ ] Restart the game between opening the source and reaching the target: after the reload the withdrawn items — and only those — reach the target, and the source is not taken from twice.
+
+## Acquisition overflow through a real chest (TODO 130)
+
+- [ ] Fill every slot of the companion's bag, lock one nearby chest and leave a second one open, then order something that needs one free slot: the companion walks to the open chest, opens it, stores exactly one unrelated stack and finishes the order; the locked chest keeps everything it had.
+- [ ] Give the same order with only a locked chest and an unreachable chest nearby: the companion says its inventory is full and names what it tried instead of putting anything into a container it could not open.
+- [ ] Use `find_stored_item` after such an order: the stack the companion made room with is reported in the chest it actually opened.

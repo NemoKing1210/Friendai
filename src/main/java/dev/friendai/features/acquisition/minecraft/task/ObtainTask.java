@@ -32,13 +32,13 @@ import dev.friendai.task.TaskStatus;
 import dev.friendai.task.interact.ContainerAccess;
 import dev.friendai.task.interact.ContainerTakeRun;
 import dev.friendai.task.interact.ContainerTour;
+import dev.friendai.task.interact.MakeRoomTask;
 import dev.friendai.task.inventory.ItemMatcher;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -63,6 +63,9 @@ public final class ObtainTask implements Task {
     public static final int DEFAULT_EXPLORE_TICKS = 6_000;
     private static final int NOTICE_INTERVAL = 600;
     private static final int CONTAINER_RADIUS = 16;
+    /** How many room-making trips one acquisition may make, so a bag that keeps refilling cannot walk forever. */
+    private static final int MAX_ROOM_RUNS = 8;
+
     private final String item;
     private final int count;
     private final boolean useContainers;
@@ -87,6 +90,16 @@ public final class ObtainTask implements Task {
     private Task current;
     /** A look through nearby storage, run once before making or gathering the item. */
     private Task tour;
+    /** Frees room through the normal container interaction; ticks between steps like the tour. */
+    private Task roomTask;
+    /** The container the current room trip is using, so a refusal retires that candidate. */
+    private BlockPos roomTarget;
+    /** Candidates this acquisition already failed to make room in, so it does not walk back to them. */
+    private final Set<Long> roomRefusals = new LinkedHashSet<>();
+    /** The last trip's own reason, kept so a final "inventory is full" still says what was tried. */
+    private String roomFailure;
+
+    private int roomRuns;
 
     private boolean touredContainers;
     private TaskContext childContext;
@@ -303,6 +316,11 @@ public final class ObtainTask implements Task {
         history.clear();
         excludedSiteIds.clear();
         unusableContainers.clear();
+        roomRefusals.clear();
+        roomTask = null;
+        roomTarget = null;
+        roomFailure = null;
+        roomRuns = 0;
     }
 
     @Override
@@ -343,6 +361,24 @@ public final class ObtainTask implements Task {
             tour = null;
             if (!toured.isBlank()) history.add(toured);
             // What the chests hold is known now: plan again from it.
+            return startNext(c);
+        }
+        if (roomTask != null) {
+            TaskStatus status = roomTask.tick(c);
+            if (status == TaskStatus.RUNNING) {
+                return TaskStatus.RUNNING;
+            }
+            String madeRoom = roomTask.resultSummary();
+            if (!madeRoom.isBlank()) history.add(madeRoom);
+            safeTerminate(roomTask, c);
+            roomTask = null;
+            if (status != TaskStatus.SUCCESS && roomTarget != null) {
+                // This container could not help; another authorized one may, within the run bound.
+                roomRefusals.add(roomTarget.asLong());
+                roomFailure = madeRoom;
+            }
+            roomTarget = null;
+            // Room may exist now, or the next candidate may be able to make it: plan from the live bag.
             return startNext(c);
         }
         if (current != null) {
@@ -442,9 +478,14 @@ public final class ObtainTask implements Task {
         if (plan.steps().isEmpty()) {
             return fail("can't get " + count + " " + item + " here: nothing to do");
         }
-        Optional<String> room = ensureRoom(c, plan, plan.steps().get(0));
-        if (room.isPresent()) {
-            return fail(room.get());
+        switch (prepareRoom(c, plan, plan.steps().get(0))) {
+            case Room.Ready ignored -> {}
+            case Room.Started ignored -> {
+                return TaskStatus.RUNNING;
+            }
+            case Room.Blocked blocked -> {
+                return fail(blocked.reason());
+            }
         }
         currentStep = plan.steps().get(0);
         c.decision(
@@ -499,50 +540,67 @@ public final class ObtainTask implements Task {
      * Makes room for the upcoming step only when that step genuinely needs it. The need is measured, not assumed:
      * a produced item first fills the room left in a compatible carried stack (63 cobblestone need no free slot for
      * the 64th), and an ingredient the step consumes first can free the slot its result takes (a log becomes planks).
-     * When space is short, only unrelated stacks move — never the target, a plan item, a reserved material or a
-     * station the step will use — and only as many as it takes to reach the measured need.
+     * The space is freed through the normal container interaction — walk, protection, open, deposit, record — never by
+     * writing into a container at range, and only unrelated stacks move: never the target, a plan item, a reserved
+     * material or a station the step will use.
      */
-    private Optional<String> ensureRoom(TaskContext c, ObtainPlan plan, ObtainStep step) {
+    private Room prepareRoom(TaskContext c, ObtainPlan plan, ObtainStep step) {
         CompanionEntity companion = c.companion();
         StepDemand demand = demandOf(c, step);
         int needed = ObtainCapacity.emptySlotsNeeded(demand.produced(), demand.consumed(), bag(companion));
         if (emptySlots(companion) >= needed) {
-            return Optional.empty();
+            return READY;
         }
-        if (!useContainers) {
-            return Optional.of("my inventory is full");
+        if (!useContainers || roomRuns >= MAX_ROOM_RUNS) {
+            return blockedRoom();
         }
-        ServerLevel level = c.level();
-        BlockPos pos = ContainerAccess.nearest(c, CONTAINER_RADIUS).orElse(null);
-        if (pos == null || !companion.hands().canInteract(pos)) {
-            return Optional.of("my inventory is full");
-        }
-        Container container = ContainerAccess.at(level, pos).orElse(null);
-        if (container == null) {
-            return Optional.of("my inventory is full");
+        BlockPos pos = roomCandidate(c);
+        if (pos == null) {
+            return blockedRoom();
         }
         Set<String> keep = itemsUsed(plan);
         keep.add(item);
         keep.addAll(demand.keep());
         keep.addAll(c.materialReserve().asMap().keySet());
-        for (int slot = 0; slot < companion.inventory().getContainerSize(); slot++) {
-            if (emptySlots(companion) >= needed) {
-                break;
-            }
-            ItemStack stack = companion.inventory().getItem(slot);
-            if (stack.isEmpty()) {
-                continue;
-            }
-            String id = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
-            if (keep.contains(id)) {
-                continue;
-            }
-            companion.inventory().setItem(slot, ContainerAccess.insert(container, stack));
-        }
-        companion.inventory().setChanged();
-        container.setChanged();
-        return emptySlots(companion) >= needed ? Optional.empty() : Optional.of("my inventory is full");
+        roomRuns++;
+        roomTarget = pos;
+        roomTask = new MakeRoomTask(pos, needed, keep);
+        roomTask.start(c);
+        return STARTED;
     }
+
+    /** The next authorized room-making destination: a remembered or visible container nearby, nearest first. */
+    private BlockPos roomCandidate(TaskContext c) {
+        List<BlockPos> candidates = ContainerAccess.known(c, CONTAINER_RADIUS);
+        LinkedHashSet<BlockPos> seen = new LinkedHashSet<>();
+        for (BlockPos pos : candidates) {
+            if (!seen.add(pos) || roomRefusals.contains(pos.asLong())) continue;
+            if (!c.companion().hands().canInteract(pos)) continue;
+            if (ContainerAccess.at(c.level(), pos).isEmpty()) continue;
+            return pos;
+        }
+        return null;
+    }
+
+    /** The blocker the planner matches, carrying the last trip's own evidence when there is any. */
+    private Room blockedRoom() {
+        return new Room.Blocked(
+                roomFailure == null || roomFailure.isBlank()
+                        ? "my inventory is full"
+                        : "my inventory is full; " + roomFailure);
+    }
+
+    /** The room decision for one step: continue, wait for the trip, or stop with the reason. */
+    private sealed interface Room {
+        record Ready() implements Room {}
+
+        record Started() implements Room {}
+
+        record Blocked(String reason) implements Room {}
+    }
+
+    private static final Room READY = new Room.Ready();
+    private static final Room STARTED = new Room.Started();
 
     /** What one step adds to and takes out of the inventory, plus the items it must keep in the bag. */
     private record StepDemand(Map<String, Integer> produced, Map<String, Integer> consumed, Set<String> keep) {}
@@ -925,6 +983,10 @@ public final class ObtainTask implements Task {
         if (tour != null) {
             safeStop(tour, c);
             tour = null;
+        }
+        if (roomTask != null) {
+            safeStop(roomTask, c);
+            roomTask = null;
         }
         if (span != null) {
             span.finish("cancelled", "stopped", java.util.Map.of());

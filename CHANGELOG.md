@@ -13,6 +13,9 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ### Fixed
 
+- When a full inventory needs room for a gathering or crafting order, the companion now walks to a chest and opens
+  it like a player instead of putting items into a container from a distance: a locked, blocked or unreachable chest is
+  left untouched, a second one is tried, and the container that received the extra stack is remembered so you can find it.
 - Moving items between two containers now delivers exactly the stacks it took out: a tag such as `#minecraft:planks`
   moves the source's birch while the companion's own oak stays in its bag, a target that can hold only part of the
   move returns the rest to the source and reports how much arrived, and after a reload the withdrawn items — not

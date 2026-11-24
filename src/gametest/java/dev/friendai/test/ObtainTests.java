@@ -1912,6 +1912,86 @@ public class ObtainTests {
         });
     }
 
+    /**
+     * A locked chest is nearer than an open one and the bag is full: nothing is written into the locked chest, and the
+     * room the step needs comes from the open one through an ordinary walk-and-open.
+     */
+    @GameTest(maxTicks = 2400, structure = GameTestArenas.ARENA_16)
+    public void aLockedChestIsSkippedForAnAuthorizedOneWhenTheBagIsFull(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        // The arena floor is stone; make it dirt so the one block the companion may mine is the one this test seeds.
+        for (int x = 0; x < 16; x++) {
+            for (int z = 0; z < 16; z++) {
+                h.setBlock(x, 1, z, Blocks.DIRT);
+            }
+        }
+        BlockPos stone = new BlockPos(4, 2, 5);
+        h.setBlock(stone, Blocks.STONE);
+        BlockPos lockedPos = new BlockPos(3, 2, 2);
+        h.setBlock(lockedPos, Blocks.CHEST);
+        BlockPos openPos = new BlockPos(6, 2, 4);
+        h.setBlock(openPos, Blocks.CHEST);
+        var registry = h.getLevel().registryAccess();
+        var lockedEntity = (net.minecraft.world.level.block.entity.ChestBlockEntity)
+                h.getLevel().getBlockEntity(h.absolutePos(lockedPos));
+        var tag = lockedEntity.saveWithFullMetadata(registry);
+        var lockTag = new net.minecraft.nbt.CompoundTag();
+        lockTag.putString("items", "minecraft:stick");
+        tag.put(net.minecraft.world.LockCode.TAG_LOCK, lockTag);
+        lockedEntity.loadWithComponents(net.minecraft.world.level.storage.TagValueInput.create(
+                net.minecraft.util.ProblemReporter.DISCARDING, registry, tag));
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        var owner = GameTestSupport.mockPlayerAt(h, 6, 2, 2);
+        companion.setOwner(owner.getUUID());
+        CompanionManager.get(h.getLevel().getServer()).register(companion);
+        companion.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.WOODEN_PICKAXE));
+        for (int slot = 0; slot < companion.inventory().getContainerSize(); slot++) {
+            companion.inventory().setItem(slot, new ItemStack(Items.DIRT, 64));
+        }
+        companion.inventory().setItem(0, new ItemStack(Items.COBBLESTONE, 64));
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, companion, h.absolutePos(stone)),
+                "the stone source should be visible with a full bag");
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, companion, h.absolutePos(lockedPos)),
+                "the locked chest should be visible");
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, companion, h.absolutePos(openPos)),
+                "the open chest should be visible");
+        Container locked = (Container) h.getLevel().getBlockEntity(h.absolutePos(lockedPos));
+        Container open = (Container) h.getLevel().getBlockEntity(h.absolutePos(openPos));
+        Result result = new Result();
+        ExecutionCoordinator runner = obtain(companion, result, obtainTask("minecraft:cobblestone", 65, true, true));
+
+        h.succeedWhen(() -> {
+            if (h.getBlockState(stone).is(Blocks.STONE)) {
+                GameTestSupport.observeVisible(h, companion, h.absolutePos(stone));
+            }
+            runner.tick();
+            h.assertTrue(result.status != null, "the obtain should finish");
+            h.assertTrue(result.status == TaskStatus.SUCCESS, result.status + ": " + result.summary);
+            h.assertValueEqual(
+                    carried(companion, "minecraft:cobblestone"),
+                    65,
+                    "the mined cobblestone was collected: " + result.summary);
+            h.assertValueEqual(carried(companion, "minecraft:dirt"), 25 * 64, "exactly one dirt stack moved");
+            h.assertValueEqual(
+                    dev.friendai.task.inventory.InventoryOps.count(
+                            open,
+                            dev.friendai.task.inventory.ItemMatcher.parse("minecraft:dirt")
+                                    .orElseThrow()),
+                    64,
+                    "the open chest takes the overflow stack");
+            h.assertValueEqual(
+                    dev.friendai.task.inventory.InventoryOps.count(
+                            locked,
+                            dev.friendai.task.inventory.ItemMatcher.parse("minecraft:dirt")
+                                    .orElseThrow()),
+                    0,
+                    "the locked chest must stay untouched");
+        });
+    }
+
     /** A full stack of the requested item is still full: the request stops honestly instead of starting work. */
     @GameTest(maxTicks = 400, structure = GameTestArenas.ARENA_16)
     public void aFullSameItemStackCannotTakeOneMore(GameTestHelper h) {

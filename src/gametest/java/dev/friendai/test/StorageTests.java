@@ -22,6 +22,7 @@ import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.interact.ContainerAccess;
 import dev.friendai.task.interact.ContainerSession;
+import dev.friendai.task.interact.MakeRoomTask;
 import dev.friendai.task.inventory.ItemMatcher;
 import java.util.Set;
 import java.util.UUID;
@@ -397,6 +398,74 @@ public class StorageTests {
                     "the refusal must name the reason, got " + result.summary);
             h.assertValueEqual(chest.getItem(0).getCount(), 20, "items left the blocked chest");
             h.assertValueEqual(c.inventory().countItem(Items.IRON_NUGGET), 0, "the companion took items anyway");
+        });
+    }
+
+    /** Making room uses the same opening: one unrelated stack moves into a reachable chest and is recorded there. */
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 800)
+    public void makeRoomStoresOneUnrelatedStackAndRecordsIt(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(4, 2, 2, Blocks.CHEST);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        var owner = GameTestSupport.mockPlayerAt(h, 6, 2, 2);
+        c.setOwner(owner.getUUID());
+        for (int slot = 0; slot < c.inventory().getContainerSize(); slot++) {
+            c.inventory().setItem(slot, new ItemStack(Items.DIRT, 64));
+        }
+        c.inventory().setItem(0, new ItemStack(Items.COBBLESTONE, 64));
+        BlockPos chestPos = h.absolutePos(new BlockPos(4, 2, 2));
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(new MakeRoomTask(chestPos, 2, java.util.Set.of("minecraft:cobblestone")), "make_room");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status != null, "room making never finished");
+            h.assertTrue(result.status == TaskStatus.SUCCESS, result.status + ": " + result.summary);
+            h.assertValueEqual(c.inventory().countItem(Items.DIRT), 24 * 64, "exactly two dirt stacks moved");
+            h.assertValueEqual(c.inventory().countItem(Items.COBBLESTONE), 64, "the kept item stays in the bag");
+            h.assertValueEqual(containerAt(h, 4, 2, 2).countItem(Items.DIRT), 2 * 64, "the chest holds them");
+            h.assertTrue(result.summary.contains("stored "), "the summary names what moved: " + result.summary);
+            h.assertTrue(
+                    GameTestSupport.runtime(h)
+                            .storage()
+                            .find(c, Set.of("minecraft:dirt"), 1, c.level().getGameTime())
+                            .stream()
+                            .anyMatch(candidate -> candidate.record().key().x() == chestPos.getX()
+                                    && candidate.record().key().y() == chestPos.getY()
+                                    && candidate.record().key().z() == chestPos.getZ()),
+                    "the moved stack must be recorded so the owner can find it");
+        });
+    }
+
+    /** A refused opening moves nothing and says why, so the caller can try another container. */
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 800)
+    public void makeRoomLeavesALockedChestUntouched(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(4, 2, 2, Blocks.CHEST);
+        BlockPos absolute = h.absolutePos(new BlockPos(4, 2, 2));
+        ChestBlockEntity chestEntity = (ChestBlockEntity) h.getLevel().getBlockEntity(absolute);
+        var registry = h.getLevel().registryAccess();
+        net.minecraft.nbt.CompoundTag tag = chestEntity.saveWithFullMetadata(registry);
+        net.minecraft.nbt.CompoundTag lockTag = new net.minecraft.nbt.CompoundTag();
+        lockTag.putString("items", "minecraft:stick");
+        tag.put(LockCode.TAG_LOCK, lockTag);
+        chestEntity.loadWithComponents(TagValueInput.create(ProblemReporter.DISCARDING, registry, tag));
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(GameTestSupport.mockPlayerAt(h, 6, 2, 2).getUUID());
+        for (int slot = 0; slot < c.inventory().getContainerSize(); slot++) {
+            c.inventory().setItem(slot, new ItemStack(Items.DIRT, 64));
+        }
+        MakeRoomTask task = new MakeRoomTask(absolute, 1, Set.of());
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        runner.start(task, "make_room");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status != null, "room making never finished");
+            h.assertValueEqual(result.status, TaskStatus.FAILED, "a locked lock was passed: " + result.summary);
+            h.assertValueEqual(task.failureKind(), ContainerSession.FailureKind.LOCKED, "the refusal kind");
+            h.assertValueEqual(c.inventory().countItem(Items.DIRT), 27 * 64, "nothing left the bag");
+            h.assertValueEqual(containerAt(h, 4, 2, 2).countItem(Items.DIRT), 0, "the locked chest was written");
         });
     }
 

@@ -245,8 +245,8 @@ const RU = {
   /* ---- Acquisition ---- */
   "Resource Acquisition": "Добыча ресурсов",
   "Ask for an item and it works out how: inventory, chests, craft, smelt, mine, hunt, harvest, shear, milk or explore.": "Попросите предмет, и он сам решит как: инвентарь, сундуки, крафт, плавка, добыча, охота, урожай, стрижка, дойка или разведка.",
-  "Get an item by any means, using the room left in the stacks it already carries; wood is felled as whole trees.":
-    "Получить предмет любым способом, используя свободное место в уже переносимых стопках; древесину добывает, свалив деревья целиком.",
+  "Get an item by any means, using the room left in the stacks it already carries and opening a real chest when the bag is full; wood is felled as whole trees.":
+    "Получить предмет любым способом, используя свободное место в уже переносимых стопках и открывая настоящий сундук, когда сумка полна; древесину добывает, свалив деревья целиком.",
   "Gather every material for a set of items once, then craft them all; accepts the item/count aliases; mines a mineable item instead of crafting it from a rarer one; wood is felled as whole trees.":
     "Собрать все материалы для набора предметов один раз, а потом создать их все; принимает псевдонимы item/count; добывает предмет, который можно добыть, вместо крафта из более редкого; древесину добывает, свалив деревья целиком.",
   "Gather shared materials once for a set of items, then craft them all; accepts item/count aliases; mines a mineable item instead of crafting it from a rarer one; wood is felled as whole trees.":
