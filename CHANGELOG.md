@@ -6,6 +6,13 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.230.1] - 2026-11-24
+
+### Fixed
+
+- When trees give no logs, acquisition now stops retrying them after two trees in a row give nothing and uses reachable
+  loose logs sooner, while keeping the reason each attempt produced nothing.
+
 ## [0.230.0] - 2026-11-24
 
 ### Added

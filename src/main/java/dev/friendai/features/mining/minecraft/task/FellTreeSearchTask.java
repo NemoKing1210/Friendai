@@ -200,6 +200,11 @@ public final class FellTreeSearchTask implements Task {
             summary = delegate.describe();
             return TaskStatus.RUNNING;
         }
+        if (waited > TREE_SEARCH_WAIT_TICKS) {
+            summary = "no safe " + logs.label() + " tree within " + radius
+                    + " blocks; the observed candidates were protected or had no reachable stance";
+            return TaskStatus.FAILED;
+        }
         c.observations()
                 .observer(c.companion())
                 .scheduleSweep(c.level().getServer().overworld().getGameTime());
