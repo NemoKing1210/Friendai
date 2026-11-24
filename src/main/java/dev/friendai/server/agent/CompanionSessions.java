@@ -1536,9 +1536,10 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
             @Override
             public void onDebug(String text) {
                 if (!isCurrent(session, companion)) return;
+                // The pipeline already projects this record into the owner's ring and the file, so the menu and the
+                // JSONL each receive it once; appending the raw text here as well would show every line twice.
                 emitTask(dev.friendai.execution.log.TaskLogEvents.progress(
                         owner, companion.getUUID(), logSession, 0L, text));
-                debug.logOf(owner).add(LogKind.TASK, text);
             }
         });
         session.attach(companion, brain);

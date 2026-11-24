@@ -420,6 +420,46 @@ public class CompanionControlTests {
         h.succeed();
     }
 
+    /**
+     * A task's debug line is one record: the pipeline projects it into the owner's ring (the menu stream) and the file,
+     * so the sink must not append the raw text as well. Two separate emissions with the same text stay two rows.
+     */
+    @GameTest(maxTicks = 100)
+    public void oneTaskDebugEmissionLandsOnceInTheOwnerLog(GameTestHelper h) {
+        ServerPlayer player = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        var server = h.getLevel().getServer();
+        CompanionSessions brains = GameTestSupport.runtime(server).sessions();
+        CompanionEntity companion = CompanionManager.get(server).summon(player);
+        // Running a tool binds the session's sink to this companion; a task is active while the line is emitted.
+        brains.runTool(player.getUUID(), "stay", "{}");
+        h.assertTrue(
+                companion.executionCoordinator().current().isPresent(),
+                "precondition: the session sink is attached to this companion and a task is active");
+        var log = brains.debug().logOf(player.getUUID());
+        String text = "mine 3 × minecraft:oak_log";
+        java.util.UUID other = java.util.UUID.randomUUID();
+        boolean[] firstSent = {false};
+        boolean[] secondSent = {false};
+        h.succeedWhen(() -> {
+            long rows = log.after(0, 200).stream()
+                    .filter(entry -> text.equals(entry.text()))
+                    .count();
+            if (!firstSent[0]) {
+                companion.executionCoordinator().debug(text);
+                firstSent[0] = true;
+                h.assertTrue(false, "waiting for the first emitted line");
+            } else if (!secondSent[0]) {
+                h.assertValueEqual(1L, rows, "one emission must be one row, not the projection plus the raw text");
+                companion.executionCoordinator().debug(text);
+                secondSent[0] = true;
+                h.assertTrue(false, "waiting for the second emitted line");
+            } else {
+                h.assertValueEqual(2L, rows, "two separate emissions stay two rows even with the same text");
+                h.assertValueEqual(0, brains.debug().logOf(other).size(), "another owner's ring must stay untouched");
+            }
+        });
+    }
+
     @GameTest(maxTicks = 100)
     public void nonOperatorCannotRunToolOrReadLog(GameTestHelper h) {
         noControlRateLimit(h);

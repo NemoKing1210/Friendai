@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.friendai.execution.log.TaskLogEvents;
 import dev.friendai.foundation.diagnostics.LogCategory;
 import dev.friendai.foundation.diagnostics.LogEvents;
 import dev.friendai.foundation.diagnostics.LogKind;
@@ -89,6 +90,36 @@ class DebugServiceTest {
         assertEquals(1, file.records.size());
         assertEquals("on", file.records.get(0).message());
         assertTrue(service.logOf(OWNER).size() >= 2);
+    }
+
+    @Test
+    void eachProgressEmissionReachesTheRingAndTheFileOnceAndRedacted() {
+        Recall file = new Recall();
+        DebugService service = new DebugService(
+                text -> text.replace("sk-live-123", "[redacted]"), () -> 1L, () -> settings(LogLevel.DEBUG), file);
+        String text = "mine 3 × minecraft:oak_log (key sk-live-123)";
+        service.pipeline().emit(TaskLogEvents.progress(OWNER, null, "s", 0L, text));
+        service.pipeline().emit(TaskLogEvents.progress(OWNER, null, "s", 0L, text));
+        assertEquals(2, file.records.size(), "one emitted progress record is one file record");
+        List<String> rows = service.logOf(OWNER).after(0, 10).stream()
+                .map(entry -> entry.text())
+                .toList();
+        assertEquals(
+                List.of("mine 3 × minecraft:oak_log (key [redacted])", "mine 3 × minecraft:oak_log (key [redacted])"),
+                rows,
+                "one emitted progress record is one ring row, and identical texts stay two rows");
+        for (LogRecord record : file.records) {
+            assertFalse(record.message().contains("sk-live-123"), "the file record must be redacted");
+        }
+    }
+
+    @Test
+    void aProgressRecordStillFillsTheRingWhenFileLoggingIsOff() {
+        Recall file = new Recall();
+        DebugService service = new DebugService(text -> text, () -> 1L, () -> settings(null), file);
+        service.pipeline().emit(TaskLogEvents.progress(OWNER, null, "s", 0L, "mine"));
+        assertEquals(1, service.logOf(OWNER).after(0, 10).size(), "the ring shows the line with logging off");
+        assertEquals(0, file.records.size(), "no file record may be written with logging off");
     }
 
     @Test

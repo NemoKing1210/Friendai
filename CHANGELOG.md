@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.233.23] - 2026-11-25
+
+### Fixed
+
+- A task's progress line now appears once in the companion log instead of twice, while the owner log file keeps its single record.
+
 ## [0.233.22] - 2026-11-25
 
 ### Fixed
