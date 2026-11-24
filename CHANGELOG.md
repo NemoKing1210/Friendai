@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.233.21] - 2026-11-25
+
+### Fixed
+
+- A wood order whose nearby trees cannot be felled now switches to mining the logs it can reach after two such trees instead of walking to as many as eight; the log also says why each attempt gave nothing.
+
 ## [0.233.20] - 2026-11-25
 
 ### Fixed

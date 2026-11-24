@@ -1,12 +1,15 @@
 package dev.friendai.features.mining.minecraft.task;
 
 import dev.friendai.execution.TaskWorkResult;
+import dev.friendai.features.mining.FellAttempts;
+import dev.friendai.foundation.diagnostics.LogEvents;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.inventory.ItemMatcher;
 import dev.friendai.world.block.BlockMatcher;
+import java.util.ArrayDeque;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Optional;
@@ -21,8 +24,19 @@ import net.minecraft.core.BlockPos;
 public final class FellLogsTask implements Task {
     /** How many trees one request may fell before the count miner takes over. */
     public static final int DEFAULT_MAX_TREES = 8;
+    /**
+     * How many trees in a row may give nothing before the count miner takes over. A refusal (too tall for the
+     * scaffold, no scaffold material, a protected trunk) is evidence about the trees around here, not about the
+     * order: two in a row is enough to stop walking to more of them and let the existing miner take the logs it can
+     * reach from the ground.
+     */
+    public static final int DEFAULT_MAX_EMPTY_FELLS = 2;
     /** How long one request may run before it reports what it gathered, in ticks. */
     public static final int DEFAULT_MAX_TICKS = 24_000;
+    /** How many finished attempts one report names, and how long one reason may be. */
+    private static final int MAX_ATTEMPT_NOTES = 3;
+
+    private static final int MAX_NOTE_CHARS = 90;
 
     private final BlockMatcher matcher;
     private final int count;
@@ -34,6 +48,11 @@ public final class FellLogsTask implements Task {
     private Optional<ItemMatcher> itemMatcher = Optional.empty();
     private Task current;
     private int trees;
+    /** Attempts in a row that added nothing; a productive tree resets it. */
+    private int emptyFells;
+    /** Bounded short reasons for the last attempts, so a fallback or a failure says why the trees gave nothing. */
+    private final ArrayDeque<String> attemptNotes = new ArrayDeque<>();
+
     private int gained;
     private int felled;
     private int before;
@@ -68,6 +87,8 @@ public final class FellLogsTask implements Task {
         itemMatcher = ItemMatcher.parse(matcher.label());
         current = null;
         trees = 0;
+        emptyFells = 0;
+        attemptNotes.clear();
         failedBases.clear();
         gained = 0;
         felled = 0;
@@ -98,13 +119,19 @@ public final class FellLogsTask implements Task {
             if (status == TaskStatus.RUNNING) {
                 return TaskStatus.RUNNING;
             }
-            gained += Math.max(0, counted(c) - before);
+            int yielded = Math.max(0, counted(c) - before);
+            gained += yielded;
             summary = current.resultSummary();
             boolean selectedTree = false;
             if (current instanceof FellTreeSearchTask search && search.selectedBase() != null) {
                 selectedTree = true;
                 trees++;
                 if (failedBases.size() < DEFAULT_MAX_TREES) failedBases.add(search.selectedBase());
+            }
+            if (selectedTree) {
+                emptyFells = FellAttempts.nextEmptyStreak(emptyFells, yielded);
+                if (yielded == 0) note("(" + trees + ") " + summary);
+                recordAttempt(c, yielded, status);
             }
             safeStop(current, c);
             current = null;
@@ -117,9 +144,12 @@ public final class FellLogsTask implements Task {
             if (!selectedTree) {
                 return startFallback(c);
             }
-        }
-        if (trees >= DEFAULT_MAX_TREES) {
-            return startFallback(c);
+            if (FellAttempts.fallBack(trees, emptyFells, DEFAULT_MAX_TREES, DEFAULT_MAX_EMPTY_FELLS)) {
+                // Two trees in a row gave nothing (or the whole tree budget is spent): the trees near here are not
+                // fellable for this companion, so the count miner reaches the same logs from the ground instead of
+                // walking to another refusal.
+                return startFallback(c);
+            }
         }
         before = counted(c);
         current = new FellTreeSearchTask(
@@ -128,9 +158,43 @@ public final class FellLogsTask implements Task {
         return TaskStatus.RUNNING;
     }
 
+    /**
+     * One bounded evidence record per finished tree attempt: the attempt number, the outcome and how many logs it
+     * added, with the child's own short reason. No coordinates and no unbounded prose, so a run's log says why each
+     * tree failed instead of only how many were tried.
+     */
+    private void recordAttempt(TaskContext c, int yielded, TaskStatus status) {
+        Map<String, String> facts = new java.util.LinkedHashMap<>();
+        facts.put("tree", Integer.toString(trees));
+        facts.put("yielded", Integer.toString(yielded));
+        facts.put("outcome", status.name().toLowerCase(java.util.Locale.ROOT));
+        facts.put("target", matcher.label());
+        String reason = shorten(summary);
+        if (!reason.isBlank()) facts.put("reason", reason);
+        c.decision(LogEvents.RESOURCE_DECISION, "tree_attempt", facts);
+    }
+
+    private void note(String text) {
+        attemptNotes.addLast(shorten(text));
+        while (attemptNotes.size() > MAX_ATTEMPT_NOTES) {
+            attemptNotes.removeFirst();
+        }
+    }
+
+    /** The attempts in one bounded phrase, so the fallback and the failure say what the trees said. */
+    private String notesText() {
+        return attemptNotes.isEmpty() ? "" : "; tried " + String.join("; ", attemptNotes);
+    }
+
+    private static String shorten(String text) {
+        if (text == null) return "";
+        String flat = text.replace('\n', ' ').strip();
+        return flat.length() <= MAX_NOTE_CHARS ? flat : flat.substring(0, MAX_NOTE_CHARS - 1) + "…";
+    }
+
     private TaskStatus startFallback(TaskContext c) {
         if (fallbackUsed) {
-            return fail("cut " + gained + " of " + count + " " + matcher.label() + ": " + summary);
+            return fail("cut " + gained + " of " + count + " " + matcher.label() + ": " + summary + notesText());
         }
         fallbackUsed = true;
         felled = gained;
@@ -203,7 +267,8 @@ public final class FellLogsTask implements Task {
 
     @Override
     public String debugStatus() {
-        return "trees=" + trees + "/" + DEFAULT_MAX_TREES + " gained=" + gained + "/" + count
+        return "trees=" + trees + "/" + DEFAULT_MAX_TREES + " empty=" + emptyFells + "/" + DEFAULT_MAX_EMPTY_FELLS
+                + " gained=" + gained + "/" + count
                 + (current == null ? "" : " | " + current.debugStatus());
     }
 

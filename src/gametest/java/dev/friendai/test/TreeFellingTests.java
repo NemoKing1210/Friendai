@@ -1189,6 +1189,61 @@ public class TreeFellingTests {
         });
     }
 
+    /**
+     * Trees that give nothing must not burn the whole tree budget. Two empty attempts in a row are evidence about
+     * the trees around here, so the count miner takes the reachable logs from the ground while other trees still
+     * stand; the report keeps why each attempt gave nothing.
+     */
+    @GameTest(structure = GameTestArenas.ARENA_24, maxTicks = 1200)
+    public void obtainLogsFallsBackAfterTwoEmptyFells(GameTestHelper h) {
+        int surfaceY = 60;
+        GameTestSupport.platformAt(h, surfaceY, 20);
+        // Trees whose trunks stand on stone pillars: the base is out of reach from the ground and the companion has
+        // no scaffold material, so every attempt at one gives nothing.
+        int[][] bases = {{16, 16}, {11, 18}, {18, 11}};
+        for (int[] base : bases) {
+            for (int y = surfaceY + 1; y <= surfaceY + 9; y++) {
+                h.setBlock(new BlockPos(base[0], y, base[1]), Blocks.STONE);
+            }
+            for (int y = surfaceY + 10; y <= surfaceY + 15; y++) {
+                h.setBlock(new BlockPos(base[0], y, base[1]), Blocks.OAK_LOG);
+            }
+            leaf(h, base[0], surfaceY + 16, base[1]);
+        }
+        // More than four columns is no tree but a log structure, so only the count miner takes it.
+        for (int x = 6; x <= 10; x++) {
+            h.setBlock(new BlockPos(x, surfaceY + 1, 2), Blocks.OAK_LOG);
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, surfaceY + 1, 2);
+        c.inventory().addItem(new ItemStack(Items.IRON_AXE));
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(6, surfaceY + 1, 2))),
+                "the near end of the loose row should be visible");
+        for (int[] base : bases) {
+            h.assertTrue(
+                    GameTestSupport.observeVisible(h, c, h.absolutePos(new BlockPos(base[0], surfaceY + 15, base[1]))),
+                    "the top of the pillar tree should be visible at " + base[0] + " " + base[1]);
+        }
+        Result result = new Result();
+        ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 300, () -> false);
+        runner.setEventSink(result);
+        FellLogsTask task = new FellLogsTask(oak(), 3, 24, true);
+        runner.start(task, "obtain_logs");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
+            h.assertValueEqual(c.inventory().countItem(Items.OAK_LOG), 3, "three logs must be carried");
+            h.assertTrue(result.summary.contains("mined"), "the count miner must supply the logs: " + result.summary);
+            h.assertTrue(
+                    task.debugStatus().contains("trees=2/8")
+                            && task.debugStatus().contains("empty=2/2"),
+                    "the fallback must start after two empty attempts, not after every tree: " + task.debugStatus());
+            h.assertTrue(
+                    h.getBlockState(new BlockPos(18, surfaceY + 10, 11)).is(Blocks.OAK_LOG),
+                    "a tree left standing proves the walk stopped before the budget ran out");
+        });
+    }
+
     /** A row of loose logs is no tree: the search gives up and the count miner gathers them, and the summary says so. */
     @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 1200)
     public void fellLogsMinesLooseLogsWhenNoTreeStands(GameTestHelper h) {
