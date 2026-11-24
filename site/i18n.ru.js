@@ -338,7 +338,7 @@ const RU = {
   "LLM planner": "Планировщик LLM",
   "Plan first, then approve": "Сначала план, потом согласие",
   "Ask for a plan without starting it: the steps are shown, nothing is queued, and only an exact go-ahead starts the plan that was shown.": "Попросите план, не начиная работу: шаги показываются, ничего не ставится в очередь, и только точное «давай» запускает показанный план.",
-  "Preliminary planning for complex orders; recovery for troubled plans, unmet goals and free time.": "Предварительное планирование сложных приказов; восстановление сорванных планов, недостигнутых целей и свободного времени.",
+  "Preliminary planning for complex orders; recovery for troubled plans, unmet goals and free time. It reads the recent conversation, the memory a reply would see and what you point at, so a follow-up like \"the second one\" is planned from evidence or answered with one question instead of guessed.": "Предварительное планирование сложных приказов; восстановление сорванных планов, недостигнутых целей и свободного времени. Он читает недавний разговор, память, которую увидел бы ответ, и то, на что вы смотрите, поэтому уточнение вроде «второй вариант» планируется по этим свидетельствам или встречает один вопрос вместо догадки.",
   "Conditional plans": "Условные планы",
   "If, repeat and guards over world facts.": "Условия, повторы и охранные условия по фактам мира.",
   "Outcome checker": "Проверка результата",

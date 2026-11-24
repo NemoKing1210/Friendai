@@ -117,6 +117,16 @@ final class PlannerFacade {
 
     CompletableFuture<PlanProposal> propose(
             UUID owner, PlannerInput input, boolean autonomous, BooleanSupplier cancelled) {
+        return propose(owner, input, autonomous, cancelled, null);
+    }
+
+    /**
+     * The same consultation under an explicit identity: the instructions, profile and description are assembled as
+     * the request's or repaired plan's own principal, while the provider settings stay scoped to the companion owner.
+     * A null identity is the owner's own consultation (a free-time shift or a direct drive).
+     */
+    CompletableFuture<PlanProposal> propose(
+            UUID owner, PlannerInput input, boolean autonomous, BooleanSupplier cancelled, Caller consultAs) {
         var companion = CompanionManager.get(server).find(owner);
         String task =
                 companion.map(c -> c.executionCoordinator().currentToolName()).orElse("");
@@ -124,9 +134,10 @@ final class PlannerFacade {
                 .map(c -> c.combatController().state()
                         != dev.friendai.features.combat.minecraft.CombatController.State.IDLE)
                 .orElse(false);
+        Caller identity = consultAs == null ? new Caller(owner, "", AccessLevel.OWNER) : consultAs;
         var skillSession = skills.begin(
                 owner,
-                new Caller(owner, "", AccessLevel.OWNER),
+                identity,
                 input.goal().text(),
                 dev.friendai.agent.turn.TurnKind.EVENT,
                 task,
@@ -167,6 +178,11 @@ final class PlannerFacade {
         private final CompanionSession session;
 
         private final PlannerInputFactory factory;
+        /**
+         * The identity the input being consulted was built for. A consultation is one per turn, so the proposal that
+         * follows an input belongs to the principal that input was scoped to — never to the owner by default.
+         */
+        private Caller consultedAs;
 
         GamePlannerPort(UUID owner, CompanionEntity companion, CompanionSession session) {
             this.owner = owner;
@@ -256,7 +272,9 @@ final class PlannerFacade {
                 Caller caller,
                 String failure,
                 dev.friendai.agent.turn.UtteranceReferent referent) {
-            Optional<PlannerInput> input = factory.build(subject, consultCaller(subject, caller), failure, referent);
+            Caller consult = consultCaller(subject, caller);
+            consultedAs = consult;
+            Optional<PlannerInput> input = factory.build(subject, consult, failure, referent);
             if (input.isPresent()
                     && subject instanceof dev.friendai.agent.plan.PlanSubject.TroubledPlan trouble
                     && !hasLinkedGoal(trouble.planId())) {
@@ -315,8 +333,10 @@ final class PlannerFacade {
         @Override
         public CompletableFuture<PlanProposal> propose(PlannerInput input, BooleanSupplier cancelled) {
             var goalSnapshot = goals.board(owner).find(input.goal().id()).orElse(null);
+            // Instructions, profile and description are assembled as the requester this input was built for; the
+            // provider settings still come from the companion owner through the planner adapter.
             return PlannerFacade.this
-                    .propose(owner, input, cancelled)
+                    .propose(owner, input, false, cancelled, consultedAs)
                     .thenApply(proposal -> new PlanProposal(
                             proposal.plan(),
                             proposal.stepsJson(),
@@ -349,6 +369,10 @@ final class PlannerFacade {
 
         @Override
         public ToolResult apply(Caller caller, dev.friendai.agent.plan.PlanSubject subject, PlanProposal proposal) {
+            // The proposal is applied as the same principal it was planned for, resolved from live owner and trust
+            // data now: a grant revoked while the provider was answering cannot queue or patch with the access the
+            // turn started with. A repair keeps running as its plan's own principal, whose steps are rechecked below.
+            Caller actor = consultCaller(subject, caller);
             if (proposal.targetPlanId() > 0 && !proposal.targetFingerprint().isBlank()) {
                 String current = dev.friendai.execution.queue.PlanFingerprint.of(
                         companion.executionCoordinator().queue(), proposal.targetPlanId());
@@ -358,8 +382,6 @@ final class PlannerFacade {
             }
             if (proposal.targetPlanId() > 0) {
                 long planId = proposal.targetPlanId();
-                // The plan is repaired as its own principal: a guest's plan stays the guest's work.
-                Caller actor = consultCaller(subject, caller);
                 var plan = companion.executionCoordinator().queue().plan(planId).orElse(null);
                 if (plan == null) return ToolResult.error("plan #" + planId + " is no longer queued");
                 // Access or the tool set can change between propose and apply; re-check the whole plan now, so a
@@ -426,7 +448,7 @@ final class PlannerFacade {
             // Preserve the normalized tree; queue_add and plan_validate share the same parser and tool allowlist.
             add.add("steps", proposal.stepsJson());
             ToolResult result = dev.friendai.server.execution.tools.QueueTools.addPlan(
-                    queueAccess, companion, caller, add, planTools, activeGoal, java.util.Set.of());
+                    queueAccess, companion, actor, add, planTools, activeGoal, java.util.Set.of());
             debugLog(owner, result.error() ? "planner disposition=queued refused" : "planner disposition=queued");
             return result;
         }

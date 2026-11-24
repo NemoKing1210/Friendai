@@ -6,6 +6,13 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.231.1] - 2026-11-24
+
+### Fixed
+
+- A trusted player's failed plan is now repaired under that player's own instructions: the planner no longer receives the owner's private address or companion description, and the repaired steps still run as the player who asked for them.
+- If a player's trust is withdrawn while the planner is still answering, the repair is dropped instead of being queued for someone who may no longer run it.
+
 ## [0.231.0] - 2026-11-24
 
 ### Added

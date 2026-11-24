@@ -79,26 +79,31 @@ public class PlannerTests {
         return input -> {
             asked.incrementAndGet();
             capture.accept(input);
-            JsonArray steps = new JsonArray();
-            JsonObject step = new JsonObject();
-            step.addProperty("tool", "jump");
-            steps.add(step);
-            var action = new dev.friendai.execution.queue.QueuedStep(
-                    "jump",
-                    new JsonObject(),
-                    null,
-                    List.of(),
-                    dev.friendai.execution.queue.GuardAction.WAIT,
-                    null,
-                    1,
-                    List.of());
-            return CompletableFuture.completedFuture(new PlanProposal(
-                    new dev.friendai.execution.queue.PlanDefinition(
-                            List.of(new dev.friendai.execution.queue.PlanNode.Action(action))),
-                    steps,
-                    "hop first",
-                    "it hopped"));
+            return CompletableFuture.completedFuture(jumpProposal());
         };
+    }
+
+    /** One jump step, the proposal every planner in this class answers with. */
+    private static PlanProposal jumpProposal() {
+        JsonArray steps = new JsonArray();
+        JsonObject step = new JsonObject();
+        step.addProperty("tool", "jump");
+        steps.add(step);
+        var action = new dev.friendai.execution.queue.QueuedStep(
+                "jump",
+                new JsonObject(),
+                null,
+                List.of(),
+                dev.friendai.execution.queue.GuardAction.WAIT,
+                null,
+                1,
+                List.of());
+        return new PlanProposal(
+                new dev.friendai.execution.queue.PlanDefinition(
+                        List.of(new dev.friendai.execution.queue.PlanNode.Action(action))),
+                steps,
+                "hop first",
+                "it hopped");
     }
 
     @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 400)
@@ -377,6 +382,142 @@ public class PlannerTests {
                     seen.stream().anyMatch(line -> line.contains("plan #" + planId + " needs a decision")),
                     "the blocked plan must reach the model: " + seen);
             h.succeed();
+        });
+    }
+
+    /**
+     * A trusted player's failed plan is repaired as that player: the consultation carries their tool scope and none
+     * of the owner's stored address or description, and the step the repair queues still runs as the trusted player.
+     */
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 800)
+    public void a_trusted_players_repair_uses_their_own_instructions(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer ownerPlayer = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
+        ServerPlayer trustedPlayer = GameTestSupport.mockPlayerAt(h, 6, 2, 4);
+        var server = h.getLevel().getServer();
+        ServerRuntime state = GameTestSupport.runtime(server);
+        CompanionSessions brains = state.sessions();
+        java.util.UUID ownerId = ownerPlayer.getUUID();
+        java.util.UUID trustedId = trustedPlayer.getUUID();
+        state.memory().book(ownerId).setTrusted(trustedId, "Alex", true, System.currentTimeMillis());
+        state.profiles()
+                .save(
+                        ownerId,
+                        new dev.friendai.features.memory.CompanionProfile(
+                                "Mira",
+                                new dev.friendai.features.memory.CompanionDescription(
+                                        "", "Owner-only detail for the planner"),
+                                new dev.friendai.features.memory.OwnerProfile("auto", "Captain")));
+        AtomicInteger asked = new AtomicInteger();
+        java.util.concurrent.atomic.AtomicReference<dev.friendai.agent.plan.PlannerInput> captured =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        brains.setPlannerOverride(ownerId, jumpPlanner(asked, captured::set));
+        brains.setGatewayOverride(
+                ownerId,
+                (system, messages, tools) -> CompletableFuture.completedFuture(
+                        new LlmResponse("[silent]", List.of(), StopReason.END, new Usage(0, 0))));
+        CompanionEntity c = CompanionManager.get(server).summon(ownerPlayer);
+        brains.post(ownerId, new BrainEvent.WorldNotice("ready"));
+        Caller trusted = new Caller(trustedId, "Alex", AccessLevel.TRUSTED);
+        h.assertFalse(call(c, trusted, "queue_add", FLAT_FAILING_PLAN).error(), "the trusted plan was queued");
+        java.util.concurrent.atomic.AtomicReference<java.util.UUID> repairedAs =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        h.succeedWhen(() -> {
+            var input = captured.get();
+            h.assertTrue(input != null, "the trusted player's plan reached the planner");
+            h.assertTrue(input.targetPlanId() > 0, "the consultation repairs that plan");
+            String instructions = input.instructions().stream()
+                    .map(section -> section.render(null).orElse(""))
+                    .collect(java.util.stream.Collectors.joining("\n"));
+            h.assertTrue(
+                    !instructions.contains("Captain"), "the owner's address reached a trusted repair: " + instructions);
+            h.assertTrue(
+                    !instructions.contains("Owner-only detail"),
+                    "the owner's description reached a trusted repair: " + instructions);
+            c.executionCoordinator().queue().jobsOfPlan(input.targetPlanId()).stream()
+                    .filter(job -> job.tool().equals("jump"))
+                    .findFirst()
+                    .ifPresent(job -> repairedAs.set(job.principal()));
+            h.assertTrue(repairedAs.get() != null, "the repair was applied");
+            h.assertValueEqual(repairedAs.get(), trustedId, "the repaired step runs as the trusted player");
+            h.assertTrue(asked.get() == 1, "exactly one planner call, got " + asked.get());
+        });
+    }
+
+    /**
+     * Trust withdrawn while the planner is still answering drops the proposal: the plan is rechecked against live
+     * owner and trust data at apply time, so no repaired step is queued for a player who may no longer run it.
+     */
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 800)
+    public void a_repair_is_dropped_when_trust_is_revoked_while_the_planner_answers(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer ownerPlayer = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
+        ServerPlayer trustedPlayer = GameTestSupport.mockPlayerAt(h, 6, 2, 4);
+        var server = h.getLevel().getServer();
+        ServerRuntime state = GameTestSupport.runtime(server);
+        CompanionSessions brains = state.sessions();
+        java.util.UUID ownerId = ownerPlayer.getUUID();
+        java.util.UUID trustedId = trustedPlayer.getUUID();
+        state.memory().book(ownerId).setTrusted(trustedId, "Alex", true, System.currentTimeMillis());
+        java.util.concurrent.atomic.AtomicBoolean release = new java.util.concurrent.atomic.AtomicBoolean(false);
+        AtomicInteger asked = new AtomicInteger();
+        brains.setPlannerOverride(ownerId, input -> {
+            asked.incrementAndGet();
+            var answer = new CompletableFuture<PlanProposal>();
+            Thread.ofPlatform().daemon().start(() -> {
+                while (!release.get()) {
+                    try {
+                        Thread.sleep(5L);
+                    } catch (InterruptedException interrupted) {
+                        return;
+                    }
+                }
+                answer.complete(jumpProposal());
+            });
+            return answer;
+        });
+        brains.setGatewayOverride(
+                ownerId,
+                (system, messages, tools) -> CompletableFuture.completedFuture(
+                        new LlmResponse("[silent]", List.of(), StopReason.END, new Usage(0, 0))));
+        CompanionEntity c = CompanionManager.get(server).summon(ownerPlayer);
+        brains.post(ownerId, new BrainEvent.WorldNotice("ready"));
+        Caller trusted = new Caller(trustedId, "Alex", AccessLevel.TRUSTED);
+        h.assertFalse(call(c, trusted, "queue_add", FLAT_FAILING_PLAN).error(), "the trusted plan was queued");
+        String[] phase = {"consult"};
+        int[] ticks = {0};
+        long[] planId = {0};
+        h.succeedWhen(() -> {
+            if (phase[0].equals("consult")) {
+                h.assertTrue(asked.get() == 1, "the plan reached the planner, asked=" + asked.get());
+                planId[0] = c.executionCoordinator().queue().plans().stream()
+                        .mapToLong(dev.friendai.execution.queue.PlanRecord::id)
+                        .findFirst()
+                        .orElse(0L);
+                h.assertTrue(planId[0] > 0, "the plan is still queued while the planner answers");
+                state.memory().book(ownerId).setTrusted(trustedId, "Alex", false, System.currentTimeMillis());
+                brains.authorityChanged(ownerId);
+                release.set(true);
+                phase[0] = "refused";
+                h.assertTrue(false, "trust revoked while the planner was answering");
+                return;
+            }
+            ticks[0]++;
+            var session = brains.find(ownerId).orElse(null);
+            if (ticks[0] < 40 || (session != null && session.isThinking())) {
+                h.assertTrue(false, "waiting for the consultation to be applied or dropped");
+            }
+            var jobs = c.executionCoordinator().queue().jobsOfPlan(planId[0]);
+            // A repair would replace the failed step; the plan keeping that same step is the proof nothing was
+            // applied on behalf of a player whose trust is gone.
+            h.assertTrue(
+                    jobs.stream()
+                            .anyMatch(job -> job.tool().equals("craft_item")
+                                    && job.state() == dev.friendai.execution.queue.JobState.FAILED),
+                    "the revoked repair was not applied: " + jobs);
+            h.assertTrue(
+                    jobs.stream().noneMatch(job -> job.state() == dev.friendai.execution.queue.JobState.DONE),
+                    "no step ran for the revoked player: " + jobs);
         });
     }
 

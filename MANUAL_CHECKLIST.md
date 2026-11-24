@@ -782,3 +782,11 @@ The automated suite pins the text split and the layout arithmetic; the click, th
       designs, and the reply does not repeat anything from the owner's private facts.
 - [ ] Ask the follow-up, then while the reply is still coming, clear the companion menu's transcript history and send
       another line: the queued work follows the newer line, not the cleared one.
+
+## A trusted player's repair under their own instructions (TODO 152)
+
+- [ ] Let a trusted player queue a plan whose first step fails with replans left, and give the owner's profile a
+      preferred address and description: the repair completes, the companion never addresses the trusted player with
+      the owner's private description, and the repaired step acts as the trusted player.
+- [ ] Revoke that player's trust while the companion is waiting for the planner: nothing is queued or repaired for
+      them, and the plan stays where the owner can see and decide it.
