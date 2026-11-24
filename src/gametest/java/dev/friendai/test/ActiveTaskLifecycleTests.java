@@ -45,9 +45,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
+import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Blocks;
 
 public class ActiveTaskLifecycleTests {
     private static final class Events implements TaskEventSink {
@@ -1577,6 +1579,89 @@ public class ActiveTaskLifecycleTests {
             h.assertValueEqual(factory.child.terminals, 1, "a failed-start child still runs its terminal hook once");
             h.succeed();
         });
+    }
+
+    /**
+     * A step is credited by what it changed, not by the status its child reported. A child that claims success while
+     * nothing arrives must not enter the history or keep the same unchanged route eligible: the claim is charged once,
+     * and the second identical one ends the acquisition instead of replaying it until the step limit.
+     */
+    @GameTest(maxTicks = 1200)
+    public void aNominalSuccessThatYieldsNothingIsNotProgress(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        h.setBlock(4, 2, 2, Blocks.OAK_LOG);
+        h.setBlock(2, 2, 4, Blocks.OAK_LOG);
+        h.assertTrue(seenByCompanion(h, companion, 4, 2), "the first log must be directly visible");
+        h.assertTrue(seenByCompanion(h, companion, 2, 4), "the second log must be directly visible");
+        StubSubtaskFactory factory = new StubSubtaskFactory(TaskStatus.SUCCESS);
+        Events events = new Events();
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 1000, () -> false);
+        runner.setEventSink(events);
+        runner.start(obtainLogs(factory), "obtain_no_yield");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(!events.finishedDispositions.isEmpty(), "waiting for the obtain to settle");
+            h.assertValueEqual(
+                    events.finishedDispositions.getFirst(),
+                    TaskDisposition.FAILED,
+                    "a claim that changed nothing must not finish the obtain");
+            h.assertValueEqual(
+                    factory.children.size(),
+                    2,
+                    "one unchanged claim is charged once, then the unchanged repeat stops the obtain");
+        });
+    }
+
+    /**
+     * Charging a step that changed nothing must not condemn the whole acquisition: the second plan runs against the
+     * live world, so a reachable source still supplies the item and the credited step is the one that produced it.
+     */
+    @GameTest(maxTicks = 1200)
+    public void aReachableSourceStillSuppliesAfterAnEmptyStep(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        h.setBlock(4, 2, 2, Blocks.OAK_LOG);
+        h.setBlock(2, 2, 4, Blocks.OAK_LOG);
+        h.assertTrue(seenByCompanion(h, companion, 4, 2), "the first log must be directly visible");
+        h.assertTrue(seenByCompanion(h, companion, 2, 4), "the second log must be directly visible");
+        FirstStepYieldsNothing factory = new FirstStepYieldsNothing();
+        Events events = new Events();
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 1000, () -> false);
+        runner.setEventSink(events);
+        runner.start(obtainLogs(factory), "obtain_after_empty_step");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertValueEqual(factory.stubs.size(), 1, "the fixture fakes only the first step");
+            h.assertTrue(!events.finishedDispositions.isEmpty(), "waiting for the obtain to settle");
+            h.assertValueEqual(
+                    events.finishedDispositions.getFirst(),
+                    TaskDisposition.SUCCESS,
+                    "a reachable source must still satisfy the acquisition: "
+                            + (events.finishedSummaries.isEmpty() ? "" : events.finishedSummaries.getFirst()));
+            h.assertValueEqual(
+                    companion.inventory().countItem(Items.OAK_LOG), 1, "the credited step must be the one that mined");
+        });
+    }
+
+    private static boolean seenByCompanion(GameTestHelper h, CompanionEntity companion, int x, int z) {
+        return GameTestSupport.observeVisible(h, companion, h.absolutePos(new BlockPos(x, 2, z)));
+    }
+
+    /** Hands the first plan step a child that reports success without any effect, then delegates to the real tasks. */
+    private static final class FirstStepYieldsNothing implements ObtainSubtaskFactory {
+        private final ObtainSubtaskFactory real = new MinecraftObtainSubtaskFactory();
+        private final List<TrackedChild> stubs = new ArrayList<>();
+
+        @Override
+        public Created create(TaskContext context, ObtainStep step, Options options) {
+            if (stubs.isEmpty()) {
+                TrackedChild stub = new TrackedChild(TaskStatus.SUCCESS);
+                stubs.add(stub);
+                return Created.task(stub);
+            }
+            return real.create(context, step, options);
+        }
     }
 
     /** Hands every plan step the same counted child, so settlement effects are observable. */

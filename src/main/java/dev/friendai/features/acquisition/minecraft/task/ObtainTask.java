@@ -13,6 +13,7 @@ import dev.friendai.features.acquisition.ObtainPlanner;
 import dev.friendai.features.acquisition.ObtainStep;
 import dev.friendai.features.acquisition.ObtainText;
 import dev.friendai.features.acquisition.Source;
+import dev.friendai.features.acquisition.StepVerification;
 import dev.friendai.features.acquisition.TradingContext;
 import dev.friendai.features.acquisition.WorldFacts;
 import dev.friendai.features.acquisition.minecraft.ObtainSubtaskFactory;
@@ -98,6 +99,18 @@ public final class ObtainTask implements Task {
      * this task after the stop (a plan deadline does stop then release), so the chain is not cut at this level.
      */
     private Task stoppedChild;
+    /** The carried bag and source count when the current step began, so its settlement is judged by measured effects. */
+    private Map<String, Integer> stepStartBag = Map.of();
+    private int stepStartCandidates;
+    /** The step whose reported success waits for the replan's scan to confirm it changed something. */
+    private ObtainStep settledStep;
+    private boolean settledVisitPresent;
+    private Map<String, Integer> settledBag = Map.of();
+    private int settledCandidates;
+    /** The last attempt that yielded nothing, so the same unchanged attempt cannot repeat until a limit. */
+    private String noYieldKey;
+    private Map<String, Integer> noYieldBag = Map.of();
+    private int noYieldCandidates;
     /** A look through nearby storage, run once before making or gathering the item. */
     private Task tour;
     /** Frees room through the normal container interaction; ticks between steps like the tour. */
@@ -313,6 +326,8 @@ public final class ObtainTask implements Task {
     public void start(TaskContext c) {
         current = null;
         stoppedChild = null;
+        settledStep = null;
+        noYieldKey = null;
         currentVisitVerification = null;
         currentStep = null;
         creativeCreationStep = false;
@@ -415,9 +430,12 @@ public final class ObtainTask implements Task {
             currentVisitVerification = null;
             currentStep = null;
             if (status == TaskStatus.SUCCESS) {
-                stepsRun++;
-                history.add(pastText(step));
-                lastFailedKey = null;
+                // The step is credited only after the replan's scan shows it changed the bag or the evidence.
+                settledStep = step;
+                settledVisitPresent =
+                        visitVerification == dev.friendai.perception.resource.ResourceCandidates.Verification.PRESENT;
+                settledBag = stepStartBag;
+                settledCandidates = stepStartCandidates;
             } else {
                 if (step instanceof ObtainStep.VisitResource visit
                         && visitVerification
@@ -440,6 +458,11 @@ public final class ObtainTask implements Task {
         CompanionEntity companion = c.companion();
         int have = have(companion);
         if (have >= count) {
+            if (settledStep != null) {
+                stepsRun++;
+                history.add(pastText(settledStep));
+                settledStep = null;
+            }
             return succeed();
         }
         if (c.canUseCreativeAction(CreativeAction.CREATE_ITEM)) {
@@ -463,6 +486,37 @@ public final class ObtainTask implements Task {
         WorldFacts facts = WorldScan.scan(
                         level, companion, WorldScan.BLOCK_RADIUS, useContainers, explore, Set.of(), excludedSiteIds)
                 .withAttemptedSources(attempts.sourceFailures());
+        Map<String, Integer> bag = Map.copyOf(AcquiredItems.inventoryMap(companion));
+        int candidates = facts.resourceCandidates().size();
+        if (settledStep != null) {
+            ObtainStep step = settledStep;
+            settledStep = null;
+            if (StepVerification.progressed(
+                    step, settledVisitPresent, !bag.equals(settledBag), settledCandidates, candidates)) {
+                stepsRun++;
+                history.add(pastText(step));
+                lastFailedKey = null;
+                noYieldKey = null;
+            } else {
+                // The child said it did the action; the world says it changed nothing. Charge the attempt once, so an
+                // unchanged route cannot be replayed as progress until something relevant moves.
+                String key = stepKey(step);
+                if (step instanceof ObtainStep.VisitResource visit && !settledVisitPresent) {
+                    excludedSiteIds.add(visit.siteId());
+                }
+                recordFailedSource(step, "the step reported success but nothing changed");
+                boolean repeated = key.equals(noYieldKey);
+                int repeatCandidates = noYieldCandidates;
+                Map<String, Integer> repeatBag = noYieldBag;
+                noYieldKey = key;
+                noYieldBag = bag;
+                noYieldCandidates = candidates;
+                if (repeated && bag.equals(repeatBag) && candidates <= repeatCandidates) {
+                    return fail("repeat of " + ObtainText.stepText(step) + " changed nothing; have " + have(companion)
+                            + " of " + count + " " + item);
+                }
+            }
+        }
         ObtainPlan plan = ObtainPlanner.plan(
                 item,
                 count,
@@ -498,6 +552,8 @@ public final class ObtainTask implements Task {
             }
         }
         currentStep = plan.steps().get(0);
+        stepStartBag = bag;
+        stepStartCandidates = candidates;
         c.decision(
                 dev.friendai.foundation.diagnostics.LogEvents.RESOURCE_DECISION,
                 "step_selected",

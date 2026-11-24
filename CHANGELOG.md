@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.233.20] - 2026-11-25
+
+### Fixed
+
+- An acquisition step counts as done only when it actually changed something: a block whose drops never reach the bag no longer gets counted as progress, and the companion tries another source instead of walking the same unchanged route until it runs out of time.
+
 ## [0.233.19] - 2026-11-25
 
 ### Fixed
