@@ -107,6 +107,22 @@ class MemoryStoreTest {
     }
 
     @Test
+    void aProfileCapturedFromAMessageSurvivesAStoreReload() {
+        MemoryStore store = new MemoryStore(dir, () -> 0);
+        store.book(A).ensurePlayer(A, "Steve");
+        AutoProfile.record(store.book(A), A, "Steve", "Call me Boss. My name is Chief.", 0, MemoryLimits.DEFAULTS);
+        store.flushAll();
+        store.close();
+
+        MemoryStore reopened = new MemoryStore(dir, () -> 0);
+        List<String> texts = reopened.book(A).facts(Subject.player(A)).stream()
+                .map(Fact::text)
+                .toList();
+        assertEquals(List.of("Prefers to be called Chief."), texts);
+        reopened.close();
+    }
+
+    @Test
     void foodRulesPersistAcrossStores() {
         MemoryStore store = new MemoryStore(dir, () -> 0);
         store.book(A).setFoodRule("minecraft:rotten_flesh", true);

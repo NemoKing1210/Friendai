@@ -790,3 +790,10 @@ The automated suite pins the text split and the layout arithmetic; the click, th
       the owner's private description, and the repaired step acts as the trusted player.
 - [ ] Revoke that player's trust while the companion is waiting for the planner: nothing is queued or repaired for
       them, and the plan stays where the owner can see and decide it.
+
+## Preferences restated in one message (TODO 155)
+
+- [ ] Write "I like redstone. Actually I don't like redstone." in one message: the Memory tab shows the dislike, and
+      the next reply treats redstone as disliked.
+- [ ] Write "I don't like spiders. Call me Boss.": the Memory tab keeps both facts, and the companion uses the name.
+- [ ] Write the same after a reload of the world: the stored preference is still the one you said last.

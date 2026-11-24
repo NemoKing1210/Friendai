@@ -6,6 +6,13 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.232.1] - 2026-11-24
+
+### Fixed
+
+- When one message both corrects and restates how you want to be called, or what you like, the companion now keeps what you said last instead of whichever phrase its reader happened to check first.
+- A short refusal such as "I don't." no longer hides the name you give in the very next sentence.
+
 ## [0.232.0] - 2026-11-24
 
 ### Changed

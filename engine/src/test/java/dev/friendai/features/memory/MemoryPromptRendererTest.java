@@ -105,6 +105,18 @@ class MemoryPromptRendererTest {
     }
 
     @Test
+    void aProfileStatementCapturedFromAMessageReachesThePrompt() {
+        MemoryBook captured = new MemoryBook();
+        captured.touch(O, "Steve", 1);
+        AutoProfile.record(captured, O, "Steve", "I don't like spiders. Call me Boss.", 5, L);
+
+        String block = MemoryPromptRenderer.render(captured, O, ownerCaller);
+
+        assertTrue(block.contains("Dislikes spiders."), block);
+        assertTrue(block.contains("Prefers to be called Boss."), block);
+    }
+
+    @Test
     void emptyBook() {
         assertEquals("Memory: nothing remembered yet.", MemoryPromptRenderer.render(new MemoryBook(), O, ownerCaller));
     }

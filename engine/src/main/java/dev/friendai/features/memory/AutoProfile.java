@@ -1,8 +1,11 @@
 package dev.friendai.features.memory;
 
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -47,10 +50,12 @@ public final class AutoProfile {
     private static final Pattern QUOTED = Pattern.compile("\"[^\"]*\"|`[^`]*`");
     private static final Pattern COMMAND = Pattern.compile("(?<!\\S)/\\S+");
     private static final Pattern SENTENCE_END = Pattern.compile("[.!?;\\n]");
+    /** Where the negation of one statement stops: a sentence end, a comma or a coordinating conjunction. */
+    private static final Pattern CLAUSE_BOUNDARY = Pattern.compile("[.!?;\\n,]|\\s+(?:and|but|и|но|а)\\s+", FLAGS);
+
     private static final Pattern ADDRESS_CLAUSE_END = Pattern.compile("\\s+(?:and|but|и|но|а)\\s+", FLAGS);
     private static final Pattern EDGE_PUNCTUATION = Pattern.compile("^[\\s,\"'«»]+|[\\s,\"'«»]+$");
     private static final Pattern POLITENESS = Pattern.compile("\\s+(?:please|пожалуйста)$", FLAGS);
-    private static final int NEGATION_LOOKBACK = 12;
 
     private static final Set<String> BARE_VALUES = Set.of(
             "it",
@@ -141,30 +146,55 @@ public final class AutoProfile {
     /** A message pattern and the canonical fact prefix its value gets. */
     private record Rule(Pattern pattern, String canonicalPrefix) {}
 
-    /** Every profile statement in one message, in the order they appear. */
+    /** One statement and where in the message it starts, so statements are resolved in the order they were said. */
+    private record Candidate(int start, Capture capture) {}
+
+    /**
+     * The final profile statement per slot in one message, in the order each slot was last mentioned. Statements are
+     * read in the order the owner said them, so a correction later in the same message wins regardless of which rule
+     * matches it, and unrelated clauses each keep their own fact.
+     */
     public static List<Capture> parse(String message) {
         String cleaned = clean(message);
         if (cleaned.isBlank()) {
             return List.of();
         }
-        List<Capture> captures = new ArrayList<>();
+        List<Candidate> found = new ArrayList<>();
         for (Rule rule : ADDRESS_RULES) {
-            Optional<String> value = match(cleaned, rule);
-            if (value.isEmpty()) {
-                continue;
-            }
-            String name = addressValue(value.get());
-            if (name != null) {
-                captures.add(new Capture(Kind.ADDRESS, Category.PROFILE, "address", ADDRESS_PREFIX + name + "."));
-                break;
-            }
+            collectAddresses(cleaned, rule, found);
         }
         for (Rule rule : PREFERENCE_RULES) {
-            Optional<String> value = match(cleaned, rule);
-            if (value.isEmpty()) {
+            collectPreferences(cleaned, rule, found);
+        }
+        found.sort(Comparator.comparingInt(Candidate::start));
+        Map<String, Capture> lastPerSlot = new LinkedHashMap<>();
+        for (Candidate candidate : found) {
+            Capture capture = candidate.capture();
+            lastPerSlot.remove(capture.slot());
+            lastPerSlot.put(capture.slot(), capture);
+        }
+        return List.copyOf(lastPerSlot.values());
+    }
+
+    private static void collectAddresses(String text, Rule rule, List<Candidate> found) {
+        Matcher matcher = rule.pattern().matcher(text);
+        while (matcher.find()) {
+            if (negated(text, matcher.start())) {
                 continue;
             }
-            String thing = preferenceValue(value.get());
+            String name = addressValue(matcher.group(1));
+            if (name != null) {
+                found.add(new Candidate(
+                        matcher.start(),
+                        new Capture(Kind.ADDRESS, Category.PROFILE, "address", ADDRESS_PREFIX + name + ".")));
+            }
+        }
+    }
+
+    private static void collectPreferences(String text, Rule rule, List<Candidate> found) {
+        Matcher matcher = rule.pattern().matcher(text);
+        while (matcher.find()) {
+            String thing = preferenceValue(matcher.group(1));
             if (thing == null) {
                 continue;
             }
@@ -172,14 +202,20 @@ public final class AutoProfile {
                     && thing.toLowerCase(Locale.ROOT).startsWith("to be called ")) {
                 String name = addressValue(thing.substring("to be called ".length()));
                 if (name != null) {
-                    captures.add(new Capture(Kind.ADDRESS, Category.PROFILE, "address", ADDRESS_PREFIX + name + "."));
+                    found.add(new Candidate(
+                            matcher.start(),
+                            new Capture(Kind.ADDRESS, Category.PROFILE, "address", ADDRESS_PREFIX + name + ".")));
                 }
                 continue;
             }
-            captures.add(new Capture(
-                    Kind.PREFERENCE, Category.PREFERENCE, preferenceSlot(thing), rule.canonicalPrefix() + thing + "."));
+            found.add(new Candidate(
+                    matcher.start(),
+                    new Capture(
+                            Kind.PREFERENCE,
+                            Category.PREFERENCE,
+                            preferenceSlot(thing),
+                            rule.canonicalPrefix() + thing + ".")));
         }
-        return captures;
     }
 
     /** Records every explicit profile statement in an owner's message. Never throws on a full book. */
@@ -230,21 +266,18 @@ public final class AutoProfile {
         }
     }
 
-    private static Optional<String> match(String text, Rule rule) {
-        Matcher matcher = rule.pattern().matcher(text);
-        while (matcher.find()) {
-            if (rule.canonicalPrefix().equals(ADDRESS_PREFIX) && negated(text, matcher.start())) {
-                continue;
-            }
-            return Optional.of(matcher.group(1));
-        }
-        return Optional.empty();
-    }
-
-    /** "Don't call me X" and "не называй меня X" say the opposite, so they are not an address. */
+    /**
+     * "Don't call me X" and "не называй меня X" say the opposite, so they are not an address. The negation is looked
+     * for in the clause the request sits in: a negated earlier sentence ("I don't. Call me Boss.") says nothing about
+     * this request.
+     */
     private static boolean negated(String text, int start) {
-        String before =
-                text.substring(Math.max(0, start - NEGATION_LOOKBACK), start).toLowerCase(Locale.ROOT);
+        int clauseStart = 0;
+        Matcher boundary = CLAUSE_BOUNDARY.matcher(text);
+        while (boundary.find() && boundary.start() < start) {
+            clauseStart = boundary.end();
+        }
+        String before = text.substring(clauseStart, start).toLowerCase(Locale.ROOT);
         return before.contains("don't") || before.contains("do not") || before.contains("не ");
     }
 
@@ -346,8 +379,14 @@ public final class AutoProfile {
         return rest.endsWith(".") ? rest.substring(0, rest.length() - 1) : rest;
     }
 
+    /**
+     * The address value stops at the end of its clause, so a later "call me" in the same message is a separate
+     * statement instead of being swallowed by the first value.
+     */
     private static Pattern address(String prefix) {
-        return Pattern.compile("(?<!\\p{L})" + prefix + "(.{1," + MAX_ADDRESS_CHARS + "})", FLAGS);
+        return Pattern.compile(
+                "(?<!\\p{L})" + prefix + "(.{1," + MAX_ADDRESS_CHARS + "}?)(?=[.!?;\\n,]|\\s+(?:and|but|и|но|а)\\s+|$)",
+                FLAGS);
     }
 
     private static Pattern preference(String prefix) {

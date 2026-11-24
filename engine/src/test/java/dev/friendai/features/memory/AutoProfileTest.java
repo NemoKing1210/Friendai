@@ -160,6 +160,89 @@ class AutoProfileTest {
     }
 
     @Test
+    void theFinalStatementOfASlotWinsInEitherOrder() {
+        MemoryBook first = book();
+        say(first, "Call me Boss. Actually, call me Chief.");
+        assertEquals("Prefers to be called Chief.", only(first).text());
+
+        MemoryBook second = book();
+        say(second, "Actually, call me Chief. Call me Boss.");
+        assertEquals("Prefers to be called Boss.", only(second).text());
+    }
+
+    @Test
+    void aCorrectionWithADifferentPhrasingStillFollowsTheText() {
+        MemoryBook book = book();
+        say(book, "My name is Chief. Call me Boss.");
+        assertEquals("Prefers to be called Boss.", only(book).text());
+
+        MemoryBook reversed = book();
+        say(reversed, "Call me Boss. My name is Chief.");
+        assertEquals("Prefers to be called Chief.", only(reversed).text());
+    }
+
+    @Test
+    void oppositePreferencesInOneMessageResolveToTheLastStatementInEnglishAndRussian() {
+        MemoryBook english = book();
+        say(english, "I like redstone. Actually I don't like redstone.");
+        assertEquals("Dislikes redstone.", only(english).text());
+
+        MemoryBook reversed = book();
+        say(reversed, "I don't like redstone. Actually I like redstone.");
+        assertEquals("Likes redstone.", only(reversed).text());
+
+        MemoryBook russian = book();
+        say(russian, "Мне нравится редстоун. На самом деле мне не нравится редстоун.");
+        assertEquals("Dislikes редстоун.", only(russian).text());
+
+        MemoryBook russianReversed = book();
+        say(russianReversed, "Мне не нравится редстоун. На самом деле мне нравится редстоун.");
+        assertEquals("Likes редстоун.", only(russianReversed).text());
+    }
+
+    @Test
+    void unrelatedClausesInOneMessageAreBothStored() {
+        MemoryBook book = book();
+        say(book, "I don't like spiders. Call me Boss.");
+        assertEquals(2, facts(book).size(), "both statements are facts: " + facts(book));
+        assertTrue(facts(book).stream().anyMatch(f -> f.text().equals("Dislikes spiders.")));
+        assertTrue(facts(book).stream().anyMatch(f -> f.text().equals("Prefers to be called Boss.")));
+
+        MemoryBook two = book();
+        say(two, "Call me Boss. I like redstone.");
+        assertEquals(2, facts(two).size(), "both statements are facts: " + two.facts(Subject.player(OWNER)));
+    }
+
+    @Test
+    void aNegatedEarlierSentenceDoesNotNegateALaterNamingRequest() {
+        MemoryBook book = book();
+        say(book, "I don't. Call me Boss.");
+        assertEquals("Prefers to be called Boss.", only(book).text());
+    }
+
+    @Test
+    void aQuotedStatementIsIgnoredWhileTheUnquotedOneAfterItIsStored() {
+        MemoryBook book = book();
+        say(book, "\"Call me Nobody\" — call me Boss.");
+        assertEquals("Prefers to be called Boss.", only(book).text());
+    }
+
+    @Test
+    void anActuallyNegatedNamingRequestDoesNotOverrideTheRealOne() {
+        MemoryBook book = book();
+        say(book, "Call me Boss, but don't call me Chief.");
+        assertEquals("Prefers to be called Boss.", only(book).text());
+
+        MemoryBook russian = book();
+        say(russian, "Зови меня Босс. Не называй меня Шеф.");
+        assertEquals("Prefers to be called Босс.", only(russian).text());
+
+        MemoryBook onlyNegated = book();
+        say(onlyNegated, "Don't call me Chief.");
+        assertTrue(facts(onlyNegated).isEmpty(), "a negated request is not an address: " + facts(onlyNegated));
+    }
+
+    @Test
     void aFullBookDoesNotThrowAndKeepsItsFacts() {
         MemoryBook book = book();
         for (int i = 0; i < LIMITS.maxFactsPerPlayer(); i++) {
