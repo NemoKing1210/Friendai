@@ -6,6 +6,14 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.233.4] - 2026-11-24
+
+### Fixed
+
+- An acquisition interrupted by a restart continues as the same order: gathering or crafting at a station picks up from what the companion now carries and keeps the steps queued after it, instead of reporting one finished step as a finished order.
+- Leaving out the `explore` option and writing `explore: true` now behave the same after a load, so the companion searches exactly as far as you asked.
+- A resource search that was running when the world was saved is stopped with the reason instead of being restarted with a fresh budget, and a batch order that was gathering its material is rebuilt the same way as a single-item order.
+
 ## [0.233.3] - 2026-11-24
 
 ### Fixed

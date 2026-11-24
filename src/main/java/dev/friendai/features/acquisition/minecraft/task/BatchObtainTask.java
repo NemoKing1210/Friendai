@@ -1,5 +1,9 @@
 package dev.friendai.features.acquisition.minecraft.task;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import dev.friendai.debug.DebugTarget;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.TaskWorkResult;
@@ -31,7 +35,9 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import net.minecraft.server.level.ServerLevel;
 
 /**
@@ -45,6 +51,8 @@ import net.minecraft.server.level.ServerLevel;
  */
 public final class BatchObtainTask implements Task {
     /** A batch that spends more children than this is not making progress. */
+    public static final String TYPE = "obtain_items";
+
     public static final int DEFAULT_MAX_CHILDREN = 64;
 
     public static final int DEFAULT_MAX_TICKS = 24_000;
@@ -155,7 +163,168 @@ public final class BatchObtainTask implements Task {
 
     @Override
     public String type() {
-        return "obtain_items";
+        return TYPE;
+    }
+
+    /** The phase of the batch now, so a reload knows whether a search was running instead of guessing. */
+    public Phase phase() {
+        if (current instanceof ObtainTask obtain && obtain.phase() == ObtainTask.Phase.NESTED_SEARCH) {
+            return Phase.NESTED_SEARCH;
+        }
+        return switch (childKind) {
+            case NONE -> Phase.PLANNING;
+            case GATHER -> Phase.GATHER;
+            case CRAFT -> Phase.CRAFT;
+        };
+    }
+
+    /** Where one batch was when it was saved. */
+    public enum Phase {
+        PLANNING,
+        GATHER,
+        CRAFT,
+        NESTED_SEARCH
+    }
+
+    /**
+     * Saves the batch's own boundary, never its child's: the child is one step, and its checkpoint restored alone would
+     * report a finished step as a finished batch. The targets and effective options let the reload rebuild the same
+     * order from the live bag; a running nested search is refused instead of restarted under a fresh budget.
+     */
+    @Override
+    public String saveData() {
+        UUID principal = caller == null ? null : caller.uuid();
+        if (principal == null) {
+            return null;
+        }
+        return new Saved(
+                        Saved.CURRENT_VERSION,
+                        phase(),
+                        targets,
+                        useContainers,
+                        explore,
+                        maxChildren,
+                        maxTicks,
+                        exploreRadius,
+                        exploreBlocks,
+                        exploreTicks,
+                        searchScope,
+                        principal)
+                .encode();
+    }
+
+    /**
+     * The persisted boundary of one batch acquisition, bounded and versioned. It carries the effective options the
+     * task was built with, so an omitted and an explicit {@code explore} reload the same search reach.
+     */
+    public record Saved(
+            int version,
+            Phase phase,
+            List<CraftPlanner.Target> targets,
+            boolean useContainers,
+            boolean explore,
+            int maxChildren,
+            int maxTicks,
+            int exploreRadius,
+            int exploreBlocks,
+            int exploreTicks,
+            String searchScope,
+            UUID principal) {
+        public static final int CURRENT_VERSION = 1;
+        /** The largest descriptor this codec reads or writes; a bigger payload is not a batch boundary. */
+        public static final int MAX_CHARS = 4096;
+
+        private static final int MAX_ITEM_CHARS = 128;
+        private static final int MAX_SCOPE_CHARS = 32;
+
+        public Saved {
+            targets = targets == null ? List.of() : List.copyOf(targets);
+            searchScope = searchScope == null || searchScope.isBlank() ? "local" : searchScope.strip();
+        }
+
+        public String encode() {
+            JsonArray items = new JsonArray();
+            for (CraftPlanner.Target target : targets) {
+                JsonObject entry = new JsonObject();
+                entry.addProperty("item", target.item());
+                entry.addProperty("count", target.count());
+                items.add(entry);
+            }
+            JsonObject root = new JsonObject();
+            root.addProperty("v", version);
+            root.addProperty("phase", phase.name());
+            root.add("items", items);
+            root.addProperty("containers", useContainers);
+            root.addProperty("explore", explore);
+            root.addProperty("children", maxChildren);
+            root.addProperty("ticks", maxTicks);
+            root.addProperty("radius", exploreRadius);
+            root.addProperty("blocks", exploreBlocks);
+            root.addProperty("searchTicks", exploreTicks);
+            root.addProperty("scope", searchScope);
+            if (principal != null) root.addProperty("principal", principal.toString());
+            String text = root.toString();
+            if (text.length() > MAX_CHARS) {
+                throw new IllegalStateException("acquisition checkpoint exceeds size limit");
+            }
+            return text;
+        }
+
+        /** @return the boundary, or empty for a payload this version did not write or that is out of range */
+        public static Optional<Saved> decode(String data) {
+            if (data == null || data.length() > MAX_CHARS) {
+                return Optional.empty();
+            }
+            try {
+                JsonObject root = JsonParser.parseString(data).getAsJsonObject();
+                int version = root.get("v").getAsInt();
+                if (version != CURRENT_VERSION) {
+                    return Optional.empty();
+                }
+                JsonArray items = root.getAsJsonArray("items");
+                List<CraftPlanner.Target> targets = new ArrayList<>();
+                for (JsonElement element : items) {
+                    JsonObject entry = element.getAsJsonObject();
+                    targets.add(new CraftPlanner.Target(
+                            entry.get("item").getAsString(), entry.get("count").getAsInt()));
+                }
+                Saved saved = new Saved(
+                        version,
+                        Phase.valueOf(root.get("phase").getAsString()),
+                        targets,
+                        root.get("containers").getAsBoolean(),
+                        root.get("explore").getAsBoolean(),
+                        root.get("children").getAsInt(),
+                        root.get("ticks").getAsInt(),
+                        root.get("radius").getAsInt(),
+                        root.get("blocks").getAsInt(),
+                        root.get("searchTicks").getAsInt(),
+                        root.get("scope").getAsString(),
+                        root.has("principal")
+                                ? UUID.fromString(root.get("principal").getAsString())
+                                : null);
+                return saved.valid() ? Optional.of(saved) : Optional.empty();
+            } catch (RuntimeException malformed) {
+                return Optional.empty();
+            }
+        }
+
+        boolean valid() {
+            if (targets.isEmpty() || targets.size() > CraftPlanner.MAX_TARGETS) {
+                return false;
+            }
+            for (CraftPlanner.Target target : targets) {
+                if (target.item().isBlank() || target.item().length() > MAX_ITEM_CHARS) {
+                    return false;
+                }
+            }
+            return maxChildren >= 1
+                    && maxTicks >= 1
+                    && exploreRadius >= 0
+                    && exploreBlocks >= 0
+                    && exploreTicks >= 0
+                    && searchScope.length() <= MAX_SCOPE_CHARS;
+        }
     }
 
     /** Protects outstanding targets and every recipe ingredient the batch still needs from disposable support. */

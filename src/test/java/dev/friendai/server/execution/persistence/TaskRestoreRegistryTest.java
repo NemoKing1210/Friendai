@@ -11,11 +11,17 @@ import dev.friendai.agent.tools.ToolGroup;
 import dev.friendai.agent.tools.ToolMeta;
 import dev.friendai.execution.queue.FailurePolicy;
 import dev.friendai.execution.queue.GuardAction;
+import dev.friendai.execution.queue.Job;
+import dev.friendai.execution.queue.JobState;
 import dev.friendai.execution.queue.PlanDefinition;
 import dev.friendai.execution.queue.PlanNode;
 import dev.friendai.execution.queue.PlanRecord;
 import dev.friendai.execution.queue.QueuedStep;
 import dev.friendai.execution.tool.AccessLevel;
+import dev.friendai.features.acquisition.minecraft.task.BatchObtainTask;
+import dev.friendai.features.acquisition.minecraft.task.ObtainTask;
+import dev.friendai.features.acquisition.minecraft.task.SearchResourceTask;
+import dev.friendai.features.crafting.CraftPlanner;
 import dev.friendai.features.interaction.minecraft.task.WaitTask;
 import dev.friendai.server.execution.tools.TaskToolDefinition;
 import dev.friendai.task.Task;
@@ -123,6 +129,144 @@ class TaskRestoreRegistryTest {
                         Set.of(first.name(), second.name()),
                         () -> null,
                         (owner, principal) -> null));
+    }
+
+    @Test
+    void anOmittedExploreAndAnExplicitTrueAreTheSameOption() {
+        TaskRestoreRegistry registry = registry();
+
+        assertTrue(
+                registry.interruptedSearch(job("obtain_item", new JsonObject()), null),
+                "omitted explore uses the effective default");
+        assertTrue(
+                registry.interruptedSearch(job("obtain_item", args(true)), null),
+                "an explicit true must behave like the omitted default");
+        assertFalse(
+                registry.interruptedSearch(job("obtain_item", args(false)), null),
+                "explore=false keeps the acquisition out of the search path");
+    }
+
+    @Test
+    void aSavedLocalOrStationPhaseIsRebuiltEvenWhenExploreIsOn() {
+        TaskRestoreRegistry registry = registry();
+
+        assertFalse(
+                registry.interruptedSearch(
+                        job("obtain_item", new JsonObject()), obtainCheckpoint(ObtainTask.Phase.LOCAL)),
+                "a restored local step replans from the live bag");
+        assertFalse(
+                registry.interruptedSearch(job("obtain_item", args(true)), obtainCheckpoint(ObtainTask.Phase.STATION)),
+                "a station step is not a search, whatever the job option says");
+    }
+
+    @Test
+    void aSavedNestedSearchIsNeverResumedUnderAFreshBudget() {
+        TaskRestoreRegistry registry = registry();
+
+        assertTrue(
+                registry.interruptedSearch(
+                        job("obtain_item", new JsonObject()), obtainCheckpoint(ObtainTask.Phase.NESTED_SEARCH)),
+                "a running search is cancelled, not replanned");
+        assertTrue(
+                registry.interruptedSearch(
+                        job("obtain_items", new JsonObject()), batchCheckpoint(BatchObtainTask.Phase.NESTED_SEARCH)),
+                "a batch that was searching is cancelled the same way");
+        assertFalse(
+                registry.interruptedSearch(
+                        job("obtain_items", args(true)), batchCheckpoint(BatchObtainTask.Phase.GATHER)),
+                "a batch that was merely gathering is rebuilt from the live bag");
+    }
+
+    @Test
+    void aLegacyAcquisitionSaveIsReadFromItsChildCheckpoint() {
+        TaskRestoreRegistry registry = registry();
+
+        assertTrue(
+                registry.interruptedSearch(
+                        job("obtain_item", new JsonObject()),
+                        new TaskState(SearchResourceTask.TYPE, "legacy child progress")),
+                "a legacy save whose child was a search is still cancelled");
+        assertFalse(
+                registry.interruptedSearch(job("obtain_item", args(true)), new TaskState("obtain_child", "progress")),
+                "a legacy save whose child was any other step is rebuilt instead of cancelled");
+    }
+
+    @Test
+    void anUnreadableAcquisitionCheckpointIsCancelledRatherThanGuessed() {
+        TaskRestoreRegistry registry = registry();
+
+        assertTrue(
+                registry.interruptedSearch(job("obtain_item", new JsonObject()), new TaskState(ObtainTask.TYPE, "{}")),
+                "a payload that no longer decodes cannot prove the phase");
+        assertTrue(
+                registry.interruptedSearch(job("obtain_items", args(false)), new TaskState(BatchObtainTask.TYPE, "{}")),
+                "a batch payload that no longer decodes cannot prove the phase");
+    }
+
+    @Test
+    void onlyAnAcquisitionSaveIsTakenAsItsOwnBoundary() {
+        TaskRestoreRegistry registry = registry();
+
+        assertTrue(registry.savesOwnBoundary(ObtainTask.TYPE));
+        assertTrue(registry.savesOwnBoundary(BatchObtainTask.TYPE));
+        assertFalse(registry.savesOwnBoundary(SearchResourceTask.TYPE));
+        assertFalse(registry.savesOwnBoundary("obtain_child"));
+    }
+
+    private static TaskRestoreRegistry registry() {
+        return new TaskRestoreRegistry(Map.of(), Map.of(), Set.of(), () -> null, (owner, principal) -> null);
+    }
+
+    private static Job job(String tool, JsonObject args) {
+        return new Job(
+                1,
+                0,
+                tool,
+                args,
+                0,
+                false,
+                0,
+                JobState.RUNNING,
+                List.of(),
+                GuardAction.WAIT,
+                FailurePolicy.ASK,
+                1,
+                0,
+                List.of(),
+                "",
+                0);
+    }
+
+    private static JsonObject args(boolean explore) {
+        JsonObject args = new JsonObject();
+        args.addProperty("explore", explore);
+        return args;
+    }
+
+    private static TaskState obtainCheckpoint(ObtainTask.Phase phase) {
+        return new TaskState(
+                ObtainTask.TYPE,
+                new ObtainTask.Saved(1, phase, "minecraft:oak_log", 4, true, true, 10, 600, 64, 128, 600, "local", null)
+                        .encode());
+    }
+
+    private static TaskState batchCheckpoint(BatchObtainTask.Phase phase) {
+        return new TaskState(
+                BatchObtainTask.TYPE,
+                new BatchObtainTask.Saved(
+                                1,
+                                phase,
+                                List.of(new CraftPlanner.Target("minecraft:stone_pickaxe", 1)),
+                                true,
+                                true,
+                                32,
+                                12_000,
+                                32,
+                                96,
+                                400,
+                                "local",
+                                null)
+                        .encode());
     }
 
     private static TaskToolDefinition task(String name, boolean plannable, boolean restorable) {

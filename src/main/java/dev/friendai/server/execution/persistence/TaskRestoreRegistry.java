@@ -8,6 +8,10 @@ import dev.friendai.execution.queue.PlanRecord;
 import dev.friendai.execution.queue.QueueTradeScope;
 import dev.friendai.execution.queue.QueuedStep;
 import dev.friendai.execution.tool.Caller;
+import dev.friendai.features.acquisition.ObtainOptions;
+import dev.friendai.features.acquisition.minecraft.task.BatchObtainTask;
+import dev.friendai.features.acquisition.minecraft.task.ObtainTask;
+import dev.friendai.features.acquisition.minecraft.task.SearchResourceTask;
 import dev.friendai.features.construction.minecraft.task.BuildCheckpoints;
 import dev.friendai.features.farming.minecraft.task.FarmCheckpoints;
 import dev.friendai.features.navigation.minecraft.task.NavigationCheckpoints;
@@ -203,11 +207,42 @@ public final class TaskRestoreRegistry {
     }
 
     /**
-     * A search hidden inside an acquire step still has no safe checkpoint: an explore obtain is cancelled rather
-     * than resumed by guesswork. The search tools themselves are handled by {@link #recoverableSearch(Job)}.
+     * A search hidden inside an acquire step still has no safe checkpoint: it is cancelled rather than resumed by
+     * guesswork. The saved phase decides, so an omitted {@code explore} and an explicit {@code true} behave the same;
+     * a legacy save that kept only the child's checkpoint is read from that child's type, and a save with no checkpoint
+     * at all falls back to the job's effective option. The search tools themselves are handled by
+     * {@link #recoverableSearch(Job)}.
      */
-    public boolean interruptedSearch(Job job) {
-        return explores(job) && (job.tool().equals("obtain_item") || job.tool().equals("obtain_items"));
+    public boolean interruptedSearch(Job job, TaskState checkpoint) {
+        if (!isAcquisition(job)) {
+            return false;
+        }
+        if (checkpoint == null) {
+            return explores(job);
+        }
+        if (ObtainTask.TYPE.equals(checkpoint.type())) {
+            return ObtainTask.Saved.decode(checkpoint.data())
+                    .map(saved -> saved.phase() == ObtainTask.Phase.NESTED_SEARCH)
+                    .orElse(true);
+        }
+        if (BatchObtainTask.TYPE.equals(checkpoint.type())) {
+            return BatchObtainTask.Saved.decode(checkpoint.data())
+                    .map(saved -> saved.phase() == BatchObtainTask.Phase.NESTED_SEARCH)
+                    .orElse(true);
+        }
+        // Before an acquisition saved its own boundary it wrote its child's checkpoint, so the child type is the only
+        // evidence of the phase: a search is cancelled, any other step is rebuilt from the live bag instead.
+        return SearchResourceTask.TYPE.equals(checkpoint.type());
+    }
+
+    /** True for the composed acquisition jobs; their child checkpoint is never restored as the whole job. */
+    public boolean isAcquisition(Job job) {
+        return ObtainTask.TYPE.equals(job.tool()) || BatchObtainTask.TYPE.equals(job.tool());
+    }
+
+    /** True for an acquisition boundary this version writes; a save from before it kept the child's checkpoint. */
+    public boolean savesOwnBoundary(String type) {
+        return ObtainTask.TYPE.equals(type) || BatchObtainTask.TYPE.equals(type);
     }
 
     /**
@@ -231,9 +266,9 @@ public final class TaskRestoreRegistry {
         return COMMITTING_TOOLS.contains(tool);
     }
 
-    /** An interrupted search is not resumed by guesswork: the job's own explore flag says it may look far away. */
+    /** An interrupted search is not resumed by guesswork: the job's own effective explore option says it may look far away. */
     private static boolean explores(Job job) {
-        return job.args().has("explore") && job.args().get("explore").getAsBoolean();
+        return ObtainOptions.explore(job.args());
     }
 
     private Task create(TaskToolDefinition def, TaskContext context, UUID principal, JsonObject args) {

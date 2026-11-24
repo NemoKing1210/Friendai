@@ -162,13 +162,22 @@ public final class TaskPersistenceCoordinator {
         Task activeTask = null;
         TaskState checkpoint = saved.activeTask();
         Job activeJob = activeJobId == 0 ? null : queue.job(activeJobId).orElse(null);
+        // An acquisition now saves its own boundary. A save written before that kept its child's checkpoint, which is
+        // one step's progress and not the whole order; restoring it would report that step as a finished acquisition,
+        // so the parent is rebuilt from the live bag instead.
+        if (activeJob != null
+                && registry.isAcquisition(activeJob)
+                && checkpoint != null
+                && !registry.savesOwnBoundary(checkpoint.type())) {
+            checkpoint = null;
+        }
         String activeOutcome = null;
         boolean unreadableProgress = false;
         if (activeJobId > 0 && activeJob != null && activeJob.state() == JobState.RUNNING) {
             // A resource search is recoverable: its ledger session keeps the spent budget, and its checkpoint names
             // the exact trip. Marking the live sessions as reload-interrupted lets either path resume them.
             if (registry.recoverableSearch(activeJob)) searchLedger.apply(owner).interruptActive();
-            if (registry.interruptedSearch(activeJob)) {
+            if (registry.interruptedSearch(activeJob, checkpoint)) {
                 searchLedger.apply(owner).interruptActive();
                 if (activeJob.planId() > 0) {
                     queue.cancelPlan(activeJob.planId());
@@ -184,6 +193,9 @@ public final class TaskPersistenceCoordinator {
                     unreadableProgress = !registry.recoverableSearch(activeJob);
                     rejected.add("active task: checkpoint could not be restored");
                 } else if (searchCheckpoint) activeOutcome = "resource search resumed after restart";
+                else if (registry.savesOwnBoundary(checkpoint.type())) {
+                    activeOutcome = "acquisition replanned after restart";
+                }
             }
             if (activeTask == null
                     && queue.job(activeJobId)

@@ -1,5 +1,7 @@
 package dev.friendai.features.acquisition.minecraft.task;
 
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import dev.friendai.debug.DebugTarget;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.log.TaskLogSpan;
@@ -39,7 +41,9 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.ToDoubleFunction;
@@ -56,6 +60,7 @@ import net.minecraft.world.item.ItemStack;
  * twice in a row.
  */
 public final class ObtainTask implements Task {
+    public static final String TYPE = "obtain_item";
     public static final int DEFAULT_MAX_STEPS = 40;
     public static final int DEFAULT_MAX_TICKS = 24_000;
     public static final int DEFAULT_EXPLORE_RADIUS = 64;
@@ -270,7 +275,7 @@ public final class ObtainTask implements Task {
 
     @Override
     public String type() {
-        return "obtain_item";
+        return TYPE;
     }
 
     /** The item this job was sent for is not path material while it is still being gathered. */
@@ -1041,8 +1046,155 @@ public final class ObtainTask implements Task {
         return summary;
     }
 
+    /**
+     * Saves the acquisition's own boundary rather than its child's: a child checkpoint restored on its own would
+     * report a finished step as a finished order and drop the remaining demand. A local or station step is rebuilt by
+     * replanning from the live bag, which is exactly how the parent continues; a nested search is never rebuilt here
+     * because it must not restart under a fresh budget.
+     */
     @Override
     public String saveData() {
-        return current == null ? null : current.saveData();
+        UUID principal = caller == null ? null : caller.uuid();
+        if (principal == null) {
+            return null;
+        }
+        return new Saved(
+                        Saved.CURRENT_VERSION,
+                        phaseOf(currentStep, current == null ? null : current.type()),
+                        item,
+                        count,
+                        useContainers,
+                        explore,
+                        maxSteps,
+                        maxTicks,
+                        exploreRadius,
+                        exploreBlocks,
+                        exploreTicks,
+                        searchScope,
+                        principal)
+                .encode();
+    }
+
+    /** The phase of this acquisition now, so a batch that nests it can record the same boundary. */
+    public Phase phase() {
+        return phaseOf(currentStep, current == null ? null : current.type());
+    }
+
+    /** Where one acquisition was when it was saved. */
+    public enum Phase {
+        PLANNING,
+        LOCAL,
+        STATION,
+        NESTED_SEARCH
+    }
+
+    /**
+     * The phase of one acquisition step: a search child or an explore step is a nested search, a craft or smelt is a
+     * station step, and anything else gathering without a child running is planning.
+     */
+    public static Phase phaseOf(ObtainStep step, String childType) {
+        if (SearchResourceTask.TYPE.equals(childType)) return Phase.NESTED_SEARCH;
+        if (step instanceof ObtainStep.Explore) return Phase.NESTED_SEARCH;
+        if (step == null) return Phase.PLANNING;
+        if (step instanceof ObtainStep.Craft || step instanceof ObtainStep.Smelt) return Phase.STATION;
+        return Phase.LOCAL;
+    }
+
+    /**
+     * The persisted boundary of one acquisition, bounded and versioned. It carries the effective options the task was
+     * built with, so a reload rebuilds the same search reach whether {@code explore} was omitted or written out.
+     */
+    public record Saved(
+            int version,
+            Phase phase,
+            String item,
+            int count,
+            boolean useContainers,
+            boolean explore,
+            int maxSteps,
+            int maxTicks,
+            int exploreRadius,
+            int exploreBlocks,
+            int exploreTicks,
+            String searchScope,
+            UUID principal) {
+        public static final int CURRENT_VERSION = 1;
+        /** The largest descriptor this codec reads or writes; a bigger payload is not an acquisition boundary. */
+        public static final int MAX_CHARS = 2048;
+
+        private static final int MAX_ITEM_CHARS = 128;
+        private static final int MAX_SCOPE_CHARS = 32;
+
+        public Saved {
+            item = item == null ? "" : item.strip();
+            searchScope = searchScope == null || searchScope.isBlank() ? "local" : searchScope.strip();
+        }
+
+        public String encode() {
+            JsonObject root = new JsonObject();
+            root.addProperty("v", version);
+            root.addProperty("phase", phase.name());
+            root.addProperty("item", item);
+            root.addProperty("count", count);
+            root.addProperty("containers", useContainers);
+            root.addProperty("explore", explore);
+            root.addProperty("steps", maxSteps);
+            root.addProperty("ticks", maxTicks);
+            root.addProperty("radius", exploreRadius);
+            root.addProperty("blocks", exploreBlocks);
+            root.addProperty("searchTicks", exploreTicks);
+            root.addProperty("scope", searchScope);
+            if (principal != null) root.addProperty("principal", principal.toString());
+            String text = root.toString();
+            if (text.length() > MAX_CHARS) {
+                throw new IllegalStateException("acquisition checkpoint exceeds size limit");
+            }
+            return text;
+        }
+
+        /** @return the boundary, or empty for a payload this version did not write or that is out of range */
+        public static Optional<Saved> decode(String data) {
+            if (data == null || data.length() > MAX_CHARS) {
+                return Optional.empty();
+            }
+            try {
+                JsonObject root = JsonParser.parseString(data).getAsJsonObject();
+                int version = root.get("v").getAsInt();
+                if (version != CURRENT_VERSION) {
+                    return Optional.empty();
+                }
+                Saved saved = new Saved(
+                        version,
+                        Phase.valueOf(root.get("phase").getAsString()),
+                        root.get("item").getAsString(),
+                        root.get("count").getAsInt(),
+                        root.get("containers").getAsBoolean(),
+                        root.get("explore").getAsBoolean(),
+                        root.get("steps").getAsInt(),
+                        root.get("ticks").getAsInt(),
+                        root.get("radius").getAsInt(),
+                        root.get("blocks").getAsInt(),
+                        root.get("searchTicks").getAsInt(),
+                        root.get("scope").getAsString(),
+                        root.has("principal")
+                                ? UUID.fromString(root.get("principal").getAsString())
+                                : null);
+                return saved.valid() ? Optional.of(saved) : Optional.empty();
+            } catch (RuntimeException malformed) {
+                return Optional.empty();
+            }
+        }
+
+        boolean valid() {
+            return !item.isBlank()
+                    && item.length() <= MAX_ITEM_CHARS
+                    && count >= 1
+                    && maxSteps >= 1
+                    && maxTicks >= 1
+                    && exploreRadius >= 0
+                    && exploreBlocks >= 0
+                    && exploreTicks >= 0
+                    && searchScope.length() <= MAX_SCOPE_CHARS;
+        }
     }
 }

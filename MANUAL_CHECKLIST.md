@@ -885,3 +885,17 @@ The automated suite pins the text split and the layout arithmetic; the click, th
       is still there.
 - [ ] Repeat the edit twice before saving: one job keeps the last arguments.
 - [ ] Confirm `queue_edit action=update` is refused with its reason on a step that already finished.
+
+## An interrupted acquisition resumes as the same order (TODO 166)
+
+- [ ] Queue an order whose materials need crafting at a station the companion does not carry, let it start, then
+      save and quit while it is crafting (or right after it starts gathering): reload and confirm the order
+      continues, the queued delivery steps after it are still there, and the order finishes rather than reporting
+      one step as done.
+- [ ] Ask for the same item twice, once with `explore` left out and once with `explore: true`, and save/quit the
+      world while each is running: after the reload the companion searches exactly as far as it did before,
+      whether the option was written out or not.
+- [ ] Save and quit while the companion is away on a resource search: after the reload the order is stopped with a
+      visible reason instead of starting the search again with a fresh budget.
+- [ ] Do the same with a multi-item `obtain_items` order while it is gathering: it resumes from what is already in
+      the inventory and keeps the later crafted targets.

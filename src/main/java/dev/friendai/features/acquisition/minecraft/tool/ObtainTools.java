@@ -12,6 +12,7 @@ import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.SchemaBuilder;
 import dev.friendai.execution.tool.Tool;
 import dev.friendai.execution.tool.ToolResult;
+import dev.friendai.features.acquisition.ObtainOptions;
 import dev.friendai.features.acquisition.ObtainPlan;
 import dev.friendai.features.acquisition.ObtainPlanner;
 import dev.friendai.features.acquisition.ObtainText;
@@ -22,6 +23,7 @@ import dev.friendai.features.acquisition.minecraft.ObtainSubtaskFactory;
 import dev.friendai.features.acquisition.minecraft.search.DropIndex;
 import dev.friendai.features.acquisition.minecraft.search.WorldScan;
 import dev.friendai.features.acquisition.minecraft.task.BatchObtainTask;
+import dev.friendai.features.acquisition.minecraft.task.ObtainCheckpoints;
 import dev.friendai.features.acquisition.minecraft.task.ObtainTask;
 import dev.friendai.features.crafting.CraftPlanner;
 import dev.friendai.features.crafting.minecraft.RecipeIndex;
@@ -69,22 +71,26 @@ public final class ObtainTools implements FeatureToolContributor {
                 .required("item", "count")
                 .build();
         TaskToolDefinition obtain = new TaskToolDefinition(
-                "obtain_item",
-                "Get an item by any means: take it from nearby chests, mine, hunt, farm, smelt and craft, making the tools needed on the way, and explore if a resource is not nearby. For a crafting goal, request the finished item instead of hand-counting plank, stick or log ingredients; the planner computes the chain and replans from the live inventory after every step. It can use any recipe-compatible nearby log for wood ingredients. Use a specific log id only when the player named that species. For several items that share materials, use obtain_items so the raw materials are gathered once. When the player asks you to bring or fetch an item for them, it is not delivered until you hand it over: queue obtain_item and then give_items to that player in one queue_add. Ask for what the block drops: plain \"stone\" or \"rock\" from a player means minecraft:cobblestone (minecraft:stone is the smelted block), and iron or gold ore means minecraft:raw_iron or minecraft:raw_gold (the ore block itself needs Silk Touch).",
-                schema,
-                (c, a) -> new ObtainTask(
-                        itemId(a.get("item").getAsString()),
-                        a.get("count").getAsInt(),
-                        flag(a, "use_containers", true),
-                        flag(a, "explore", true),
-                        subtaskFactory),
-                (c, caller, a) -> callerObtain(c, caller, a, subtaskFactory),
-                true,
-                AccessLevel.TRUSTED,
-                TaskToolDefinition.QueueTraits.DEFAULT,
-                true,
-                true,
-                metadata("obtain_item"));
+                        "obtain_item",
+                        "Get an item by any means: take it from nearby chests, mine, hunt, farm, smelt and craft, making the tools needed on the way, and explore if a resource is not nearby. For a crafting goal, request the finished item instead of hand-counting plank, stick or log ingredients; the planner computes the chain and replans from the live inventory after every step. It can use any recipe-compatible nearby log for wood ingredients. Use a specific log id only when the player named that species. For several items that share materials, use obtain_items so the raw materials are gathered once. When the player asks you to bring or fetch an item for them, it is not delivered until you hand it over: queue obtain_item and then give_items to that player in one queue_add. Ask for what the block drops: plain \"stone\" or \"rock\" from a player means minecraft:cobblestone (minecraft:stone is the smelted block), and iron or gold ore means minecraft:raw_iron or minecraft:raw_gold (the ore block itself needs Silk Touch).",
+                        schema,
+                        (c, a) -> new ObtainTask(
+                                itemId(a.get("item").getAsString()),
+                                a.get("count").getAsInt(),
+                                ObtainOptions.useContainers(a),
+                                ObtainOptions.explore(a),
+                                subtaskFactory),
+                        (c, caller, a) -> callerObtain(c, caller, a, subtaskFactory),
+                        true,
+                        AccessLevel.TRUSTED,
+                        TaskToolDefinition.QueueTraits.DEFAULT,
+                        true,
+                        true,
+                        metadata("obtain_item"))
+                .withCheckpoint(
+                        ObtainTask.TYPE,
+                        (state, context) -> ObtainCheckpoints.obtain(
+                                state, context, subtaskFactory, ObtainCheckpoints::currentTrading));
         registry.registerTask(obtain);
         JsonObject itemsSchema = SchemaBuilder.object()
                 .string("item", "Item id like minecraft:stone_pickaxe")
@@ -103,7 +109,7 @@ public final class ObtainTools implements FeatureToolContributor {
                         "Get several finished items together. Computes every raw material the set needs, obtains all of it once, then crafts the items; a material shared by several items is gathered once. For an owner order, include both the owner's share and what the companion must keep in each count, then queue one strict give_items step per owner item. Example: {\"items\":[{\"item\":\"minecraft:stone_pickaxe\",\"count\":2},{\"item\":\"minecraft:stone_axe\",\"count\":2}]}; the single-item form {\"item\":\"minecraft:cobblestone\",\"count\":36} is accepted too.",
                         batchSchema,
                         (c, a) -> new BatchObtainTask(
-                                targets(a), flag(a, "use_containers", true), flag(a, "explore", true), subtaskFactory),
+                                targets(a), ObtainOptions.useContainers(a), ObtainOptions.explore(a), subtaskFactory),
                         (c, caller, a) -> callerObtainItems(c, caller, a, subtaskFactory),
                         true,
                         AccessLevel.TRUSTED,
@@ -111,7 +117,11 @@ public final class ObtainTools implements FeatureToolContributor {
                         true,
                         true,
                         metadata("obtain_items"))
-                .withNormalizer(ObtainTools::normalizeBatchArguments);
+                .withNormalizer(ObtainTools::normalizeBatchArguments)
+                .withCheckpoint(
+                        BatchObtainTask.TYPE,
+                        (state, context) -> ObtainCheckpoints.batch(
+                                state, context, subtaskFactory, ObtainCheckpoints::currentTrading));
         registry.registerTask(batch);
         registry.registerTool(
                 new Tool<>() {
@@ -272,50 +282,67 @@ public final class ObtainTools implements FeatureToolContributor {
                 context.resourceSearchSettings());
         int radius = scope.radius();
         int ticks = scope.ticks();
-        TradingContext trading = null;
-        if (owner && caller.uuid() != null && caller.tradingScope() != null) {
-            TradeAuthority authority = context.tradeAuthorityFor(caller.uuid());
-            var budget = authority.budgetFor(caller.tradingScope()).orElse(null);
-            if (budget != null) {
-                List<TraderRecord> eligible = context.tradeBook(caller.uuid()).snapshot().traders().stream()
-                        .map(trader -> {
-                            var offers = trader.offers().stream()
-                                    .filter(offer ->
-                                            authority.permitsPayment(caller.tradingScope(), offer.fingerprint()))
-                                    .toList();
-                            return new TraderRecord(
-                                    trader.id(),
-                                    trader.entityType(),
-                                    trader.dimension(),
-                                    trader.x(),
-                                    trader.y(),
-                                    trader.z(),
-                                    trader.label(),
-                                    trader.profession(),
-                                    trader.level(),
-                                    trader.firstSeen(),
-                                    trader.lastSeen(),
-                                    trader.offersSeen(),
-                                    trader.revision(),
-                                    trader.status(),
-                                    offers);
-                        })
-                        .filter(trader -> !trader.offers().isEmpty())
-                        .toList();
-                if (!eligible.isEmpty())
-                    trading = new TradingContext(
-                            caller.tradingScope(),
-                            eligible,
-                            budget,
-                            companion.hands().player().getUUID(),
-                            ((ServerLevel) companion.level())
-                                    .getServer()
-                                    .overworld()
-                                    .getGameTime());
-            }
-        }
         return new SearchOptions(
-                flag(args, "use_containers", true), flag(args, "explore", true), scope.token(), radius, ticks, trading);
+                ObtainOptions.useContainers(args),
+                ObtainOptions.explore(args),
+                scope.token(),
+                radius,
+                ticks,
+                trading(companion, caller));
+    }
+
+    /**
+     * The owner's current trade authority for one acquisition: the offers the authority still permits, the budget it
+     * allows and the pricing actor. Null when trading is not available to this caller, so a reloaded order trades only
+     * under a scope that still exists.
+     */
+    public static TradingContext trading(CompanionEntity companion, Caller caller) {
+        if (companion == null
+                || caller == null
+                || caller.access() != AccessLevel.OWNER
+                || caller.uuid() == null
+                || caller.tradingScope() == null) {
+            return null;
+        }
+        TaskContext context = taskContext(companion);
+        TradeAuthority authority = context.tradeAuthorityFor(caller.uuid());
+        var budget = authority.budgetFor(caller.tradingScope()).orElse(null);
+        if (budget == null) {
+            return null;
+        }
+        List<TraderRecord> eligible = context.tradeBook(caller.uuid()).snapshot().traders().stream()
+                .map(trader -> {
+                    var offers = trader.offers().stream()
+                            .filter(offer -> authority.permitsPayment(caller.tradingScope(), offer.fingerprint()))
+                            .toList();
+                    return new TraderRecord(
+                            trader.id(),
+                            trader.entityType(),
+                            trader.dimension(),
+                            trader.x(),
+                            trader.y(),
+                            trader.z(),
+                            trader.label(),
+                            trader.profession(),
+                            trader.level(),
+                            trader.firstSeen(),
+                            trader.lastSeen(),
+                            trader.offersSeen(),
+                            trader.revision(),
+                            trader.status(),
+                            offers);
+                })
+                .filter(trader -> !trader.offers().isEmpty())
+                .toList();
+        if (eligible.isEmpty()) {
+            return null;
+        }
+        return new TradingContext(
+                caller.tradingScope(),
+                eligible,
+                budget,
+                companion.hands().player().getUUID(),
+                ((ServerLevel) companion.level()).getServer().overworld().getGameTime());
     }
 
     private static String planText(CompanionEntity companion, String item, int count, SearchOptions options) {
@@ -330,10 +357,6 @@ public final class ObtainTools implements FeatureToolContributor {
                     + ObtainText.scopeNote(options.scope(), options.radius(), options.ticks());
         }
         return ObtainText.previewText(plan, item, count, inventory, options.scope(), options.radius(), options.ticks());
-    }
-
-    private static boolean flag(JsonObject args, String name, boolean fallback) {
-        return args.has(name) && !args.get(name).isJsonNull() ? args.get(name).getAsBoolean() : fallback;
     }
 
     private static TaskContext taskContext(CompanionEntity companion) {
